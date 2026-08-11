@@ -43,6 +43,7 @@
 }
 
 .cljfx-form-list-view {
+  -fx-fixed-cell-size: 2.15em;
   -fx-border-radius: 2px;
   -fx-padding: 0 0 1px 0;
   -fx-border-color: -df-component-dark;
@@ -85,6 +86,7 @@
   -fx-border-color: -df-background-lighter;
 }
 .cljfx-table-view {
+  -fx-fixed-cell-size: 2.08em;
   & > .virtual-flow > .scroll-bar:vertical {
       -fx-opacity: 0;
       -fx-padding: -7;
