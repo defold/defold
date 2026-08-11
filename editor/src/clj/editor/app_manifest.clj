@@ -136,7 +136,6 @@
     "record"
     "record_null"
     "render"
-    "render_font_default"
     "resource"
     "rig"
     "rig_null"
@@ -1022,4 +1021,4 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
-    :lazy-loaded true))
+    :lazy-loaded false))

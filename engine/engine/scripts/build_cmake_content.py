@@ -73,6 +73,17 @@ def copytree(src, dst):
     shutil.copytree(src, dst)
 
 
+def overlay_font_content(font_content_root, destination_root):
+    if not font_content_root:
+        return
+    source = Path(font_content_root).resolve()
+    for path in sorted(source.rglob("*")):
+        if path.is_file():
+            destination = destination_root / path.relative_to(source)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, destination)
+
+
 def iter_content_files(root):
     for rel_dir in BOB_RELATIVE_DIRS:
         current = root / rel_dir
@@ -194,6 +205,7 @@ def build_builtins(args):
     bob_classpath = args.bob_classpath or str(bob_light)
 
     copytree(source_root, work_root)
+    overlay_font_content(args.font_content_root, work_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
     build_inputs = work_root / "builtins-build.inputs"
@@ -256,16 +268,20 @@ def build_builtins(args):
 
 def package_bob(args):
     source_root = Path(args.source_root).resolve()
+    work_root = Path(args.work_root).resolve()
     output = Path(args.output).resolve()
     bob_light = Path(args.bob_light).resolve()
+
+    copytree(source_root, work_root)
+    overlay_font_content(args.font_content_root, work_root)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(bob_light, output)
 
     with zipfile.ZipFile(output, "a", zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted((source_root / "builtins").rglob("*")):
+        for path in sorted((work_root / "builtins").rglob("*")):
             if path.is_file():
-                archive.write(path, path.relative_to(source_root).as_posix())
+                archive.write(path, path.relative_to(work_root).as_posix())
 
 
 def main():
@@ -274,6 +290,7 @@ def main():
 
     builtins = subparsers.add_parser("builtins")
     builtins.add_argument("--source-root", required=True)
+    builtins.add_argument("--font-content-root")
     builtins.add_argument("--work-root", required=True)
     builtins.add_argument("--output-root", required=True)
     builtins.add_argument("--stamp", required=True)
@@ -286,6 +303,8 @@ def main():
 
     bob = subparsers.add_parser("package-bob")
     bob.add_argument("--source-root", required=True)
+    bob.add_argument("--font-content-root")
+    bob.add_argument("--work-root", required=True)
     bob.add_argument("--output", required=True)
     bob.add_argument("--bob-light", required=True)
     bob.set_defaults(func=package_bob)

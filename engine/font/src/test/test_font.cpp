@@ -28,6 +28,8 @@
 
 #include "font.h"
 #include "fontcollection.h"
+#include "glyph_gen.h"
+#include "glyph_vertex.h"
 #include "text_layout.h"
 
 //static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
@@ -78,6 +80,140 @@ protected:
 TEST_F(FontTest, LoadTTF)
 {
     // Empty. Just loading/unloading a font
+}
+
+TEST_F(FontTest, GenerateSdfGlyphWithShadowChannels)
+{
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    params.m_SdfPadding = 6.0f;
+    params.m_OutlineWidth = 1.0f;
+    params.m_ShadowBlur = 2.0f;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
+    ASSERT_EQ(3u, glyph.m_Bitmap.m_Channels);
+    ASSERT_EQ((uint32_t)(glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * 3), glyph.m_Bitmap.m_DataSize);
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    FontFreeGlyph(m_Font, &glyph);
+}
+
+TEST_F(FontTest, GenerateBitmapGlyphWithBlurredOutlineShadow)
+{
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    params.m_SdfPadding = 8.0f;
+    params.m_OutlineWidth = 2.0f;
+    params.m_OutputBitmap = true;
+    params.m_HasOutline = true;
+    params.m_HasShadow = true;
+
+    const uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    FontGlyph source_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &source_glyph));
+
+    params.m_ShadowBlur = 2.0f;
+    FontGlyph blurred_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &blurred_glyph));
+    ASSERT_EQ(source_glyph.m_Bitmap.m_Width, blurred_glyph.m_Bitmap.m_Width);
+    ASSERT_EQ(source_glyph.m_Bitmap.m_Height, blurred_glyph.m_Bitmap.m_Height);
+    ASSERT_EQ(3u, source_glyph.m_Bitmap.m_Channels);
+    ASSERT_EQ(3u, blurred_glyph.m_Bitmap.m_Channels);
+
+    const uint32_t width = source_glyph.m_Bitmap.m_Width;
+    const uint32_t height = source_glyph.m_Bitmap.m_Height;
+    const uint32_t pixel_count = width * height;
+    dmArray<uint8_t> expected;
+    dmArray<uint8_t> target;
+    expected.SetCapacity(pixel_count);
+    expected.SetSize(pixel_count);
+    target.SetCapacity(pixel_count);
+    target.SetSize(pixel_count);
+
+    for (uint32_t i = 0; i < pixel_count; ++i)
+    {
+        const uint32_t offset = i * 3;
+        // Before blur, the shadow source is the complete face-plus-outline silhouette.
+        ASSERT_EQ(source_glyph.m_Bitmap.m_Data[offset + 1], source_glyph.m_Bitmap.m_Data[offset + 2]);
+        expected[i] = source_glyph.m_Bitmap.m_Data[offset + 2];
+    }
+
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                const uint32_t offset = y * width + x;
+                if (x == 0 || y == 0 || x + 1 == width || y + 1 == height)
+                {
+                    target[offset] = expected[offset];
+                    continue;
+                }
+                const uint32_t sum =
+                    expected[offset - width - 1] + 2 * expected[offset - width] + expected[offset - width + 1] +
+                    2 * expected[offset - 1] + 4 * expected[offset] + 2 * expected[offset + 1] +
+                    expected[offset + width - 1] + 2 * expected[offset + width] + expected[offset + width + 1];
+                target[offset] = (uint8_t)(sum / 16);
+            }
+        }
+        memcpy(expected.Begin(), target.Begin(), pixel_count);
+    }
+
+    uint32_t graduated_shadow_pixels = 0;
+    for (uint32_t i = 0; i < pixel_count; ++i)
+    {
+        const uint32_t offset = i * 3;
+        ASSERT_EQ(source_glyph.m_Bitmap.m_Data[offset + 0], blurred_glyph.m_Bitmap.m_Data[offset + 0]);
+        ASSERT_EQ(source_glyph.m_Bitmap.m_Data[offset + 1], blurred_glyph.m_Bitmap.m_Data[offset + 1]);
+        ASSERT_EQ(expected[i], blurred_glyph.m_Bitmap.m_Data[offset + 2]);
+        if (expected[i] > 0 && expected[i] < 255)
+            ++graduated_shadow_pixels;
+    }
+    ASSERT_GT(graduated_shadow_pixels, 0u);
+
+    FontFreeGlyph(m_Font, &source_glyph);
+    FontFreeGlyph(m_Font, &blurred_glyph);
+}
+
+TEST_F(FontTest, GlyphChannelCountMatchesOutputMode)
+{
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(false, false, false, 0.0f));
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(false, true, true, 0.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(false, false, false, 1.0f));
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(true, false, false, 1.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(true, true, false, 0.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(true, false, true, 0.0f));
+}
+
+TEST_F(FontTest, PackLayeredGlyphVertices)
+{
+    ASSERT_EQ(96u, sizeof(FontGlyphVertex));
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
+
+    FontGlyphVertex vertices[18];
+    memset(vertices, 0, sizeof(vertices));
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    dmVMath::Vector4 white(1.0f, 1.0f, 1.0f, 1.0f);
+    dmVMath::Vector4 black(0.0f, 0.0f, 0.0f, 1.0f);
+    FontPackGlyphVertices(&glyph, 1.0f / 256.0f, 1.0f / 256.0f,
+                          0, 0, (uint32_t)glyph.m_Ascent, 1,
+                          3, FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW,
+                          0, 6, transform, 0.0f, 0.0f,
+                          white, black, black, 0.75f, 0.5f, 0.1f, 0.25f,
+                          2.0f, -2.0f, true, vertices);
+
+    ASSERT_EQ(1.0f, vertices[12].m_LayerMasks[0]);
+    ASSERT_EQ(1.0f, vertices[6].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
+    ASSERT_NE(vertices[12].m_Position[0], vertices[0].m_Position[0]);
+    FontFreeGlyph(m_Font, &glyph);
 }
 
 static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints,

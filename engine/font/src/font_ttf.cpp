@@ -279,3 +279,40 @@ bool FontGetGlyphBoxTTF(HFont hfont, uint32_t glyph_index, int32_t* x0, int32_t*
     x0 = y0 = x1 = y1 = 0;
     return stbtt_GetGlyphBox(&font->m_Font, glyph_index, x0, y0, x1, y1);
 }
+
+FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph)
+{
+    if (!hfont || !glyph || glyph_index == 0 || scale <= 0.0f || padding <= 0.0f)
+        return FONT_RESULT_ERROR;
+
+    TTFFont* font = ToFont(hfont);
+    stbtt_fontinfo* info = &font->m_Font;
+    memset(glyph, 0, sizeof(*glyph));
+
+    int advance = 0;
+    int left_bearing = 0;
+    stbtt_GetGlyphHMetrics(info, glyph_index, &advance, &left_bearing);
+
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
+    stbtt_GetGlyphBitmapBoxSubpixel(info, glyph_index, scale, scale, 0.0f, 0.0f, &x0, &y0, &x1, &y1);
+    if (x0 != x1 && y0 != y1)
+    {
+        const int sdf_padding = (int)padding;
+        x0 -= sdf_padding;
+        y0 -= sdf_padding;
+        x1 += sdf_padding;
+        y1 += sdf_padding;
+    }
+
+    glyph->m_GlyphIndex = glyph_index;
+    glyph->m_Width = (float)(x1 - x0);
+    glyph->m_Height = (float)(y1 - y0);
+    glyph->m_Advance = advance * scale;
+    glyph->m_LeftBearing = left_bearing * scale;
+    glyph->m_Ascent = -y0;
+    glyph->m_Descent = y1;
+    return FONT_RESULT_OK;
+}

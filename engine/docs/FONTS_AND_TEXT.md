@@ -73,7 +73,7 @@ The main text render loop is in `engine/render/src/render/font/font_renderer.cpp
 
 The render library also manages the texture cache, via its `HFontMap`
 
-Final vertex data generation is handled by `dmRender::CreateFontVertexData` in `engine/render/src/render/font/default/font_default_vertex.cpp`.
+Final vertex data generation is coordinated by `dmRender::CreateFontVertexData` in `engine/render/src/render/font/font_renderer.cpp`. The `font` library handles fonts, glyph generation, and text layout without depending on graphics. The `font_render` library in `engine/font/src/render` owns the fixed `FontGlyphVertex` layout, packs glyph vertices, and creates the matching graphics vertex declaration. The `fontc_shared` C/FFM boundary lives separately in `engine/font/src/fontc` and links the full-text-shaping font implementation with `font_render`.
 
 For distance-field fonts, SDF smoothing is computed in screen space. The renderer derives a pixels-per-local-unit scale from the current view-projection matrix and viewport and uses it to keep edge thickness stable under camera zoom and perspective. If the projection is invalid for a text entry (e.g. clip `w` near zero or a zero-sized viewport), it falls back to the local/world scale.
 
@@ -142,4 +142,3 @@ The scripting module allows for associating a compatible `HFont` with a `HFontCo
 In particular, you can get a `HFont` from a `HFontCollection` (.fontc) and associate it with another `HFontCollection`. This will increase the reference count of the underlying `HFont` resource (.ttf).
 
 The scripting api will also allow for generating new glyphs on-the-fly. This operation is asynchronous, as the bitmap generation is time consuming.
-

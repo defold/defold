@@ -16,11 +16,13 @@
 #include "fontmap.h"
 #include "fontmap_private.h"
 #include "font_renderer_private.h"
-#include "font_renderer_api.h"
 
 #include <dlib/math.h>
 #include <dlib/mutex.h>
+#include <dlib/profile.h>
 #include <dlib/zlib.h>
+
+#include <font/text_layout.h>
 
 #include <algorithm> // std::sort
 
@@ -327,8 +329,25 @@ namespace dmRender
 
     void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics)
     {
+        DM_PROFILE(__FUNCTION__);
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        GetTextMetrics(font_map->m_FontRenderBackend, font_map, text, settings, metrics);
+
+        dmArray<uint32_t> codepoints;
+        TextToCodePoints(text, codepoints);
+
+        settings->m_Size = font_map->m_Size;
+
+        HTextLayout layout = 0;
+        TextResult  result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), settings, &layout);
+        if (result == TEXT_RESULT_OK)
+        {
+            TextLayoutGetBounds(layout, &metrics->m_Width, &metrics->m_Height);
+            metrics->m_LineCount = TextLayoutGetLineCount(layout);
+            metrics->m_MaxAscent = font_map->m_MaxAscent;
+            metrics->m_MaxDescent = font_map->m_MaxDescent;
+        }
+
+        TextLayoutRelease(layout);
     }
 
     void GetTextMetrics(HFontMap font_map, HTextLayout layout, TextMetrics* metrics)

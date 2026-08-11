@@ -18,18 +18,105 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.font :as font]
-            [editor.pipeline.font-gen :as font-gen]
+            [editor.form :as form]
+            [editor.game-project :as game-project]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
-  (:import [com.dynamo.render.proto Font$FontDesc]))
+  (:import [com.dynamo.bob.font FontRenderer$Params]
+           [com.dynamo.render.proto Font$FontDesc]
+           [javax.vecmath Matrix4d]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
 (defn- prop! [node-id label val]
-  (g/transact (g/set-property node-id label val)))
+  (g/transact {:undoable false}
+    (g/set-property node-id label val)))
+
+(deftest preview-text-respects-glyph-cache-capacity
+  (let [font-map {:cache-width 20
+                  :cache-height 20
+                  :cache-cell-width 10
+                  :cache-cell-height 10
+                  :glyphs (mapv (fn [character]
+                                  {:character character
+                                   :width 5
+                                   :advance 10.0})
+                                (range (int \A) (inc (int \F))))}]
+    (is (= "AB CD" ((ns-resolve 'editor.font 'produce-preview-text)
+                     {:font-map font-map})))))
+
+(deftest effective-sdf-scale-test
+  (let [effective-sdf-scale (ns-resolve 'editor.font 'effective-sdf-scale)
+        identity-transform (doto (Matrix4d.)
+                             (.setIdentity))
+        scaled-transform (doto (Matrix4d.)
+                           (.setIdentity)
+                           (.setScale 2.0))]
+    (testing "uses the projected screen scale when available"
+      (is (= 0.5 (effective-sdf-scale 0.25 identity-transform)))
+      (is (= 2.0 (effective-sdf-scale 2.0 identity-transform))))
+    (testing "falls back to the local transform scale when projection is invalid"
+      (is (= 1.0 (effective-sdf-scale 0.0 identity-transform)))
+      (is (= 2.0 (effective-sdf-scale 0.0 scaled-transform))))))
+
+(deftest native-sdf-limit-test
+  (let [native-sdf-limit (ns-resolve 'editor.font 'native-sdf-limit)]
+    (is (= 0.75 (native-sdf-limit 3.0 0.0)))
+    (is (< (native-sdf-limit 6.0 2.0)
+           (native-sdf-limit 6.0 1.0)))))
+
+(deftest static-native-preview-character-set
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")])
+      (let [font-map (g/node-value font-node :font-map)
+            restricted-layout (font/layout-text font-map "A B" false 0 0 1)
+            expected-layout (font/layout-text font-map "A" false 0 0 1)]
+        (is (= "A B" (:text restricted-layout)))
+        (is (= "A" (:native-text restricted-layout)))
+        (is (= (:width expected-layout) (:width restricted-layout)))
+        (is (= (:height expected-layout) (:height restricted-layout)))))))
+
+(defn- font-map-uses-text-shaping? [font-node]
+  (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
+                                                    [:native-renderer-spec :render-params])]
+    (.-useTextShaping render-params)))
+
+(deftest app-manifest-layout-selection
+  (test-util/with-loaded-project
+    (let [game-project (test-util/resource-node project "/game.project")
+          font-node (test-util/resource-node project "/editor1/test.font")
+          app-manifest (test-util/resource-node project "/app_manifest/default.appmanifest")]
+      (is (true? (g/node-value app-manifest :loaded)))
+      (is (false? (font-map-uses-text-shaping? font-node)))
+      (g/transact {:undoable false}
+        (form/set-value (:form-ops (g/node-value game-project :form-data))
+                        ["native_extension" "app_manifest"]
+                        (g/node-value app-manifest :resource)))
+      (is (false? (font-map-uses-text-shaping? font-node)))
+      (g/transact {:undoable false}
+        (g/set-property app-manifest :use-font-layout true))
+      (testing "static fonts continue using legacy layout"
+        (is (false? (font-map-uses-text-shaping? font-node))))
+      (testing "runtime-generated fonts use text shaping"
+        (game-project/set-setting! game-project ["font" "runtime_generation"] true)
+        (is (true? (font-map-uses-text-shaping? font-node)))))))
+
+(deftest native-shadow-blur-does-not-depend-on-face-alpha
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :alpha 0.0)
+         (g/set-property font-node :shadow-alpha 1.0)
+         (g/set-property font-node :shadow-blur 4.0)])
+      (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
+                                                       [:native-renderer-spec :render-params])]
+        (is (= 4.0 (double (.-shadowBlur render-params))))))))
 
 (deftest load-material-render-data
   (test-util/with-loaded-project
@@ -81,18 +168,20 @@
           pre-text (g/node-value node-id :preview-text)
           no-break (s/replace pre-text " " "")
           [w h] (font/measure font-map pre-text true (:cache-width font-map) 0 1)
-          [ew eh] (font/measure font-map no-break true (:cache-width font-map) 0 1)]
+          [ew eh] (font/measure font-map no-break true (:cache-width font-map) 0 1)
+          text-layout (font/layout-text font-map pre-text false 0 0.125 1)]
       (is (.contains pre-text " "))
       (is (not (.contains no-break " ")))
       (is (< w ew))
-      (is (< eh h)))))
+      (is (< eh h))
+      (is (= 0.125 (:text-tracking text-layout))))))
 
 (deftest build-targets-do-not-generate-font-map
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/fonts/score.font")]
       (g/clear-system-cache!)
-      (with-redefs [font-gen/generate (fn [& _]
-                                        (throw (AssertionError. "font-map should not be generated for build-targets")))]
+      (with-redefs [font/compile-font (fn [& _]
+                                       (throw (AssertionError. "font-map should not be generated for build-targets")))]
         (let [build-targets (g/node-value node-id :build-targets)]
           (when (is (not (g/error? build-targets)))
             (is (some? (coll/some #(get-in % [:user-data :pb-map :glyph-bank]) build-targets)))))))))
