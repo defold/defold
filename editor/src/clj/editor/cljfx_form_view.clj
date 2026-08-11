@@ -65,6 +65,7 @@
             [util.text-util :as text-util])
   (:import [com.defold.control DefoldStringConverter]
            [java.io File]
+           [javafx.beans.property DoubleProperty]
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
@@ -75,8 +76,6 @@
 
 (def ^:private line-height 27)
 (def ^:private line-spacing 12)
-
-(def ^:private cell-height (inc line-height))
 
 (def ^:private small-field-width 120)
 (def ^:private normal-field-width 400)
@@ -655,6 +654,32 @@
 
 (def ^:private remove-message (localization/message "form.context-menu.remove"))
 
+(defn- bind-pref-height-to-rows!
+  [^DoubleProperty pref-height ^DoubleProperty cell-size ^double rows ^double extra]
+  (.bind pref-height (.add (.multiply cell-size rows) extra)))
+
+(def ^:private prop-list-rows
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^ListView view rows]
+        (bind-pref-height-to-rows!
+          (.prefHeightProperty view)
+          (.fixedCellSizeProperty view)
+          (double rows)
+          12.0)))
+    fx.lifecycle/scalar))
+
+(def ^:private prop-table-rows
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^TableView view rows]
+        (bind-pref-height-to-rows!
+          (.prefHeightProperty view)
+          (.fixedCellSizeProperty view)
+          (inc (double rows))
+          11.0)))
+    fx.lifecycle/scalar))
+
 (def ^:private prop-list-selected-indices
   (fx/make-prop
     (fx.mutator/setter
@@ -713,6 +738,7 @@
                                   ;; item count is used as a "refresh key", i.e.
                                   ;; it forces re-selection on item remove
                                   prop-list-selected-indices [selected-indices (count value)]
+                                  prop-list-rows (max (count value) 1)
                                   :on-selected-indices-changed {:event-type :list-select
                                                                 :state-path state-path}}
                           :desc
@@ -725,12 +751,6 @@
                                            :state-path state-path}
                            :on-edit-cancel {:event-type :on-list-edit-cancel
                                             :state-path state-path}
-                           :pref-height (+ 2                ;; top and bottom insets
-                                           1                ;; bottom padding
-                                           9                ;; horizontal scrollbar height
-                                           (* cell-height
-                                              (max (count value) 1)))
-                           :fixed-cell-size cell-height
                            :context-menu {:fx/type fx.context-menu/lifecycle
                                           :items [{:fx/type fx.menu-item/lifecycle
                                                    :text (localization-state add-message)
@@ -1146,17 +1166,12 @@
                           :desc {:fx/type fx.ext.table-view/with-selection-props
                                  :props {:selection-mode :multiple
                                          :selected-indices (vec selected-indices)
+                                         prop-table-rows (max 1 (count value))
                                          :on-selected-indices-changed {:event-type :table-select
                                                                        :state-path state-path}}
                                  :desc {:fx/type fx.table-view/lifecycle
                                         :style-class ["table-view" "cljfx-table-view"]
                                         :editable true
-                                        :fixed-cell-size line-height
-                                        :pref-height (+ line-height ;; header
-                                                        2   ;; insets
-                                                        9   ;; bottom scrollbar
-                                                        (* line-height
-                                                           (max 1 (count value))))
                                         :column-resize-policy custom-table-resize-policy
                                         :columns (mapv #(table-column % field)
                                                        columns)
