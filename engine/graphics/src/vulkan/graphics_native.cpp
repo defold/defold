@@ -145,11 +145,11 @@ namespace dmGraphics
     void VulkanCloseWindow(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
+        VulkanStopAsyncProcessing(context);
+
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            VkDevice vk_device = context->m_LogicalDevice.m_Device;
-
-            SynchronizeDevice(vk_device);
+            SynchronizeDevice(&context->m_LogicalDevice);
 
             VulkanDestroyResources(_context);
 

@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.form :as form]
+            [editor.game-project :as game-project]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -114,7 +115,22 @@
       (is (false? (font-map-uses-text-shaping? font-node)))
       (g/transact {:undoable false}
         (g/set-property app-manifest :use-font-layout true))
-      (is (true? (font-map-uses-text-shaping? font-node))))))
+      (testing "static fonts continue using legacy layout"
+        (is (false? (font-map-uses-text-shaping? font-node))))
+      (testing "runtime-generated fonts use text shaping"
+        (game-project/set-setting! game-project ["font" "runtime_generation"] true)
+        (is (true? (font-map-uses-text-shaping? font-node)))))))
+
+(deftest native-shadow-blur-does-not-depend-on-face-alpha
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :alpha 0.0)
+         (g/set-property font-node :shadow-alpha 1.0)
+         (g/set-property font-node :shadow-blur 4.0)])
+      (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
+                                                       [:native-renderer-spec :render-params])]
+        (is (= 4.0 (double (.-shadowBlur render-params))))))))
 
 (deftest load-material-render-data
   (test-util/with-loaded-project
