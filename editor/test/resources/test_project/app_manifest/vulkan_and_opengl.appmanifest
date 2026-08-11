@@ -95,6 +95,18 @@ platforms:
             linkFlags: []
             jetifier: true
 
+    x86_64-android:
+        context:
+            excludeLibs: ["dmglfw_vulkan"]
+            excludeJars: []
+            excludeDynamicLibs: ["vulkan"]
+            excludeSymbols: []
+            symbols: ["GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan"]
+            libs: ["graphics_opengles", "graphics_vulkan", "dmglfw"]
+            dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
+            linkFlags: []
+            jetifier: true
+
     armv7-ios:
         context:
             excludeLibs: []
