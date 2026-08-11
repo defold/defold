@@ -273,6 +273,7 @@ namespace dmGraphics
      * @member TEXTURE_FORMAT_RG16F                Half-precision float two channels
      * @member TEXTURE_FORMAT_R32F                 Full 32-bit float single channel
      * @member TEXTURE_FORMAT_RG32F                Full 32-bit float two channels
+     * @member TEXTURE_FORMAT_R16_UNORM            Normalized unsigned 16-bit single channel
      * @member TEXTURE_FORMAT_RGBA32UI             Internal: 32-bit unsigned integer RGBA (not script-exposed)
      * @member TEXTURE_FORMAT_BGRA8U               Internal: 32-bit BGRA layout
      * @member TEXTURE_FORMAT_R32UI                Internal: 32-bit unsigned integer single channel
@@ -343,6 +344,7 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_ASTC_10X10      = 43,
         TEXTURE_FORMAT_RGBA_ASTC_12X10      = 44,
         TEXTURE_FORMAT_RGBA_ASTC_12X12      = 45,
+        TEXTURE_FORMAT_R16_UNORM            = 46,
 
         TEXTURE_FORMAT_COUNT
     };

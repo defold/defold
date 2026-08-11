@@ -388,6 +388,7 @@ namespace dmTexc
         case PF_L8:         return 1;
         case PF_RGBA16F:    return 8;
         case PF_RGBA32F:    return 16;
+        case PF_R16_UNORM:  return 2;
 
         default:
             assert("not supported");
@@ -413,6 +414,16 @@ namespace dmTexc
         case PF_R4G4B4A4:   RGBA4444ToRGBA8888((uint16_t*)input, width, height, out); break;
         case PF_A8B8G8R8:   ABGR8888ToRGBA8888(input, width, height, out); break;
         case PF_R8G8B8A8:   memcpy(out, input, width*height*4); break;
+        case PF_R16_UNORM:
+        {
+            const uint16_t* src = (const uint16_t*)input;
+            for (uint32_t i = 0; i < width * height; ++i)
+            {
+                uint8_t v = (uint8_t)((src[i] + 128) / 257);
+                out[i*4+0] = out[i*4+1] = out[i*4+2] = v; out[i*4+3] = 255;
+            }
+            break;
+        }
         default:
             dmLogError("Format not yet supported: %d", pf);
             return false;
@@ -430,6 +441,12 @@ namespace dmTexc
         case PF_R5G6B5:     RGBA8888ToRGB565(input, width, height, (uint16_t*)out_data); break;
         case PF_R4G4B4A4:   RGBA8888ToRGBA4444(input, width, height, (uint16_t*)out_data); break;
         case PF_R8G8B8A8:   memcpy((uint8_t*)out_data, input, width*height*4); break;
+        case PF_R16_UNORM:
+        {
+            uint16_t* dst = (uint16_t*)out_data;
+            for (uint32_t i = 0; i < width * height; ++i) dst[i] = (uint16_t)(input[i*4] * 257u);
+            break;
+        }
         default:
             dmLogError("ConvertRGBA8888ToPf: Format not yet supported: %d", pf);
         }
@@ -494,6 +511,18 @@ namespace dmTexc
             for (uint32_t i = 0; i < component_count; ++i)
             {
                 dst[i] = FloatToHalf(src[i]);
+            }
+            return true;
+        }
+        case PF_R16_UNORM:
+        {
+            const float* src = (const float*)input;
+            uint16_t* dst = (uint16_t*)out_data;
+            uint32_t pixel_count = width * height;
+            for (uint32_t i = 0; i < pixel_count; ++i)
+            {
+                float value = src[i * 4] < 0.0f ? 0.0f : (src[i * 4] > 1.0f ? 1.0f : src[i * 4]);
+                dst[i] = (uint16_t)(value * 65535.0f + 0.5f);
             }
             return true;
         }

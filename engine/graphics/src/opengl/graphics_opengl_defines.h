@@ -309,6 +309,11 @@
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (0x822D)
 #endif
+#ifdef GL_R16
+#define DMGRAPHICS_TEXTURE_FORMAT_R16                       (GL_R16)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_R16                       (0x822A)
+#endif
 
 #if defined(GL_R32F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (GL_R32F_EXT)

@@ -611,6 +611,13 @@ namespace dmScript
      */
 
     /*#
+     * Normalized unsigned 16-bit single-channel texture format.
+     * May be nil if the graphics driver doesn't support it.
+     * @name graphics.TEXTURE_FORMAT_R16_UNORM
+     * @constant
+     */
+
+    /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG16F
      * @constant
@@ -1090,6 +1097,7 @@ namespace dmScript
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG16F);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R32F);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG32F);
+        SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R16_UNORM);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA32UI);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_BGRA8U);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R32UI);

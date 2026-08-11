@@ -263,6 +263,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG16F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R16_UNORM);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32UI);
 
             // ASTC
@@ -795,6 +796,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RG16F:              return 32;
         case TEXTURE_FORMAT_R32F:               return 32;
         case TEXTURE_FORMAT_RG32F:              return 64;
+        case TEXTURE_FORMAT_R16_UNORM:          return 16;
         case TEXTURE_FORMAT_RGBA32UI:           return 128;
         case TEXTURE_FORMAT_BGRA8U:             return 32;
         case TEXTURE_FORMAT_R32UI:              return 32;

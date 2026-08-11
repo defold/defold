@@ -38,6 +38,7 @@ public class TextureCompressorUncompressed implements ITextureCompressor {
         supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
         supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_RGBA16F);
         supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_RGBA32F);
+        supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_R16_UNORM);
     }
 
     public static String GetMigratedCompressionPreset() {

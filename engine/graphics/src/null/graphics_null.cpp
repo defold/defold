@@ -103,6 +103,7 @@ namespace dmGraphics
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_16BPP;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R16_UNORM;
 
         // Synthetic limits for the null adapter — these are not queried from any
         // hardware, just generous defaults that roughly mirror Vulkan / D3D12

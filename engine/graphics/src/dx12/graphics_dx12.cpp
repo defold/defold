@@ -194,6 +194,7 @@ namespace dmGraphics
             case TEXTURE_FORMAT_RGBA16F:                 return DXGI_FORMAT_R16G16B16A16_FLOAT;
             case TEXTURE_FORMAT_RGBA32F:                 return DXGI_FORMAT_R32G32B32A32_FLOAT;
             case TEXTURE_FORMAT_R16F:                    return DXGI_FORMAT_R16_FLOAT;
+            case TEXTURE_FORMAT_R16_UNORM:               return DXGI_FORMAT_R16_UNORM;
             case TEXTURE_FORMAT_RG16F:                   return DXGI_FORMAT_R16G16_FLOAT;
             case TEXTURE_FORMAT_R32F:                    return DXGI_FORMAT_R32_FLOAT;
             case TEXTURE_FORMAT_RG32F:                   return DXGI_FORMAT_R32G32_FLOAT;
@@ -224,6 +225,7 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_RGBA16F,
                                             TEXTURE_FORMAT_RGBA32F,
                                             TEXTURE_FORMAT_R16F,
+                                            TEXTURE_FORMAT_R16_UNORM,
                                             TEXTURE_FORMAT_RG16F,
                                             TEXTURE_FORMAT_R32F,
                                             TEXTURE_FORMAT_RG32F,

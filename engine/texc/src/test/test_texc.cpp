@@ -598,6 +598,23 @@ TEST(TexcCompileTestASTC, EncodeHDR)
     free(out);
 }
 
+TEST(TexcCompileTest, EncodeR16UNorm)
+{
+    uint8_t rgba[] = { 0,0,0,255, 128,0,0,255, 255,0,0,255 };
+    dmTexc::DefaultEncodeSettings settings;
+    memset(&settings, 0, sizeof(settings));
+    settings.m_Width = 3; settings.m_Height = 1;
+    settings.m_PixelFormat = dmTexc::PF_R8G8B8A8;
+    settings.m_OutPixelFormat = dmTexc::PF_R16_UNORM;
+    settings.m_Data = rgba; settings.m_DataCount = sizeof(rgba);
+    uint8_t* output = 0; uint32_t output_size = 0;
+    ASSERT_TRUE(dmTexc::DefaultEncode(&settings, &output, &output_size));
+    ASSERT_EQ(6u, output_size);
+    const uint16_t* values = (const uint16_t*)output;
+    ASSERT_EQ(0u, values[0]); ASSERT_EQ(32896u, values[1]); ASSERT_EQ(65535u, values[2]);
+    free(output);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

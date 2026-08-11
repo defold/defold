@@ -1179,6 +1179,7 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_RG16F,
                                             TEXTURE_FORMAT_R32F,
                                             TEXTURE_FORMAT_RG32F,
+                                            TEXTURE_FORMAT_R16_UNORM,
 
                                             // Misc formats
                                             TEXTURE_FORMAT_RGBA32UI,
@@ -4048,6 +4049,7 @@ bail:
             case TEXTURE_FORMAT_RGBA16F:            return VK_FORMAT_R16G16B16A16_SFLOAT;
             case TEXTURE_FORMAT_RGBA32F:            return VK_FORMAT_R32G32B32A32_SFLOAT;
             case TEXTURE_FORMAT_R16F:               return VK_FORMAT_R16_SFLOAT;
+            case TEXTURE_FORMAT_R16_UNORM:          return VK_FORMAT_R16_UNORM;
             case TEXTURE_FORMAT_RG16F:              return VK_FORMAT_R16G16_SFLOAT;
             case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
             case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;

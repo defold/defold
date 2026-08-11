@@ -61,6 +61,7 @@ namespace dmTexc
 
         PF_RGBA16F,
         PF_RGBA32F,
+        PF_R16_UNORM,
     };
 
     enum ColorSpace

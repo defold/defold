@@ -703,6 +703,7 @@ namespace dmGraphics
             // RGB16F/RGB32F currently map to RGBA Metal formats, but the upload path
             // does not expand RGB float data to RGBA yet, so they are not advertised.
             TEXTURE_FORMAT_R16F,
+            TEXTURE_FORMAT_R16_UNORM,
             TEXTURE_FORMAT_R32F,
             TEXTURE_FORMAT_RG16F,
             TEXTURE_FORMAT_RG32F,
@@ -2840,6 +2841,7 @@ namespace dmGraphics
             case TEXTURE_FORMAT_RGBA16F:           return MTL::PixelFormatRGBA16Float;
             case TEXTURE_FORMAT_RGBA32F:           return MTL::PixelFormatRGBA32Float;
             case TEXTURE_FORMAT_R16F:              return MTL::PixelFormatR16Float;
+            case TEXTURE_FORMAT_R16_UNORM:         return MTL::PixelFormatR16Unorm;
             case TEXTURE_FORMAT_RG16F:             return MTL::PixelFormatRG16Float;
             case TEXTURE_FORMAT_R32F:              return MTL::PixelFormatR32Float;
             case TEXTURE_FORMAT_RG32F:             return MTL::PixelFormatRG32Float;

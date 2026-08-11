@@ -208,6 +208,7 @@ message TextureImage
         TEXTURE_FORMAT_RGBA_ASTC_10X10   = 36;
         TEXTURE_FORMAT_RGBA_ASTC_12X10   = 37;
         TEXTURE_FORMAT_RGBA_ASTC_12X12   = 38;
+        TEXTURE_FORMAT_R16_UNORM         = 39;
     }
 
     message Image

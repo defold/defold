@@ -428,6 +428,7 @@ public class TextureUtil {
             case TEXTURE_FORMAT_RGBA16F:
             case TEXTURE_FORMAT_R16F:
             case TEXTURE_FORMAT_RG16F:
+            case TEXTURE_FORMAT_R16_UNORM:
                 return 2;
             case TEXTURE_FORMAT_RGB32F:
             case TEXTURE_FORMAT_RGBA32F:

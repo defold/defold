@@ -91,6 +91,7 @@ namespace dmGameSystem
             CASE_TF(RG16F);
             CASE_TF(R32F);
             CASE_TF(RG32F);
+            CASE_TF(R16_UNORM);
             // ASTC
             CASE_TF(RGBA_ASTC_4X4);
             CASE_TF(RGBA_ASTC_5X4);
