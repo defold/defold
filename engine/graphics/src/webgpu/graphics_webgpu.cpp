@@ -320,8 +320,6 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
             return WGPUTextureFormat_RGBA32Float;
         case TEXTURE_FORMAT_R16F:
             return WGPUTextureFormat_R16Float;
-        case TEXTURE_FORMAT_R16_UNORM:
-            return WGPUTextureFormat_R16Unorm;
         case TEXTURE_FORMAT_RG16F:
             return WGPUTextureFormat_RG16Float;
         case TEXTURE_FORMAT_R32F:
@@ -1306,7 +1304,6 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA16F;
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R16F;
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R16_UNORM;
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG16F;
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32F;
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG32F;
