@@ -2555,10 +2555,14 @@
                                      (view/connect-resource-node view resource-node))
 
                   :on-closed-fn (fn on-resource-tab-closed [view]
-                                  (let [resource (resource-node/resource (g/now) resource-node)]
-                                    (recent-files/add! prefs resource view-type)
-                                    (when (= :scene (:id view-type))
-                                      (save-scene-camera-prefs! prefs view resource))))}]
+                                  (g/with-auto-evaluation-context evaluation-context
+                                    (when-let [resource-node (some-> (g/node-value view :view-data evaluation-context)
+                                                                    second
+                                                                    :resource-node)]
+                                      (let [resource (resource-node/resource (:basis evaluation-context) resource-node)]
+                                        (recent-files/add! prefs resource view-type)
+                                        (when (= :scene (:id view-type))
+                                          (save-scene-camera-prefs! prefs view resource))))))}]
     (recent-files/add! prefs resource view-type)
     (let [^Tab tab (make-editor-tab! app-view localization tabs tab-spec view-opts)]
       (.setOnSelectionChanged tab (ui/event-handler event
