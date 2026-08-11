@@ -422,7 +422,7 @@ namespace dmGameSystem
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
             delete component;
-            return dmGameObject::CREATE_RESULT_TOO_MANY_COLLISION_OBJECTS;
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
