@@ -202,6 +202,17 @@ protected:
     }
 };
 
+TEST_F(dmRenderScriptTest, TestNativeComputeDispatch)
+{
+    if (!dmGraphics::IsContextFeatureSupported(
+            m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
+        return;
+    ASSERT_EQ(dmRender::RESULT_OK,
+              dmRender::DispatchCompute(m_Context, m_Compute, 0, 0, 1, 1, 1, 0));
+    ASSERT_EQ(dmRender::RESULT_INVALID_PARAMETER,
+              dmRender::DispatchCompute(m_Context, m_Compute, 0, 0, 0, 1, 1, 0));
+}
+
 TEST_F(dmRenderScriptTest, TestNewDelete)
 {
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));

@@ -16,21 +16,12 @@
 #define DM_GAMESYS_RES_COMPUTE_H
 
 #include <render/render.h>
+#include <dmsdk/gamesys/resources/res_compute.h>
 
 #include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
-    struct TextureResource;
-    struct ComputeResource
-    {
-        dmRender::HComputeProgram m_Program;
-        TextureResource*          m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                  m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                  m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        uint32_t                  m_NumTextures;
-    };
-
     dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams* params);
     dmResource::Result ResComputeDestroy(const dmResource::ResourceDestroyParams* params);
     dmResource::Result ResComputeRecreate(const dmResource::ResourceRecreateParams* params);

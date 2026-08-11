@@ -1165,6 +1165,44 @@ namespace dmRender
         TrimTextureBindingTable(render_context);
     }
 
+    Result DispatchCompute(HRenderContext render_context, HComputeProgram compute_program,
+                           const ComputeTextureBinding* bindings, uint32_t binding_count,
+                           uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z,
+                           HNamedConstantBuffer constant_buffer)
+    {
+        if (!render_context || !compute_program || (!bindings && binding_count) ||
+            !group_count_x || !group_count_y || !group_count_z)
+            return RESULT_INVALID_PARAMETER;
+
+        dmGraphics::HContext context = GetGraphicsContext(render_context);
+        if (!dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
+            return RESULT_INVALID_CONTEXT;
+
+        dmGraphics::EnableProgram(context, compute_program->m_Program);
+        ApplyComputeProgramConstants(render_context, compute_program);
+        if (constant_buffer)
+            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
+
+        for (uint32_t i = 0; i < binding_count; ++i)
+        {
+            const ComputeTextureBinding& binding = bindings[i];
+            if (!binding.m_Texture || binding.m_Unit >= RenderObject::MAX_TEXTURE_COUNT)
+                continue;
+            dmGraphics::EnableTexture(context, binding.m_Unit, 0, binding.m_Texture);
+            ApplyProgramSampler(render_context, GetComputeProgramSampler(compute_program, binding.m_Unit),
+                                (uint8_t)binding.m_Unit, binding.m_Texture);
+        }
+
+        ApplyComputeProgramLightBuffers(render_context, compute_program);
+        dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+
+        for (uint32_t i = 0; i < binding_count; ++i)
+            if (bindings[i].m_Texture && bindings[i].m_Unit < RenderObject::MAX_TEXTURE_COUNT)
+                dmGraphics::DisableTexture(context, bindings[i].m_Unit, bindings[i].m_Texture);
+        dmGraphics::DisableProgram(context);
+        return RESULT_OK;
+    }
+
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)

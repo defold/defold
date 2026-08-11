@@ -3266,6 +3266,20 @@ bail:
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
         DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[ix]);
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
+
+        // DispatchCompute promises that shader writes are visible to later
+        // render/compute commands on this context, even when an image remains
+        // in GENERAL layout and therefore does not trigger a layout barrier.
+        VkMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(vk_command_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0, 1, &barrier, 0, 0, 0, 0);
     }
 
     static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)

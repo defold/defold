@@ -59,6 +59,9 @@ namespace dmRender
      */
     typedef struct Material* HMaterial;
 
+    /*# Compute program handle. Compute resources own this handle. */
+    typedef struct ComputeProgram* HComputeProgram;
+
     /*#
      * Font map handle
      * @typedef
@@ -90,6 +93,13 @@ namespace dmRender
     * @name HSampler
     */
     typedef struct Sampler* HSampler;
+
+    /*# One sampled or storage texture bound for a native compute dispatch. */
+    struct ComputeTextureBinding
+    {
+        uint32_t             m_Unit;
+        dmGraphics::HTexture m_Texture;
+    };
 
     /*#
     * Light prototype handle. Used to create light instances.
@@ -708,6 +718,21 @@ namespace dmRender
      * @return is_succeed [type:bool]
      */
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+
+    /*# Return the render program owned by a compiled compute resource. */
+    dmGraphics::HProgram GetComputeProgram(HComputeProgram program);
+
+    /*# Set a compute constant on the program's persistent constant buffer. */
+    void SetComputeProgramConstant(HComputeProgram program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
+
+    /*# Dispatch a compute program from native code.
+     * Shader writes are made visible to later render/compute commands submitted on
+     * the same graphics context. This does not make them CPU-readable.
+     */
+    Result DispatchCompute(HRenderContext render_context, HComputeProgram program,
+                           const ComputeTextureBinding* bindings, uint32_t binding_count,
+                           uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z,
+                           HNamedConstantBuffer constant_buffer);
 
     /*#
      * @name GetMaterialSampler

@@ -1947,6 +1947,25 @@ TEST_F(dmGraphicsTest, TestMaxTextureSize)
     ASSERT_NE(dmGraphics::GetMaxTextureSize(m_Context), 0);
 }
 
+TEST_F(dmGraphicsTest, TestPublicContextCapabilitiesAndLimits)
+{
+    dmGraphics::GraphicsContextLimits limits = {};
+    dmGraphics::GetGraphicsContextLimits(m_Context, limits);
+    ASSERT_NE(0u, limits.m_MaxTextureSize2D);
+    ASSERT_LE(dmGraphics::GetMaxTextureSize(m_Context), limits.m_MaxTextureSize2D);
+    ASSERT_NE(0u, limits.m_MaxVertexAttributes);
+    ASSERT_NE(0u, limits.m_MaxFramebufferWidth);
+    for (uint32_t i = 0; i < dmGraphics::MAX_CONTEXT_FEATURE_COUNT; ++i)
+        (void)dmGraphics::IsContextFeatureSupported(
+                m_Context, (dmGraphics::ContextFeature)i);
+    if (dmGraphics::IsContextFeatureSupported(
+            m_Context, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
+    {
+        ASSERT_NE(0u, limits.m_MaxComputeWorkgroupSizeX);
+        ASSERT_NE(0u, limits.m_MaxComputeWorkgroupInvocations);
+    }
+}
+
 TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
 {
     dmGraphics::TextureCreationParams creation_params;

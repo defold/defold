@@ -93,23 +93,6 @@ namespace dmGraphics
         ASSET_TYPE_RENDER_TARGET = 2,
     };
 
-    enum ContextFeature
-    {
-        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
-        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
-        CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
-        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
-        CONTEXT_FEATURE_VSYNC                  = 4,
-        CONTEXT_FEATURE_INSTANCING             = 5,
-        CONTEXT_FEATURE_3D_TEXTURES            = 6,
-        // ASTC for 2D array textures (paged atlases). Some WebGL/GLES drivers
-        // fail array texture ASTC uploads while 2D ASTC works.
-        CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
-        // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
-        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
-        MAX_CONTEXT_FEATURE_COUNT              = 9,
-    };
-
     // Binding family for shader resources in a program.
     enum ShaderResourceBindingFamily
     {
@@ -124,37 +107,6 @@ namespace dmGraphics
     {
         BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
         AttachmentToBufferType();
-    };
-
-    struct GraphicsContextLimits
-    {
-        // Buffer limits — max bindable range, not the underlying buffer object size.
-        uint64_t    m_MaxUniformBufferRange;
-        uint64_t    m_MaxStorageBufferRange;
-
-        // Texture limits (max dimension in texels — APIs report a dim, not a count)
-        uint32_t    m_MaxTextureSize2D;
-        uint32_t    m_MaxTextureSize3D;
-        uint32_t    m_MaxTextureSizeCube;
-        uint32_t    m_MaxTextureArrayLayers;
-
-        // Framebuffer limits
-        uint32_t    m_MaxFramebufferWidth;
-        uint32_t    m_MaxFramebufferHeight;
-        uint32_t    m_MaxColorAttachments;
-
-        // Per-stage binding limits
-        uint32_t    m_MaxSamplersPerStage;
-        uint32_t    m_MaxTexturesPerStage;
-        uint32_t    m_MaxVertexAttributes;
-        uint32_t    m_MaxVertexBuffers;
-
-        // Compute limits
-        uint32_t    m_MaxComputeWorkgroupSizeX;
-        uint32_t    m_MaxComputeWorkgroupSizeY;
-        uint32_t    m_MaxComputeWorkgroupSizeZ;
-        uint32_t    m_MaxComputeWorkgroupInvocations;
-        uint32_t    m_MaxComputeSharedMemorySize;
     };
 
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).

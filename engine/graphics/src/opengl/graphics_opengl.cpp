@@ -3108,7 +3108,8 @@ static void LogFrameBufferError(GLenum status)
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
 
-            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS);
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS |
+                            DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH);
             CHECK_GL_ERROR;
         }
     #endif

@@ -167,6 +167,44 @@ namespace dmGraphics
         HANDLE_RESULT_ERROR = -2
     };
 
+    /*# Graphics capabilities which can be queried without inspecting the active backend. */
+    enum ContextFeature
+    {
+        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
+        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+        CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
+        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
+        CONTEXT_FEATURE_VSYNC                  = 4,
+        CONTEXT_FEATURE_INSTANCING             = 5,
+        CONTEXT_FEATURE_3D_TEXTURES            = 6,
+        CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
+        MAX_CONTEXT_FEATURE_COUNT              = 9,
+    };
+
+    /*# Backend-independent graphics limits for the active context. */
+    struct GraphicsContextLimits
+    {
+        uint64_t m_MaxUniformBufferRange;
+        uint64_t m_MaxStorageBufferRange;
+        uint32_t m_MaxTextureSize2D;
+        uint32_t m_MaxTextureSize3D;
+        uint32_t m_MaxTextureSizeCube;
+        uint32_t m_MaxTextureArrayLayers;
+        uint32_t m_MaxFramebufferWidth;
+        uint32_t m_MaxFramebufferHeight;
+        uint32_t m_MaxColorAttachments;
+        uint32_t m_MaxSamplersPerStage;
+        uint32_t m_MaxTexturesPerStage;
+        uint32_t m_MaxVertexAttributes;
+        uint32_t m_MaxVertexBuffers;
+        uint32_t m_MaxComputeWorkgroupSizeX;
+        uint32_t m_MaxComputeWorkgroupSizeY;
+        uint32_t m_MaxComputeWorkgroupSizeZ;
+        uint32_t m_MaxComputeWorkgroupInvocations;
+        uint32_t m_MaxComputeSharedMemorySize;
+    };
+
     /*#
      * Attachment points for render targets
      * @enum
@@ -1104,6 +1142,12 @@ namespace dmGraphics
      * @return result [type:bool] true if the texture format was supported
      */
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
+
+    /*# Query whether a context feature is supported by the active adapter. */
+    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
+
+    /*# Copy the graphics limits reported for the active context. */
+    void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits);
 
     /*#
      * @name GetNumSupportedExtensions
