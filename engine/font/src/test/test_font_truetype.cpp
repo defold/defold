@@ -31,6 +31,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+static const uint32_t FORMAT_4_SENTINEL_CODEPOINT = 0xffff;
+
 struct ReferenceFont
 {
     uint8_t*       m_Data;
@@ -344,6 +346,19 @@ TEST(FontTrueTypeReference, TrueTypeGlyf)
     CompareEmptyGlyph(&font, ' ');
     CompareOutline(&font, 'A', true);
     CompareOutline(&font, 0x00e9, true);
+    FreeReferenceFont(&font);
+}
+
+TEST(FontTrueTypeReference, Format4SentinelPadding)
+{
+    // This font's final U+FFFF cmap segment references padding beyond the
+    // declared format 4 subtable. stb_truetype and HarfBuzz both accept it.
+    ReferenceFont font;
+    ASSERT_TRUE(LoadReferenceFont("src/test/data/nuwab.ttf", &font));
+    CompareOutlineType(&font, FONT_OUTLINE_TYPE_GLYF);
+    ASSERT_EQ(55u, FontTrueTypeGetGlyphIndex(font.m_TrueType, 'A'));
+    ASSERT_EQ(112u, FontTrueTypeGetGlyphIndex(font.m_TrueType, 'z'));
+    ASSERT_EQ(0u, FontTrueTypeGetGlyphIndex(font.m_TrueType, FORMAT_4_SENTINEL_CODEPOINT));
     FreeReferenceFont(&font);
 }
 

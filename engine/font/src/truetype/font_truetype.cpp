@@ -481,6 +481,8 @@ static bool ValidateCmap(const FontTrueType* font, const uint8_t* cmap, uint32_t
         uint32_t range_offset = ReadU16(cmap + range_offsets + i * 2);
         if (start > end || (i != 0 && start <= previous_end))
             return false;
+
+        const bool final_sentinel = i == segment_count - 1 && start == MAX_BMP_CODEPOINT && end == MAX_BMP_CODEPOINT;
         for (uint32_t codepoint = start; codepoint <= end; ++codepoint)
         {
             uint32_t glyph;
@@ -492,10 +494,22 @@ static bool ValidateCmap(const FontTrueType* font, const uint8_t* cmap, uint32_t
             {
                 uint32_t address = range_offsets + i * 2 + range_offset + (codepoint - start) * 2;
                 if (address + 2 > size)
-                    return false;
-                glyph = ReadU16(cmap + address);
-                if (glyph)
-                    glyph = (glyph + delta) & MAX_BMP_CODEPOINT;
+                {
+                    // Some fonts place the unused U+FFFF sentinel glyph word
+                    // in padding beyond the format 4 subtable. stb_truetype
+                    // and HarfBuzz accept these fonts, so ignore only this
+                    // terminal non-character mapping.
+                    if (!final_sentinel)
+                        return false;
+
+                    glyph = 0;
+                }
+                else
+                {
+                    glyph = ReadU16(cmap + address);
+                    if (glyph)
+                        glyph = (glyph + delta) & MAX_BMP_CODEPOINT;
+                }
             }
             if (glyph >= font->m_NumGlyphs)
                 return false;
