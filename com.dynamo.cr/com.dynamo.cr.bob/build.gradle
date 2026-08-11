@@ -728,6 +728,11 @@ task installBobLight(dependsOn: 'distBobLight') {
         }
 
         destinationDir.mkdirs()
+        if (destinationFile.exists()
+                && java.nio.file.Files.mismatch(sourceFile.toPath(), destinationFile.toPath()) == -1L) {
+            return
+        }
+
         java.nio.file.Files.copy(sourceFile.toPath(), temporaryFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         try {
             java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),
