@@ -15,6 +15,7 @@
 #include "fontc.h"
 #include "font.h"
 #include "font_ttf.h"
+#include "harfbuzz/font_harfbuzz.h"
 
 #include <glyph_gen.h>
 #include <glyph_vertex.h>

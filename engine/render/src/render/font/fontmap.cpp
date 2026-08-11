@@ -408,7 +408,7 @@ namespace dmRender
         FontResult r;
         FontType type = FontGetType(font);
 
-        if (type == FONT_TYPE_STBTTF)
+        if (type == FONT_TYPE_TTF || type == FONT_TYPE_OTF)
         {
             // Since generating the SDF takes a long time (several milliseconds)
             // we simply opt out of creating that data just-in-time

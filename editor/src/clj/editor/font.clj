@@ -1163,7 +1163,7 @@
   (g/connect project :settings self :project-settings))
 
 (g/defnode OpenTypeFontSourceNode
-  (inherits resource-node/ResourceNode))
+  (inherits TrueTypeFontSourceNode))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))
@@ -1186,7 +1186,7 @@
               new-line (>= line-width cache-width)
               line-width (if new-line 0 line-width)]
           (when new-line
-            (.append result \space))
+            (.append result \newline))
           (.appendCodePoint result (int (:character glyph)))
           (recur (inc glyph-index)
                  (+ line-width (int (:advance glyph)))))))))
@@ -1456,8 +1456,11 @@
       :view-types [:default])
     (workspace/register-resource-type workspace
       :ext "otf"
+      :build-ext "otf"
       :label font-label
       :node-type OpenTypeFontSourceNode
+      :load-fn load-true-type-font-source
+      :stateless? true
       :icon font-icon
       :view-types [:default])))
 

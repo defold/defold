@@ -53,7 +53,7 @@ It is in our plans however.
 
 ### Runtime generation
 
-For fonts that support it (currently only .ttf), we can generate distance fields at runtime. This helps keep the game bundle size to a minimum.
+For `.ttf` and `.otf` fonts, we can generate distance fields at runtime. This helps keep the game bundle size to a minimum.
 
 This is an opt-in feature that requires building the engine locally with `--enable-feature=font_layout` or using an app manifest.
 
@@ -108,7 +108,7 @@ This library handles file formats, component logic, and scripting.
 ### FontResource
 
 In `engine/gamesys/src/gamesys/resources/res_font.cpp` we load a `.fontc` and create a `FontResource*`. This represents an `HFontCollection`.
-At this stage, the file format is either an offline font (.glyphbankc), or a runtime font (.ttf).
+At this stage, the file format is either an offline font (`.glyphbankc`), or a runtime font (`.ttf` or `.otf`).
 
 `res_font.cpp` is responsible for producing data for a glyph index: glyph info or glyph distance-field bitmap. See `OnGlyphCacheMiss()` in `res_font.cpp`.
 
@@ -139,6 +139,6 @@ They register a text entry with the renderer each frame.
 Scripting is handled by the `font.*` Lua module (see `script_font.cpp`).
 
 The scripting module allows for associating a compatible `HFont` with a `HFontCollection`.
-In particular, you can get a `HFont` from a `HFontCollection` (.fontc) and associate it with another `HFontCollection`. This will increase the reference count of the underlying `HFont` resource (.ttf).
+In particular, you can get a `HFont` from a `HFontCollection` (.fontc) and associate it with another `HFontCollection`. This will increase the reference count of the underlying `HFont` resource (`.ttf` or `.otf`).
 
 The scripting api will also allow for generating new glyphs on-the-fly. This operation is asynchronous, as the bitmap generation is time consuming.

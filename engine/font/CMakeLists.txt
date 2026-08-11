@@ -11,6 +11,8 @@ set(FONT_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(FONT_SRC_DIR "${FONT_ROOT}/src")
 set(FONT_RENDER_SRC_DIR "${FONT_SRC_DIR}/render")
 set(FONTC_SRC_DIR "${FONT_SRC_DIR}/fontc")
+set(FONT_HARFBUZZ_SRC_DIR "${FONT_SRC_DIR}/harfbuzz")
+set(FONT_TRUETYPE_SRC_DIR "${FONT_SRC_DIR}/truetype")
 set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
   "${FONT_SRC_DIR}/fontcollection.h"
@@ -37,6 +39,7 @@ file(GLOB_RECURSE FONT_DMSDK_HEADERS CONFIGURE_DEPENDS
 
 file(GLOB FONT_SOURCES CONFIGURE_DEPENDS "${FONT_SRC_DIR}/*.cpp")
 list(APPEND FONT_SOURCES
+  "${FONT_TRUETYPE_SRC_DIR}/font_truetype.cpp"
   "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
 
 set(FONT_GLYPH_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/glyph_vertex.cpp")
@@ -49,7 +52,13 @@ target_include_directories(font PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}
 target_compile_definitions(font PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
 defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
 
-defold_add_library(font_skribidi STATIC ${FONT_SOURCES})
+# The full-layout path gets mapping, metrics, and outlines from HarfBuzz. Keep
+# the standalone TrueType/OpenType parser in the legacy font library only.
+set(FONT_SKRIBIDI_SOURCES ${FONT_SOURCES})
+list(FILTER FONT_SKRIBIDI_SOURCES EXCLUDE REGEX "/font_truetype\\.cpp$")
+list(APPEND FONT_SKRIBIDI_SOURCES
+  "${FONT_HARFBUZZ_SRC_DIR}/font_harfbuzz.cpp")
+defold_add_library(font_skribidi STATIC ${FONT_SKRIBIDI_SOURCES})
 target_include_directories(font_skribidi PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
 target_compile_definitions(font_skribidi PRIVATE
   "DLIB_LOG_DOMAIN=\"FONT\""

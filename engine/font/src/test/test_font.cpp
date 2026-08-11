@@ -28,6 +28,8 @@
 
 #include "font.h"
 #include "fontcollection.h"
+#include "font_outline.h"
+#include "font_sdf.h"
 #include "glyph_gen.h"
 #include "glyph_vertex.h"
 #include "text_layout.h"
@@ -79,7 +81,256 @@ protected:
 
 TEST_F(FontTest, LoadTTF)
 {
-    // Empty. Just loading/unloading a font
+    ASSERT_EQ(FONT_TYPE_TTF, FontGetType(m_Font));
+}
+
+TEST_F(FontTest, LoadOTFAndGenerateGlyph)
+{
+    HFont font;
+    LoadFont("src/test/data/SourceCodePro-Regular.otf", &font);
+    ASSERT_EQ(FONT_TYPE_OTF, FontGetType(font));
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(font, 32.0f);
+    params.m_SdfPadding = 6.0f;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
+    ASSERT_NE(0u, glyph_index);
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, glyph_index, &params, &glyph));
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    ASSERT_GT(glyph.m_Bitmap.m_Width, 0u);
+    ASSERT_GT(glyph.m_Bitmap.m_Height, 0u);
+    ASSERT_GT(glyph.m_Advance, 0.0f);
+    FontFreeGlyph(font, &glyph);
+    FontDestroy(font);
+}
+
+TEST_F(FontTest, WorkSansOverlappingKGlyphHasNoBuriedEdges)
+{
+    // Work Sans keeps overlapping contours in K. Those overlaps are valid
+    // TrueType outlines, but their buried edges must not contribute to the
+    // distance field or they create dark seams through the filled glyph.
+    HFont font;
+    LoadFont("src/test/data/WorkSans.ttf", &font);
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(font, 64.0f);
+    params.m_SdfPadding = 8.0f;
+    params.m_SdfEdgeValue = 190;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(font, 'K');
+    ASSERT_NE(0u, glyph_index);
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, glyph_index, &params, &glyph));
+    ASSERT_EQ(51u, glyph.m_Bitmap.m_Width);
+    ASSERT_EQ(59u, glyph.m_Bitmap.m_Height);
+
+    // These pixels lie inside the two overlapping joins. Measuring distance
+    // to a buried edge makes the first value too dark, while omitting the
+    // exposed intersection point makes it saturate. Both are regressions.
+    ASSERT_GE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], 205u);
+    ASSERT_LE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], 215u);
+    ASSERT_GE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], 197u);
+    ASSERT_LE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], 207u);
+    ASSERT_GE(glyph.m_Bitmap.m_Data[35 * glyph.m_Bitmap.m_Width + 11], 250u);
+
+    FontFreeGlyph(font, &glyph);
+    FontDestroy(font);
+}
+
+TEST(FontSDF, Rectangle)
+{
+    FontOutlineCommand commands[5] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.0f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 8.0f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 8.0f, 8.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.0f, 8.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_EQ(16u, bitmap.m_Width);
+    ASSERT_EQ(16u, bitmap.m_Height);
+    ASSERT_EQ(-4, offset_x);
+    ASSERT_EQ(-12, offset_y);
+    ASSERT_GT(bitmap.m_Data[8 * bitmap.m_Width + 8], 128u);
+    ASSERT_LT(bitmap.m_Data[0], 128u);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontSDF, PreservesSubpixelEdgeDistance)
+{
+    FontOutlineCommand commands[5] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.25f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 4.25f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 4.25f, 4.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.25f, 4.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_EQ(-4, offset_x);
+    ASSERT_EQ(-8, offset_y);
+    ASSERT_EQ(104u, bitmap.m_Data[6 * bitmap.m_Width + 3]);
+    ASSERT_EQ(136u, bitmap.m_Data[6 * bitmap.m_Width + 4]);
+    ASSERT_EQ(112u, bitmap.m_Data[8 * bitmap.m_Width + 6]);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontSDF, OverlappingContoursMatchBooleanUnion)
+{
+    // These same-winding rectangles overlap from x=4 through x=8. The two
+    // contours must produce the same field as their rectangular union; their
+    // buried vertical edges are not boundaries of the non-zero fill.
+    FontOutlineCommand overlapping_commands[10] = {};
+    overlapping_commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    overlapping_commands[0].m_Points[0] = { 0.0f, 0.0f };
+    overlapping_commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[1].m_Points[0] = { 8.0f, 0.0f };
+    overlapping_commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[2].m_Points[0] = { 8.0f, 8.0f };
+    overlapping_commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[3].m_Points[0] = { 0.0f, 8.0f };
+    overlapping_commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    overlapping_commands[5].m_Type = FONT_OUTLINE_MOVE_TO;
+    overlapping_commands[5].m_Points[0] = { 4.0f, 0.0f };
+    overlapping_commands[6].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[6].m_Points[0] = { 12.0f, 0.0f };
+    overlapping_commands[7].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[7].m_Points[0] = { 12.0f, 8.0f };
+    overlapping_commands[8].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[8].m_Points[0] = { 4.0f, 8.0f };
+    overlapping_commands[9].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline overlapping = { overlapping_commands, 10 };
+
+    FontOutlineCommand union_commands[5] = {};
+    union_commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    union_commands[0].m_Points[0] = { 0.0f, 0.0f };
+    union_commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    union_commands[1].m_Points[0] = { 12.0f, 0.0f };
+    union_commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    union_commands[2].m_Points[0] = { 12.0f, 8.0f };
+    union_commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    union_commands[3].m_Points[0] = { 0.0f, 8.0f };
+    union_commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline expected_union = { union_commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap overlapping_bitmap;
+    FontGlyphBitmap union_bitmap;
+    int32_t overlapping_x;
+    int32_t overlapping_y;
+    int32_t union_x;
+    int32_t union_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&overlapping, &params, &overlapping_bitmap, &overlapping_x, &overlapping_y));
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&expected_union, &params, &union_bitmap, &union_x, &union_y));
+    ASSERT_EQ(union_x, overlapping_x);
+    ASSERT_EQ(union_y, overlapping_y);
+    ASSERT_EQ(union_bitmap.m_Width, overlapping_bitmap.m_Width);
+    ASSERT_EQ(union_bitmap.m_Height, overlapping_bitmap.m_Height);
+    ASSERT_EQ(union_bitmap.m_DataSize, overlapping_bitmap.m_DataSize);
+    ASSERT_EQ(0, memcmp(union_bitmap.m_Data, overlapping_bitmap.m_Data, union_bitmap.m_DataSize));
+    FontSDFFree(&union_bitmap);
+    FontSDFFree(&overlapping_bitmap);
+}
+
+TEST(FontSDF, OppositeWindingContourRemainsHole)
+{
+    FontOutlineCommand commands[10] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.0f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 12.0f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 12.0f, 12.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.0f, 12.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    commands[5].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[5].m_Points[0] = { 4.0f, 4.0f };
+    commands[6].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[6].m_Points[0] = { 4.0f, 8.0f };
+    commands[7].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[7].m_Points[0] = { 8.0f, 8.0f };
+    commands[8].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[8].m_Points[0] = { 8.0f, 4.0f };
+    commands[9].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 10 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_LT(bitmap.m_Data[9 * bitmap.m_Width + 9], 128u);
+    ASSERT_GT(bitmap.m_Data[9 * bitmap.m_Width + 5], 128u);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontOutline, BezierBounds)
+{
+    FontOutlineCommand commands[2] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[1].m_Type = FONT_OUTLINE_CUBIC_TO;
+    commands[1].m_Points[0] = { 0.0f, 100.0f };
+    commands[1].m_Points[1] = { 100.0f, 100.0f };
+    commands[1].m_Points[2] = { 100.0f, 0.0f };
+    FontOutline outline = { commands, 2 };
+    float x0, y0, x1, y1;
+    ASSERT_TRUE(FontGetOutlineBounds(&outline, &x0, &y0, &x1, &y1));
+    ASSERT_EQ(0.0f, x0);
+    ASSERT_EQ(0.0f, y0);
+    ASSERT_EQ(100.0f, x1);
+    ASSERT_EQ(75.0f, y1);
+}
+
+TEST(FontOutline, MakeYMonotonic)
+{
+    FontOutline outline = {};
+    outline.m_CommandCount = 3;
+    outline.m_Commands = (FontOutlineCommand*)calloc(outline.m_CommandCount, sizeof(FontOutlineCommand));
+    outline.m_Commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    outline.m_Commands[0].m_Points[0] = { 0.0f, 0.0f };
+    outline.m_Commands[1].m_Type = FONT_OUTLINE_QUADRATIC_TO;
+    outline.m_Commands[1].m_Points[0] = { 5.0f, 10.0f };
+    outline.m_Commands[1].m_Points[1] = { 10.0f, 0.0f };
+    outline.m_Commands[2].m_Type = FONT_OUTLINE_CUBIC_TO;
+    outline.m_Commands[2].m_Points[0] = { 12.0f, 10.0f };
+    outline.m_Commands[2].m_Points[1] = { 18.0f, -10.0f };
+    outline.m_Commands[2].m_Points[2] = { 20.0f, 0.0f };
+
+    ASSERT_EQ(FONT_RESULT_OK, FontOutlineMakeYMonotonic(&outline));
+    ASSERT_EQ(6u, outline.m_CommandCount);
+    ASSERT_EQ(FONT_OUTLINE_MOVE_TO, outline.m_Commands[0].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_QUADRATIC_TO, outline.m_Commands[1].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_QUADRATIC_TO, outline.m_Commands[2].m_Type);
+    ASSERT_EQ(5.0f, outline.m_Commands[1].m_Points[1].m_X);
+    ASSERT_EQ(5.0f, outline.m_Commands[1].m_Points[1].m_Y);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[3].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[4].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[5].m_Type);
+
+    ASSERT_EQ(FONT_RESULT_OK, FontOutlineMakeYMonotonic(&outline));
+    ASSERT_EQ(6u, outline.m_CommandCount);
+
+    FontFreeGlyphOutline(&outline);
 }
 
 TEST_F(FontTest, GenerateSdfGlyphWithShadowChannels)

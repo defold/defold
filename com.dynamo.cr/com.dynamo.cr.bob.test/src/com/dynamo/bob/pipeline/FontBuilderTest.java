@@ -22,11 +22,15 @@ import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.GlyphBank;
@@ -100,6 +104,35 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getGlyphBank().endsWith(".glyph_bankc"));
         assertTrue(glyphBank != null);
         assertEquals(1499, glyphBank.getGlyphsCount());
+    }
+
+    @Test
+    public void testRuntimeGeneratedOTF() throws Exception {
+        getProject().setOption("font-runtime-generation", "true");
+        addFile("/Test.otf", getFile("/Tuffy.ttf"));
+
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Test.otf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+
+        addFile("/test.font", src.toString());
+        getProject().setInputs(Collections.singletonList("/test.font"));
+        List<TaskResult> results = getProject().build(Progress.discarding(), "build");
+        assertTrue(results.stream().allMatch(TaskResult::isOk));
+
+        FontMap fontMap = null;
+        for (TaskResult result : results) {
+            for (IResource output : result.getTask().getOutputs()) {
+                if (output.getPath().endsWith(".fontc")) {
+                    fontMap = FontMap.parseFrom(output.getContent());
+                }
+            }
+        }
+        assertTrue(fontMap != null);
+        assertEquals("/Test.otf", fontMap.getFont());
+        assertTrue(fontMap.getGlyphBank().isEmpty());
     }
 
     @Test
