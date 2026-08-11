@@ -419,6 +419,19 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testGlyphWithoutBitmapDoesNotProduceVertices() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            renderer.setProperties(properties(100.0f, 1.0f, 0));
+            renderer.setText("\u200D");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertEquals(0, vertices.vertexCount);
+            assertEquals(0, vertices.vertices.remaining());
+        }
+    }
+
+    @Test
     public void testRejectsAtlasPixelCountOverflow() throws Exception {
         byte[] fontBytes;
         try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {

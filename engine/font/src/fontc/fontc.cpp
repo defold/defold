@@ -326,6 +326,13 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
     GetGlyphGenParams(session, font, &params);
     if (FontGenerateGlyph(font, glyph_index, &params, &new_glyph.m_Glyph) != FONT_RESULT_OK)
         return 0;
+    if (new_glyph.m_Glyph.m_Bitmap.m_Data == 0 ||
+        new_glyph.m_Glyph.m_Bitmap.m_Width == 0 ||
+        new_glyph.m_Glyph.m_Bitmap.m_Height == 0)
+    {
+        FontFreeGlyph(font, &new_glyph.m_Glyph);
+        return 0;
+    }
 
     const uint16_t old_cell_width = session->m_CellWidth;
     const uint16_t old_cell_height = session->m_CellHeight;

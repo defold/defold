@@ -965,8 +965,7 @@
   ^NativeRendererSpec [font font-desc font-map use-font-layout runtime-generation]
   (let [render-params (FontRenderer$Params.)
         measure-params (FontRenderer$Params.)
-        shadow-blur (double (if (and (pos? ^double (:shadow-alpha font-desc))
-                                     (pos? ^double (:alpha font-desc)))
+        shadow-blur (double (if (pos? ^double (:shadow-alpha font-desc))
                               (:shadow-blur font-desc)
                               0.0))
         outline-width (double (:outline-width font-desc))
@@ -987,7 +986,7 @@
     (set! (.-shadowX render-params) (float (:shadow-x font-desc)))
     (set! (.-shadowY render-params) (float (:shadow-y font-desc)))
     (set! (.-layerMask render-params) (int (:layer-mask font-map)))
-    (set! (.-useTextShaping render-params) (boolean use-font-layout))
+    (set! (.-useTextShaping render-params) (boolean (and use-font-layout runtime-generation)))
     (set! (.-size measure-params) (.-size render-params))
     (set! (.-cacheWidth measure-params) 1)
     (set! (.-cacheHeight measure-params) 1)
