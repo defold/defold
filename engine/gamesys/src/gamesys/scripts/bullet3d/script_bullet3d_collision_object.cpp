@@ -750,6 +750,21 @@ namespace dmGameSystem
  * @param object [type:btCollisionObject] collision object
  * @param position [type:vector3] finite world position in Defold units
  * @param rotation [type:quaternion] world rotation
+ * @examples
+ *
+ * Move a collision object while preserving its rotation:
+ *
+ * ```lua
+ * function init(self)
+ *     local object = bullet3d.get_collision_object("#collisionobject")
+ *     local position, rotation = bullet3d.collision_object.get_world_transform(object)
+ *     bullet3d.collision_object.set_world_transform(
+ *         object,
+ *         position + vmath.vector3(0, 5, 0),
+ *         rotation)
+ *     bullet3d.collision_object.activate(object, true)
+ * end
+ * ```
  */
 
 /*# Get the world position
@@ -882,6 +897,17 @@ namespace dmGameSystem
  * @name bullet3d.collision_object.set_ccd_motion_threshold
  * @param object [type:btCollisionObject] collision object
  * @param threshold [type:number] finite non-negative threshold in Defold units
+ * @examples
+ *
+ * Enable continuous collision detection for a small, fast-moving body:
+ *
+ * ```lua
+ * function init(self)
+ *     local body = bullet3d.get_rigid_body("#collisionobject")
+ *     bullet3d.collision_object.set_ccd_swept_sphere_radius(body, 0.25)
+ *     bullet3d.collision_object.set_ccd_motion_threshold(body, 0.5)
+ * end
+ * ```
  */
 
 /*# Get collision flags

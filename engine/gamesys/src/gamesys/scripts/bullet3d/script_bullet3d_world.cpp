@@ -1759,6 +1759,18 @@ namespace dmGameSystem
  * @name bullet3d.world.set_gravity
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param gravity [type:vector3] finite gravity in Defold units per second squared
+ * @examples
+ *
+ * Set gravity for the current collection's physics world:
+ *
+ * ```lua
+ * function init(self)
+ *     local world = bullet3d.get_world()
+ *     if world then
+ *         bullet3d.world.set_gravity(world, vmath.vector3(0, -9.81, 0))
+ *     end
+ * end
+ * ```
  */
 
 /*# Get the number of collision objects in the world
@@ -1826,6 +1838,26 @@ namespace dmGameSystem
  * @param [filter] [type:table] query filter
  * @param [max_results] [type:number] maximum number of results, or zero for all
  * @return results [type:table] overlap-result array
+ * @examples
+ *
+ * Find non-trigger objects overlapping a two-unit sphere around this game object:
+ *
+ * ```lua
+ * function init(self)
+ *     local world = bullet3d.get_world()
+ *     local shape = {
+ *         type = physics.SHAPE_TYPE_SPHERE,
+ *         diameter = 2,
+ *         position = go.get_world_position(),
+ *     }
+ *     local filter = { include_triggers = false }
+ *     local overlaps = bullet3d.world.overlap_shape(world, shape, filter)
+ *
+ *     for _, overlap in ipairs(overlaps) do
+ *         print("overlap", overlap.object)
+ *     end
+ * end
+ * ```
  */
 
 /*# Cast a ray asynchronously
@@ -1848,6 +1880,27 @@ namespace dmGameSystem
  * @param [filter] [type:table] query filter
  * @param [max_results] [type:number] maximum sorted hits, or zero for all
  * @param callback [type:function] function called as `callback(self, hits)`
+ * @examples
+ *
+ * Cast downward and report the closest non-trigger hit after the next physics step:
+ *
+ * ```lua
+ * function init(self)
+ *     local world = bullet3d.get_world()
+ *     local origin = go.get_world_position()
+ *     local translation = vmath.vector3(0, -100, 0)
+ *     local filter = { include_triggers = false }
+ *
+ *     bullet3d.world.cast_ray_async(world, origin, translation, filter, 1,
+ *         function(self, hits)
+ *             local hit = hits[1]
+ *             if hit then
+ *                 local distance = vmath.length(translation) * hit.fraction
+ *                 print("hit", hit.object, "after", distance, "units")
+ *             end
+ *         end)
+ * end
+ * ```
  */
 
 /*# Sweep a convex shape asynchronously
@@ -1885,6 +1938,24 @@ namespace dmGameSystem
  * @param [filter] [type:table] filter applied to candidate `object_b` values
  * @param [max_results] [type:number] maximum number of contact points, or zero for all
  * @return contacts [type:table] normalized contact-result array
+ * @examples
+ *
+ * Inspect current contacts for this collision object:
+ *
+ * ```lua
+ * function update(self, dt)
+ *     local world = bullet3d.get_world()
+ *     local object = bullet3d.get_collision_object("#collisionobject")
+ *     local filter = { include_triggers = false }
+ *     local contacts = bullet3d.world.contact_test(world, object, filter)
+ *
+ *     for _, contact in ipairs(contacts) do
+ *         if contact.distance < 0 then
+ *             print("penetration", -contact.distance, "against", contact.object_b)
+ *         end
+ *     end
+ * end
+ * ```
  */
 
 /*# Test a collision-object pair

@@ -663,6 +663,20 @@ namespace dmGameSystem
  * @name bullet3d.collision_object.get_shapes
  * @param object [type:btCollisionObject] collision object
  * @return shapes [type:table] array of borrowed shape handles
+ * @examples
+ *
+ * Enumerate the logical shapes attached to a collision object:
+ *
+ * ```lua
+ * function init(self)
+ *     local object = bullet3d.get_collision_object("#collisionobject")
+ *     for _, shape in ipairs(bullet3d.collision_object.get_shapes(object)) do
+ *         local index = bullet3d.shape.get_index(shape)
+ *         local data = bullet3d.shape.get_shape_data(shape)
+ *         print("shape", index, "type", data.type)
+ *     end
+ * end
+ * ```
  */
 
 /*# Test whether a shape handle and its owner still exist.
@@ -711,6 +725,22 @@ namespace dmGameSystem
  * @name bullet3d.shape.set_shape_data
  * @param shape [type:btCollisionShape] shape handle
  * @param data [type:table] typed shape geometry in Defold units
+ * @examples
+ *
+ * Increase the dimensions of the first box shape by 50 percent for this instance:
+ *
+ * ```lua
+ * function init(self)
+ *     local object = bullet3d.get_collision_object("#collisionobject")
+ *     local shape = bullet3d.collision_object.get_shape(object, 1)
+ *     local data = bullet3d.shape.get_shape_data(shape)
+ *
+ *     if data.type == bullet3d.shape.TYPE_BOX then
+ *         data.dimensions = data.dimensions * 1.5
+ *         bullet3d.shape.set_shape_data(shape, data)
+ *     end
+ * end
+ * ```
  */
 
 /*# Get a compound child's local transform.

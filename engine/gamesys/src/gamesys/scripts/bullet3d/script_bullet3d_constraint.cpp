@@ -1842,6 +1842,27 @@ namespace dmGameSystem
  * @param body_b [type:btRigidBody|nil] second body or world
  * @param params [type:table] pivots and options
  * @return constraint [type:btTypedConstraint] point-to-point constraint
+ * @examples
+ *
+ * Join two bodies at matching local pivots and explicitly destroy the
+ * constraint when the script is finalized:
+ *
+ * ```lua
+ * function init(self)
+ *     local body_a = bullet3d.get_rigid_body("/body_a#collisionobject")
+ *     local body_b = bullet3d.get_rigid_body("/body_b#collisionobject")
+ *     self.constraint = bullet3d.constraint.create_point_to_point(body_a, body_b, {
+ *         pivot_a = vmath.vector3(0.5, 0, 0),
+ *         pivot_b = vmath.vector3(-0.5, 0, 0),
+ *     })
+ * end
+ *
+ * function final(self)
+ *     if self.constraint and bullet3d.constraint.is_valid(self.constraint) then
+ *         bullet3d.constraint.destroy(self.constraint)
+ *     end
+ * end
+ * ```
  */
 
 /*# Create a hinge constraint
@@ -1856,6 +1877,30 @@ namespace dmGameSystem
  * @param body_b [type:btRigidBody|nil] second body or world
  * @param params [type:table] local frames and options
  * @return constraint [type:btTypedConstraint] hinge constraint
+ * @examples
+ *
+ * Create a motorized hinge with a 90-degree range:
+ *
+ * ```lua
+ * function init(self)
+ *     local body_a = bullet3d.get_rigid_body("/door#collisionobject")
+ *     local body_b = bullet3d.get_rigid_body("/frame#collisionobject")
+ *     self.hinge = bullet3d.constraint.create_hinge(body_a, body_b, {
+ *         frame_a_position = vmath.vector3(-0.5, 0, 0),
+ *         frame_a_rotation = vmath.quat(),
+ *         frame_b_position = vmath.vector3(0.5, 0, 0),
+ *         frame_b_rotation = vmath.quat(),
+ *     })
+ *     bullet3d.constraint.set_hinge_limits(self.hinge, -math.pi / 4, math.pi / 4)
+ *     bullet3d.constraint.set_hinge_motor(self.hinge, true, 1.5, 2.5)
+ * end
+ *
+ * function final(self)
+ *     if self.hinge and bullet3d.constraint.is_valid(self.hinge) then
+ *         bullet3d.constraint.destroy(self.hinge)
+ *     end
+ * end
+ * ```
  */
 
 /*# Create a cone-twist constraint
@@ -1898,6 +1943,33 @@ namespace dmGameSystem
  * @param body_b [type:btRigidBody] second body
  * @param params [type:table] local frames and options
  * @return constraint [type:btTypedConstraint] spring 6-DOF constraint
+ * @examples
+ *
+ * Create a spring that moves along its first linear axis:
+ *
+ * ```lua
+ * function init(self)
+ *     local body_a = bullet3d.get_rigid_body("/body_a#collisionobject")
+ *     local body_b = bullet3d.get_rigid_body("/body_b#collisionobject")
+ *     self.spring = bullet3d.constraint.create_generic_6dof_spring(body_a, body_b, {
+ *         frame_a_position = vmath.vector3(),
+ *         frame_a_rotation = vmath.quat(),
+ *         frame_b_position = vmath.vector3(),
+ *         frame_b_rotation = vmath.quat(),
+ *     })
+ *     bullet3d.constraint.set_limit(self.spring, 1, -1, 1)
+ *     bullet3d.constraint.enable_spring(self.spring, 1, true)
+ *     bullet3d.constraint.set_spring_stiffness(self.spring, 1, 20)
+ *     bullet3d.constraint.set_spring_damping(self.spring, 1, 0.5)
+ *     bullet3d.constraint.set_spring_equilibrium_point(self.spring, 1, 0)
+ * end
+ *
+ * function final(self)
+ *     if self.spring and bullet3d.constraint.is_valid(self.spring) then
+ *         bullet3d.constraint.destroy(self.spring)
+ *     end
+ * end
+ * ```
  */
 
 /*# Create a slider constraint

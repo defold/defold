@@ -621,6 +621,17 @@ namespace dmGameSystem
  * @name bullet3d.rigid_body.set_mass
  * @param body [type:btRigidBody] dynamic rigid body
  * @param mass [type:number] finite mass greater than zero
+ * @examples
+ *
+ * Change the mass of a dynamic collision object and inspect its recalculated inertia:
+ *
+ * ```lua
+ * function init(self)
+ *     local body = bullet3d.get_rigid_body("#collisionobject")
+ *     bullet3d.rigid_body.set_mass(body, 5)
+ *     print("local inertia", bullet3d.rigid_body.get_local_inertia(body))
+ * end
+ * ```
  */
 
 /*# Get local inertia
@@ -748,6 +759,19 @@ namespace dmGameSystem
  * @name bullet3d.rigid_body.set_gravity
  * @param body [type:btRigidBody] rigid body
  * @param gravity [type:vector3] gravity in Defold units per second squared
+ * @examples
+ *
+ * Give one body persistent custom gravity without discarding its other flags:
+ *
+ * ```lua
+ * function init(self)
+ *     local body = bullet3d.get_rigid_body("#collisionobject")
+ *     local flags = bullet3d.rigid_body.get_flags(body)
+ *     flags = bit.bor(flags, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
+ *     bullet3d.rigid_body.set_flags(body, flags)
+ *     bullet3d.rigid_body.set_gravity(body, vmath.vector3(0, 4, 0))
+ * end
+ * ```
  */
 
 /*# Get rigid body flags
@@ -821,6 +845,19 @@ namespace dmGameSystem
  * @param body [type:btRigidBody] rigid body
  * @param force [type:vector3] force in Defold units
  * @param relative_position [type:vector3] center-of-mass-relative offset in world axes and Defold units
+ * @examples
+ *
+ * Apply an upward force one unit to the right of the center of mass. The
+ * off-center application produces both linear and angular acceleration:
+ *
+ * ```lua
+ * function init(self)
+ *     local body = bullet3d.get_rigid_body("#collisionobject")
+ *     local force = vmath.vector3(0, 100, 0)
+ *     local relative_position = vmath.vector3(1, 0, 0)
+ *     bullet3d.rigid_body.apply_force(body, force, relative_position)
+ * end
+ * ```
  */
 
 /*# Apply torque
