@@ -1940,16 +1940,17 @@ class Configuration(object):
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
 
         if 'android' in self.target_platform:
-            can_run_android_tests = build_android.can_run_tests_android(self._log, env = self._form_env(), device = self.test_device)
+            can_run_android_tests = build_android.can_run_tests_android(self._log, env = self._form_env(), device = self.test_device, target_platform = self.target_platform)
             if self.test_device and not can_run_android_tests:
-                self.fatal("Requested Android test device '%s' is not available" % self.test_device)
+                self.fatal("Requested Android test device '%s' cannot run %s tests" % (self.test_device, self.target_platform))
 
             if can_run_android_tests:
-                android_tests = ['armv7-android', 'arm64-android', 'x86_64-android']
-                supported_tests['x86_64-macos'].extend(android_tests)
-                supported_tests['arm64-macos'].extend(android_tests)
-                supported_tests['x86_64-linux'].extend(android_tests)
-                supported_tests['x86_64-win32'].extend(android_tests)
+                # The device was checked against this platform's ABI, so it is the
+                # only Android platform we may claim as runnable here.
+                supported_tests['x86_64-macos'].append(self.target_platform)
+                supported_tests['arm64-macos'].append(self.target_platform)
+                supported_tests['x86_64-linux'].append(self.target_platform)
+                supported_tests['x86_64-win32'].append(self.target_platform)
 
         if build_ios.is_ios_test_platform(self.target_platform):
             strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.waf_options
