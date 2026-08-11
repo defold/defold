@@ -682,6 +682,7 @@ class Configuration(object):
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
         self.build_tracker = BuildTimeTracker(logger=self._log)
+        self._cmake_configure_inputs_mtime_cache = {}
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -2132,6 +2133,10 @@ class Configuration(object):
         return join(build_home, 'engine', 'build', platform)
 
     def _cmake_configure_inputs_mtime(self, roots):
+        cache_key = tuple(normpath(root) for root in roots)
+        if cache_key in self._cmake_configure_inputs_mtime_cache:
+            return self._cmake_configure_inputs_mtime_cache[cache_key]
+
         watched_files = ('CMakeLists.txt',)
         watched_suffixes = ('.cmake',)
         watched_dirs = ('scripts/cmake', 'engine', 'share')
@@ -2160,6 +2165,7 @@ class Configuration(object):
                 except OSError:
                     pass
 
+        self._cmake_configure_inputs_mtime_cache[cache_key] = latest
         return latest
 
     def _cmake_configure_state(self, builddir, cmake_configure_args):
@@ -2225,12 +2231,17 @@ class Configuration(object):
         previous_lib_set = previous_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
         current_build_tests = current_defines.pop('BUILD_TESTS', None)
         previous_build_tests = previous_defines.pop('BUILD_TESTS', None)
+        current_skip_bob_light = current_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
+        previous_skip_bob_light = previous_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
 
         if current_defines != previous_defines:
             return False
         if current_lib_set != 'host' or previous_lib_set != 'all':
             return False
         if current_build_tests != 'OFF':
+            return False
+        if (current_skip_bob_light not in ('OFF', 'ON')
+                or previous_skip_bob_light != 'ON'):
             return False
 
         # Keep test install rules consistent with the requested host pass.
@@ -2418,6 +2429,7 @@ class Configuration(object):
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
+            f'-DCMAKE_INSTALL_MESSAGE:STRING=LAZY',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
@@ -2448,11 +2460,19 @@ class Configuration(object):
             os.makedirs(builddir, exist_ok=True)
             previous_cmake_configure_state = None
 
+        configure_state_matches = self._cmake_configure_state_matches(
+            cmake_configure_state,
+            previous_cmake_configure_state,
+            allow_compatible_configure)
+        compatible_configure = (configure_state_matches
+                                and cmake_configure_state != previous_cmake_configure_state)
+        validation_configure_state = (previous_cmake_configure_state
+                                      if compatible_configure else cmake_configure_state)
         skip_configure = (
             os.path.exists(cmake_cache)
-            and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure)
-            and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
-            and self._cmake_generated_install_matches_configure_state(cmake_configure_state)
+            and configure_state_matches
+            and self._cmake_cache_matches_configure_state(cmake_cache, validation_configure_state)
+            and self._cmake_generated_install_matches_configure_state(validation_configure_state)
             and generated_outputs_match)
         if skip_configure:
             self._log(f'Skipping CMake configure {name}; configure state is unchanged')
