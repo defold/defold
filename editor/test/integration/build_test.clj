@@ -549,7 +549,7 @@
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
             glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
-        (is (= 256 (:cache-height glyph-bank))))))
+        (is (= 512 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
     (with-build-results "/fonts/gradient.font"
       (let [content (get content-by-source "/fonts/gradient.font")

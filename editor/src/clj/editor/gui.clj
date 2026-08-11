@@ -2275,16 +2275,27 @@
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot]
-                                   (cond-> {:text-layout text-layout
-                                            :font-data font-data
-                                            :color (assoc color 3 alpha)
-                                            :outline (assoc outline 3 outline-alpha)
-                                            :shadow (assoc shadow 3 shadow-alpha)
-                                            :align (pivot->h-align pivot)}
-                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
-                                                                          h (second aabb-size)]
-                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size manual-size pivot]
+                                   (let [text-data {:text-layout text-layout
+                                                    :font-data font-data
+                                                    :color (assoc color 3 alpha)
+                                                    :outline (assoc outline 3 outline-alpha)
+                                                    :shadow (assoc shadow 3 shadow-alpha)
+                                                    :align (pivot->h-align pivot)}]
+                                     (cond
+                                       (nil? font-data)
+                                       text-data
+
+                                       (get-in font-data [:font-map :native-renderer-spec])
+                                       (assoc text-data
+                                              :box-height (second manual-size)
+                                              :offset (pivot-offset pivot manual-size)
+                                              :vertical-align (pivot->v-align pivot))
+
+                                       :else
+                                       (assoc text-data :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                      h (second aabb-size)]
+                                                                  [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output own-build-errors g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font]
             (let [font-names (:font-names basic-gui-scene-info)]
