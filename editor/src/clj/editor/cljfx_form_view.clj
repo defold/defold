@@ -78,6 +78,8 @@
 (def ^:private line-spacing 12)
 (def ^:private max-visible-rows 15)
 
+(def ^:private cell-height (inc line-height))
+
 (def ^:private small-field-width 120)
 (def ^:private normal-field-width 400)
 (def ^:private large-field-width 1000)
@@ -747,6 +749,7 @@
                           :desc
                           {:fx/type fx.list-view/lifecycle
                            :style-class ["list-view" "cljfx-form-list-view"]
+                           :fixed-cell-size cell-height
                            :max-width normal-field-width
                            :items (into [] (map-indexed vector) value)
                            :editable true
@@ -1174,6 +1177,7 @@
                                                                        :state-path state-path}}
                                  :desc {:fx/type fx.table-view/lifecycle
                                         :style-class ["table-view" "cljfx-table-view"]
+                                        :fixed-cell-size line-height
                                         :editable true
                                         :column-resize-policy custom-table-resize-policy
                                         :columns (mapv #(table-column % field)
