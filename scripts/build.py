@@ -2244,8 +2244,11 @@ class Configuration(object):
                 or previous_skip_bob_light != 'ON'):
             return False
 
-        # Keep test install rules consistent with the requested host pass.
-        return previous_build_tests == current_build_tests
+        # A same-platform host pass may reuse the previous full build graph even
+        # when that graph contains tests. The host pass only builds the default
+        # target, so test targets remain excluded. Installation is deferred to
+        # the subsequent full engine pass when reusing this configuration.
+        return previous_build_tests in ('OFF', 'ON')
 
     def _cmake_cache_matches_configure_state(self, cmake_cache, configure_state):
         if not os.path.exists(cmake_cache):
@@ -2368,7 +2371,13 @@ class Configuration(object):
             return True
 
         expected_engine_root = normpath(join(build_home, 'engine')).replace('\\', '/').lower()
-        generated_build_dir_re = re.compile(r'[A-Za-z]\$?:/[^ \t\r\n"<>|]*/engine/[^/\s]+/build/%s' % re.escape(platform))
+        # Require a token boundary before a Windows drive letter. Without it,
+        # target properties such as "fontrenderer:/Users/..." are misread as
+        # the drive path "r:/Users/...", causing valid build outputs to be
+        # removed before every incremental build.
+        generated_build_dir_re = re.compile(
+            r'(?<![A-Za-z0-9_])[A-Za-z]\$?:/[^ \t\r\n"<>|]*/engine/[^/\s]+/build/%s'
+            % re.escape(platform))
         for match in generated_build_dir_re.finditer(content):
             path = match.group(0).replace('$:', ':')
             normalized_path = normpath(path).replace('\\', '/').lower()
@@ -2499,15 +2508,21 @@ class Configuration(object):
 
         # Keep install as a separate phase. Use cmake --install instead of the
         # generated install target so the install phase does not re-enter 'all'.
-        log_cmd_install = f'CMake install {name}'
-        self.build_tracker.start_command(log_cmd_install)
+        # When a same-platform host pass reuses the full engine configuration,
+        # defer installation until the subsequent engine pass has built every
+        # target referenced by the full graph's install rules.
+        if compatible_configure:
+            self._log(f'Deferring CMake install {name}; reusing full engine configuration')
+        else:
+            log_cmd_install = f'CMake install {name}'
+            self.build_tracker.start_command(log_cmd_install)
 
-        cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
-        if is_verbose:
-            cmake_install_args.append('--verbose')
-        run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
+            cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
+            if is_verbose:
+                cmake_install_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
 
-        self.build_tracker.end_command(log_cmd_install)
+            self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
