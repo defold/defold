@@ -255,7 +255,6 @@
                                 :props {:focus-traversable (not show-text-field)
                                         :style-class "ext-combo-box-popup-list"
                                         prop-list-items+selected-item [filtered-items selected-item]
-                                        :fixed-cell-size 27.0
                                         prop-popup-list-rows (min 10 (count filtered-items))
                                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                        :describe (fn/partial describe-list-cell on-value-changed swap-state to-string filtered-item->matching-indices)}}})))}]}]}))))))
