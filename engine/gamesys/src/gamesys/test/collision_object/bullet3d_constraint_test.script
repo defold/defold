@@ -204,6 +204,9 @@ local function exercise_world_axis_joint(constraint, spring)
     end
 end
 
+-- Verifies every constraint creator, type-specific accessor, one-body frame,
+-- reference-frame direction and invalid-parameter path. This ensures each Lua
+-- constructor maps to the intended Bullet type without leaking failed creations.
 local function run_creation_smoke_tests(world, body_a, body_b)
     local creations = {
         {
@@ -336,10 +339,15 @@ local function run_creation_smoke_tests(world, body_a, body_b)
     end)
 end
 
+-- Starts the staged constraint test. Multiple update frames are required to
+-- observe solver movement and deferred component enable/disable operations.
 function init(self)
     self.stage = "create"
 end
 
+-- Verifies constraint creation and solver effect, then disable/re-enable world
+-- membership and body-deletion invalidation. This guards against active
+-- constraints retaining stale native bodies across component lifecycle changes.
 function update(self, dt)
     if self.stage == "create" then
         local world = bullet3d.get_world()

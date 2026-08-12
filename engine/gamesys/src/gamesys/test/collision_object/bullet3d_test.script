@@ -53,7 +53,8 @@ local function world_contains_object(world, object)
     return false
 end
 
--- Verifies exported collision-object, rigid-body and shape constants.
+-- Verifies exported collision-object, rigid-body and shape constants. Stable
+-- numeric values matter because scripts pass them back through the native API.
 local function test_constants()
     local constants = {
         { bullet3d.collision_object.ACTIVE_TAG, 1 },
@@ -86,6 +87,7 @@ end
 
 -- Verifies world-handle identity/string conversion, Bullet/generic gravity
 -- synchronization, restoration, and the collision-object count query.
+-- This protects the shared-world plumbing used by every other Bullet3D call.
 local function test_world(world)
     assert(bullet3d.world.is_valid(world))
     assert(string.find(tostring(world), "Bullet3D.bullet3d_world", 1, true))
@@ -104,6 +106,7 @@ end
 
 -- Verifies dynamic collision-object transforms, material/contact/CCD properties,
 -- activation controls, structural flag queries, and Bullet native type predicates.
+-- This catches unit-conversion and type-dispatch errors at the Lua/native boundary.
 local function test_collision_object(collision_object)
     assert(bullet3d.collision_object.is_valid(collision_object))
     assert(string.find(tostring(collision_object), "Bullet3D.bullet3d_collision_object", 1, true))
@@ -186,6 +189,7 @@ end
 
 -- Verifies every rigid-body query/mutator category, including scale-sensitive
 -- transforms, thresholds, forces, torque, impulses, local-point velocity and AABB.
+-- This prevents plausible-looking round trips from hiding incorrect native state.
 local function test_rigid_body(world, rigid_body)
     assert(bullet3d.rigid_body.is_valid(rigid_body))
     assert(bullet3d.rigid_body.get_world(rigid_body) == world)
@@ -433,7 +437,8 @@ local function test_mutator_validation(world, collision_object, rigid_body)
     assert_near(bullet3d.rigid_body.get_angular_sleeping_threshold(rigid_body), angular_threshold)
 end
 
--- Verifies the retained read-only collision-filter accessors.
+-- Verifies the retained read-only collision-filter accessors. World queries need
+-- these exact bits to reproduce the collision filtering used by the simulation.
 local function test_collision_filter_accessors(collision_object)
     local group = bullet3d.collision_object.get_collision_filter_group(collision_object)
     local mask = bullet3d.collision_object.get_collision_filter_mask(collision_object)
@@ -443,6 +448,7 @@ end
 
 -- Verifies that an in-world body with disabled world gravity keeps its custom
 -- value, then follows the world again after the flag is cleared and it is activated.
+-- This guards per-body gravity from being overwritten during world updates.
 local function test_world_gravity_flag(world, rigid_body)
     local original_world_gravity = bullet3d.world.get_gravity(world)
     local original_flags = bullet3d.rigid_body.get_flags(rigid_body)
@@ -463,6 +469,7 @@ end
 -- Verifies the true branches of static and kinematic classification, their
 -- structural flags, zero-mass rigid-body lookup, shared collision-object type,
 -- and that a waking rigid-body mutator cannot activate a static body.
+-- This prevents dynamic-only operations from changing immovable body state.
 local function test_static_and_kinematic(static_url, kinematic_url)
     local static_object = bullet3d.get_collision_object(static_url)
     local static_body = bullet3d.get_rigid_body(static_url)
@@ -505,6 +512,7 @@ end
 
 -- Verifies that triggers use generic collision-object userdata backed by a ghost
 -- object, expose no contact response, and are rejected by rigid-body entry points.
+-- This prevents ghost objects from being treated as native rigid bodies.
 local function test_trigger(trigger_url)
     local trigger = bullet3d.get_collision_object(trigger_url)
     assert(trigger ~= nil)
@@ -528,6 +536,7 @@ end
 
 -- Verifies namespace/version lookup, stable handle identity and every API
 -- category before retaining dynamic and trigger handles for lifetime checks.
+-- Retaining the original userdata is necessary to detect accidental handle revival.
 function init(self)
     assert(PHYSICS == "bullet3d")
     assert(bullet3d ~= nil)
@@ -582,6 +591,7 @@ end
 
 -- First verifies spawned-object counts and next-frame trigger transform persistence
 -- in Bullet and GO state, then verifies deletion invalidation and stale-handle errors.
+-- This protects deferred synchronization and native-object lifetime boundaries.
 function update(self, dt)
     if self.filter_stage == "wait_initial_enabled" then
         self.filter_frames = self.filter_frames + 1

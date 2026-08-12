@@ -111,6 +111,9 @@ public class ExtenderUtilTest {
         assertTrue(resources.containsKey("bundle2/values/strings.xml"));
     }
 
+    // Verifies that legacy manifests gain only the missing Bullet3D script
+    // exclusions, without duplicates or changes to partial matches. This keeps
+    // projects saved by older editors linkable after the script-library split.
     @SuppressWarnings("unchecked")
     @Test
     public void testLegacyBullet3DAppManifestCompatibility() throws Exception {

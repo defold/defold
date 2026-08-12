@@ -223,6 +223,8 @@
 
 ;; Verifies the combined 2D/3D physics selection round-trips and excludes the
 ;; Bullet3D script library and symbol on every platform exactly when 3D is disabled.
+;; This prevents editor writes from linking an unavailable API or stripping the
+;; API from projects that still use 3D physics.
 (deftest physics-setting-test
   (testing "Bullet script API follows the 3D physics selection"
     (doseq [[selection exclude-bullet-script]

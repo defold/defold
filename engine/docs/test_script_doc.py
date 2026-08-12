@@ -181,8 +181,13 @@ foobar
 """
         elements = script_doc.parse_document(doc).elements
         self.assertEqual(1, len(elements))
+        # Bullet3D userdata types must remain valid documentation inputs so the
+        # public Lua API can be generated without dropping typed parameters.
         self.assertEqual(['btDiscreteDynamicsWorld', 'btCollisionObject', 'btRigidBody', 'btCollisionShape', 'btTypedConstraint'], elements[0].parameters[4].types)
 
+    # Verifies that generated Lua annotations mark only bracketed parameters as
+    # optional. This prevents required Bullet3D userdata from becoming nullable
+    # when protobuf booleans are converted through the annotation template.
     def test_optional_parameter_lua_annotation(self):
         doc = """
 /*# Test API

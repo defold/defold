@@ -104,7 +104,8 @@ local function make_reciprocal_mismatch_filters(objects)
     }
 end
 
--- Verifies collision-filter accessors expose the native group and mask bits needed by world queries.
+-- Verifies collision-filter accessors expose the native group and mask bits.
+-- World queries need these exact values to match simulation filtering.
 local function test_collision_filter_accessors(objects)
     objects.group_a = bullet3d.collision_object.get_collision_filter_group(objects.near)
     objects.mask_a = bullet3d.collision_object.get_collision_filter_mask(objects.near)
@@ -132,6 +133,8 @@ end
 
 -- Verifies persistent logical shape handles, copy-on-write mutation and
 -- immediate broadphase refresh for primitive, compound and hull shapes.
+-- This prevents one object's edits from changing shared resource geometry or
+-- leaving world queries on stale bounds.
 local function test_shape_api(world, objects)
     assert(bullet3d.collision_object.get_shape_count(objects.near) == 1)
     local box = bullet3d.collision_object.get_shape(objects.near, 1)
@@ -221,7 +224,9 @@ local function test_shape_api(world, objects)
     end)
 end
 
--- Verifies complete and capped world enumeration returns each fixture as its canonical borrowed handle without duplicates.
+-- Verifies complete and capped world enumeration returns each fixture as its
+-- canonical borrowed handle without duplicates. Stable identity is required for
+-- comparing enumeration results with handles obtained through other APIs.
 local function test_collision_object_enumeration(world, objects)
     local all_objects = bullet3d.world.get_collision_objects(world)
     local expected = {
@@ -253,7 +258,9 @@ local function test_collision_object_enumeration(world, objects)
     end
 end
 
--- Verifies AABB, point and primitive/hull overlaps, reciprocal/trigger/ignore filtering, non-vacuous caps, and rotated-box narrow-phase rejection.
+-- Verifies AABB, point and primitive/hull overlaps, reciprocal/trigger/ignore
+-- filtering, non-vacuous caps, and rotated-box narrow-phase rejection. This
+-- guards against broadphase false positives leaking into public query results.
 local function test_overlap_queries(world, objects)
     local filter_a = make_filter_a(objects, false)
     local near_aabb = {
@@ -370,6 +377,7 @@ end
 
 -- Verifies sorted ray hits, exact scaled geometry, closest/capped results,
 -- reciprocal bit filters, ignore forms and trigger control.
+-- This keeps results deterministic and expressed in Defold rather than Bullet units.
 local function test_ray_queries(world, objects)
     local origin = vmath.vector3(-5, 0, 0)
     local translation = vmath.vector3(25, 0, 0)
@@ -449,6 +457,7 @@ end
 
 -- Verifies #5348 behavior: native Bullet misses a ray wholly inside a hull,
 -- while requested initial-overlap reporting returns one marked fraction-zero hit.
+-- This preserves the opt-in result scripts need when a cast starts inside geometry.
 local function test_inside_ray_query(world, objects)
     local origin = vmath.vector3(-30, 0, 0)
     local translation = vmath.vector3(0.5, 0, 0)
@@ -484,6 +493,7 @@ end
 
 -- Verifies initial-overlap synthesis deduplicates only the starting child,
 -- preserving a later positive hit on child 2 of the same compound for rays and shape sweeps.
+-- This prevents deduplication from discarding a distinct collision along the cast.
 local function test_compound_initial_overlap_casts(world, objects)
     local filter = make_filter_a(objects, false)
     filter.report_initial_overlaps = true
@@ -540,6 +550,8 @@ end
 
 -- Verifies #8686 sweeps accept sphere, asymmetric rotating-box, capsule and
 -- hull tables, with exact scale-0.1 results and separate hull schema coverage.
+-- This catches shape-specific construction or unit conversion being replaced by
+-- an approximation that changes hit fractions.
 local function test_shape_cast_queries(world, objects)
     local filter_a = make_filter_a(objects, false)
     local translation = vmath.vector3(10, 0, 0)
@@ -657,6 +669,7 @@ end
 
 -- Verifies convex-hull vertex offsets and capsule cylindrical height produce
 -- distinct exact sweep fractions that primitive fallback implementations cannot match.
+-- These fixtures ensure each public shape schema reaches its matching Bullet shape.
 local function test_distinct_shape_cast_geometry(world, objects)
     local filter_a = make_filter_a(objects, false)
 
@@ -714,6 +727,7 @@ end
 
 -- Verifies default shape casts suppress native fraction-zero starts, while
 -- opt-in returns one deterministic initial-overlap (not ray-inside) hit.
+-- This protects callers from duplicate starts without hiding explicitly requested overlaps.
 local function test_inside_shape_cast_query(world, objects)
     local shape = {
         type = bullet3d.shape.SHAPE_TYPE_SPHERE,
@@ -753,6 +767,7 @@ end
 
 -- Verifies the deferred APIs preserve the synchronous hit schema and filtering,
 -- return no immediate values, and deliver callbacks from one post-step snapshot.
+-- This guards the asynchronous contract against early or mixed-frame callbacks.
 local function test_async_cast_queries(self, world, objects)
     local filter = make_filter_a(objects, false)
     local ray_origin = vmath.vector3(-5, 0, 0)
@@ -818,7 +833,9 @@ local function test_async_cast_queries(self, world, objects)
     assert(self.received_async_casts == 0)
 end
 
--- Verifies contact APIs return normalized signed geometry, filtering, misses, and a non-vacuous manifold cap with explicit unlimited max=0 behavior.
+-- Verifies contact APIs return normalized signed geometry, filtering, misses,
+-- and a non-vacuous manifold cap with explicit unlimited max=0 behavior. This
+-- keeps contact results consistent across pair and whole-object query variants.
 local function test_contact_queries(world, objects)
     local filter_a = make_filter_a(objects, false)
     local object_contacts = bullet3d.world.contact_test(world, objects.contact_a, filter_a)
@@ -875,7 +892,9 @@ local function test_contact_queries(world, objects)
     assert(#bullet3d.world.contact_pair_test(world, objects.contact_a, objects.near) == 0)
 end
 
--- Verifies metamethod-backed filter (including ignore-array copying) and shape fields are each evaluated exactly once, even when a second read would mutate or raise an error.
+-- Verifies metamethod-backed filter (including ignore-array copying) and shape
+-- fields are each evaluated exactly once. This prevents user metamethod side
+-- effects from changing a query while its arguments are being decoded.
 local function test_query_proxy_tables(world, objects)
     local filter_reads = {}
     local filter_values = {
@@ -981,7 +1000,9 @@ local function test_query_proxy_tables(world, objects)
     end)
 end
 
--- Verifies zero/non-finite casts and transforms, negative caps, malformed AABBs/shapes/filters, and self-pair contacts fail at the Lua boundary.
+-- Verifies zero/non-finite casts and transforms, negative caps, malformed
+-- AABBs/shapes/filters, and self-pair contacts fail at the Lua boundary. Early
+-- rejection keeps invalid values out of Bullet and leaves native state unchanged.
 local function test_query_validation(world, objects)
     local zero = vmath.vector3(0, 0, 0)
     local infinity = math.huge
@@ -1227,7 +1248,8 @@ local function test_query_validation(world, objects)
     end)
 end
 
--- Verifies a transform setter is visible to AABB queries immediately, without waiting for the next physics step to refresh the broad phase.
+-- Verifies a transform setter is visible to AABB queries immediately. Callers
+-- must not observe stale broadphase state until the next physics step.
 local function test_immediate_transform_query(world, objects)
     local filter_a = make_filter_a(objects, false)
     bullet3d.collision_object.set_position(objects.movable, vmath.vector3(60, 0, 0))
@@ -1246,7 +1268,8 @@ local function test_immediate_transform_query(world, objects)
     assert_vec3_near(bullet3d.collision_object.get_position(objects.movable), vmath.vector3(60, 0, 0))
 end
 
--- Waits until update, when the pre-spawned collision objects have entered the Bullet broad phase.
+-- Waits until update, when the pre-spawned collision objects have entered the
+-- Bullet broadphase; running earlier would make positive query assertions vacuous.
 function init(self)
     self.run_queries = true
     self.pending_async_casts = 0
@@ -1254,7 +1277,8 @@ function init(self)
     self.async_cast_submission_complete = false
 end
 
--- Runs each isolated world-query category once and signals the C++ harness only after every assertion has completed.
+-- Runs each isolated world-query category once and signals the C++ harness only
+-- after every assertion has completed, so asynchronous failures cannot be missed.
 function update(self, dt)
     if not self.run_queries then
         return

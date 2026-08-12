@@ -35,6 +35,7 @@ end
 
 -- Captures live world and body userdata before C++ reloads the collision resource
 -- or destroys the collection, allowing those exact handles to be checked afterwards.
+-- Retaining them is necessary to expose dangling userdata rather than fresh lookups.
 function init(self)
     bullet3d_lifetime_world = bullet3d.get_world()
     bullet3d_lifetime_body = bullet3d.get_rigid_body("#collisionobject")
@@ -50,6 +51,7 @@ end
 
 -- Verifies that same-generation resource recreation invalidates only the old
 -- native body handle while the retained world and a fresh body lookup remain valid.
+-- This prevents resource reload from leaving Lua access to a destroyed Bullet body.
 function update(self, dt)
     if tests_done or not bullet3d_lifetime_reload_complete then
         return

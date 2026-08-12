@@ -1821,6 +1821,14 @@ static int CountBulletContactPoints(dmPhysics::HWorld3D world)
 
 TYPED_TEST(PhysicsTest, RefreshCollisionShapeInvalidatesContacts)
 {
+    /* Intent: verify that replacing a compound child shape invalidates cached
+    ** Bullet contact algorithms even when the broadphase pair remains overlapping.
+    ** Setup: a distant child keeps the compound AABB overlapping another sphere
+    ** while the contacting child shrinks enough to remove the actual collision.
+    ** Expected: refreshing the shape removes every old contact point immediately.
+    ** Why: otherwise collision callbacks can report contacts produced by the
+    ** replaced child geometry until the broadphase pair happens to be rebuilt.
+    */
     VisualObject object_a_visual;
     dmPhysics::CollisionObjectData object_a_data;
     object_a_data.m_UserData = &object_a_visual;

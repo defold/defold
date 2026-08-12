@@ -130,6 +130,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
     ** rigid/trigger separation, transforms, material/CCD/activation state, velocities,
     ** damping, factors, gravity, sleep thresholds, forces, impulses and AABBs behave
     ** in Defold units at scale 0.1, and game-object deletion invalidates retained handles.
+    ** Why: these wrappers cross Lua, Defold and Bullet ownership/unit boundaries,
+    ** where a mismatch can silently corrupt simulation state or revive stale userdata.
     */
     dmGameObject::HInstance rigid_body = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_rigid_body"), 0, Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, rigid_body);
@@ -157,6 +159,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DWorldQueryApiTest)
     ** Expected: overlaps, immediately returned sorted/capped casts, primitive and
     ** hull sweeps, normalized contacts, enumeration, filtering, borrowed
     ** identity, scale-0.1 geometry and immediate transform queries match the API.
+    ** Why: callers need deterministic Defold-unit results rather than Bullet's
+    ** native ordering, scaling and broadphase implementation details.
     */
     dmGameObject::HInstance compound = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_compound.goc", dmHashString64("/bullet3d_query_compound"), 0, Point3(-50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, compound);
@@ -202,6 +206,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DConstraintApiTest)
     ** Expected: all creators expose stable identity/enumeration and common state,
     ** a point constraint changes separation, enabled state controls world membership,
     ** and explicit or cascaded destruction invalidates stale handles.
+    ** Why: constraints outlive individual calls and must not retain dangling body
+    ** or world references across component lifecycle changes.
     */
     dmGameObject::HInstance body_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_constraint_a"), 0, Point3(-5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body_a);
@@ -218,6 +224,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ** while the fixture uses physics scale 0.1.
     ** Expected: position, contact/CCD distances, velocity, gravity, sleeping threshold,
     ** force and torque are stored in Bullet units using the required scale or scale squared.
+    ** Why: applying the wrong conversion produces plausible but physically incorrect
+    ** values that the higher-level Lua round-trip tests cannot detect.
     */
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_native_scale"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -295,6 +303,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DStaleIdentitiesDoNotRecycle)
     ** previous 16-bit opaque-handle generation could represent.
     ** Expected: neither collision-object nor world userdata can revive while a
     ** later registration of the same native pointer is live.
+    ** Why: generation wraparound must not turn stale Lua userdata into access to
+    ** a different native object at a recycled address.
     */
     const uint32_t    previous_generation_count = 0xFFFE;
     lua_State*        L = dmScript::GetLuaState(m_ScriptContext);
@@ -349,6 +359,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
     ** Expected: the old body handle becomes invalid and rejects access, the world
     ** remains valid, and a fresh body lookup returns a distinct valid handle whose
     ** post-reload disable/re-enable callbacks remove and restore world membership.
+    ** Why: resource recreation can reuse the same game-object generation while
+    ** replacing its native body, so generation checks alone cannot prevent stale access.
     */
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_lifetime_test.goc", dmHashString64("/bullet3d_lifetime_reload"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -392,6 +404,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
     ** Expected: primary-world contact queries reject the foreign body in either pair
     ** position; destruction selectively invalidates both secondary handles, world
     ** queries and filter accessors, while equivalent primary handles remain usable.
+    ** Why: cross-collection handles must neither enter the wrong Bullet world nor
+    ** become use-after-free access after their owning collection is destroyed.
     */
     dmGameObject::HCollection collection = dmGameObject::NewCollection("bullet3d_lifetime_collection",
                                                                        m_Factory,
