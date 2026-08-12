@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <math.h>
 
+#include <dlib/sys.h>
 #include <dlib/utf8.h>
 
 #include "font.h"
@@ -27,12 +28,94 @@
 
 #include <skribidi/skb_font_collection.h>
 #include <skribidi/skb_layout.h>
+#include <SheenBidi/SBAlgorithm.h>
 
 struct LayoutContext
 {
     skb_temp_alloc_t*   m_Alloc;
     skb_layout_t*       m_Layout;
 };
+
+static const char* GetSystemLanguage()
+{
+    static dmSys::SystemInfo info;
+    static bool initialized = false;
+    if (!initialized)
+    {
+        dmSys::GetSystemInfo(&info);
+        initialized = true;
+    }
+    return info.m_DeviceLanguage[0] ? info.m_DeviceLanguage : info.m_Language;
+}
+
+static bool IsParagraphSeparator(uint32_t codepoint)
+{
+    return codepoint == '\r' || codepoint == '\n' || codepoint == 0x0085 ||
+           codepoint == 0x2028 || codepoint == 0x2029;
+}
+
+static void CreateParagraphs(uint32_t* codepoints, uint32_t num_codepoints,
+                             dmArray<TextParagraph>& paragraphs)
+{
+    // Skribidi performs paragraph and bidi analysis internally, but exposes
+    // only the first paragraph's resolved direction. Defold needs the base
+    // direction of every paragraph when resolving logical start/end alignment.
+    paragraphs.SetSize(0);
+    paragraphs.OffsetCapacity(4);
+
+    SBCodepointSequence sequence = { SBStringEncodingUTF32, codepoints, num_codepoints };
+    SBAlgorithmRef bidi_algorithm = SBAlgorithmCreate(&sequence);
+    uint32_t paragraph_start = 0;
+    TextDirection previous_paragraph_direction = TEXT_DIRECTION_LTR;
+    while (paragraph_start < num_codepoints)
+    {
+        uint32_t paragraph_end = paragraph_start;
+        while (paragraph_end < num_codepoints && !IsParagraphSeparator(codepoints[paragraph_end]))
+            ++paragraph_end;
+
+        TextDirection paragraph_direction = previous_paragraph_direction;
+        if (paragraph_end > paragraph_start)
+        {
+            SBParagraphRef bidi_paragraph = SBAlgorithmCreateParagraph(bidi_algorithm, paragraph_start,
+                                                                        paragraph_end - paragraph_start,
+                                                                        SBLevelDefaultLTR);
+            paragraph_direction = (SBParagraphGetBaseLevel(bidi_paragraph) & 1)
+                                ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
+            SBParagraphRelease(bidi_paragraph);
+        }
+
+        TextParagraph paragraph = { paragraph_start, paragraph_end - paragraph_start, 0, 0,
+                                    paragraph_direction };
+
+        if (paragraphs.Full())
+            paragraphs.OffsetCapacity(4);
+
+        paragraphs.Push(paragraph);
+
+        if (paragraph_end < num_codepoints)
+        {
+            uint32_t separator_length = 1;
+            if (codepoints[paragraph_end] == '\r' && paragraph_end + 1 < num_codepoints &&
+                codepoints[paragraph_end + 1] == '\n')
+            {
+                separator_length = 2;
+            }
+            paragraph_end += separator_length;
+        }
+        previous_paragraph_direction = paragraph_direction;
+        paragraph_start = paragraph_end;
+    }
+    SBAlgorithmRelease(bidi_algorithm);
+}
+
+static uint32_t GetParagraphIndex(const dmArray<TextParagraph>& paragraphs, uint32_t text_offset)
+{
+    uint32_t paragraph_index = 0;
+    while (paragraph_index + 1 < paragraphs.Size() &&
+           text_offset >= paragraphs[paragraph_index + 1].m_TextIndex)
+        ++paragraph_index;
+    return paragraph_index;
+}
 
 static void AllocLayout(LayoutContext* ctx, HFontCollection collection)
 {
@@ -64,7 +147,7 @@ static bool LayoutText(LayoutContext* ctx,
         line_width = 1000000.0f;
     skb_layout_params_t params = {0};
     params.font_collection    = FontCollectionGetSkribidiPtr(font_collection),
-    params.lang               = "en-us",                  // TODO: support setting
+    params.lang               = GetSystemLanguage(),
     params.origin             = {0, 0},
     params.layout_width       = line_width,
     params.layout_height      = 1000000.0f,
@@ -86,20 +169,16 @@ static bool LayoutText(LayoutContext* ctx,
     uint32_t descent = (uint32_t)fabsf(FontGetDescent(default_font, 1.0f));
     float line_height_scaled = (ascent + descent) * font_scale;
 
-    // TODO: Allo setting default as italic etc
-    const skb_attribute_t attributes[] = {
-        skb_attribute_make_font(SKB_FONT_FAMILY_DEFAULT, settings->m_Size, SKB_WEIGHT_NORMAL, SKB_STYLE_NORMAL, SKB_STRETCH_NORMAL),
-        skb_attribute_make_line_height(SKB_LINE_HEIGHT_METRICS_RELATIVE, settings->m_Leading),
-        skb_attribute_make_spacing(tracking, 0.0f)
-    };
+    CreateParagraphs(codepoints, num_codepoints, layout->m_Paragraphs);
 
-    // TODO: Support rich text
+    skb_attribute_t attributes[3];
+    attributes[0] = skb_attribute_make_font(SKB_FONT_FAMILY_DEFAULT, settings->m_Size, SKB_WEIGHT_NORMAL, SKB_STYLE_NORMAL, SKB_STRETCH_NORMAL);
+    attributes[1] = skb_attribute_make_line_height(SKB_LINE_HEIGHT_METRICS_RELATIVE, settings->m_Leading);
+    attributes[2] = skb_attribute_make_spacing(tracking, 0.0f);
 
-    skb_text_run_utf32_t runs[] = {
-        { codepoints, (int32_t)num_codepoints, attributes, DM_ARRAY_SIZE(attributes) },
-    };
-
-    skb_layout_t* skblayout = skb_layout_create_from_runs_utf32(ctx->m_Alloc, &params, runs, DM_ARRAY_SIZE(runs));
+    skb_layout_t* skblayout = skb_layout_create_utf32(ctx->m_Alloc, &params,
+                                                       codepoints, num_codepoints,
+                                                       attributes, DM_ARRAY_SIZE(attributes));
     ctx->m_Layout = skblayout;
 
     const int32_t glyphs_count = skb_layout_get_glyphs_count(skblayout);
@@ -151,7 +230,7 @@ static bool LayoutText(LayoutContext* ctx,
 
                 // Skip explicit line break codepoints. They should not
                 // contribute a visible glyph nor count towards line length.
-                if (cp == dmUtf8::UTF_WHITESPACE_NEW_LINE || cp == dmUtf8::UTF_WHITESPACE_CARRIAGE_RETURN)
+                if (IsParagraphSeparator(cp))
                 {
                     continue;
                 }
@@ -193,13 +272,17 @@ static bool LayoutText(LayoutContext* ctx,
         TextLine l;
         l.m_Width   = line->bounds.width - (tracking > 0 ? tracking : 0);
         if (li == lines_count - 2 &&
-            (codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_NEW_LINE ||
-             codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_CARRIAGE_RETURN))
+            IsParagraphSeparator(codepoints[num_codepoints - 1]))
         {
             l.m_Width = content_advance - (tracking > 0 ? tracking : 0);
         }
-        l.m_Index   = prev_glyph_index;
-        l.m_Length  = glyph_index - prev_glyph_index;
+        l.m_Index          = prev_glyph_index;
+        l.m_Length         = glyph_index - prev_glyph_index;
+        l.m_ParagraphIndex = GetParagraphIndex(layout->m_Paragraphs, line->text_range.start);
+        TextParagraph& paragraph = layout->m_Paragraphs[l.m_ParagraphIndex];
+        if (paragraph.m_LineCount == 0)
+            paragraph.m_LineIndex = layout->m_Lines.Size();
+        ++paragraph.m_LineCount;
         layout->m_Lines.Push(l);
     }
 
@@ -207,16 +290,15 @@ static bool LayoutText(LayoutContext* ctx,
     // layout does not, so discard it here as well.
     if (!layout->m_Lines.Empty() &&
         layout->m_Lines.Back().m_Length == 0 &&
-        (codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_NEW_LINE ||
-         codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_CARRIAGE_RETURN))
+        IsParagraphSeparator(codepoints[num_codepoints - 1]))
     {
+        TextParagraph& paragraph = layout->m_Paragraphs[layout->m_Lines.Back().m_ParagraphIndex];
+        --paragraph.m_LineCount;
         layout->m_Lines.Pop();
         lines_count--;
     }
 
     layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
-    layout->m_Direction = skb_is_rtl(skb_layout_get_resolved_direction(skblayout)) ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
-
     skb_rect2_t layout_bounds = skb_layout_get_bounds(skblayout);
     layout->m_Width = layout_bounds.width - (tracking > 0 ? tracking : 0);
     if (lines_count != skb_layout_get_lines_count(skblayout))
@@ -234,6 +316,7 @@ void TextLayoutSkribidiFree(TextLayout* layout)
 {
     layout->m_Glyphs.SetCapacity(0);
     layout->m_Lines.SetCapacity(0);
+    layout->m_Paragraphs.SetCapacity(0);
     delete layout;
 }
 
@@ -248,8 +331,8 @@ TextResult TextLayoutSkribidiCreate(HFontCollection collection,
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(0);
     layout->m_Lines.SetSize(0);
+    layout->m_Paragraphs.SetSize(0);
     layout->m_FontCollection = collection;
-    layout->m_Direction = TEXT_DIRECTION_LTR;
     layout->m_NumValidGlyphs = 0;
     layout->m_MaxGlyphWidth = 0.0f;
     layout->m_MaxGlyphHeight = 0.0f;

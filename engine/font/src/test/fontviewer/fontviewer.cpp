@@ -88,6 +88,10 @@ static const char* ARABIC_TEXT =
 "الظروف الأليمة، وأكرر بأنه لا يوجد من يرغب في الحب ونيل المنال ويتلذذ بالآلام، الألم هو الألم ولكن نتيجة "
 "لظروف ما قد تكمن السعاده فيما نتحمله من كد وأسي.";
 
+static const char* JAPANESE_TEXT =
+"吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所で"
+"ニャーニャー泣いていた事だけは記憶している。";
+
 struct CachedGlyph
 {
     FontGlyph m_Glyph;
@@ -125,6 +129,7 @@ struct Viewer
         , m_Texture(0)
         , m_NuklearTexture(0)
         , m_Collection(0)
+        , m_LoadedFontDataSize(0)
         , m_VertexCount(0)
         , m_ColorBackgroundVertexCount(0)
         , m_ColorDebugVertexCount(0)
@@ -202,6 +207,8 @@ struct Viewer
     dmGraphics::HTexture           m_NuklearTexture;
     HFontCollection                m_Collection;
     dmArray<HFont>                 m_Fonts;
+    dmArray<char>                  m_LoadedFontText;
+    uint64_t                       m_LoadedFontDataSize;
     dmArray<const char*>           m_FontPaths;
     dmArray<const char*>           m_Texts;
     dmArray<char*>                 m_OwnedTexts;
@@ -393,8 +400,8 @@ static bool ParseArguments(Viewer* viewer, int argc, char** argv)
 static bool InitializeEditorText(Viewer* viewer)
 {
     const bool     use_defaults = viewer->m_Texts.Empty();
-    const uint32_t text_count = use_defaults ? 2 : viewer->m_Texts.Size();
-    const char*    default_texts[] = { ENGLISH_TEXT, ARABIC_TEXT };
+    const uint32_t text_count = use_defaults ? 3 : viewer->m_Texts.Size();
+    const char*    default_texts[] = { ENGLISH_TEXT, ARABIC_TEXT, JAPANESE_TEXT };
     uint32_t       size = 1;
     for (uint32_t i = 0; i < text_count; ++i)
         size += (uint32_t)strlen(use_defaults ? default_texts[i] : viewer->m_Texts[i]) + (i ? 2 : 0);
@@ -776,9 +783,10 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
 
 static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, float paragraph_top, float font_size, float paragraph_width, const FontViewerNuklearBox& clip_box, bool bold, bool apply_properties, uint32_t layer_count, uint32_t layer_stride, uint32_t* vertex_index)
 {
-    TextGlyph*  text_glyphs = TextLayoutGetGlyphs(layout);
-    TextLine*   lines = TextLayoutGetLines(layout);
-    HFont       first_font = TextLayoutGetGlyphCount(layout) ? text_glyphs[0].m_Font : viewer->m_Fonts[0];
+    TextGlyph*     text_glyphs = TextLayoutGetGlyphs(layout);
+    TextLine*      lines = TextLayoutGetLines(layout);
+    TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
+    HFont          first_font = TextLayoutGetGlyphCount(layout) ? text_glyphs[0].m_Font : viewer->m_Fonts[0];
     const float scale = FontGetScaleFromSize(first_font, font_size);
     const float ascent = FontGetAscent(first_font, scale);
     const float descent = fabsf(FontGetDescent(first_font, scale));
@@ -820,13 +828,11 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
         if (!line.m_Length)
             continue;
         float first_x = text_glyphs[line.m_Index].m_X;
-        float last_x = first_x;
         for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
         {
             first_x = dmMath::Min(first_x, text_glyphs[i].m_X);
-            last_x = text_glyphs[i].m_X;
         }
-        const bool  right_to_left = text_glyphs[line.m_Index].m_X > last_x;
+        const bool  right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
         const float line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
         const float first_y = text_glyphs[line.m_Index].m_Y;
         const float line_y = paragraph_top - ascent - line_index * line_height;
@@ -843,6 +849,31 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             *vertex_index += 6;
         }
     }
+}
+
+static void UpdateLoadedFontText(Viewer* viewer)
+{
+    uint32_t text_size = 1;
+    viewer->m_LoadedFontDataSize = 0;
+    for (uint32_t i = 0; i < viewer->m_Fonts.Size(); ++i)
+    {
+        text_size += (uint32_t)strlen(FontGetPath(viewer->m_Fonts[i])) + (i ? 1 : 0);
+        viewer->m_LoadedFontDataSize += FontGetResourceSize(viewer->m_Fonts[i]);
+    }
+
+    viewer->m_LoadedFontText.SetCapacity(text_size);
+    viewer->m_LoadedFontText.SetSize(text_size);
+    char* cursor = viewer->m_LoadedFontText.Begin();
+    for (uint32_t i = 0; i < viewer->m_Fonts.Size(); ++i)
+    {
+        if (i)
+            *cursor++ = '\n';
+        const char* path = FontGetPath(viewer->m_Fonts[i]);
+        uint32_t path_length = (uint32_t)strlen(path);
+        memcpy(cursor, path, path_length);
+        cursor += path_length;
+    }
+    *cursor = 0;
 }
 
 static bool LoadFonts(Viewer* viewer)
@@ -876,6 +907,7 @@ static bool LoadFonts(Viewer* viewer)
         }
     }
 
+    UpdateLoadedFontText(viewer);
     return true;
 }
 
@@ -1054,8 +1086,9 @@ static uint32_t HitTestEditorText(Viewer* viewer, float mouse_x, float mouse_y)
     if (!layout_index)
         return EditorCodepointCount(viewer);
     HTextLayout layout = viewer->m_Layouts[layout_index];
-    TextGlyph*  glyphs = TextLayoutGetGlyphs(layout);
-    TextLine*   lines = TextLayoutGetLines(layout);
+    TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
+    TextLine*      lines = TextLayoutGetLines(layout);
+    TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
     if (!TextLayoutGetLineCount(layout))
         return 0;
     HFont       font = TextLayoutGetGlyphCount(layout) ? glyphs[0].m_Font : viewer->m_Fonts[0];
@@ -1073,13 +1106,11 @@ static uint32_t HitTestEditorText(Viewer* viewer, float mouse_x, float mouse_y)
         return text_offset + GetEmptyLineCluster(glyphs, lines, line_index, TextLayoutGetLineCount(layout), EditorCodepointCount(viewer) - text_offset);
     }
     float first_x = glyphs[line.m_Index].m_X;
-    float last_x = first_x;
     for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
     {
         first_x = dmMath::Min(first_x, glyphs[i].m_X);
-        last_x = glyphs[i].m_X;
     }
-    const bool  right_to_left = glyphs[line.m_Index].m_X > last_x;
+    const bool  right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
     const float line_x = viewer->m_LayoutXs[layout_index] + (right_to_left ? viewer->m_LayoutWidths[layout_index] - line.m_Width : 0.0f);
     const uint32_t text_offset = viewer->m_LayoutTextOffsets[layout_index];
     const uint32_t line_end = GetLineEndCluster(glyphs, lines, line_index, TextLayoutGetLineCount(layout), EditorCodepointCount(viewer) - text_offset);
@@ -1116,8 +1147,9 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
         if (!IsEditorLayout(viewer, layout_index))
             continue;
         HTextLayout layout = viewer->m_Layouts[layout_index];
-        TextGlyph*  glyphs = TextLayoutGetGlyphs(layout);
-        TextLine*   lines = TextLayoutGetLines(layout);
+        TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
+        TextLine*      lines = TextLayoutGetLines(layout);
+        TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
         const uint32_t line_count = TextLayoutGetLineCount(layout);
         if (!line_count || !TextLayoutGetGlyphCount(layout))
             continue;
@@ -1148,13 +1180,11 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
             if (viewer->m_Caret == line_end && line_index + 1 < line_count)
                 continue;
             float first_x = glyphs[line.m_Index].m_X;
-            float last_x = first_x;
             for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
             {
                 first_x = dmMath::Min(first_x, glyphs[i].m_X);
-                last_x = glyphs[i].m_X;
             }
-            const bool  right_to_left = glyphs[line.m_Index].m_X > last_x;
+            const bool  right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
             const float line_x = viewer->m_LayoutXs[layout_index] + (right_to_left ? viewer->m_LayoutWidths[layout_index] - line.m_Width : 0.0f);
             bool        caret_found = false;
             for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
@@ -1277,6 +1307,7 @@ static void BuildEditorSelectionGeometry(Viewer* viewer)
         HTextLayout                 layout = viewer->m_Layouts[layout_index];
         TextGlyph*                  glyphs = TextLayoutGetGlyphs(layout);
         TextLine*                   lines = TextLayoutGetLines(layout);
+        TextParagraph*              paragraphs = TextLayoutGetParagraphs(layout);
         HFont                       font = TextLayoutGetGlyphCount(layout) ? glyphs[0].m_Font : viewer->m_Fonts[0];
         const float                 scale = FontGetScaleFromSize(font, viewer->m_LayoutSizes[layout_index]);
         const float                 ascent = FontGetAscent(font, scale);
@@ -1289,13 +1320,11 @@ static void BuildEditorSelectionGeometry(Viewer* viewer)
             if (!line.m_Length)
                 continue;
             float first_x = glyphs[line.m_Index].m_X;
-            float last_x = first_x;
             for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
             {
                 first_x = dmMath::Min(first_x, glyphs[i].m_X);
-                last_x = glyphs[i].m_X;
             }
-            const bool  right_to_left = glyphs[line.m_Index].m_X > last_x;
+            const bool  right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
             const float line_x = viewer->m_LayoutXs[layout_index] + (right_to_left ? viewer->m_LayoutWidths[layout_index] - line.m_Width : 0.0f);
             const float line_y = viewer->m_LayoutTops[layout_index] - ascent - line_index * line_height;
             for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
@@ -1374,7 +1403,12 @@ static void BuildDebugGeometry(Viewer* viewer, uint32_t main_face_start, uint32_
 
 static void BuildNuklearData(Viewer* viewer, const FontViewerNuklearInput* input)
 {
-    FontViewerNuklearBuild(WINDOW_WIDTH, WINDOW_HEIGHT, viewer->m_LayoutText.Begin(), viewer->m_EditorContentHeight, input, &viewer->m_TextScrollY, &viewer->m_FontSize, &viewer->m_Zoom, &viewer->m_Properties, &viewer->m_ShapeText, &viewer->m_ShowBaselines, &viewer->m_ShowQuads, &viewer->m_NuklearLayout);
+    FontViewerNuklearFonts fonts;
+    fonts.m_LoadedFontText = viewer->m_LoadedFontText.Begin();
+    fonts.m_LoadedFontCount = viewer->m_Fonts.Size();
+    fonts.m_LoadedFontTextSize = viewer->m_LoadedFontText.Size();
+    fonts.m_LoadedFontDataSize = viewer->m_LoadedFontDataSize;
+    FontViewerNuklearBuild(WINDOW_WIDTH, WINDOW_HEIGHT, viewer->m_LayoutText.Begin(), viewer->m_EditorContentHeight, input, &viewer->m_TextScrollY, &viewer->m_FontSize, &viewer->m_Zoom, &viewer->m_Properties, &fonts, &viewer->m_ShapeText, &viewer->m_ShowBaselines, &viewer->m_ShowQuads, &viewer->m_NuklearLayout);
     const uint32_t index_count = viewer->m_NuklearLayout.m_IndexDataSize / sizeof(uint16_t);
     if (viewer->m_NuklearVertices.Capacity() < index_count)
         viewer->m_NuklearVertices.SetCapacity(index_count);
@@ -1740,8 +1774,10 @@ static void HandleInput(Viewer* viewer)
     FontViewerNuklearInput nuklear_input;
     nuklear_input.m_MouseX = mouse_x;
     nuklear_input.m_MouseY = mouse_y;
-    nuklear_input.m_ScrollY = (float)wheel_delta;
+    nuklear_input.m_ScrollY = mouse_x >= viewer->m_NuklearLayout.m_ContentWidth ? (float)wheel_delta : 0.0f;
     nuklear_input.m_LeftMouseDown = mouse_down;
+    nuklear_input.m_CopyDown = input.m_CopyDown;
+    nuklear_input.m_SelectAllDown = input.m_SelectAllDown;
     BuildNuklearData(viewer, &nuklear_input);
     UpdateNuklearGraphicsData(viewer);
     const bool text_visible = viewer->m_NuklearLayout.m_TextField.m_Width > 0.0f;
@@ -1925,7 +1961,7 @@ static bool Initialize(Viewer* viewer)
     context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
     context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
     viewer->m_Context = dmGraphics::NewContext(context_params);
-    return viewer->m_Context && FontViewerNuklearInitialize(WINDOW_WIDTH, WINDOW_HEIGHT) &&
+    return viewer->m_Context && FontViewerNuklearInitialize(viewer->m_Window, WINDOW_WIDTH, WINDOW_HEIGHT) &&
     LoadFonts(viewer) && BuildFontData(viewer) && CreateGraphicsResources(viewer) &&
     CreateNuklearGraphicsResources(viewer);
 }

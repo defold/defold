@@ -117,12 +117,33 @@ struct TextGlyph
  * @member m_Width [type: float] Width of the line
  * @member m_Index [type: uint16_t] Index into the list of glyphs
  * @member m_Length [type: uint16_t] Number of glyphs to render
+ * @member m_ParagraphIndex [type: uint16_t] Index of the paragraph containing the line
  */
 struct TextLine
 {
     float    m_Width;
     uint16_t m_Index;
     uint16_t m_Length;
+    uint16_t m_ParagraphIndex;
+};
+
+/*#
+ * Represents a paragraph of lines
+ * @struct
+ * @name TextParagraph
+ * @member m_TextIndex [type: uint32_t] Index into the source codepoints
+ * @member m_TextLength [type: uint32_t] Number of source codepoints, excluding the paragraph separator
+ * @member m_LineIndex [type: uint16_t] Index into the list of lines
+ * @member m_LineCount [type: uint16_t] Number of lines in the paragraph
+ * @member m_Direction [type: TextDirection] Base direction of the paragraph
+ */
+struct TextParagraph
+{
+    uint32_t      m_TextIndex;
+    uint32_t      m_TextLength;
+    uint16_t      m_LineIndex;
+    uint16_t      m_LineCount;
+    TextDirection m_Direction;
 };
 
 /*#
@@ -210,6 +231,22 @@ uint32_t TextLayoutGetLineCount(HTextLayout layout);
  * @return lines [type: TextLine*] the array of lines in the layout
  */
 TextLine* TextLayoutGetLines(HTextLayout layout);
+
+/*#
+ * Get the paragraph count in the layout
+ * @name TextLayoutGetParagraphCount
+ * @param layout [type: HTextLayout] the text layout
+ * @return count [type: uint32_t] the number of paragraphs in the layout
+ */
+uint32_t TextLayoutGetParagraphCount(HTextLayout layout);
+
+/*#
+ * Get the paragraphs in the layout
+ * @name TextLayoutGetParagraphs
+ * @param layout [type: HTextLayout] the text layout
+ * @return paragraphs [type: TextParagraph*] the array of paragraphs in the layout
+ */
+TextParagraph* TextLayoutGetParagraphs(HTextLayout layout);
 
 /*#
  * Get the lines in the layout

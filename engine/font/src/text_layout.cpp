@@ -37,6 +37,16 @@ TextLine* TextLayoutGetLines(HTextLayout layout)
     return layout->m_Lines.Begin();
 }
 
+uint32_t TextLayoutGetParagraphCount(HTextLayout layout)
+{
+    return layout->m_Paragraphs.Size();
+}
+
+TextParagraph* TextLayoutGetParagraphs(HTextLayout layout)
+{
+    return layout->m_Paragraphs.Begin();
+}
+
 void TextLayoutGetBounds(HTextLayout layout, float* width, float* height)
 {
     *width = layout->m_Width;

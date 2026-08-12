@@ -357,6 +357,7 @@ namespace dmRender
         TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
         const uint32_t line_count = TextLayoutGetLineCount(layout);
         TextLine* lines = TextLayoutGetLines(layout);
+        TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
         uint32_t visible_glyph_count = glyph_count;
 
         const uint32_t vertices_per_quad = 6;
@@ -383,9 +384,6 @@ namespace dmRender
         const uint32_t output_visible_glyph_count = dmMath::Min(visible_glyph_count, max_visible_glyph_count);
 
         const uint32_t align = te.m_Align;
-        float x_offset = OffsetX(align, te.m_Width);
-        if (font_map->m_IsMonospaced)
-            x_offset -= font_map->m_Padding * 0.5f;
         const float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
         for (uint32_t line_index = 0; line_index < line_count; ++line_index)
@@ -396,7 +394,17 @@ namespace dmRender
 
             const int32_t first_x = glyphs[line.m_Index].m_X;
             const int32_t first_y = glyphs[line.m_Index].m_Y;
-            const float line_start_x = x_offset - OffsetX(align, line.m_Width);
+            uint32_t resolved_align = align;
+            if (paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL)
+            {
+                if (resolved_align == TEXT_ALIGN_LEFT)
+                    resolved_align = TEXT_ALIGN_RIGHT;
+                else if (resolved_align == TEXT_ALIGN_RIGHT)
+                    resolved_align = TEXT_ALIGN_LEFT;
+            }
+            float line_start_x = OffsetX(resolved_align, te.m_Width) - OffsetX(resolved_align, line.m_Width);
+            if (font_map->m_IsMonospaced)
+                line_start_x -= font_map->m_Padding * 0.5f;
             const float line_start_y = y_offset - line_index * leading;
             const uint32_t glyph_end = line.m_Index + line.m_Length;
             for (uint32_t glyph_i = line.m_Index; glyph_i < glyph_end; ++glyph_i)

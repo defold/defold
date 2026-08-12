@@ -787,6 +787,24 @@ TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
     ASSERT_EQ((uint32_t)strlen(expected_text_3), line3.m_Length);
     ASSERT_ARRAY_EQ_LEN(expected_text_3, outtext.Begin() + line3.m_Index, line3.m_Length);
 
+    ASSERT_EQ(3u, TextLayoutGetParagraphCount(layout));
+    TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
+    ASSERT_EQ(0u, paragraphs[0].m_TextIndex);
+    ASSERT_EQ(3u, paragraphs[0].m_TextLength);
+    ASSERT_EQ(0u, paragraphs[0].m_LineIndex);
+    ASSERT_EQ(1u, paragraphs[0].m_LineCount);
+    ASSERT_EQ(4u, paragraphs[1].m_TextIndex);
+    ASSERT_EQ(0u, paragraphs[1].m_TextLength);
+    ASSERT_EQ(1u, paragraphs[1].m_LineIndex);
+    ASSERT_EQ(1u, paragraphs[1].m_LineCount);
+    ASSERT_EQ(5u, paragraphs[2].m_TextIndex);
+    ASSERT_EQ(3u, paragraphs[2].m_TextLength);
+    ASSERT_EQ(2u, paragraphs[2].m_LineIndex);
+    ASSERT_EQ(1u, paragraphs[2].m_LineCount);
+    ASSERT_EQ(0u, line1.m_ParagraphIndex);
+    ASSERT_EQ(1u, line2.m_ParagraphIndex);
+    ASSERT_EQ(2u, line3.m_ParagraphIndex);
+
     TextLayoutRelease(layout);
 }
 
@@ -1331,6 +1349,33 @@ TEST_F(FontTest, Layout)
 #endif // !defined(FONT_USE_SKRIBIDI)
 
 #if defined(FONT_USE_SKRIBIDI)
+TEST_F(FontTest, SkribidiDetectsMixedParagraphDirections)
+{
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints("English\n\nالعربية\n\n日本語です", codepoints);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Size = 28.0f;
+
+    HTextLayout layout = 0;
+    TextResult result = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, result);
+    ASSERT_EQ(5u, TextLayoutGetParagraphCount(layout));
+
+    TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
+    ASSERT_EQ(TEXT_DIRECTION_LTR, paragraphs[0].m_Direction);
+    ASSERT_EQ(TEXT_DIRECTION_LTR, paragraphs[1].m_Direction);
+    ASSERT_EQ(TEXT_DIRECTION_RTL, paragraphs[2].m_Direction);
+    ASSERT_EQ(TEXT_DIRECTION_RTL, paragraphs[3].m_Direction);
+    ASSERT_EQ(TEXT_DIRECTION_LTR, paragraphs[4].m_Direction);
+
+    for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
+        ASSERT_EQ(i, layout->m_Lines[i].m_ParagraphIndex);
+
+    TextLayoutRelease(layout);
+}
+
 TEST_F(FontTest, SkribidiLayoutHeightMatchesLegacyLineHeight)
 {
     dmArray<uint32_t> codepoints;

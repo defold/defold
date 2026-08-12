@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "fontviewer_nuklear.h"
+#include "fontviewer_macos.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -43,6 +44,11 @@ static uint8_t*                     g_AtlasPixels;
 static uint32_t                     g_AtlasWidth;
 static uint32_t                     g_AtlasHeight;
 static bool                         g_Initialized;
+
+static void CopyToClipboard(nk_handle window, const char* text, int length)
+{
+    FontViewerMacOSSetClipboard((HWindow)window.ptr, text, (uint32_t)length);
+}
 
 static void                         SetFont(float height)
 {
@@ -97,7 +103,7 @@ static void SetStyle(void)
     g_Context.style.property.rounding = 2.0f;
 }
 
-bool FontViewerNuklearInitialize(uint32_t width, uint32_t height)
+bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height)
 {
     (void)width;
     (void)height;
@@ -125,6 +131,8 @@ bool FontViewerNuklearInitialize(uint32_t width, uint32_t height)
     g_Initialized = nk_init_default(&g_Context, &g_Font->handle) != 0;
     if (!g_Initialized)
         return false;
+    g_Context.clip.userdata.ptr = window;
+    g_Context.clip.copy = CopyToClipboard;
     nk_buffer_init_fixed(&g_DrawCommands, g_DrawCommandMemory, sizeof(g_DrawCommandMemory));
     nk_buffer_init_fixed(&g_Vertices, g_VertexMemory, sizeof(g_VertexMemory));
     nk_buffer_init_fixed(&g_Indices, g_IndexMemory, sizeof(g_IndexMemory));
@@ -280,7 +288,7 @@ static void ConvertCommands(FontViewerNuklearLayout* layout)
     }
 }
 
-void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, bool* shape_text, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout)
+void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* shape_text, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout)
 {
     const float panel_width = 380.0f;
     const float panel_x = (float)width - panel_width;
@@ -292,6 +300,8 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
     {
         nk_input_motion(&g_Context, input->m_MouseX, input->m_MouseY);
         nk_input_button(&g_Context, NK_BUTTON_LEFT, input->m_MouseX, input->m_MouseY, input->m_LeftMouseDown);
+        nk_input_key(&g_Context, NK_KEY_COPY, input->m_CopyDown);
+        nk_input_key(&g_Context, NK_KEY_TEXT_SELECT_ALL, input->m_SelectAllDown);
         if (input->m_ScrollY != 0.0f)
             nk_input_scroll(&g_Context, nk_vec2(0.0f, input->m_ScrollY));
     }
@@ -317,16 +327,14 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
             nk_layout_row_dynamic(&g_Context, (float)height * 0.25f, 1);
             text_field = nk_widget_bounds(&g_Context);
             layout->m_TextField = ToBox(text_field);
-            layout->m_TextViewportHeight = text_field.h - 16.0f;
-            layout->m_TextContentHeight = text_content_height > 0.0f ? text_content_height : EstimateTextContentHeight(text, text_field.w - 28.0f);
             if (nk_group_scrolled_offset_begin(&g_Context, &scroll_x, &scroll_y, "Editor", NK_WINDOW_BORDER))
             {
+                struct nk_rect content_region = nk_window_get_content_region(&g_Context);
+                layout->m_TextViewportHeight = content_region.h;
+                layout->m_TextContentHeight = text_content_height > 0.0f ? text_content_height : EstimateTextContentHeight(text, content_region.w);
                 nk_layout_row_static(&g_Context, fmaxf(layout->m_TextViewportHeight, layout->m_TextContentHeight), 1.0f, 1);
-                nk_spacing(&g_Context, 1);
                 nk_group_scrolled_end(&g_Context);
             }
-            const nk_uint max_scroll_y = (nk_uint)ceilf(fmaxf(0.0f, layout->m_TextContentHeight - layout->m_TextViewportHeight));
-            scroll_y = scroll_y > max_scroll_y ? max_scroll_y : scroll_y;
             *text_scroll_y = (float)scroll_y;
             nk_tree_pop(&g_Context);
         }
@@ -382,6 +390,24 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
             *show_baselines = baselines != 0;
             *show_quads = quads != 0;
             DrawColorPicker("Background", properties->m_BackgroundColor);
+
+            nk_layout_row_dynamic(&g_Context, 24.0f, 1);
+            if (nk_tree_push(&g_Context, NK_TREE_NODE, "Loaded fonts", NK_MAXIMIZED))
+            {
+                SetFont(12.0f);
+                char summary[64];
+                snprintf(summary, sizeof(summary), "%u fonts, %.1f MB", fonts->m_LoadedFontCount,
+                         fonts->m_LoadedFontDataSize / (1024.0f * 1024.0f));
+                nk_layout_row_dynamic(&g_Context, 18.0f, 1);
+                nk_label(&g_Context, summary, NK_TEXT_LEFT);
+                float field_height = fonts->m_LoadedFontCount * 18.0f + 8.0f;
+                nk_layout_row_dynamic(&g_Context, field_height, 1);
+                nk_edit_string_zero_terminated(&g_Context, NK_EDIT_BOX | NK_EDIT_READ_ONLY,
+                                               fonts->m_LoadedFontText,
+                                               (int)fonts->m_LoadedFontTextSize,
+                                               nk_filter_default);
+                nk_tree_pop(&g_Context);
+            }
             nk_tree_pop(&g_Context);
         }
     }

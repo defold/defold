@@ -18,6 +18,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <platform/window.hpp>
+
 #define FONT_VIEWER_ZOOM_MIN 0.01f
 #define FONT_VIEWER_ZOOM_MAX 20.0f
 #define FONT_VIEWER_NUKLEAR_MAX_DRAW_COMMANDS 256
@@ -54,6 +56,8 @@ extern "C"
         int32_t m_MouseY;
         float   m_ScrollY;
         bool    m_LeftMouseDown;
+        bool    m_CopyDown;
+        bool    m_SelectAllDown;
     } FontViewerNuklearInput;
 
     typedef struct FontViewerProperties
@@ -71,6 +75,14 @@ extern "C"
         float m_BackgroundColor[3];
     } FontViewerProperties;
 
+    typedef struct FontViewerNuklearFonts
+    {
+        char*    m_LoadedFontText;
+        uint32_t m_LoadedFontCount;
+        uint32_t m_LoadedFontTextSize;
+        uint64_t m_LoadedFontDataSize;
+    } FontViewerNuklearFonts;
+
     typedef struct FontViewerNuklearLayout
     {
         const FontViewerNuklearVertex*      m_Vertices;
@@ -85,10 +97,10 @@ extern "C"
         float                               m_TextViewportHeight;
     } FontViewerNuklearLayout;
 
-    bool FontViewerNuklearInitialize(uint32_t width, uint32_t height);
+    bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height);
     void FontViewerNuklearFinalize(void);
     bool FontViewerNuklearGetAtlas(const void** pixels, uint32_t* width, uint32_t* height);
-    void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, bool* shape_text, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout);
+    void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* shape_text, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout);
 
 #ifdef __cplusplus
 }

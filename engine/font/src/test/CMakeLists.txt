@@ -152,4 +152,5 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     find_package(Threads REQUIRED)
     target_link_libraries(fontviewer PRIVATE Threads::Threads dl)
   endif()
+  add_dependencies(build_tests fontviewer)
 endif()

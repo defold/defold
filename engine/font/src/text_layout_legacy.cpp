@@ -205,6 +205,40 @@ static void TextLayoutLegacyFree(TextLayout* layout)
     delete layout;
 }
 
+static uint32_t GetParagraphIndex(const dmArray<TextParagraph>& paragraphs, uint32_t text_index)
+{
+    uint32_t paragraph_index = 0;
+    while (paragraph_index + 1 < paragraphs.Size() &&
+           text_index >= paragraphs[paragraph_index + 1].m_TextIndex)
+        ++paragraph_index;
+    return paragraph_index;
+}
+
+static void CreateParagraphs(TextLayout* layout, uint32_t* codepoints, uint32_t num_codepoints)
+{
+    uint32_t paragraph_start = 0;
+    while (paragraph_start < num_codepoints)
+    {
+        uint32_t paragraph_end = paragraph_start;
+        while (paragraph_end < num_codepoints && codepoints[paragraph_end] != CHAR_NEWLINE)
+            ++paragraph_end;
+        TextParagraph paragraph = { paragraph_start, paragraph_end - paragraph_start, 0, 0,
+                                    TEXT_DIRECTION_LTR };
+        layout->m_Paragraphs.Push(paragraph);
+        paragraph_start = paragraph_end + (paragraph_end < num_codepoints);
+    }
+
+    for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
+    {
+        TextLine& line = layout->m_Lines[i];
+        line.m_ParagraphIndex = GetParagraphIndex(layout->m_Paragraphs, line.m_Index);
+        TextParagraph& paragraph = layout->m_Paragraphs[line.m_ParagraphIndex];
+        if (paragraph.m_LineCount == 0)
+            paragraph.m_LineIndex = i;
+        ++paragraph.m_LineCount;
+    }
+}
+
 TextResult TextLayoutLegacyCreate(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
@@ -216,8 +250,9 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(num_codepoints);
     layout->m_Lines.SetSize(0);
+    layout->m_Paragraphs.SetCapacity(num_codepoints);
+    layout->m_Paragraphs.SetSize(0);
     layout->m_FontCollection = collection;
-    layout->m_Direction = TEXT_DIRECTION_LTR;
     layout->m_NumValidGlyphs = 0;
 
     HFont font = FontCollectionGetFont(collection, 0);
@@ -287,6 +322,7 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     if (!settings->m_LineBreak)
         width = 1000000.0f;
     Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak);
+    CreateParagraphs(layout, codepoints, num_codepoints);
 
     // metrics->m_MaxAscent = ascent;
     // metrics->m_MaxDescent = descent;

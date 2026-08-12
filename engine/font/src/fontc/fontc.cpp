@@ -912,6 +912,7 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
 
     TextGlyph*          glyphs = TextLayoutGetGlyphs(layout);
     TextLine*           lines = TextLayoutGetLines(layout);
+    TextParagraph*      paragraphs = TextLayoutGetParagraphs(layout);
     const uint32_t      line_count = TextLayoutGetLineCount(layout);
     VertexBufferMetrics metrics;
     if (!GetVertexBufferMetrics(renderer, layout, &metrics))
@@ -941,7 +942,6 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
     const float max_ascent = FontGetAscent(renderer->m_Font, font_scale);
     const float max_descent = -FontGetDescent(renderer->m_Font, font_scale);
     const float line_height = max_ascent + max_descent;
-    const float x_offset = OffsetX(properties.m_Align, properties.m_Width);
     const float y_offset = OffsetY(properties.m_VerticalAlign, properties.m_Height, max_ascent, max_descent, properties.m_Leading, line_count);
     const float smoothing = 0.25f / (renderer->m_SdfSpread * dmMath::Max(0.000001f, properties.m_SdfScale));
     uint32_t    vertex_index = 0;
@@ -952,7 +952,15 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
             continue;
         const float first_x = glyphs[line.m_Index].m_X;
         const float first_y = glyphs[line.m_Index].m_Y;
-        const float line_x = x_offset - OffsetX(properties.m_Align, line.m_Width);
+        uint32_t resolved_align = properties.m_Align;
+        if (paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL)
+        {
+            if (resolved_align == 0)
+                resolved_align = 2;
+            else if (resolved_align == 2)
+                resolved_align = 0;
+        }
+        const float line_x = OffsetX(resolved_align, properties.m_Width) - OffsetX(resolved_align, line.m_Width);
         const float line_y = y_offset - line_index * line_height * properties.m_Leading;
         for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
         {

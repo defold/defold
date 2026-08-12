@@ -26,13 +26,13 @@ struct TextLayout
     uint32_t           m_RefCount;
 
     // TODO: Make these C arrays?
-    dmArray<TextGlyph> m_Glyphs;
-    dmArray<TextLine>  m_Lines;
+    dmArray<TextGlyph>     m_Glyphs;
+    dmArray<TextLine>      m_Lines;
+    dmArray<TextParagraph> m_Paragraphs;
 
     HFontCollection    m_FontCollection;
 
     uint16_t           m_NumValidGlyphs;   // TODO: Remove non renderable glyphs
-    TextDirection      m_Direction;
 
     // Used for creating a cell in the glyph image cache texture
     float              m_MaxGlyphWidth;

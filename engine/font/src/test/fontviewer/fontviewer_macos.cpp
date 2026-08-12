@@ -14,9 +14,11 @@
 
 #include "fontviewer_macos.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <platform_window_constants.h>
+#include <platform_window_glfw3_private.h>
 
 void FontViewerMacOSInstallInput(HWindow                              window,
                                  FontViewerKeyboardCharCallback       char_callback,
@@ -52,4 +54,22 @@ void FontViewerMacOSPollInput(HWindow window, uint32_t layout_width, uint32_t la
     input->m_DownDown = dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_DOWN) != 0;
     input->m_ShiftDown = dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LSHIFT) != 0 ||
                          dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT) != 0;
+#if defined(DM_PLATFORM_MACOS)
+    bool clipboard_modifier = dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LSUPER) != 0 ||
+                              dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSUPER) != 0;
+#else
+    bool clipboard_modifier = dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL) != 0 ||
+                              dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL) != 0;
+#endif
+    input->m_CopyDown = clipboard_modifier && dmPlatform::GetKey(window, GLFW_KEY_C) != 0;
+    input->m_SelectAllDown = clipboard_modifier && dmPlatform::GetKey(window, GLFW_KEY_A) != 0;
+}
+
+void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text_length)
+{
+    char* value = (char*)malloc(text_length + 1);
+    memcpy(value, text, text_length);
+    value[text_length] = 0;
+    glfwSetClipboardString(window->m_Window, value);
+    free(value);
 }
