@@ -59,7 +59,7 @@ namespace dmGameObject
         if (!RegisterSubModules(params->m_Factory, script_context, lua_module))
         {
             dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_SUBMODULE_ERROR;
         }
 
         HScript script = NewScript(L, lua_module);
@@ -79,7 +79,7 @@ namespace dmGameObject
         else
         {
             dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_SCRIPT_CREATION_ERROR;
         }
     }
 

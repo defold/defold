@@ -105,6 +105,9 @@ struct ResourceRecreateParams;
  * @member RESOURCE_RESULT_VERSION_MISMATCH
  * @member RESOURCE_RESULT_SIGNATURE_MISMATCH
  * @member RESOURCE_RESULT_UNKNOWN_ERROR
+ * @member RESOURCE_RESULT_SUBMODULE_ERROR
+ * @member RESOURCE_RESULT_SCRIPT_CREATION_ERROR
+ * Note: also add to ResultToString() in resource.cpp
  */
 typedef enum ResourceResult
 {
@@ -130,6 +133,8 @@ typedef enum ResourceResult
     RESOURCE_RESULT_VERSION_MISMATCH          = -19,
     RESOURCE_RESULT_SIGNATURE_MISMATCH        = -20,
     RESOURCE_RESULT_UNKNOWN_ERROR             = -21,
+    RESOURCE_RESULT_SUBMODULE_ERROR           = -22,
+    RESOURCE_RESULT_SCRIPT_CREATION_ERROR     = -23,
 } ResourceResult;
 
 

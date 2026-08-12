@@ -37,7 +37,7 @@ namespace dmGameSystem
         if (!dmGameObject::RegisterSubModules(params->m_Factory, dmRender::GetScriptContext(render_context), lua_module))
         {
             dmDDF::FreeMessage(&lua_module->m_Source);
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_SUBMODULE_ERROR;
         }
 
         dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, &lua_module->m_Source);
@@ -50,7 +50,7 @@ namespace dmGameSystem
         }
         else
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_SCRIPT_CREATION_ERROR;
         }
     }
 
