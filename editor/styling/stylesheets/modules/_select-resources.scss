@@ -1,4 +1,9 @@
 #select-resources {
+    .filter-popup-button {
+        -fx-min-width: 100px;
+        -fx-pref-width: 100px;
+    }
+
     .text-input {
         &:focused {
             -fx-background-color: -df-background-light;

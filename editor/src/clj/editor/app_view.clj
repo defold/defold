@@ -3423,17 +3423,31 @@
 (def ^:private open-assets-term-prefs-key [:open-assets :term])
 
 (defn- query-and-open! [workspace project app-view prefs localization term]
-  (let [prev-filter-term (prefs/get prefs open-assets-term-prefs-key)
-        filter-term-atom (atom prev-filter-term)
-        selected-resources (resource-dialog/make workspace project
-                                                 (cond-> {:title (localization/message "dialog.open-assets.title")
-                                                          :accept-fn resource/editor-openable-resource?
-                                                          :selection :multiple
-                                                          :ok-label (localization/message "dialog.open-assets.button.ok")
-                                                          :filter-atom filter-term-atom
-                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
-                                                         (some? term)
-                                                         (assoc :filter term)))
+  (let [prev-filter-term      (prefs/get prefs open-assets-term-prefs-key)
+        on-patterns-changed   (fn [new-patterns]
+                                (prefs/set! prefs [:search :exclude-patterns] new-patterns))
+        on-filtering-changed  (fn [enabled]
+                                (prefs/set! prefs [:search :filtering] enabled))
+        on-filter-changed     (fn [key value]
+                                (prefs/set! prefs [:search key] value))
+        filter-term-atom      (atom prev-filter-term)
+        selected-resources    (resource-dialog/make workspace project
+                                                    (cond-> {:title (localization/message "dialog.open-assets.title")
+                                                             :accept-fn resource/editor-openable-resource?
+                                                             :selection :multiple
+                                                             :ok-label (localization/message "dialog.open-assets.button.ok")
+                                                             :filter-atom filter-term-atom
+                                                             :initial-exclude-patterns (prefs/get prefs [:search :exclude-patterns])
+                                                             :initial-filtering-enabled (prefs/get prefs [:search :filtering])
+                                                             :initial-exclude-filters (into {}
+                                                                                            (map (fn [{:keys [key]}] [key (prefs/get prefs [:search key])]))
+                                                                                            resource/exclude-filters)
+                                                             :on-patterns-changed on-patterns-changed
+                                                             :on-filtering-changed on-filtering-changed
+                                                             :on-filter-changed on-filter-changed
+                                                             :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                            (some? term)
+                                                            (assoc :filter term)))
         filter-term @filter-term-atom]
     (when (not= prev-filter-term filter-term)
       (prefs/set! prefs open-assets-term-prefs-key filter-term))

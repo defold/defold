@@ -16,8 +16,6 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
-            [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.popup :as fx.popup]
@@ -34,6 +32,7 @@
             [editor.code.util :as util :refer [re-match-result-seq split-lines]]
             [editor.code.view :as view]
             [editor.error-reporting :as error-reporting]
+            [editor.filter-popup :as filter-popup]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -50,6 +49,7 @@
            [java.util.concurrent ArrayBlockingQueue]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
+           [javafx.geometry Point2D]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button Tab TextField]
@@ -208,57 +208,16 @@
 (def ^:private ext-with-button-props
   (fx/make-ext-with-props fx.button/props))
 
-(defn filter-console-list-cell-view [[i [text selected] :as in]]
-  (if-not in
-    {}
-    {:style-class "console-filter-popup-list-cell"
-     ;; somehow this line makes the check-box's label to limit its width, so it
-     ;; does not produce a horizontal scrollbar, but instead truncates the text
-     ;; with ellipsis.
-     :pref-width 100
-     :graphic {:fx/type fx.h-box/lifecycle
-               :style-class "console-filter-popup-list-cell-h-box"
-               :alignment :center-left
-               :spacing 2
-               :children [{:fx/type fx.check-box/lifecycle
-                           :h-box/hgrow :always
-                           :focus-traversable false
-                           :max-width ##Inf
-                           :selected selected
-                           :mnemonic-parsing false
-                           :on-selected-changed {:event-type :select :index i}
-                           :text text}
-                          {:fx/type fx.button/lifecycle
-                           :focus-traversable false
-                           :style-class "console-filter-popup-list-cell-remove-button"
-                           :graphic {:fx/type fx.region/lifecycle
-                                     :style-class "cross"}
-                           :on-action {:event-type :delete :index i}}]}}))
-
 (defn- filter-console-view [^Node filter-console-button localization {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
-        show-counter (and enabled (pos? active-filters-count))
-        anchor (.localToScreen filter-console-button
-                               -12.0 ;; shadow offset
-                               (- (.getMaxY (.getBoundsInLocal filter-console-button))
-                                  ;; shadow offset
-                                  4.0))]
+        ^Point2D anchor (filter-popup/anchor-point filter-console-button)]
     {:fx/type fxui/with-popup-window
      :desc {:fx/type ext-with-button-props
             :desc {:fx/type ui/ext-value
                    :value filter-console-button}
-            :props {:on-action {:event-type :show-or-hide}
-                    :graphic {:fx/type fx.h-box/lifecycle
-                              :style-class "content"
-                              :children [{:fx/type fx.label/lifecycle
-                                          :visible show-counter
-                                          :managed show-counter
-                                          :id "filter-console-counter"
-                                          :text (str active-filters-count)}
-                                         {:fx/type fx.region/lifecycle
-                                          :pseudo-classes (if open #{:open} #{})
-                                          :h-box/margin {:left 10}
-                                          :id "filter-console-arrow"}]}}}
+            :props {:style-class ["button" "filter-popup-button"]
+                    :on-action {:event-type :show-or-hide}
+                    :graphic (filter-popup/button-graphic open (if enabled active-filters-count 0))}}
      :popup {:fx/type fx.popup/lifecycle
              :showing open
              :anchor-location :window-bottom-left
@@ -271,10 +230,10 @@
              :on-auto-hide {:event-type :hide}
              :content [{:fx/type fx.stack-pane/lifecycle
                         :stylesheets [(str (io/resource "editor.css"))]
-                        :style-class "console-filter-popup"
+                        :style-class "filter-popup"
                         :children [{:fx/type fx.region/lifecycle
                                     :mouse-transparent true
-                                    :style-class "console-filter-popup-background"}
+                                    :style-class "filter-popup-background"}
                                    {:fx/type fx.v-box/lifecycle
                                     :children
                                     [{:fx/type fxui/ext-localize
@@ -287,15 +246,15 @@
                                              :selected enabled
                                              :on-selected-changed {:event-type :toggle-global-filtering}}}
                                      {:fx/type fx.separator/lifecycle
-                                      :style-class "console-filter-popup-separator"}
+                                      :style-class "filter-popup-separator"}
                                      {:fx/type fx.list-view/lifecycle
                                       :focus-traversable false
-                                      :style-class "console-filter-popup-list-view"
+                                      :style-class "filter-popup-list-view"
                                       :items (into [] (map-indexed coll/pair) filters)
                                       :fixed-cell-size 27
                                       :max-height (* 27 (min 10 (count filters)))
                                       :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                     :describe filter-console-list-cell-view}}
+                                                     :describe (partial filter-popup/list-cell-view :select :delete)}}
                                      {:fx/type fxui/ext-focused-by-default
                                       :v-box/margin 4
                                       :desc {:fx/type fxui/ext-localize

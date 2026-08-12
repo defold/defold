@@ -151,12 +151,28 @@
                       :scope :project
                       :properties
                       {:term {:type :string}
-                       :exts {:type :string}
-                       :include-libraries {:type :boolean :default true}}}
+                       :exts {:type :string}}}
     :open-assets {:type :object
                   :scope :project
                   :properties
                   {:term {:type :string}}}
+    ;; The :exclude-libraries and :exclude-hidden keys below must have a
+    ;; matching entry (same key, same :default) in editor.resource/exclude-filters
+    ;; — editor.prefs can't require editor.resource (it would introduce a
+    ;; dependency cycle through editor.localization), so this schema can't be
+    ;; generated from that table directly.
+    :search {:type :object
+             :scope :project
+             :properties
+             {:exclude-patterns {:type :array
+                                 :item {:type :tuple :items [{:type :string} {:type :boolean}]}
+                                 :default []}
+              :filtering {:type :boolean
+                          :default true}
+              :exclude-libraries {:type :boolean
+                                  :default false}
+              :exclude-hidden {:type :boolean
+                               :default false}}}
     :build {:type :object
             :scope :project
             :properties

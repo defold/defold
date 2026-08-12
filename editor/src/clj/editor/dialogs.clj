@@ -633,7 +633,7 @@
     fx.lifecycle/scalar))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization header-extra-desc-fn preview-item-fn]
     :as props}]
   {:fx/type dialog-stage
    :title (localization title)
@@ -641,10 +641,21 @@
    :owner owner
    :on-close-request {:event-type :cancel}
    :size :large
-   :header {:fx/type fxui/legacy-text-field
-            :prompt-text (localization prompt)
-            :text filter-term
-            :on-text-changed {:event-type :set-filter-term}}
+   :header (if header-extra-desc-fn
+             {:fx/type fx.h-box/lifecycle
+              :spacing 8
+              :alignment :center-left
+              :children [{:fx/type fxui/legacy-text-field
+                          :h-box/hgrow :always
+                          :h-box/margin {:right 0}
+                          :prompt-text (localization prompt)
+                          :text filter-term
+                          :on-text-changed {:event-type :set-filter-term}}
+                         (header-extra-desc-fn props)]}
+             {:fx/type fxui/legacy-text-field
+              :prompt-text (localization prompt)
+              :text filter-term
+              :on-text-changed {:event-type :set-filter-term}})
    :root-props {:event-filter {:event-type :filter-root-events}}
    :content {:fx/type fx.ext.list-view/with-selection-props
              :props {:selection-mode selection
@@ -762,6 +773,18 @@
       :selection      a selection mode, either :single (default) or :multiple
       :filter-fn      filtering fn of 2 args (filter term and items), should
                       return a filtered coll of items
+      :filter-fn-with-state
+                      filtering fn of 3 args (filter term, items, and dialog
+                      state), used instead of :filter-fn when supplied
+      :filter-key-fn  fn from dialog state to its filtering criteria; defaults
+                      to :filter-term
+      :extra-initial-state
+                      map merged into the initial dialog state
+      :extra-event-handler
+                      fn of dialog state and event, returning updated state or
+                      nil when the event is not handled
+      :header-extra-desc-fn
+                      fn from dialog state to an extra header cljfx description
       :filter-on      if no custom :filter-fn is supplied, will receive 2 args:
                       item and localization; use this fn of item to string for
                       default filtering; stringifies item by default
@@ -784,25 +807,31 @@
          filter-fn (or (:filter-fn options)
                        (fn [text items]
                          (default-filter-fn (:filter-on options default-filter-on) text items localization)))
+         filter-fn-with-state (:filter-fn-with-state options)
+         filter-key-fn (:filter-key-fn options :filter-term)
          filter-term (or (:filter options)
                          (some-> filter-atom deref)
                          "")
          filter-future-atom (atom nil)
-         state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
-                           :filter-in-progress false
-                           :filtered-items []
-                           :selected-indices []})
+         state-atom (atom (merge {:filter-term nil ; Non-string value ensures the initial refilter.
+                                  :filter-in-progress false
+                                  :filtered-items []
+                                  :selected-indices []}
+                                 (:extra-initial-state options)))
 
-         set-filter-term
-         (fn set-filter-term [state filter-term]
-           (if (= (:filter-term state) filter-term)
-             state
+         refilter
+         (fn refilter [state new-state]
+           (if (= (filter-key-fn state) (filter-key-fn new-state))
+             new-state
              (do (swap! filter-future-atom
                         (fn [pending-filter-future]
                           (thread-util/cancel-future! pending-filter-future)
                           (future
                             (try
-                              (let [filtered-items (vec (filter-fn filter-term items))
+                              (let [filter-term (:filter-term new-state)
+                                    filtered-items (vec (if filter-fn-with-state
+                                                          (filter-fn-with-state filter-term items new-state)
+                                                          (filter-fn filter-term items)))
                                     selected-indices (if (coll/empty? filtered-items) [] [0])]
                                 (thread-util/throw-if-interrupted!)
                                 (swap! state-atom
@@ -816,11 +845,15 @@
                                 nil)
                               (catch Throwable error
                                 (error-reporting/report-exception! error))))))
-                 (assoc state
-                   :filter-term filter-term
+                 (assoc new-state
                    :filter-in-progress true))))
-         _ (swap! state-atom set-filter-term filter-term)
-         event-handler (select-list-dialog-event-handler set-filter-term)
+         _ (swap! state-atom #(refilter % (assoc % :filter-term filter-term)))
+         default-event-handler (select-list-dialog-event-handler #(assoc %1 :filter-term %2))
+         extra-event-handler (:extra-event-handler options)
+         event-handler (fn [state event]
+                         (refilter state (or (when extra-event-handler
+                                              (extra-event-handler state event))
+                                            (default-event-handler state event))))
          result (fxui/show-dialog-and-await-result!
                   :state-atom state-atom
                   :event-handler event-handler
@@ -847,7 +880,8 @@
                                             (localization/message "dialog.select-item.prompt"))
                                 :cell-fn cell-fn
                                 :owner (or (:owner options) (ui/main-stage))
-                                :selection (:selection options :single)})]
+                                :selection (:selection options :single)
+                                :header-extra-desc-fn (:header-extra-desc-fn options)})]
      (swap! filter-future-atom thread-util/cancel-future!)
      (when result
        (let [{:keys [filter-term selected-items]} result]

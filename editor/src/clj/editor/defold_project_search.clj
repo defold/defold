@@ -108,11 +108,13 @@
       (distinct)
       (map #(text-util/search-string->re-pattern % :case-insensitive)))))
 
-(defn- make-search-resource? [file-ext-patterns search-libraries]
+(defn- make-search-resource? [file-ext-patterns search-libraries resource-pred]
   {:pre [(boolean? search-libraries)]}
   (fn search-resource? [resource]
     (and (resource-matches-library-setting? resource search-libraries)
-         (resource-matches-file-ext? resource file-ext-patterns))))
+         (resource-matches-file-ext? resource file-ext-patterns)
+         (or (nil? resource-pred)
+             (resource-pred resource)))))
 
 (defn- start-search-thread [report-error! search-data-future resource-type->matches-fn produce-fn]
   (future
@@ -160,7 +162,7 @@
   and if there was a previous consumer, stop-consumer! will be called with it.
   Since many operations happen on a background thread, report-error! will be
   called with the Throwable in the event of an error."
-  [workspace project start-consumer! stop-consumer! report-error!]
+  [workspace project resource-pred start-consumer! stop-consumer! report-error!]
   (let [pending-search-atom (atom nil)
 
         active-search-data-future-atom (atom nil)
@@ -172,7 +174,8 @@
               report-error! project
               (make-search-resource?
                 (parse-searched-exts searched-exts)
-                search-libraries))))
+                search-libraries
+                resource-pred))))
 
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)

@@ -13,12 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.resource-dialog
-  (:require [cljfx.fx.h-box :as fx.h-box]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.h-box :as fx.h-box]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.filter-popup :as filter-popup]
+            [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -29,9 +33,37 @@
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn]
-            [util.thread-util :as thread-util]))
+            [util.thread-util :as thread-util])
+  (:import [javafx.scene Node]))
 
 (def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
+
+(defn- compile-exclude-pred
+  "Returns a predicate that returns true when a resource should be shown.
+  patterns is a seq of [pattern-string enabled-boolean] pairs. Each enabled
+  pattern excludes a resource when its `/`-separated segments appear as a
+  contiguous run of whole path segments in the resource's proj-path — see
+  editor.resource/compile-exclude-patterns-pred for the matching rules."
+  [patterns]
+  (resource/compile-exclude-patterns-pred patterns))
+
+(defn- make-filter-popup-header-fn
+  [button-node-atom]
+  (fn header-extra-desc-fn [{:keys [filter-popup-open localization] :as state}]
+    (let [^Node node @button-node-atom
+          badge (filter-popup/badge-count state)
+          anchor (filter-popup/anchor-point node)]
+      {:fx/type fxui/with-popup-window
+       :desc {:fx/type fx/ext-on-instance-lifecycle
+              :on-created (fn [^Node n] (reset! button-node-atom n))
+              :desc {:fx/type fx.button/lifecycle
+                     :style-class ["button" "filter-popup-button"]
+                     :focus-traversable false
+                     :mnemonic-parsing false
+                     :text (localization (localization/message "dialog.open-assets.filter.button"))
+                     :on-action {:event-type :filter-popup/toggle-open}
+                     :graphic (filter-popup/button-graphic filter-popup-open badge)}}
+       :popup (filter-popup/popup-desc state localization anchor)})))
 
 (defn- resource-node-ids->project-resources [basis resource-node-ids]
   (let [project-resources
@@ -159,29 +191,69 @@
                                          (not (resource/internal? %))
                                          (accept-fn %)))
                            (g/node-value workspace :resource-list evaluation-context))
-        tooltip-gen (:tooltip-gen options)
+        tooltip-gen  (:tooltip-gen options)
+        ;; Filter popup wiring — only active for the Open Assets dialog, which
+        ;; passes :initial-exclude-patterns, :initial-filtering-enabled,
+        ;; :initial-exclude-filters (a {key -> boolean} map, one entry per
+        ;; editor.resource/exclude-filters entry), :on-patterns-changed,
+        ;; :on-filtering-changed, and :on-filter-changed. The patterns and
+        ;; enabled flags live as ordinary keys in the dialog's own state map
+        ;; (see :extra-initial-state below), so toggling them re-filters via
+        ;; the normal cljfx render cycle instead of a side-channel atom.
+        filtering?            (contains? options :initial-exclude-patterns)
+        on-patterns-changed   (:on-patterns-changed options)
+        on-filtering-changed  (:on-filtering-changed options)
+        on-filter-changed     (:on-filter-changed options)
+        button-node-atom      (when filtering? (atom nil))
         special-filter-fns {"refs" (partial refs-filter-fn project)
                             "deps" (partial deps-filter-fn project)}
-        options (-> {:title (localization/message "dialog.select-resource.title")
-                     :cell-fn (fn cell-fn [r _localization]
-                                (let [text (resource/proj-path r)
-                                      icon (workspace/resource-icon r)
-                                      tooltip (when tooltip-gen (tooltip-gen r))
-                                      matching-indices (:matching-indices (meta r))]
-                                  (cond-> {:style-class (into ["list-cell"] (resource/style-classes r))
-                                           :graphic {:fx/type matched-list-item-view
-                                                     :icon icon
-                                                     :text text
-                                                     :matching-indices matching-indices}}
-                                          tooltip
-                                          (assoc :tooltip tooltip))))
-                     :filter-fn (fn filter-fn [filter-value items]
-                                  (let [[command arg] (let [parts (string/split filter-value #":")]
-                                                        (if (< 1 (count parts))
-                                                          parts
-                                                          [nil (first parts)]))
-                                        f (get special-filter-fns command fuzzy-resource-filter-fn)]
-                                    (f arg items)))}
-                    (merge options))]
+        options (cond-> {:title (localization/message "dialog.select-resource.title")
+                         :cell-fn (fn cell-fn [r _localization]
+                                    (let [text (resource/proj-path r)
+                                          icon (workspace/resource-icon r)
+                                          tooltip (when tooltip-gen (tooltip-gen r))
+                                          matching-indices (:matching-indices (meta r))]
+                                      (cond-> {:style-class (into ["list-cell"] (resource/style-classes r))
+                                               :graphic {:fx/type matched-list-item-view
+                                                         :icon icon
+                                                         :text text
+                                                         :matching-indices matching-indices}}
+                                              tooltip
+                                              (assoc :tooltip tooltip))))
+                         :filter-fn-with-state (fn filter-fn-with-state [filter-value items state]
+                                                 (let [items (if (and filtering? (:filter-popup-filtering-enabled state))
+                                                               (let [pred (compile-exclude-pred (:exclude-patterns state))]
+                                                                 (cond->> items pred (filterv pred)))
+                                                               items)
+                                                       items (if filtering?
+                                                               (reduce (fn [items {:keys [key keep-pred]}]
+                                                                         (if (get state key)
+                                                                           (filterv keep-pred items)
+                                                                           items))
+                                                                       items
+                                                                       resource/exclude-filters)
+                                                               items)
+                                                       [command arg] (let [parts (string/split filter-value #":")]
+                                                                       (if (< 1 (count parts))
+                                                                         parts
+                                                                         [nil (first parts)]))
+                                                       f (get special-filter-fns command fuzzy-resource-filter-fn)]
+                                                   (f arg items)))}
+                        filtering?
+                        (assoc :filter-key-fn (apply juxt :filter-term :exclude-patterns :filter-popup-filtering-enabled
+                                                      (map :key resource/exclude-filters)))
+                        true
+                        (merge (dissoc options :initial-exclude-patterns :initial-filtering-enabled
+                                               :initial-exclude-filters
+                                               :on-patterns-changed :on-filtering-changed :on-filter-changed))
+                        filtering?
+                        (merge {:extra-initial-state (into {:filter-popup-open false
+                                                            :filter-popup-text ""
+                                                            :filter-popup-filtering-enabled (:initial-filtering-enabled options)
+                                                            :exclude-patterns (:initial-exclude-patterns options)}
+                                                           (:initial-exclude-filters options))
+                                :extra-event-handler (filter-popup/event-handler
+                                                       on-patterns-changed on-filtering-changed on-filter-changed)
+                                :header-extra-desc-fn (make-filter-popup-header-fn button-node-atom)}))]
     (g/update-cache-from-evaluation-context! evaluation-context)
     (dialogs/make-select-list-dialog items localization options)))

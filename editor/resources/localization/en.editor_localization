@@ -248,7 +248,6 @@ dialog.target-ip.button.add = Add Target IP
 dialog.search-in-files.title = Search in Files
 dialog.search-in-files.label.search = Search pattern (* to match any string)
 dialog.search-in-files.label.types = File types to search in (comma separated)
-dialog.search-in-files.label.include-libraries = Search Inside Libraries
 dialog.search-in-files.button.keep-results = Keep Results
 
 # Target Discovery Log Dialog
@@ -519,6 +518,13 @@ dialog.select-item.prompt = Type to filter
 dialog.select-item.button.ok = OK
 dialog.open-assets.title = Open Asset
 dialog.open-assets.button.ok = Open
+dialog.open-assets.filter.button = Filter
+dialog.open-assets.filter.section.exclude = Exclude
+dialog.open-assets.filter.libraries = Libraries
+dialog.open-assets.filter.hidden = Hidden Files
+dialog.open-assets.filter.section.patterns = Custom Patterns
+dialog.open-assets.filter.enable = Enable filtering
+dialog.open-assets.filter.prompt = Add directory or file to exclude (e.g. main)
 dialog.referencing-files.title = Referencing Files
 dialog.referencing-files.button.ok = Open
 dialog.dependencies.title = Dependencies

@@ -171,6 +171,57 @@
   (when-let [last-slash (string/last-index-of proj-path "/")]
     (subs proj-path 0 last-slash)))
 
+(defn- path->segments [^String path]
+  (into [] (remove string/blank?) (string/split path #"/")))
+
+(defn- segments-match-at? [pattern-segments path-segments ^long start]
+  (let [pattern-count (count pattern-segments)]
+    (loop [i 0]
+      (or (= i pattern-count)
+          (and (= (nth pattern-segments i) (nth path-segments (+ start i)))
+               (recur (inc i)))))))
+
+(defn- path-contains-segments? [pattern-segments path-segments]
+  (let [pattern-count (count pattern-segments)
+        path-count (count path-segments)]
+    (and (pos? pattern-count)
+         (some #(segments-match-at? pattern-segments path-segments %)
+               (range (inc (- path-count pattern-count)))))))
+
+(defn compile-exclude-patterns-pred
+  "patterns is a seq of [pattern-string enabled-boolean] pairs. Returns a
+  predicate that returns true if a resource should be shown (i.e. it does not
+  match any enabled pattern), or nil if there are no enabled patterns (include
+  everything).
+
+  Each enabled pattern is split into `/`-separated segments and matches a
+  resource's proj-path when those segments appear as a contiguous run of whole
+  path segments in it. This means a pattern like \"test\" excludes
+  /test/foo.lua and its contents, but not /latest_scores.lua or
+  /testing/foo.lua, since \"test\" is not a whole path segment of either."
+  [patterns]
+  (let [preds (into []
+                    (keep (fn [[pattern enabled]]
+                            (when (and enabled (seq pattern))
+                              (let [pattern-segments (path->segments pattern)]
+                                (when (seq pattern-segments)
+                                  (fn [resource]
+                                    (not (path-contains-segments? pattern-segments (path->segments (proj-path resource))))))))))
+                    patterns)]
+    (case (count preds)
+      0 nil
+      1 (first preds)
+      (apply every-pred preds))))
+
+(defn hidden-path-segment?
+  "Returns true if any `/`-separated segment of resource's proj-path starts
+  with a dot, e.g. /.vscode/settings.json or /foo/.idea/workspace.xml. Used to
+  let users hide editor/tool-specific dotfiles and dotfolders that aren't
+  already excluded by the project scanner (see resource-watch's reserved
+  paths and dotfile handling for those that are)."
+  [resource]
+  (some #(string/starts-with? % ".") (path->segments (proj-path resource))))
+
 (defn project-directory? [^File value]
   ;; The project directory must be a real and existing path on disk.
   (and (instance? File value)
@@ -502,6 +553,22 @@
 
 (defn file-resource? [resource]
   (instance? FileResource resource))
+
+(def exclude-filters
+  "Data-driven definitions of the boolean exclude toggles shown in the shared
+  filter popup (see editor.filter-popup), as opposed to the free-form
+  :exclude-patterns list. Add a new default exclusion filter by adding an
+  entry here — the prefs schema, popup UI, badge count, event handling, and
+  item-filtering logic in editor.resource-dialog/editor.search-results-view
+  all read from this table instead of hardcoding the new key."
+  [{:key :exclude-libraries
+    :label "dialog.open-assets.filter.libraries"
+    :default false
+    :keep-pred file-resource?}
+   {:key :exclude-hidden
+    :label "dialog.open-assets.filter.hidden"
+    :default false
+    :keep-pred (complement hidden-path-segment?)}])
 
 (core/register-read-handler!
   "file-resource"

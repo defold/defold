@@ -16,6 +16,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.ext.tree-table-view :as fx.ext.tree-table-view]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.context-menu :as fx.context-menu]
@@ -40,6 +41,7 @@
             [editor.defold-project-search :as project-search]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
+            [editor.filter-popup :as filter-popup]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.menu-items :as menu-items]
@@ -60,8 +62,8 @@
            [javafx.animation AnimationTimer]
            [javafx.event Event]
            [javafx.geometry Pos]
-           [javafx.scene Parent Scene]
-           [javafx.scene.control CheckBox Label ProgressIndicator SelectionMode TextField TreeItem TreeTableView TreeView]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.control Button Label ProgressIndicator SelectionMode TextField TreeItem TreeTableView TreeView]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.scene.paint Color]
@@ -270,11 +272,79 @@
 
 (def ^:private search-in-files-term-prefs-key [:search-in-files :term])
 (def ^:private search-in-files-exts-prefs-key [:search-in-files :exts])
-(def ^:private search-in-files-include-libraries-prefs-key [:search-in-files :include-libraries])
+
+(defn- search-resource-pred
+  "Returns a resource predicate combining the currently enabled
+  :exclude-patterns (if filtering is enabled) with every enabled
+  editor.resource/exclude-filters toggle, or nil if nothing is excluded. This
+  is what's passed to editor.defold-project-search/make-search-data-future so
+  every exclude toggle actually affects search results, not just the popup UI."
+  [prefs]
+  (let [patterns-pred (when (prefs/get prefs [:search :filtering])
+                         (resource/compile-exclude-patterns-pred (prefs/get prefs [:search :exclude-patterns])))
+        toggle-preds (keep (fn [{:keys [key keep-pred]}]
+                              (when (prefs/get prefs [:search key])
+                                keep-pred))
+                            resource/exclude-filters)
+        preds (cond-> toggle-preds patterns-pred (conj patterns-pred))]
+    (case (count preds)
+      0 nil
+      1 (first preds)
+      (apply every-pred preds))))
 
 (defn set-search-term! [prefs term]
   (assert (string? term))
   (prefs/set! prefs search-in-files-term-prefs-key term))
+
+;; -----------------------------------------------------------------------------
+;; Exclude patterns filter popup
+;;
+;; Shares [:search :exclude-patterns] and [:search :filtering] prefs with the
+;; Open Assets dialog (see editor.resource-dialog), so toggling filtering or
+;; editing patterns from either dialog affects both.
+;; -----------------------------------------------------------------------------
+
+(def ^:private ext-with-search-filter-button-props
+  (fx/make-ext-with-props fx.button/props))
+
+(defn- search-filter-view [^Node filter-button localization state]
+  (let [badge (filter-popup/badge-count state)
+        anchor (filter-popup/anchor-point filter-button)]
+    {:fx/type fxui/with-popup-window
+     :desc {:fx/type ext-with-search-filter-button-props
+            :desc {:fx/type ui/ext-value :value filter-button}
+            :props {:on-action {:event-type :filter-popup/toggle-open}
+                    :style-class ["button" "filter-popup-button"]
+                    :content-display :right
+                    :graphic (filter-popup/button-graphic (:filter-popup-open state) badge)}}
+     :popup (filter-popup/popup-desc state localization anchor)}))
+
+(defn- init-search-filter! [^Button filter-button prefs localization on-changed!]
+  (let [state-atom (atom (into {:filter-popup-open false
+                                :filter-popup-text ""
+                                :filter-popup-filtering-enabled (prefs/get prefs [:search :filtering])
+                                :exclude-patterns (prefs/get prefs [:search :exclude-patterns])}
+                               (map (fn [{:keys [key]}] [key (prefs/get prefs [:search key])]))
+                               resource/exclude-filters))
+        on-patterns-changed (fn [patterns]
+                              (prefs/set! prefs [:search :exclude-patterns] patterns)
+                              (on-changed!))
+        on-filtering-changed (fn [enabled]
+                               (prefs/set! prefs [:search :filtering] enabled)
+                               (on-changed!))
+        on-filter-changed (fn [key value]
+                            (prefs/set! prefs [:search key] value)
+                            (on-changed!))
+        event-handler (filter-popup/event-handler
+                        on-patterns-changed on-filtering-changed on-filter-changed)]
+    (fx/mount-renderer
+      state-atom
+      (fx/create-renderer
+        :error-handler error-reporting/report-exception!
+        :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
+        :middleware (comp
+                      fxui/wrap-dedupe-desc
+                      (fx/wrap-map-desc #(search-filter-view filter-button localization %)))))))
 
 (defn- start-search-in-files! [project prefs localization results-tab-tree-view results-tab-progress-indicator open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
@@ -283,7 +353,7 @@
                     (.initStyle StageStyle/DECORATED)
                     (.initOwner (ui/main-stage))
                     (.setResizable false))]
-    (ui/with-controls root [search-label types-label ^TextField search ^TextField types ^CheckBox include-libraries-check-box ^TreeView resources-tree ok search-in-progress]
+    (ui/with-controls root [search-label types-label ^TextField search ^TextField types ^Button filter-button ^TreeView resources-tree ok search-in-progress]
       (ui/visible! search-in-progress false)
       (let [start-consumer! #(start-tree-update-timer!
                                [resources-tree results-tab-tree-view]
@@ -292,15 +362,31 @@
             stop-consumer! ui/timer-stop!
             report-error! (fn [error] (ui/run-later (throw error)))
             workspace (project/workspace project)
-            {:keys [abort-search! start-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
+            make-searcher! (fn []
+                             (project-search/make-file-searcher
+                               workspace
+                               project
+                               (search-resource-pred prefs)
+                               start-consumer!
+                               stop-consumer!
+                               report-error!))
+            searcher-atom (atom (make-searcher!))
+            last-search-args-atom (atom nil)
+            abort-search! (fn [] ((:abort-search! @searcher-atom)))
+            start-search! (fn [term exts]
+                            (reset! last-search-args-atom [term exts])
+                            ((:start-search! @searcher-atom) term exts true))
+            rebuild-searcher! (fn []
+                                (abort-search!)
+                                (reset! searcher-atom (make-searcher!))
+                                (when-some [[term exts] @last-search-args-atom]
+                                  (start-search! term exts)))
             on-input-changed! (fn [_ _ _]
                                 (let [term (.getText search)
-                                      exts (.getText types)
-                                      include-libraries? (.isSelected include-libraries-check-box)]
+                                      exts (.getText types)]
                                   (prefs/set! prefs search-in-files-term-prefs-key term)
                                   (prefs/set! prefs search-in-files-exts-prefs-key exts)
-                                  (prefs/set! prefs search-in-files-include-libraries-prefs-key include-libraries?)
-                                  (start-search! term exts include-libraries?)))
+                                  (start-search! term exts)))
             dismiss-and-abort-search! (fn []
                                         (abort-search!)
                                         (ui/close! stage))
@@ -313,19 +399,12 @@
                              (dismiss-and-abort-search!))]
         (init-search-in-files-tree-view! resources-tree)
 
-        (let [term (prefs/get prefs search-in-files-term-prefs-key)
-              exts (prefs/get prefs search-in-files-exts-prefs-key)
-              include-libraries? (prefs/get prefs search-in-files-include-libraries-prefs-key)]
-          (start-search! term exts include-libraries?)
-          (ui/text! search term)
-          (ui/text! types exts)
-          (ui/value! include-libraries-check-box include-libraries?))
-
         (localization/localize! (.titleProperty stage) localization (localization/message "dialog.search-in-files.title"))
         (localization/localize! search-label localization (localization/message "dialog.search-in-files.label.search"))
         (localization/localize! types-label localization (localization/message "dialog.search-in-files.label.types"))
-        (localization/localize! include-libraries-check-box localization (localization/message "dialog.search-in-files.label.include-libraries"))
         (localization/localize! ok localization (localization/message "dialog.search-in-files.button.keep-results"))
+        (localization/localize! filter-button localization (localization/message "dialog.open-assets.filter.button"))
+        (init-search-filter! filter-button prefs localization rebuild-searcher!)
 
         (ui/on-action! ok (fn on-ok! [_] (dismiss-and-show-find-results!)))
         (ui/on-double! resources-tree (fn on-double! [^Event event]
@@ -352,9 +431,13 @@
                                                 (ui/request-focus! search))
                                nil))))
 
+        (let [term (prefs/get prefs search-in-files-term-prefs-key)
+              exts (prefs/get prefs search-in-files-exts-prefs-key)]
+          (ui/text! search term)
+          (ui/text! types exts)
+          (start-search! term exts))
         (ui/observe (.textProperty search) on-input-changed!)
         (ui/observe (.textProperty types) on-input-changed!)
-        (ui/observe (.selectedProperty include-libraries-check-box) on-input-changed!)
         (.setScene stage scene)
         (ui/show! stage localization)))))
 

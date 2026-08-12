@@ -1,0 +1,107 @@
+.filter-popup-button {
+  -fx-background-color: -df-component-dark;
+  -fx-background-radius: 2px;
+  -fx-border-color: -df-component-darker;
+  -fx-border-radius: 4px;
+  -fx-border-width: 1px;
+  -fx-content-display: right;
+  -fx-padding: 4px 12px;
+  -fx-text-fill: -df-text;
+
+  &:hover {
+    -fx-background-color: -df-component-lighter;
+    -fx-text-fill: -df-text-selected;
+  }
+
+  &:armed {
+    -fx-background-color: -df-component-light;
+    -fx-text-fill: -df-text-selected;
+  }
+
+  & > .filter-popup-button-content {
+    -fx-alignment: center-left;
+    -fx-background-color: transparent !important;
+
+    & > .filter-popup-button-counter {
+      -fx-background-color: -df-component-light;
+      -fx-background-radius: 4px;
+      -fx-padding: 0px 4px;
+      -fx-text-fill: -df-text;
+    }
+
+    & > .filter-popup-button-arrow {
+      -fx-min-width: 10px;
+      -fx-max-width: 10px;
+      -fx-min-height: 6px;
+      -fx-max-height: 6px;
+      -fx-effect: none;
+      -fx-background-color: -df-component-icon;
+      -fx-shape: "M 0 0 h 7 l -3.5 4 z";
+
+      &:open {
+        -fx-background-color: -df-text;
+        -fx-rotate: 180;
+      }
+    }
+  }
+}
+
+.filter-popup {
+  &-background {
+    -fx-background-color: -df-component-darker;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 12, 0, 0, 8);
+  }
+
+  .check-box {
+    -fx-text-fill: -df-text;
+  }
+
+  &-list {
+    &-cell {
+      -fx-padding: 0 4px;
+
+      &:hover > .filter-popup-list-cell-h-box > .filter-popup-list-cell-remove-button > .cross {
+        -fx-background-color: -df-component-lighter;
+      }
+
+      &-remove-button {
+        -fx-padding: 4px;
+        -fx-background-color: transparent;
+
+        & > .cross {
+          -fx-min-width: 10px;
+          -fx-max-width: 10px;
+          -fx-min-height: 10px;
+          -fx-max-height: 10px;
+          -fx-shape: "M 2 0 L 5 3 L 8 0 L 10 2 L 7 5 L 10 8 L 8 10 L 5 7 L 2 10 L 0 8 L 3 5 L 0 2 Z";
+          -fx-background-color: transparent;
+        }
+
+        &:hover > .cross {
+          -fx-background-color: -df-text !important;
+        }
+      }
+    }
+
+    &-view {
+      & .scroll-bar:horizontal .increment-arrow, .scroll-bar:horizontal .decrement-arrow, .scroll-bar:horizontal .increment-button, .scroll-bar:horizontal .decrement-button {
+        -fx-padding: 0;
+      }
+    }
+  }
+
+  &-text-field {
+    -fx-padding: 20px;
+  }
+}
+
+.filter-popup-separator {
+  -fx-padding: 2 0;
+  -fx-background-color: transparent;
+
+  > .line {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-border-color: transparent;
+    -fx-border-width: 1 0 0;
+  }
+}
