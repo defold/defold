@@ -705,6 +705,13 @@ namespace dmGameSystem
     static int Constraint_GetType(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, CheckConstraintMeta(L, 1)->m_Kind);
+        return 1;
+    }
+
+    static int Constraint_GetTypeName(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
         lua_pushstring(L, ConstraintKindName(CheckConstraintMeta(L, 1)->m_Kind));
         return 1;
     }
@@ -1718,6 +1725,7 @@ namespace dmGameSystem
         { "is_active", Constraint_IsActive },
         { "destroy", Constraint_Destroy },
         { "get_type", Constraint_GetType },
+        { "get_type_name", Constraint_GetTypeName },
         { "get_body_a", Constraint_GetBodyA },
         { "get_body_b", Constraint_GetBodyB },
         { "get_world", Constraint_GetWorld },
@@ -1730,7 +1738,7 @@ namespace dmGameSystem
         { "get_frame_b", Constraint_GetFrameB },
         { "set_frame_a", Constraint_SetFrameA },
         { "set_frame_b", Constraint_SetFrameB },
-        { "get_angular_only", Constraint_GetAngularOnly },
+        { "is_angular_only", Constraint_GetAngularOnly },
         { "set_angular_only", Constraint_SetAngularOnly },
 
         { "get_hinge_angle", Constraint_GetHingeAngle },
@@ -1751,11 +1759,11 @@ namespace dmGameSystem
         { "get_limit", Constraint_GetLimit },
         { "set_limit", Constraint_SetLimit },
         { "is_limited", Constraint_IsLimited },
-        { "get_d6_axis", Constraint_Get6DofAxis },
-        { "get_d6_angle", Constraint_Get6DofAngle },
-        { "get_d6_position", Constraint_Get6DofPosition },
-        { "get_d6_motor", Constraint_Get6DofMotor },
-        { "set_d6_motor", Constraint_Set6DofMotor },
+        { "get_6dof_axis", Constraint_Get6DofAxis },
+        { "get_6dof_angle", Constraint_Get6DofAngle },
+        { "get_6dof_position", Constraint_Get6DofPosition },
+        { "get_6dof_motor", Constraint_Get6DofMotor },
+        { "set_6dof_motor", Constraint_Set6DofMotor },
 
         { "enable_spring", Constraint_EnableSpring },
         { "set_spring_stiffness", Constraint_SetSpringStiffness },
@@ -1769,11 +1777,17 @@ namespace dmGameSystem
         { "set_slider_motor", Constraint_SetSliderMotor },
         { "get_use_linear_reference_frame_a", Constraint_GetUseLinearReferenceFrameA },
 
-        { "get_joint_anchors", Constraint_GetJointAnchors },
-        { "get_joint_axes", Constraint_GetJointAxes },
-        { "get_joint_angles", Constraint_GetJointAngles },
+        { "get_anchors", Constraint_GetJointAnchors },
+        { "get_axes", Constraint_GetJointAxes },
+        { "get_angles", Constraint_GetJointAngles },
         { 0, 0 }
     };
+
+    static void SetIntegerConstant(lua_State* L, const char* name, int value)
+    {
+        lua_pushinteger(L, value);
+        lua_setfield(L, -2, name);
+    }
 
     void ScriptBullet3DInitializeConstraint(lua_State* L)
     {
@@ -1781,6 +1795,14 @@ namespace dmGameSystem
 
         lua_newtable(L);
         luaL_register(L, 0, Constraint_functions);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_POINT_TO_POINT", BULLET3D_CONSTRAINT_POINT_TO_POINT);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_HINGE", BULLET3D_CONSTRAINT_HINGE);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_CONE_TWIST", BULLET3D_CONSTRAINT_CONE_TWIST);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_GENERIC_6DOF", BULLET3D_CONSTRAINT_GENERIC_6DOF);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_GENERIC_6DOF_SPRING", BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_SLIDER", BULLET3D_CONSTRAINT_SLIDER);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_UNIVERSAL", BULLET3D_CONSTRAINT_UNIVERSAL);
+        SetIntegerConstant(L, "CONSTRAINT_TYPE_HINGE2", BULLET3D_CONSTRAINT_HINGE2);
         lua_setfield(L, -2, "constraint");
     }
 
@@ -1818,6 +1840,10 @@ namespace dmGameSystem
  * Lua: axes 1-3 are linear and axes 4-6 are angular. Mutating functions cannot
  * be called while the physics world is stepping.
  *
+ * `CONSTRAINT_TYPE_*` values identify the concrete constraint exposed by this
+ * binding. This deliberately distinguishes universal, hinge2, and spring 6-DOF
+ * constraints even though Bullet 2.77 reports their native base type as 6-DOF.
+ *
  * @document
  * @name bullet3d.constraint
  * @namespace bullet3d.constraint
@@ -1828,6 +1854,46 @@ namespace dmGameSystem
  * @typedef
  * @name btTypedConstraint
  * @param value [type:userdata] opaque constraint handle
+ */
+
+/*# Point-to-point constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_POINT_TO_POINT
+ * @constant
+ */
+
+/*# Hinge constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_HINGE
+ * @constant
+ */
+
+/*# Cone-twist constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_CONE_TWIST
+ * @constant
+ */
+
+/*# Generic 6-DOF constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF
+ * @constant
+ */
+
+/*# Generic spring 6-DOF constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF_SPRING
+ * @constant
+ */
+
+/*# Slider constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_SLIDER
+ * @constant
+ */
+
+/*# Universal constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_UNIVERSAL
+ * @constant
+ */
+
+/*# Hinge2 constraint type
+ * @name bullet3d.constraint.CONSTRAINT_TYPE_HINGE2
+ * @constant
  */
 
 /*# Create a point-to-point constraint
@@ -2029,10 +2095,20 @@ namespace dmGameSystem
  * @param constraint [type:btTypedConstraint] constraint
  */
 
-/*# Get the constraint type name
+/*# Get the constraint type
  * @name bullet3d.constraint.get_type
  * @param constraint [type:btTypedConstraint] constraint
- * @return type [type:string] registered constraint type
+ * @return type [type:number] one of the `bullet3d.constraint.CONSTRAINT_TYPE_*` constants
+ */
+
+/*# Get the constraint type name
+ *
+ * Returns a stable lowercase diagnostic name such as `"hinge"` or
+ * `"generic_6dof_spring"`.
+ *
+ * @name bullet3d.constraint.get_type_name
+ * @param constraint [type:btTypedConstraint] constraint
+ * @return name [type:string] constraint type name
  */
 
 /*# Get the first linked body
@@ -2107,7 +2183,7 @@ namespace dmGameSystem
  */
 
 /*# Test angular-only mode
- * @name bullet3d.constraint.get_angular_only
+ * @name bullet3d.constraint.is_angular_only
  * @param constraint [type:btTypedConstraint] hinge or cone-twist constraint
  * @return angular_only [type:boolean] angular-only state
  */
@@ -2245,21 +2321,21 @@ namespace dmGameSystem
  */
 
 /*# Get a current 6-DOF angular axis
- * @name bullet3d.constraint.get_d6_axis
+ * @name bullet3d.constraint.get_6dof_axis
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based angular-axis index from 1 to 3
  * @return direction [type:vector3] world-space unit axis
  */
 
 /*# Get a current 6-DOF angle
- * @name bullet3d.constraint.get_d6_angle
+ * @name bullet3d.constraint.get_6dof_angle
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based angular-axis index from 1 to 3
  * @return angle [type:number] current angle in radians
  */
 
 /*# Get a current 6-DOF linear position
- * @name bullet3d.constraint.get_d6_position
+ * @name bullet3d.constraint.get_6dof_position
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based linear-axis index from 1 to 3
  * @return position [type:number] relative position in Defold units
@@ -2270,7 +2346,7 @@ namespace dmGameSystem
  * Axes 1-3 are linear and axes 4-6 are angular. Bounce is zero for linear
  * motors because Bullet only implements it for angular motors.
  *
- * @name bullet3d.constraint.get_d6_motor
+ * @name bullet3d.constraint.get_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based axis from 1 to 6
  * @return enabled [type:boolean] motor state
@@ -2280,7 +2356,7 @@ namespace dmGameSystem
  */
 
 /*# Set 6-DOF motor settings
- * @name bullet3d.constraint.set_d6_motor
+ * @name bullet3d.constraint.set_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based axis from 1 to 6
  * @param enabled [type:boolean] motor state
@@ -2375,21 +2451,21 @@ namespace dmGameSystem
  */
 
 /*# Get universal or hinge2 anchors
- * @name bullet3d.constraint.get_joint_anchors
+ * @name bullet3d.constraint.get_anchors
  * @param constraint [type:btTypedConstraint] universal or hinge2 constraint
  * @return anchor_a [type:vector3] world-space anchor on body A
  * @return anchor_b [type:vector3] world-space anchor on body B
  */
 
 /*# Get universal or hinge2 axes
- * @name bullet3d.constraint.get_joint_axes
+ * @name bullet3d.constraint.get_axes
  * @param constraint [type:btTypedConstraint] universal or hinge2 constraint
  * @return axis_1 [type:vector3] first world-space unit axis
  * @return axis_2 [type:vector3] second world-space unit axis
  */
 
 /*# Get universal or hinge2 angles
- * @name bullet3d.constraint.get_joint_angles
+ * @name bullet3d.constraint.get_angles
  * @param constraint [type:btTypedConstraint] universal or hinge2 constraint
  * @return angle_1 [type:number] first angle in radians
  * @return angle_2 [type:number] second angle in radians

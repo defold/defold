@@ -4,9 +4,11 @@
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 
+#include <assert.h>
 #include <math.h>
 #include <stdint.h>
 
+#include <dlib/array.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/script.h>
 #include <script/script.h>
@@ -133,6 +135,11 @@ namespace dmGameSystem
         return isfinite((double)value) != 0;
     }
 
+    static int AbsIndex(lua_State* L, int index)
+    {
+        return index < 0 ? lua_gettop(L) + index + 1 : index;
+    }
+
     static btScalar CheckPositiveLength(lua_State* L, int index, const char* name)
     {
         btScalar value = CheckBullet3DScalar(L, index, GetBullet3DPhysicsScale(), name);
@@ -151,6 +158,97 @@ namespace dmGameSystem
             luaL_error(L, "%s components must be finite and greater than zero.", name);
         }
         return value;
+    }
+
+    void CheckBullet3DShapeDef(lua_State* L, int index, Bullet3DShapeDef* shape_def)
+    {
+        index = AbsIndex(L, index);
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        shape_def->m_Dimensions = btVector3(0.0f, 0.0f, 0.0f);
+        shape_def->m_Diameter = 0.0f;
+        shape_def->m_Height = 0.0f;
+        shape_def->m_VerticesIndex = 0;
+        shape_def->m_VertexCount = 0;
+
+        lua_getfield(L, index, "type");
+        shape_def->m_Type = luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
+
+        if (shape_def->m_Type == dmPhysicsDDF::CollisionShape::TYPE_SPHERE)
+        {
+            lua_getfield(L, index, "diameter");
+            shape_def->m_Diameter = CheckPositiveLength(L, -1, "diameter");
+            lua_pop(L, 1);
+        }
+        else if (shape_def->m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
+        {
+            lua_getfield(L, index, "dimensions");
+            shape_def->m_Dimensions = CheckPositiveVector3(L, -1, GetBullet3DPhysicsScale(), "dimensions");
+            lua_pop(L, 1);
+        }
+        else if (shape_def->m_Type == dmPhysicsDDF::CollisionShape::TYPE_CAPSULE)
+        {
+            lua_getfield(L, index, "diameter");
+            shape_def->m_Diameter = CheckPositiveLength(L, -1, "diameter");
+            lua_pop(L, 1);
+            lua_getfield(L, index, "height");
+            shape_def->m_Height = CheckPositiveLength(L, -1, "height");
+            lua_pop(L, 1);
+        }
+        else if (shape_def->m_Type == dmPhysicsDDF::CollisionShape::TYPE_HULL)
+        {
+            lua_getfield(L, index, "vertices");
+            luaL_checktype(L, -1, LUA_TTABLE);
+            shape_def->m_VerticesIndex = lua_gettop(L);
+            shape_def->m_VertexCount = (int)lua_objlen(L, -1);
+            if (shape_def->m_VertexCount < 4)
+            {
+                luaL_error(L, "vertices must contain at least four points.");
+            }
+            for (int i = 1; i <= shape_def->m_VertexCount; ++i)
+            {
+                lua_rawgeti(L, shape_def->m_VerticesIndex, i);
+                CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "vertices");
+                lua_pop(L, 1);
+            }
+        }
+        else
+        {
+            luaL_error(L, "Unsupported shape type %d.", shape_def->m_Type);
+        }
+    }
+
+    btConvexShape* CreateBullet3DConvexShape(lua_State* L, const Bullet3DShapeDef& shape_def)
+    {
+        switch (shape_def.m_Type)
+        {
+            case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                return new btSphereShape(shape_def.m_Diameter * 0.5f);
+            case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                return new btBoxShape(shape_def.m_Dimensions * 0.5f);
+            case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
+                return new btCapsuleShape(shape_def.m_Diameter * 0.5f, shape_def.m_Height);
+            case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+            {
+                dmArray<btVector3> vertices;
+                vertices.SetCapacity(shape_def.m_VertexCount);
+                for (int i = 1; i <= shape_def.m_VertexCount; ++i)
+                {
+                    lua_rawgeti(L, shape_def.m_VerticesIndex, i);
+                    dmVMath::Vector3* vertex = dmScript::ToVector3(L, -1);
+                    assert(vertex != 0);
+                    btVector3 point(vertex->getX(), vertex->getY(), vertex->getZ());
+                    vertices.Push(point * GetBullet3DPhysicsScale());
+                    lua_pop(L, 1);
+                }
+                return new btConvexHullShape((const btScalar*)vertices.Begin(),
+                                             shape_def.m_VertexCount,
+                                             sizeof(btVector3));
+            }
+            default:
+                return 0;
+        }
     }
 
     static btVector3 CheckPreservableLocalScaling(lua_State* L, const btCollisionShape* shape)
@@ -305,31 +403,7 @@ namespace dmGameSystem
         }
     }
 
-    static btScalar GetPositiveLengthField(lua_State* L, int table_index, const char* field)
-    {
-        lua_getfield(L, table_index, field);
-        btScalar value = CheckPositiveLength(L, -1, field);
-        lua_pop(L, 1);
-        return value;
-    }
-
-    static btVector3 GetPositiveVector3Field(lua_State* L, int table_index, const char* field)
-    {
-        lua_getfield(L, table_index, field);
-        btVector3 value = CheckPositiveVector3(L, -1, GetBullet3DPhysicsScale(), field);
-        lua_pop(L, 1);
-        return value;
-    }
-
-    static int GetShapeDataType(lua_State* L, int table_index)
-    {
-        lua_getfield(L, table_index, "type");
-        int type = luaL_checkinteger(L, -1);
-        lua_pop(L, 1);
-        return type;
-    }
-
-    static int Shape_GetShapeData(lua_State* L)
+    static int Shape_GetShape(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         btCollisionShape* shape = CheckShape(L, 1, 0, 0);
@@ -368,18 +442,20 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Shape_SetShapeData(lua_State* L)
+    static int Shape_SetShape(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
+        int                 top = lua_gettop(L);
         Bullet3DLuaShape*  lua_shape = 0;
         btCollisionObject* owner = 0;
         btCollisionShape*  shape = CheckShape(L, 1, &lua_shape, &owner);
-        luaL_checktype(L, 2, LUA_TTABLE);
+        Bullet3DShapeDef    shape_def;
+        CheckBullet3DShapeDef(L, 2, &shape_def);
 
         int shape_type = NormalizeShapeType(L, shape);
-        if (GetShapeDataType(L, 2) != shape_type)
+        if (shape_def.m_Type != shape_type)
         {
-            return luaL_error(L, "Shape data type must match the existing shape type.");
+            return luaL_error(L, "Shape type must match the existing shape type.");
         }
 
         Bullet3DMutableShape mutable_shape;
@@ -391,7 +467,7 @@ namespace dmGameSystem
         {
             case SPHERE_SHAPE_PROXYTYPE:
             {
-                btScalar radius = GetPositiveLengthField(L, 2, "diameter") * 0.5f;
+                btScalar radius = shape_def.m_Diameter * 0.5f;
                 btScalar unscaled_radius = radius / local_scaling.getX();
                 if (!IsFiniteScalar(unscaled_radius) || !(unscaled_radius > 0.0f))
                 {
@@ -402,8 +478,7 @@ namespace dmGameSystem
             }
             case BOX_SHAPE_PROXYTYPE:
             {
-                btVector3 dimensions = GetPositiveVector3Field(L, 2, "dimensions");
-                btVector3 unscaled_half_extents = dimensions * 0.5f / local_scaling;
+                btVector3 unscaled_half_extents = shape_def.m_Dimensions * 0.5f / local_scaling;
                 if (!IsFiniteScalar(unscaled_half_extents.getX()) || !IsFiniteScalar(unscaled_half_extents.getY()) || !IsFiniteScalar(unscaled_half_extents.getZ()) ||
                     !(unscaled_half_extents.getX() > 0.0f) || !(unscaled_half_extents.getY() > 0.0f) || !(unscaled_half_extents.getZ() > 0.0f))
                 {
@@ -415,10 +490,8 @@ namespace dmGameSystem
             }
             case CAPSULE_SHAPE_PROXYTYPE:
             {
-                btScalar diameter = GetPositiveLengthField(L, 2, "diameter");
-                btScalar height = GetPositiveLengthField(L, 2, "height");
-                btScalar unscaled_radius = diameter * 0.5f / local_scaling.getX();
-                btScalar unscaled_height = height / local_scaling.getY();
+                btScalar unscaled_radius = shape_def.m_Diameter * 0.5f / local_scaling.getX();
+                btScalar unscaled_height = shape_def.m_Height / local_scaling.getY();
                 if (!IsFiniteScalar(unscaled_radius) || !IsFiniteScalar(unscaled_height) || !(unscaled_radius > 0.0f) || !(unscaled_height > 0.0f))
                 {
                     return luaL_error(L, "dimensions cannot be represented with the shape's existing local scaling.");
@@ -428,41 +501,40 @@ namespace dmGameSystem
             }
             case CONVEX_HULL_SHAPE_PROXYTYPE:
             {
-                lua_getfield(L, 2, "vertices");
-                luaL_checktype(L, -1, LUA_TTABLE);
-                int vertices_index = lua_gettop(L);
-                int vertex_count = (int)lua_objlen(L, vertices_index);
-                if (vertex_count < 4)
+                for (int i = 1; i <= shape_def.m_VertexCount; ++i)
                 {
-                    return luaL_error(L, "vertices must contain at least four points.");
-                }
-                for (int i = 1; i <= vertex_count; ++i)
-                {
-                    lua_rawgeti(L, vertices_index, i);
-                    CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "vertices");
-                    lua_pop(L, 1);
-                }
-
-                btConvexHullShape* hull = new btConvexHullShape();
-                for (int i = 1; i <= vertex_count; ++i)
-                {
-                    lua_rawgeti(L, vertices_index, i);
+                    lua_rawgeti(L, shape_def.m_VerticesIndex, i);
                     dmVMath::Vector3* vertex = dmScript::ToVector3(L, -1);
-                    btVector3         scaled_vertex(vertex->getX() * GetBullet3DPhysicsScale(), vertex->getY() * GetBullet3DPhysicsScale(), vertex->getZ() * GetBullet3DPhysicsScale());
-                    btVector3         unscaled_vertex = scaled_vertex / local_scaling;
+                    assert(vertex != 0);
+                    btVector3 scaled_vertex(vertex->getX(), vertex->getY(), vertex->getZ());
+                    scaled_vertex *= GetBullet3DPhysicsScale();
+                    btVector3 unscaled_vertex = scaled_vertex / local_scaling;
                     if (!IsFiniteScalar(unscaled_vertex.getX()) || !IsFiniteScalar(unscaled_vertex.getY()) || !IsFiniteScalar(unscaled_vertex.getZ()) ||
                         (scaled_vertex.getX() != 0.0f && unscaled_vertex.getX() == 0.0f) ||
                         (scaled_vertex.getY() != 0.0f && unscaled_vertex.getY() == 0.0f) ||
                         (scaled_vertex.getZ() != 0.0f && unscaled_vertex.getZ() == 0.0f))
                     {
-                        delete hull;
                         lua_pop(L, 1);
                         return luaL_error(L, "vertices cannot be represented with the shape's existing local scaling.");
                     }
-                    hull->addPoint(unscaled_vertex);
                     lua_pop(L, 1);
                 }
-                lua_pop(L, 1);
+
+                dmArray<btVector3> vertices;
+                vertices.SetCapacity(shape_def.m_VertexCount);
+                for (int i = 1; i <= shape_def.m_VertexCount; ++i)
+                {
+                    lua_rawgeti(L, shape_def.m_VerticesIndex, i);
+                    dmVMath::Vector3* vertex = dmScript::ToVector3(L, -1);
+                    assert(vertex != 0);
+                    btVector3 scaled_vertex(vertex->getX(), vertex->getY(), vertex->getZ());
+                    scaled_vertex *= GetBullet3DPhysicsScale();
+                    vertices.Push(scaled_vertex / local_scaling);
+                    lua_pop(L, 1);
+                }
+                btConvexHullShape* hull = new btConvexHullShape((const btScalar*)vertices.Begin(),
+                                                                shape_def.m_VertexCount,
+                                                                sizeof(btVector3));
                 hull->setMargin(shape->getMargin());
                 replacement = hull;
                 break;
@@ -473,6 +545,7 @@ namespace dmGameSystem
 
         replacement->setLocalScaling(local_scaling);
         ReplaceMutableShape(L, mutable_shape, replacement);
+        lua_settop(L, top);
         return 0;
     }
 
@@ -552,8 +625,8 @@ namespace dmGameSystem
         { "get_collision_object", Shape_GetCollisionObject },
         { "get_index", Shape_GetIndex },
         { "get_type", Shape_GetType },
-        { "get_shape_data", Shape_GetShapeData },
-        { "set_shape_data", Shape_SetShapeData },
+        { "get_shape", Shape_GetShape },
+        { "set_shape", Shape_SetShape },
         { "get_local_transform", Shape_GetLocalTransform },
         { "set_local_transform", Shape_SetLocalTransform },
         { 0, 0 }
@@ -575,10 +648,10 @@ namespace dmGameSystem
 
         lua_newtable(L);
         luaL_register(L, 0, Shape_functions);
-        SetIntegerConstant(L, "TYPE_SPHERE", dmPhysicsDDF::CollisionShape::TYPE_SPHERE);
-        SetIntegerConstant(L, "TYPE_BOX", dmPhysicsDDF::CollisionShape::TYPE_BOX);
-        SetIntegerConstant(L, "TYPE_CAPSULE", dmPhysicsDDF::CollisionShape::TYPE_CAPSULE);
-        SetIntegerConstant(L, "TYPE_HULL", dmPhysicsDDF::CollisionShape::TYPE_HULL);
+        SetIntegerConstant(L, "SHAPE_TYPE_SPHERE", dmPhysicsDDF::CollisionShape::TYPE_SPHERE);
+        SetIntegerConstant(L, "SHAPE_TYPE_BOX", dmPhysicsDDF::CollisionShape::TYPE_BOX);
+        SetIntegerConstant(L, "SHAPE_TYPE_CAPSULE", dmPhysicsDDF::CollisionShape::TYPE_CAPSULE);
+        SetIntegerConstant(L, "SHAPE_TYPE_HULL", dmPhysicsDDF::CollisionShape::TYPE_HULL);
         lua_setfield(L, -2, "shape");
     }
 
@@ -616,7 +689,7 @@ namespace dmGameSystem
  *
  * Value `0`. Shape data contains a positive numeric `diameter` in Defold units.
  *
- * @name bullet3d.shape.TYPE_SPHERE
+ * @name bullet3d.shape.SHAPE_TYPE_SPHERE
  * @constant
  */
 
@@ -624,7 +697,7 @@ namespace dmGameSystem
  *
  * Value `1`. Shape data contains positive vector3 `dimensions` in Defold units.
  *
- * @name bullet3d.shape.TYPE_BOX
+ * @name bullet3d.shape.SHAPE_TYPE_BOX
  * @constant
  */
 
@@ -633,7 +706,7 @@ namespace dmGameSystem
  * Value `2`. Shape data contains a positive numeric `diameter` and positive
  * numeric cylindrical-section `height` in Defold units.
  *
- * @name bullet3d.shape.TYPE_CAPSULE
+ * @name bullet3d.shape.SHAPE_TYPE_CAPSULE
  * @constant
  */
 
@@ -642,7 +715,7 @@ namespace dmGameSystem
  * Value `3`. Shape data contains a `vertices` array with at least four finite
  * vector3 values in Defold units.
  *
- * @name bullet3d.shape.TYPE_HULL
+ * @name bullet3d.shape.SHAPE_TYPE_HULL
  * @constant
  */
 
@@ -672,7 +745,7 @@ namespace dmGameSystem
  *     local object = bullet3d.get_collision_object("#collisionobject")
  *     for _, shape in ipairs(bullet3d.collision_object.get_shapes(object)) do
  *         local index = bullet3d.shape.get_index(shape)
- *         local data = bullet3d.shape.get_shape_data(shape)
+ *         local data = bullet3d.shape.get_shape(shape)
  *         print("shape", index, "type", data.type)
  *     end
  * end
@@ -700,29 +773,31 @@ namespace dmGameSystem
 /*# Get the normalized Defold shape type.
  * @name bullet3d.shape.get_type
  * @param shape [type:btCollisionShape] shape handle
- * @return type [type:number] one of `bullet3d.shape.TYPE_*`
+ * @return type [type:number] one of `bullet3d.shape.SHAPE_TYPE_*`
  */
 
 /*# Get shape geometry data.
  *
- * The returned table always contains `type`, one of `bullet3d.shape.TYPE_*`.
+ * The returned table always contains `type`, one of `bullet3d.shape.SHAPE_TYPE_*`.
  * A sphere also contains numeric `diameter`; a box contains vector3
  * `dimensions`; a capsule contains numeric `diameter` and cylindrical-section
- * `height`; and a hull contains a `vertices` array of vector3 values.
+ * `height`; and a hull contains a `vertices` array of vector3 values. The table
+ * uses Defold units and can be passed to a `bullet3d.world` shape query after
+ * adding the desired `position` and optional `rotation` fields.
  *
- * @name bullet3d.shape.get_shape_data
+ * @name bullet3d.shape.get_shape
  * @param shape [type:btCollisionShape] shape handle
  * @return data [type:table] typed shape geometry in Defold units
  */
 
 /*# Set shape geometry data.
  *
- * The table uses the same format as `get_shape_data`. Its `type` must match the
+ * The table uses the same format as `get_shape`. Its `type` must match the
  * existing shape because changing native shape type is not supported. Primitive
  * dimensions must be finite and greater than zero. Hulls require at least four
  * finite vertices.
  *
- * @name bullet3d.shape.set_shape_data
+ * @name bullet3d.shape.set_shape
  * @param shape [type:btCollisionShape] shape handle
  * @param data [type:table] typed shape geometry in Defold units
  * @examples
@@ -733,11 +808,11 @@ namespace dmGameSystem
  * function init(self)
  *     local object = bullet3d.get_collision_object("#collisionobject")
  *     local shape = bullet3d.collision_object.get_shape(object, 1)
- *     local data = bullet3d.shape.get_shape_data(shape)
+ *     local data = bullet3d.shape.get_shape(shape)
  *
- *     if data.type == bullet3d.shape.TYPE_BOX then
+ *     if data.type == bullet3d.shape.SHAPE_TYPE_BOX then
  *         data.dimensions = data.dimensions * 1.5
- *         bullet3d.shape.set_shape_data(shape, data)
+ *         bullet3d.shape.set_shape(shape, data)
  *     end
  * end
  * ```

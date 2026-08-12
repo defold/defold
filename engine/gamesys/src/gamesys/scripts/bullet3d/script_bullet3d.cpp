@@ -60,6 +60,14 @@ namespace dmGameSystem
         return value;
     }
 
+    void CheckBullet3DComputedVector3(lua_State* L, const btVector3& value, const char* field_name)
+    {
+        if (!isfinite((double)value.getX()) || !isfinite((double)value.getY()) || !isfinite((double)value.getZ()))
+        {
+            luaL_error(L, "%s components must be finite.", field_name);
+        }
+    }
+
     btScalar CheckBullet3DScalar(lua_State* L, int index, btScalar scale, const char* field_name)
     {
         lua_Number input = luaL_checknumber(L, index);

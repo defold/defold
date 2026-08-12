@@ -406,6 +406,20 @@ namespace dmGameSystem
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
         float        scale = GetBullet3DPhysicsScale();
         btVector3    force = CheckBullet3DVector3(L, 2, scale, "force");
+        btVector3    world_position = CheckBullet3DVector3(L, 3, scale, "world_position");
+        btVector3    relative_position = world_position - rigid_body->getCenterOfMassPosition();
+        CheckBullet3DComputedVector3(L, relative_position, "relative position");
+        rigid_body->applyForce(force, relative_position);
+        Activate(rigid_body);
+        return 0;
+    }
+
+    static int RigidBody_ApplyForceAtRelativePosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
+        float        scale = GetBullet3DPhysicsScale();
+        btVector3    force = CheckBullet3DVector3(L, 2, scale, "force");
         btVector3    relative_position = CheckBullet3DVector3(L, 3, scale, "relative_position");
         rigid_body->applyForce(force, relative_position);
         Activate(rigid_body);
@@ -443,6 +457,20 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int RigidBody_ApplyLinearImpulse(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
+        float        scale = GetBullet3DPhysicsScale();
+        btVector3    impulse = CheckBullet3DVector3(L, 2, scale, "impulse");
+        btVector3    world_position = CheckBullet3DVector3(L, 3, scale, "world_position");
+        btVector3    relative_position = world_position - rigid_body->getCenterOfMassPosition();
+        CheckBullet3DComputedVector3(L, relative_position, "relative position");
+        rigid_body->applyImpulse(impulse, relative_position);
+        Activate(rigid_body);
+        return 0;
+    }
+
     static int RigidBody_ApplyTorqueImpulse(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -469,7 +497,29 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int RigidBody_GetAABB(lua_State* L)
+    static int RigidBody_GetLinearVelocityFromWorldPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
+        btVector3    world_point = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "world_point");
+        btVector3    relative_position = world_point - rigid_body->getCenterOfMassPosition();
+        CheckBullet3DComputedVector3(L, relative_position, "relative position");
+        PushBullet3DVector3(L, rigid_body->getVelocityInLocalPoint(relative_position), GetBullet3DInvPhysicsScale());
+        return 1;
+    }
+
+    static int RigidBody_GetLinearVelocityFromLocalPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
+        btVector3    local_point = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "local_point");
+        btVector3    relative_position = rigid_body->getWorldTransform().getBasis() * local_point;
+        CheckBullet3DComputedVector3(L, relative_position, "relative position");
+        PushBullet3DVector3(L, rigid_body->getVelocityInLocalPoint(relative_position), GetBullet3DInvPhysicsScale());
+        return 1;
+    }
+
+    static int RigidBody_ComputeAABB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         btVector3 lower;
@@ -532,15 +582,19 @@ namespace dmGameSystem
 
         { "apply_central_force", RigidBody_ApplyCentralForce },
         { "apply_force", RigidBody_ApplyForce },
+        { "apply_force_at_relative_position", RigidBody_ApplyForceAtRelativePosition },
         { "apply_torque", RigidBody_ApplyTorque },
 
         { "apply_central_impulse", RigidBody_ApplyCentralImpulse },
+        { "apply_linear_impulse", RigidBody_ApplyLinearImpulse },
         { "apply_impulse", RigidBody_ApplyImpulse },
         { "apply_torque_impulse", RigidBody_ApplyTorqueImpulse },
 
         { "clear_forces", RigidBody_ClearForces },
         { "get_velocity_in_local_point", RigidBody_GetVelocityInLocalPoint },
-        { "get_aabb", RigidBody_GetAABB },
+        { "get_linear_velocity_from_world_point", RigidBody_GetLinearVelocityFromWorldPoint },
+        { "get_linear_velocity_from_local_point", RigidBody_GetLinearVelocityFromLocalPoint },
+        { "compute_aabb", RigidBody_ComputeAABB },
         { 0, 0 }
     };
 
@@ -836,28 +890,39 @@ namespace dmGameSystem
  * @param force [type:vector3] force in Defold units
  */
 
-/*# Apply a force at a relative position
+/*# Apply a force at a world-space position
  *
- * `relative_position` is an offset from the body's center of mass expressed in
- * world axes, not a world position or body-local coordinate.
+ * This has the same point semantics as `b2d.body.apply_force`: `world_position`
+ * is the point where the force is applied. The binding converts it to the
+ * center-of-mass-relative offset expected by Bullet's `applyForce` method.
  *
  * @name bullet3d.rigid_body.apply_force
  * @param body [type:btRigidBody] rigid body
  * @param force [type:vector3] force in Defold units
- * @param relative_position [type:vector3] center-of-mass-relative offset in world axes and Defold units
+ * @param world_position [type:vector3] application point in world space and Defold units
  * @examples
  *
- * Apply an upward force one unit to the right of the center of mass. The
- * off-center application produces both linear and angular acceleration:
+ * Apply an upward force at the game object's current world position:
  *
  * ```lua
  * function init(self)
  *     local body = bullet3d.get_rigid_body("#collisionobject")
  *     local force = vmath.vector3(0, 100, 0)
- *     local relative_position = vmath.vector3(1, 0, 0)
- *     bullet3d.rigid_body.apply_force(body, force, relative_position)
+ *     bullet3d.rigid_body.apply_force(body, force, go.get_world_position())
  * end
  * ```
+ */
+
+/*# Apply a force at a center-of-mass-relative position
+ *
+ * This exposes Bullet's `btRigidBody::applyForce` point convention directly.
+ * `relative_position` is an offset from the body's center of mass expressed in
+ * world axes, not a world position or body-local coordinate.
+ *
+ * @name bullet3d.rigid_body.apply_force_at_relative_position
+ * @param body [type:btRigidBody] rigid body
+ * @param force [type:vector3] force in Defold units
+ * @param relative_position [type:vector3] center-of-mass-relative offset in world axes and Defold units
  */
 
 /*# Apply torque
@@ -872,8 +937,21 @@ namespace dmGameSystem
  * @param impulse [type:vector3] impulse in Defold units
  */
 
+/*# Apply a linear impulse at a world-space position
+ *
+ * This has the same point semantics as `b2d.body.apply_linear_impulse`.
+ * `world_position` is converted to the center-of-mass-relative offset expected
+ * by Bullet's `applyImpulse` method.
+ *
+ * @name bullet3d.rigid_body.apply_linear_impulse
+ * @param body [type:btRigidBody] rigid body
+ * @param impulse [type:vector3] impulse in Defold units
+ * @param world_position [type:vector3] application point in world space and Defold units
+ */
+
 /*# Apply an impulse at a relative position
  *
+ * This exposes Bullet's `btRigidBody::applyImpulse` point convention directly.
  * `relative_position` is an offset from the body's center of mass expressed in
  * world axes, not a world position or body-local coordinate.
  *
@@ -905,8 +983,36 @@ namespace dmGameSystem
  * @return velocity [type:vector3] point velocity in Defold units per second
  */
 
-/*# Get the world-space AABB
- * @name bullet3d.rigid_body.get_aabb
+/*# Get velocity at a world-space point
+ *
+ * This has the same point semantics as
+ * `b2d.body.get_linear_velocity_from_world_point`.
+ *
+ * @name bullet3d.rigid_body.get_linear_velocity_from_world_point
+ * @param body [type:btRigidBody] rigid body
+ * @param world_point [type:vector3] point in world space and Defold units
+ * @return velocity [type:vector3] point velocity in Defold units per second
+ */
+
+/*# Get velocity at a body-local point
+ *
+ * This has the same point semantics as
+ * `b2d.body.get_linear_velocity_from_local_point`. The local origin is the
+ * body's center of mass.
+ *
+ * @name bullet3d.rigid_body.get_linear_velocity_from_local_point
+ * @param body [type:btRigidBody] rigid body
+ * @param local_point [type:vector3] point in body-local space and Defold units
+ * @return velocity [type:vector3] point velocity in Defold units per second
+ */
+
+/*# Compute the world-space AABB
+ *
+ * Calls Bullet's native `btRigidBody::getAabb`, which immediately calculates
+ * the bounds from the body's current collision shape and world transform. This
+ * does not read the broadphase proxy's cached AABB.
+ *
+ * @name bullet3d.rigid_body.compute_aabb
  * @param body [type:btRigidBody] rigid body
  * @return aabb [type:table] table whose `lower` and `upper` fields are world-space vector3 bounds in Defold units
  */

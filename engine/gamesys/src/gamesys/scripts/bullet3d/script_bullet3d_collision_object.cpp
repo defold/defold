@@ -33,6 +33,7 @@ namespace dmGameSystem
 
     struct Bullet3DCollisionObjectMeta
     {
+        btCollisionObject*        m_Object;
         dmGameObject::HCollection m_Collection;
         dmhash_t                  m_InstanceId;
         uint32_t                  m_InstanceGeneration;
@@ -42,9 +43,8 @@ namespace dmGameSystem
     // monotonically increasing identity so stale Lua userdata cannot revive
     // when a native address is reused.
     static uint64_t                                   g_NextBullet3DCollisionObjectId = 0;
-    static dmHashTable64<btCollisionObject*>          g_Bullet3DCollisionObjects;
-    static dmHashTable64<uint64_t>                    g_Bullet3DCollisionObjectToId;
     static dmHashTable64<Bullet3DCollisionObjectMeta> g_Bullet3DCollisionObjectMeta;
+    static dmHashTable64<uint64_t>                    g_Bullet3DCollisionObjectToId;
 
     static uint64_t                                   CollisionObjectPtrToKey(const btCollisionObject* collision_object)
     {
@@ -53,11 +53,10 @@ namespace dmGameSystem
 
     static void EnsureCollisionObjectCapacity()
     {
-        if (g_Bullet3DCollisionObjects.Full())
+        if (g_Bullet3DCollisionObjectMeta.Full())
         {
-            g_Bullet3DCollisionObjects.OffsetCapacity(32);
-            g_Bullet3DCollisionObjectToId.OffsetCapacity(32);
             g_Bullet3DCollisionObjectMeta.OffsetCapacity(32);
+            g_Bullet3DCollisionObjectToId.OffsetCapacity(32);
         }
     }
 
@@ -73,23 +72,19 @@ namespace dmGameSystem
 
     static void InvalidateCollisionObjectId(uint64_t id)
     {
-        btCollisionObject** collision_object = g_Bullet3DCollisionObjects.Get(id);
-        if (!collision_object)
+        Bullet3DCollisionObjectMeta* meta = g_Bullet3DCollisionObjectMeta.Get(id);
+        if (!meta)
         {
             return;
         }
 
-        uint64_t  key = CollisionObjectPtrToKey(*collision_object);
+        uint64_t  key = CollisionObjectPtrToKey(meta->m_Object);
         uint64_t* mapped_id = g_Bullet3DCollisionObjectToId.Get(key);
         if (mapped_id && *mapped_id == id)
         {
             g_Bullet3DCollisionObjectToId.Erase(key);
         }
-        if (g_Bullet3DCollisionObjectMeta.Get(id))
-        {
-            g_Bullet3DCollisionObjectMeta.Erase(id);
-        }
-        g_Bullet3DCollisionObjects.Erase(id);
+        g_Bullet3DCollisionObjectMeta.Erase(id);
     }
 
     static Bullet3DLuaCollisionObject* CheckCollisionObjectInternal(lua_State* L, int index)
@@ -104,9 +99,8 @@ namespace dmGameSystem
 
     static btCollisionObject* VerifyCollisionObjectInternal(lua_State* L, Bullet3DLuaCollisionObject* lua_collision_object, bool report_error, Bullet3DCollisionObjectMeta** out_meta)
     {
-        btCollisionObject**          collision_object = g_Bullet3DCollisionObjects.Get(lua_collision_object->m_Id);
         Bullet3DCollisionObjectMeta* meta = g_Bullet3DCollisionObjectMeta.Get(lua_collision_object->m_Id);
-        if (!collision_object || !meta)
+        if (!meta)
         {
             if (report_error)
             {
@@ -134,7 +128,7 @@ namespace dmGameSystem
         {
             *out_meta = meta;
         }
-        return *collision_object;
+        return meta->m_Object;
     }
 
     btCollisionObject* ToBullet3DCollisionObject(lua_State* L, int index)
@@ -201,12 +195,11 @@ namespace dmGameSystem
         return meta ? meta->m_Collection : 0;
     }
 
-    void PushBullet3DCollisionObject(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmhash_t instance_id)
+    uint64_t GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmhash_t instance_id)
     {
         if (!collision_object_ptr)
         {
-            lua_pushnil(L);
-            return;
+            return 0;
         }
 
         btCollisionObject*      collision_object = (btCollisionObject*)collision_object_ptr;
@@ -215,23 +208,34 @@ namespace dmGameSystem
 
         EnsureCollisionObjectCapacity();
 
-        uint64_t            id = 0;
-        uint64_t            key = CollisionObjectPtrToKey(collision_object);
-        uint64_t*           existing_id = g_Bullet3DCollisionObjectToId.Get(key);
-        btCollisionObject** existing_collision_object = existing_id ? g_Bullet3DCollisionObjects.Get(*existing_id) : 0;
-        if (existing_collision_object)
+        uint64_t  id = 0;
+        uint64_t  key = CollisionObjectPtrToKey(collision_object);
+        uint64_t* existing_id = g_Bullet3DCollisionObjectToId.Get(key);
+
+        Bullet3DCollisionObjectMeta* existing_meta = existing_id ? g_Bullet3DCollisionObjectMeta.Get(*existing_id) : 0;
+        if (existing_meta)
         {
-            Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(*existing_id);
-            dmGameObject::HInstance      existing_instance = existing_meta && existing_meta->m_InstanceId ? dmGameObject::GetInstanceFromIdentifier(existing_meta->m_Collection, existing_meta->m_InstanceId) : 0;
-            if (!existing_meta || (existing_meta->m_InstanceId && (!existing_instance || dmGameObject::GetGeneration(existing_instance) != existing_meta->m_InstanceGeneration)))
+            dmGameObject::HInstance existing_instance = 0;
+            if (existing_meta->m_InstanceId)
+            {
+                existing_instance = dmGameObject::GetInstanceFromIdentifier(existing_meta->m_Collection,
+                                                                             existing_meta->m_InstanceId);
+            }
+            bool stale_instance = false;
+            if (existing_meta->m_InstanceId)
+            {
+                stale_instance = !existing_instance ||
+                                 dmGameObject::GetGeneration(existing_instance) != existing_meta->m_InstanceGeneration;
+            }
+            if (stale_instance)
             {
                 InvalidateCollisionObjectId(*existing_id);
                 existing_id = 0;
-                existing_collision_object = 0;
+                existing_meta = 0;
             }
         }
 
-        if (existing_collision_object)
+        if (existing_meta)
         {
             id = *existing_id;
         }
@@ -242,15 +246,15 @@ namespace dmGameSystem
                 g_Bullet3DCollisionObjectToId.Erase(key);
             }
             id = AllocateCollisionObjectId(L);
-            g_Bullet3DCollisionObjects.Put(id, collision_object);
             g_Bullet3DCollisionObjectToId.Put(key, id);
         }
 
         Bullet3DCollisionObjectMeta meta = {};
+        meta.m_Object = collision_object;
         meta.m_Collection = collection;
         meta.m_InstanceId = instance_id;
         meta.m_InstanceGeneration = instance_generation;
-        Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(id);
+        existing_meta = g_Bullet3DCollisionObjectMeta.Get(id);
         if (existing_meta)
         {
             *existing_meta = meta;
@@ -258,6 +262,18 @@ namespace dmGameSystem
         else
         {
             g_Bullet3DCollisionObjectMeta.Put(id, meta);
+        }
+
+        return id;
+    }
+
+    void PushBullet3DCollisionObject(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmhash_t instance_id)
+    {
+        uint64_t id = GetOrCreateBullet3DCollisionObjectId(L, collision_object_ptr, collection, instance_id);
+        if (!id)
+        {
+            lua_pushnil(L);
+            return;
         }
 
         Bullet3DLuaCollisionObject* lua_collision_object = (Bullet3DLuaCollisionObject*)lua_newuserdata(L, sizeof(Bullet3DLuaCollisionObject));
@@ -415,6 +431,21 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int CollisionObject_SetAwake(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        btCollisionObject* collision_object = CheckBullet3DCollisionObject(L, 1);
+        if (dmScript::CheckBoolean(L, 2))
+        {
+            collision_object->activate();
+        }
+        else
+        {
+            collision_object->setActivationState(ISLAND_SLEEPING);
+        }
+        return 0;
+    }
+
     static int CollisionObject_GetDeactivationTime(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -561,6 +592,8 @@ namespace dmGameSystem
         { "force_activation_state", CollisionObject_ForceActivationState },
         { "activate", CollisionObject_Activate },
         { "is_active", CollisionObject_IsActive },
+        { "is_awake", CollisionObject_IsActive },
+        { "set_awake", CollisionObject_SetAwake },
         { "get_deactivation_time", CollisionObject_GetDeactivationTime },
         { "set_deactivation_time", CollisionObject_SetDeactivationTime },
 
@@ -633,7 +666,6 @@ namespace dmGameSystem
     void ScriptBullet3DFinalizeCollisionObject()
     {
         TYPE_HASH_COLLISION_OBJECT = 0;
-        g_Bullet3DCollisionObjects.Clear();
         g_Bullet3DCollisionObjectToId.Clear();
         g_Bullet3DCollisionObjectMeta.Clear();
     }
@@ -822,9 +854,37 @@ namespace dmGameSystem
  */
 
 /*# Test whether a collision object is active
+ *
+ * This exposes Bullet's native `btCollisionObject::isActive` result. It is
+ * `false` for `ISLAND_SLEEPING` and `DISABLE_SIMULATION`, and `true` for the
+ * other activation states. It is unrelated to whether the Defold component is
+ * enabled.
+ *
  * @name bullet3d.collision_object.is_active
  * @param object [type:btCollisionObject] collision object
  * @return active [type:boolean] active state
+ */
+
+/*# Test whether a collision object is awake
+ *
+ * Box2D-style name for the same simulation state returned by
+ * [ref:bullet3d.collision_object.is_active].
+ *
+ * @name bullet3d.collision_object.is_awake
+ * @param object [type:btCollisionObject] collision object
+ * @return awake [type:boolean] `false` when sleeping or simulation is disabled
+ */
+
+/*# Set whether a collision object is awake
+ *
+ * Passing `true` calls Bullet's `activate()`. Passing `false` requests the
+ * native `ISLAND_SLEEPING` state. As in Bullet, static or kinematic objects are
+ * not activated without force, and protected `DISABLE_DEACTIVATION` or
+ * `DISABLE_SIMULATION` states are not replaced by a sleeping request.
+ *
+ * @name bullet3d.collision_object.set_awake
+ * @param object [type:btCollisionObject] collision object
+ * @param awake [type:boolean] requested awake state
  */
 
 /*# Get deactivation time

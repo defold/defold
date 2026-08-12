@@ -21,11 +21,22 @@ namespace dmGameObject
 
 namespace dmGameSystem
 {
+    struct Bullet3DShapeDef
+    {
+        btVector3 m_Dimensions;
+        btScalar  m_Diameter;
+        btScalar  m_Height;
+        int       m_Type;
+        int       m_VerticesIndex;
+        int       m_VertexCount;
+    };
+
     void                      SetBullet3DPhysicsScale(float scale);
     float                     GetBullet3DPhysicsScale();
     float                     GetBullet3DInvPhysicsScale();
 
     btVector3                 CheckBullet3DVector3(lua_State* L, int index, float scale, const char* field_name);
+    void                      CheckBullet3DComputedVector3(lua_State* L, const btVector3& value, const char* field_name);
     btScalar                  CheckBullet3DScalar(lua_State* L, int index, btScalar scale, const char* field_name);
     btScalar                  CheckBullet3DScalarInRange(lua_State* L, int index, btScalar scale, const char* field_name, btScalar minimum, btScalar maximum);
     btScalar                  CheckBullet3DNonNegativeScalar(lua_State* L, int index, btScalar scale, const char* field_name);
@@ -46,6 +57,7 @@ namespace dmGameSystem
     btCollisionObject*        ToBullet3DCollisionObject(lua_State* L, int index);
     bool                      IsBullet3DCollisionObjectValid(lua_State* L, int index);
     uint64_t                  CheckBullet3DCollisionObjectId(lua_State* L, int index);
+    uint64_t                  GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object, dmGameObject::HCollection collection, dmhash_t instance_id);
     btCollisionObject*        ToBullet3DCollisionObjectById(lua_State* L, uint64_t id);
     dmGameObject::HCollection GetBullet3DCollisionObjectCollection(lua_State* L, int index);
     dmGameObject::HCollection GetBullet3DCollisionObjectCollectionById(lua_State* L, uint64_t id);
@@ -58,6 +70,10 @@ namespace dmGameSystem
     btRigidBody*              CheckBullet3DRigidBody(lua_State* L, int index);
     void                      ScriptBullet3DInitializeRigidBody(lua_State* L);
 
+    // Hull definitions leave their validated vertices table pinned on the Lua
+    // stack. Keep that stack entry alive until all shape data has been consumed.
+    void                      CheckBullet3DShapeDef(lua_State* L, int index, Bullet3DShapeDef* shape_def);
+    btConvexShape*            CreateBullet3DConvexShape(lua_State* L, const Bullet3DShapeDef& shape_def);
     void                      ScriptBullet3DInitializeShape(lua_State* L);
     void                      ScriptBullet3DFinalizeShape();
 

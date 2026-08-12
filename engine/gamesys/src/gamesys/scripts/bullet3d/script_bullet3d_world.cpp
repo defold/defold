@@ -4,7 +4,6 @@
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 
-#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
@@ -83,6 +82,17 @@ namespace dmGameSystem
         bool               m_Inside;
     };
 
+    struct Bullet3DAsyncCastResult
+    {
+        uint64_t  m_ObjectId;
+        btVector3 m_Point;
+        btVector3 m_Normal;
+        btScalar  m_Fraction;
+        int       m_ShapeIndex;
+        bool      m_InitialOverlap;
+        bool      m_Inside;
+    };
+
     struct Bullet3DContactResult
     {
         btCollisionObject* m_ObjectA;
@@ -102,15 +112,10 @@ namespace dmGameSystem
 
     struct Bullet3DQueryShapeInput
     {
-        btVector3    m_Position;
-        btVector3    m_Dimensions;
-        btQuaternion m_Rotation;
-        btQuaternion m_TargetRotation;
-        btScalar     m_Diameter;
-        btScalar     m_Height;
-        int          m_Type;
-        int          m_VerticesIndex;
-        int          m_VertexCount;
+        Bullet3DShapeDef m_ShapeDef;
+        btVector3        m_Position;
+        btQuaternion     m_Rotation;
+        btQuaternion     m_TargetRotation;
     };
 
     struct Bullet3DAsyncQueryFilter
@@ -130,15 +135,16 @@ namespace dmGameSystem
 
     struct Bullet3DAsyncCastRequest
     {
-        btDiscreteDynamicsWorld*    m_World;
-        uint64_t                    m_WorldId;
-        dmScript::LuaCallbackInfo*  m_Callback;
-        Bullet3DAsyncQueryFilter    m_Filter;
-        Bullet3DQueryShape          m_QueryShape;
-        btVector3                   m_RayOrigin;
-        btVector3                   m_RayTarget;
-        int                         m_MaxResults;
-        Bullet3DAsyncCastType       m_Type;
+        btDiscreteDynamicsWorld*             m_World;
+        uint64_t                             m_WorldId;
+        dmScript::LuaCallbackInfo*           m_Callback;
+        Bullet3DAsyncQueryFilter             m_Filter;
+        Bullet3DQueryShape                   m_QueryShape;
+        dmArray<Bullet3DAsyncCastResult>     m_Results;
+        btVector3                            m_RayOrigin;
+        btVector3                            m_RayTarget;
+        int                                  m_MaxResults;
+        Bullet3DAsyncCastType                m_Type;
     };
 
     static dmArray<Bullet3DAsyncCastRequest*> g_Bullet3DAsyncCastRequests;
@@ -160,7 +166,7 @@ namespace dmGameSystem
     {
         for (uint32_t i = g_Bullet3DAsyncCastRequests.Size(); i > 0; --i)
         {
-            uint32_t index = i - 1;
+            uint32_t                  index = i - 1;
             Bullet3DAsyncCastRequest* request = g_Bullet3DAsyncCastRequests[index];
             if (!world || request->m_World == world)
             {
@@ -343,14 +349,6 @@ namespace dmGameSystem
         return isfinite((double)value) != 0;
     }
 
-    static void CheckComputedVector3(lua_State* L, const btVector3& value, const char* field_name)
-    {
-        if (!IsFiniteScalar(value.getX()) || !IsFiniteScalar(value.getY()) || !IsFiniteScalar(value.getZ()))
-        {
-            luaL_error(L, "%s components must be finite.", field_name);
-        }
-    }
-
     static void InitializeQueryFilterInput(Bullet3DQueryFilterInput* input)
     {
         input->m_CategoryBits = 0xffff;
@@ -382,7 +380,6 @@ namespace dmGameSystem
             input->m_CategoryBits = CheckFilterBits(L, -1, "category_bits");
         }
         lua_pop(L, 1);
-
         lua_getfield(L, index, "mask_bits");
         if (!lua_isnil(L, -1))
         {
@@ -514,45 +511,14 @@ namespace dmGameSystem
         }
     }
 
-    static btVector3 CheckPositiveDimensions(lua_State* L, int index, const char* field_name)
-    {
-        btVector3 dimensions = CheckBullet3DVector3(L, index, GetBullet3DPhysicsScale(), field_name);
-        if (!(dimensions.getX() > 0.0f) || !(dimensions.getY() > 0.0f) || !(dimensions.getZ() > 0.0f))
-        {
-            luaL_error(L, "%s components must be greater than zero.", field_name);
-        }
-        return dimensions;
-    }
-
-    static btScalar CheckPositiveLength(lua_State* L, int index, const char* field_name)
-    {
-        btScalar value = CheckBullet3DScalar(L, index, GetBullet3DPhysicsScale(), field_name);
-        if (!(value > 0.0f))
-        {
-            luaL_error(L, "%s must be finite and greater than zero.", field_name);
-        }
-        return value;
-    }
-
     static void CheckQueryShapeInput(lua_State* L, int index, Bullet3DQueryShapeInput* input)
     {
         index = AbsIndex(L, index);
         luaL_checktype(L, index, LUA_TTABLE);
 
         input->m_Position = btVector3(0.0f, 0.0f, 0.0f);
-        input->m_Dimensions = btVector3(0.0f, 0.0f, 0.0f);
         input->m_Rotation = btQuaternion(0.0f, 0.0f, 0.0f, 1.0f);
         input->m_TargetRotation = input->m_Rotation;
-        input->m_Diameter = 0.0f;
-        input->m_Height = 0.0f;
-        input->m_VerticesIndex = 0;
-        input->m_VertexCount = 0;
-
-        // Keep the parsed native values and any variable-length vertex table;
-        // native allocations happen only after this validation phase succeeds.
-        lua_getfield(L, index, "type");
-        input->m_Type = luaL_checkinteger(L, -1);
-        lua_pop(L, 1);
 
         lua_getfield(L, index, "position");
         if (!lua_isnil(L, -1))
@@ -576,85 +542,15 @@ namespace dmGameSystem
         }
         lua_pop(L, 1);
 
-        if (input->m_Type == dmPhysicsDDF::CollisionShape::TYPE_SPHERE)
-        {
-            lua_getfield(L, index, "diameter");
-            input->m_Diameter = CheckPositiveLength(L, -1, "diameter");
-            lua_pop(L, 1);
-        }
-        else if (input->m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
-        {
-            lua_getfield(L, index, "dimensions");
-            input->m_Dimensions = CheckPositiveDimensions(L, -1, "dimensions");
-            lua_pop(L, 1);
-        }
-        else if (input->m_Type == dmPhysicsDDF::CollisionShape::TYPE_CAPSULE)
-        {
-            lua_getfield(L, index, "diameter");
-            input->m_Diameter = CheckPositiveLength(L, -1, "diameter");
-            lua_pop(L, 1);
-            lua_getfield(L, index, "height");
-            input->m_Height = CheckPositiveLength(L, -1, "height");
-            lua_pop(L, 1);
-        }
-        else if (input->m_Type == dmPhysicsDDF::CollisionShape::TYPE_HULL)
-        {
-            lua_getfield(L, index, "vertices");
-            luaL_checktype(L, -1, LUA_TTABLE);
-            input->m_VerticesIndex = lua_gettop(L);
-            input->m_VertexCount = (int)lua_objlen(L, -1);
-            if (input->m_VertexCount < 4)
-            {
-                luaL_error(L, "vertices must contain at least four points.");
-            }
-            for (int i = 1; i <= input->m_VertexCount; ++i)
-            {
-                lua_rawgeti(L, input->m_VerticesIndex, i);
-                CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "vertices");
-                lua_pop(L, 1);
-            }
-            return;
-        }
-        else
-        {
-            luaL_error(L, "Unsupported shape type %d.", input->m_Type);
-        }
+        // Hull definitions retain references to values in the Lua vertices table.
+        // Keep this as the final Lua-observable read before the shape is created.
+        CheckBullet3DShapeDef(L, index, &input->m_ShapeDef);
     }
 
     static Bullet3DQueryShape CreateQueryShape(lua_State* L, const Bullet3DQueryShapeInput& input)
     {
-        btConvexShape* shape = 0;
-        if (input.m_Type == dmPhysicsDDF::CollisionShape::TYPE_SPHERE)
-        {
-            shape = new btSphereShape(input.m_Diameter * 0.5f);
-        }
-        else if (input.m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
-        {
-            shape = new btBoxShape(input.m_Dimensions * 0.5f);
-        }
-        else if (input.m_Type == dmPhysicsDDF::CollisionShape::TYPE_CAPSULE)
-        {
-            shape = new btCapsuleShape(input.m_Diameter * 0.5f, input.m_Height);
-        }
-        else
-        {
-            dmArray<btVector3> vertices;
-            vertices.SetCapacity(input.m_VertexCount);
-            for (int i = 1; i <= input.m_VertexCount; ++i)
-            {
-                lua_rawgeti(L, input.m_VerticesIndex, i);
-                dmVMath::Vector3* vertex = dmScript::ToVector3(L, -1);
-                // The pinned array was fully validated before any native allocation,
-                // and no Lua code can run between validation and this raw array read.
-                assert(vertex != 0);
-                vertices.Push(btVector3(vertex->getX() * GetBullet3DPhysicsScale(), vertex->getY() * GetBullet3DPhysicsScale(), vertex->getZ() * GetBullet3DPhysicsScale()));
-                lua_pop(L, 1);
-            }
-            shape = new btConvexHullShape((const btScalar*)vertices.Begin(), input.m_VertexCount, sizeof(btVector3));
-        }
-
         Bullet3DQueryShape query_shape;
-        query_shape.m_Shape = shape;
+        query_shape.m_Shape = CreateBullet3DConvexShape(L, input.m_ShapeDef);
         query_shape.m_From = btTransform(input.m_Rotation, input.m_Position);
         query_shape.m_To = btTransform(input.m_TargetRotation, input.m_Position);
         return query_shape;
@@ -1066,9 +962,10 @@ namespace dmGameSystem
             return;
         }
 
-        CancelAsyncCastRequests((btDiscreteDynamicsWorld*)world_ptr);
+        btDiscreteDynamicsWorld* world = (btDiscreteDynamicsWorld*)world_ptr;
+        CancelAsyncCastRequests(world);
 
-        uint64_t* id = g_Bullet3DWorldToId.Get(WorldPtrToKey((btDiscreteDynamicsWorld*)world_ptr));
+        uint64_t* id = g_Bullet3DWorldToId.Get(WorldPtrToKey(world));
         if (id)
         {
             InvalidateWorldId(*id);
@@ -1125,13 +1022,34 @@ namespace dmGameSystem
         int output_count = 0;
         for (uint32_t i = 0; i < results.Size() && HasResultCapacity(output_count, max_results); ++i)
         {
-            if (GetCollisionObjectOwner(results[i].m_Object, 0, 0))
+            if (PushCollisionObjectResult(L, results[i].m_Object))
             {
-                lua_newtable(L);
-                PushCollisionObjectResult(L, results[i].m_Object);
-                lua_setfield(L, -2, "object");
                 lua_rawseti(L, -2, ++output_count);
             }
+        }
+    }
+
+    static void PushCastResultFields(lua_State* L, const btVector3& point, const btVector3& normal, btScalar fraction, bool initial_overlap, bool inside, int shape_index)
+    {
+        PushBullet3DVector3(L, point, GetBullet3DInvPhysicsScale());
+        lua_setfield(L, -2, "point");
+
+        PushBullet3DVector3(L, normal, 1.0f);
+        lua_setfield(L, -2, "normal");
+
+        lua_pushnumber(L, fraction);
+        lua_setfield(L, -2, "fraction");
+
+        lua_pushboolean(L, initial_overlap);
+        lua_setfield(L, -2, "initial_overlap");
+
+        lua_pushboolean(L, inside);
+        lua_setfield(L, -2, "inside");
+
+        if (shape_index > 0)
+        {
+            lua_pushinteger(L, shape_index);
+            lua_setfield(L, -2, "shape_index");
         }
     }
 
@@ -1142,26 +1060,36 @@ namespace dmGameSystem
         PushCollisionObjectResult(L, result.m_Object);
         lua_setfield(L, -2, "object");
 
-        PushBullet3DVector3(L, result.m_Point, GetBullet3DInvPhysicsScale());
-        lua_setfield(L, -2, "point");
+        PushCastResultFields(L, result.m_Point, result.m_Normal, result.m_Fraction, result.m_InitialOverlap, result.m_Inside, result.m_ShapeIndex);
+    }
 
-        PushBullet3DVector3(L, result.m_Normal, 1.0f);
-        lua_setfield(L, -2, "normal");
-
-        lua_pushnumber(L, result.m_Fraction);
-        lua_setfield(L, -2, "fraction");
-
-        lua_pushboolean(L, result.m_InitialOverlap);
-        lua_setfield(L, -2, "initial_overlap");
-
-        lua_pushboolean(L, result.m_Inside);
-        lua_setfield(L, -2, "inside");
-
-        if (result.m_ShapeIndex > 0)
+    static bool StoreAsyncCastResult(lua_State* L, const Bullet3DCastResult& result, Bullet3DAsyncCastResult* async_result)
+    {
+        dmGameObject::HCollection collection = 0;
+        dmhash_t                  instance_id = 0;
+        if (!GetCollisionObjectOwner(result.m_Object, &collection, &instance_id))
         {
-            lua_pushinteger(L, result.m_ShapeIndex);
-            lua_setfield(L, -2, "shape_index");
+            return false;
         }
+        async_result->m_ObjectId = GetOrCreateBullet3DCollisionObjectId(L, result.m_Object, collection, instance_id);
+
+        async_result->m_Point = result.m_Point;
+        async_result->m_Normal = result.m_Normal;
+        async_result->m_Fraction = result.m_Fraction;
+        async_result->m_ShapeIndex = result.m_ShapeIndex;
+        async_result->m_InitialOverlap = result.m_InitialOverlap;
+        async_result->m_Inside = result.m_Inside;
+        return true;
+    }
+
+    static void PushAsyncCastResult(lua_State* L, const Bullet3DAsyncCastResult& result)
+    {
+        lua_newtable(L);
+
+        PushBullet3DCollisionObjectById(L, result.m_ObjectId);
+        lua_setfield(L, -2, "object");
+
+        PushCastResultFields(L, result.m_Point, result.m_Normal, result.m_Fraction, result.m_InitialOverlap, result.m_Inside, result.m_ShapeIndex);
     }
 
     static int CompareCastResults(const void* a, const void* b)
@@ -1192,6 +1120,33 @@ namespace dmGameSystem
                 lua_rawseti(L, -2, ++output_count);
             }
         }
+    }
+
+    static void PushAsyncCastResults(lua_State* L, const dmArray<Bullet3DAsyncCastResult>& results, int max_results)
+    {
+        lua_newtable(L);
+        int output_count = 0;
+        for (uint32_t i = 0; i < results.Size() && HasResultCapacity(output_count, max_results); ++i)
+        {
+            if (ToBullet3DCollisionObjectById(L, results[i].m_ObjectId))
+            {
+                PushAsyncCastResult(L, results[i]);
+                lua_rawseti(L, -2, ++output_count);
+            }
+        }
+    }
+
+    static void PushClosestCastResult(lua_State* L, const dmArray<Bullet3DCastResult>& results)
+    {
+        for (uint32_t i = 0; i < results.Size(); ++i)
+        {
+            if (GetCollisionObjectOwner(results[i].m_Object, 0, 0))
+            {
+                PushCastResult(L, results[i]);
+                return;
+            }
+        }
+        lua_pushnil(L);
     }
 
     static void PushContactResult(lua_State* L, const Bullet3DContactResult& result)
@@ -1268,48 +1223,81 @@ namespace dmGameSystem
         }
     }
 
-    static void ExecuteAsyncCastRequest(Bullet3DAsyncCastRequest* request)
+    static void CollectRayCastResults(btDiscreteDynamicsWorld* world, const btVector3& origin, const btVector3& target, const Bullet3DQueryFilter* filter, int max_results, bool closest, dmArray<Bullet3DCastResult>* results)
+    {
+        btSphereShape point_shape(0.0f);
+        btTransform   origin_transform(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f), origin);
+        CollectInitialCastOverlaps(world, &point_shape, origin_transform, filter, true, max_results, results);
+        if (!closest || results->Empty())
+        {
+            Bullet3DRayQueryCallback callback(filter, origin, target, results, closest);
+            world->rayTest(origin, target, callback);
+        }
+        SortCastResults(results);
+    }
+
+    static void CollectShapeCastResults(btDiscreteDynamicsWorld* world, const Bullet3DQueryShape& query_shape, const Bullet3DQueryFilter* filter, int max_results, bool closest, dmArray<Bullet3DCastResult>* results)
+    {
+        CollectInitialCastOverlaps(world, query_shape.m_Shape, query_shape.m_From, filter, false, max_results, results);
+        if (!closest || results->Empty())
+        {
+            Bullet3DConvexQueryCallback callback(filter, results, closest);
+            world->convexSweepTest(query_shape.m_Shape, query_shape.m_From, query_shape.m_To, callback);
+        }
+        SortCastResults(results);
+    }
+
+    static void CollectAsyncCastResults(Bullet3DAsyncCastRequest* request)
     {
         if (!dmScript::IsCallbackValid(request->m_Callback))
         {
             return;
         }
-        lua_State* L = dmScript::GetCallbackLuaContext(request->m_Callback);
+
+        lua_State*         L = dmScript::GetCallbackLuaContext(request->m_Callback);
         Bullet3DQueryFilter filter;
         ResolveAsyncQueryFilter(L, request->m_Filter, &filter);
 
-        SynchronizeWorldAABBs(request->m_World);
-        dmArray<Bullet3DCastResult> results;
+        dmArray<Bullet3DCastResult> cast_results;
         bool                        closest = request->m_MaxResults == 1;
         if (request->m_Type == BULLET3D_ASYNC_CAST_RAY)
         {
-            btSphereShape point_shape(0.0f);
-            btTransform   origin_transform(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f), request->m_RayOrigin);
-            CollectInitialCastOverlaps(request->m_World, &point_shape, origin_transform, &filter, true, request->m_MaxResults, &results);
-            if (!closest || results.Empty())
-            {
-                Bullet3DRayQueryCallback callback(&filter, request->m_RayOrigin, request->m_RayTarget, &results, closest);
-                request->m_World->rayTest(request->m_RayOrigin, request->m_RayTarget, callback);
-            }
+            CollectRayCastResults(request->m_World, request->m_RayOrigin, request->m_RayTarget, &filter, request->m_MaxResults, closest, &cast_results);
         }
         else
         {
-            CollectInitialCastOverlaps(request->m_World, request->m_QueryShape.m_Shape, request->m_QueryShape.m_From, &filter, false, request->m_MaxResults, &results);
-            if (!closest || results.Empty())
+            CollectShapeCastResults(request->m_World, request->m_QueryShape, &filter, request->m_MaxResults, closest, &cast_results);
+        }
+
+        if (!cast_results.Empty())
+        {
+            request->m_Results.SetCapacity(cast_results.Size());
+        }
+        for (uint32_t i = 0; i < cast_results.Size(); ++i)
+        {
+            Bullet3DAsyncCastResult result;
+            if (StoreAsyncCastResult(L, cast_results[i], &result))
             {
-                Bullet3DConvexQueryCallback callback(&filter, &results, closest);
-                request->m_World->convexSweepTest(request->m_QueryShape.m_Shape, request->m_QueryShape.m_From, request->m_QueryShape.m_To, callback);
+                request->m_Results.Push(result);
             }
         }
-        SortCastResults(&results);
+    }
 
+    static void DispatchAsyncCastResults(Bullet3DAsyncCastRequest* request)
+    {
+        if (!dmScript::IsCallbackValid(request->m_Callback))
+        {
+            return;
+        }
+
+        lua_State* L = dmScript::GetCallbackLuaContext(request->m_Callback);
         DM_LUA_STACK_CHECK(L, 0);
         if (!dmScript::SetupCallback(request->m_Callback))
         {
             dmLogError("Failed to setup Bullet3D cast callback (has the calling script been destroyed?)");
             return;
         }
-        PushCastResults(L, results, request->m_MaxResults);
+        PushAsyncCastResults(L, request->m_Results, request->m_MaxResults);
         dmScript::PCall(L, 2, 0);
         dmScript::TeardownCallback(request->m_Callback);
     }
@@ -1317,12 +1305,13 @@ namespace dmGameSystem
     void ScriptBullet3DProcessWorldQueries(void* world_ptr)
     {
         btDiscreteDynamicsWorld* world = (btDiscreteDynamicsWorld*)world_ptr;
-        dmArray<Bullet3DAsyncCastRequest*> requests;
-        uint32_t pending_count = g_Bullet3DAsyncCastRequests.Size();
+        uint32_t                 pending_count = g_Bullet3DAsyncCastRequests.Size();
         if (pending_count == 0)
         {
             return;
         }
+
+        dmArray<Bullet3DAsyncCastRequest*> requests;
         requests.SetCapacity(pending_count);
 
         uint32_t retained_count = 0;
@@ -1340,13 +1329,32 @@ namespace dmGameSystem
         }
         g_Bullet3DAsyncCastRequests.SetSize(retained_count);
 
+        if (!requests.Empty())
+        {
+            // All requests for this world observe the same post-step state, so
+            // refresh its broadphase bounds once for the entire queue.
+            SynchronizeWorldAABBs(world);
+        }
+
+        // Complete every native query before invoking Lua. This preserves the
+        // shared post-step snapshot if an earlier callback mutates the world.
         for (uint32_t i = 0; i < requests.Size(); ++i)
         {
             Bullet3DAsyncCastRequest* request = requests[i];
             btDiscreteDynamicsWorld** registered_world = g_Bullet3DWorlds.Get(request->m_WorldId);
             if (registered_world && *registered_world == request->m_World)
             {
-                ExecuteAsyncCastRequest(request);
+                CollectAsyncCastResults(request);
+            }
+        }
+
+        for (uint32_t i = 0; i < requests.Size(); ++i)
+        {
+            Bullet3DAsyncCastRequest* request = requests[i];
+            btDiscreteDynamicsWorld** registered_world = g_Bullet3DWorlds.Get(request->m_WorldId);
+            if (registered_world && *registered_world == request->m_World)
+            {
+                DispatchAsyncCastResults(request);
             }
             DestroyAsyncCastRequest(request);
         }
@@ -1421,16 +1429,99 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int World_CastRayInternal(lua_State* L, bool closest)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
+        btVector3                origin = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "origin");
+        btVector3                translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
+        CheckNonZeroTranslation(L, translation);
+        btVector3 target = origin + translation;
+        CheckBullet3DComputedVector3(L, target, "ray target");
+        int                 max_results = closest ? 1 : CheckMaxResults(L, 5);
+        Bullet3DQueryFilter filter;
+        CheckQueryFilter(L, 4, &filter);
+
+        SynchronizeWorldAABBs(world);
+        dmArray<Bullet3DCastResult> results;
+        CollectRayCastResults(world, origin, target, &filter, max_results, closest || max_results == 1, &results);
+        if (closest)
+        {
+            PushClosestCastResult(L, results);
+        }
+        else
+        {
+            PushCastResults(L, results, max_results);
+        }
+        return 1;
+    }
+
+    static int World_CastRay(lua_State* L)
+    {
+        return World_CastRayInternal(L, false);
+    }
+
+    static int World_CastRayClosest(lua_State* L)
+    {
+        return World_CastRayInternal(L, true);
+    }
+
+    static int World_CastShapeInternal(lua_State* L, bool closest)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
+        btVector3                translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
+        CheckNonZeroTranslation(L, translation);
+        int                      max_results = closest ? 1 : CheckMaxResults(L, 5);
+        int                      top = lua_gettop(L);
+        Bullet3DQueryFilterInput filter_input;
+        Bullet3DQueryShapeInput shape_input;
+        CheckQueryFilterInput(L, 4, &filter_input);
+        CheckQueryShapeInput(L, 2, &shape_input);
+        btVector3 target = shape_input.m_Position + translation;
+        CheckBullet3DComputedVector3(L, target, "shape target");
+        Bullet3DQueryFilter filter;
+        CreateQueryFilter(L, filter_input, &filter);
+        Bullet3DQueryShape query_shape = CreateQueryShape(L, shape_input);
+        lua_settop(L, top);
+        query_shape.m_To.setOrigin(target);
+
+        SynchronizeWorldAABBs(world);
+        dmArray<Bullet3DCastResult> results;
+        CollectShapeCastResults(world, query_shape, &filter, max_results, closest || max_results == 1, &results);
+        delete query_shape.m_Shape;
+
+        if (closest)
+        {
+            PushClosestCastResult(L, results);
+        }
+        else
+        {
+            PushCastResults(L, results, max_results);
+        }
+        return 1;
+    }
+
+    static int World_CastShape(lua_State* L)
+    {
+        return World_CastShapeInternal(L, false);
+    }
+
+    static int World_CastShapeClosest(lua_State* L)
+    {
+        return World_CastShapeInternal(L, true);
+    }
+
     static int World_CastRayAsync(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DLuaWorld*         lua_world = CheckWorldInternal(L, 1);
+        Bullet3DLuaWorld*        lua_world = CheckWorldInternal(L, 1);
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
-        btVector3                 origin = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "origin");
-        btVector3                 translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
+        btVector3                origin = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "origin");
+        btVector3                translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
         CheckNonZeroTranslation(L, translation);
         btVector3 target = origin + translation;
-        CheckComputedVector3(L, target, "ray target");
+        CheckBullet3DComputedVector3(L, target, "ray target");
 
         int max_results = 0;
         int callback_index = CheckAsyncCastCallback(L, &max_results);
@@ -1456,10 +1547,11 @@ namespace dmGameSystem
         request->m_Type = BULLET3D_ASYNC_CAST_RAY;
         CreateAsyncQueryFilter(L, filter_input, &request->m_Filter);
         lua_settop(L, top);
+
         request->m_Callback = dmScript::CreateCallback(L, callback_index);
         if (!request->m_Callback)
         {
-            delete request;
+            DestroyAsyncCastRequest(request);
             return luaL_error(L, "could not create callback for bullet3d.world.cast_ray_async");
         }
         ArrayPush(&g_Bullet3DAsyncCastRequests, request);
@@ -1469,9 +1561,9 @@ namespace dmGameSystem
     static int World_CastShapeAsync(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DLuaWorld*         lua_world = CheckWorldInternal(L, 1);
+        Bullet3DLuaWorld*        lua_world = CheckWorldInternal(L, 1);
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
-        btVector3                 translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
+        btVector3                translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
         CheckNonZeroTranslation(L, translation);
         int max_results = 0;
         int callback_index = CheckAsyncCastCallback(L, &max_results);
@@ -1489,7 +1581,7 @@ namespace dmGameSystem
         Bullet3DQueryShapeInput shape_input;
         CheckQueryShapeInput(L, 2, &shape_input);
         btVector3 target = shape_input.m_Position + translation;
-        CheckComputedVector3(L, target, "shape target");
+        CheckBullet3DComputedVector3(L, target, "shape target");
 
         Bullet3DAsyncCastRequest* request = new Bullet3DAsyncCastRequest;
         request->m_World = world;
@@ -1507,8 +1599,7 @@ namespace dmGameSystem
         request->m_Callback = dmScript::CreateCallback(L, callback_index);
         if (!request->m_Callback)
         {
-            delete request->m_QueryShape.m_Shape;
-            delete request;
+            DestroyAsyncCastRequest(request);
             return luaL_error(L, "could not create callback for bullet3d.world.cast_shape_async");
         }
         ArrayPush(&g_Bullet3DAsyncCastRequests, request);
@@ -1564,8 +1655,8 @@ namespace dmGameSystem
     static int World_GetCollisionObjects(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        btDiscreteDynamicsWorld*           world = CheckBullet3DWorld(L, 1);
-        int                                max_results = CheckMaxResults(L, 2);
+        btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
+        int                      max_results = CheckMaxResults(L, 2);
 
         dmArray<Bullet3DQueryObjectResult> results;
         const btCollisionObjectArray&      objects = world->getCollisionObjectArray();
@@ -1613,13 +1704,16 @@ namespace dmGameSystem
         { "set_gravity", World_SetGravity },
 
         { "get_collision_object_count", World_GetCollisionObjectCount },
-        { "get_num_collision_objects", World_GetCollisionObjectCount },
 
         { "overlap_aabb", World_OverlapAABB },
         { "overlap_point", World_OverlapPoint },
         { "overlap_shape", World_OverlapShape },
 
+        { "cast_ray", World_CastRay },
+        { "cast_ray_closest", World_CastRayClosest },
         { "cast_ray_async", World_CastRayAsync },
+        { "cast_shape", World_CastShape },
+        { "cast_shape_closest", World_CastShapeClosest },
         { "cast_shape_async", World_CastShapeAsync },
 
         { "contact_test", World_ContactTest },
@@ -1685,20 +1779,18 @@ namespace dmGameSystem
  * Category and mask checks are reciprocal: the query category must match the
  * object's mask and the object's category must match the query mask.
  *
- * Temporary query shapes use the same size fields as [ref:physics.get_shape]:
+ * Temporary query shapes use the same geometry fields as
+ * [ref:bullet3d.shape.get_shape]:
  * a sphere has `type` and `diameter`, a box has `type` and `dimensions`, a
  * Y-axis capsule has `type`, `diameter` and `height`, and a convex hull has
  * `type` and a `vertices` array with at least four `vector3` values. The `type`
- * is one of the `physics.SHAPE_TYPE_*` constants. Every shape can specify
+ * is one of the `bullet3d.shape.SHAPE_TYPE_*` constants. Every shape can specify
  * `position` and `rotation`; their defaults are zero and the identity rotation.
  * Cast shapes can also specify `target_rotation`, which defaults to `rotation`.
  * Capsule `height` is the length of the cylindrical middle section; total
  * end-to-end height is `height + diameter`. Query sizes are always expressed
- * in Defold world units. The legacy Bullet3D `physics.get_shape` result exposes
- * native-scaled primitive sizes when `physics.scale` differs from one, so such
- * a table must be converted back to world units before it is used as a query
- * shape. `physics.get_shape` also does not return convex-hull vertices, so a
- * hull query table must supply its own `vertices` array.
+ * in Defold world units. A table returned by `bullet3d.shape.get_shape` can be
+ * reused directly after adding the desired query transform fields.
  * Hull vertices describe a convex hull; concave input is convexified by Bullet.
  * All query vectors and scalar sizes must be finite. Diameters, dimensions and
  * capsule heights must be greater than zero; hulls require at least four finite
@@ -1706,8 +1798,8 @@ namespace dmGameSystem
  * must be finite, non-zero quaternions and are normalized by the binding. AABB
  * lower bounds must not exceed their corresponding upper bounds.
  *
- * Overlap and enumeration results are arrays of `{ object = handle }` tables.
- * Cast results contain `object`, `point`, `normal`, `fraction`,
+ * Overlap and enumeration results are arrays of `btCollisionObject` handles.
+ * Cast results are tables containing `object`, `point`, `normal`, `fraction`,
  * `initial_overlap`, and `inside`. `shape_index` is present when Bullet reports
  * a compound child and is one-based. Cast arrays are sorted by ascending
  * fraction. `fraction` is in `[0, 1]` along the supplied translation. For native
@@ -1728,10 +1820,13 @@ namespace dmGameSystem
  * negative value is an error. Broadphase overlaps, native world enumeration,
  * contacts, and equal-fraction cast hits have unspecified order. A capped query
  * can therefore return a different equal-priority subset after world changes.
- * Overlap, contact, and enumeration queries execute immediately and do not
- * advance simulation. Ray and shape casts are asynchronous: they are queued,
- * executed after the next physics step, and delivered to a callback. A callback
- * queued from another cast callback is deferred until a later physics step.
+ * Synchronous queries execute immediately and do not advance simulation.
+ * Async casts are deferred until after the next physics step. They execute on
+ * the main thread rather than a worker thread, and all queued casts for one
+ * world share one broadphase AABB refresh. Every cast in the batch completes
+ * before any callback runs, so callback mutations cannot affect other query
+ * computations in that batch. Deferral avoids blocking the Lua call site but
+ * does not remove the cast work from the frame.
  * Native fraction-zero cast callbacks are suppressed. Starting overlaps are
  * omitted by default, or reported through the exact, deduplicated synthesis
  * enabled by `report_initial_overlaps`; this avoids direction-dependent Bullet
@@ -1779,14 +1874,6 @@ namespace dmGameSystem
  * @return count [type:number] number of collision objects
  */
 
-/*# Get the number of collision objects in the world
- * Alias for [ref:bullet3d.world.get_collision_object_count].
- *
- * @name bullet3d.world.get_num_collision_objects
- * @param world [type:btDiscreteDynamicsWorld] world handle
- * @return count [type:number] number of collision objects
- */
-
 /*# Enumerate collision objects
  * Returns the Defold-owned collision objects currently registered in the world.
  * Internal or unmanaged Bullet objects without Defold ownership metadata are
@@ -1795,7 +1882,7 @@ namespace dmGameSystem
  * @name bullet3d.world.get_collision_objects
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return results [type:table] array of `{ object = btCollisionObject }` tables
+ * @return objects [type:table] array of collision-object handles
  */
 
 /*# Find broadphase AABB overlaps
@@ -1810,7 +1897,7 @@ namespace dmGameSystem
  * @param aabb [type:table] table with world-space `lower` and `upper` vector3 bounds
  * @param [filter] [type:table] query filter
  * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return results [type:table] overlap-result array
+ * @return objects [type:table] array of overlapping collision-object handles
  */
 
 /*# Find collision objects containing a point
@@ -1824,7 +1911,7 @@ namespace dmGameSystem
  * @param point [type:vector3] point in world space
  * @param [filter] [type:table] query filter
  * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return results [type:table] overlap-result array
+ * @return objects [type:table] array of overlapping collision-object handles
  */
 
 /*# Find collision objects overlapping a convex shape
@@ -1837,7 +1924,7 @@ namespace dmGameSystem
  * @param shape [type:table] convex query-shape table
  * @param [filter] [type:table] query filter
  * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return results [type:table] overlap-result array
+ * @return objects [type:table] array of overlapping collision-object handles
  * @examples
  *
  * Find non-trigger objects overlapping a two-unit sphere around this game object:
@@ -1846,24 +1933,24 @@ namespace dmGameSystem
  * function init(self)
  *     local world = bullet3d.get_world()
  *     local shape = {
- *         type = physics.SHAPE_TYPE_SPHERE,
+ *         type = bullet3d.shape.SHAPE_TYPE_SPHERE,
  *         diameter = 2,
  *         position = go.get_world_position(),
  *     }
  *     local filter = { include_triggers = false }
  *     local overlaps = bullet3d.world.overlap_shape(world, shape, filter)
  *
- *     for _, overlap in ipairs(overlaps) do
- *         print("overlap", overlap.object)
+ *     for _, object in ipairs(overlaps) do
+ *         print("overlap", object)
  *     end
  * end
  * ```
  */
 
-/*# Cast a ray asynchronously
- * Casts from `origin` to `origin + translation`. Translation must be non-zero.
- * The request returns without running the query. After the next physics step,
- * `callback(self, hits)` receives the cast-result array sorted by fraction.
+/*# Cast a ray
+ *
+ * Casts immediately from `origin` to `origin + translation` and returns all
+ * matching hits sorted by fraction. Translation must be non-zero.
  * Bullet 2.77 normally does not report a ray whose start and end are both inside
  * the same convex hull. Set `filter.report_initial_overlaps = true` to perform
  * an exact point-overlap test at the origin and synthesize one deduplicated hit
@@ -1872,6 +1959,56 @@ namespace dmGameSystem
  * the query origin, not a surface contact. This explicitly supports the
  * inside-hull behavior requested by issue #5348. Fraction-zero native callbacks
  * and starting overlaps are suppressed when the option is false.
+ *
+ * @name bullet3d.world.cast_ray
+ * @param world [type:btDiscreteDynamicsWorld] world handle
+ * @param origin [type:vector3] ray origin in world space
+ * @param translation [type:vector3] non-zero ray displacement in world units
+ * @param [filter] [type:table] query filter
+ * @param [max_results] [type:number] maximum sorted hits, or zero for all
+ * @return hits [type:table] cast-result array sorted by ascending fraction
+ */
+
+/*# Cast a ray and return the closest hit
+ *
+ * Equivalent to [ref:bullet3d.world.cast_ray] with one result, but returns the
+ * hit table directly or `nil` on a miss.
+ *
+ * @name bullet3d.world.cast_ray_closest
+ * @param world [type:btDiscreteDynamicsWorld] world handle
+ * @param origin [type:vector3] ray origin in world space
+ * @param translation [type:vector3] non-zero ray displacement in world units
+ * @param [filter] [type:table] query filter
+ * @return hit [type:table|nil] closest cast-result table, or `nil` on a miss
+ * @examples
+ *
+ * Cast downward and report the closest non-trigger hit:
+ *
+ * ```lua
+ * function init(self)
+ *     local world = bullet3d.get_world()
+ *     local origin = go.get_world_position()
+ *     local translation = vmath.vector3(0, -100, 0)
+ *     local filter = { include_triggers = false }
+ *
+ *     local hit = bullet3d.world.cast_ray_closest(
+ *         world, origin, translation, filter)
+ *     if hit then
+ *         local distance = vmath.length(translation) * hit.fraction
+ *         print("hit", hit.object, "after", distance, "units")
+ *     end
+ * end
+ * ```
+ */
+
+/*# Cast a ray asynchronously
+ * Queues the same ray query as [ref:bullet3d.world.cast_ray] and returns without
+ * executing it. After the next physics step, `callback(self, hits)` receives the
+ * cast-result array sorted by fraction. The query observes post-step world state.
+ * It is deferred on the main thread, not executed concurrently; use it to move
+ * work out of the current Lua call and to query the stepped state, not as a
+ * guarantee of lower total CPU time. Queued casts for the same world share one
+ * broadphase AABB refresh and all finish before their callbacks begin.
  *
  * @name bullet3d.world.cast_ray_async
  * @param world [type:btDiscreteDynamicsWorld] world handle
@@ -1882,39 +2019,65 @@ namespace dmGameSystem
  * @param callback [type:function] function called as `callback(self, hits)`
  * @examples
  *
- * Cast downward and report the closest non-trigger hit after the next physics step:
+ * Queue a downward cast and inspect only the closest non-trigger hit:
  *
  * ```lua
- * function init(self)
- *     local world = bullet3d.get_world()
- *     local origin = go.get_world_position()
- *     local translation = vmath.vector3(0, -100, 0)
- *     local filter = { include_triggers = false }
- *
- *     bullet3d.world.cast_ray_async(world, origin, translation, filter, 1,
- *         function(self, hits)
- *             local hit = hits[1]
- *             if hit then
- *                 local distance = vmath.length(translation) * hit.fraction
- *                 print("hit", hit.object, "after", distance, "units")
- *             end
- *         end)
- * end
+ * bullet3d.world.cast_ray_async(
+ *     bullet3d.get_world(),
+ *     go.get_world_position(),
+ *     vmath.vector3(0, -100, 0),
+ *     { include_triggers = false },
+ *     1,
+ *     function(self, hits)
+ *         if hits[1] then
+ *             print("hit", hits[1].object)
+ *         end
+ *     end)
  * ```
  */
 
-/*# Sweep a convex shape asynchronously
+/*# Cast a convex shape
+ *
  * Sweeps the temporary shape from `shape.position` by `translation`, while
  * interpolating from `shape.rotation` to `shape.target_rotation`. Translation
- * must be non-zero. Bullet's convex sweep supports only convex query shapes.
- * The request returns without running the query. After the next physics step,
- * `callback(self, hits)` receives the cast-result array sorted by fraction.
+ * must be non-zero. The query executes immediately and returns all matching hits
+ * sorted by fraction. Bullet's convex sweep supports only convex query shapes.
  *
  * When `filter.report_initial_overlaps` is true, an exact contact test at the
  * starting transform synthesizes one deduplicated hit per overlapping object
  * with `fraction = 0`, `point = shape.position`, zero `normal`,
  * `initial_overlap = true`, and `inside = false`. The point is the query-shape
  * origin, not a surface contact, and the result does not report penetration depth.
+ *
+ * @name bullet3d.world.cast_shape
+ * @param world [type:btDiscreteDynamicsWorld] world handle
+ * @param shape [type:table] convex query-shape table with optional target rotation
+ * @param translation [type:vector3] non-zero sweep displacement in world units
+ * @param [filter] [type:table] query filter
+ * @param [max_results] [type:number] maximum sorted hits, or zero for all
+ * @return hits [type:table] cast-result array sorted by ascending fraction
+ */
+
+/*# Cast a convex shape and return the closest hit
+ *
+ * Equivalent to [ref:bullet3d.world.cast_shape] with one result, but returns
+ * the hit table directly or `nil` on a miss.
+ *
+ * @name bullet3d.world.cast_shape_closest
+ * @param world [type:btDiscreteDynamicsWorld] world handle
+ * @param shape [type:table] convex query-shape table with optional target rotation
+ * @param translation [type:vector3] non-zero sweep displacement in world units
+ * @param [filter] [type:table] query filter
+ * @return hit [type:table|nil] closest cast-result table, or `nil` on a miss
+ */
+
+/*# Cast a convex shape asynchronously
+ * Queues the same convex sweep as [ref:bullet3d.world.cast_shape] and returns
+ * without executing it. After the next physics step, `callback(self, hits)`
+ * receives the sorted cast-result array from the post-step world state. The
+ * operation is deferred on the main thread rather than run concurrently. All
+ * queued casts for one world share one broadphase AABB refresh and all finish
+ * before their callbacks begin.
  *
  * @name bullet3d.world.cast_shape_async
  * @param world [type:btDiscreteDynamicsWorld] world handle

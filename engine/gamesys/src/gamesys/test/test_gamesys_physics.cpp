@@ -148,14 +148,14 @@ TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
 
 TEST_F(Bullet3DComponentTest, Bullet3DWorldQueryApiTest)
 {
-    /* Intent: verify every Bullet3D world query, including deferred ray and
-    ** shape casts, collision-filter accessors, result schemas and callbacks.
+    /* Intent: verify every Bullet3D world query, including ray and shape casts,
+    ** collision-filter accessors and result schemas.
     ** Setup: an isolated separated-child compound and convex hull, static unit
     ** boxes in two reciprocal filter groups, a trigger, a penetrating
     ** kinematic-box/static-box pair plus an incompatible overlapping B box,
     ** a movable box and a rotated AABB case.
-    ** Expected: overlaps, asynchronously delivered sorted/capped casts, primitive
-    ** and hull sweeps, normalized contacts, enumeration, filtering, borrowed
+    ** Expected: overlaps, immediately returned sorted/capped casts, primitive and
+    ** hull sweeps, normalized contacts, enumeration, filtering, borrowed
     ** identity, scale-0.1 geometry and immediate transform queries match the API.
     */
     dmGameObject::HInstance compound = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_compound.goc", dmHashString64("/bullet3d_query_compound"), 0, Point3(-50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -267,11 +267,14 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ASSERT_NEAR(0.04f, rigid_body->getInvInertiaDiagLocal().y() == 0.0f ? 0.0f : 1.0f / rigid_body->getInvInertiaDiagLocal().y(), 0.0001f);
     ASSERT_NEAR(0.08f, rigid_body->getInvInertiaDiagLocal().z() == 0.0f ? 0.0f : 1.0f / rigid_body->getInvInertiaDiagLocal().z(), 0.0001f);
 
+    // The body is at (7, 8, 9), so this world-space force point preserves the
+    // three-unit x-axis lever arm used by the native scale assertions below.
     ASSERT_TRUE(dmScriptTest::RunString(L,
                                         "local body = bullet3d_native_scale_body\n"
                                         "bullet3d.rigid_body.set_linear_velocity(body, vmath.vector3())\n"
                                         "bullet3d.rigid_body.clear_forces(body)\n"
-                                        "bullet3d.rigid_body.apply_force(body, vmath.vector3(0, 2, 0), vmath.vector3(3, 0, 0))\n"
+                                        "bullet3d.rigid_body.apply_force(body, vmath.vector3(0, 2, 0),\n"
+                                        "    vmath.vector3(10, 8, 9))\n"
                                         "bullet3d.rigid_body.apply_torque(body, vmath.vector3(0, 0, 4))\n"
                                         "bullet3d.rigid_body.apply_central_impulse(body, vmath.vector3(2, 4, 6))"));
 
