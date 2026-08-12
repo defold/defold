@@ -224,7 +224,7 @@
         (conj (bt/with-content-hash
                 {:node-id _node-id
                  :resource (workspace/make-build-resource
-                              (->DependencyMetadataResource (resource/workspace resource)))
+                             (->DependencyMetadataResource (resource/workspace resource)))
                  :build-fn build-dependency-metadata
                  :user-data {:digest-ignored/dependencies dependencies
                              :dependency-content-hash-data (dependency-content-hash-data dependencies)}}))))))
@@ -300,7 +300,7 @@
 
                   directory-resources
                   (cond-> custom-resources-directory-resources
-                          ssl-certificates-directory-resource (conj ssl-certificates-directory-resource))
+                    ssl-certificates-directory-resource (conj ssl-certificates-directory-resource))
 
                   custom-resources
                   (coll/into-> directory-resources []
@@ -381,6 +381,6 @@
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
     :icon-class :property
-    :view-types [:cljfx-form-view :text]
+    :view-types [:form :text]
     :language "ini"
     :view-opts {:text {:grammar ini/grammar}}))

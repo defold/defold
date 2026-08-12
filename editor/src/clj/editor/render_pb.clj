@@ -61,7 +61,6 @@
     (g/connect named-render-resource :named-render-resource render-node :named-render-resources)
     (g/connect named-render-resource :dep-build-targets render-node :dep-build-targets)))
 
-
 (def ^:private form-sections
   {:navigation false
    :sections [{:localization-key "render"
@@ -198,5 +197,5 @@
     :icon "icons/32/Icons_30-Render.png"
     :icon-class :property
     :category (localization/message "resource.category.project_settings")
-    :view-types [:cljfx-form-view :text]
+    :view-types [:form :text]
     :label (localization/message "resource.type.render")))

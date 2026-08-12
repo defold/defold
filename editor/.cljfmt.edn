@@ -13,15 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 {:function-arguments-indentation :cursive
- :extra-indents {cljfx.composite/props [[:inner 0]]
-                 clojure.core/assoc [[:inner 0]]
+ :indent-line-comments? true
+ :extra-indents {assoc [[:block 1]]
+                 assoc! [[:block 1]]
+                 cljfx.composite/props [[:inner 0]]
                  clojure.core.cache/defcache [[:inner 0]]
-                 clojure.core/assoc! [[:inner 0]]
-                 clojure.core/cond-> [[:inner 0]]
                  clojure.core/defmulti [[:inner 0]]
                  clojure.core/defonce [[:inner 0]]
                  clojure.core/vector-of [[:inner 0]]
+                 clojure.test.check.properties/for-all [[:block 1]]
                  clojure.test/are [[:inner 0]]
+                 cond-> [[:inner 0]]
                  dev/run-with-progress [[:inner 0]]
                  dev/run-with-terminal-progress [[:inner 0]]
                  dynamo.graph/construct [[:inner 0]]
@@ -44,8 +46,10 @@
                  editor.data/register-data-resource-type [[:inner 0]]
                  editor.defold-project/read-nodes [[:inner 0]]
                  editor.defold-project/with-transpiler-txs-fn [[:inner 0]]
+                 editor.editor-tab/register-type! [[:block 1]]
                  editor.editor-extensions.runtime/lua-fn [[:inner 0]]
                  editor.editor-extensions.runtime/suspendable-lua-fn [[:inner 0]]
+                 editor.editor-extensions.runtime/suspendable-varargs-lua-fn [[:inner 0]]
                  editor.editor-extensions.runtime/varargs-lua-fn [[:inner 0]]
                  editor.editor-extensions.validation/ensure [[:inner 0]]
                  editor.editor-extensions.vm/with-lock [[:inner 0]]
@@ -122,6 +126,9 @@
                  util.debug-util/log-time-and-memory [[:inner 0]]
                  util.debug-util/measuring [[:inner 0]]
                  util.debug-util/metrics-time [[:inner 0]]
+                 util.defonce/protocol [[:block 1] [:inner 1]]
+                 util.defonce/record [[:block 2] [:inner 1]]
+                 util.defonce/type [[:block 2] [:inner 1]]
                  util.profiler/profile [[:inner 0]]
                  vlaaad.reveal/defaction [[:inner 0]]
                  vlaaad.reveal/defstream [[:inner 0]]}

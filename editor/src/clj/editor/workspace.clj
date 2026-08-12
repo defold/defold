@@ -39,7 +39,8 @@ ordinary paths."
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
             [util.fn :as fn]
-            [util.path :as path])
+            [util.path :as path]
+            [util.text-util :as text-util])
   (:import [clojure.lang DynamicClassLoader]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
@@ -202,6 +203,13 @@ ordinary paths."
   ([workspace id evaluation-context]
    (get (g/node-value workspace :view-types evaluation-context) id)))
 
+(defn resource-view-types
+  "Returns the effective registered view types advertised by the resource."
+  [resource]
+  (cond->> (:view-types (resource/resource-type resource))
+    (text-util/binary? resource)
+    (filterv #(not= :code (:id %)))))
+
 (defn- editor-openable-view-type? [view-type]
   (case view-type
     (:default :text) false
@@ -285,7 +293,7 @@ ordinary paths."
                         either a string or a MessagePattern instance
     :view-types         vector of alternative views that can be used for
                         resources of the resource type, e.g. :code, :scene,
-                        :cljfx-form-view, :text, :html or :default.
+                        :form, :text, :html or :default.
     :view-opts          a map from a view-type keyword to options map that will
                         be merged with other opts used when opening a view
     :tags               a set of keywords that can be used for customizing the
@@ -565,10 +573,10 @@ ordinary paths."
                                   (localization/join "\n"))})
            :actions
            (cond-> []
-                   show-fetch (conj {:message (localization/message "notification.fetch-libraries.action.fetch")
-                                     :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :project.fetch-libraries nil)})
-                   show-open-project (conj {:message (localization/message "notification.fetch-libraries.action.open-game-project")
-                                            :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :file.open "/game.project")}))})))))
+             show-fetch (conj {:message (localization/message "notification.fetch-libraries.action.fetch")
+                               :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :project.fetch-libraries nil)})
+             show-open-project (conj {:message (localization/message "notification.fetch-libraries.action.open-game-project")
+                                      :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :file.open "/game.project")}))})))))
 
 (defn set-project-dependencies! [workspace lib-results]
   (g/transact
@@ -688,10 +696,10 @@ ordinary paths."
   (.addURL ^DynamicClassLoader java/class-loader (io/as-url jar-file)))
 
 (defn- native-library-parent-dir-allowed? [parent-dir-name]
-    (->> (Platform/getHostPlatform)
-         .getExtenderPaths
-         (some #(= parent-dir-name %))
-         boolean))
+  (->> (Platform/getHostPlatform)
+       .getExtenderPaths
+       (some #(= parent-dir-name %))
+       boolean))
 
 (defn- register-shared-library-file! [^File shared-library-file]
   (let [parent-dir-file (.getParentFile shared-library-file)]
@@ -1172,11 +1180,15 @@ ordinary paths."
                            will be called on resource open request, opts will
                            only contain data passed from the code (e.g.
                            :cursor-range)
+    :open-resource-args-coercer
+                           editor-script coercer for view-specific
+                           editor.ui.open_resource args; should return a map of
+                           opts to pass to the view
     :text-selection-fn     fn of node id returned by :make-view-fn, should
                            return selected text as a string or nil; will be used
                            to pre-populate Open Assets and Search in Files
                            dialogs"
-  [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn text-selection-fn]}]
+  [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn open-resource-args-coercer text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn
@@ -1187,6 +1199,8 @@ ordinary paths."
                            {:dispose-preview-fn dispose-preview-fn})
                          (when focus-fn
                            {:focus-fn focus-fn})
+                         (when open-resource-args-coercer
+                           {:open-resource-args-coercer open-resource-args-coercer})
                          (when text-selection-fn
                            {:text-selection-fn text-selection-fn}))]
     (g/non-undoable

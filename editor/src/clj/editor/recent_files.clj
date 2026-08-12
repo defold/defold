@@ -32,6 +32,15 @@
 
 (def ^:private history-size 32)
 
+(defn- canonical-prefs-data [[project-path view-type-id]]
+  [project-path (case view-type-id :cljfx-form-view :form view-type-id)])
+
+(defn- get-recent-files [prefs]
+  (mapv canonical-prefs-data (prefs/get prefs [:workflow :recent-files])))
+
+(defn get-open-tabs [prefs]
+  (mapv #(mapv canonical-prefs-data %) (prefs/get prefs [:workflow :open-tabs])))
+
 (defn- conj-history-item [items x]
   (let [new-items (into [] (remove #(= x %)) items)
         drop-count (- (count new-items)
@@ -45,7 +54,7 @@
          (some? (:id view-type))]}
   (let [item [(resource/proj-path resource) (:id view-type)]
         k [:workflow :recent-files]]
-    (prefs/set! prefs k (conj-history-item (prefs/get prefs k) item))))
+    (prefs/set! prefs k (conj-history-item (get-recent-files prefs) item))))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
   (when-let [res (workspace/find-resource (:basis evaluation-context) workspace project-path)]
@@ -54,7 +63,7 @@
         [res view-type]))))
 
 (defn- ordered-resource+view-types [prefs workspace evaluation-context]
-  (-> (prefs/get prefs [:workflow :recent-files])
+  (-> (get-recent-files prefs)
       rseq
       (->> (keep #(project-path+view-type-id->resource+view-type workspace evaluation-context %)))))
 
@@ -124,8 +133,8 @@
           tab-panes (.getItems editor-tabs-split)]
       {:selected-pane (.indexOf tab-panes active-tab-pane)
        :tab-selection-by-pane (mapv (fn [^TabPane pane]
-                                  (-> pane .getSelectionModel .getSelectedIndex))
-                                tab-panes)})))
+                                      (-> pane .getSelectionModel .getSelectedIndex))
+                                    tab-panes)})))
 
 (defn save-open-tabs! [prefs app-view]
   (prefs/set! prefs [:workflow :open-tabs] (collect-open-tabs app-view)))
@@ -137,11 +146,10 @@
   (defn save-open-tabs! [prefs app-view] nil)
   (defn save-tab-selections! [prefs app-view] nil)
   (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/main/main.collection" :collection] ["/scripts/knight.script" :code]]
-                                                  [["/scripts/utils_blah.lua" :code]["/scripts/utils.lua" :code]]])
-  (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/scripts/utils.lua" :code]["/scripts/knight.script" :code]]])
+                                                  [["/scripts/utils_blah.lua" :code] ["/scripts/utils.lua" :code]]])
+  (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/scripts/utils.lua" :code] ["/scripts/knight.script" :code]]])
   (prefs/set! (dev/prefs) [:workflow :last-selected-tabs] {:selected-pane 1, :tab-selection-by-pane [0 0]})
   (prefs/get (dev/prefs) [:workflow :open-tabs])
   (prefs/get (dev/prefs) [:workflow :last-selected-tabs])
   (prefs/get (dev/prefs) [:window])
-  (prefs/set! (dev/prefs) [:workflow :open-tabs] (collect-open-tabs (dev/app-view)))
-  ,)
+  (prefs/set! (dev/prefs) [:workflow :open-tabs] (collect-open-tabs (dev/app-view))))
