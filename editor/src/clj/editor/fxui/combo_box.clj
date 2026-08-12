@@ -29,6 +29,7 @@
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [java.util Collection]
+           [javafx.beans.property DoubleProperty]
            [javafx.event EventHandler]
            [javafx.geometry Orientation]
            [javafx.scene Node TraversalDirection]
@@ -43,6 +44,15 @@
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))
+
+(def ^:private prop-popup-list-rows
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^ListView view rows]
+        (let [^DoubleProperty max-height (.maxHeightProperty view)
+              ^DoubleProperty cell-size (.fixedCellSizeProperty view)]
+          (.bind max-height (.multiply cell-size (double rows))))))
+    fx.lifecycle/scalar))
 
 (def ^:private prop-popup
   (fx/make-binding-prop
@@ -245,8 +255,7 @@
                                 :props {:focus-traversable (not show-text-field)
                                         :style-class "ext-combo-box-popup-list"
                                         prop-list-items+selected-item [filtered-items selected-item]
-                                        :fixed-cell-size 27.0
-                                        :max-height (* 27.0 (double (min 10 (count filtered-items))))
+                                        prop-popup-list-rows (min 10 (count filtered-items))
                                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                        :describe (fn/partial describe-list-cell on-value-changed swap-state to-string filtered-item->matching-indices)}}})))}]}]}))))))
 

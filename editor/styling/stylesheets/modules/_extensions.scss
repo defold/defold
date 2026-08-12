@@ -3,7 +3,7 @@
 $ext-spacing-small: 4px;
 $ext-spacing-medium: 8px;
 $ext-spacing-large: 16px;
-$ext-line-height: 26px;
+$ext-line-height: 2em;
 
 .ext {
     &-spacing {
@@ -512,6 +512,7 @@ $ext-line-height: 26px;
                 -fx-padding: 4px 8px;
             }
             &-list {
+                -fx-fixed-cell-size: 2.08em;
                 & > .virtual-flow {
                     & > .scroll-bar > .thumb {
                         -fx-background-color: -df-component-dark;

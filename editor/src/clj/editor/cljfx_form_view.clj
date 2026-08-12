@@ -76,6 +76,7 @@
 
 (def ^:private line-height 27)
 (def ^:private line-spacing 12)
+(def ^:private max-visible-rows 15)
 
 (def ^:private small-field-width 120)
 (def ^:private normal-field-width 400)
@@ -738,7 +739,9 @@
                                   ;; item count is used as a "refresh key", i.e.
                                   ;; it forces re-selection on item remove
                                   prop-list-selected-indices [selected-indices (count value)]
-                                  prop-list-rows (max (count value) 1)
+                                  prop-list-rows (-> (count value)
+                                                     (max 1)
+                                                     (min max-visible-rows))
                                   :on-selected-indices-changed {:event-type :list-select
                                                                 :state-path state-path}}
                           :desc
