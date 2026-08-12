@@ -1764,10 +1764,19 @@
 (deftest format-document-edits-minimality-test
   (letfn [(document-edits [lines replacement-lines]
             (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]]))]
-    (testing "only rewrites the rows that changed"
-      (is (= [[(cr [1 0] [1 16]) ["    return 1"]]]
+    (testing "only rewrites the part of a row that changed"
+      (is (= [[(cr [1 0] [1 8]) ["    "]]]
              (document-edits ["local function f()" "        return 1" "end" ""]
-                             ["local function f()" "    return 1" "end" ""]))))
+                             ["local function f()" "    return 1" "end" ""])))
+      (testing "respacing edits the gaps, leaving the words between them alone"
+        (is (= [[(cr [0 7] [0 7]) [" "]]
+                [(cr [0 8] [0 8]) [" "]]]
+               (document-edits ["local x=1" ""]
+                               ["local x = 1" ""]))))
+      (testing "rewrites the whole row when it changed in more than spacing"
+        (is (= [[(cr [0 0] [0 11]) ["local y = 1"]]]
+               (document-edits ["local x = 1" ""]
+                               ["local y = 1" ""])))))
     (testing "rewrites a hunk in one go when it changes the row count"
       (is (= [[(cr [1 0] [1 5]) ["  b1()" "  b2()"]]]
              (document-edits ["a()" "  b()" "c()" ""]
@@ -1797,9 +1806,20 @@
       (testing "cursors outside the reindented row keep their position"
         (is (= [(c 0 5) (c 2 1)]
                (:cursor-ranges (format-document lines [] [(c 0 5) (c 2 1)] replacement-lines)))))
-      (testing "a cursor on the reindented row stays on that row"
-        (is (= [(c 1 12)]
+      (testing "a cursor on the reindented row stays on the same character"
+        ;; col 10 and col 6 are both two characters into "return"
+        (is (= [(c 1 6)]
                (:cursor-ranges (format-document lines [] [(c 1 10)] replacement-lines)))))
+      (testing "a selection on the reindented row still covers the same text"
+        (is (= [(cr [1 4] [1 10])]
+               (:cursor-ranges (format-document lines [] [(cr [1 8] [1 14])] replacement-lines))))))
+    (let [lines ["    self.rotation=0" ""]
+          replacement-lines ["    self.rotation = 0" ""]]
+      (testing "a cursor beside a respaced operator stays beside it"
+        (is (= [(c 0 18)]
+               (:cursor-ranges (format-document lines [] [(c 0 17)] replacement-lines))))))
+    (let [lines ["local function f()" "        return 1" "end" ""]
+          replacement-lines ["local function f()" "    return 1" "end" ""]]
       (testing "breakpoints outside the reindented row survive"
         (is (= [#code/range [[2 0] [2 3] :type :breakpoint]]
                (:regions (format-document lines

@@ -3339,6 +3339,40 @@
                                                 (dissoc ::cursor))))
                                     new-regions))))
 
+(defn- whitespace-run-end
+  ^long [^String line ^long start]
+  (let [line-length (count line)]
+    (loop [i start]
+      (if (and (< i line-length)
+               (Character/isWhitespace (.charAt line i)))
+        (recur (inc i))
+        i))))
+
+(defn- respaced-row-edits
+  "Edits for a row a formatter only respaced, or nil if it changed in other ways.
+  Editing the gaps between words rather than the span around them keeps a cursor
+  next to the word it was next to."
+  [^long row ^String line ^String new-line]
+  (let [line-length (count line)
+        new-line-length (count new-line)]
+    (loop [start 0
+           new-start 0
+           edits []]
+      (let [end (whitespace-run-end line start)
+            new-end (whitespace-run-end new-line new-start)
+            new-run (subs new-line new-start new-end)
+            edits (if (= (subs line start end) new-run)
+                    edits
+                    (conj edits (pair (->CursorRange (->Cursor row start) (->Cursor row end))
+                                      [new-run])))
+            at-end (= line-length end)
+            new-at-end (= new-line-length new-end)]
+        (cond
+          (and at-end new-at-end) edits
+          (or at-end new-at-end) nil
+          (not= (.charAt line end) (.charAt new-line new-end)) nil
+          :else (recur (inc end) (inc new-end) edits))))))
+
 (defn- document-replacement-edits
   "Diff a whole-document replacement into minimal per-line edits."
   [lines replacement-lines]
@@ -3358,13 +3392,16 @@
                                ;; cursors and regions on the row they started on.
                                (and (pos? row-count) (= row-count (count new-lines)))
                                (coll/into-> (range begin-row end-row) []
-                                            (keep (fn [^long row]
-                                                    (let [line (lines row)
-                                                          new-line (new-lines (- row begin-row))]
-                                                      (when (not= line new-line)
-                                                        (pair (->CursorRange (->Cursor row 0)
-                                                                             (->Cursor row (count line)))
-                                                              [new-line]))))))
+                                 (mapcat
+                                   (fn [^long row]
+                                     (let [line (lines row)
+                                           new-line (new-lines (- row begin-row))]
+                                       (when (not= line new-line)
+                                         (or (respaced-row-edits row line new-line)
+                                             ;; The row changed in more than spacing, so rewrite it whole.
+                                             [(pair (->CursorRange (->Cursor row 0)
+                                                                   (->Cursor row (count line)))
+                                                    [new-line])]))))))
 
                                ;; Rows no longer line up, so rewrite the hunk in one go.
                                (and (pos? row-count) (pos? (count new-lines)))
