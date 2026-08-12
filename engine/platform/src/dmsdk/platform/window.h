@@ -194,7 +194,7 @@ typedef enum WindowState
  * @member m_Samples [type:uint32_t] Requested multisample anti-aliasing sample count (default: 1)
  * @member m_BackgroundColor [type:uint32_t] Initial window background color value
  * @member m_ContextAlphabits [type:uint8_t] Requested alpha bits for the graphics context
- * @member m_GraphicsApiVersionHint [type:uint8_t:7] Graphics API version hint encoded as major*10 + minor (for example 33 means OpenGL 3.3)
+ * @member m_GraphicsApiVersionHint [type:uint8_t:7] Graphics API version hint
  * @member m_OpenGLUseCoreProfileHint [type:uint8_t:1] Request OpenGL core profile when opening the window
  * @member m_Hidden [type:uint8_t:1] Start window hidden
  * @member m_Fullscreen [type:uint8_t:1] Start window in fullscreen mode
@@ -228,7 +228,6 @@ typedef struct WindowCreateParams
     uint8_t                 m_HighDPI                   : 1;
     uint8_t                 m_FocusOnShow               : 1;
     uint8_t                                             : 3;
-    uint8_t                 m_WebGLVersionHint;
 } WindowCreateParams;
 
 /*# initialize window parameters
