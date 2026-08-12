@@ -196,6 +196,11 @@ ordinary paths."
                              vec)]
     (assoc tree :children sorted-children)))
 
+(defn canonical-view-type-id [view-type-id]
+  (case view-type-id
+    :cljfx-form-view :form
+    view-type-id))
+
 (defn get-view-type
   ([workspace id]
    (g/with-auto-evaluation-context evaluation-context
@@ -330,12 +335,13 @@ ordinary paths."
                                 when there is a :write-fn, default true"
   [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
-  (let [editable (if (nil? editable) true (boolean editable))
+  (let [view-types (mapv canonical-view-type-id view-types)
+        editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
         resource-type {:textual? textual
                        :language (when textual (or language "plaintext"))
                        :editable editable
-                       :editor-openable (some? (some editor-openable-view-type? view-types))
+                       :editor-openable (some? (coll/some editor-openable-view-type? view-types))
                        :node-type node-type
                        :load-fn load-fn
                        :dependencies-fn dependencies-fn

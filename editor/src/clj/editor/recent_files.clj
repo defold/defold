@@ -33,7 +33,7 @@
 (def ^:private history-size 32)
 
 (defn- canonical-prefs-data [[project-path view-type-id]]
-  [project-path (case view-type-id :cljfx-form-view :form view-type-id)])
+  [project-path (workspace/canonical-view-type-id view-type-id)])
 
 (defn- get-recent-files [prefs]
   (mapv canonical-prefs-data (prefs/get prefs [:workflow :recent-files])))
