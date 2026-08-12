@@ -76,7 +76,7 @@ range_error:
         return 0;
     }
 
-    bool AcquireResources(PhysicsContextBullet3D* physics_context, dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(PhysicsContextBullet3D* physics_context, dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
         CollisionObjectResourceBullet3D* resource, const char* filename)
     {
         CollisionObjectResource* resource_base = (CollisionObjectResource*) &resource->m_BaseResource;
@@ -84,7 +84,7 @@ range_error:
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::CollisionObjectDesc>(buffer, buffer_size, &resource_base->m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
-            return false;
+            return dmResource::RESULT_DDF_ERROR;
         }
         resource_base->m_Group = dmHashString64(resource_base->m_DDF->m_Group);
         uint32_t mask_count = resource_base->m_DDF->m_Mask.m_Count;
@@ -125,7 +125,7 @@ range_error:
                 else
                 {
                     resource_base->m_ShapeCount = current_shape_count;
-                    return false;
+                    return dmResource::RESULT_FORMAT_ERROR;
                 }
             }
             resource_base->m_ShapeCount = current_shape_count;
@@ -134,9 +134,9 @@ range_error:
         if (resource_base->m_ShapeCount == 0)
         {
             dmLogError("No shapes found in collision object");
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
-        return true;
+        return dmResource::RESULT_OK;
     }
 
     void ReleaseResources(PhysicsContextBullet3D* physics_context, dmResource::HFactory factory, CollisionObjectResourceBullet3D* resource)
@@ -163,7 +163,8 @@ range_error:
         CollisionObjectResourceBullet3D* collision_object = new CollisionObjectResourceBullet3D();
         memset(collision_object, 0, sizeof(CollisionObjectResource));
         PhysicsContextBullet3D* physics_context = (PhysicsContextBullet3D*) params->m_Context;
-        if (AcquireResources(physics_context, params->m_Factory, params->m_Buffer, params->m_BufferSize, collision_object, params->m_Filename))
+        dmResource::Result result = AcquireResources(physics_context, params->m_Factory, params->m_Buffer, params->m_BufferSize, collision_object, params->m_Filename);
+        if (result == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, collision_object);
             return dmResource::RESULT_OK;
@@ -172,7 +173,7 @@ range_error:
         {
             ReleaseResources(physics_context, params->m_Factory, collision_object);
             delete collision_object;
-            return dmResource::RESULT_FORMAT_ERROR;
+            return result;
         }
     }
 
@@ -191,7 +192,8 @@ range_error:
         CollisionObjectResourceBullet3D tmp_collision_object;
         memset(&tmp_collision_object, 0, sizeof(CollisionObjectResourceBullet3D));
         PhysicsContextBullet3D* physics_context = (PhysicsContextBullet3D*) params->m_Context;
-        if (AcquireResources(physics_context, params->m_Factory, params->m_Buffer, params->m_BufferSize, &tmp_collision_object, params->m_Filename))
+        dmResource::Result result = AcquireResources(physics_context, params->m_Factory, params->m_Buffer, params->m_BufferSize, &tmp_collision_object, params->m_Filename);
+        if (result == dmResource::RESULT_OK)
         {
             ReleaseResources(physics_context, params->m_Factory, collision_object);
             *collision_object = tmp_collision_object;
@@ -200,7 +202,7 @@ range_error:
         else
         {
             ReleaseResources(physics_context, params->m_Factory, &tmp_collision_object);
-            return dmResource::RESULT_FORMAT_ERROR;
+            return result;
         }
     }
 }

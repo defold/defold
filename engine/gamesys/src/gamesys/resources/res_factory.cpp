@@ -65,7 +65,9 @@ namespace dmGameSystem
         dmGameSystemDDF::FactoryDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
         if((!ddf->m_LoadDynamically) && (params->m_HintInfo))
         {
             dmResource::PreloadHint(params->m_HintInfo, ddf->m_Prototype);
@@ -105,7 +107,9 @@ namespace dmGameSystem
         dmGameSystemDDF::FactoryDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
+        {
             return dmResource::RESULT_DDF_ERROR;
+        }
 
         FactoryResource tmp_factory_res;
         memset(&tmp_factory_res, 0, sizeof(FactoryResource));

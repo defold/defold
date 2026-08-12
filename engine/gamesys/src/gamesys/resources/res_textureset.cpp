@@ -145,7 +145,7 @@ namespace dmGameSystem
         dmDDF::Result e  = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &texture_set_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_DDF_ERROR;
         }
 
         dmResource::PreloadHint(params->m_HintInfo, texture_set_ddf->m_Texture);
@@ -187,7 +187,7 @@ namespace dmGameSystem
         dmDDF::Result e  = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &texture_set_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_DDF_ERROR;
         }
 
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;

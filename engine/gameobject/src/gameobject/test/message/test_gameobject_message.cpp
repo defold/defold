@@ -144,7 +144,7 @@ dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::Resourc
     }
     else
     {
-        return dmResource::RESULT_FORMAT_ERROR;
+        return dmResource::RESULT_DDF_ERROR;
     }
 }
 

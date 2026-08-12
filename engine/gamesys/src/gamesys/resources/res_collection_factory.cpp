@@ -106,7 +106,7 @@ namespace dmGameSystem
         dmGameSystemDDF::CollectionFactoryDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &ddf);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_DDF_ERROR;
 
         CollectionFactoryResource* factory_res = new CollectionFactoryResource;
         memset(factory_res, 0, sizeof(CollectionFactoryResource));

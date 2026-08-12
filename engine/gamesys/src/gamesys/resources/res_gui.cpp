@@ -36,7 +36,8 @@ namespace dmGameSystem
         resource->m_SceneDesc = desc;
 
         dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Material, (void**) &resource->m_Material);
-        if (fr != dmResource::RESULT_OK) {
+        if (fr != dmResource::RESULT_OK)
+        {
             return fr;
         }
         if(dmRender::GetMaterialVertexSpace(resource->m_Material->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
@@ -233,7 +234,9 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc* scene_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params->m_Buffer, params->m_BufferSize, &scene_desc);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
 
         // HACK: Gui nodes that have zero area are culled, but we can't know the
         // size of nodes that have SIZE_MODE_AUTO at build time. Rather than
@@ -303,7 +306,9 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc* scene_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params->m_Buffer, params->m_BufferSize, &scene_desc);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
 
         GuiSceneResource tmp_scene_resource;
         memset(&tmp_scene_resource, 0, sizeof(GuiSceneResource));

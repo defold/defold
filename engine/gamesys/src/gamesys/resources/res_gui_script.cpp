@@ -36,7 +36,7 @@ namespace dmGameSystem
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_DDF_ERROR;
 
         dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
 
@@ -92,7 +92,7 @@ namespace dmGameSystem
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK ) {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_DDF_ERROR;
         }
 
         dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
@@ -156,4 +156,3 @@ namespace dmGameSystem
 }
 
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeGuiScript, "gui_scriptc", dmGameSystem::ResourceTypeGuiScript_Register, dmGameSystem::ResourceTypeGuiScript_Unregister);
-

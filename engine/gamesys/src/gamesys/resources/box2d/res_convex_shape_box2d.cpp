@@ -21,7 +21,7 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResources(dmResource::HFactory factory,
+    dmResource::Result AcquireResources(dmResource::HFactory factory,
                            PhysicsContextBox2D* context,
                            const void* buffer, uint32_t buffer_size,
                            ConvexShapeResourceBox2D* resource,
@@ -31,17 +31,17 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::ConvexShape>(buffer, buffer_size, &convex_shape);
         if ( e != dmDDF::RESULT_OK )
         {
-            return false;
+            return dmResource::RESULT_DDF_ERROR;
         }
 
-        bool result = true;
+        dmResource::Result result = dmResource::RESULT_OK;
         switch (convex_shape->m_ShapeType)
         {
         case dmPhysicsDDF::ConvexShape::TYPE_SPHERE:
             if (convex_shape->m_Data.m_Count != 1)
             {
                 dmLogError("Invalid sphere shape");
-                result = false;
+                result = dmResource::RESULT_FORMAT_ERROR;
             }
             else
             {
@@ -52,7 +52,7 @@ namespace dmGameSystem
             if (convex_shape->m_Data.m_Count != 3)
             {
                 dmLogError("Invalid box shape");
-                result = false;
+                result = dmResource::RESULT_FORMAT_ERROR;
             }
             else
             {
@@ -61,13 +61,13 @@ namespace dmGameSystem
             break;
         case dmPhysicsDDF::ConvexShape::TYPE_CAPSULE:
             dmLogError("Capsules are not supported in 2D.");
-            result = false;
+            result = dmResource::RESULT_FORMAT_ERROR;
             break;
         case dmPhysicsDDF::ConvexShape::TYPE_HULL:
             if (convex_shape->m_Data.m_Count < 9)
             {
                 dmLogError("Invalid hull shape");
-                result = false;
+                result = dmResource::RESULT_FORMAT_ERROR;
             }
             else
             {
@@ -90,7 +90,8 @@ namespace dmGameSystem
     dmResource::Result ResConvexShapeBox2DCreate(const dmResource::ResourceCreateParams* params)
     {
         ConvexShapeResourceBox2D* convex_shape = new ConvexShapeResourceBox2D();
-        if (AcquireResources(params->m_Factory, (PhysicsContextBox2D*) params->m_Context, params->m_Buffer, params->m_BufferSize, convex_shape, params->m_Filename))
+        dmResource::Result result = AcquireResources(params->m_Factory, (PhysicsContextBox2D*) params->m_Context, params->m_Buffer, params->m_BufferSize, convex_shape, params->m_Filename);
+        if (result == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, convex_shape);
             return dmResource::RESULT_OK;
@@ -98,7 +99,7 @@ namespace dmGameSystem
         else
         {
             delete convex_shape;
-            return dmResource::RESULT_FORMAT_ERROR;
+            return result;
         }
         return dmResource::RESULT_OK;
     }
@@ -125,7 +126,8 @@ namespace dmGameSystem
         ConvexShapeResourceBox2D tmp_convex_shape;
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
 
-        if (AcquireResources(params->m_Factory, (PhysicsContextBox2D*) params->m_Context, params->m_Buffer, params->m_BufferSize, &tmp_convex_shape, params->m_Filename))
+        dmResource::Result result = AcquireResources(params->m_Factory, (PhysicsContextBox2D*) params->m_Context, params->m_Buffer, params->m_BufferSize, &tmp_convex_shape, params->m_Filename);
+        if (result == dmResource::RESULT_OK)
         {
             dmPhysics::ReplaceShape2D(physics_context->m_Context, cs_resource->m_Shape2D, tmp_convex_shape.m_Shape2D);
             ReleaseResources(cs_resource);
@@ -134,7 +136,7 @@ namespace dmGameSystem
         }
         else
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return result;
         }
     }
 }

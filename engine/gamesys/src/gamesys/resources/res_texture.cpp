@@ -440,7 +440,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, header_size, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_DDF_ERROR;
         }
 
         uint8_t* image_payload;
@@ -571,7 +571,7 @@ namespace dmGameSystem
             dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, header_size, (&texture_image));
             if ( e != dmDDF::RESULT_OK )
             {
-                return dmResource::RESULT_FORMAT_ERROR;
+                return dmResource::RESULT_DDF_ERROR;
             }
 
             texture_image->m_ImageDataAddress = (uint64_t) (message_bytes + header_size + sizeof(int32_t));
