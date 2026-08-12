@@ -68,6 +68,8 @@ namespace dmResource
      * @member  RESOURCE_RESULT_VERSION_MISMATCH
      * @member  RESOURCE_RESULT_SIGNATURE_MISMATCH
      * @member  RESOURCE_RESULT_UNKNOWN_ERROR
+     * @member  RESOURCE_RESULT_SUBMODULE_ERROR
+     * @member  RESOURCE_RESULT_SCRIPT_CREATION_ERROR
      */
     enum Result {
         RESULT_OK = 0,
@@ -92,6 +94,8 @@ namespace dmResource
         RESULT_VERSION_MISMATCH = -19,
         RESULT_SIGNATURE_MISMATCH = -20,
         RESULT_UNKNOWN_ERROR = -21,
+        RESULT_SUBMODULE_ERROR = -22,
+        RESULT_SCRIPT_CREATION_ERROR = -23,
     };
 
     /*# 
