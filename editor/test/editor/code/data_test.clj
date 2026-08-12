@@ -1752,7 +1752,14 @@
       (are [lines replacement-lines]
         (= replacement-lines (format-lines lines replacement-lines))
         ["a"] ["b" ""]
-        ["a" ""] ["b"]))))
+        ["a" ""] ["b"]))
+    (testing "adds the final newline once when the last row is stripped of whitespace"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a" "   "] ["a" ""]
+        ["a" "\t"] ["a" ""]
+        ["a" "b" "   "] ["a" "b" ""]
+        ["a" "   " "   "] ["a" "" ""]))))
 
 (deftest format-document-edits-minimality-test
   (letfn [(document-edits [lines replacement-lines]
