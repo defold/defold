@@ -386,7 +386,7 @@ endif()
 set(_DEFOLD_TEST_LIBS
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate profile_null platform_null hid_null
-  render render_font_default sound_null
+  render sound_null
   ${_GAMESYS_TEST_PHYSICS_LIBS}
   ${_GAMESYS_TEST_FONT_LIBS})
 

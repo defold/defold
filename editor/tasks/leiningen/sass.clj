@@ -70,7 +70,7 @@
               ext)
         extract-path (io/file packages-path "dart-sass" version)]
     (when-not (.exists extract-path)
-      (extract (http-cache/download url) extract-path ext))
+      (extract (http-cache/download url false) extract-path ext))
     (str (io/file extract-path
                   "dart-sass"
                   (str "sass"

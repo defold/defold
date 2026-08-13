@@ -81,7 +81,6 @@ context:
                 "platform_vulkan", "platform_vulkan.lib", "libplatform_vulkan.lib",
                 "platform_null", "platform_null.lib", "libplatform_null.lib",
                 "render", "render.lib", "librender.lib",
-                "render_font_default", "render_font_default.lib", "librender_font_default.lib",
                 "script", "script.lib", "libscript.lib",
                 "extension", "extension.lib", "libextension.lib",
                 "hid", "hid.lib", "libhid.lib",
@@ -104,6 +103,7 @@ context:
                 "script_box2d_defold", "script_box2d_defold.lib", "libscript_box2d_defold.lib",
                 "script_box2d_null", "script_box2d_null.lib", "libscript_box2d_null.lib",
                 "font", "font.lib", "libfont.lib",
+                "font_render", "font_render.lib", "libfont_render.lib",
                 "profile", "profile.lib", "libprofile.lib",
                 "profile_null", "profile_null.lib", "libprofile_null.lib",
                 "profiler_remotery", "profiler_remotery.lib", "libprofiler_remotery.lib",
@@ -199,7 +199,7 @@ platforms:
 
   common:
     env:
-      ZIG_PATH:      '{{env.ZIG_PATH_0_11}}'
+      ZIG_PATH:      '{{env.ZIG_PATH}}'
       PYTHONPATH:    '{{dynamo_home}}/lib/python:{{dynamo_home}}/ext/lib/python'
     context:
       protoIncludes:    ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
@@ -255,7 +255,7 @@ platforms:
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk"
     context:
         frameworks:     ["Foundation", "AppKit", "Cocoa", "Metal", "IOSurface", "OpenAL", "IOKit", "GameController", "Carbon", "CoreVideo", "QuartzCore", "AVFoundation", "CFNetwork", "Security"]
-        engineLibs:     ["engine", "engine_service", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "MoltenVK", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform_vulkan", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate", "decoder_wav", "decoder_ogg"]
+        engineLibs:     ["engine", "engine_service", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "font_render", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "MoltenVK", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform_vulkan", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate", "decoder_wav", "decoder_ogg"]
         libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED", "DM_HAVE_PLATFORM_COMPUTE_SUPPORT"]
         systemIncludes: ["{{env.SYSROOT}}/usr/include/c++/v1"]
@@ -334,7 +334,7 @@ platforms:
     context:
         weakFrameworks: ["Foundation"]
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation", "CFNetwork", "Security", "GameController", "CoreMotion"]
-        engineLibs: ["engine", "engine_service", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv", "decoder_wav", "decoder_ogg"]
+        engineLibs: ["engine", "engine_service", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "font_render", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv", "decoder_wav", "decoder_ogg"]
         systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo", "GraphicsAdapterOpenGL", "ProfilerRemotery"]
@@ -410,7 +410,7 @@ platforms:
     context:
         defines:    ["DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         engineJars: ["{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/ext/share/java/vkquality.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
-        engineLibs: ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_opengles", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "decoder_wav", "decoder_ogg"]
+        engineLibs: ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "font_render", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_opengles", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "decoder_wav", "decoder_ogg"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ["-Wl,--build-id=uuid"]
@@ -467,12 +467,12 @@ platforms:
   web:
     # It's here to whitelist this as a platform, currently used for general settings
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_4_0_6}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_4_0_6}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_4_0_6}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_4_0_6}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_4_0_6}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_4_0_6}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         optLevel: 3
@@ -484,7 +484,7 @@ platforms:
         engineJsLibs:   ["sys", "script", "sound", "render", "profile"]
         externalJsLibs: ["glfw"]
         defines:    ["DM_PLATFORM_HTML5", "DM_LUA_USE_LUA51"]
-        engineLibs: ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_js", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
+        engineLibs: ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_js", "record_null", "gameobject", "ddf", "font", "font_render", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC", "-Wno-nontrivial-memcall"]
         linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
@@ -548,7 +548,7 @@ platforms:
     context:
         defines:        ["DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/ucrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/winrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/um", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/shared"]
-        engineLibs:     ["engine","engine_service","dmbedtls","zip","profile","profilerext","profiler_remotery","record","gameobject","ddf","font","resource","gamesys","gamesys_gui","gamesys_particle","gamesys_model","gamesys_rig","script_box2d_defold","graphics","graphics_transcoder_basisu","basis_transcoder","physics","libBulletDynamics","libBulletCollision","platform","libLinearMath","libbox2d_defold","render","render_font_default","script","libluajit-5.1","extension","hid","input","particle","rig","dlib", "image", "libglfw3","gui","crashext","liveupdate","sound","vpx", "decoder_wav", "decoder_ogg"]
+        engineLibs:     ["engine","engine_service","dmbedtls","zip","profile","profilerext","profiler_remotery","record","gameobject","ddf","font","font_render","resource","gamesys","gamesys_gui","gamesys_particle","gamesys_model","gamesys_rig","script_box2d_defold","graphics","graphics_transcoder_basisu","basis_transcoder","physics","libBulletDynamics","libBulletCollision","platform","libLinearMath","libbox2d_defold","render","script","libluajit-5.1","extension","hid","input","particle","rig","dlib", "image", "libglfw3","gui","crashext","liveupdate","sound","vpx", "decoder_wav", "decoder_ogg"]
         libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "bcrypt", "Psapi", "Gdi32", "ole32"]
         symbols:        ["GraphicsAdapterOpenGL", "ProfilerRemotery", "ScriptComputeExt"]
 
@@ -591,7 +591,7 @@ platforms:
 
   linux:
     context:
-        engineLibs:     ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx", "decoder_wav", "decoder_ogg"]
+        engineLibs:     ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "font_render", "resource", "gamesys", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx", "decoder_wav", "decoder_ogg"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS", "DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
         linkFlags:      ["-g", "-O2", "-fuse-ld=lld"]
