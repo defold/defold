@@ -47,6 +47,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
+            [editor.lsp.project :as lsp.project]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -727,13 +728,17 @@
                    (assoc :launcher (select-keys language-server [:command]))))))
       (execute-all-top-level-functions state :get_language_servers {} evaluation-context))))
 
-(defn- reload-language-servers! [lsp script-annotations ext-language-servers]
+(defn- reload-language-servers! [project lsp script-annotations ext-language-servers]
   (future
     ;; perform annotation sync asynchronously since it potentially involves writing a lot
     ;; of lua annotation files
     (error-reporting/catch-all!
       (g/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)]
-        (lsp/set-servers! lsp (conj ext-language-servers (built-in-lua-language-server sync-hash)))))))
+        (lsp/set-servers!
+          lsp
+          (conj ext-language-servers
+                (built-in-lua-language-server sync-hash)
+                (lsp.project/language-server project)))))))
 
 
 ;; endregion
@@ -1106,7 +1111,7 @@
              dynamic-routes (dynamic-routes new-state evaluation-context)]
     (g/user-data-swap! extensions :state (constantly new-state))
     (reload-prefs! project-path prefs-schema)
-    (reload-language-servers! lsp script-annotations ext-language-servers)
+    (reload-language-servers! project lsp script-annotations ext-language-servers)
     (reload-commands! command-handlers)
     (reload-server-routes! new-state dynamic-routes)
     nil))

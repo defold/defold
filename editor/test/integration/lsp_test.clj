@@ -15,6 +15,7 @@
 (ns integration.lsp-test
   (:require [clojure.core.async :as a :refer [<! >!]]
             [clojure.data.json :as json]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -23,8 +24,10 @@
             [editor.lsp :as lsp]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
+            [editor.lsp.project :as lsp.project]
             [editor.lsp.server :as lsp.server]
             [editor.ui :as ui]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.async-support :as async-support]
@@ -66,7 +69,9 @@
      (try
        ~@forms
        (finally
-         (await-lsp (lsp/get-node-lsp ~'project))))))
+         (let [lsp# (lsp/get-node-lsp ~'project)]
+           (await-lsp lsp#
+             (lsp/set-servers! lsp# #{})))))))
 
 (defn- set-servers! [lsp new-servers]
   (await-lsp lsp
@@ -161,8 +166,8 @@
             notify-client! (fn notify-client! [method params]
                              (let [message (cond-> {:jsonrpc "2.0"
                                                     :method method}
-                                                   params
-                                                   (assoc :params params))]
+                                             params
+                                             (assoc :params params))]
                                (a/put! base-sink (json/write-str message))))]
         (lsp.jsonrpc/make (fn get-request-method [method]
                             (when-let [f (request-handlers method)]
@@ -225,6 +230,191 @@
                    (a/close! in)
                    (<! (a/reduce conj [] out))))))))))
 
+(deftest project-completions-test
+  (with-scratch-project "test/resources/project_lsp_completion_project"
+    (let [lsp (lsp/get-node-lsp project)
+          completion-result!
+          (fn [proj-path line-prefix]
+            (let [resource (test-util/resource workspace proj-path)
+                  lines (g/node-value (project/get-resource-node project resource) :lines)
+                  row (coll/first-index-where #(string/starts-with? % line-prefix) lines)]
+              (assert row (str "Line prefix not found in " proj-path ": " line-prefix))
+              (await-lsp lsp
+                (let [ret (promise)]
+                  (lsp/request-completions!
+                    lsp
+                    resource
+                    (data/->Cursor row (count line-prefix))
+                    {:trigger-kind :invoked}
+                    ret)
+                  @ret))))
+
+          completion-items!
+          (fn [proj-path line-prefix]
+            (:items (completion-result! proj-path line-prefix)))
+
+          completion-labels!
+          (fn [proj-path line-prefix]
+            (coll/into-> (completion-items! proj-path line-prefix) #{}
+              (map :display-string)))
+
+          main-urls #{"/enemy"
+                      "/enemy#enemy-controller"
+                      "/enemy#enemy-visual"
+                      "/level/boss"
+                      "/level/boss#boss-controller"
+                      "/level/boss#boss-visual"
+                      "/level/decoy-id"
+                      "/level/decoy-id#decoy-component"
+                      "/player"
+                      "/player#controller"
+                      "/player#player-visual"
+                      "/readonly"
+                      "/readonly#readonly-controller"}
+          other-urls #{"/other-player"
+                       "/other-player#controller"
+                       "/other-player#player-visual"
+                       "/spectator"
+                       "/spectator#spectator-component"}
+          level-urls #{"/boss"
+                       "/boss#boss-controller"
+                       "/boss#boss-visual"
+                       "/decoy-id"
+                       "/decoy-id#decoy-component"}
+          player-urls (coll/into-> other-urls main-urls)
+          shared-module-urls (coll/into-> level-urls player-urls)]
+      (set-servers! lsp #{(lsp.project/language-server project)})
+
+      (testing "Component ids in scripts"
+        (is (false? (:complete (completion-result! "/scripts/player.script" "local hash_double = \"#"))))
+        (is (= #{"controller" "player-visual"}
+               (completion-labels! "/scripts/player.script" "local hash_double = \"#")))
+        (is (= #{"controller" "player-visual"}
+               (completion-labels! "/scripts/player.script" "local hash_single = '#")))
+        (is (= ["controller" "player-visual"]
+               (mapv :display-string
+                     (completion-items! "/scripts/player.script" "local hash_double = \"#"))))
+        (let [completion (coll/first-where
+                           #(= "player-visual" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local hash_partial = \"#player-v"))]
+          (is (= {:value "player-visual"
+                  :cursor-range (data/->CursorRange (data/->Cursor 19 23) (data/->Cursor 19 31))
+                  :type :plaintext}
+                 (:insert completion))))
+        (is (= #{"controller" "player-visual"}
+               (completion-labels! "/scripts/player.script" "local hash_punctuation = \"#player."))))
+
+      (testing "Absolute urls in scripts"
+        (is (= player-urls
+               (completion-labels! "/scripts/player.script" "local path_double = \"/pla")))
+        (is (= player-urls
+               (completion-labels! "/scripts/player.script" "local path_single = '/pla")))
+        (is (= (coll/into-> (coll/sort util/natural-order player-urls) [])
+               (mapv :display-string
+                     (completion-items! "/scripts/player.script" "local path_double = \"/pla"))))
+        (let [completion (coll/first-where
+                           #(= "/player" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local path_double = \"/pla"))]
+          (is (= {:value "/player"
+                  :cursor-range (data/->CursorRange (data/->Cursor 4 21) (data/->Cursor 4 25))
+                  :type :plaintext}
+                 (:insert completion)))))
+
+      (testing "Socket urls in scripts"
+        (let [socket-urls (coll/into-> player-urls #{}
+                            (map #(str "world:" %)))]
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_double = \"world:/pla")))
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_single = 'world:/pla")))
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_empty_double = \"world:")))
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_empty_single = 'world:")))
+          (is (= (coll/into-> (coll/sort util/natural-order socket-urls) [])
+                 (mapv :display-string
+                       (completion-items! "/scripts/player.script" "local socket_double = \"world:/pla"))))
+          (is (= (coll/into-> player-urls #{}
+                   (map #(str "1-world.:" %)))
+                 (completion-labels! "/scripts/player.script" "local socket_punctuation = \"1-world.:"))))
+        (let [completion (coll/first-where
+                           #(= "world:/player" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local socket_double = \"world:/pla"))]
+          (is (= {:value "world:/player"
+                  :cursor-range (data/->CursorRange (data/->Cursor 6 23) (data/->Cursor 6 33))
+                  :type :plaintext}
+                 (:insert completion))))
+        (let [completion (coll/first-where
+                           #(= "world:/player" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local socket_empty_double = \"world:"))]
+          (is (= {:value "world:/player"
+                  :cursor-range (data/->CursorRange (data/->Cursor 8 29) (data/->Cursor 8 35))
+                  :type :plaintext}
+                 (:insert completion)))))
+
+      (testing "Direct and transitive Lua module contexts"
+        (is (= player-urls
+               (completion-labels! "/modules/direct.lua" "local path_double = \"/pla")))
+        (is (= shared-module-urls
+               (completion-labels! "/modules/shared.lua" "local path_double = \"/")))
+        (is (= #{"boss-controller" "boss-visual" "controller" "enemy-controller" "enemy-visual" "player-visual"}
+               (completion-labels! "/modules/shared.lua" "local hash_single = '#")))
+        (is (= #{}
+               (completion-labels! "/modules/unrequired.lua" "local path = \"/"))))
+
+      (testing "Require calls"
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_double = require(\"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_single = require '/pla")))
+        (is (= #{}
+               (completion-labels! "/modules/direct.lua" "local require_double = require(\"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_global = _G.require(\"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_global_no_parens = _G.require '/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local divide_after_string = \"5\"/")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local escaped_quote = \"\\\"/pla"))))
+
+      (testing "Other Lua-backed resource types"
+        (is (= #{}
+               (completion-labels! "/scripts/ignored.gui_script" "local path = \"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/ignored.render_script" "local path = \"/pla"))))
+
+      (testing "Stale request position"
+        (doseq [cursor [(data/->Cursor 0 1000)
+                        (data/->Cursor 1000 0)]]
+          (let [ret (promise)]
+            (lsp/request-completions!
+              lsp
+              (test-util/resource workspace "/scripts/player.script")
+              cursor
+              {:trigger-kind :trigger-character
+               :trigger-character "/"}
+              ret)
+            (is (= {:complete false
+                    :items []}
+                   @ret)))))
+
+      (testing "Live require edits"
+        (let [direct-script-node-id (project/get-resource-node project "/modules/direct.lua")]
+          (edit-file! lsp direct-script-node-id
+                      ["local shared = require(\"modules.unrequired\")"
+                       "local path_double = \"/pla\""])
+          (is (= (coll/into-> level-urls main-urls)
+                 (completion-labels! "/modules/shared.lua" "local path_double = \"/")))
+          (is (= player-urls
+                 (completion-labels! "/modules/unrequired.lua" "local path = \"/")))
+
+          (edit-file! lsp direct-script-node-id
+                      ["local shared = require(\"modules.shared\")"
+                       "local path_double = \"/pla\""])
+          (is (= shared-module-urls
+                 (completion-labels! "/modules/shared.lua" "local path_double = \"/"))))))))
+
 (g/defnode LSPViewNode
   (property diagnostics g/Any (default []))
   (property document-symbols g/Any (default []))
@@ -236,6 +426,16 @@
       (g/transact
         {:undoable false}
         (g/make-node (g/node-id->graph-id app-view) LSPViewNode)))))
+
+(deftest project-completion-trigger-characters-test
+  (with-scratch-project "test/resources/project_lsp_completion_project"
+    (let [lsp (lsp/get-node-lsp project)
+          view-node (make-lsp-view-node! app-view)
+          resource (test-util/resource workspace "/scripts/player.script")]
+      (set-servers! lsp #{(lsp.project/language-server project)})
+      (open-view! lsp view-node resource (g/node-value (project/get-resource-node project resource) :lines))
+      (is (await= #{"#" "/" ":"} (g/node-value view-node :completion-trigger-characters)))
+      (close-view! lsp view-node))))
 
 (deftest start-open-order-test
   (with-scratch-project "test/resources/lsp_project"
@@ -697,12 +897,12 @@
                                                                                                                :end (update position :character inc)}
                                                                                                        :newText newName}]}})
                                               "shutdown" (constantly nil)
-                                              "exit" (constantly nil)})}})]
-      (let [resource (test-util/resource workspace "/foo.json")
-            rename-region (await-value=
-                            #code/range[[0 0] [0 1]]
-                            #(prepare-rename lsp resource (data/->Cursor 0 0)))]
-        (is (= #code/range[[0 0] [0 1]] rename-region))
-        (is (await= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
-                    (rename lsp rename-region "foo")))
-        (set-servers! lsp #{})))))
+                                              "exit" (constantly nil)})}})
+          resource (test-util/resource workspace "/foo.json")
+          rename-region (await-value=
+                          #code/range[[0 0] [0 1]]
+                          #(prepare-rename lsp resource (data/->Cursor 0 0)))]
+      (is (= #code/range[[0 0] [0 1]] rename-region))
+      (is (await= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
+                  (rename lsp rename-region "foo")))
+      (set-servers! lsp #{}))))
