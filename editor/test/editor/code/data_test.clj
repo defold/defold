@@ -1835,6 +1835,58 @@
              (:cursor-ranges (format-document ["a()" "b()" "c()" ""] [] [(c 2 1)]
                                               ["a()" "c()" ""])))))))
 
+(deftest format-row-spans-test
+  (let [lines ["local a=1" "" "local b=2" "" "local c=3" ""]]
+    (testing "expands a selection to whole rows"
+      (is (= [(cr [0 0] [0 9])]
+             (data/format-row-spans lines [(cr [0 3] [0 6])]))))
+    (testing "trims the blank rows a selection drags in"
+      (are [cursor-range]
+        (= [(cr [2 0] [2 9])] (data/format-row-spans lines [cursor-range]))
+        (cr [2 0] [2 9]) ; no blank rows to trim
+        (cr [3 0] [2 0]) ; dragged up from the blank row below
+        (cr [1 0] [3 0]))) ; blank rows at both ends
+    (testing "merges runs less than two rows apart"
+      (is (= [(cr [0 0] [2 9])]
+             (data/format-row-spans lines [(cr [0 0] [0 9]) (cr [2 0] [2 9])]))))
+    (testing "keeps runs further apart separate"
+      (is (= [(cr [0 0] [0 9]) (cr [4 0] [4 9])]
+             (data/format-row-spans lines [(cr [0 0] [0 9]) (cr [4 0] [4 9])]))))
+    (testing "a selection of only blank rows has nothing to format"
+      (is (= [] (data/format-row-spans lines [(cr [3 0] [3 0])]))))))
+
+(deftest format-range-edits-test
+  (let [lines ["local a=1" "" "local b=2" "" "local c=3" ""]
+        ;; servers answer a row range with an edit ending where the next row starts
+        edits [[(cr [2 0] [3 0]) ["local b = 2" ""]]]]
+    (testing "an edit covering rows in the middle is diffed like a whole document"
+      (is (= [[(cr [2 7] [2 7]) [" "]]
+              [(cr [2 8] [2 8]) [" "]]]
+             (data/format-document-edits lines edits))))
+    (testing "an edit ending where its own row ends means the same thing"
+      (is (= (data/format-document-edits lines edits)
+             (data/format-document-edits lines [[(cr [2 0] [2 9]) ["local b = 2"]]]))))
+    (testing "the rows outside the edit are left alone"
+      (is (= ["local a=1" "" "local b = 2" "" "local c=3" ""]
+             (:lines (data/apply-edits lines [] [] (data/format-document-edits lines edits))))))
+    (testing "a cursor in the formatted rows keeps its place"
+      (is (= [(c 2 8)]
+             (:cursor-ranges (data/apply-edits lines [] [(c 2 7)]
+                                               (data/format-document-edits lines edits))))))
+    (testing "a range that runs past the document end is clamped to it"
+      (is (= ["local a=1" "" "local b=2" "" "local c = 3"]
+             (:lines (data/apply-edits
+                       lines [] []
+                       (data/format-document-edits
+                         lines [[(cr [4 0] [9 0]) ["local c = 3"]]]))))))
+    (testing "edits that do not cover whole rows pass through untouched"
+      (are [edits]
+        (= edits (data/format-document-edits lines edits))
+        ;; an insertion in the middle of a row
+        [[(cr [2 0] [2 0]) ["x"]]]
+        ;; a range starting past the last row, which a server should never send
+        [[(cr [6 0] [6 0]) ["x"]]]))))
+
 (deftest apply-edits-test
   (is (= {:lines ["ab=1"]
           :cursor-ranges [#code/range [[0 2] [0 2]]] ; affected cursor moved right
