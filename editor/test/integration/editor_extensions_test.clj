@@ -602,7 +602,7 @@
       ;; paths and prints results
       (is (= [[:open-resource "/game.project" nil nil]
               [:out "Open '/game.project': ok"]
-              [:out "Open '/does_not_exist.txt': ok"]
+              [:out "Open '/does_not_exist.txt': error"]
               [:out "Open 'not_a_resource_path.go': error"]
               [:open-resource "/game.project" :form nil]
               [:out "Open form view: ok"]

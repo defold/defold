@@ -494,7 +494,8 @@
     (let [{:keys [resource-path]
            {:keys [view args]} :rest} (rt/->clj rt open-resource-args-coercer varargs)
           resource (workspace/find-resource (:basis evaluation-context) workspace resource-path)]
-      (when (and resource (resource/exists? resource) (resource/openable? resource))
+      (if-not (and resource (resource/exists? resource) (resource/openable? resource))
+        (throw (LuaError. (format "Resource '%s' could not be opened" resource-path)))
         (if-not view
           (open-resource! resource {})
           (let [view-type (or (coll/first-where #(= view (:id %)) (workspace/resource-view-types resource))
