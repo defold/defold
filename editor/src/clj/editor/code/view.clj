@@ -3052,46 +3052,77 @@
        :actions [{:message (localization/message "notification.lsp.language-server-missing.action.about")
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
+(defn- show-formatting-failed-notification! [resource]
+  (notifications/show!
+    (workspace/notifications (resource/workspace resource))
+    {:type :warning
+     :id [::formatting-failed (resource/proj-path resource)]
+     :message (localization/message "notification.lsp.formatting-failed.prompt")}))
+
+(defn- apply-formatting-edits! [view-node lines edits]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [current (get-property view-node :lines evaluation-context)]
+      ;; The edits describe the lines we sent, so drop the response if the
+      ;; document moved on while we waited.
+      (when (= current lines)
+        (let [line-edits (data/format-document-edits current edits)]
+          (when (coll/not-empty line-edits)
+            (set-properties! view-node nil
+                             (data/apply-edits
+                               current
+                               (get-property view-node :regions evaluation-context)
+                               (get-property view-node :cursor-ranges evaluation-context)
+                               line-edits
+                               (get-property view-node :layout evaluation-context)))))))))
+
+(defn- format-whole-document! [view-node lsp resource indent-type lines]
+  (lsp/format-document!
+    lsp resource indent-type
+    (fn [{:keys [formatted edits] :as response}]
+      (ui/run-later
+        (when response
+          (if-not formatted
+            ;; The server could not format the document, e.g. a syntax error.
+            (show-formatting-failed-notification! resource)
+            (apply-formatting-edits! view-node lines edits)))))))
+
+(defn- format-selected-rows! [view-node lsp resource indent-type lines cursor-ranges]
+  (when-let [row-spans (coll/not-empty (data/format-row-spans lines cursor-ranges))]
+    (lsp/format-ranges!
+      lsp resource row-spans indent-type
+      (fn [responses]
+        (ui/run-later
+          (when (coll/not-empty responses)
+            (if (coll/not-every? :formatted responses)
+              (show-formatting-failed-notification! resource)
+              (apply-formatting-edits!
+                view-node lines
+                (vec (sort-by key (into [] (mapcat :edits) responses)))))))))))
+
+(defn- formatting-selected-rows? [cursor-ranges]
+  (coll/not-every? data/cursor-range-empty? cursor-ranges))
+
 (handler/defhandler :code.format-document :code-view
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)]
       (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
+  (label [view-node evaluation-context]
+    (if (formatting-selected-rows? (get-property view-node :cursor-ranges evaluation-context))
+      (localization/message "command.code.format-selection")
+      (localization/message "command.code.format-document")))
   (run [view-node]
     (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
                lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
                resource (g/node-value resource-node :resource evaluation-context)
                indent-type (get-property view-node :indent-type evaluation-context)
-               lines (get-property view-node :lines evaluation-context)]
+               lines (get-property view-node :lines evaluation-context)
+               cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
       (if-not (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
         (show-no-language-server-for-resource-language-notification! resource)
-        (lsp/format-document!
-          lsp resource indent-type
-          (fn [{:keys [formatted edits] :as response}]
-            (ui/run-later
-              ;; A nil response means no server matched the request, or it timed out.
-              (when response
-                (if-not formatted
-                  ;; The server could not format the document, e.g. a syntax error.
-                  (notifications/show!
-                    (workspace/notifications (resource/workspace resource))
-                    {:type :warning
-                     :id [::formatting-failed (resource/proj-path resource)]
-                     :message (localization/message "notification.lsp.formatting-failed.prompt")})
-                  (g/with-auto-evaluation-context evaluation-context
-                    (let [current (get-property view-node :lines evaluation-context)]
-                      ;; The edits describe the lines we sent, so drop the
-                      ;; response if the document moved on while we waited.
-                      (when (= current lines)
-                        (let [line-edits (data/format-document-edits current edits)]
-                          (when (coll/not-empty line-edits)
-                            (set-properties! view-node nil
-                                             (data/apply-edits
-                                               current
-                                               (get-property view-node :regions evaluation-context)
-                                               (get-property view-node :cursor-ranges evaluation-context)
-                                               line-edits
-                                               (get-property view-node :layout evaluation-context)))))))))))))))))
+        (if (formatting-selected-rows? cursor-ranges)
+          (format-selected-rows! view-node lsp resource indent-type lines cursor-ranges)
+          (format-whole-document! view-node lsp resource indent-type lines))))))
 
 (handler/defhandler :code.goto-definition :code-view
   (enabled? [view-node evaluation-context]

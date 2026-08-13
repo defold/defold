@@ -3373,18 +3373,19 @@
           (not= (.charAt line end) (.charAt new-line new-end)) nil
           :else (recur (inc end) (inc new-end) edits))))))
 
-(defn- document-replacement-edits
-  "Diff a whole-document replacement into minimal per-line edits."
-  [lines replacement-lines]
-  (let [{:keys [right-lines edits]} (diff/find-edits (str (coll/join-to-string "\n" lines) "\n")
+(defn- replacement-edits
+  "Diff a replacement of the rows in [span-begin-row span-end-row) into minimal
+  per-line edits. Both sides are terminated so one diff row is one row."
+  [lines ^long span-begin-row ^long span-end-row replacement-lines]
+  (let [{:keys [right-lines edits]} (diff/find-edits (str (coll/join-to-string "\n" (subvec lines span-begin-row span-end-row)) "\n")
                                                      (str (coll/join-to-string "\n" replacement-lines) "\n"))
         line-count (long (count lines))
         line-edits (coll/into-> edits []
                      (mapcat
                        (fn [{:keys [left right] :as edit}]
                          (when-not (diff/nop-edit? edit)
-                           (let [begin-row (long (:begin left))
-                                 end-row (long (:end left))
+                           (let [begin-row (+ span-begin-row (long (:begin left)))
+                                 end-row (+ span-begin-row (long (:end left)))
                                  row-count (- end-row begin-row)
                                  new-lines (subvec right-lines (long (:begin right)) (long (:end right)))]
                              (cond
@@ -3432,34 +3433,87 @@
                                       [""])]))))))]
     line-edits))
 
+(defn- whole-row-replacement
+  "Returns [start-row end-row replacement-lines] if the formatter edit replaces
+  whole rows; otherwise returns nil."
+  [lines cursor-range replacement-lines]
+  (let [start (cursor-range-start cursor-range)
+        end (cursor-range-end cursor-range)
+        begin-row (.row start)
+        end-row (.row end)
+        line-count (count lines)]
+    (when (and (zero? (.col start))
+               (< begin-row line-count))
+      (cond
+        ;; Ends at the document end, so the rest of the document is replaced.
+        (cursor-before-or-same? (document-end-cursor lines) end)
+        [begin-row line-count replacement-lines]
+
+        ;; Ends where a later row starts. The trailing empty line is the line
+        ;; break in front of that row, which stays where it is.
+        (and (zero? (.col end))
+             (< begin-row end-row)
+             (= "" (peek replacement-lines)))
+        [begin-row end-row (pop replacement-lines)]
+
+        ;; Ends where its own row ends.
+        (= (.col end) (count (lines end-row)))
+        [begin-row (inc end-row) replacement-lines]))))
+
+(defn- merge-rows-into-runs
+  "Group ascending rows into [begin end) runs, merging runs less than two rows
+  apart so a contiguous block is one request rather than several."
+  [rows]
+  (reduce (fn [runs ^long row]
+            (let [[begin-row end-row] (peek runs)]
+              (if (and end-row (<= (- row (long end-row)) 1))
+                (conj (pop runs) (pair begin-row (inc row)))
+                (conj runs (pair row (inc row))))))
+          []
+          rows))
+
+(defn- trim-blank-rows
+  "Narrow a [begin end) row run to its outermost non-blank rows, or nil if it has
+  none. Servers tend to delete the blank rows they are handed."
+  [lines [^long begin-row ^long end-row]]
+  (loop [first-row begin-row]
+    (cond
+      (= first-row end-row)
+      nil
+
+      (string/blank? (lines first-row))
+      (recur (inc first-row))
+
+      :else
+      (loop [last-row (dec end-row)]
+        (if (string/blank? (lines last-row))
+          (recur (dec last-row))
+          (pair first-row (inc last-row)))))))
+
+(defn format-row-spans
+  "Whole-row cursor ranges covering the rows the cursor ranges touch, ready to
+  send to a formatter."
+  [lines cursor-ranges]
+  (coll/into-> (merge-rows-into-runs (cursor-ranges->rows lines cursor-ranges)) []
+    (keep
+      (fn [run]
+        (when-let [[^long begin-row ^long end-row] (trim-blank-rows lines run)]
+          (let [last-row (dec end-row)]
+            (->CursorRange (->Cursor begin-row 0)
+                           (->Cursor last-row (count (lines last-row))))))))))
+
 (defn format-document-edits
-  "Turn a textDocument/formatting response into edits that keep cursors in place
+  "Turn a formatting response into edits that keep cursors in place
 
-  Servers usually answer with a single edit spanning the entire document, which
-  we diff so only the lines that actually changed get spliced. Anything else is
-  already minimal and passes through untouched."
+  Servers answer with edits spanning whole rows, which we diff so only the parts
+  that actually changed get spliced. Anything else passes through untouched."
   [lines edits]
-  (let [[cursor-range replacement-lines] (when (= 1 (count edits))
-                                           (first edits))]
-    (if-not (and cursor-range
-                 (cursor-equals? (cursor-range-start cursor-range) (->Cursor 0 0))
-                 (cursor-before-or-same? (document-end-cursor lines)
-                                         (cursor-range-end cursor-range)))
-      edits
-      (document-replacement-edits lines replacement-lines))))
-
-(comment
-  (let [before ["a" "   "]
-        target ["a" ""]
-        edits (document-replacement-edits before target)]
-    (:lines (apply-edits before [] [] edits)))
-
-  (let [before ["one" "two" "three"]
-        target ["one" "TWO" "three"]
-        edits (document-replacement-edits before target)]
-    (:lines (apply-edits before [] [] edits)))
-
-  :-)
+  (coll/into-> edits []
+    (mapcat
+      (fn [[cursor-range replacement-lines :as edit]]
+        (if-let [[begin-row end-row new-lines] (whole-row-replacement lines cursor-range replacement-lines)]
+          (replacement-edits lines begin-row end-row new-lines)
+          [edit])))))
 
 (defn apply-edits
   ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements]

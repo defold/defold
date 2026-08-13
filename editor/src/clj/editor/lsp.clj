@@ -29,7 +29,7 @@
             [editor.ui :as ui]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [editor.code.data CursorRange]
@@ -935,17 +935,18 @@
                :language (resource/language resource)
                :timeout-ms timeout-ms))))))
 
-(defn format-range! [lsp resource cursor-range indent-type result-callback & {:keys [timeout-ms]
-                                                                       :or {timeout-ms 5000}}]
-  (if-not (and (resource/file-resource? resource)
+(defn format-ranges! [lsp resource cursor-ranges indent-type result-callback & {:keys [timeout-ms]
+                                                                                :or {timeout-ms 5000}}]
+  (if-not (and (coll/not-empty cursor-ranges)
+               (resource/file-resource? resource)
                (resource/editable? resource))
-    (do (result-callback nil) nil)
+    (do (result-callback []) nil)
     (lsp (bound-fn [state]
-           (let [ch (a/chan 1 (take 1))]
-             (a/go (result-callback (<! ch)))
+           (let [ch (a/chan (count cursor-ranges))]
+             (a/go (result-callback (<! (a/into [] ch))))
              (send-requests!
                state ch
-               :requests [(lsp.server/range-formatting resource cursor-range indent-type)]
+               :requests (mapv #(lsp.server/range-formatting resource % indent-type) cursor-ranges)
                :capabilities-pred :range-formatting
                :language (resource/language resource)
                :timeout-ms timeout-ms))))))

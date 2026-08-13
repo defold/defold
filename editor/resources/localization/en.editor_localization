@@ -989,6 +989,7 @@ command.code.replace-next = Replace Next
 command.code.toggle-comment = Toggle Comment
 command.code.reindent-lines = Reindent Lines
 command.code.format-document = Format Document
+command.code.format-selection = Format Selection
 command.code.convert-indentation = Convert Indentation
 command.code.convert-indentation.to-tabs = To Tabs
 command.code.convert-indentation.to-two-spaces = To Two Spaces
