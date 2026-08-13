@@ -21,7 +21,6 @@
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.util :as util]
-            [editor.fs :as fs]
             [editor.lsp.async :as lsp.async]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
@@ -31,21 +30,23 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.path :as path])
   (:import [editor.code.data Cursor CursorRange]
-           [java.io File InputStream]
+           [java.io Closeable File IOException InputStream OutputStream]
            [java.lang ProcessBuilder$Redirect ProcessHandle]
            [java.net URI]
+           [java.nio.channels Channels Pipe]
            [java.util Map]
            [java.util.concurrent TimeUnit]
            [java.util.function BiFunction]))
 
 (set! *warn-on-reflection* true)
 
-(defprotocol Connection
+(defonce/protocol Connection
   (^InputStream input-stream [connection])
-  (^InputStream output-stream [connection])
+  (^OutputStream output-stream [connection])
   (dispose [connection]))
 
 (extend-protocol Connection
@@ -69,7 +70,7 @@
                            (log/warn :message "Language server process exit code is not zero"
                                      :exit-code (.exitValue process)))))))))))
 
-(defprotocol Launcher
+(defonce/protocol Launcher
   (launch [launcher ^File directory]))
 
 (extend-protocol Launcher
@@ -85,7 +86,36 @@
           (.redirectError ProcessBuilder$Redirect/INHERIT)
           (.directory directory))))))
 
-(defprotocol Message
+(defn launch-connection
+  "Launch an in-process language server using the supplied JSON-RPC method handlers."
+  [method->handler]
+  (let [client-to-server (Pipe/open)
+        server-to-client (Pipe/open)
+        client-input (Channels/newInputStream (.source server-to-client))
+        server-output (Channels/newOutputStream (.sink server-to-client))
+        server-input (Channels/newInputStream (.source client-to-server))
+        client-output (Channels/newOutputStream (.sink client-to-server))
+        [base-source base-sink base-error] (lsp.base/make server-input server-output)
+        jsonrpc (lsp.jsonrpc/make method->handler base-source base-sink)]
+    (a/go
+      (when-let [error (<! base-error)]
+        (log/warn :message "Embedded language server connection failed"
+                  :exception error)))
+    (reify Connection
+      (input-stream [_] client-input)
+      (output-stream [_] client-output)
+      (dispose [_]
+        (a/close! jsonrpc)
+        (run!
+          (fn [^Closeable closeable]
+            (try
+              (.close closeable)
+              (catch IOException error
+                (log/warn :message "Failed to close embedded language server stream"
+                          :exception error))))
+          [client-input client-output server-input server-output])))))
+
+(defonce/protocol Message
   (->jsonrpc [input project on-response]))
 
 (extend-protocol Message
@@ -94,7 +124,7 @@
   nil
   (->jsonrpc [input _ _] input))
 
-(deftype RawRequest [notification result-converter]
+(defonce/type RawRequest [notification result-converter]
   Message
   (->jsonrpc [this _ _]
     (throw (ex-info "Can't send raw request: use finalize-request first" {:request this}))))
@@ -195,10 +225,10 @@
 (defn- lsp-diagnostic-result->editor-diagnostic-result
   [{:keys [resultId version] :as lsp-diagnostics-result} diagnostics-key]
   (cond-> {:items (mapv lsp-diagnostic->editor-diagnostic (get lsp-diagnostics-result diagnostics-key))}
-          resultId
-          (assoc :result-id resultId)
-          version
-          (assoc :version version)))
+    resultId
+    (assoc :result-id resultId)
+    version
+    (assoc :version version)))
 
 (defn- diagnostics-handler [project out on-publish-diagnostics]
   (fn [{:keys [uri] :as result}]
@@ -258,9 +288,9 @@
            :rename (and (map? renameProvider)
                         (let [prepare (:prepareProvider renameProvider)]
                           (and (boolean? prepare) prepare)))}
-          completionProvider
-          (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
-                              :trigger-characters (set (:triggerCharacters completionProvider))})))
+    completionProvider
+    (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
+                        :trigger-characters (set (:triggerCharacters completionProvider))})))
 
 (defn- configuration-handler [project]
   (fn [{:keys [items]}]
@@ -541,8 +571,8 @@
     (lsp.jsonrpc/notification
       "textDocument/diagnostic"
       (cond-> {:textDocument {:uri (resource-uri resource)}}
-              previous-result-id
-              (assoc :previousResultId previous-result-id)))
+        previous-result-id
+        (assoc :previousResultId previous-result-id)))
     (fn convert-result [result _]
       (result-converter (full-or-unchanged-diagnostic-result:lsp->editor result)))))
 
@@ -580,7 +610,7 @@
                   (keep #(lsp-location-or-location-link->editor-location % project evaluation-context))
                   result)))))))
 
-(defrecord MarkupContent [type value]
+(defonce/record MarkupContent [type value]
   ;; We need markup content to be Comparable since it ends up in cursor regions
   ;; that need to be comparable
   Comparable
@@ -602,6 +632,7 @@
   {:value newText
    :cursor-range (lsp-range->editor-cursor-range range)})
 
+#_{:clj-kondo/ignore [:unused-binding]}
 (defn- completion-item:lsp->editor
   [{:keys [label filterText insertText tags deprecated kind
            insertTextMode insertTextFormat commitCharacters
@@ -636,8 +667,8 @@
                           :invoked 1
                           :trigger-character 2
                           :trigger-for-incomplete-completions 3)}
-          trigger-character
-          (assoc :triggerCharacter trigger-character)))
+    trigger-character
+    (assoc :triggerCharacter trigger-character)))
 
 (defn completion
   "See also:
@@ -665,11 +696,11 @@
     (bound-fn [result _]
       (item-converter
         (cond-> completion
-                ;; LSP specification does not allow null completion resolution
-                ;; results, but the Lua language server might return null anyway
-                result
-                (conj (select-keys (completion-item:lsp->editor result)
-                                   [:detail :doc :additional-edits])))))))
+          ;; LSP specification does not allow null completion resolution
+          ;; results, but the Lua language server might return null anyway
+          result
+          (conj (select-keys (completion-item:lsp->editor result)
+                             [:detail :doc :additional-edits])))))))
 
 (defn find-references
   "See also:
@@ -702,8 +733,8 @@
            :selection-range (lsp-range->editor-cursor-range selectionRange)
            :containment-range (lsp-range->editor-cursor-range range)
            :children (mapv document-symbol:lsp->editor children)}
-          detail
-          (assoc :detail detail)))
+    detail
+    (assoc :detail detail)))
 
 (defn- symbol-information->editor-document-symbol [{:keys [name kind tags deprecated location]}]
   {:name name
@@ -769,7 +800,7 @@
      :contentChanges (into []
                            (map (fn [[cursor-range replacement]]
                                   {:range (editor-cursor-range->lsp-range cursor-range)
-                                   :text (string/join "\n" replacement)}))
+                                   :text (coll/join-to-string "\n" replacement)}))
                            incremental-diff)}))
 
 (defn watched-file-change
