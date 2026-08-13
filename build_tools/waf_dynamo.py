@@ -1543,6 +1543,20 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
+def get_test_server_ip(platform, local_ip):
+    """The address a test device should use to reach a test server on this machine."""
+    if not 'android' in platform:
+        return local_ip
+
+    # The Android test harness sets up an 'adb reverse' tunnel for the port in the test
+    # config file, letting the device reach the server over its own loopback. The tunnel
+    # ends on whichever machine runs the adb server, so when we drive a device through a
+    # remote adb server we have to keep using the routable address instead.
+    if os.environ.get('ADB_SERVER_SOCKET', None) or os.environ.get('ANDROID_ADB_SERVER_ADDRESS', None):
+        return local_ip
+
+    return "localhost"
+
 def create_test_server_config(ctx, port=None, ip=None, config_name=None):
     local_ip = ip
     if local_ip is None:

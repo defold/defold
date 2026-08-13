@@ -25,6 +25,8 @@ env:
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
   DOTNET_CHANNEL: 9.0.1xx
+  # Shared by the Android SDK setup and the emulator the x86_64-android tests run on
+  ANDROID_API_LEVEL: '36'
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
   OPTION_CODESIGN: ${{ github.event.client_payload.skip_sign != true && github.event.client_payload.skip_sign != 'true' && '--codesign' || '' }}
 
@@ -169,11 +171,11 @@ jobs:
             skip_tests: true
           - platform: arm64-android
             skip_tests: true
+          # Without skip_tests the unit tests run on a hardware accelerated emulator, see below
           - platform: x86_64-android
-            skip_tests: true
     runs-on: ubuntu-latest
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
@@ -185,14 +187,44 @@ jobs:
         uses: defold/github-actions-common/.github/actions/android@8f32dd1cabf08f349200dd0135d07afc233fc322, # untagged pinned SHA
         with: {
           android-ndk: '25.2.9519653',
-          android-api-level: '36',
+          android-api-level: '${{ env.ANDROID_API_LEVEL }}',
           android-build-tools: '36.1.0'
         }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
+        name: 'Enable KVM',
+        if: "!matrix.skip_tests",
+        run: "echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules\nsudo udevadm control --reload-rules\nsudo udevadm trigger --name-match=kvm"
+      },
+      {
+        name: 'Cache Android AVD',
+        if: "!matrix.skip_tests",
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, # v5.0.5
+        with: { path: "~/.android/avd/*\n~/.android/adb*", key: "${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64" }
+      },
+      {
+        name: 'Build engine and run tests on emulator',
+        if: "!matrix.skip_tests",
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d, # v2.38.0
+        with: {
+          api-level: '${{ env.ANDROID_API_LEVEL }}',
+          target: google_apis, # it's mandatory to use 'google_apis' instead of google play build because the seond one requires "USB debug authorization"
+          arch: x86_64,
+          force-avd-creation: false,
+          disable-animations: true,
+          emulator-options: '-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none',
+          # The unit tests are run inline by waf, per engine library, so the emulator has
+          # to stay up for the whole build. ANDROID_SERIAL points both the ABI check in
+          # build_android.py and the adb test harness at it. Without a device those would
+          # quietly fall back to --skip-tests, so bail out instead of building for nothing.
+          script: "ANDROID_SERIAL=$(adb devices | awk '$2==\"device\"{print $1; exit}')\nif [ -z \"$ANDROID_SERIAL\" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi\nexport ANDROID_SERIAL\necho \"Running ${{ matrix.platform }} tests on $ANDROID_SERIAL\"\nci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs"
+        }
+      },
+      {
         name: 'Build engine',
-        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh engine --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs'
+        if: matrix.skip_tests,
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
