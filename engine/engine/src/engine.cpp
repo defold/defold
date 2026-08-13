@@ -1232,7 +1232,7 @@ namespace dmEngine
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)
         window_params.m_ContextAlphabits        = dmConfigFile::GetInt(engine->m_Config, "html5.transparent_graphics_context", 0) == 0 ? 0 : 8;
-#elif
+#else
         window_params.m_ContextAlphabits        = 8;
 #endif
 
