@@ -61,16 +61,17 @@
 
 (def shape-type-ui
   {:type-sphere  {:label "Sphere"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")
                   :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")
                   :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"
                   :physics-types #{"2D" "3D"}}
    :type-box     {:label "Box"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")
+                  :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.rectangle")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")
                   :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"
                   :physics-types #{"2D" "3D"}}
    :type-capsule {:label "Capsule"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
                   :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"
                   :physics-types #{"3D"}}})
 
@@ -79,10 +80,14 @@
   (get-in shape-type-ui [shape-type :label]))
 
 (defn- shape-type-message
+  "The displayed name of the shape type under the given physics type. A shape
+  type that only exists in 3D physics keeps its 3D name under 2D physics, where
+  it can still be named by the unsupported-shape error."
   [shape-type physics-type]
-  (let [{:keys [message message-2d]} (shape-type-ui shape-type)]
-    (or (when (= "2D" physics-type) message-2d)
-        message)))
+  (let [{:keys [message-2d message-3d]} (shape-type-ui shape-type)]
+    (case physics-type
+      "2D" (or message-2d message-3d)
+      "3D" message-3d)))
 
 (defn- shape-type-icon
   [shape-type]
