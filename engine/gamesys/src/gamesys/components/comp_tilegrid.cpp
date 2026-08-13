@@ -417,7 +417,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Tilemap", "tilemap.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_TOO_MANY_TILEMAPS;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         if (world->m_VertexDeclaration == 0) {

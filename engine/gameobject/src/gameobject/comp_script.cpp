@@ -76,7 +76,7 @@ namespace dmGameObject
         if (script_world->m_Instances.Full())
         {
             dmLogError("Could not create script component, out of resources. Increase the 'collection.max_instances' value in [game.project](defold://open?path=/game.project)");
-            return CREATE_RESULT_TOO_MANY_SCRIPTS;
+            return CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         HScriptInstance script_instance = NewScriptInstance(script_world, script, params.m_Instance, params.m_ComponentIndex);

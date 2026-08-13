@@ -129,7 +129,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Sound", "sound.max_component_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_TOO_MANY_SOUNDS;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         uint32_t index = world->m_Components.Alloc();

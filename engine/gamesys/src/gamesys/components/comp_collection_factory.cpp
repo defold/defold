@@ -113,7 +113,7 @@ namespace dmGameSystem
         else
         {
             ShowFullBufferError("Collection factory", COLLECTION_FACTORY_MAX_COUNT_KEY, fw->m_Components.Size());
-            return dmGameObject::CREATE_RESULT_TOO_MANY_COLLECTION_FACTORIES;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         return dmGameObject::CREATE_RESULT_OK;
     }

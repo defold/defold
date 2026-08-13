@@ -1212,7 +1212,7 @@ namespace dmGameSystem
         if (gui_world->m_Components.Full())
         {
             ShowFullBufferError("Gui", "gui.max_count", gui_world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_TOO_MANY_GUIS;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;

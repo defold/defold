@@ -336,7 +336,7 @@ namespace dmGameSystem
         else
         {
             ShowFullBufferError("Collection proxy", COLLECTION_PROXY_MAX_COUNT_KEY, proxy_world->m_Components.Size());
-            return dmGameObject::CREATE_RESULT_TOO_MANY_COLLECTION_PROXIES;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
     }
 

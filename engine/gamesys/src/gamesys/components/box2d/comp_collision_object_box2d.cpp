@@ -489,7 +489,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_TOO_MANY_COLLISION_OBJECTS;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
         assert(!component->m_BaseComponent.m_AddedToUpdate);

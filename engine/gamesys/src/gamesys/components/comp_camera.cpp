@@ -144,7 +144,7 @@ namespace dmGameSystem
         if (w->m_Cameras.Full())
         {
             ShowFullBufferError("Camera", MAX_COUNT);
-            return dmGameObject::CREATE_RESULT_TOO_MANY_CAMERAS;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
