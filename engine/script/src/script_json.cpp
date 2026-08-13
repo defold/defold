@@ -100,7 +100,7 @@ namespace dmScript
      *
      * - [type:boolean] `decode_null_as_userdata`: whether to decode a JSON null value as json.null or nil (default is nil)
      *
-     * @return data [type:table] decoded json
+     * @return data [type:any] decoded JSON value
      *
      * @examples
      *
@@ -147,10 +147,10 @@ namespace dmScript
      * A Lua error is raised for syntax errors.
      *
      * @name json.encode
-     * @param tbl [type:table] lua table to encode
-     * @param [options] [type:{ encode_empty_table_as_object:string }] table with encode options
+     * @param tbl [type:any] Lua value to encode
+     * @param [options] [type:{ encode_empty_table_as_object?:boolean }] table with encode options
      *
-     * - [type:string] `encode_empty_table_as_object`: whether to encode an empty table as an JSON object or array (default is object)
+     * - [type:boolean] `encode_empty_table_as_object`: whether to encode an empty table as a JSON object or array (default is object)
      *
      * @return json [type:string] encoded json
      *

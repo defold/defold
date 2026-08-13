@@ -42,6 +42,12 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Timer handle.
+     * @typedef
+     * @name timer_handle
+     * @param value [type:number]
+     */
+
     /*
         The timer handle is an index into an indirection layer combined with a generation counter,
         this makes it possible to reuse the index for the indirection layer without risk of using
@@ -634,7 +640,7 @@ namespace dmScript
      * @name timer.delay
      * @param delay [type:number] time interval in seconds
      * @param repeating [type:boolean] true = repeat timer until cancel, false = one-shot timer
-     * @param callback [type:fun(self:any, handle:number, time_elapsed:number)] timer callback function
+     * @param callback [type:fun(self:any, handle:timer_handle, time_elapsed:number)] timer callback function
      *
      * `self`
      * : [type:object] The current object
@@ -645,7 +651,7 @@ namespace dmScript
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return handle [type:number] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @return handle [type:timer_handle] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
      * @examples
      *
      * A simple one-shot timer
@@ -700,7 +706,7 @@ namespace dmScript
      * Cancelling a timer that is already executed or cancelled is safe.
      *
      * @name timer.cancel
-     * @param handle [type:number] the timer handle returned by timer.delay()
+     * @param handle [type:timer_handle] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      * @examples
      *
@@ -732,7 +738,7 @@ namespace dmScript
      * Manual triggering a callback for a timer.
      *
      * @name timer.trigger
-     * @param handle [type:number] the timer handle returned by timer.delay()
+     * @param handle [type:timer_handle] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      * @examples
      *
@@ -780,7 +786,7 @@ namespace dmScript
      * Get information about timer.
      *
      * @name  timer.get_info
-     * @param handle [type:number] the timer handle returned by timer.delay()
+     * @param handle [type:timer_handle] the timer handle returned by timer.delay()
      * @return data [type:{ time_remaining:number, delay:number, repeating:boolean }|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
      *
      * `time_remaining`
@@ -852,7 +858,7 @@ namespace dmScript
         /*# Indicates an invalid timer handle
          *
          * @name timer.INVALID_TIMER_HANDLE
-         * @constant
+         * @constant [type:timer_handle]
          */
         SETCONSTANT(INVALID_TIMER_HANDLE);
 

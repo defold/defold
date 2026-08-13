@@ -85,7 +85,7 @@
  * 
  * 
  * @name collectgarbage
- * @param [opt] [type:table]
+ * @param [opt] [type:string]
  * @param [arg] [type:number]
  */
 
@@ -161,7 +161,7 @@
  * 
  * 
  * @name getmetatable
- * @param object [type:table]
+ * @param object [type:any]
  */
 
 /*# iterates over a numerically keyed table
@@ -179,7 +179,7 @@
  * 
  * 
  * @name ipairs
- * @param t [type:table]
+ * @param t [type:table<integer, any>]
  */
 
 /*# loads a chunk by calling a function repeatedly
@@ -269,8 +269,8 @@
  * 
  * 
  * @name next
- * @param table [type:table]
- * @param [index] [type:number]
+ * @param table [type:table<any, any>]
+ * @param [index] [type:any]
  */
 
 /*# traverse all items in a table
@@ -346,8 +346,8 @@
  * 
  * 
  * @name rawget
- * @param table [type:table]
- * @param index [type:number]
+ * @param table [type:table<any, any>]
+ * @param index [type:any]
  */
 
 /*# sets the value of a table item without invoking metamethods
@@ -361,8 +361,8 @@
  * 
  * 
  * @name rawset
- * @param table [type:table]
- * @param index [type:number]
+ * @param table [type:table<any, any>]
+ * @param index [type:any]
  * @param value [type:any]
  */
 
@@ -394,7 +394,7 @@
  * 
  * @name setfenv
  * @param f [type:function]
- * @param table [type:table]
+ * @param table [type:table<any, any>]
  */
 
 /*# sets the metatable for a table
@@ -410,8 +410,8 @@
  * 
  * 
  * @name setmetatable
- * @param table [type:table]
- * @param metatable [type:table]
+ * @param table [type:table<any, any>]
+ * @param metatable [type:table<any, any>|nil]
  */
 
 /*# converts a string (of the given base) to a number
@@ -484,9 +484,9 @@
  * 
  * 
  * @name unpack
- * @param list [type:table]
- * @param [i] [type:number]
- * @param [j] [type:number]
+ * @param list [type:any[]]
+ * @param [i] [type:integer]
+ * @param [j] [type:integer]
  */
 
 /*# global variable containing the running Lua version
@@ -603,4 +603,3 @@
  * @name require
  * @param modname [type:string]
  */
-

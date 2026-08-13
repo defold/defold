@@ -771,8 +771,8 @@ namespace dmGui
      * @name gui.get
      * @param node [type:node] node to get the property for
      * @param property [type:string|hash|gui.PROP] the property to retrieve
-     * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:number] index into array property (1 based)
+     * @param [options] [type:{ index?:integer }] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
      *
      * @examples
      *
@@ -916,8 +916,8 @@ namespace dmGui
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|gui.PROP] the property to set
      * @param value [type:number|vector4|vector3|quaternion|nil] the property to set. `nil` is only supported for removing runtime texture mappings with `gui.set(msg.url(), "textures", nil, {key = ...})`.
-     * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:number] index into array property (1 based)
+     * @param [options] [type:{ index?:integer, key?:hash }] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
      * - `key` [type:hash] name of internal property
      *
      * @examples
@@ -5881,7 +5881,7 @@ namespace dmGui
      * @name on_message
      * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
-     * @param message [type:table] a table containing the message data
+     * @param message [type:table<any, any>] a table containing the message data
      */
 
     /*# called when user input is received

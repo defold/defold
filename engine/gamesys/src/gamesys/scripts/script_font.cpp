@@ -183,13 +183,13 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
  * @name font.prewarm_text
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @param text [type:string] The text to layout
- * @param [callback] [type:fun(self:any, request_id:number, result:boolean, errstring?:string)] (optional) A callback function that is called after the request is finished
+ * @param [callback] [type:fun(self:any, request_id:integer, result:boolean, errstring?:string)] (optional) A callback function that is called after the request is finished
  *
  * `self`
  * : [type:object] The current object.
  *
  * `request_id`
- * : [type:number] The request id
+ * : [type:integer] The request id
  *
  * `result`
  * : [type:boolean] True if request was succesful
@@ -197,7 +197,7 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
  * `errstring`
  * : [type:string] `nil` if the request was successful
  *
- * @return request_id [type:number] Returns the asynchronous request id
+ * @return request_id [type:integer] Returns the asynchronous request id
  *
  * @examples
  *
@@ -259,13 +259,13 @@ static int PrewarmText(lua_State* L)
  *
  * @name font.get_info
  * @param fontc [type:string|hash] The path to the .fontc resource
- * @return info [type:table] the information table contains these fields:
+ * @return info [type:{ path:hash, fonts:{ path:string, path_hash:hash }[] }] the information table contains these fields:
  *
  * `path`
  * : [type:hash] The path hash of the current file.
  *
  * `fonts`
- * : [type:table] An array of associated font (`.ttf` or `.otf`) files. Each item is a table that contains:
+ * : [type:{ path:string, path_hash:hash }[]] An array of associated font (`.ttf` or `.otf`) files. Each item is a table that contains:
  *
  *      `path`
  *      : [type:string] The path of the font file

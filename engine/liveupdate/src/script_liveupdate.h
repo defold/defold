@@ -49,7 +49,7 @@ namespace dmLiveUpdate
  * This can be used to determine if a new mount is needed or not
  *
  * @name liveupdate.get_mounts
- * @return mounts [type:table] Array of mounts
+ * @return mounts [type:{ name:hash, uri:string, priority:integer }[]] Array of mounts
  * @note: Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
  * @examples
  *
@@ -91,13 +91,13 @@ namespace dmLiveUpdate
  * @name liveupdate.add_mount
  * @param name [type:string|hash] Unique name of the mount
  * @param uri [type:string] The uri of the mount, including the scheme. Currently supported schemes are 'zip' and 'archive'.
- * @param priority [type:number] Priority of mount. Larger priority takes prescedence
- * @param callback [type:function(self, name, uri, result)] Callback after the asynchronous request completed
+ * @param priority [type:integer] Priority of mount. Larger priority takes prescedence
+ * @param callback [type:fun(self:any, name:hash, uri:string, result:liveupdate.LIVEUPDATE)] Callback after the asynchronous request completed
  * - `name` [type:hash] Unique name of the mount
  * - `uri` [type:string] The uri of the mount
- * - `result` [type:number] The result of the request
+ * - `result` [type:liveupdate.LIVEUPDATE] The result of the request
  *
- * @return result [type:number] The result of the request
+ * @return result [type:liveupdate.LIVEUPDATE] The result of the request
  *
  * @examples
  *
@@ -121,7 +121,7 @@ namespace dmLiveUpdate
  *
  * @name liveupdate.remove_mount
  * @param name [type:string|hash] Unique name of the mount
- * @return result [type:number] The result of the call
+ * @return result [type:liveupdate.LIVEUPDATE] The result of the call
  *
  * @examples
  *

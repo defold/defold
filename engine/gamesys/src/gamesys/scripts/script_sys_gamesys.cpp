@@ -292,27 +292,27 @@ namespace dmGameSystem
      *
      * @name sys.load_buffer_async
      * @param path [type:string] the path to load the buffer from
-     * @param status_callback [type:fun(self:any, request_id:number, result:{ status:sys.REQUEST_STATUS, buffer:buffer_data|nil })] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
+     * @param status_callback [type:fun(self:any, request_id:integer, result:{ status:sys.REQUEST_STATUS, buffer?:buffer_data })] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
      *
      * `status`
-     * : [type:number] The status of the request, supported values are:
+     * : [type:sys.REQUEST_STATUS] The status of the request, supported values are:
      *
-     * - `resource.REQUEST_STATUS_FINISHED`
-     * - `resource.REQUEST_STATUS_ERROR_IO_ERROR`
-     * - `resource.REQUEST_STATUS_ERROR_NOT_FOUND`
+     * - `sys.REQUEST_STATUS_FINISHED`
+     * - `sys.REQUEST_STATUS_ERROR_IO_ERROR`
+     * - `sys.REQUEST_STATUS_ERROR_NOT_FOUND`
      *
      * `buffer`
      * : [type:buffer_data] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
      *
-     * @return handle [type:number] a handle to the request
+     * @return handle [type:integer] a handle to the request
      * @examples
      *
      * Load binary data from a custom project resource and update a texture resource:
      *
      * ```lua
      * function my_callback(self, request_id, result)
-     *   if result.status == resource.REQUEST_STATUS_FINISHED then
-     *      resource.set_texture("/my_texture", { ... }, result.buf)
+     *   if result.status == sys.REQUEST_STATUS_FINISHED then
+     *      resource.set_texture("/my_texture", { ... }, result.buffer)
      *   end
      * end
      *
@@ -325,18 +325,16 @@ namespace dmGameSystem
      * function my_callback(self, request_id, result)
      *   if result.status ~= sys.REQUEST_STATUS_FINISHED then
      *     -- uh oh! File could not be found, do something graceful
-     *   elseif request_id == self.first_asset then
+     *   elseif request_id == self.first_request then
      *     -- result.buffer contains data from my_level_asset.bin
-     *   elif request_id == self.second_asset then
+     *   elseif request_id == self.second_request then
      *     -- result.buffer contains data from 'my_level.bin'
      *   end
      * end
      *
      * function init(self)
-     *   self.first_asset = hash("folder_next_to_binary/my_level_asset.bin")
-     *   self.second_asset = hash("/some_absolute_path/my_level.bin")
-     *   self.first_request = sys.load_buffer_async(self.first_asset, my_callback)
-     *   self.second_request = sys.load_buffer_async(self.second_asset, my_callback)
+     *   self.first_request = sys.load_buffer_async("folder_next_to_binary/my_level_asset.bin", my_callback)
+     *   self.second_request = sys.load_buffer_async("/some_absolute_path/my_level.bin", my_callback)
      * end
      * ```
      */

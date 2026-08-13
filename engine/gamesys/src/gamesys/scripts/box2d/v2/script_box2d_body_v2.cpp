@@ -1226,7 +1226,7 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_fixture
  * @param body [type: b2Body] body
- * @param definition [type: table] fixture definition table with:
+ * @param definition [type:b2d.fixture_definition] fixture definition table with:
  * `shape` = shape table, `friction` = number, `restitution` = number,
  * `density` = number, `sensor` = boolean, and optional `filter` table.
  * Supported shape tables are:
@@ -1235,7 +1235,7 @@ namespace dmGameSystem
  * `polygon` = `{ type = b2d.shape.SHAPE_TYPE_POLYGON, vertices = { vector3, ... } }`
  * `box` = `{ type = b2d.shape.SHAPE_TYPE_BOX, hx = number, hy = number, center = vector3_or_nil, angle = radians_or_nil }`
  * `chain` = `{ type = b2d.shape.SHAPE_TYPE_CHAIN, vertices = { vector3, ... }, loop = boolean_or_nil, prev_vertex = vector3_or_nil, next_vertex = vector3_or_nil }`
- * @return fixture [type: table] fixture info table with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ * @return fixture [type:b2d.fixture_info] fixture info table with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
  * @examples
  *
  * ```lua
@@ -1281,7 +1281,7 @@ namespace dmGameSystem
 /** Get the body transform for the body's origin.
  * @name b2d.body.get_transform
  * @param body [type: b2Body] body
- * @return transform [type: table] table with `position` and `angle` in radians.
+ * @return transform [type:b2d.transform] table with `position` and `angle` in radians.
  */
 
 /*# Get the world body origin position.
@@ -1389,7 +1389,7 @@ namespace dmGameSystem
  * Get the mass data of the body.
  * @name b2d.body.get_mass_data
  * @param body [type: b2Body] body
- * @return data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
+ * @return data [type:b2d.mass_data] table with `mass`, `center` in local coordinates, and `inertia`.
  */
 
 /**
@@ -1399,7 +1399,7 @@ namespace dmGameSystem
  * @note Creating or destroying fixtures can also alter the mass.
  * @name b2d.body.set_mass_data
  * @param body [type: b2Body] body
- * @param data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
+ * @param data [type:b2d.mass_data] table with `mass`, `center` in local coordinates, and `inertia`.
  */
 
 /*#
@@ -1412,13 +1412,13 @@ namespace dmGameSystem
 /*# Get the fixtures attached to this body.
  * @name b2d.body.get_fixtures
  * @param body [type: b2Body] body
- * @return fixtures [type: table] array of fixture info tables with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ * @return fixtures [type:b2d.fixture_info[]] array of fixture info tables with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
  */
 
 /*# Destroy a fixture from a body.
  * @name b2d.body.destroy_fixture
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  */
 
 /*# Get the world coordinates of a point given the local coordinates.
@@ -1590,7 +1590,7 @@ namespace dmGameSystem
 /*# Get the joints attached to this body.
  * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return joints [type: table] array of `b2Joint` handles created by `b2d.joint`
+ * @return joints [type:b2Joint[]] array of `b2Joint` handles created by `b2d.joint`
  */
 
 /** Get the list of all contacts attached to this body.

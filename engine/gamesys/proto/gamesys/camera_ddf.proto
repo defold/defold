@@ -51,7 +51,7 @@ message CameraDesc
  * @param far_z [type:number] position of the far clipping plane (distance from camera along relative z)
  * @param orthographic_projection [type:boolean] set to use an orthographic projection
  * @param orthographic_zoom [type:number] positive zoom multiplier when the camera is using an orthographic projection
- * @param orthographic_mode [type:number] orthographic zoom behavior when orthographic_projection is enabled
+ * @param orthographic_mode [type:camera.ORTHO_MODE] orthographic zoom behavior when orthographic_projection is enabled
  * @examples
  *
  * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".

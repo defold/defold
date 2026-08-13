@@ -1374,6 +1374,16 @@ namespace dmGameSystem
  * @param value [type:userdata]
  */
 
+/*# Box2D joint types.
+ * @enum
+ * @name b2d.joint.JOINT_TYPE
+ */
+
+/*# Box2D joint limit states.
+ * @enum
+ * @name b2d.joint.LIMIT_STATE
+ */
+
 /*# Unknown joint type.
  * @name b2d.joint.JOINT_TYPE_UNKNOWN
  * @constant
@@ -1457,7 +1467,7 @@ namespace dmGameSystem
 /*# Get the joint type.
  * @name b2d.joint.get_type
  * @param joint [type: b2Joint] joint
- * @return type [type: number] one of the `JOINT_TYPE_*` constants
+ * @return type [type:b2d.joint.JOINT_TYPE] one of the `JOINT_TYPE_*` constants
  */
 
 /*# Get the first body connected to a joint.
@@ -1742,7 +1752,7 @@ namespace dmGameSystem
 /*# Get rope limit state.
  * @name b2d.joint.get_limit_state
  * @param joint [type: b2Joint] rope joint
- * @return state [type: number] one of the `LIMIT_STATE_*` constants
+ * @return state [type:b2d.joint.LIMIT_STATE] one of the `LIMIT_STATE_*` constants
  */
 
 /*# Get pulley ground anchor A.
@@ -1811,7 +1821,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_distance
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `length`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.distance_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1819,7 +1829,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_mouse
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `target`, `max_force`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.mouse_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1827,7 +1837,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_prismatic
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `local_axis_a`, `reference_angle`, `enable_limit`, `lower_translation`, `upper_translation`, `enable_motor`, `max_motor_force`, `motor_speed`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.prismatic_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1835,7 +1845,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_revolute
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `reference_angle`, `enable_limit`, `lower_angle`, `upper_angle`, `enable_motor`, `max_motor_torque`, `motor_speed`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.revolute_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1843,7 +1853,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_weld
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `reference_angle`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.weld_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1851,7 +1861,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_wheel
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `local_axis_a`, `enable_motor`, `max_motor_torque`, `motor_speed`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.wheel_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1859,7 +1869,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_friction
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `max_force`, `max_torque`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.friction_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1867,7 +1877,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_rope
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `max_length`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.rope_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1875,7 +1885,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_pulley
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `ground_anchor_a`, `ground_anchor_b`, `local_anchor_a`, `local_anchor_b`, `length_a`, `length_b`, `ratio`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.pulley_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1883,6 +1893,6 @@ namespace dmGameSystem
  * @name b2d.joint.create_gear
  * @param joint1 [type: b2Joint] first revolute or prismatic joint
  * @param joint2 [type: b2Joint] second revolute or prismatic joint
- * @param definition [type: table] optional definition with `ratio`
+ * @param [definition] [type:b2d.joint.gear_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */

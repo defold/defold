@@ -25,7 +25,9 @@
     :module
     (case (:type script-doc)
       :function :function
-      (:variable :constant) :variable
+      :variable :variable
+      :constant :constant
+      :enum :enum
       :discard)))
 
 (defn- write-as-comment [^Writer w s]
@@ -53,13 +55,13 @@
 
 (defn- write-docs [output-dir]
   (let [groups (group-by script-doc-group (ext-docs/editor-script-docs))
-        {functions :function variables :variable} groups
+        {constants :constant enums :enum functions :function variables :variable} groups
         docs (into
                []
                cat
-               [(eduction
-                  (map (fn [m] (assoc m :type :variable)))
-                  variables)
+               [variables
+                constants
+                enums
                 (eduction
                   (map (fn [m]
                          (-> m
@@ -76,6 +78,19 @@
         (case type
           :variable
           (write-as-comment w (str brief "\n\n" description "\n\n" "@variable\n@name " name))
+          :constant
+          (let [{:keys [types]} doc]
+            (write-as-comment w (str brief "\n\n" description "\n\n"
+                                     "@constant"
+                                     (when (seq types)
+                                       (str " [type:" (string/join "|" types) "]"))
+                                     "\n@name " name)))
+          :enum
+          (let [{:keys [types]} doc]
+            (write-as-comment w (str brief "\n\n" description "\n\n"
+                                     "@enum\n@name " name "\n"
+                                     (when (seq types)
+                                       (str "@param value [type:" (string/join "|" types) "] enum value")))))
           :function
           (let [{:keys [returnvalues parameters examples]} doc]
             (write-as-comment w (str brief "\n\n" description "\n\n"

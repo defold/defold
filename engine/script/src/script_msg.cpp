@@ -476,7 +476,7 @@ namespace dmScript
      * @name msg.post
      * @param receiver [type:string|url|hash] The receiver must be a string in URL-format, a URL object or a hashed string.
      * @param message_id [type:string|hash] The id must be a string or a hashed string.
-     * @param [message] [type:table|nil] a lua table with message parameters to send.
+     * @param [message] [type:table<any, any>|nil] a lua table with message parameters to send.
      * @examples
      *
      * Send "enable" to the sprite "my_sprite" in "my_gameobject":

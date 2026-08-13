@@ -268,7 +268,7 @@ namespace dmGameSystem
      * @name http.request
      * @param url [type:string] target url
      * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
-     * @param callback [type:fun(self:any, id:hash, response:table)] response callback function
+     * @param callback [type:fun(self:any, id:hash, response:{ status:integer, response?:string, headers?:table<string, string>, path?:string, error?:string, bytes_received?:integer, bytes_total?:integer, range_start?:integer, range_end?:integer, document_size?:integer })] response callback function
      *
      * `self`
      * : [type:object] The script instance
@@ -277,22 +277,22 @@ namespace dmGameSystem
      * : [type:hash] Internal message identifier. Do not use!
      *
      * `response`
-     * : [type:table] The response data. Contains the fields:
+     * : [type:{ status:integer, response?:string, headers?:table<string, string>, path?:string, error?:string, bytes_received?:integer, bytes_total?:integer, range_start?:integer, range_end?:integer, document_size?:integer }] The response data. Contains the fields:
      *
-     * - [type:number] `status`: the status of the response
+     * - [type:integer] `status`: the status of the response
      * - [type:string] `response`: the response data (if not saved on disc)
-     * - [type:table] `headers`: all the returned headers (if status is 200 or 206)
+     * - [type:table<string, string>] `headers`: all the returned headers (if status is 200 or 206)
      * - [type:string] `path`: the stored path (if saved to disc)
      * - [type:string] `error`: if any unforeseen errors occurred (e.g. file I/O)
-     * - [type:number] `bytes_received`: the amount of bytes received/sent for a request, only if option `report_progress` is true
-     * - [type:number] `bytes_total`: the total amount of bytes for a request, only if option `report_progress` is true
-     * - [type:number] `range_start`: the start offset into the requested file
-     * - [type:number] `range_end`: the end offset into the requested file (inclusive)
-     * - [type:number] `document_size`: the full size of the requested file
+     * - [type:integer] `bytes_received`: the amount of bytes received/sent for a request, only if option `report_progress` is true
+     * - [type:integer] `bytes_total`: the total amount of bytes for a request, only if option `report_progress` is true
+     * - [type:integer] `range_start`: the start offset into the requested file
+     * - [type:integer] `range_end`: the end offset into the requested file (inclusive)
+     * - [type:integer] `document_size`: the full size of the requested file
      *
-     * @param [headers] [type:table] optional table with custom headers
+     * @param [headers] [type:table<string, string>] optional table with custom headers
      * @param [post_data] [type:string] optional data to send
-     * @param [options] [type:table] optional table with request parameters. Supported entries:
+     * @param [options] [type:{ timeout?:number, path?:string, ignore_cache?:boolean, chunked_transfer?:boolean, report_progress?:boolean }] optional table with request parameters. Supported entries:
      *
      * - [type:number] `timeout`: timeout in seconds
      * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200. [icon:attention] Path should be absolute

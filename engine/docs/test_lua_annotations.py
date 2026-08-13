@@ -48,12 +48,16 @@ def function(name, parameter_type="string", return_type=None):
     return result
 
 
-def constant(name):
+def constant(name, value_type=None):
     result = script_doc_ddf_pb2.Element()
     result.type = script_doc_ddf_pb2.CONSTANT
     result.name = name
     result.brief = name
     result.description = name
+    if value_type:
+        value = result.parameters.add()
+        value.name = "value"
+        value.types.append(value_type)
     return result
 
 
@@ -223,6 +227,66 @@ class TestLuaAnnotations(unittest.TestCase):
             },
             set(metadata["type_replacements"]))
 
+    def test_migration_manifest_validates_every_expected_outcome(self):
+        go_doc = document("go", [function("go.play", "string")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
+            metadata_data["migration"].update({
+                "manifest": "migration.json",
+                "patch_files": 1,
+                "patch_entries": 1,
+            })
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            manifest_path = Path(directory) / "migration.json"
+            manifest = {
+                "attribution": {"source_commit": "test"},
+                "patches": {
+                    "go.cpp_doc.lua": [{
+                        "path_pattern":
+                            "elements.go.play.parameters.value.types.table",
+                        "expected": "table",
+                        "current": "string",
+                    }],
+                },
+            }
+            manifest_path.write_text(
+                json.dumps(manifest),
+                encoding="utf-8")
+
+            lua_annotations.generate(
+                [("go.cpp.apidoc", go_doc)],
+                Path(directory) / "output",
+                metadata)
+
+            manifest["patches"]["go.cpp_doc.lua"][0]["current"] = "number"
+            manifest_path.write_text(
+                json.dumps(manifest),
+                encoding="utf-8")
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"go\.cpp_doc\.lua: .* expected 'number', got 'string'"):
+                lua_annotations.generate(
+                    [("go.cpp.apidoc", go_doc)],
+                    Path(directory) / "output",
+                    metadata)
+
+    def test_generate_accepts_document_iterators(self):
+        go_doc = document("go", [function("go.play", "string")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            documents = iter([("go.cpp", go_doc)])
+
+            lua_annotations.generate(documents, output, metadata)
+
+            go_lua = (output / "go.lua").read_text(encoding="utf-8")
+            self.assertIn("function go.play(value) end", go_lua)
+
     def test_unknown_type_fails_after_aggregation_with_source_and_symbol(self):
         unknown = document("go", [function("go.play", "not_a_real_type")])
 
@@ -236,9 +300,34 @@ class TestLuaAnnotations(unittest.TestCase):
                     Path(directory) / "output",
                     metadata)
 
+    def test_bare_table_type_fails_with_remediation(self):
+        untyped_table = document("go", [function("go.play", "table")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"go\.cpp: go\.play parameter value uses bare table type .*"
+                    r"use an array, a structural record, or table<key, value>"):
+                lua_annotations.generate(
+                    [("go.cpp", untyped_table)],
+                    Path(directory) / "output",
+                    metadata)
+
+    def test_bare_table_type_detection_ignores_generics_and_field_names(self):
+        self.assertTrue(lua_annotations._contains_bare_table_type("table"))
+        self.assertTrue(lua_annotations._contains_bare_table_type("table[]"))
+        self.assertTrue(lua_annotations._contains_bare_table_type(
+            "fun(value:table):nil"))
+        self.assertFalse(lua_annotations._contains_bare_table_type(
+            "table<string, any>"))
+        self.assertFalse(lua_annotations._contains_bare_table_type(
+            "{ table:string }"))
+
     def test_type_expression_parser(self):
         valid = [
             "string|nil",
+            "editor.component|false",
             "(string|hash)[]",
             "table<string, {value:number|nil, items?:vector3[]}>",
             "{callback:fun(value:number, ...:any):(string, nil), enabled?:boolean}",
@@ -260,6 +349,31 @@ class TestLuaAnnotations(unittest.TestCase):
         for expression in invalid:
             with self.subTest(expression=expression):
                 self.assertFalse(lua_annotations._is_valid_type_expression(expression))
+
+    def test_boolean_literal_type_is_known(self):
+        literal = document("go", [function("go.play", "false")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("go.cpp", literal)],
+                output,
+                metadata)
+
+            go_lua = (output / "go.lua").read_text(encoding="utf-8")
+            self.assertIn("---@param value false", go_lua)
+
+    def test_plain_function_type_remains_broad(self):
+        self.assertEqual(
+            "function",
+            lua_annotations.normalize_type("function", {}))
+        self.assertEqual(
+            "function|nil",
+            lua_annotations.normalize_type("function|nil", {}))
+        self.assertEqual(
+            "fun(value:any)",
+            lua_annotations.normalize_type("function(value)", {}))
 
     def test_optional_parameter_and_nil_return(self):
         element = function("go.lookup", "string")
@@ -293,6 +407,46 @@ class TestLuaAnnotations(unittest.TestCase):
                 metadata)
             go_lua = (output / "go.lua").read_text(encoding="utf-8")
             self.assertIn("---@overload fun(value?:string)", go_lua)
+
+    def test_metadata_function_overloads_are_rendered_and_validated(self):
+        lookup = function("go.lookup", "string", "number")
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
+            metadata_data["function_overloads"] = {
+                "go.lookup": [
+                    "fun(name:string, options:{ exact?:boolean }):number",
+                ],
+            }
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            output = Path(directory) / "output"
+
+            lua_annotations.generate(
+                [("go.cpp", document("go", [lookup]))],
+                output,
+                metadata)
+
+            go_lua = (output / "go.lua").read_text(encoding="utf-8")
+            self.assertIn(
+                "---@overload fun(name:string, options:{ exact?:boolean }):number",
+                go_lua)
+
+            metadata_data["function_overloads"]["go.lookup"] = [
+                "fun(options:table):number",
+            ]
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"go\.lookup metadata overload uses bare table type"):
+                lua_annotations.generate(
+                    [("go.cpp", document("go", [lookup]))],
+                    output,
+                    metadata)
 
     def test_html_entities_are_preserved_as_text(self):
         self.assertEqual(
@@ -460,8 +614,82 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@alias go.PLAYBACK integer", go_lua)
             self.assertIn("---| `go.PLAYBACK_NONE`", go_lua)
             self.assertIn(
-                "---@field PLAYBACK_NONE integer",
+                "---@field PLAYBACK_NONE go.PLAYBACK",
                 go_lua)
+
+    def test_source_enum_infers_members_from_nested_constant_namespace(self):
+        alignment = enum("editor.ui.ALIGNMENT", value_type="string")
+        editor_doc = document("editor", [
+            alignment,
+            constant("editor.ui.ALIGNMENT.TOP"),
+            constant("editor.ui.ALIGNMENT.BOTTOM"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("editor.apidoc", editor_doc)],
+                output,
+                metadata)
+
+            editor_lua = (output / "editor.lua").read_text(encoding="utf-8")
+            self.assertIn("---@alias editor.ui.ALIGNMENT string", editor_lua)
+            self.assertIn("---| `editor.ui.ALIGNMENT.TOP`", editor_lua)
+            self.assertIn("---@field TOP editor.ui.ALIGNMENT", editor_lua)
+
+    def test_constant_supports_explicit_value_type(self):
+        socket_doc = document("socket", [
+            constant("socket._VERSION", "string"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("socket.cpp", socket_doc)],
+                output,
+                metadata)
+
+            socket_lua = (output / "socket.lua").read_text(encoding="utf-8")
+            self.assertIn("---@field _VERSION string", socket_lua)
+
+    def test_untyped_standalone_constant_is_rejected(self):
+        socket_doc = document("socket", [constant("socket.VERSION")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"socket\.cpp: constant socket\.VERSION must belong to an "
+                    r"enum or declare an explicit value type"):
+                lua_annotations.generate(
+                    [("socket.cpp", socket_doc)],
+                    Path(directory) / "output",
+                    metadata)
+
+    def test_constant_enum_member_can_be_nil(self):
+        format_enum = enum("graphics.TEXTURE_FORMAT")
+        graphics_doc = document("graphics", [
+            format_enum,
+            constant(
+                "graphics.TEXTURE_FORMAT_RGBA16F",
+                "graphics.TEXTURE_FORMAT|nil"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("graphics.cpp", graphics_doc)],
+                output,
+                metadata)
+
+            graphics_lua = (output / "graphics.lua").read_text(
+                encoding="utf-8")
+            self.assertIn(
+                "---@field TEXTURE_FORMAT_RGBA16F graphics.TEXTURE_FORMAT|nil",
+                graphics_lua)
 
     def test_source_enum_supports_explicit_members_and_value_type(self):
         properties = enum(
@@ -615,7 +843,10 @@ class TestLuaAnnotations(unittest.TestCase):
                     metadata)
 
     def test_output_is_deterministic_and_removes_stale_lua_files(self):
-        go_doc = document("go", [function("go.play"), constant("go.PLAYBACK_ONCE_FORWARD")])
+        go_doc = document("go", [
+            function("go.play"),
+            constant("go.PLAYBACK_ONCE_FORWARD", "integer"),
+        ])
         editor_doc = document("editor", [function("editor.ui.show", "bool")])
 
         with tempfile.TemporaryDirectory() as directory:

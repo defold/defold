@@ -54,16 +54,18 @@ Type information
 [type:url]
 [type:hash]
 [type:boolean]
-[type:table]
+[type:table<string, any>]
+[type:number[]]
+[type:{ width:number, height:number }]
 [type:number]
 [type:string]
-[type:constant]
+[type:myfeature.MODE]
 
 // Multiple types possible
 [type:string|hash|url]
 
 // Function signature
-[type:function(self, transaction, error)]
+[type:fun(self:any, transaction:any, error:any)]
 ```
 
 Icons
@@ -159,7 +161,7 @@ There is no function tag. If the doc comment does not contain any of the other v
  *
  * @name json.decode
  * @param json [type:string] json data
- * @return data [type:table] decoded json
+ * @return data [type:any] decoded JSON value
  *
  */
 ```
@@ -188,13 +190,29 @@ Use these tags to denote doc comments for messages:
  */
 ```
 
-and for constants:
+For related constants, declare their shared type with `@enum`. The annotation
+generator associates constants named with either the `ENUM_VALUE` or
+`ENUM.VALUE` convention with that type:
 
 ```
+/*# Image types
+ * @enum
+ * @name image.TYPE
+ */
+
 /*# RGB image type
  *
  * @name image.TYPE_RGB
  * @constant
+ */
+```
+
+Use an explicit type for a standalone constant that does not belong to an enum:
+
+```
+/*# Library version
+ * @name library.VERSION
+ * @constant [type:string]
  */
 ```
 
@@ -255,13 +273,13 @@ Also by convention definition lists are used to lay out the details of function 
  * Set the callback function to receive transaction events.
  *
  * @name iap.set_listener
- * @param listener [type:function(self, transaction, error)] listener callback function
+ * @param listener [type:fun(self:any, transaction:any, error:any)] listener callback function
  *
  * `self`
  * : [type:object] The current object.
  *
  * `transaction`
- * : [type:table] a table describing the transaction. The table contains the following fields:
+ * : [type:{ ident:string, state:number, date:string, original_trans?:any, trans_ident?:string, request_id?:string, receipt?:string }] a table describing the transaction. The table contains the following fields:
  *
  * - `ident`: product identifier
  * - `state`: transaction state
@@ -272,7 +290,7 @@ Also by convention definition lists are used to lay out the details of function 
  * - `receipt`: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  *
  * `error`
- * : [type:table] a table containing any error information. The error parameter is `nil` on success.
+ * : [type:table<string, any>|nil] a table containing any error information. The error parameter is `nil` on success.
  *
  */
 ```

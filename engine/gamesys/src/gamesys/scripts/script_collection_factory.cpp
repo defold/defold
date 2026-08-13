@@ -247,7 +247,7 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collection factory component to be used
      * @param [position] [type:vector3] position to assign to the newly spawned collection
      * @param [rotation] [type:quaternion] rotation to assign to the newly spawned collection
-     * @param [properties] [type:table] table of script properties to propagate to any new game object instances
+     * @param [properties] [type:table<hash, table<string|hash, any>>] table of script properties to propagate to any new game object instances
      * @param [scale] [type:number|vector3] uniform scaling to apply to the newly spawned collection (must be greater than 0).
      * @return ids [type:table<hash, hash>] a table mapping the id:s from the collection to the new instance id:s
      * @examples

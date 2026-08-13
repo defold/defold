@@ -650,7 +650,7 @@ static int ProfilerUIRecordedFrameCount(lua_State* L)
  * The frame to show can either be an absolute frame or a relative frame to the current frame.
  *
  * @name profiler.view_recorded_frame
- * @param frame_index [type:table] a table where you specify one of the following parameters:
+ * @param frame_index [type:{ distance:integer }|{ frame:integer }] a table where you specify one of the following parameters:
  *
  * - `distance` The offset from the currently displayed frame (this is truncated between zero and the number of recorded frames)
  * - `frame` The frame index in the recording buffer (1 is first recorded frame)

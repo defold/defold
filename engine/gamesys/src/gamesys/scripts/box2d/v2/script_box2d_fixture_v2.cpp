@@ -631,15 +631,15 @@ namespace dmGameSystem
 /*# Get the fixture type.
  * @name b2d.fixture.get_type
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
- * @return type [type: number]
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
+ * @return type [type:b2d.shape.SHAPE_TYPE]
  */
 
 /*# Get the fixture shape as a functional shape table.
  * @name b2d.fixture.get_shape
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
- * @return shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`,
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
+ * @return shape [type:b2d.shape.definition] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`,
  * suitable for reuse in `b2d.body.create_fixture`.
  * Circle shapes use `radius` and `center`, edge shapes use `v1`, `v2`, optional `v0`, `v3`,
  * polygon shapes use `vertices`, and chain shapes use `vertices`, `loop`, optional `prev_vertex`, and `next_vertex`.
@@ -655,8 +655,8 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.fixture.set_shape
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
- * @param shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param shape [type:b2d.shape.definition] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
  * @param update_mass [type: boolean] if true, reset body mass data after the change
  * @examples
  *
@@ -690,28 +690,28 @@ namespace dmGameSystem
 /*# Check if a fixture is a sensor.
  * @name b2d.fixture.is_sensor
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @return enabled [type: boolean]
  */
 
 /*# Set sensor mode for a fixture.
  * @name b2d.fixture.set_sensor
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @param enabled [type: boolean]
  */
 
 /*# Get fixture density.
  * @name b2d.fixture.get_density
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @return density [type: number] density in kg/m^2
  */
 
 /*# Set fixture density.
  * @name b2d.fixture.set_density
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @param density [type: number] density in kg/m^2
  * @param update_mass [type: boolean] if true, reset body mass data after the change
  */
@@ -719,58 +719,58 @@ namespace dmGameSystem
 /*# Get fixture friction.
  * @name b2d.fixture.get_friction
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @return friction [type: number]
  */
 
 /*# Set fixture friction.
  * @name b2d.fixture.set_friction
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @param friction [type: number]
  */
 
 /*# Get fixture restitution.
  * @name b2d.fixture.get_restitution
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @return restitution [type: number]
  */
 
 /*# Set fixture restitution.
  * @name b2d.fixture.set_restitution
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @param restitution [type: number]
  */
 
 /*# Get fixture filter data for a child shape.
  * @name b2d.fixture.get_filter_data
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
- * @param child_index [type: number] 1-based child shape index
- * @return filter [type: table] table with `category_bits`, `mask_bits`, and `group_index`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param child_index [type: integer] 1-based child shape index
+ * @return filter [type:b2d.filter] table with `category_bits`, `mask_bits`, and `group_index`
  */
 
 /*# Set fixture filter data for a child shape.
  * @name b2d.fixture.set_filter_data
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
- * @param child_index [type: number] 1-based child shape index
- * @param filter [type: table] table with `category_bits`, `mask_bits`, and `group_index`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param child_index [type: integer] 1-based child shape index
+ * @param filter [type:b2d.filter] table with `category_bits`, `mask_bits`, and `group_index`
  */
 
 /*# Refilter a fixture.
  * @name b2d.fixture.refilter
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @param touch_proxies [type: boolean] if true, touch broad-phase proxies
  */
 
 /*# Test a point against a fixture.
  * @name b2d.fixture.test_point
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
  * @param point [type: vector3] point in world coordinates
  * @return hit [type: boolean]
  */
@@ -778,7 +778,7 @@ namespace dmGameSystem
 /*# Get fixture AABB for a child shape.
  * @name b2d.fixture.get_aabb
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
- * @param child_index [type: number] 1-based child shape index
- * @return aabb [type: table] table with `lower` and `upper`
+ * @param fixture_index [type: integer] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param child_index [type: integer] 1-based child shape index
+ * @return aabb [type:b2d.aabb] table with `lower` and `upper`
  */

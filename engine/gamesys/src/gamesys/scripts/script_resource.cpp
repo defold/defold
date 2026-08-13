@@ -153,6 +153,41 @@ namespace dmGameSystem
  * @member indices [type:integer[]] Geometry indices where each group of three entries represents a triangle.
  */
 
+/*# Render target attachment information
+ * @struct
+ * @name resource.render_target_attachment_info
+ * @member handle [type:texture] Opaque texture handle.
+ * @member width [type:integer] Texture width.
+ * @member height [type:integer] Texture height.
+ * @member depth [type:integer] Texture depth or layer count.
+ * @member page_count [type:integer] Texture page count.
+ * @member mipmaps [type:integer] Number of mipmaps.
+ * @member flags [type:graphics.TEXTURE_USAGE_FLAG] Texture usage flags.
+ * @member type [type:graphics.TEXTURE_TYPE] Texture type.
+ * @member buffer_type [type:graphics.BUFFER_TYPE] Render-target buffer type.
+ * @member texture? [type:hash] Backing texture resource, when present.
+ */
+
+/*# Texture information
+ * @struct
+ * @name resource.texture_info
+ * @member handle [type:texture] Opaque texture handle.
+ * @member width [type:integer] Texture width.
+ * @member height [type:integer] Texture height.
+ * @member depth [type:integer] Texture depth or layer count.
+ * @member page_count [type:integer] Texture page count.
+ * @member mipmaps [type:integer] Number of mipmaps.
+ * @member flags [type:graphics.TEXTURE_USAGE_FLAG] Texture usage flags.
+ * @member type [type:graphics.TEXTURE_TYPE] Texture type.
+ */
+
+/*# Render target information
+ * @struct
+ * @name resource.render_target_info
+ * @member handle [type:render_target] Opaque render-target handle.
+ * @member attachments [type:resource.render_target_attachment_info[]] Render-target attachments.
+ */
+
 /*# reference to material resource
  *
  * Constructor-like function with two purposes:
@@ -822,10 +857,10 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * @name resource.create_texture
  *
  * @param path [type:string] The path to the resource.
- * @param table [type:{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }] A table containing info about how to create the texture. Supported entries:
+ * @param table [type:{ type:graphics.TEXTURE_TYPE, width:integer, height:integer, depth?:integer, page_count?:integer, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:integer, compression_type?:graphics.COMPRESSION_TYPE }] A table containing info about how to create the texture. Supported entries:
  *
  * `type`
- * : [type:number] The texture type. Supported values:
+ * : [type:graphics.TEXTURE_TYPE] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
  * - `graphics.TEXTURE_TYPE_IMAGE_2D`
@@ -834,16 +869,19 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
- * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ * : [type:integer] The width of the texture (in pixels). Must be larger than 0.
  *
  * `height`
- * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ * : [type:integer] The height of the texture (in pixels). Must be larger than 0.
  *
  * `depth`
- * : [type:number] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
+ * : [type:integer] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
+ *
+ * `page_count`
+ * : [type:integer] The number of array texture pages. Only used when `type` is `graphics.TEXTURE_TYPE_2D_ARRAY`.
  *
  * `format`
- * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
+ * : [type:graphics.TEXTURE_FORMAT] The texture format, note that some of these formats might not be supported by the running device. Supported values:
  *
  * - `graphics.TEXTURE_FORMAT_LUMINANCE`
  * - `graphics.TEXTURE_FORMAT_RGB`
@@ -881,7 +919,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * ```
  *
  * `flags`
- * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:graphics.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
+ * : [type:graphics.TEXTURE_USAGE_FLAG] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:graphics.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
  * These flags may or may not be supported on the running device and/or the underlying graphics API and is simply used internally as a 'hint' when creating the texture. There is no guarantee that any of these will have any effect. Supported values:
  *
  * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
@@ -889,10 +927,10 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
- * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
+ * : [type:integer] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
  *
  * `compression_type`
- * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
+ * : [type:graphics.COMPRESSION_TYPE] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
  * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
@@ -1030,10 +1068,10 @@ static int CreateTexture(lua_State* L)
  *
  * @name resource.create_texture_async
  *
- * @param path [type:string|hash] The path to the resource.
- * @param table [type:{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }] A table containing info about how to create the texture. Supported entries:
+ * @param path [type:string] The path to the resource.
+ * @param table [type:{ type:graphics.TEXTURE_TYPE, width:integer, height:integer, depth?:integer, page_count?:integer, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:integer, compression_type?:graphics.COMPRESSION_TYPE }] A table containing info about how to create the texture. Supported entries:
  * `type`
- * : [type:number] The texture type. Supported values:
+ * : [type:graphics.TEXTURE_TYPE] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
  * - `graphics.TEXTURE_TYPE_IMAGE_2D`
@@ -1042,16 +1080,19 @@ static int CreateTexture(lua_State* L)
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
- * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ * : [type:integer] The width of the texture (in pixels). Must be larger than 0.
  *
  * `height`
- * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ * : [type:integer] The height of the texture (in pixels). Must be larger than 0.
  *
  * `depth`
- * : [type:number] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
+ * : [type:integer] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
+ *
+ * `page_count`
+ * : [type:integer] The number of array texture pages. Only used when `type` is `graphics.TEXTURE_TYPE_2D_ARRAY`.
  *
  * `format`
- * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
+ * : [type:graphics.TEXTURE_FORMAT] The texture format, note that some of these formats might not be supported by the running device. Supported values:
  *
  * - `graphics.TEXTURE_FORMAT_LUMINANCE`
  * - `graphics.TEXTURE_FORMAT_RGB`
@@ -1089,27 +1130,27 @@ static int CreateTexture(lua_State* L)
  * ```
  *
  * `flags`
- * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
+ * : [type:graphics.TEXTURE_USAGE_FLAG] Texture creation flags that can be used to dictate how the texture is created. Supported values:
  *
  * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
  * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
  * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
- * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
+ * : [type:integer] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
  *
  * `compression_type`
- * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
+ * : [type:graphics.COMPRESSION_TYPE] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
  * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
  * @param [buffer] [type:buffer_data] optional buffer of precreated pixel data
- * @param callback [type:fun(self:any, request_id:number, resource:hash)] callback function when texture is created (self, request_id, resource)
+ * @param [callback] [type:fun(self:any, request_id:integer, result:{ path:hash })] callback function when the texture is created. The result table contains the texture resource path.
  *
  * @return path [type:hash] The path to the texture resource.
- * @return request_id [type:number] The request id for the async request.
+ * @return request_id [type:integer] The request id for the async request.
  *
  * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
  *
@@ -1122,11 +1163,11 @@ static int CreateTexture(lua_State* L)
  * Create a texture resource asyncronously with a buffer and a callback
  *
  * ```lua
- * function callback(self, request_id, resource)
+ * function callback(self, request_id, result)
  *     -- The resource has been updated with a new texture,
  *     -- so we can update other systems with the new handle,
  *     -- or update components to use the resource if we want
- *     local tinfo = resource.get_texture_info(resource)
+ *     local tinfo = resource.get_texture_info(result.path)
  *     msg.post("@render:", "set_backing_texture", tinfo.handle)
  * end
  * function init(self)
@@ -1357,10 +1398,10 @@ static int ReleaseResource(lua_State* L)
  * @name resource.set_texture
  *
  * @param path [type:hash|string] The path to the resource
- * @param table [type:{ type:graphics.TEXTURE_TYPE, width:number, height:number, format:graphics.TEXTURE_FORMAT, x?:number, y?:number, z?:number, mipmap?:number, compression_type?:graphics.COMPRESSION_TYPE}] A table containing info about the texture. Supported entries:
+ * @param table [type:{ type:graphics.TEXTURE_TYPE, width:integer, height:integer, depth?:integer, format:graphics.TEXTURE_FORMAT, x?:integer, y?:integer, z?:integer, page?:integer, mipmap?:integer, compression_type?:graphics.COMPRESSION_TYPE }] A table containing info about the texture. Supported entries:
  *
  * `type`
- * : [type:number] The texture type. Supported values:
+ * : [type:graphics.TEXTURE_TYPE] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
  * - `graphics.TEXTURE_TYPE_IMAGE_2D`
@@ -1369,13 +1410,16 @@ static int ReleaseResource(lua_State* L)
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
- * : [type:number] The width of the texture (in pixels)
+ * : [type:integer] The width of the texture (in pixels)
  *
  * `height`
- * : [type:number] The width of the texture (in pixels)
+ * : [type:integer] The height of the texture (in pixels)
+ *
+ * `depth`
+ * : [type:integer] optional depth of the texture (in pixels). Only applies to 3D textures
  *
  * `format`
- * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
+ * : [type:graphics.TEXTURE_FORMAT] The texture format, note that some of these formats are platform specific. Supported values:
  *
  * - `graphics.TEXTURE_FORMAT_LUMINANCE`
  * - `graphics.TEXTURE_FORMAT_RGB`
@@ -1412,22 +1456,22 @@ static int ReleaseResource(lua_State* L)
  * ```
  *
  * `x`
- * : [type:number] optional x offset of the texture (in pixels)
+ * : [type:integer] optional x offset of the texture (in pixels)
  *
  * `y`
- * : [type:number] optional y offset of the texture (in pixels)
+ * : [type:integer] optional y offset of the texture (in pixels)
  *
  * `z`
- * : [type:number] optional z offset of the texture (in pixels). Only applies to 3D textures
+ * : [type:integer] optional z offset of the texture (in pixels). Only applies to 3D textures
  *
  * `page`
- * : [type:number] optional slice of the array texture. Only applies to 2D texture arrays. Zero-based
+ * : [type:integer] optional slice of the array texture. Only applies to 2D texture arrays. Zero-based
  *
  * `mipmap`
- * : [type:number] optional mipmap to upload the data to
+ * : [type:integer] optional mipmap to upload the data to
  *
  * `compression_type`
- * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ * : [type:graphics.COMPRESSION_TYPE] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
@@ -1657,32 +1701,32 @@ static int SetTexture(lua_State* L)
  *
  * @name resource.get_texture_info
  *
- * @param path [type:hash|string|number] The path to the resource or a texture handle
- * @return table [type:{ handle:number, width:number, height:number, depth:number, mipmaps:number, flags:number, type:graphics.TEXTURE_TYPE }] A table containing info about the texture:
+ * @param path [type:hash|string|texture] The path to the resource or a texture handle
+ * @return table [type:resource.texture_info] A table containing info about the texture:
  *
  * `handle`
- * : [type:number] the opaque handle to the texture resource
+ * : [type:texture] the opaque handle to the texture resource
  *
  * `width`
- * : [type:number] width of the texture
+ * : [type:integer] width of the texture
  *
  * `height`
- * : [type:number] height of the texture
+ * : [type:integer] height of the texture
  *
  * `depth`
- * : [type:number] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
  *
  * `page_count`
- * : [type:number] number of pages of the texture array. For 2D texture value is 1. For cube map - 6
+ * : [type:integer] number of pages of the texture array. For 2D texture value is 1. For cube map - 6
  *
  * `mipmaps`
- * : [type:number] number of mipmaps of the texture
+ * : [type:integer] number of mipmaps of the texture
  *
  * `flags`
- * : [type:number] usage hints of the texture.
+ * : [type:graphics.TEXTURE_USAGE_FLAG] usage hints of the texture.
  *
  * `type`
- * : [type:number] The texture type. Supported values:
+ * : [type:graphics.TEXTURE_TYPE] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
  * - `graphics.TEXTURE_TYPE_2D_ARRAY`
@@ -1775,45 +1819,54 @@ static int GetTextureInfo(lua_State* L)
  *
  * @name resource.get_render_target_info
  *
- * @param path [type:hash|string|number] The path to the resource or a render target handle
- * @return table [type:{ handle:number, attachments:{ handle:number, width:number, height:number, depth:number, mipmaps:number, type:graphics.TEXTURE_TYPE, buffer_type:graphics.BUFFER_TYPE, texture:hash }[] }] A table containing info about the render target:
+ * @param path [type:hash|string|render_target] The path to the resource or a render target handle
+ * @return table [type:resource.render_target_info] A table containing info about the render target:
  *
  * `handle`
- * : [type:number] the opaque handle to the texture resource
+ * : [type:render_target] the opaque handle to the render target
  *
  * 'attachments'
- * : [type:table] a table of attachments, where each attachment contains the following entries:
+ * : [type:resource.render_target_attachment_info[]] a table of attachments, where each attachment contains the following entries:
+ *
+ * `handle`
+ * : [type:texture] opaque handle to the attachment texture
  *
  * `width`
- * : [type:number] width of the texture
+ * : [type:integer] width of the texture
  *
  * `height`
- * : [type:number] height of the texture
+ * : [type:integer] height of the texture
  *
  * `depth`
- * : [type:number] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ *
+ * `page_count`
+ * : [type:integer] number of pages in the texture
  *
  * `mipmaps`
- * : [type:number] number of mipmaps of the texture
+ * : [type:integer] number of mipmaps of the texture
+ *
+ * `flags`
+ * : [type:graphics.TEXTURE_USAGE_FLAG] usage flags of the texture
  *
  * `type`
- * : [type:number] The texture type. Supported values:
+ * : [type:graphics.TEXTURE_TYPE] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  * - `graphics.TEXTURE_TYPE_2D_ARRAY`
  *
  * `buffer_type`
- * : [type:number] The attachment buffer type. Supported values:
+ * : [type:graphics.BUFFER_TYPE] The attachment buffer type. Supported values:
  *
- * - `resource.BUFFER_TYPE_COLOR0`
- * - `resource.BUFFER_TYPE_COLOR1`
- * - `resource.BUFFER_TYPE_COLOR2`
- * - `resource.BUFFER_TYPE_COLOR3`
- * - `resource.BUFFER_TYPE_DEPTH`
- * - `resource.BUFFER_TYPE_STENCIL`
+ * - `graphics.BUFFER_TYPE_COLOR0_BIT`
+ * - `graphics.BUFFER_TYPE_COLOR1_BIT`
+ * - `graphics.BUFFER_TYPE_COLOR2_BIT`
+ * - `graphics.BUFFER_TYPE_COLOR3_BIT`
+ * - `graphics.BUFFER_TYPE_DEPTH_BIT`
+ * - `graphics.BUFFER_TYPE_STENCIL_BIT`
  *
- * * `texture`
+ * `texture`
  * : [type:hash] The hashed path to the attachment texture resource. This field is only available if the render target passed in is a resource. 
  *
  * @examples
@@ -2490,7 +2543,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
  *
  * * `animations`
- * : [type:table] a list of the animations in the atlas. Supports the following fields:
+ * : [type:resource.animation[]] a list of the animations in the atlas. Supports the following fields:
  *
  * * `id`
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
@@ -2520,7 +2573,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:boolean] optional flip the animation horizontally, the default value is false
  *
  * * `geometries`
- * : [type:table] A list of the geometries that should map to the texture data. Supports the following fields:
+ * : [type:resource.geometry[]] A list of the geometries that should map to the texture data. Supports the following fields:
  *
  * * `id`
  * : [type:string] The name of the geometry. Used when matching animations between multiple atlases
@@ -2541,13 +2594,13 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:boolean] Whether the image is rotated 90 degrees counter-clockwise in the atlas. This affects UV coordinate generation for proper rendering. Default is false.
  *
  * * `vertices`
- * : [type:table] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
+ * : [type:number[]] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
  *
  * * `uvs`
- * : [type:table] a list of the uv coordinates in image space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}.
+ * : [type:number[]] a list of the uv coordinates in image space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}.
  *
  * * `indices`
- * : [type:table] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
+ * : [type:integer[]] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
  *
  * @note The index values are zero based where zero refers to the first entry of the vertex and uv lists
  *
@@ -2696,7 +2749,7 @@ static int CreateAtlas(lua_State* L)
  * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
  *
  * * `animations`
- * : [type:table] a list of the animations in the atlas. Supports the following fields:
+ * : [type:resource.animation[]] a list of the animations in the atlas. Supports the following fields:
  *
  * * `id`
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
@@ -2726,16 +2779,16 @@ static int CreateAtlas(lua_State* L)
  * : [type:boolean] optional flip the animation horizontally, the default value is false
  *
  * * `geometries`
- * : [type:table] A list of the geometries that should map to the texture data. Supports the following fields:
+ * : [type:resource.geometry[]] A list of the geometries that should map to the texture data. Supports the following fields:
  *
  * * `vertices`
- * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
+ * : [type:number[]] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
  *
  * * `uvs`
- * : [type:table] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
+ * : [type:number[]] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
  *
  * * `indices`
- * : [type:table] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
+ * : [type:integer[]] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
  *
  * @note The index values are zero based where zero refers to the first entry of the vertex and uv lists
  *
@@ -3183,7 +3236,7 @@ void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
  * @name resource.create_buffer
  *
  * @param path [type:string] The path to the resource.
- * @param [table] [type:{ buffer:buffer_data, transfer_ownership?:boolean }] A table containing info about how to create the buffer. Supported entries:
+ * @param table [type:{ buffer:buffer_data, transfer_ownership?:boolean }] A table containing info about how to create the buffer. Supported entries:
  *
  * * `buffer`
  * : [type:buffer_data] the buffer to bind to this resource

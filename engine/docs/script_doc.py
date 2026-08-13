@@ -293,6 +293,15 @@ def _create_doc_element(tags):
     element = script_doc_ddf_pb2.Element()
     element.type = tags_to_proto_type(tags)
 
+    if element.type == script_doc_ddf_pb2.CONSTANT and tags.get("constant"):
+        value = element.parameters.add()
+        value.name = "value"
+        value.doc = ""
+        types, _ = extract_type_from_docstr(tags["constant"])
+        if isinstance(types, str):
+            types = [types]
+        value.types.extend(types)
+
     for value in tags["return"]:
         """ Some of the possible variations:
         @return name

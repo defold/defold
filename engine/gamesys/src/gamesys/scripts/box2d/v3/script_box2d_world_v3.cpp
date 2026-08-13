@@ -927,7 +927,7 @@ namespace dmGameSystem
 /*# Get the number of awake bodies.
  * @name b2d.world.get_awake_body_count
  * @param world [type: b2World] world
- * @return count [type: number] awake body count
+ * @return count [type: integer] awake body count
  */
 
 /*# Set contact solver tuning.
@@ -956,7 +956,7 @@ namespace dmGameSystem
  * `hit_events`, `refit`, `bullets`, `sleep_islands`, and `sensors`.
  * @name b2d.world.get_profile
  * @param world [type: b2World] world
- * @return profile [type: table] world profiling data
+ * @return profile [type:b2d.world_profile] world profiling data
  */
 
 /*# Get world counters.
@@ -965,7 +965,7 @@ namespace dmGameSystem
  * `tree_height`, `byte_count`, `task_count`, and `color_counts`.
  * @name b2d.world.get_counters
  * @param world [type: b2World] world
- * @return counters [type: table] world counters
+ * @return counters [type:b2d.world_counters] world counters
  */
 
 /*# Apply an explosion impulse.
@@ -974,7 +974,7 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.world.explode
  * @param world [type: b2World] world
- * @param definition [type: table] explosion definition
+ * @param definition [type:b2d.explosion_definition] explosion definition
  */
 
 /*# Rebuild the static broad-phase tree.
@@ -995,11 +995,11 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.world.overlap_aabb
  * @param world [type: b2World] world
- * @param aabb [type: table] AABB table with `lower` and `upper`
- * @param [filter] [type: table] optional query filter with `category_bits` and `mask_bits`
- * @param [max_results] [type: number] optional maximum result count. Omit or pass 0 for unlimited results.
- * @return hits [type: table] array of shape info tables
- * @return stats [type: table] tree stats table
+ * @param aabb [type:b2d.aabb] AABB table with `lower` and `upper`
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits` and `mask_bits`
+ * @param [max_results] [type:integer] optional maximum result count. Omit or pass 0 for unlimited results.
+ * @return hits [type:b2d.shape_info[]] array of shape info tables
+ * @return stats [type:b2d.tree_stats] tree stats table
  */
 
 /*# Find shapes overlapping a shape proxy.
@@ -1008,11 +1008,11 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.world.overlap_shape
  * @param world [type: b2World] world
- * @param shape [type: table] shape table
- * @param [filter] [type: table] optional query filter with `category_bits` and `mask_bits`
- * @param [max_results] [type: number] optional maximum result count. Omit or pass 0 for unlimited results.
- * @return hits [type: table] array of shape info tables
- * @return stats [type: table] tree stats table
+ * @param shape [type:b2d.shape.definition] shape table
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits` and `mask_bits`
+ * @param [max_results] [type:integer] optional maximum result count. Omit or pass 0 for unlimited results.
+ * @return hits [type:b2d.shape_info[]] array of shape info tables
+ * @return stats [type:b2d.tree_stats] tree stats table
  */
 
 /*# Cast a ray and collect hits.
@@ -1023,10 +1023,10 @@ namespace dmGameSystem
  * @param world [type: b2World] world
  * @param origin [type: vector3] ray start position
  * @param translation [type: vector3] ray displacement
- * @param [filter] [type: table] optional query filter with `category_bits` and `mask_bits`
- * @param [max_results] [type: number] optional maximum result count. Omit or pass 0 for unlimited results.
- * @return hits [type: table] array of cast hit tables
- * @return stats [type: table] tree stats table
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits` and `mask_bits`
+ * @param [max_results] [type:integer] optional maximum result count. Omit or pass 0 for unlimited results.
+ * @return hits [type:b2d.shape_cast_hit[]] array of cast hit tables
+ * @return stats [type:b2d.tree_stats] tree stats table
  */
 
 /*# Cast a ray and return the closest hit.
@@ -1036,8 +1036,8 @@ namespace dmGameSystem
  * @param world [type: b2World] world
  * @param origin [type: vector3] ray start position
  * @param translation [type: vector3] ray displacement
- * @param [filter] [type: table] optional query filter with `category_bits` and `mask_bits`
- * @return hit [type: table|nil] closest cast hit table with `node_visits` and `leaf_visits`, or `nil` on miss
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits` and `mask_bits`
+ * @return hit [type:b2d.shape_cast_hit|nil] closest cast hit table with `node_visits` and `leaf_visits`, or `nil` on miss
  */
 
 /*# Cast a shape and collect hits.
@@ -1046,12 +1046,12 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.world.cast_shape
  * @param world [type: b2World] world
- * @param shape [type: table] shape table
+ * @param shape [type:b2d.shape.definition] shape table
  * @param translation [type: vector3] shape displacement
- * @param [filter] [type: table] optional query filter with `category_bits` and `mask_bits`
- * @param [max_results] [type: number] optional maximum result count. Omit or pass 0 for unlimited results.
- * @return hits [type: table] array of cast hit tables
- * @return stats [type: table] tree stats table
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits` and `mask_bits`
+ * @param [max_results] [type:integer] optional maximum result count. Omit or pass 0 for unlimited results.
+ * @return hits [type:b2d.shape_cast_hit[]] array of cast hit tables
+ * @return stats [type:b2d.tree_stats] tree stats table
  */
 
 /*# Cast a mover capsule.
@@ -1061,9 +1061,9 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.world.cast_mover
  * @param world [type: b2World] world
- * @param capsule [type: table] capsule table with `center1`, `center2`, and `radius`
+ * @param capsule [type:b2d.mover_capsule] capsule table with `center1`, `center2`, and `radius`
  * @param translation [type: vector3] capsule displacement
- * @param [filter] [type: table] optional query filter with `category_bits` and `mask_bits`
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits` and `mask_bits`
  * @return fraction [type: number] travel fraction before collision
  */
 
@@ -1073,8 +1073,8 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.world.collide_mover
  * @param world [type: b2World] world
- * @param capsule [type: table] capsule table with `center1`, `center2`, and `radius`
- * @param [filter] [type: table] optional query filter with `category_bits` and `mask_bits`
- * @param [max_results] [type: number] optional maximum result count. Omit or pass 0 for unlimited results.
- * @return planes [type: table] array of plane result tables
+ * @param capsule [type:b2d.mover_capsule] capsule table with `center1`, `center2`, and `radius`
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits` and `mask_bits`
+ * @param [max_results] [type:integer] optional maximum result count. Omit or pass 0 for unlimited results.
+ * @return planes [type:b2d.mover_plane[]] array of plane result tables
  */

@@ -90,7 +90,7 @@
           :type :function
           :description "Create an editor command"
           :parameters [{:name "opts"
-                        :types ["table"]
+                        :types ["{ label:string|editor.message, locations:string[], query?:{ selection?:{ type:string, cardinality:string }, active_view?:{ type:string }, argument?:table<any, any> }, id?:string, active?:function, run?:function }"]
                         :doc (str "A table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "label"
@@ -100,11 +100,11 @@
                                       :types ["string[]"]
                                       :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), <code>\"Outline\"</code> (the outline pane), <code>\"Scene\"</code> (the scene view), or <code>\"Code\"</code> (the code editor)"}
                                      {:name "query"
-                                      :types ["table"]
+                                      :types ["{ selection?:{ type:string, cardinality:string }, active_view?:{ type:string }, argument?:table<any, any> }"]
                                       :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
                                                 (lua-completion/args-doc-html
                                                   [{:name "selection"
-                                                    :types ["table"]
+                                                    :types ["{ type:string, cardinality:string }"]
                                                     :doc (str "current selection, a table with the following keys:"
                                                               (lua-completion/args-doc-html
                                                                 [{:name "type"
@@ -114,14 +114,14 @@
                                                                   :types ["string"]
                                                                   :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
                                                    {:name "active_view"
-                                                    :types ["table"]
+                                                    :types ["{ type:string }"]
                                                     :doc (str "current active editor view, a table with the following keys:"
                                                               (lua-completion/args-doc-html
                                                                 [{:name "type"
                                                                   :types ["string"]
                                                                   :doc "either <code>\"code\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}]))}
                                                    {:name "argument"
-                                                    :types ["table"]
+                                                    :types ["table<any, any>"]
                                                     :doc "the command argument"}]))}
                                      {:name "id"
                                       :types ["string"]
@@ -285,7 +285,7 @@ editor.create_resources({
          {:name "editor.bob"
           :type :function
           :parameters [{:name "[options]"
-                        :types ["table"]
+                        :types ["table<string, string|integer|boolean|(string|integer|boolean)[]>"]
                         :doc "table of command line options for bob, without the leading dashes (<code>--</code>). You can use snake_case instead of kebab-case for option keys. Only long option names are supported (i.e. <code>output</code>, not <code>o</code>). Supported value types are strings, integers and booleans. If an option takes no arguments, use a boolean (i.e. <code>true</code>). If an option may be repeated, you can use an array of values."}
                        {:name "[...]"
                         :types ["string"]
@@ -354,7 +354,7 @@ editor.create_resources({
           :description "Create a transaction step that will remove a child node from the node's list property when transacted with `editor.transact()`."}
          {:name "editor.tx.reorder"
           :type :function
-          :parameters [node-param property-param {:name "child_nodes" :types ["table"] :doc "array of child nodes (the same as returned by <code>editor.get(node, property)</code>) in new order"}]
+          :parameters [node-param property-param {:name "child_nodes" :types ["any[]"] :doc "array of child nodes (the same as returned by <code>editor.get(node, property)</code>) in new order"}]
           :returnvalues [transaction-step-param]
           :description "Create a transaction step that reorders child nodes in a node list defined by the property if supported (see <code>editor.can_reorder()</code>)"}
          {:name "editor.tx.reset"
@@ -390,7 +390,8 @@ editor.create_resources({
               (eduction
                 cat
                 [[{:name (str "editor.ui." id)
-                   :type :module
+                   :type :enum
+                   :types ["string"]
                    :description (str "Constants for "
                                      (string/replace (name enum-id) \- \space)
                                      " enums")}]
@@ -413,14 +414,14 @@ editor.create_resources({
                         :types ["string"]
                         :doc "request URL"}
                        {:name "[opts]"
-                        :types ["table"]
+                        :types ["{ method?:string, headers?:table<string, string>, body?:string, as?:string, path?:string }"]
                         :doc (str "Additional request options, a table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "method"
                                       :types ["string"]
                                       :doc "request method, defaults to <code>\"GET\"</code>"}
                                      {:name "headers"
-                                      :types ["table"]
+                                      :types ["table<string, string>"]
                                       :doc "request headers, a table with string keys and values"}
                                      {:name "body"
                                       :types ["string"]
@@ -432,17 +433,17 @@ editor.create_resources({
                                       :types ["string"]
                                       :doc "destination file path, resolved against project root if relative; mutually exclusive with <code>as</code>"}]))}]
           :returnvalues [{:name "response"
-                          :types ["table"]
+                          :types ["{ status:integer, headers:table<string, string|string[]>, body?:any, path?:string }"]
                           :doc (str "HTTP response, a table with the following keys:"
                                     (lua-completion/args-doc-html
                                       [{:name "status"
                                         :types ["integer"]
                                         :doc "response code"}
                                        {:name "headers"
-                                        :types ["table"]
+                                        :types ["table<string, string|string[]>"]
                                         :doc "response headers, a table where each key is a lower-cased string, and each value is either a string or an array of strings if the header was repeated"}
                                        {:name "body"
-                                        :types ["string" "any" "nil"]
+                                        :types ["any"]
                                         :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}
                                        {:name "path"
                                         :types ["string" "nil"]
@@ -452,12 +453,15 @@ editor.create_resources({
           :description "Editor's HTTP server-related functionality"}
          {:name "http.server.local_url"
           :type :constant
+          :types ["string"]
           :description "Editor's HTTP server local url"}
          {:name "http.server.port"
           :type :constant
+          :types ["integer"]
           :description "Editor's HTTP server port"}
          {:name "http.server.url"
           :type :constant
+          :types ["string"]
           :description "Editor's HTTP server url"}
          {:name "http.server.external_file_response"
           :type :function
@@ -506,7 +510,7 @@ editor.create_resources({
                         :types ["string"]
                         :doc "Request body converter, either <code>\"string\"</code> or <code>\"json\"</code>; the body will be discarded if not specified"}
                        {:name "[openapi]"
-                        :types ["table"]
+                        :types ["table<string, any>"]
                         :doc "Optional OpenAPI Operation Object for this route method, exposed from <code>/openapi.json</code>. Must follow <code>https://spec.openapis.org/oas/v3.0.3.html#operation-object</code>."}
                        {:name "handler"
                         :types ["function"]
@@ -638,7 +642,7 @@ end
                         :types ["string"]
                         :doc "json data"}
                        {:name "[options]"
-                        :types ["table"]
+                        :types ["{ all?:boolean }"]
                         :doc (str "A table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "all"
@@ -671,7 +675,7 @@ end
                           :types ["string"]
                           :doc "localization key defined in an <code>.editor_localization</code> file"}
                          {:name "[vars]"
-                          :types ["table"]
+                          :types ["table<string, nil|boolean|number|string|editor.message>"]
                           :doc (str "optional table with variables to be substituted in the localized string that uses <a href=\"https://unicode-org.github.io/icu/userguide/format_parse/messages/\">ICU Message Format</a> syntax; keys must be strings; values must be either " localizable-value-doc)}]
             :returnvalues [message-pattern-ret]}
            {:name "localization.and_list"
@@ -707,7 +711,7 @@ end
             :type :function
             :description "Immutably set a key to value in a table"
             :parameters [{:name "table"
-                          :types ["table"]
+                          :types ["table<any, any>"]
                           :doc "the table"}
                          {:name "key"
                           :types ["any"]
@@ -716,13 +720,13 @@ end
                           :types ["any"]
                           :doc "the value"}]
             :returnvalues [{:name "table"
-                            :types ["table"]
+                            :types ["table<any, any>"]
                             :doc "New table if it should be changed by assoc, or the input table otherwise"}]}
            {:name "editor.bundle.assoc_in"
             :type :function
             :description "Immutably set a value to a nested path in a table"
             :parameters [{:name "table"
-                          :types ["table"]
+                          :types ["table<any, any>"]
                           :doc "the table"}
                          {:name "keys"
                           :types ["any[]"]
@@ -731,40 +735,40 @@ end
                           :types ["any"]
                           :doc "the value"}]
             :returnvalues [{:name "table"
-                            :types ["table"]
+                            :types ["table<any, any>"]
                             :doc "New table if it should be changed by assoc_in, or the input table otherwise"}]}
            {:name "editor.bundle.make_to_string_lookup"
             :type :function
             :description "Make stringifier function that first performs the label lookup in a provided table"
             :parameters [{:name "table"
-                          :types ["table"]
-                          :doc "table from values to their corresponding string representation"}]
+                          :types ["table<any, string|editor.message>"]
+                          :doc "table from values to their corresponding string or localization message representation"}]
             :returnvalues [{:name "to_string"
-                            :types ["function"]
+                            :types ["fun(value:any):string|editor.message"]
                             :doc "stringifier function"}]}
            {:name "editor.bundle.select_box"
             :type :function
             :description "Helper function for creating a select box component"
-            :parameters [{:name "config" :types ["table"] :doc "config table"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "config table"}
                          {:name "set_config" :types ["function"] :doc "config setter"}
                          {:name "key" :types ["string"] :doc "config key for the selected value"}
                          {:name "options" :types ["any[]"] :doc "select box options"}
                          {:name "to_string" :types ["function"] :doc "option stringifier"}
-                         {:name "[rest_props]" :types ["table"] :doc "extra props for <code>editor.ui.select_box</code>"}]
+                         {:name "[rest_props]" :types ["table<string, any>"] :doc "extra props for <code>editor.ui.select_box</code>"}]
             :returnvalues [{:name "select_box" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.check_box"
             :type :function
             :description "Helper function for creating a check box component"
-            :parameters [{:name "config" :types ["table"] :doc "config table"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "config table"}
                          {:name "set_config" :types ["function"] :doc "config setter"}
                          {:name "key" :types ["string"] :doc "config key for the selected value"}
                          {:name "text" :types ["string"] :doc "check box label text"}
-                         {:name "[rest_props]" :types ["table"] :doc "extra props for <code>editor.ui.check_box</code>"}]
+                         {:name "[rest_props]" :types ["table<string, any>"] :doc "extra props for <code>editor.ui.check_box</code>"}]
             :returnvalues [{:name "check_box" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.set_element_check_box"
             :type :function
             :description "Helper function for creating a check box for an enum value of set config key"
-            :parameters [{:name "config" :types ["table"] :doc "config map with common boolean keys"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "bundle config"}
                          {:name "set_config" :types ["function"] :doc "config setter"}
                          {:name "key" :types ["string"] :doc "config key for the set"}
                          {:name "element" :types ["string"] :doc "enum value in the set"}
@@ -774,20 +778,20 @@ end
            {:name "editor.bundle.external_file_field"
             :type :function
             :description "Helper function for creating an external file field component"
-            :parameters [{:name "config" :types ["table"] :doc "config map with common boolean keys"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "bundle config"}
                          {:name "set_config" :types ["function"] :doc "config setter"}
                          {:name "key" :types ["string"] :doc "config key for the set"}
                          {:name "[error]" :types ["string"] :doc "error message"}
-                         {:name "[rest_props]" :types ["table"] :doc "extra props for <code>editor.ui.external_file_field</code>"}]
+                         {:name "[rest_props]" :types ["table<string, any>"] :doc "extra props for <code>editor.ui.external_file_field</code>"}]
             :returnvalues [{:name "external_file_field" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.dialog"
             :type :function
             :description "Helper function for creating a bundle dialog component"
             :parameters [{:name "heading" :types ["string"] :doc "dialog heading text"}
-                         {:name "config" :types ["table"] :doc "config map with common boolean keys"}
+                         {:name "config" :types ["table<string, any>"] :doc "bundle config"}
                          {:name "hint" :types ["string" "nil"] :doc "dialog hint text"}
                          {:name "error" :types ["string" "nil"] :doc "dialog error text"}
-                         {:name "rows" :types ["editor.component[][]"] :doc "grid rows of UI elements, dialog content"}]
+                         {:name "rows" :types ["(editor.component|false)[][]"] :doc "grid rows of UI elements, dialog content"}]
             :returnvalues [{:name "dialog" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.grid_row"
             :type :function
@@ -799,32 +803,32 @@ end
                           :types ["editor.component" "editor.component[]"]
                           :doc "either a single UI component, or an array of components (will be laid out vertically)"}]
             :returnvalues [{:name "row"
-                            :types ["editor.component[]"]
+                            :types ["(editor.component|false)[]"]
                             :doc "a single grid row"}]}
            {:name "editor.bundle.desktop_variant_grid_row"
             :type :function
             :description "Create a grid row for the desktop variant setting"
-            :parameters [{:name "config" :types ["table"] :doc "config table with <code>variant</code> key"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "config table with <code>variant</code> key"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["(editor.component|false)[]"] :doc "grid row"}]}
            {:name "editor.bundle.common_variant_grid_row"
             :type :function
             :description "Create a grid row for the common variant setting"
-            :parameters [{:name "config" :types ["table"] :doc "config map with <code>variant</code> key"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "config map with <code>variant</code> key"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["(editor.component|false)[]"] :doc "grid row"}]}
            {:name "editor.bundle.texture_compression_grid_row"
             :type :function
             :description "Create a grid row for the texture compression setting"
-            :parameters [{:name "config" :types ["table"] :doc "config map with <code>texture_compression</code> key"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "config map with <code>texture_compression</code> key"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["(editor.component|false)[]"] :doc "grid row"}]}
            {:name "editor.bundle.check_boxes_grid_row"
             :type :function
             :description "Create a grid row for the common boolean settings"
-            :parameters [{:name "config" :types ["table"] :doc "config map with common boolean keys"}
+            :parameters [{:name "config" :types ["table<string, any>"] :doc "bundle config"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["(editor.component|false)[]"] :doc "grid row"}]}
            {:name "editor.bundle.config"
             :type :function
             :description "Get bundle config, optionally showing a dialog to edit the config"
@@ -855,13 +859,13 @@ end
             :type :function
             :description "Create bob bundle"
             :parameters [{:name "config"
-                          :types ["table"]
+                          :types ["table<string, any>"]
                           :doc "bundle config"}
                          {:name "output_directory"
                           :types ["string"]
                           :doc "bundle output directory"}
                          {:name "extra_bob_opts"
-                          :types ["table"]
+                          :types ["table<string, string|integer|boolean|(string|integer|boolean)[]>"]
                           :doc "extra bob opts, presumably produced from config"}]}
            {:name "editor.bundle.command"
             :type :function
@@ -876,7 +880,7 @@ end
                           :types ["function"]
                           :doc "bundle function, will receive a <code>requested_dialog</code> boolean argument"}
                          {:name "[rest]"
-                          :types ["table"]
+                          :types ["table<string, any>"]
                           :doc "extra keys for the command definition, e.g. <code>active</code>"}]}
            {:name "editor.bundle.desktop_variant_schema"
             :type :variable
@@ -888,15 +892,15 @@ end
             :type :function
             :description "Helper function for constructing prefs schema for new bundle dialogs"
             :parameters [{:name "variant_schema" :types ["editor.schema"] :doc "bundle variant schema"}
-                         {:name "[properties]" :types ["table" "nil"] :doc "extra config properties"}]
+                         {:name "[properties]" :types ["table<string, editor.schema>" "nil"] :doc "extra config properties"}]
             :returnvalues [{:name "schema" :types ["editor.schema"] :doc (str "full bundle schema, defines a project-scoped object schema with the following keys:"
-                                                                       (lua-completion/args-doc-html
-                                                                         [{:name "variant" :doc "the provided variant schema"}
-                                                                          {:name "texture_compression" :types ["string"] :doc "either <code>enabled</code>, <code>disabled</code> or <code>editor</code>"}
-                                                                          {:name "with_symbols" :types ["boolean"]}
-                                                                          {:name "build_report" :types ["boolean"]}
-                                                                          {:name "liveupdate" :types ["boolean"]}
-                                                                          {:name "contentless" :types ["boolean"]}]))}]}])
+                                                                              (lua-completion/args-doc-html
+                                                                                [{:name "variant" :doc "the provided variant schema"}
+                                                                                 {:name "texture_compression" :types ["string"] :doc "either <code>enabled</code>, <code>disabled</code> or <code>editor</code>"}
+                                                                                 {:name "with_symbols" :types ["boolean"]}
+                                                                                 {:name "build_report" :types ["boolean"]}
+                                                                                 {:name "liveupdate" :types ["boolean"]}
+                                                                                 {:name "contentless" :types ["boolean"]}]))}]}])
         (let [tiles-param {:name "tiles" :types ["editor.tiles"] :doc "unbounded 2d grid of tiles"}
               x-param {:name "x" :types ["integer"] :doc "x coordinate of a tile"}
               y-param {:name "y" :types ["integer"] :doc "y coordinate of a tile"}
@@ -908,7 +912,7 @@ end
                                {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
                                {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]))
               tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}
-              info-param {:name "info" :types ["table"] :doc info-doc}]
+              info-param {:name "info" :types ["{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }"] :doc info-doc}]
           [{:name "tilemap"
             :type :module
             :description "Module for manipulating tilemaps"}
@@ -957,7 +961,7 @@ end
                          x-param
                          y-param
                          {:name "tile_or_info"
-                          :types ["integer" "table"]
+                          :types ["integer" "{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }"]
                           :doc (str "Either " tile-doc " or " info-doc)}]
             :returnvalues [tiles-param]}
            {:name "tilemap.tiles.remove"
@@ -968,7 +972,7 @@ end
         [{:name "zip"
           :type :module
           :description "Module for manipulating zip archives"}
-         (let [method-param {:name "method" :types ["string"] :doc "compression method, either <code>zip.METHOD.DEFLATED</code> (default) or <code>zip.METHOD.STORED</code>"}
+         (let [method-param {:name "method" :types ["zip.METHOD"] :doc "compression method, either <code>zip.METHOD.DEFLATED</code> (default) or <code>zip.METHOD.STORED</code>"}
                level-param {:name "level" :types ["integer"] :doc "compression level, an integer between 0 and 9, only useful when the compression method is <code>zip.METHOD.DEFLATED</code>; defaults to 6"}]
            {:name "zip.pack"
             :type :function
@@ -976,11 +980,11 @@ end
                           :types ["string"]
                           :doc "output zip file path, resolved against project root if relative"}
                          {:name "[opts]"
-                          :types ["{ method?:string, level?:integer }"]
+                          :types ["{ method?:zip.METHOD, level?:integer }"]
                           :doc (str "compression options, a table with the following keys:"
                                     (lua-completion/args-doc-html [method-param level-param]))}
                          {:name "entries"
-                          :types ["string" "table"]
+                          :types ["string" "(string|table<any, string|integer>)[]"]
                           :doc (str "entries to compress, either a string (relative path to file or folder to include) or a table with the following keys:"
                                     (lua-completion/args-doc-html
                                       [{:name "1" :types ["string"] :doc "required; source file or folder path to include, resolved against project root if relative"}
@@ -1029,14 +1033,14 @@ zip.pack(\"build.zip\", {
                         :types ["string"]
                         :doc "target path for extraction, defaults to parent of <code>archive_path</code> if omitted"}
                        {:name "[opts]"
-                        :types ["table"]
+                        :types ["{ on_conflict?:zip.ON_CONFLICT }"]
                         :doc (str "extraction options, a table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "on_conflict"
-                                      :types ["string"]
+                                      :types ["zip.ON_CONFLICT"]
                                       :doc "conflict resolution strategy, defaults to <code>zip.ON_CONFLICT.ERROR</code>"}]))}
                        {:name "[paths]"
-                        :types ["table"]
+                        :types ["string[]"]
                         :doc "entries to extract, relative string paths"}]
           :description "Extract a ZIP archive"
           :examples "Extract everything to a build dir:
@@ -1065,7 +1069,8 @@ zip.unpack(
 )
 ```"}
          {:name "zip.METHOD"
-          :type :module
+          :type :enum
+          :types ["string"]
           :description "Constants for zip compression methods"}
          {:name "zip.METHOD.DEFLATED"
           :type :constant
@@ -1074,7 +1079,8 @@ zip.unpack(
           :type :constant
           :description "<code>\"stored\"</code> compression method, i.e. no compression"}
          {:name "zip.ON_CONFLICT"
-          :type :module
+          :type :enum
+          :types ["string"]
           :description "Constants defining conflict resolution strategies for zip archive extraction"}
          {:name "zip.ON_CONFLICT.ERROR"
           :type :constant

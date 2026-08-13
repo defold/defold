@@ -59,7 +59,7 @@
 (def schema-components
   (let [scope-prop (ui-docs/make-prop :scope
                                       :coerce (coerce/enum :global :project)
-                                      :types ["string"]
+                                      :types ["editor.prefs.SCOPE"]
                                       :doc (ui-docs/doc-with-ul-options "preference scope"
                                                                         ["<code>editor.prefs.SCOPE.GLOBAL</code>: same preference value is used in every project on this computer"
                                                                          "<code>editor.prefs.SCOPE.PROJECT</code>: a separate preference value per project"]))]
@@ -111,7 +111,7 @@
                                   :coerce schema-coercer
                                   :types ["editor.schema"]
                                   :doc "set item schema")
-               (make-default-prop "table<editor.schema, boolean>")
+               (make-default-prop "table<any, boolean>")
                scope-prop])
      (ui-docs/component
        "object"
@@ -121,7 +121,7 @@
                                   :coerce (coerce/map-of serializable-keyword-coercer schema-coercer)
                                   :types ["table<string, editor.schema>"]
                                   :doc "a table from property key (string) to value schema")
-               (make-default-prop "table<string, editor.schema>")
+               (make-default-prop "table<string, any>")
                scope-prop])
      (ui-docs/component
        "object_of"
@@ -136,7 +136,7 @@
                                   :coerce schema-coercer
                                   :types ["editor.schema"]
                                   :doc "table value schema")
-               (make-default-prop "table")
+               (make-default-prop "table<any, any>")
                scope-prop])
      (ui-docs/component
        "enum"
@@ -249,7 +249,8 @@
                   (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
                     (e/concat
                       [{:name id
-                        :type :module
+                        :type :enum
+                        :types ["string"]
                         :description (str "Constants for "
                                           (string/replace (name id-kw) \- \space)
                                           " enums")}]

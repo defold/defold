@@ -636,9 +636,9 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
      * @param [options] [type:{ index?:integer, key?:hash, keys?:hash[] }] optional options table
-     * - index [type:number] index into array property (1 based)
+     * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
-     * - keys [type:table] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
+     * - keys [type:hash[]] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
      * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource_data] the value of the specified property
      *
      * @examples
@@ -786,7 +786,7 @@ namespace dmGameObject
      * @param [options] [type:{ index?:integer, key?:hash, keys?:hash[] }] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
-     * - keys [type:table] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
+     * - keys [type:hash[]] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
      * @examples
      *
      * Set a property "speed" of a script "player", the property must be declared in the player-script:
@@ -1964,7 +1964,7 @@ namespace dmGameObject
      * [icon:attention] Deleting a game object containing a sound component that is playing will not immediately stop the sound from playing. You need to manually stop the sound using `sound.stop()`.
      *
      * @name go.delete
-     * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
+     * @param [id] [type:string|hash|url|(string|hash|url)[]] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
      * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
      * @examples
      *
@@ -2896,7 +2896,7 @@ bail:
      * @name on_message
      * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
-     * @param message [type:table] a table containing the message data
+     * @param message [type:table<any, any>] a table containing the message data
      * @param sender [type:url] address of the sender
      * @examples
      *

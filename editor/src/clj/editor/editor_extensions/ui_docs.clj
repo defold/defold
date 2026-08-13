@@ -59,7 +59,7 @@
     :function ["function"]
     :integer ["integer"]
     :number ["number"]
-    :table ["table"]
+    :table ["table<any, any>"]
     :any ["any"]
     :array (when-let [item-types (infer-doc-types-from-coercer-schema (:item schema))]
              [(str (group-doc-types item-types) "[]")])
@@ -125,9 +125,9 @@
 
 (defn- enum-prop [name & {:keys [enum doc] :as props}]
   (apply make-prop name (mapcat identity (cond-> (assoc props :coerce (get-enum-coercer enum)
-                                                   :types ["string"])
-                                                 doc
-                                                 (update :doc doc-with-ul-options (enum-doc-options enum))))))
+                                                        :types [(str "editor.ui." (->screaming-snake-case enum))])
+                                           doc
+                                           (update :doc doc-with-ul-options (enum-doc-options enum))))))
 
 ;; endregion
 
@@ -158,7 +158,7 @@
         padding (coerce/one-of (get-enum-coercer :padding) non-negative-number)]
     (into [(make-prop :padding
                       :coerce padding
-                      :types ["string" "number"]
+                      :types ["editor.ui.PADDING" "number"]
                       :doc (doc-with-ul-options
                              "empty space from the edges of the container to its children"
                              (concat
@@ -166,7 +166,7 @@
                                ["non-negative number, pixels"])))
            (make-prop :spacing
                       :coerce spacing
-                      :types ["string" "number"]
+                      :types ["editor.ui.SPACING" "number"]
                       :doc (doc-with-ul-options
                              "empty space between child components, defaults to <code>editor.ui.SPACING.MEDIUM</code>"
                              (concat
@@ -182,7 +182,7 @@
 (def ^:private list-props
   (into [(make-prop :children
                     :coerce children-coercer
-                    :types ["editor.component[]"]
+                    :types ["(editor.component|false)[]"]
                     :doc "array of child components")]
         multi-child-layout-container-props))
 
@@ -195,15 +195,15 @@
                                 % % %)]
     (into [(make-prop :children
                       :coerce (coerce/vector-of (coerce/one-of children-coercer absent-coercer))
-                      :types ["editor.component[][]"]
+                      :types ["((editor.component|false)[]|false)[]"]
                       :doc "array of arrays of child components")
            (make-prop :rows
                       :coerce grid-constraints-coercer
-                      :types ["table[]"]
+                      :types ["({ grow?:boolean }|false)[]"]
                       :doc (constraint-doc "row"))
            (make-prop :columns
                       :coerce grid-constraints-coercer
-                      :types ["table[]"]
+                      :types ["({ grow?:boolean }|false)[]"]
                       :doc (constraint-doc "column"))]
           multi-child-layout-container-props)))
 
@@ -222,7 +222,7 @@
 (def ^:private tabs-props
   (into [(make-prop :tabs
                     :coerce children-coercer
-                    :types ["editor.component[]"]
+                    :types ["(editor.component|false)[]"]
                     :doc "array of <code>editor.ui.tab(...)</code> components")]
         read-only-common-props))
 
@@ -295,11 +295,11 @@
                               (coerce/hash-map :req {:severity (coerce/enum :error :warning)
                                                      :message string-or-message-pattern-coercer})
                               absent-coercer)
-                    :types ["table"]
+                    :types ["{ severity:editor.ui.ISSUE_SEVERITY, message:string|editor.message }|false"]
                     :doc (str "issue related to the input; table with the following keys (all required):"
                               (lua-completion/args-doc-html
                                 [{:name "severity"
-                                  :types ["string"]
+                                  :types ["editor.ui.ISSUE_SEVERITY"]
                                   :doc "either <code>editor.ui.ISSUE_SEVERITY.WARNING</code> or <code>editor.ui.ISSUE_SEVERITY.ERROR</code>"}
                                  {:name "message"
                                   :types ["string" "editor.message"]
@@ -393,11 +393,11 @@
               :doc "OS dialog window title, either a string or a localization message")
    (make-prop :header
               :coerce child-coercer
-              :types ["editor.component"]
+              :types ["editor.component" "false"]
               :doc "top part of the dialog, defaults to <code>editor.ui.heading({text = props.title})</code>")
    (make-prop :content
               :coerce child-coercer
-              :types ["editor.component"]
+              :types ["editor.component" "false"]
               :doc "content of the dialog")
    (make-prop :width
               :coerce positive-number-coercer
@@ -410,7 +410,7 @@
               :doc "determines if the dialog window can be resized by the user")
    (make-prop :buttons
               :coerce children-coercer
-              :types ["editor.component[]"]
+              :types ["(editor.component|false)[]"]
               :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")
    (make-prop :modal
               :coerce coerce/boolean
@@ -443,7 +443,10 @@
   (into [(make-prop :value :coerce coerce/string :doc "file or directory path; resolved against project root if relative")
          (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive the absolute path of a selected file/folder or nil if the field was cleared; even though the selector dialog allows selecting only files, it's possible to receive directories and non-existent file system entries using text field input")
          (make-prop :title :types ["string" "editor.message"] :coerce string-or-message-pattern-coercer :doc external-file-dialog-title-doc)
-         (make-prop :filters :coerce external-file-dialog-filters-coercer :doc external-file-dialog-filters-doc)]
+         (make-prop :filters
+                    :coerce external-file-dialog-filters-coercer
+                    :types ["{ description:string|editor.message, extensions:string[] }[]"]
+                    :doc external-file-dialog-filters-doc)]
         input-with-issue-props))
 ;; endregion
 
@@ -616,7 +619,17 @@
      :type :function
      :description description
      :parameters [{:name "props"
-                   :types ["table"]
+                   :types [(str "{ "
+                                (string/join
+                                  ", "
+                                  (into []
+                                        (map (fn [{:keys [name required types]}]
+                                               (str (clojure.core/name name)
+                                                    (when-not required "?")
+                                                    ":"
+                                                    (group-doc-types types))))
+                                        props))
+                                " }")]
                    :doc (str (when-not (coll/empty? req)
                                (str "Required props:\n"
                                     (props-doc-html req)
@@ -655,7 +668,7 @@
    :type :function
    :description "Show a modal OS file selection dialog and await a result"
    :parameters [{:name "[opts]"
-                 :types ["table"]
+                 :types ["{ path?:string, title?:string|editor.message, filters?:{ description:string|editor.message, extensions:string[] }[] }"]
                  :doc (lua-completion/args-doc-html
                         [{:name "path"
                           :types ["string"]
@@ -664,7 +677,7 @@
                           :types ["string" "editor.message"]
                           :doc external-file-dialog-title-doc}
                          {:name "filters"
-                          :types ["table[]"]
+                          :types ["{ description:string|editor.message, extensions:string[] }[]"]
                           :doc external-file-dialog-filters-doc}])}]
    :returnvalues [{:name "value"
                    :types ["string" "nil"]
@@ -675,7 +688,7 @@
    :type :function
    :description "Show a modal OS directory selection dialog and await a result"
    :parameters [{:name "[opts]"
-                 :types ["table"]
+                 :types ["{ path?:string, title?:string|editor.message }"]
                  :doc (lua-completion/args-doc-html
                         [{:name "path"
                           :types ["string"]
@@ -698,7 +711,7 @@
    :type :function
    :description "Show a modal resource selection dialog and await a result"
    :parameters [{:name "[opts]"
-                 :types ["table"]
+                 :types ["{ extensions?:string[], selection?:string, title?:string|editor.message }"]
                  :doc (lua-completion/args-doc-html
                         [{:name "extensions"
                           :types ["string[]"]

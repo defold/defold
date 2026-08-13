@@ -110,7 +110,7 @@ namespace dmGameSystem
     *
     * @name image.load
     * @param buffer [type:string] image data buffer
-    * @param [options] [type:table] An optional table containing parameters for loading the image. Supported entries:
+    * @param [options] [type:boolean|{ premultiply_alpha?:boolean, flip_vertically?:boolean }] Optional loading parameters. A boolean is accepted for backwards compatibility and controls `premultiply_alpha`.
     *
     * `premultiply_alpha`
     * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.
@@ -212,7 +212,7 @@ namespace dmGameSystem
     *
     * @name image.load_buffer
     * @param buffer [type:string] image data buffer
-    * @param [options] [type:table] An optional table containing parameters for loading the image. Supported entries:
+    * @param [options] [type:boolean|{ premultiply_alpha?:boolean, flip_vertically?:boolean }] Optional loading parameters. A boolean is accepted for backwards compatibility and controls `premultiply_alpha`.
     *
     * `premultiply_alpha`
     * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.

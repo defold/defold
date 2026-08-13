@@ -228,8 +228,8 @@ namespace dmGameSystem
      *
      * @name collectionproxy.load
      * @param url [type:string|hash|url] the collection proxy component
-     * @param options [type:table|nil] options table, currently unused
-     * @param callback [type:function(self, message_id, message, sender)] callback
+     * @param options [type:{}|nil] options table, currently unused
+     * @param callback [type:fun(self:any, message_id:hash, message:{ progress?:number, code?:integer }, sender:url)] callback
      * @examples
      *
      * ```lua
@@ -344,7 +344,7 @@ namespace dmGameSystem
      * @message
      * @name set_time_step
      * @param factor [type:number] time-step scaling factor
-     * @param mode [type:number] time-step mode: 0 for continuous and 1 for discrete
+     * @param mode [type:integer] time-step mode: 0 for continuous and 1 for discrete
      * @examples
      *
      * The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".

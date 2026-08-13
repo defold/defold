@@ -165,9 +165,9 @@ namespace dmGameSystem
      * @name tilemap.set_tile
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @param tile [type:number] index of new tile to set. 0 resets the cell
+     * @param x [type:integer] x-coordinate of the tile
+     * @param y [type:integer] y-coordinate of the tile
+     * @param tile [type:integer] index of new tile to set. 0 resets the cell
      * @param [transform_bitmask] [type:tilemap.TRANSFORM] optional flip and/or rotation should be applied to the tile
      * @examples
      *
@@ -379,9 +379,9 @@ namespace dmGameSystem
      * @name tilemap.get_tile
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @return tile [type:number] index of the tile
+     * @param x [type:integer] x-coordinate of the tile
+     * @param y [type:integer] y-coordinate of the tile
+     * @return tile [type:integer] index of the tile
      * @examples
      *
      * ```lua
@@ -404,9 +404,9 @@ namespace dmGameSystem
      * @name tilemap.get_tile_info
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @return tile_info [type:table] index of the tile
+     * @param x [type:integer] x-coordinate of the tile
+     * @param y [type:integer] y-coordinate of the tile
+     * @return tile_info [type:{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }] full tile information
      * @examples
      *
      * ```lua
@@ -435,7 +435,7 @@ namespace dmGameSystem
      * @name tilemap.get_tiles
      * @param url [type:string|hash|url] the tilemap
      * @param layer [type:string|hash] the name of the layer for the tiles
-     * @return tiles [type:table] a table of rows representing the layer
+     * @return tiles [type:table<integer, table<integer, integer>>] a table of rows representing the layer
      * @examples
      *
      * ```lua
@@ -505,10 +505,10 @@ namespace dmGameSystem
      *
      * @name tilemap.get_bounds
      * @param url [type:string|hash|url] the tile map
-     * @return x [type:number] x coordinate of the bottom left corner
-     * @return y [type:number] y coordinate of the bottom left corner
-     * @return w [type:number] number of columns (width) in the tile map
-     * @return h [type:number] number of rows (height) in the tile map
+     * @return x [type:integer] x coordinate of the bottom left corner
+     * @return y [type:integer] y coordinate of the bottom left corner
+     * @return w [type:integer] number of columns (width) in the tile map
+     * @return h [type:integer] number of rows (height) in the tile map
      * @examples
      *
      * ```lua

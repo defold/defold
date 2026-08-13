@@ -797,21 +797,21 @@ namespace dmGameSystem
 /*# Overlap an AABB.
  * @name b2d.world.overlap_aabb
  * @param world [type: b2World] world from `b2d.get_world` or `b2d.body.get_world`
- * @param aabb [type: table] table with `lower` and `upper` vector3 fields
- * @param filter [type: table] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
- * @param max_results [type: number] optional maximum result count
- * @return fixtures [type: table] array of fixture info tables
- * @return stats [type: table] table with `node_visits` and `leaf_visits`
+ * @param aabb [type:b2d.aabb] table with `lower` and `upper` vector3 fields
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
+ * @param [max_results] [type:integer] optional maximum result count
+ * @return fixtures [type:b2d.fixture_info[]] array of fixture info tables
+ * @return stats [type:b2d.tree_stats] table with `node_visits` and `leaf_visits`
  */
 
 /*# Overlap a shape.
  * @name b2d.world.overlap_shape
  * @param world [type: b2World] world from `b2d.get_world` or `b2d.body.get_world`
- * @param shape [type: table] shape table using the same format as the `shape` field in `b2d.body.create_fixture`
- * @param filter [type: table] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
- * @param max_results [type: number] optional maximum result count
- * @return fixtures [type: table] array of fixture info tables
- * @return stats [type: table] table with `node_visits` and `leaf_visits`
+ * @param shape [type:b2d.shape.definition] shape table using the same format as the `shape` field in `b2d.body.create_fixture`
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
+ * @param [max_results] [type:integer] optional maximum result count
+ * @return fixtures [type:b2d.fixture_info[]] array of fixture info tables
+ * @return stats [type:b2d.tree_stats] table with `node_visits` and `leaf_visits`
  */
 
 /*# Cast a ray.
@@ -819,10 +819,10 @@ namespace dmGameSystem
  * @param world [type: b2World] world from `b2d.get_world` or `b2d.body.get_world`
  * @param origin [type: vector3] world ray origin
  * @param translation [type: vector3] world ray translation
- * @param filter [type: table] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
- * @param max_results [type: number] optional maximum result count
- * @return hits [type: table] array of hit tables with `fixture`, `shape`, `point`, `normal`, and `fraction`
- * @return stats [type: table] table with `node_visits` and `leaf_visits`
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
+ * @param [max_results] [type:integer] optional maximum result count
+ * @return hits [type:b2d.fixture_cast_hit[]] array of hit tables with `fixture`, `shape`, `point`, `normal`, and `fraction`
+ * @return stats [type:b2d.tree_stats] table with `node_visits` and `leaf_visits`
  */
 
 /*# Cast a ray and return the closest hit.
@@ -830,8 +830,8 @@ namespace dmGameSystem
  * @param world [type: b2World] world from `b2d.get_world` or `b2d.body.get_world`
  * @param origin [type: vector3] world ray origin
  * @param translation [type: vector3] world ray translation
- * @param filter [type: table] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
- * @return hit [type: table] hit table with `fixture`, `shape`, `point`, `normal`, `fraction`, `node_visits`, and `leaf_visits`, or nil
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
+ * @return hit [type:b2d.fixture_cast_hit|nil] hit table with `fixture`, `shape`, `point`, `normal`, `fraction`, `node_visits`, and `leaf_visits`, or nil
  */
 
 /*# Cast a shape.
@@ -839,10 +839,10 @@ namespace dmGameSystem
  * Grid fixture children are skipped.
  * @name b2d.world.cast_shape
  * @param world [type: b2World] world from `b2d.get_world` or `b2d.body.get_world`
- * @param shape [type: table] shape table using the same format as the `shape` field in `b2d.body.create_fixture`
+ * @param shape [type:b2d.shape.definition] shape table using the same format as the `shape` field in `b2d.body.create_fixture`
  * @param translation [type: vector3] world shape translation
- * @param filter [type: table] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
- * @param max_results [type: number] optional maximum result count
- * @return hits [type: table] array of hit tables with `fixture`, `shape`, `point`, `normal`, and `fraction`
- * @return stats [type: table] table with `node_visits` and `leaf_visits`
+ * @param [filter] [type:b2d.query_filter] optional query filter with `category_bits`, `mask_bits`, and optional `group_index`
+ * @param [max_results] [type:integer] optional maximum result count
+ * @return hits [type:b2d.fixture_cast_hit[]] array of hit tables with `fixture`, `shape`, `point`, `normal`, and `fraction`
+ * @return stats [type:b2d.tree_stats] table with `node_visits` and `leaf_visits`
  */

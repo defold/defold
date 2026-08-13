@@ -45,11 +45,22 @@ namespace dmCrash
     /*# System crash fields
      * @enum
      * @name crash.SYSFIELD
+     * @member crash.SYSFIELD_ENGINE_VERSION
+     * @member crash.SYSFIELD_ENGINE_HASH
+     * @member crash.SYSFIELD_DEVICE_MODEL
+     * @member crash.SYSFIELD_MANUFACTURER
+     * @member crash.SYSFIELD_SYSTEM_NAME
+     * @member crash.SYSFIELD_SYSTEM_VERSION
+     * @member crash.SYSFIELD_LANGUAGE
+     * @member crash.SYSFIELD_DEVICE_LANGUAGE
+     * @member crash.SYSFIELD_TERRITORY
+     * @member crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT
      */
 
-    /*# User crash fields
-     * @enum
+    /*# User crash-field slot index
+     * @typedef
      * @name crash.USERFIELD
+     * @param value [type:integer]
      */
 
     static HDump CheckHandle(lua_State* L, int index)
@@ -275,7 +286,7 @@ namespace dmCrash
      *
      * @name crash.get_backtrace
      * @param handle [type:number] crash dump handle
-     * @return backtrace [type:table] table containing the backtrace
+     * @return backtrace [type:string[]] table containing the backtrace
      */
     static int Crash_GetBacktrace(lua_State* L)
     {
@@ -414,7 +425,7 @@ namespace dmCrash
         /*# The max number of sysfields.
          *
          * @name crash.SYSFIELD_MAX
-         * @constant
+         * @constant [type:integer]
          */
         SETCONSTANT(SYSFIELD_MAX);
 
@@ -428,14 +439,14 @@ namespace dmCrash
         /*# The max number of user fields.
          *
          * @name crash.USERFIELD_MAX
-         * @constant
+         * @constant [type:integer]
          */
         SETCUSTOMCONSTANT(USERFIELD_MAX, AppState::USERDATA_SLOTS);
 
         /*# The max size of a single user field.
          *
          * @name crash.USERFIELD_SIZE
-         * @constant
+         * @constant [type:integer]
          */
         SETCUSTOMCONSTANT(USERFIELD_SIZE, AppState::USERDATA_SIZE-1);
 

@@ -277,7 +277,7 @@ namespace dmGameSystem
      * : [type:hash] The name of the completion message, `"model_animation_done"`.
      *
      * `message`
-     * : [type:table] Information about the completion:
+     * : [type:message.model.model_animation_done] Information about the completion:
      *
      * - [type:hash] `animation_id` - the animation that was completed.
      * - [type:go.PLAYBACK] `playback` - the playback mode for the animation.
@@ -608,7 +608,7 @@ namespace dmGameSystem
      *
      * @name model.get_aabb
      * @param url [type:string|hash|url] the model
-     * @return aabb [type:table] A table containing AABB of the model. If model has no meshes - return vmath.vector3(0,0,0) for min and max fields.
+     * @return aabb [type:{ min:vector3, max:vector3 }] A table containing AABB of the model. If model has no meshes - return vmath.vector3(0,0,0) for min and max fields.
      * @examples
      *
      * ```lua
@@ -645,7 +645,7 @@ namespace dmGameSystem
      *
      * @name model.get_mesh_aabb
      * @param url [type:string|hash|url] the model
-     * @return aabb [type:table] A table containing info about all AABB in the format <hash(mesh_id), aabb_info>
+     * @return aabb [type:table<hash, { min:vector3, max:vector3 }>] A table containing info about all AABB in the format <hash(mesh_id), aabb_info>
      * @examples
      *
      * ```lua
@@ -690,7 +690,7 @@ namespace dmGameSystem
      *
      * @name model.get_blend_weights
      * @param url [type:string|hash|url] the model component
-     * @return weights [type:table] array of weight values, or empty table if the model has no morph targets
+     * @return weights [type:number[]] array of weight values, or empty table if the model has no morph targets
      * @examples
      *
      * ```lua
@@ -743,7 +743,7 @@ namespace dmGameSystem
      *
      * @name model.set_blend_weights
      * @param url [type:string|hash|url] the model component
-     * @param weights [type:table|nil] array of weight values (1-based indices). Omit or pass `nil` to clear the override and return morphs to animation only
+     * @param [weights] [type:number[]|nil] array of weight values (1-based indices). Omit or pass `nil` to clear the override and return morphs to animation only
      * @examples
      *
      * ```lua

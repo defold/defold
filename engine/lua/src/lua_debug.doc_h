@@ -151,7 +151,7 @@
  * 
  * @name debug.setfenv
  * @param object [type:any]
- * @param table [type:table]
+ * @param table [type:table<any, any>]
  */
 
 /*# sets a debug hook function
@@ -230,7 +230,7 @@
  * 
  * @name debug.setmetatable
  * @param object [type:any]
- * @param table [type:table]
+ * @param table [type:table<any, any>|nil]
  */
 
 /*# sets an upvalue for a function
@@ -263,4 +263,3 @@
  * @param [message] [type:string]
  * @param [level] [type:number]
  */
-

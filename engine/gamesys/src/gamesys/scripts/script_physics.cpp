@@ -293,8 +293,8 @@ namespace dmGameSystem
      * @name physics.raycast_async
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
-     * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] [type:number] a number in range [0,255]. It will be sent back in the response for identification, 0 by default
+     * @param groups [type:hash[]] a lua table containing the hashed groups for which to test collisions against
+     * @param [request_id] [type:integer] a number in range [0,255]. It will be sent back in the response for identification, 0 by default
      * @examples
      *
      * How to perform a ray cast asynchronously:
@@ -407,7 +407,7 @@ namespace dmGameSystem
      * @name physics.raycast
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
-     * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
+     * @param groups [type:hash[]] a lua table containing the hashed groups for which to test collisions against
      * @param [options] [type:{ all?:boolean }] a lua table containing options for the raycast.
      *
      * `all`
@@ -683,6 +683,53 @@ namespace dmGameSystem
         return;
     }
 
+    /*# configurable joint properties
+     * The available fields depend on the joint type.
+     * @struct
+     * @name physics.joint_properties
+     * @member collide_connected? [type:boolean] whether the connected objects should collide
+     * @member length? [type:number] spring length
+     * @member frequency? [type:number] spring frequency
+     * @member damping? [type:number] damping ratio
+     * @member max_length? [type:number] fixed-joint maximum length
+     * @member local_axis_a? [type:vector3] local joint axis
+     * @member reference_angle? [type:number] reference angle
+     * @member lower_angle? [type:number] lower angular limit
+     * @member upper_angle? [type:number] upper angular limit
+     * @member lower_translation? [type:number] lower translation limit
+     * @member upper_translation? [type:number] upper translation limit
+     * @member max_motor_torque? [type:number] maximum motor torque
+     * @member max_motor_force? [type:number] maximum motor force
+     * @member motor_speed? [type:number] motor speed
+     * @member enable_limit? [type:boolean] whether limits are enabled
+     * @member enable_motor? [type:boolean] whether the motor is enabled
+     */
+
+    /*# returned joint properties
+     * The available optional fields depend on the joint type.
+     * @struct
+     * @name physics.joint_properties_info
+     * @member collide_connected [type:boolean] whether the connected objects collide
+     * @member length? [type:number] spring length
+     * @member frequency? [type:number] spring frequency
+     * @member damping? [type:number] damping ratio
+     * @member max_length? [type:number] fixed-joint maximum length
+     * @member local_axis_a? [type:vector3] local joint axis
+     * @member reference_angle? [type:number] reference angle
+     * @member lower_angle? [type:number] lower angular limit
+     * @member upper_angle? [type:number] upper angular limit
+     * @member lower_translation? [type:number] lower translation limit
+     * @member upper_translation? [type:number] upper translation limit
+     * @member max_motor_torque? [type:number] maximum motor torque
+     * @member max_motor_force? [type:number] maximum motor force
+     * @member motor_speed? [type:number] motor speed
+     * @member enable_limit? [type:boolean] whether limits are enabled
+     * @member enable_motor? [type:boolean] whether the motor is enabled
+     * @member joint_angle? [type:number] current joint angle
+     * @member joint_speed? [type:number] current joint speed
+     * @member joint_translation? [type:number] current joint translation
+     */
+
     /*# create a physics joint
      *
      * Create a physics joint between two collision object components.
@@ -696,7 +743,7 @@ namespace dmGameSystem
      * @param position_a [type:vector3] local position where to attach the joint on the first collision object
      * @param collisionobject_b [type:string|hash|url] second collision object
      * @param position_b [type:vector3] local position where to attach the joint on the second collision object
-     * @param [properties] [type:table] optional joint specific properties table
+     * @param [properties] [type:physics.joint_properties] optional joint specific properties table
      *
      * See each joint type for possible properties field. The one field that is accepted for all joint types is:
      * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
@@ -782,7 +829,7 @@ namespace dmGameSystem
      * @name physics.get_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @return properties [type:{ collide_connected?:boolean }] properties table. See the joint types for what fields are available, the only field available for all types is:
+     * @return properties [type:physics.joint_properties_info] properties table. See the joint types for what fields are available, the only field available for all types is:
      *
      * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
      *
@@ -894,7 +941,7 @@ namespace dmGameSystem
      * @name physics.set_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @param properties [type:table] joint specific properties table
+     * @param properties [type:physics.joint_properties] joint specific properties table
      *
      * Note: The `collide_connected` field cannot be updated/changed after a connection has been made.
      *
@@ -1352,10 +1399,10 @@ namespace dmGameSystem
      * @name physics.get_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @return table [type:{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] A table containing meta data about the physics shape
+     * @return table [type:{ type:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] A table containing meta data about the physics shape
      *
      * `type`
-     * : [type:number] The shape type. Supported values:
+     * : [type:physics.SHAPE_TYPE] The shape type. Supported values:
      *
      * - `physics.SHAPE_TYPE_SPHERE`
      * - `physics.SHAPE_TYPE_BOX`
@@ -1450,7 +1497,7 @@ namespace dmGameSystem
      * @name physics.set_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @param table [type:{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] the shape data to update the shape with.
+     * @param table [type:{ type:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] the shape data to update the shape with.
      *
      * See [ref:physics.get_shape] for a detailed description of each field in the data table.
      *
@@ -1564,7 +1611,7 @@ namespace dmGameSystem
      * : [type:object] The calling script
      *
      * `events`
-     * : [type:table] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:
+     * : [type:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[]] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:
      *
      * - [ref:contact_point_event]
      * - [ref:collision_event]

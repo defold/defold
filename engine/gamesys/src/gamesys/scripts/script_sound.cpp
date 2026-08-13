@@ -456,7 +456,7 @@ namespace dmGameSystem
      * : [type:hash] The name of the completion message, which can be either `"sound_done"` if the sound has finished playing, or `"sound_stopped"` if it was stopped manually.
      *
      * `message`
-     * : [type:table] Information about the completion:
+     * : [type:message.sound.sound_done|message.sound.sound_stopped] Information about the completion:
      *
      * - [type:number] `play_id` - the sequential play identifier that was given by the sound.play function.
      *

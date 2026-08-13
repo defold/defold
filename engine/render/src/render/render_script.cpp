@@ -65,6 +65,17 @@ namespace dmRender
      * @name render.SORT
      */
 
+    /*# Render-target creation flags
+     * @enum
+     * @name render.RENDER_TARGET_FLAG
+     * @member render.TEXTURE_BIT
+     */
+
+    /*# Create a texture-backed depth or stencil attachment
+     * @name render.TEXTURE_BIT
+     * @constant [type:render.RENDER_TARGET_FLAG]
+     */
+
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
     #define RENDER_SCRIPT "RenderScript"
 
@@ -397,7 +408,7 @@ namespace dmRender
     /*# Render target
      * @typedef
      * @name render_target
-     * @param value [type:string|userdata]
+     * @param value [type:number]
      */
 
     /*# Texture handle
@@ -790,10 +801,10 @@ namespace dmRender
      * Set the render viewport to the specified rectangle.
      *
      * @name render.set_viewport
-     * @param x [type:number] left corner
-     * @param y [type:number] bottom corner
-     * @param width [type:number] viewport width
-     * @param height [type:number] viewport height
+     * @param x [type:integer] left corner
+     * @param y [type:integer] bottom corner
+     * @param width [type:integer] viewport width
+     * @param height [type:integer] viewport height
      * @examples
      *
      * ```lua
@@ -825,8 +836,8 @@ namespace dmRender
      * Key                     | Values
      * ----------------------- | ----------------------------
      * `format`                |  `graphics.TEXTURE_FORMAT_LUMINANCE`<br/>`graphics.TEXTURE_FORMAT_RGB`<br/>`graphics.TEXTURE_FORMAT_RGBA`<br/>`graphics.TEXTURE_FORMAT_DEPTH`<br/>`graphics.TEXTURE_FORMAT_STENCIL`<br/>`graphics.TEXTURE_FORMAT_RGBA32F`<br/>`graphics.TEXTURE_FORMAT_RGBA16F`<br/>
-     * `width`                 | number
-     * `height`                | number
+     * `width`                 | integer
+     * `height`                | integer
      * `min_filter` (optional) | `graphics.TEXTURE_FILTER_LINEAR`<br/>`graphics.TEXTURE_FILTER_NEAREST`
      * `mag_filter` (optional) | `graphics.TEXTURE_FILTER_LINEAR`<br/>`graphics.TEXTURE_FILTER_NEAREST`
      * `u_wrap`     (optional) | `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`<br/>`graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`<br/>`graphics.TEXTURE_WRAP_MIRRORED_REPEAT`<br/>`graphics.TEXTURE_WRAP_REPEAT`<br/>
@@ -848,8 +859,7 @@ namespace dmRender
      * ```
      *
      * @name render.render_target
-     * @param name [type:string] render target name
-     * @param parameters [type:table<number, { format:graphics.TEXTURE_FORMAT, width:number, height:number, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:number }>] table of buffer parameters, see the description for available keys and values
+     * @param parameters [type:table<graphics.BUFFER_TYPE, { format:graphics.TEXTURE_FORMAT, width:integer, height:integer, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:render.RENDER_TARGET_FLAG }>] table of buffer parameters, see the description for available keys and values
      * @return render_target [type:render_target] new render target
      * @examples
      *
@@ -1181,7 +1191,7 @@ namespace dmRender
 
     /*#
      * @name render.RENDER_TARGET_DEFAULT
-     * @constant
+     * @constant [type:render_target]
      */
 
     /*# sets a render target
@@ -1191,11 +1201,11 @@ namespace dmRender
      * This function supports render targets created by a render script, or a render target resource.
      *
      * @name render.set_render_target
-     * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
+     * @param [render_target] [type:render_target|string|hash|nil] render target to set. Omit it, pass `nil`, or use render.RENDER_TARGET_DEFAULT to set the default render target
      * @param [options] [type:{ transient?:graphics.BUFFER_TYPE[] }] optional table with behaviour parameters
      *
      * `transient`
-     * : [type:table] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
+     * : [type:graphics.BUFFER_TYPE[]] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
      *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and when this is the case both are considered non-transient if exclusively selected!
      *  A buffer type defined that doesn't exist in the render target is silently ignored.
      *
@@ -1279,9 +1289,9 @@ namespace dmRender
      * either a render script, or from a render target resource.
      *
      * @name render.set_render_target_size
-     * @param render_target [type:render_target] render target to set size for
-     * @param width [type:number] new render target width
-     * @param height [type:number] new render target height
+     * @param render_target [type:render_target|string|hash] render target to set size for
+     * @param width [type:integer] new render target width
+     * @param height [type:integer] new render target height
      * @examples
      *
      * Resize render targets to the current window size:
@@ -1517,7 +1527,7 @@ namespace dmRender
      * Returns the specified buffer width from a render target.
      *
      * @name render.get_render_target_width
-     * @param render_target [type:render_target] render target from which to retrieve the buffer width
+     * @param render_target [type:render_target|string|hash] render target from which to retrieve the buffer width
      * @param buffer_type [type:graphics.BUFFER_TYPE] which type of buffer to retrieve the width from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
@@ -1525,7 +1535,7 @@ namespace dmRender
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
-     * @return width [type:number] the width of the render target buffer texture
+     * @return width [type:integer] the width of the render target buffer texture
      * @examples
      *
      * ```lua
@@ -1557,14 +1567,14 @@ namespace dmRender
      * Returns the specified buffer height from a render target.
      *
      * @name render.get_render_target_height
-     * @param render_target [type:render_target] render target from which to retrieve the buffer height
+     * @param render_target [type:render_target|string|hash] render target from which to retrieve the buffer height
      * @param buffer_type [type:graphics.BUFFER_TYPE] which type of buffer to retrieve the height from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
-     * @return height [type:number] the height of the render target buffer texture
+     * @return height [type:integer] the height of the render target buffer texture
      * @examples
      *
      * ```lua
@@ -1686,7 +1696,7 @@ namespace dmRender
      * [ref:go.set] (or [ref:particlefx.set_constant]) on visual components.
      *
      * @name render.draw
-     * @param predicate [type:number] predicate to draw for
+     * @param predicate [type:render_predicate] predicate to draw for
      * @param [options] [type:{ frustum?:matrix4, frustum_planes?:render.FRUSTUM_PLANES, constants?:constant_buffer, sort_order?:render.SORT }] optional table with properties:
      *
      * `frustum`
@@ -2161,8 +2171,8 @@ namespace dmRender
      * Sets the blend equation with separate equations for the color and alpha channels.
      *
      * @name render.set_blend_equation_separate
-     * @param equation_color [type:number] color blend equation
-     * @param equation_alpha [type:number] alpha blend equation
+     * @param equation_color [type:graphics.BLEND_EQUATION] color blend equation
+     * @param equation_alpha [type:graphics.BLEND_EQUATION] alpha blend equation
      * @examples
      *
      * Set add for color and reverse subtract for alpha:
@@ -2593,7 +2603,7 @@ namespace dmRender
      * or user input.
      *
      * @name render.get_width
-     * @return width [type:number] specified window width (number)
+     * @return width [type:integer] specified window width
      * @examples
      *
      * Get the width of the window.
@@ -2617,7 +2627,7 @@ namespace dmRender
      * or user input.
      *
      * @name render.get_height
-     * @return height [type:number] specified window height
+     * @return height [type:integer] specified window height
      * @examples
      *
      * Get the height of the window
@@ -2641,7 +2651,7 @@ namespace dmRender
      * "game.project" settings.
      *
      * @name render.get_window_width
-     * @return width [type:number] actual window width
+     * @return width [type:integer] actual window width
      * @examples
      *
      * Get the actual width of the window
@@ -2665,7 +2675,7 @@ namespace dmRender
      * "game.project" settings.
      *
      * @name render.get_window_height
-     * @return height [type:number] actual window height
+     * @return height [type:integer] actual window height
      * @examples
      *
      * Get the actual height of the window
@@ -2693,7 +2703,7 @@ namespace dmRender
      *
      * @name render.predicate
      * @param tags [type:(string|hash)[]] table of tags that the predicate should match. The tags can be of either hash or string type
-     * @return predicate [type:number] new predicate
+     * @return predicate [type:render_predicate] new predicate
      * @examples
      *
      * Create a new render predicate containing all visual objects that
@@ -2947,10 +2957,10 @@ namespace dmRender
      * system constants buffer is used containing constants as defined in the compute program.
      *
      * @name render.dispatch_compute
-     * @param x [type:number] global work group size X
-     * @param y [type:number] global work group size Y
-     * @param z [type:number] global work group size Z
-     * @param [options] [type:table] optional table with properties:
+     * @param x [type:integer] global work group size X
+     * @param y [type:integer] global work group size Y
+     * @param z [type:integer] global work group size Z
+     * @param [options] [type:{ constants?:constant_buffer }] optional table with properties:
      *
      * `constants`
      * : [type:constant_buffer] optional constants to use while rendering
@@ -3057,7 +3067,7 @@ namespace dmRender
     * : [type:object] The render script
     *
     * `event_type`
-    * : [type:string] Rendering event. Possible values: `render.CONTEXT_EVENT_CONTEXT_LOST`, `render.CONTEXT_EVENT_CONTEXT_RESTORED`
+    * : [type:render.CONTEXT_EVENT] Rendering event. Possible values: `render.CONTEXT_EVENT_CONTEXT_LOST`, `render.CONTEXT_EVENT_CONTEXT_RESTORED`
     *
     * @examples
     *
@@ -3194,7 +3204,7 @@ namespace dmRender
 
 #undef REGISTER_SORT_ORDER_CONSTANT
 
-        // Flags (only flag here currently, so no need for an enum)
+        // Render-target creation flags
         lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
         lua_setfield(L, -2, "TEXTURE_BIT");
 

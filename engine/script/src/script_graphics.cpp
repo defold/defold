@@ -50,14 +50,34 @@ namespace dmScript
      * @name graphics.BLEND_FACTOR
      */
 
+    /*# Blend equations
+     * @enum
+     * @name graphics.BLEND_EQUATION
+     */
+
     /*# Buffer types
      * @enum
      * @name graphics.BUFFER_TYPE
      */
 
+    /*# Vertex attribute data types
+     * @enum
+     * @name graphics.DATA_TYPE
+     */
+
     /*# Comparison functions
      * @enum
      * @name graphics.COMPARE_FUNC
+     */
+
+    /*# Vertex attribute coordinate spaces
+     * @enum
+     * @name graphics.COORDINATE_SPACE
+     */
+
+    /*# Optional graphics-context features
+     * @enum
+     * @name graphics.CONTEXT_FEATURE
      */
 
     /*# Texture compression types
@@ -73,6 +93,11 @@ namespace dmScript
     /*# Graphics states
      * @enum
      * @name graphics.STATE
+     */
+
+    /*# Vertex attribute semantic types
+     * @enum
+     * @name graphics.SEMANTIC_TYPE
      */
 
     /*# Stencil operations
@@ -105,6 +130,155 @@ namespace dmScript
      * @name graphics.TEXTURE_WRAP
      */
 
+    /*# Graphics context limits
+     * @struct
+     * @name graphics.adapter_limits
+     * @member max_texture_size_2d [type:integer] Maximum 2D texture dimension in texels.
+     * @member max_texture_size_3d [type:integer] Maximum 3D texture dimension in texels.
+     * @member max_texture_size_cube [type:integer] Maximum cube-map face dimension in texels.
+     * @member max_texture_array_layers [type:integer] Maximum number of array texture layers.
+     * @member max_framebuffer_width [type:integer] Maximum framebuffer width in pixels.
+     * @member max_framebuffer_height [type:integer] Maximum framebuffer height in pixels.
+     * @member max_color_attachments [type:integer] Maximum number of simultaneous color attachments.
+     * @member max_samplers_per_stage [type:integer] Maximum number of texture samplers per shader stage.
+     * @member max_textures_per_stage [type:integer] Maximum number of sampled textures per shader stage.
+     * @member max_vertex_attributes [type:integer] Maximum number of vertex attributes.
+     * @member max_vertex_buffers [type:integer] Maximum number of vertex-buffer bindings.
+     * @member max_compute_workgroup_size_x [type:integer] Maximum compute workgroup size on the X axis.
+     * @member max_compute_workgroup_size_y [type:integer] Maximum compute workgroup size on the Y axis.
+     * @member max_compute_workgroup_size_z [type:integer] Maximum compute workgroup size on the Z axis.
+     * @member max_compute_workgroup_invocations [type:integer] Maximum invocations per compute workgroup.
+     * @member max_compute_shared_memory_size [type:integer] Maximum shared memory per compute workgroup in bytes.
+     * @member max_uniform_buffer_range [type:integer] Maximum bindable uniform-buffer range in bytes.
+     * @member max_storage_buffer_range [type:integer] Maximum bindable storage-buffer range in bytes.
+     */
+
+    /*# Graphics adapter information
+     * @struct
+     * @name graphics.adapter_info
+     * @member family [type:string] Adapter family name.
+     * @member version_major [type:integer] Adapter API major version.
+     * @member version_minor [type:integer] Adapter API minor version.
+     * @member limits [type:graphics.adapter_limits] Hardware and driver limits.
+     * @member extensions [type:string[]] Driver-reported extension names.
+     * @member features [type:graphics.CONTEXT_FEATURE[]] Supported optional context features.
+     */
+
+    /*# Signed 8-bit vertex attribute data.
+     * @name graphics.DATA_TYPE_BYTE
+     * @constant
+     */
+
+    /*# Unsigned 8-bit vertex attribute data.
+     * @name graphics.DATA_TYPE_UNSIGNED_BYTE
+     * @constant
+     */
+
+    /*# Signed 16-bit vertex attribute data.
+     * @name graphics.DATA_TYPE_SHORT
+     * @constant
+     */
+
+    /*# Unsigned 16-bit vertex attribute data.
+     * @name graphics.DATA_TYPE_UNSIGNED_SHORT
+     * @constant
+     */
+
+    /*# Signed 32-bit vertex attribute data.
+     * @name graphics.DATA_TYPE_INT
+     * @constant
+     */
+
+    /*# Unsigned 32-bit vertex attribute data.
+     * @name graphics.DATA_TYPE_UNSIGNED_INT
+     * @constant
+     */
+
+    /*# 32-bit floating-point vertex attribute data.
+     * @name graphics.DATA_TYPE_FLOAT
+     * @constant
+     */
+
+    /*# Default vertex attribute coordinate space.
+     * @name graphics.COORDINATE_SPACE_DEFAULT
+     * @constant
+     */
+
+    /*# World vertex attribute coordinate space.
+     * @name graphics.COORDINATE_SPACE_WORLD
+     * @constant
+     */
+
+    /*# Local vertex attribute coordinate space.
+     * @name graphics.COORDINATE_SPACE_LOCAL
+     * @constant
+     */
+
+    /*# Vertex attribute without a predefined semantic.
+     * @name graphics.SEMANTIC_TYPE_NONE
+     * @constant
+     */
+
+    /*# Position vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_POSITION
+     * @constant
+     */
+
+    /*# Texture-coordinate vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_TEXCOORD
+     * @constant
+     */
+
+    /*# Texture page-index vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_PAGE_INDEX
+     * @constant
+     */
+
+    /*# Color vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_COLOR
+     * @constant
+     */
+
+    /*# Normal vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_NORMAL
+     * @constant
+     */
+
+    /*# Tangent vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_TANGENT
+     * @constant
+     */
+
+    /*# World-matrix vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_WORLD_MATRIX
+     * @constant
+     */
+
+    /*# Normal-matrix vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_NORMAL_MATRIX
+     * @constant
+     */
+
+    /*# Bone-weight vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_BONE_WEIGHTS
+     * @constant
+     */
+
+    /*# Bone-index vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_BONE_INDICES
+     * @constant
+     */
+
+    /*# 2D texture-transform vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D
+     * @constant
+     */
+
+    /*# Morph-target-weight vertex attribute.
+     * @name graphics.SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS
+     * @constant
+     */
+
     /*#
      * @name graphics.BUFFER_TYPE_COLOR0_BIT
      * @constant
@@ -123,19 +297,19 @@ namespace dmScript
     /*#
      * May be nil if multitarget rendering isn't supported
      * @name graphics.BUFFER_TYPE_COLOR1_BIT
-     * @constant
+     * @constant [type:graphics.BUFFER_TYPE|nil]
      */
 
     /*#
      * May be nil if multitarget rendering isn't supported
      * @name graphics.BUFFER_TYPE_COLOR2_BIT
-     * @constant
+     * @constant [type:graphics.BUFFER_TYPE|nil]
      */
 
     /*#
      * May be nil if multitarget rendering isn't supported
      * @name graphics.BUFFER_TYPE_COLOR3_BIT
-     * @constant
+     * @constant [type:graphics.BUFFER_TYPE|nil]
      */
 
     /*#
@@ -396,13 +570,13 @@ namespace dmScript
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_TYPE_3D
-     * @constant
+     * @constant [type:graphics.TEXTURE_TYPE|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_TYPE_IMAGE_3D
-     * @constant
+     * @constant [type:graphics.TEXTURE_TYPE|nil]
      */
 
     /*#
@@ -523,187 +697,187 @@ namespace dmScript
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_LUMINANCE
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_LUMINANCE_ALPHA
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_16BPP
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_16BPP
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_ETC1
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R_ETC2
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG_ETC2
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_ETC2
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_BC1
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_BC3
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R_BC4
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG_BC5
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_BC7
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB16F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB32F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA16F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA32F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R16F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG16F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R32F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG32F
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA32UI
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_BGRA8U
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R32UI
-     * @constant
+     * @constant [type:graphics.TEXTURE_FORMAT|nil]
      */
 
     /*#
@@ -788,7 +962,7 @@ namespace dmScript
     /*# get the list of graphics adapters that have been registered with the engine
      *
      * @name graphics.get_engine_adapters
-     * @return adapters [type:table] array of adapter family name strings (e.g. "opengl", "vulkan", "webgpu")
+     * @return adapters [type:string[]] array of adapter family name strings (e.g. "opengl", "vulkan", "webgpu")
      */
     static int Graphics_GetEngineAdapters(lua_State* L)
     {
@@ -816,36 +990,36 @@ namespace dmScript
      * optional context features supported by the backend.
      *
      * @name graphics.get_adapter_info
-     * @return info [type:table] table with the following fields:
+     * @return info [type:graphics.adapter_info] table with the following fields:
      *
      *   `family`         [type:string]   adapter family name (e.g. "opengl", "vulkan")
-     *   `version_major`  [type:number]   adapter API major version (e.g. 1 for Vulkan 1.4)
-     *   `version_minor`  [type:number]   adapter API minor version (e.g. 4 for Vulkan 1.4)
+     *   `version_major`  [type:integer]  adapter API major version (e.g. 1 for Vulkan 1.4)
+     *   `version_minor`  [type:integer]  adapter API minor version (e.g. 4 for Vulkan 1.4)
      *
-     *   `limits`         [type:table]    hardware/driver limits:
+     *   `limits`         [type:graphics.adapter_limits] hardware/driver limits:
      *
-     *     `max_texture_size_2d`              [type:number]  max 2D texture dimension in texels
-     *     `max_texture_size_3d`              [type:number]  max 3D (volume) texture dimension in texels
-     *     `max_texture_size_cube`            [type:number]  max cube map face dimension in texels
-     *     `max_texture_array_layers`         [type:number]  max layers in an array texture
-     *     `max_framebuffer_width`            [type:number]  max framebuffer width in pixels
-     *     `max_framebuffer_height`           [type:number]  max framebuffer height in pixels
-     *     `max_color_attachments`            [type:number]  max simultaneous color attachments
-     *     `max_samplers_per_stage`           [type:number]  max texture samplers per shader stage
-     *     `max_textures_per_stage`           [type:number]  max sampled textures per shader stage
-     *     `max_vertex_attributes`            [type:number]  max vertex attributes
-     *     `max_vertex_buffers`               [type:number]  max vertex buffer bindings
-     *     `max_compute_workgroup_size_x`     [type:number]  max compute workgroup size (X)
-     *     `max_compute_workgroup_size_y`     [type:number]  max compute workgroup size (Y)
-     *     `max_compute_workgroup_size_z`     [type:number]  max compute workgroup size (Z)
-     *     `max_compute_workgroup_invocations` [type:number] max invocations per compute workgroup
-     *     `max_compute_shared_memory_size`   [type:number]  max shared memory per compute workgroup (bytes)
-     *     `max_uniform_buffer_range`         [type:number]  max bindable uniform buffer range (bytes)
-     *     `max_storage_buffer_range`         [type:number]  max bindable storage buffer range (bytes)
+     *     `max_texture_size_2d`              [type:integer]  max 2D texture dimension in texels
+     *     `max_texture_size_3d`              [type:integer]  max 3D (volume) texture dimension in texels
+     *     `max_texture_size_cube`            [type:integer]  max cube map face dimension in texels
+     *     `max_texture_array_layers`         [type:integer]  max layers in an array texture
+     *     `max_framebuffer_width`            [type:integer]  max framebuffer width in pixels
+     *     `max_framebuffer_height`           [type:integer]  max framebuffer height in pixels
+     *     `max_color_attachments`            [type:integer]  max simultaneous color attachments
+     *     `max_samplers_per_stage`           [type:integer]  max texture samplers per shader stage
+     *     `max_textures_per_stage`           [type:integer]  max sampled textures per shader stage
+     *     `max_vertex_attributes`            [type:integer]  max vertex attributes
+     *     `max_vertex_buffers`               [type:integer]  max vertex buffer bindings
+     *     `max_compute_workgroup_size_x`     [type:integer]  max compute workgroup size (X)
+     *     `max_compute_workgroup_size_y`     [type:integer]  max compute workgroup size (Y)
+     *     `max_compute_workgroup_size_z`     [type:integer]  max compute workgroup size (Z)
+     *     `max_compute_workgroup_invocations` [type:integer] max invocations per compute workgroup
+     *     `max_compute_shared_memory_size`   [type:integer]  max shared memory per compute workgroup (bytes)
+     *     `max_uniform_buffer_range`         [type:integer]  max bindable uniform buffer range (bytes)
+     *     `max_storage_buffer_range`         [type:integer]  max bindable storage buffer range (bytes)
      *
-     *   `extensions`     [type:table]    array of driver-reported extension name strings
+     *   `extensions`     [type:string[]] array of driver-reported extension name strings
      *
-     *   `features`       [type:table]    array of supported context feature ids:
+     *   `features`       [type:graphics.CONTEXT_FEATURE[]] array of supported context feature ids:
      *
      *     `graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING`  multi-target rendering
      *     `graphics.CONTEXT_FEATURE_TEXTURE_ARRAY`           texture arrays

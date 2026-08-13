@@ -260,7 +260,7 @@ namespace dmRender
     * registered in the render context.
     *
     * @name camera.get_cameras
-    * @return cameras [type:table] a table with all camera URLs
+    * @return cameras [type:url[]] a table with all camera URLs
     *
     * @examples
     * ```lua

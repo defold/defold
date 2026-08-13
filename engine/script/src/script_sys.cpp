@@ -119,7 +119,7 @@ union SaveLoadBuffer
      *
      * @name sys.save
      * @param filename [type:string] file to write to
-     * @param table [type:table] lua table to save
+     * @param table [type:table<any, any>] lua table to save
      * @examples
      *
      * Save data:
@@ -235,7 +235,7 @@ union SaveLoadBuffer
      *
      * @name sys.load
      * @param filename [type:string] file to read from
-     * @return loaded [type:table] lua table, which is empty if the file could not be found
+     * @return loaded [type:table<any, any>] lua table, which is empty if the file could not be found
      * @examples
      *
      * Load data that was previously saved, e.g. an earlier game session:
@@ -987,7 +987,7 @@ union SaveLoadBuffer
      * Returns an array of tables with information on network interfaces.
      *
      * @name sys.get_ifaddrs
-     * @return ifaddrs [type:{ name:string, address?:string, mac?:string, up:boolean, running:boolean }] an array of tables. Each table entry contain the following fields:
+     * @return ifaddrs [type:{ name:string, address?:string, mac?:string, up:boolean, running:boolean }[]] an array of tables. Each table entry contain the following fields:
      *
      * `name`
      * : [type:string] Interface name
@@ -1105,7 +1105,7 @@ union SaveLoadBuffer
      * The error handler is a function which is called whenever a lua runtime error occurs.
      *
      * @name sys.set_error_handler
-     * @param error_handler [type:function(source, message, traceback)] the function to be called on error
+     * @param error_handler [type:fun(source:string, message:string, traceback:string)] the function to be called on error
      *
      * `source`
      * : [type:string] The runtime context of the error. Currently, this is always `"lua"`.
@@ -1398,7 +1398,7 @@ union SaveLoadBuffer
      * This function will raise a Lua error if an error occurs while serializing the table.
      *
      * @name sys.serialize
-     * @param table [type:table] lua table to serialize
+     * @param table [type:table<any, any>] lua table to serialize
      * @return buffer [type:string] serialized data buffer
      * @examples
      *
@@ -1435,7 +1435,7 @@ union SaveLoadBuffer
      *
      * @name sys.deserialize
      * @param buffer [type:string] buffer to deserialize from
-     * @return table [type:table] lua table with deserialized data
+     * @return table [type:table<any, any>] lua table with deserialized data
      * @examples
      *
      * Deserialize a lua table that was previously serialized:

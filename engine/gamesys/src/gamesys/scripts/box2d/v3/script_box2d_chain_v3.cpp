@@ -665,13 +665,13 @@ namespace dmGameSystem
 /*# Get the number of segment shapes in a chain.
  * @name b2d.chain.get_segment_count
  * @param chain [type: b2Chain] chain
- * @return count [type: number] segment count
+ * @return count [type: integer] segment count
  */
 
 /*# Get the segment shapes owned by a chain.
  * @name b2d.chain.get_segments
  * @param chain [type: b2Chain] chain
- * @return segments [type: table] array of shape info tables for the chain segments. Each entry includes `shape_id`.
+ * @return segments [type:b2d.shape_info[]] array of shape info tables for the chain segments. Each entry includes `shape_id`.
  */
 
 /*# Get the chain geometry.
@@ -679,7 +679,7 @@ namespace dmGameSystem
  * Open chains also include `prev_vertex` and `next_vertex` ghost vertices.
  * @name b2d.chain.get_geometry
  * @param chain [type: b2Chain] chain
- * @return geometry [type: table] chain geometry table
+ * @return geometry [type:b2d.chain_geometry] chain geometry table
  */
 
 /*# Get the parent chain for a chain segment shape.
@@ -718,12 +718,12 @@ namespace dmGameSystem
 /*# Get chain material id.
  * @name b2d.chain.get_material
  * @param chain [type: b2Chain] chain
- * @return material [type: number] chain material id
+ * @return material [type: integer] chain material id
  */
 
 /*# Set chain material id.
  * @warning This function is locked during callbacks.
  * @name b2d.chain.set_material
  * @param chain [type: b2Chain] chain
- * @param material [type: number] chain material id
+ * @param material [type: integer] chain material id
  */

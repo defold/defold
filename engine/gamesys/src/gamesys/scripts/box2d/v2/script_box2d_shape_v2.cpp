@@ -251,6 +251,19 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Box2D shape types.
+ * @enum
+ * @name b2d.shape.SHAPE_TYPE
+ */
+
+/*# Box2D shape definition.
+ * Shape fields depend on the value of `type`. The union covers both supported
+ * Box2D runtime versions.
+ * @typedef
+ * @name b2d.shape.definition
+ * @param value [type:{ type:b2d.shape.SHAPE_TYPE, radius:number, center?:vector3 }|{ type:b2d.shape.SHAPE_TYPE, radius:number, center1:vector3, center2:vector3 }|{ type:b2d.shape.SHAPE_TYPE, v1:vector3, v2:vector3, v0?:vector3, v3?:vector3 }|{ type:b2d.shape.SHAPE_TYPE, hx:number, hy:number, center?:vector3, angle?:number }|{ type:b2d.shape.SHAPE_TYPE, vertices:vector3[], loop?:boolean, prev_vertex?:vector3, next_vertex?:vector3 }]
+ */
+
 /*# Circle shape type.
  * @name b2d.shape.SHAPE_TYPE_CIRCLE
  * @constant

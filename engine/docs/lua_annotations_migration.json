@@ -27,50 +27,62 @@
         "path_pattern": "elements.editor.bob.parameters.\\\\.\\\\.\\\\.commands.name"
       },
       {
+        "current": "{ item:editor.schema, default?:any[], scope?:editor.prefs.SCOPE }",
         "expected": "{ item:editor.schema, default?:[any], scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.array.parameters.opts.types.table"
       },
       {
+        "current": "{ default?:boolean, scope?:editor.prefs.SCOPE }",
         "expected": "{ default?:boolean, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.boolean.parameters.opts.types.table"
       },
       {
+        "current": "{ values:(nil|boolean|number|string)[], default?:any, scope?:editor.prefs.SCOPE }",
         "expected": "{ values:[nil|boolean|number|string], default?:any, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.enum.parameters.opts.types.table"
       },
       {
+        "current": "{ default?:integer, scope?:editor.prefs.SCOPE }",
         "expected": "{ default?:integer, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.integer.parameters.opts.types.table"
       },
       {
+        "current": "{ default?:string, scope?:editor.prefs.SCOPE }",
         "expected": "{ default?:string, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.keyword.parameters.opts.types.table"
       },
       {
+        "current": "{ default?:number, scope?:editor.prefs.SCOPE }",
         "expected": "{ default?:number, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.number.parameters.opts.types.table"
       },
       {
+        "current": "{ properties:table<string, editor.schema>, default?:table<string, any>, scope?:editor.prefs.SCOPE }",
         "expected": "{ properties:table<string, editor.schema>, default?:table<string, editor.schema>, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.object.parameters.opts.types.table"
       },
       {
+        "current": "{ key:editor.schema, val:editor.schema, default?:table<any, any>, scope?:editor.prefs.SCOPE }",
         "expected": "{ key:editor.schema, val:editor.schema, default?:table, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.object_of.parameters.opts.types.table"
       },
       {
+        "current": "{ schemas:editor.schema[], default?:any, scope?:editor.prefs.SCOPE }",
         "expected": "{ schemas:[editor.schema], default?:any, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.one_of.parameters.opts.types.table"
       },
       {
+        "current": "{ item:editor.schema, default?:table<any, boolean>, scope?:editor.prefs.SCOPE }",
         "expected": "{ item:editor.schema, default?:table<editor.schema, boolean>, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.set.parameters.opts.types.table"
       },
       {
+        "current": "{ default?:string, scope?:editor.prefs.SCOPE }",
         "expected": "{ default?:string, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.string.parameters.opts.types.table"
       },
       {
+        "current": "{ items:editor.schema[], default?:any[], scope?:editor.prefs.SCOPE }",
         "expected": "{ items:[editor.schema], default?:[any], scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.tuple.parameters.opts.types.table"
       },
@@ -87,10 +99,12 @@
         "path_pattern": "elements.editor.transact.parameters.txs.types.transaction_step["
       },
       {
+        "current": "string|string[]|nil",
         "expected": "[string]|nil",
         "path_pattern": "elements.editor.ui.show_resource_dialog.returnvalues.value.types.string["
       },
       {
+        "current": "a hook that caches the result of a computation between re-renders.",
         "expected": "A hook that caches the result of a computation between re-renders.",
         "path_pattern": "elements.editor.ui.use_memo.brief"
       },
@@ -123,6 +137,7 @@
         "path_pattern": "elements.http.server.response.parameters.headers.types.table&lt;string,string&gt;"
       },
       {
+        "current": "{ all?:boolean }",
         "expected": "{ decode_null_as_userdata?:boolean }",
         "path_pattern": "elements.json.decode.parameters.options.types.table"
       },
@@ -139,6 +154,7 @@
         "path_pattern": "elements.localization.or_list.parameters.items.types.any["
       },
       {
+        "current": "{ method?:zip.METHOD, level?:integer }",
         "expected": "{ method?:string, level?:integer }",
         "path_pattern": "elements.zip.pack.parameters.opts.types.table"
       }
@@ -173,6 +189,7 @@
         "path_pattern": "elements.gui.animate.parameters.property.types"
       },
       {
+        "current": "gui.EASING|vector",
         "expected": "gui.EASING",
         "path_pattern": "elements.gui.animate.parameters.easing.types.constant"
       },
@@ -181,6 +198,7 @@
         "path_pattern": "elements.gui.animate.parameters.playback.types.constant"
       },
       {
+        "current": "nil|string|gui.PROP",
         "expected": "gui.PROP",
         "path_pattern": "elements.gui.cancel_animations.parameters.property.types.constant"
       },
@@ -193,6 +211,7 @@
         "path_pattern": "elements.gui.get_adjust_mode.returnvalues.adjust_mode.types.constant"
       },
       {
+        "current": "string|hash|gui.PROP",
         "expected": "gui.PROP",
         "path_pattern": "elements.gui.get.parameters.property.types.constant"
       },
@@ -273,6 +292,7 @@
         "path_pattern": "elements.gui.set_pivot.parameters.pivot.types.constant"
       },
       {
+        "current": "string|hash|gui.PROP",
         "expected": "gui.PROP",
         "path_pattern": "elements.gui.set.parameters.property.types.constant"
       },
@@ -371,10 +391,12 @@
         "path_pattern": "elements.render.predicate.parameters.tags.types.table"
       },
       {
+        "current": "table<graphics.BUFFER_TYPE, number|vector4>",
         "expected": "[graphics.BUFFER_TYPE]",
         "path_pattern": "elements.render.clear.parameters.buffers.types.table"
       },
       {
+        "current": "table<graphics.BUFFER_TYPE, { format:graphics.TEXTURE_FORMAT, width:integer, height:integer, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:render.RENDER_TARGET_FLAG }>",
         "expected": "table<number, { format:graphics.TEXTURE_FORMAT, width:number, height:number, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:number }>",
         "path_pattern": "elements.render.render_target.parameters.parameters.types.table"
       },
@@ -399,6 +421,7 @@
         "path_pattern": "elements.render.set_depth_func.parameters.func.types.number"
       },
       {
+        "current": "fun(self, event_type:render.CONTEXT_EVENT)|nil",
         "expected": "fun(self, event_type:render.CONTEXT_EVENT)",
         "path_pattern": "elements.render.set_listener.parameters.callback.types.function(self, event_type)"
       },
@@ -463,10 +486,12 @@
         "path_pattern": "elements.buffer.create.parameters.declaration.types.table"
       },
       {
+        "current": "buffer.VALUE_TYPE|nil",
         "expected": "buffer.VALUE_TYPE",
         "path_pattern": "elements.buffer.get_metadata.returnvalues.value_type.types.constant"
       },
       {
+        "current": "number[]|nil",
         "expected": "[number]",
         "path_pattern": "elements.buffer.get_metadata.returnvalues.values.types.table"
       },
@@ -515,26 +540,31 @@
     ],
     "scripts-script_font.cpp_doc.lua": [
       {
+        "current": "fun(self, request_id:integer, result:boolean, errstring?:string)",
         "expected": "fun(self, request_id:number, result:boolean, errstring?:string)",
         "path_pattern": "elements.font.prewarm_text.parameters.callback.types.function(self, request_id, result, errstring)"
       }
     ],
     "scripts-script_http.cpp_doc.lua": [
       {
+        "current": "fun(self, id:hash, response:{ status:integer, response?:string, headers?:table<string, string>, path?:string, error?:string, bytes_received?:integer, bytes_total?:integer, range_start?:integer, range_end?:integer, document_size?:integer })",
         "expected": "fun(self, id:hash, response:table)",
         "path_pattern": "elements.http.request.parameters.callback.types.function(self, id, response)"
       }
     ],
     "scripts-script_image.cpp_doc.lua": [
       {
+        "current": "{ width:number, height:number, depth:number, block_size_x:number, block_size_y:number, block_size_z:number }|nil",
         "expected": "{ width:number, height:number, depth:number, block_size_x:number, block_size_y:number, block_size_z:number }",
         "path_pattern": "elements.image.get_astc_header.returnvalues.table.types.table"
       },
       {
+        "current": "{ width:number, height:number, type:image.TYPE, buffer:string }|nil",
         "expected": "{ width:number, height:number, type:image.TYPE, buffer:string }",
         "path_pattern": "elements.image.load.returnvalues.image.types.table"
       },
       {
+        "current": "{ width:number, height:number, type:image.TYPE, buffer:buffer_data }|nil",
         "expected": "{ width:number, height:number, type:image.TYPE, buffer:buffer_data }",
         "path_pattern": "elements.image.load_buffer.returnvalues.image.types.table"
       }
@@ -569,10 +599,12 @@
         "path_pattern": "elements.physics.create_joint.parameters.joint_type.types.number"
       },
       {
+        "current": "physics.joint_properties_info",
         "expected": "{ collide_connected?:boolean }",
         "path_pattern": "elements.physics.get_joint_properties.returnvalues.properties.types.table"
       },
       {
+        "current": "{ type:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }",
         "expected": "{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }",
         "path_pattern": "elements.physics.get_shape.returnvalues.table.types.table"
       },
@@ -581,14 +613,17 @@
         "path_pattern": "elements.physics.raycast.parameters.options.types.table"
       },
       {
+        "current": "message.physics.ray_cast_response[]|message.physics.ray_cast_response|nil",
         "expected": "[message.physics.ray_cast_response]|message.physics.ray_cast_response",
         "path_pattern": "elements.physics.raycast.returnvalues.result.types.table"
       },
       {
+        "current": "fun(self, events:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[])|nil",
         "expected": "fun(self, events:[message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed])",
         "path_pattern": "elements.physics.set_event_listener.parameters.callback.types.function(self, events)"
       },
       {
+        "current": "{ type:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }",
         "expected": "{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }",
         "path_pattern": "elements.physics.set_shape.parameters.table.types.table"
       }
@@ -607,22 +642,27 @@
         "path_pattern": "elements.resource.create_sound_data.parameters.options.types.table"
       },
       {
+        "current": "{ type:graphics.TEXTURE_TYPE, width:integer, height:integer, depth?:integer, page_count?:integer, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:integer, compression_type?:graphics.COMPRESSION_TYPE }",
         "expected": "{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }",
         "path_pattern": "elements.resource.create_texture.parameters.table.types.table"
       },
       {
+        "current": "fun(self, request_id:integer, result:{ path:hash })",
         "expected": "fun(self, request_id:number, resource:hash)",
         "path_pattern": "elements.resource.create_texture_async.parameters.callback.types.function"
       },
       {
+        "current": "{ type:graphics.TEXTURE_TYPE, width:integer, height:integer, depth?:integer, page_count?:integer, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:integer, compression_type?:graphics.COMPRESSION_TYPE }",
         "expected": "{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }",
         "path_pattern": "elements.resource.create_texture_async.parameters.table.types.table"
       },
       {
+        "current": "resource.atlas_data",
         "expected": "resource.atlas",
         "path_pattern": "elements.resource.get_atlas.returnvalues.data.types.table"
       },
       {
+        "current": "resource.render_target_info",
         "expected": "{ handle:number, attachments:[{ handle:number, width:number, height:number, depth:number, mipmaps:number, type:graphics.TEXTURE_TYPE, buffer_type:graphics.BUFFER_TYPE, texture:hash }] }",
         "path_pattern": "elements.resource.get_render_target_info.returnvalues.table.types.table"
       },
@@ -635,6 +675,7 @@
         "path_pattern": "elements.resource.get_text_metrics.returnvalues.metrics.types.table"
       },
       {
+        "current": "resource.texture_info",
         "expected": "{ handle:number, width:number, height:number, depth:number, mipmaps:number, flags:number, type:graphics.TEXTURE_TYPE }",
         "path_pattern": "elements.resource.get_texture_info.returnvalues.table.types.table"
       },
@@ -647,6 +688,7 @@
         "path_pattern": "elements.resource.set_buffer.parameters.table.types.table"
       },
       {
+        "current": "{ type:graphics.TEXTURE_TYPE, width:integer, height:integer, depth?:integer, format:graphics.TEXTURE_FORMAT, x?:integer, y?:integer, z?:integer, page?:integer, mipmap?:integer, compression_type?:graphics.COMPRESSION_TYPE }",
         "expected": "{ type:graphics.TEXTURE_TYPE, width:number, height:number, format:graphics.TEXTURE_FORMAT, x?:number, y?:number, z?:number, mipmap?:number, compression_type?:graphics.COMPRESSION_TYPE}",
         "path_pattern": "elements.resource.set_texture.parameters.table.types.table"
       }
@@ -677,6 +719,7 @@
     ],
     "scripts-script_sys_gamesys.cpp_doc.lua": [
       {
+        "current": "fun(self, request_id:integer, result:{ status:sys.REQUEST_STATUS, buffer?:buffer_data })",
         "expected": "fun(self, request_id:number, result:{ status:sys.REQUEST_STATUS, buffer:buffer_data|nil })",
         "path_pattern": "elements.sys.load_buffer_async.parameters.status_callback.types.function(self, request_id, result)"
       }
@@ -693,10 +736,12 @@
         "path_pattern": "elements.window.get_dim_mode.returnvalues.mode.types.constant"
       },
       {
+        "current": "{ x:integer, y:integer, width:integer, height:integer, inset_left:integer, inset_top:integer, inset_right:integer, inset_bottom:integer }",
         "expected": "{ x:number, y:number, width:number, height:number, inset_left:number, inset_top:number, inset_right:number, inset_bottom:number }",
         "path_pattern": "elements.window.get_safe_area.returnvalues.safe_area.types.table"
       },
       {
+        "current": "fun(self, event:window.WINDOW_EVENT, data:{ width?:integer, height?:integer })|nil",
         "expected": "fun(self, event:window.WINDOW_EVENT, data:{ width:number, height:number })",
         "path_pattern": "elements.window.set_listener.parameters.callback.types.function(self, event, data)"
       },
@@ -717,6 +762,7 @@
         "path_pattern": "elements.json.decode.parameters.options.types.table"
       },
       {
+        "current": "{ encode_empty_table_as_object?:boolean }",
         "expected": "{ encode_empty_table_as_object:string }",
         "path_pattern": "elements.json.encode.parameters.options.types.table"
       }
@@ -735,6 +781,7 @@
         "path_pattern": "elements.sys.get_engine_info.returnvalues.engine_info.types.table"
       },
       {
+        "current": "{ name:string, address?:string, mac?:string, up:boolean, running:boolean }[]",
         "expected": "{ name:string, address?:string, mac?:string, up:boolean, running:boolean }",
         "path_pattern": "elements.sys.get_ifaddrs.returnvalues.ifaddrs.types.table"
       },
@@ -753,10 +800,12 @@
     ],
     "src-script_timer.cpp_doc.lua": [
       {
+        "current": "fun(self, handle:timer_handle, time_elapsed:number)",
         "expected": "fun(self, handle:number, time_elapsed:number)",
         "path_pattern": "elements.timer.delay.parameters.callback.types.function(self, handle, time_elapsed)"
       },
       {
+        "current": "{ time_remaining:number, delay:number, repeating:boolean }|nil",
         "expected": "{ time_remaining:number, delay:number, repeating:boolean }",
         "path_pattern": "elements.timer.get_info.returnvalues.data.types.table"
       }

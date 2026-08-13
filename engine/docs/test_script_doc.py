@@ -77,6 +77,20 @@ foobar
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(script_doc_ddf_pb2.VARIABLE, elements[0].type)
 
+    def test_constant_value_type(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name MY_CONSTANT
+ * @constant [type:string|nil]
+ */
+"""
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertEqual(script_doc_ddf_pb2.CONSTANT, element.type)
+        self.assertEqual(1, len(element.parameters))
+        self.assertEqual("value", element.parameters[0].name)
+        self.assertEqual(["string", "nil"], list(element.parameters[0].types))
+
     def test_description_markdown(self):
         doc= """
 /*#

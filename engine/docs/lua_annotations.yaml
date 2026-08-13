@@ -76,6 +76,10 @@ generics:
   vmath.slerp: vector3|vector4
   vmath.lerp: vector3|vector4
 
+function_overloads:
+  render.render_target:
+    - "fun(name:string, parameters:table<graphics.BUFFER_TYPE, { format:graphics.TEXTURE_FORMAT, width:integer, height:integer, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:render.RENDER_TARGET_FLAG }>):render_target"
+
 classes:
   vector3:
     operators:

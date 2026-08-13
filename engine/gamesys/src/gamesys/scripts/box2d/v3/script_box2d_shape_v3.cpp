@@ -1069,7 +1069,7 @@ namespace dmGameSystem
 /*# Get a shape's geometry.
  * @name b2d.shape.get_shape
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @return shape [type:b2d.shape.definition] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
  */
 
 /*# Set a shape's geometry.
@@ -1079,7 +1079,7 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.shape.set_shape
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @param definition [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @param definition [type:b2d.shape.definition] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
  * @param update_mass [type: boolean] true to reset body mass from shapes
  * @examples
  *
@@ -1144,14 +1144,14 @@ namespace dmGameSystem
 /*# Get shape material id.
  * @name b2d.shape.get_material
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return material [type: number] shape material id
+ * @return material [type: integer] shape material id
  */
 
 /*# Set shape material id.
  * @warning This function is locked during callbacks.
  * @name b2d.shape.set_material
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @param material [type: number] shape material id
+ * @param material [type: integer] shape material id
  */
 
 /*# Validate a shape handle.
@@ -1225,38 +1225,38 @@ namespace dmGameSystem
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
  * @param origin [type: vector3] world ray origin
  * @param translation [type: vector3] world ray translation
- * @param max_fraction [type: number] optional maximum translation fraction, defaults to 1
- * @return hit [type: table] hit table with `point`, `normal`, `fraction`, and `iterations`, or nil
+ * @param [max_fraction] [type:number] optional maximum translation fraction, defaults to 1
+ * @return hit [type:b2d.shape_cast_output|nil] hit table with `point`, `normal`, `fraction`, and `iterations`, or nil
  */
 
 /*# Get shape contact capacity.
  * @name b2d.shape.get_contact_capacity
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return capacity [type: number] maximum contact data count
+ * @return capacity [type: integer] maximum contact data count
  */
 
 /*# Get touching contact data for a shape.
  * @name b2d.shape.get_contact_data
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return contacts [type: table] array of contact tables
+ * @return contacts [type:b2d.contact_data[]] array of contact tables
  */
 
 /*# Get sensor overlap capacity.
  * @name b2d.shape.get_sensor_capacity
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return capacity [type: number] maximum sensor overlap count
+ * @return capacity [type: integer] maximum sensor overlap count
  */
 
 /*# Get sensor overlaps.
  * @name b2d.shape.get_sensor_overlaps
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return overlaps [type: table] array of shape info tables
+ * @return overlaps [type:b2d.shape_info[]] array of shape info tables
  */
 
 /*# Get mass data for a shape.
  * @name b2d.shape.get_mass_data
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return data [type: table] table with `mass`, `center`, and `inertia`
+ * @return data [type:b2d.mass_data] table with `mass`, `center`, and `inertia`
  */
 
 /*# Get the closest point on a shape.

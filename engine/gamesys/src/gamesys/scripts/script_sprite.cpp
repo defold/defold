@@ -411,7 +411,7 @@ namespace dmGameSystem
      * : [type:hash] The name of the completion message, `"animation_done"`.
      *
      * `message`
-     * : [type:table] Information about the completion:
+     * : [type:message.sprite.animation_done] Information about the completion:
      *
      * - [type:number] `current_tile` - the current tile of the sprite.
      * - [type:hash] `id` - id of the animation that was completed.
@@ -419,7 +419,7 @@ namespace dmGameSystem
      * `sender`
      * : [type:url] The invoker of the callback: the sprite component.
      *
-     * @param [play_properties] [type:table] optional table with properties:
+     * @param [play_properties] [type:{ offset?:number, playback_rate?:number }] optional table with properties:
      *
      * `offset`
      * : [type:number] the normalized initial value of the animation cursor when the animation starts playing.

@@ -6,6 +6,7 @@
 
 import fnmatch
 import html
+import json
 import os
 import re
 import tempfile
@@ -44,6 +45,11 @@ LUA_BUILTIN_TYPES = frozenset({
     "file",
 })
 
+LUA_LITERAL_TYPES = frozenset({
+    "false",
+    "true",
+})
+
 
 def load_metadata(path):
     with open(path, encoding="utf-8") as metadata_file:
@@ -51,6 +57,221 @@ def load_metadata(path):
     if not isinstance(metadata, dict):
         raise ValueError("Lua annotation metadata must be a mapping")
     return metadata
+
+
+def _load_migration_manifest(metadata, metadata_path):
+    migration = metadata.get("migration") or {}
+    manifest_name = migration.get("manifest")
+    if not manifest_name:
+        return None
+
+    manifest_path = Path(metadata_path).parent / manifest_name
+    with manifest_path.open(encoding="utf-8") as manifest_file:
+        manifest = json.load(manifest_file)
+
+    errors = []
+    patches = manifest.get("patches")
+    attribution = manifest.get("attribution") or {}
+    if not isinstance(patches, dict):
+        errors.append("manifest patches must be a mapping")
+        patches = {}
+    if attribution.get("source_commit") != migration.get("source_commit"):
+        errors.append("manifest and metadata source commits differ")
+    if len(patches) != migration.get("patch_files"):
+        errors.append(
+            "manifest has %d patch files, expected %s"
+            % (len(patches), migration.get("patch_files")))
+    patch_entries = sum(
+        len(entries) for entries in patches.values()
+        if isinstance(entries, list))
+    if patch_entries != migration.get("patch_entries"):
+        errors.append(
+            "manifest has %d patch entries, expected %s"
+            % (patch_entries, migration.get("patch_entries")))
+    if errors:
+        raise ValueError(
+            "%s: invalid Lua annotation migration manifest:\n%s"
+            % (manifest_path, "\n".join("  " + error for error in errors)))
+    return manifest_path, manifest
+
+
+def _migration_document_key(source_path):
+    name = Path(source_path).name
+    return name[:-len(".apidoc")] if name.endswith(".apidoc") else name
+
+
+def _migration_patch_key(name):
+    return name[:-len("_doc.lua")] if name.endswith("_doc.lua") else name
+
+
+def _decode_migration_path_name(value):
+    return re.sub(r"\\+", "", html.unescape(value))
+
+
+def _normalize_migration_type(expression, metadata):
+    expression = html.unescape(expression).strip()
+    previous = None
+    while expression != previous:
+        previous = expression
+        expression = re.sub(
+            r"\[([^\[\]]+)\]",
+            lambda match: (
+                "(%s)[]" % match.group(1)
+                if "|" in match.group(1)
+                else "%s[]" % match.group(1)),
+            expression)
+    expression = re.sub(
+        r"fun\(self(?=\s*[,\)])",
+        "fun(self:any",
+        expression)
+    # The source manifest used "any ..." to describe variadic returns. LuaLS
+    # represents that return as `any`.
+    if expression == "any ...":
+        expression = "any"
+    return normalize_type(expression, metadata)
+
+
+def _migration_element_names(documents):
+    result = defaultdict(list)
+    for source_path, document in documents:
+        for element in document.elements:
+            result[element.name].append((source_path, element))
+            canonical_name = _canonical_name(document, element)
+            if canonical_name != element.name:
+                result[canonical_name].append((source_path, element))
+    return result
+
+
+def _migration_member_value(element, remainder, expected, metadata):
+    if remainder == "brief":
+        return element.brief
+    if remainder == "name":
+        return element.name
+
+    match = re.match(
+        r"^(parameters|returnvalues)\.(.*)\."
+        r"(types(?:\..*)?|name|doc|is_optional)$",
+        remainder)
+    if not match:
+        return None
+
+    collection_name, encoded_name, field = match.groups()
+    member_name = _decode_migration_path_name(encoded_name)
+    members = getattr(element, collection_name)
+    matching_members = [
+        member
+        for member in members
+        if _decode_migration_path_name(member.name) == member_name
+    ]
+    if not matching_members and field == "name":
+        matching_members = [
+            member
+            for member in members
+            if _decode_migration_path_name(member.name) == expected
+        ]
+    if not matching_members:
+        return None
+
+    member = matching_members[0]
+    if field.startswith("types"):
+        value = join_types(member.types, metadata)
+        normalized_expected = _normalize_migration_type(expected, metadata)
+        if (
+                getattr(member, "is_optional", False)
+                and normalized_expected.endswith("?")
+                and value == normalized_expected[:-1]):
+            value += "?"
+        return value
+    if field == "is_optional":
+        return str(bool(member.is_optional))
+    return getattr(member, field)
+
+
+def _validate_migration_manifest(documents, metadata, metadata_path):
+    loaded = _load_migration_manifest(metadata, metadata_path)
+    if loaded is None:
+        return
+    manifest_path, manifest = loaded
+
+    documents_by_key = defaultdict(list)
+    for source_path, document in documents:
+        documents_by_key[_migration_document_key(source_path)].append(
+            (source_path, document))
+    all_elements = _migration_element_names(documents)
+    errors = []
+
+    for patch_name, entries in manifest["patches"].items():
+        if not isinstance(entries, list):
+            errors.append("%s: patch entries must be an array" % patch_name)
+            continue
+        patch_documents = documents_by_key.get(
+            _migration_patch_key(patch_name),
+            documents)
+        element_names = _migration_element_names(patch_documents)
+
+        for entry in entries:
+            path_pattern = entry.get("path_pattern")
+            expected = entry.get("current", entry.get("expected"))
+            if not isinstance(path_pattern, str) or expected is None:
+                errors.append(
+                    "%s: migration entry requires path_pattern and expected"
+                    % patch_name)
+                continue
+            if not path_pattern.startswith("elements."):
+                errors.append(
+                    "%s: unsupported migration path %s"
+                    % (patch_name, path_pattern))
+                continue
+
+            path = path_pattern[len("elements."):]
+            matching_names = [
+                name
+                for name in element_names
+                if path == name or path.startswith(name + ".")
+            ]
+            if not matching_names:
+                # One imported patch corrected an element name. Resolve it by
+                # the replacement name because the old element no longer
+                # exists in the source documentation.
+                if path.endswith(".name") and expected in all_elements:
+                    continue
+                errors.append(
+                    "%s: %s does not resolve to a documented element"
+                    % (patch_name, path_pattern))
+                continue
+
+            element_name = max(matching_names, key=len)
+            remainder = path[len(element_name):].lstrip(".")
+            actual_values = []
+            for _, element in element_names[element_name]:
+                value = _migration_member_value(
+                    element,
+                    remainder,
+                    str(expected),
+                    metadata)
+                if value is not None and value not in actual_values:
+                    actual_values.append(value)
+
+            is_type = bool(re.search(r"\.types(?:\.|$)", path_pattern))
+            normalized_expected = (
+                _normalize_migration_type(str(expected), metadata)
+                if is_type
+                else str(expected))
+            if normalized_expected not in actual_values:
+                errors.append(
+                    "%s: %s expected %r, got %s"
+                    % (
+                        patch_name,
+                        path_pattern,
+                        normalized_expected,
+                        ", ".join(repr(value) for value in actual_values)
+                        if actual_values
+                        else "no matching field"))
+
+    if errors:
+        raise ValueError(
+            "%s: Lua annotation migration validation failed:\n%s"
+            % (manifest_path, "\n".join("  " + error for error in errors)))
 
 
 def write_if_changed(path, data):
@@ -172,7 +393,10 @@ def _normalize_legacy_function_type(expression):
 
 def normalize_type(expression, metadata):
     expression = html.unescape(expression or "any").strip()
-    if expression.startswith("function"):
+    # `function` is itself a valid broad LuaLS type. Only rewrite the legacy
+    # callback-signature form `function(...)`; turning plain `function` into
+    # `fun()` would incorrectly claim the callable accepts no arguments.
+    if re.match(r"^function\s*\(", expression):
         expression = _normalize_legacy_function_type(expression)
     if re.match(r"^\[[^\[\]]+\]$", expression):
         expression = expression[1:-1].strip() + "[]"
@@ -331,6 +555,12 @@ def _is_valid_type_expression(expression):
         return False
 
 
+def _contains_bare_table_type(expression):
+    return bool(re.search(
+        r"(?<![\w.])table(?![\w.]|\s*[<:])",
+        expression))
+
+
 def _canonical_name(document, element):
     name = element.name.strip()
     namespace = document.info.namespace.strip()
@@ -442,10 +672,20 @@ def _method_target(name, metadata):
     return (class_name, method_name) if class_name else None
 
 
-def _constant_value_type(name, enum_members):
+def _constant_value_type(name, element, enum_members, metadata):
+    value_parameters = [
+        parameter
+        for parameter in element.parameters
+        if parameter.name == "value"
+    ]
+    if value_parameters:
+        if len(value_parameters) != 1:
+            raise ValueError(
+                "Constant %s must have at most one explicit value type" % name)
+        return _parameter_type(value_parameters[0], metadata)
     for enum_name, enum in enum_members.items():
         if name in enum["members"]:
-            return enum["value_type"]
+            return enum_name
     return "integer"
 
 
@@ -472,8 +712,10 @@ def _collect_enum_members(constants, metadata, documented_enums):
         options = options or {}
         members = list(options.get("members", []))
         if not members:
-            prefix = enum_name + "_"
-            members = sorted(name for name in constants if name.startswith(prefix))
+            prefixes = (enum_name + "_", enum_name + ".")
+            members = sorted(
+                name for name in constants
+                if name.startswith(prefixes))
         result[enum_name] = {
             "members": members,
             "value_type": options.get("value_type", "integer"),
@@ -486,8 +728,10 @@ def _collect_enum_members(constants, metadata, documented_enums):
             for member in element.members
         ]
         if not members:
-            prefix = enum_name + "_"
-            members = sorted(name for name in constants if name.startswith(prefix))
+            prefixes = (enum_name + "_", enum_name + ".")
+            members = sorted(
+                name for name in constants
+                if name.startswith(prefixes))
         source_enum = {
             "members": members,
             "value_type": _enum_value_type(element, metadata),
@@ -673,6 +917,8 @@ def _render_function(name, variants, metadata):
         lines.append("---@overload %s" % _function_signature(primary, metadata))
     for _, overload in unique[1:]:
         lines.append("---@overload %s" % _function_signature(overload, metadata))
+    for overload in metadata.get("function_overloads", {}).get(name, []):
+        lines.append("---@overload %s" % normalize_type(overload, metadata))
     generic = metadata.get("generics", {}).get(name)
     if generic:
         lines.append("---@generic T: %s" % generic)
@@ -782,7 +1028,11 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
             continue
         value_type = "any"
         if element.type == script_doc_ddf_pb2.CONSTANT:
-            value_type = _constant_value_type(name, enum_members)
+            value_type = _constant_value_type(
+                name,
+                element,
+                enum_members,
+                metadata)
         namespace_fields[namespace].append((_field_name(name), value_type, element.description or element.brief))
 
     for namespace in sorted(namespaces, key=lambda value: (value.count("."), value)):
@@ -807,7 +1057,7 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
         if "." not in name:
             lines.extend(lua_doc_lines(element.description or element.brief))
             lines.append("---@type %s" % (
-                _constant_value_type(name, enum_members)
+                _constant_value_type(name, element, enum_members, metadata)
                 if element.type == script_doc_ddf_pb2.CONSTANT
                 else "any"))
             lines.append("%s = nil" % name)
@@ -904,7 +1154,7 @@ def _known_annotation_types(
         documented_classes,
         documented_aliases,
         class_methods):
-    known = set(LUA_BUILTIN_TYPES)
+    known = set(LUA_BUILTIN_TYPES | LUA_LITERAL_TYPES)
     known.update(metadata.get("aliases", {}).keys())
     known.update(metadata.get("classes", {}).keys())
     known.update(documented_classes.keys())
@@ -921,6 +1171,7 @@ def _known_annotation_types(
 
 def _validate_types(
         functions,
+        values,
         messages,
         documented_classes,
         documented_aliases,
@@ -942,6 +1193,11 @@ def _validate_types(
         if not _is_valid_type_expression(expression):
             errors.append("%s: %s has invalid type expression '%s'" % (source_path, symbol, expression))
             return
+        if _contains_bare_table_type(expression):
+            errors.append(
+                "%s: %s uses bare table type in '%s'; use an array, a "
+                "structural record, or table<key, value>"
+                % (source_path, symbol, expression))
         for reference in _type_references(expression):
             if reference not in known:
                 errors.append("%s: %s references unknown type '%s' in '%s'" % (
@@ -954,6 +1210,31 @@ def _validate_types(
                     validate(_parameter_type(parameter, metadata), source_path, "%s parameter %s" % (name, parameter.name))
                 for return_value in element.returnvalues:
                     validate(_return_type(return_value, metadata), source_path, "%s return %s" % (name, return_value.name))
+    for root_values in values.values():
+        for name, (source_path, element) in root_values.items():
+            value_parameters = [
+                parameter
+                for parameter in element.parameters
+                if parameter.name == "value"
+            ]
+            if element.type == script_doc_ddf_pb2.CONSTANT:
+                if value_parameters:
+                    if len(value_parameters) != 1:
+                        errors.append(
+                            "%s: constant %s must have at most one explicit value type"
+                            % (source_path, name))
+                    else:
+                        validate(
+                            _parameter_type(value_parameters[0], metadata),
+                            source_path,
+                            "constant %s" % name)
+                elif not any(
+                        name in enum["members"]
+                        for enum in enum_members.values()):
+                    errors.append(
+                        "%s: constant %s must belong to an enum or declare "
+                        "an explicit value type"
+                        % (source_path, name))
     for root_messages in messages.values():
         for name, (source_path, element) in root_messages.items():
             for parameter in element.parameters:
@@ -1020,13 +1301,25 @@ def _validate_types(
             validate(result_type, metadata_path, "%s operator %s result" % (class_name, operator))
     for function_name, constraint in metadata.get("generics", {}).items():
         validate(constraint, metadata_path, "%s generic constraint" % function_name)
+    for function_name, overloads in metadata.get("function_overloads", {}).items():
+        for overload in overloads:
+            validate(
+                normalize_type(overload, metadata),
+                metadata_path,
+                "%s metadata overload" % function_name)
 
     if errors:
         raise ValueError("Lua annotation validation failed:\n" + "\n".join("  " + error for error in errors))
 
 
 def generate(documents, output_dir, metadata_path, strict=True):
+    documents = list(documents)
     metadata = load_metadata(metadata_path)
+    if strict:
+        _validate_migration_manifest(
+            documents,
+            metadata,
+            str(metadata_path))
     (
         functions,
         values,
@@ -1047,6 +1340,7 @@ def generate(documents, output_dir, metadata_path, strict=True):
     if strict:
         _validate_types(
             functions,
+            values,
             messages,
             documented_classes,
             documented_aliases,

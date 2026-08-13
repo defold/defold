@@ -25,6 +25,15 @@
  * @language Lua
  */
 
+/*# Object accepted by socket.select
+ *
+ * In addition to LuaSocket TCP and UDP objects, `socket.select()` accepts any
+ * object that implements compatible `getfd` and `dirty` methods.
+ *
+ * @typedef
+ * @name socket_selectable
+ * @param value [type:socket_master|socket_client|socket_server|socket_connected|socket_unconnected|{ getfd:fun(self:any):integer, dirty:fun(self:any):boolean }]
+ */
 
 /*# waits for a number of sockets to change status
  *
@@ -45,12 +54,12 @@
  * (Using select with non-socket objects: Any object that implements `getfd` and `dirty` can be used with select, allowing objects from other libraries to be used within a socket.select driven loop.)
  *
  * @name socket.select
- * @param recvt [type:table] array with the sockets to test for characters available for reading.
- * @param sendt [type:table] array with sockets that are watched to see if it is OK to immediately write on them.
+ * @param recvt [type:socket_selectable[]] array with the sockets or compatible objects to test for characters available for reading.
+ * @param sendt [type:socket_selectable[]] array with sockets or compatible objects that are watched to see if it is OK to immediately write on them.
  * @param [timeout] [type:number] the maximum amount of time (in seconds) to wait for a change in status. Nil, negative or omitted timeout value allows the function to block indefinitely.
  *
- * @return sockets_r [type:table] a list with the sockets ready for reading.
- * @return sockets_w [type:table] a list with the sockets ready for writing.
+ * @return sockets_r [type:table<integer|socket_selectable, socket_selectable|integer>] sockets ready for reading, keyed both by array index and by socket.
+ * @return sockets_w [type:table<integer|socket_selectable, socket_selectable|integer>] sockets ready for writing, keyed both by array index and by socket.
  * @return error [type:string|nil] an error message. "timeout" if a timeout condition was met, otherwise `nil`.
  */
 
@@ -59,7 +68,7 @@
  *
  * This constant has a string describing the current LuaSocket version.
  *
- * @constant
+ * @constant [type:string]
  * @name socket._VERSION
  *
  */
@@ -110,7 +119,7 @@
  *
  * This constant contains the maximum number of sockets that the select function can handle.
  *
- * @constant
+ * @constant [type:integer]
  * @name socket._SETSIZE
  *
  */
@@ -135,7 +144,7 @@
  * @name socket.dns.tohostname
  * @param address [type:string] an IPv4 address or host name.
  * @return hostname [type:string|nil] the canonic host name of the given address, or `nil` in case of an error.
- * @return resolved [type:table|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
+ * @return resolved [type:{ name:string, alias:string[], ip:string[] }|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
  */
 
 /*# resolve to IPv4 address
@@ -146,7 +155,7 @@
  * @name socket.dns.toip
  * @param address [type:string] a hostname or an IP address.
  * @return ip_address [type:string|nil] the first IP address found for the hostname, or `nil` in case of an error.
- * @return resolved [type:table|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
+ * @return resolved [type:{ name:string, alias:string[], ip:string[] }|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
  *
  */
 
@@ -185,7 +194,7 @@
  *
  * @name socket.dns.getaddrinfo
  * @param address [type:string] a hostname or an IPv4 or IPv6 address.
- * @return resolved [type:table|nil] a table with all information returned by the resolver, or if an error occurs, `nil`.
+ * @return resolved [type:{ family:string, addr:string }[]|nil] a table with all information returned by the resolver, or if an error occurs, `nil`.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
@@ -207,7 +216,7 @@
  *
  * @name socket.dns.getnameinfo
  * @param address [type:string] a hostname or an IPv4 or IPv6 address.
- * @return resolved [type:table|nil] a table with all information returned by the resolver, or if an error occurs, `nil`.
+ * @return resolved [type:string[]|nil] a table with all information returned by the resolver, or if an error occurs, `nil`.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
@@ -288,8 +297,8 @@
  * The `finalizer` function will be called in protected mode (see [ref:protect]).
  *
  * @name socket.newtry
- * @param finalizer [type:function()] a function that will be called before the try throws the exception.
- * @return try [type:function] the customized try function.
+ * @param finalizer [type:fun()] a function that will be called before the try throws the exception.
+ * @return try [type:fun(...:any):any] the customized try function.
  * @examples
  *
  * Perform operations on an open socket `c`:
@@ -313,8 +322,8 @@
  * [icon:attention] Beware that if your function performs some illegal operation that raises an error, the protected function will catch the error and return it as a string. This is because try functions uses errors as the mechanism to throw exceptions.
  *
  * @name socket.protect
- * @param func [type:function] a function that calls a try function (or assert, or error) to throw exceptions.
- * @return safe_func [type:function(function())] an equivalent function that instead of throwing exceptions, returns `nil` followed by an error message.
+ * @param func [type:fun(...:any):any] a function that calls a try function (or assert, or error) to throw exceptions.
+ * @return safe_func [type:fun(...:any):any] an equivalent function that instead of throwing exceptions, returns `nil` followed by an error message.
  * @examples
  *
  * ```lua

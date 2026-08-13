@@ -295,7 +295,7 @@ message RequestRayCast
  * @param normal [type:vector3] the normal of the surface of the collision object where it was hit
  * @param id [type:hash] the instance id of the hit collision object
  * @param group [type:hash] the collision group of the hit collision object as a hashed name
- * @param request_id [type:number] id supplied when the ray cast was requested
+ * @param request_id [type:integer] id supplied when the ray cast was requested
  */
 message RayCastResponse
 {
@@ -315,7 +315,7 @@ message RayCastResponse
  *
  * @message
  * @name ray_cast_missed
- * @param request_id [type:number] id supplied when the ray cast was requested
+ * @param request_id [type:integer] id supplied when the ray cast was requested
  */
 message RayCastMissed
 {
@@ -375,7 +375,7 @@ message ContactPoint
  * @name contact_point_event
  * @param applied_impulse [type:number] the impulse the contact resulted in
  * @param distance [type:number] the penetration distance between the objects, which is always positive
- * @param a [type:table] contact point information for object A
+ * @param a [type:{ position:vector3, instance_position:vector3, normal:vector3, relative_velocity:vector3, mass:number, id:hash, group:hash }] contact point information for object A
  *
  * `position`
  * : [type:vector3] The world position of object A
@@ -395,7 +395,7 @@ message ContactPoint
  * `normal`
  * : [type:vector3] normal in world space of the contact point, which points from B object towards A object
  *
- * @param b [type:table] contact point information for object B
+ * @param b [type:{ position:vector3, instance_position:vector3, normal:vector3, relative_velocity:vector3, mass:number, id:hash, group:hash }] contact point information for object B
  *
  * `position`
  * : [type:vector3] The world position of object B
@@ -478,7 +478,7 @@ message Collision
  *
  * @message
  * @name collision_event
- * @param a [type:table] collision information for object A
+ * @param a [type:{ position:vector3, id:hash, group:hash }] collision information for object A
  *
  * `position`
  * : [type:vector3] The world position of object A
@@ -489,7 +489,7 @@ message Collision
  * `group`
  * : [type:hash] The collision group of object A
  *
- * @param b [type:table] collision information for object B
+ * @param b [type:{ position:vector3, id:hash, group:hash }] collision information for object B
  *
  * `position`
  * : [type:vector3] The world position of object B
@@ -550,14 +550,14 @@ message Trigger
  * @message
  * @name trigger_event
  * @param enter [type:boolean] if the interaction was an entry or not
- * @param a [type:table] interaction information for object A
+ * @param a [type:{ id:hash, group:hash }] interaction information for object A
  * `id`
  * : [type:hash] The ID of object A
  *
  * `group`
  * : [type:hash] The collision group of object A
  *
- * @param b [type:table] collision information for object B
+ * @param b [type:{ id:hash, group:hash }] collision information for object B
  *
  * `id`
  * : [type:hash] The ID of object B

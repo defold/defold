@@ -117,7 +117,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:fun(self:any, event:window.WINDOW_EVENT, data:{ width:number, height:number })|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
+ * @param callback [type:fun(self:any, event:window.WINDOW_EVENT, data:{ width?:integer, height?:integer })|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
  *
  * `self`
  * : [type:object] The calling script
@@ -132,10 +132,10 @@ static void RunCallback(CallbackInfo* cbinfo)
  * - `window.WINDOW_EVENT_DEICONIFIED`
  *
  * `data`
- * : [type:table] The callback value `data` is a table which currently holds these values
+ * : [type:{ width?:integer, height?:integer }] The callback value `data` is a table which currently holds these values
  *
- * - [type:number] `width`: The width of a resize event. nil otherwise.
- * - [type:number] `height`: The height of a resize event. nil otherwise.
+ * - [type:integer] `width`: The width of a resize event. nil otherwise.
+ * - [type:integer] `height`: The height of a resize event. nil otherwise.
  *
  * @examples
  *
@@ -280,8 +280,8 @@ static int GetDimMode(lua_State* L)
  * This returns the current window size (width and height).
  *
  * @name window.get_size
- * @return width [type:number] The window width
- * @return height [type:number] The window height
+ * @return width [type:integer] The window width
+ * @return height [type:integer] The window height
  */
 static int GetSize(lua_State* L)
 {
@@ -300,19 +300,19 @@ static int GetSize(lua_State* L)
  * this returns the full window size and zero insets.
  *
  * @name window.get_safe_area
- * @return safe_area [type:{ x:number, y:number, width:number, height:number, inset_left:number, inset_top:number, inset_right:number, inset_bottom:number }] safe area data
+ * @return safe_area [type:{ x:integer, y:integer, width:integer, height:integer, inset_left:integer, inset_top:integer, inset_right:integer, inset_bottom:integer }] safe area data
  *
  * `safe_area`
- * : [type:table] table containing these keys:
+ * : [type:{ x:integer, y:integer, width:integer, height:integer, inset_left:integer, inset_top:integer, inset_right:integer, inset_bottom:integer }] table containing these keys:
  *
- * - [type:number] `x`
- * - [type:number] `y`
- * - [type:number] `width`
- * - [type:number] `height`
- * - [type:number] `inset_left`
- * - [type:number] `inset_top`
- * - [type:number] `inset_right`
- * - [type:number] `inset_bottom`
+ * - [type:integer] `x`
+ * - [type:integer] `y`
+ * - [type:integer] `width`
+ * - [type:integer] `height`
+ * - [type:integer] `inset_left`
+ * - [type:integer] `inset_top`
+ * - [type:integer] `inset_right`
+ * - [type:integer] `inset_bottom`
  */
 static int GetSafeArea(lua_State* L)
 {
@@ -425,8 +425,8 @@ static int SetTitle(lua_State* L)
  * Sets the window size. Works on desktop platforms only.
  *
  * @name window.set_size
- * @param width [type:number] Width of window
- * @param height [type:number] Height of window
+ * @param width [type:integer] Width of window
+ * @param height [type:integer] Height of window
  */
 static int SetSize(lua_State* L)
 {
@@ -445,8 +445,8 @@ static int SetSize(lua_State* L)
  * Sets the window position.
  *
  * @name window.set_position
- * @param x [type:number] Horizontal position of window
- * @param y [type:number] Vertical position of window
+ * @param x [type:integer] Horizontal position of window
+ * @param y [type:integer] Vertical position of window
  */
 static int SetPosition(lua_State* L)
 {
