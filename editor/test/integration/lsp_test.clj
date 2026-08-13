@@ -735,8 +735,7 @@
                               [{:range {:start {:line 0 :character 0}
                                         :end {:line 1 :character 0}}
                                 :newText "{\n  \"asd\": 1\n}\n"}])))
-        (is (= {:formatted true
-                :edits [[#code/range [[0 0] [1 0]] ["{" "  \"asd\": 1" "}" ""]]]}
+        (is (= {:edits [[#code/range [[0 0] [1 0]] ["{" "  \"asd\": 1" "}" ""]]]}
                (format-document lsp resource :two-spaces)))
         (testing "using the editor's indentation settings"
           (is (= {:tabSize 2 :insertSpaces true} @requested-options))
@@ -745,9 +744,9 @@
           (format-document lsp resource :four-spaces)
           (is (= {:tabSize 4 :insertSpaces true} @requested-options))))
 
-      (testing "a null reply means the server could not format the document"
+      (testing "a null reply means the document is already formatted"
         (set-servers! lsp (make-formatting-server (constantly nil)))
-        (is (= {:formatted false} (format-document lsp resource :two-spaces))))
+        (is (= {:edits []} (format-document lsp resource :two-spaces))))
 
       (testing "a server without formatting support is not asked"
         (set-servers! lsp #{{:languages #{"json"}

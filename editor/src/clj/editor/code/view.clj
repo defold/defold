@@ -3053,11 +3053,12 @@
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
 (defn- show-formatting-failed-notification! [resource]
-  (notifications/show!
-    (workspace/notifications (resource/workspace resource))
-    {:type :warning
-     :id [::formatting-failed (resource/proj-path resource)]
-     :message (localization/message "notification.lsp.formatting-failed.prompt")}))
+  (let [proj-path (resource/proj-path resource)]
+    (notifications/show!
+      (workspace/notifications (resource/workspace resource))
+      {:type :warning
+       :id [::formatting-failed proj-path]
+       :message (localization/message "notification.lsp.formatting-failed.prompt" {"path" proj-path})})))
 
 (defn- apply-formatting-edits! [view-node lines edits]
   (g/with-auto-evaluation-context evaluation-context
@@ -3078,13 +3079,11 @@
 (defn- format-whole-document! [view-node lsp resource indent-type lines]
   (lsp/format-document!
     lsp resource indent-type
-    (fn [{:keys [formatted edits] :as response}]
+    (fn [response]
       (ui/run-later
-        (when response
-          (if-not formatted
-            ;; The server could not format the document, e.g. a syntax error.
-            (show-formatting-failed-notification! resource)
-            (apply-formatting-edits! view-node lines edits)))))))
+        (if response
+          (apply-formatting-edits! view-node lines (:edits response))
+          (show-formatting-failed-notification! resource))))))
 
 (defn- format-selected-rows! [view-node lsp resource indent-type lines cursor-ranges]
   (when-let [row-spans (coll/not-empty (data/format-row-spans lines cursor-ranges))]
@@ -3092,12 +3091,11 @@
       lsp resource row-spans indent-type
       (fn [responses]
         (ui/run-later
-          (when (coll/not-empty responses)
-            (if (coll/not-every? :formatted responses)
-              (show-formatting-failed-notification! resource)
-              (apply-formatting-edits!
-                view-node lines
-                (vec (sort-by key (into [] (mapcat :edits) responses)))))))))))
+          (if (coll/empty? responses)
+            (show-formatting-failed-notification! resource)
+            (apply-formatting-edits!
+              view-node lines
+              (vec (sort-by key (into [] (mapcat :edits) responses))))))))))
 
 (defn- formatting-selected-rows? [cursor-ranges]
   (coll/not-every? data/cursor-range-empty? cursor-ranges))

@@ -882,14 +882,11 @@
        :options {:tabSize (data/indent-type->tab-spaces indent-type)
                  :insertSpaces (not= :tabs indent-type)}})
     (bound-fn [result _project]
-      (if-not result
-        {:formatted false}
-        {:formatted true
-         :edits (->> result
-                     (mapv text-edit:lsp->editor)
-                     (sort-by :cursor-range)
-                     (mapv (fn [{:keys [cursor-range value]}]
-                             (coll/pair cursor-range (util/split-lines value)))))}))))
+      {:edits (->> result
+                   (mapv text-edit:lsp->editor)
+                   (sort-by :cursor-range)
+                   (mapv (fn [{:keys [cursor-range value]}]
+                           (coll/pair cursor-range (util/split-lines value)))))})))
 
 (defn range-formatting
   "See also:
@@ -903,12 +900,9 @@
        :options {:tabSize (data/indent-type->tab-spaces indent-type)
                  :insertSpaces (not= :tabs indent-type)}})
     (bound-fn [result _project]
-      (if-not result
-        {:formatted false}
-        {:formatted true
-         :edits (->> result
-                     (mapv text-edit:lsp->editor)
-                     (sort-by :cursor-range)
-                     (mapv (fn [{:keys [cursor-range value]}]
-                             (coll/pair cursor-range (util/split-lines value)))))}))))
+      {:edits (->> result
+                   (mapv text-edit:lsp->editor)
+                   (sort-by :cursor-range)
+                   (mapv (fn [{:keys [cursor-range value]}]
+                           (coll/pair cursor-range (util/split-lines value)))))})))
 
