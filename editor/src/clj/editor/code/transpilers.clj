@@ -34,6 +34,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :as coll :refer [pair pair-map-by]]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.defold.extension.pipeline ILuaTranspiler ILuaTranspiler$Issue ILuaTranspiler$Severity]
            [com.dynamo.bob ClassLoaderScanner]
@@ -229,25 +230,27 @@
         (let [removed (set/difference old-transpiler-classes new-transpiler-classes)
               added (set/difference new-transpiler-classes old-transpiler-classes)]
           (g/transact
-            (for [removed-class removed]
-              (g/delete-node (old-transpiler-class->node-id removed-class)))
-            (for [{:keys [source-ext build-file-proj-path instance]} (create-lua-transpilers added)]
-              (g/make-nodes (g/node-id->graph-id code-transpilers) [transpiler TranspilerNode]
-                (r/register-code-resource-type
-                  workspace
-                  :ext source-ext
-                  :icon "icons/32/Icons_12-Script-type.png"
-                  :icon-class :script
-                  :node-type SourceNode
-                  :view-types [:code :default]
-                  :additional-load-fn (fn [_ self _]
-                                        (g/connect self :save-data transpiler :source-code-save-datas)))
-                (g/set-properties transpiler :build-file-proj-path build-file-proj-path :instance instance)
-                (g/connect code-transpilers :lua-preprocessors transpiler :lua-preprocessors)
-                (g/connect workspace :root transpiler :root)
-                (g/connect transpiler :_node-id code-transpilers :nodes)
-                (g/connect transpiler :transpiler-info code-transpilers :transpiler-infos)
-                (g/connect transpiler :build-output code-transpilers :build-outputs))))))
+            {:undoable false}
+            (e/concat
+              (for [removed-class removed]
+                (g/delete-node (old-transpiler-class->node-id removed-class)))
+              (for [{:keys [source-ext build-file-proj-path instance]} (create-lua-transpilers added)]
+                (g/make-nodes (g/node-id->graph-id code-transpilers) [transpiler TranspilerNode]
+                  (r/register-code-resource-type
+                    workspace
+                    :ext source-ext
+                    :icon "icons/32/Icons_12-Script-type.png"
+                    :icon-class :script
+                    :node-type SourceNode
+                    :view-types [:code :default]
+                    :additional-load-fn (fn [_ self _]
+                                          (g/connect self :save-data transpiler :source-code-save-datas)))
+                  (g/set-properties transpiler :build-file-proj-path build-file-proj-path :instance instance)
+                  (g/connect code-transpilers :lua-preprocessors transpiler :lua-preprocessors)
+                  (g/connect workspace :root transpiler :root)
+                  (g/connect transpiler :_node-id code-transpilers :nodes)
+                  (g/connect transpiler :transpiler-info code-transpilers :transpiler-infos)
+                  (g/connect transpiler :build-output code-transpilers :build-outputs)))))))
       nil)
     (catch Exception e
       (let [data (ex-data e)]

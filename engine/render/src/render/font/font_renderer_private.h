@@ -24,6 +24,7 @@
 #include <dlib/utf8.h>
 
 #include <graphics/graphics.h>
+#include <font/render/glyph_vertex.h>
 
 namespace dmRender
 {
@@ -64,6 +65,16 @@ namespace dmRender
                 return height - ascent;
         }
     }
+
+    uint32_t CreateFontVertexData(HFontMap         font_map,
+                                  uint32_t         frame,
+                                  const char*      text,
+                                  const TextEntry& text_entry,
+                                  float            sdf_scale,
+                                  float            recip_w,
+                                  float            recip_h,
+                                  FontGlyphVertex* vertices,
+                                  uint32_t         max_vertices);
 }
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE_H

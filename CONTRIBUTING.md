@@ -105,7 +105,7 @@ Most contributions start with a Problem and result in a Solution. When discussin
 (These practices are inspired by the excellent ["Best practice for engine contributors"](https://docs.godotengine.org/en/latest/community/contributing/best_practices_for_engine_contributors.html) document in Godot)
 
 
-### The Problem must comes first
+### The Problem must come first
 Many developers enjoy the creative process of building systems and frameworks just for the sake of creating something. While this in itself can be both fun and rewarding it is something to pay attention to when working on a game engine. Every line of code you add will increase the build time, the complexity and the size of the code base, all of which are things you want to avoid in a game engine (or actually in all software).
 
 Best practice: *"Never add code that doesn't solve an actual problem."*

@@ -1758,8 +1758,10 @@
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
                                (when (form/can-clear? ops)
                                  (g/transact (form/clear-value ops path)))))
-                    :set-ui-state (fn [ui-state _]
-                                    (g/set-property! view-id :ui-state ui-state))
+                    :set-ui-state (fn [ui-state _event]
+                                    (g/transact
+                                      {:undoable false}
+                                      (g/set-property view-id :ui-state ui-state)))
                     :cancel-edit (fn [x _]
                                    (cond
                                      (instance? Cell x)
@@ -1805,7 +1807,12 @@
     (g/set-property view :renderer (create-renderer view parent workspace project localization))
     (g/connect resource-node :form-data view :form-data)))
 
-(def make-form-view-node! (comp first g/tx-nodes-added g/transact make-form-view-node))
+(defn make-form-view-node! [graph parent resource-node workspace project localization]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (make-form-view-node graph parent resource-node workspace project localization)))))
 
 (defn- make-form-view [graph parent resource-node opts]
   (let [{:keys [workspace project tab localization]} opts

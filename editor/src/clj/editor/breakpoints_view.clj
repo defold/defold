@@ -458,6 +458,7 @@
   (first
     (g/tx-nodes-added
       (g/transact
+        {:undoable false}
         (let [open-res-fn (make-open-resource-fn open-resource-fn)]
           (g/make-nodes view-graph [view [BreakpointsView :parent-view parent :prefs prefs :open-resource-fn open-res-fn]]
             (g/connect workspace :_node-id view :workspace)
