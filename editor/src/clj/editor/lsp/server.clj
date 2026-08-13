@@ -263,6 +263,23 @@
           (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
                               :trigger-characters (set (:triggerCharacters completionProvider))})))
 
+(defn- lua-language-server-plugin-path []
+  (str (path/of (system/defold-unpack-path)
+                "shared"
+                "lua-language-server"
+                "plugin.lua")))
+
+(defn- lua-language-server-show-message-request-handler [{:keys [actions message]}]
+  ;; Only auto-approve the exact plugin bundled with the editor. All other plugin
+  ;; requests remain unapproved.
+  (let [plugin-path (lua-language-server-plugin-path)
+        expected-message (str "The current settings try to load the plugin at this location:"
+                              plugin-path
+                              "\n\nNote that malicious plugin may harm your computer\n")]
+    (when (= expected-message message)
+      (some #(when (= "Trust and load this plugin\n" (:title %)) %)
+            actions))))
+
 (defn- configuration-handler [project]
   (fn [{:keys [items]}]
     (lsp.async/with-auto-evaluation-context evaluation-context
@@ -274,7 +291,9 @@
                   completions (g/node-value script-intelligence :lua-completions evaluation-context)
                   workspace (g/node-value project :workspace evaluation-context)
                   root (g/raw-property-value (:basis evaluation-context) workspace :root)]
-              {:runtime {:version "Lua 5.1" :pathStrict true}
+              {:runtime {:version "Lua 5.1"
+                         :pathStrict true
+                         :plugin (lua-language-server-plugin-path)}
                :completion {:workspaceWord false
                             :callSnippet "Replace"}
                :diagnostics {:globals (-> lua/defined-globals
@@ -475,7 +494,7 @@
                             {"textDocument/publishDiagnostics" (diagnostics-handler project out on-publish-diagnostics)
                              "workspace/diagnostic/refresh" (constantly nil)
                              "workspace/configuration" (configuration-handler project)
-                             "window/showMessageRequest" (constantly nil)
+                             "window/showMessageRequest" lua-language-server-show-message-request-handler
                              "window/workDoneProgress/create" (constantly nil)}
                             base-source
                             base-sink)

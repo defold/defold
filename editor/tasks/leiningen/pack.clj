@@ -87,6 +87,7 @@
    ;"${DYNAMO-HOME}/ext/bin/x86_64-win32/tint.exe"       "x86_64-win32/tint.exe"
 
    "resources/lua-annotations"                         "shared/lua-annotations"
+   "resources/lua-language-server"                     "shared/lua-language-server"
    "${DYNAMO-HOME}/ext/share/luajit"                    "shared/luajit"
 
    "bundle-resources/_defold"                           "_defold"})

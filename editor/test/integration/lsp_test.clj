@@ -213,10 +213,15 @@
     (let [official-annotations-path (str (path/of "/defold"
                                                   "shared"
                                                   "lua-annotations"))
+          lua-language-server-plugin-path (str (path/of "/defold"
+                                                        "shared"
+                                                        "lua-language-server"
+                                                        "plugin.lua"))
           configuration-handler (#'lsp.server/configuration-handler project)
           [configuration] (with-redefs [system/defold-unpack-path (constantly "/defold")]
                             (configuration-handler {:items [{:section "Lua"}]}))
           libraries (get-in configuration [:workspace :library])]
+      (is (= lua-language-server-plugin-path (get-in configuration [:runtime :plugin])))
       (is (= official-annotations-path (first libraries)))
       (is (= 2 (count libraries)))
       (is (str/ends-with? (second libraries)
@@ -224,6 +229,24 @@
                                ".internal"
                                java.io.File/separator
                                "lua-annotations"))))))
+
+(deftest lua-language-server-only-trusts-bundled-plugin-test
+  (let [trust-action {:title "Trust and load this plugin\n"}
+        reject-action {:title "Don't load this plugin\n"}
+        bundled-plugin-path (str (path/of "/defold"
+                                          "shared"
+                                          "lua-language-server"
+                                          "plugin.lua"))
+        request {:actions [trust-action reject-action]
+                 :message (str "The current settings try to load the plugin at this location:"
+                               bundled-plugin-path
+                               "\n\nNote that malicious plugin may harm your computer\n")}
+        handler #'lsp.server/lua-language-server-show-message-request-handler]
+    (with-redefs [system/defold-unpack-path (constantly "/defold")]
+      (is (= trust-action (handler request)))
+      (is (= trust-action (handler (assoc request :actions [reject-action trust-action]))))
+      (is (nil? (handler (assoc request :actions [reject-action]))))
+      (is (nil? (handler (update request :message str/replace bundled-plugin-path "/tmp/plugin.lua")))))))
 
 (deftest lsp-server-test
   (testing "Initialize + open text document -> should publish diagnostics"

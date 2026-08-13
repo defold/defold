@@ -23,14 +23,17 @@ standard_namespaces:
   - string
   - table
 
+# These are engine callbacks rather than callable globals. The editor's bundled
+# LuaLS plugin supplies their signatures at definitions in supported script files.
 excluded_functions:
   - init
-  - update
-  - fixed_update
-  - on_input
-  - on_message
-  - on_reload
   - final
+  - update
+  - late_update
+  - fixed_update
+  - on_message
+  - on_input
+  - on_reload
 
 excluded_function_patterns:
   - "client:*"

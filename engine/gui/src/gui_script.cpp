@@ -5882,6 +5882,7 @@ namespace dmGui
      * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
      * @param message [type:table<any, any>] a table containing the message data
+     * @param sender [type:url] address of the sender
      */
 
     /*# called when user input is received
