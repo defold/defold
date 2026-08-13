@@ -130,6 +130,7 @@ static bool LayoutText(LayoutContext* ctx,
         const skb_layout_line_t* line = &layout_lines[li];
 
         uint32_t prev_glyph_index = layout->m_Glyphs.Size();
+        float content_advance = 0.0f;
 
         for (int32_t ri = line->glyph_run_range.start; ri < line->glyph_run_range.end; ri++)
         {
@@ -154,6 +155,8 @@ static bool LayoutText(LayoutContext* ctx,
                 {
                     continue;
                 }
+
+                content_advance += fabsf(skbglyph->advance_x);
 
                 TextGlyph glyph = {0};
                 glyph.m_X           = gx;
@@ -189,9 +192,26 @@ static bool LayoutText(LayoutContext* ctx,
 
         TextLine l;
         l.m_Width   = line->bounds.width - (tracking > 0 ? tracking : 0);
+        if (li == lines_count - 2 &&
+            (codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_NEW_LINE ||
+             codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_CARRIAGE_RETURN))
+        {
+            l.m_Width = content_advance - (tracking > 0 ? tracking : 0);
+        }
         l.m_Index   = prev_glyph_index;
         l.m_Length  = glyph_index - prev_glyph_index;
         layout->m_Lines.Push(l);
+    }
+
+    // SkriBidi includes an empty line after a terminal newline. The legacy
+    // layout does not, so discard it here as well.
+    if (!layout->m_Lines.Empty() &&
+        layout->m_Lines.Back().m_Length == 0 &&
+        (codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_NEW_LINE ||
+         codepoints[num_codepoints - 1] == dmUtf8::UTF_WHITESPACE_CARRIAGE_RETURN))
+    {
+        layout->m_Lines.Pop();
+        lines_count--;
     }
 
     layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
@@ -199,6 +219,12 @@ static bool LayoutText(LayoutContext* ctx,
 
     skb_rect2_t layout_bounds = skb_layout_get_bounds(skblayout);
     layout->m_Width = layout_bounds.width - (tracking > 0 ? tracking : 0);
+    if (lines_count != skb_layout_get_lines_count(skblayout))
+    {
+        layout->m_Width = 0.0f;
+        for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
+            layout->m_Width = fmaxf(layout->m_Width, layout->m_Lines[i].m_Width);
+    }
     layout->m_Height = lines_count * (line_height_scaled * settings->m_Leading) - line_height_scaled * (settings->m_Leading - 1.0f);
 
     return true;

@@ -131,7 +131,6 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
-        dmGameSystem::ParticleFXContext             m_ParticleFXContext;
         /// If the shared context is set, the three environment specific contexts below will point to the same context
         dmScript::HContext                          m_SharedScriptContext;
         dmScript::HContext                          m_GOScriptContext;
@@ -146,7 +145,6 @@ namespace dmEngine
         dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
-        dmGameSystem::TilemapContext                m_TilemapContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmGameSystem::FontResource*                 m_SystemFont;

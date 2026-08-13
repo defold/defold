@@ -478,7 +478,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
+ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
 EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
@@ -682,6 +682,7 @@ class Configuration(object):
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
         self.build_tracker = BuildTimeTracker(logger=self._log)
+        self._cmake_configure_inputs_mtime_cache = {}
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -1849,6 +1850,11 @@ class Configuration(object):
             self._log('%s/%s' % (full_archive_path, mouse_capture_name))
             self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_name))
 
+        if self.is_desktop_target():
+            fontc_name = format_lib("fontc_shared", self.target_platform)
+            fontc_lib = join(lib_dir, fontc_name)
+            self.upload_to_archive(fontc_lib, '%s/%s' % (full_archive_path, fontc_name))
+
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
@@ -1887,6 +1893,7 @@ class Configuration(object):
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'fontrenderer.jar'), '%s/fontrenderer.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'shaderc.jar'), '%s/shaderc.jar' % (java_archive_path))
 
@@ -2126,6 +2133,10 @@ class Configuration(object):
         return join(build_home, 'engine', 'build', platform)
 
     def _cmake_configure_inputs_mtime(self, roots):
+        cache_key = tuple(normpath(root) for root in roots)
+        if cache_key in self._cmake_configure_inputs_mtime_cache:
+            return self._cmake_configure_inputs_mtime_cache[cache_key]
+
         watched_files = ('CMakeLists.txt',)
         watched_suffixes = ('.cmake',)
         watched_dirs = ('scripts/cmake', 'engine', 'share')
@@ -2154,6 +2165,7 @@ class Configuration(object):
                 except OSError:
                     pass
 
+        self._cmake_configure_inputs_mtime_cache[cache_key] = latest
         return latest
 
     def _cmake_configure_state(self, builddir, cmake_configure_args):
@@ -2219,12 +2231,17 @@ class Configuration(object):
         previous_lib_set = previous_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
         current_build_tests = current_defines.pop('BUILD_TESTS', None)
         previous_build_tests = previous_defines.pop('BUILD_TESTS', None)
+        current_skip_bob_light = current_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
+        previous_skip_bob_light = previous_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
 
         if current_defines != previous_defines:
             return False
         if current_lib_set != 'host' or previous_lib_set != 'all':
             return False
         if current_build_tests != 'OFF':
+            return False
+        if (current_skip_bob_light not in ('OFF', 'ON')
+                or previous_skip_bob_light != 'ON'):
             return False
 
         # Keep test install rules consistent with the requested host pass.
@@ -2412,6 +2429,7 @@ class Configuration(object):
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
+            f'-DCMAKE_INSTALL_MESSAGE:STRING=LAZY',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
@@ -2442,11 +2460,19 @@ class Configuration(object):
             os.makedirs(builddir, exist_ok=True)
             previous_cmake_configure_state = None
 
+        configure_state_matches = self._cmake_configure_state_matches(
+            cmake_configure_state,
+            previous_cmake_configure_state,
+            allow_compatible_configure)
+        compatible_configure = (configure_state_matches
+                                and cmake_configure_state != previous_cmake_configure_state)
+        validation_configure_state = (previous_cmake_configure_state
+                                      if compatible_configure else cmake_configure_state)
         skip_configure = (
             os.path.exists(cmake_cache)
-            and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure)
-            and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
-            and self._cmake_generated_install_matches_configure_state(cmake_configure_state)
+            and configure_state_matches
+            and self._cmake_cache_matches_configure_state(cmake_cache, validation_configure_state)
+            and self._cmake_generated_install_matches_configure_state(validation_configure_state)
             and generated_outputs_match)
         if skip_configure:
             self._log(f'Skipping CMake configure {name}; configure state is unchanged')
@@ -2733,6 +2759,7 @@ class Configuration(object):
     def copy_local_bob_artefacts(self):
         texc_name = format_lib('texc_shared', self.host)
         modelc_name = format_lib('modelc_shared', self.host)
+        fontc_name = format_lib('fontc_shared', self.host)
         shaderc_name = format_lib('shaderc_shared', self.host)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
@@ -2781,11 +2808,13 @@ class Configuration(object):
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
+                                 'share/java/fontrenderer.jar': 'lib/fontrenderer.jar',
                                  'share/java/modelimporter.jar': 'lib/modelimporter.jar',
                                  'share/java/shaderc.jar': 'lib/shaderc.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
                                  'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
+                                 'lib/%s/%s' % (self.host, fontc_name): 'lib/%s/%s' % (self.host, fontc_name),
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,

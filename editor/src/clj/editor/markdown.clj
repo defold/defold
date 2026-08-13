@@ -364,8 +364,10 @@
                          (keep-indexed
                            (fn [col th]
                              (when-let [view (children-section-view th (style ctx "strong"))]
-                               (assoc view :grid-pane/column col
-                                           :grid-pane/row 0))))
+                               (assoc view
+                                 :style-class ["md-table-cell" "md-table-header-cell"]
+                                 :grid-pane/column col
+                                 :grid-pane/row 0))))
                          (.select node "table>thead>tr>th"))
         content-row-offset (if (pos? (count head-views)) 1 0)
         rows-views (into []
@@ -375,22 +377,28 @@
                                                          (keep-indexed
                                                            (fn [col td]
                                                              (some-> (children-section-view td ctx)
-                                                                     (assoc :grid-pane/column col))))
+                                                                     (assoc :style-class ["md-table-cell"]
+                                                                            :grid-pane/column col))))
                                                          (.select tr "tr>td"))]
                                      (when (pos? (count row-views))
                                        row-views))))
                            (map-indexed
                              (fn [^long row views]
-                               (mapv #(assoc % :grid-pane/row (+ content-row-offset row)) views))))
+                               (let [row-class (if (even? row) "md-table-row-even" "md-table-row-odd")]
+                                 (mapv #(-> %
+                                            (update :style-class conj row-class)
+                                            (assoc :grid-pane/row (+ content-row-offset row)))
+                                       views)))))
                          (.select node "table>tbody>tr"))]
     (when (pos? (count rows-views))
       (let [views (into head-views cat rows-views)
             cols (transduce (map count) max (count head-views) rows-views)]
         {:fx/type fx.grid-pane/lifecycle
+         :style-class "md-table"
          :column-constraints (vec (repeat cols
                                           {:fx/type fx.column-constraints/lifecycle
-                                           :min-width 75}))
-         :hgap 4
+                                           :min-width 100
+                                           :max-width 1000}))
          :children views}))))
 
 (defn- construct-image [src base-resource]

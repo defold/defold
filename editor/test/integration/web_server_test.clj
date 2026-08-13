@@ -287,9 +287,16 @@
                                 (succeeding-selection [_this _evaluation-context])
                                 (alt-selection [_this _evaluation-context]))))
           view-graph (g/node-id->graph-id app-view)
-          console (g/make-node! view-graph console/ConsoleNode)
-          console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]
-      (g/connect! console :_node-id console-view :resource-node)
+
+          [_console console-view]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes view-graph
+                [console console/ConsoleNode
+                 console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
+                (g/connect console :_node-id console-view :resource-node))))]
+
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler

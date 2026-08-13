@@ -156,4 +156,6 @@ install(FILES
 
 # ********************* Tests *********************
 
-add_subdirectory(src/test)
+if(BUILD_TESTS)
+    add_subdirectory(src/test)
+endif()
