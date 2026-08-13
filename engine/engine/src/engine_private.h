@@ -164,8 +164,10 @@ namespace dmEngine
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
         bool                                        m_UseSwVSync;
+        uint32_t                                    m_SwapInterval;
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
-        float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
+        uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
+        float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_FixedUpdateFrequency;
         uint32_t                                    m_Width;
@@ -239,6 +241,13 @@ namespace dmEngine
         EngineUpdate        m_EngineUpdate;
         EngineGetResult     m_EngineGetResult;
     };
+
+    /**
+     * Check if the engine should manually calculate and apply frame pacing or
+     * if the underlying platform handles it
+     * @return true if frame pacing should be handled manually
+     */
+    bool UseEngineFramePacing();
 
     /**
      *

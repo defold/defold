@@ -124,6 +124,10 @@ namespace dmEngine
 
 #define SYSTEM_SOCKET_NAME "@system"
 
+    // Used to pace engine frames when rendering is disabled and the platform
+    // cannot report the display refresh rate (for example, a headless adapter).
+    static const uint32_t DEFAULT_DISPLAY_REFRESH_RATE = 60;
+
     dmEngineService::HEngineService g_EngineService = 0;
 
     bool g_EngineUpdateEnabled = true;
@@ -424,6 +428,7 @@ namespace dmEngine
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
     , m_UseSwVSync(false)
+    , m_SwapInterval(0)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -447,6 +452,7 @@ namespace dmEngine
         m_ModelContext.m_MaxModelCount = 0;
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetMonotonicTime();
+        m_NextFrameTime = 0;
         m_HttpCache = 0;
         m_DependenciesJsonResource = 0;
         m_DependenciesJsonSize = 0;
@@ -750,9 +756,12 @@ namespace dmEngine
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
         swap_interval = dmMath::Max(0, swap_interval);
+        engine->m_SwapInterval = (uint32_t) swap_interval;
+        engine->m_NextFrameTime = 0;
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
 
-        if (!dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC))
+        bool vsync = dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
+        if (!vsync)
         {
             engine->m_UseSwVSync = swap_interval != 0;
         }
@@ -761,6 +770,11 @@ namespace dmEngine
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
+        engine->m_AccumFrameTime = 0.0f;
+
+        uint64_t now = dmTime::GetMonotonicTime();
+        engine->m_PreviousFrameTime = now;
+        engine->m_NextFrameTime = frequency == 0 ? 0 : now + (1000000ULL + frequency - 1) / frequency;
     }
 
     struct LuaCallstackCtx
@@ -2274,7 +2288,75 @@ bail:
         engine->m_Stats.m_TotalTime += dt;
     }
 
-    static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
+    /**
+     * Selects the frequency used by the engine-side frame pacer. An explicit
+     * update frequency set via SetUpdateFrequency() always wins. With a
+     * variable update frequency, Flip() normally provides the wait through
+     * vsync; when rendering is disabled we derive the same cadence from the
+     * display refresh rate and swap interval.
+     * @return The number of engine frames per second
+     */
+    static uint32_t GetFramePacingFrequency(HEngine engine)
+    {
+        if (engine->m_UpdateFrequency != 0)
+        {
+            return engine->m_UpdateFrequency;
+        }
+
+        bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
+        if (do_render || engine->m_SwapInterval == 0)
+        {
+            return 0;
+        }
+
+        uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+        if (refresh_rate == 0)
+        {
+            refresh_rate = DEFAULT_DISPLAY_REFRESH_RATE;
+        }
+        return dmMath::Max(1U, refresh_rate / engine->m_SwapInterval);
+    }
+
+    /**
+     * Wait for the next absolute frame deadline. This function will immediately
+     * return without waiting if the frame pacing frequency is zero. In all
+     * other scenarios the function will wait until the frame deadline.
+     * @return true when engine-side pacing took place and the function slept
+     * until the frame deadline, and false if no engine-side pacing took place.
+     */
+    static bool PaceFrame(HEngine engine)
+    {
+        uint32_t pacing_frequency = GetFramePacingFrequency(engine);
+        if (pacing_frequency == 0)
+        {
+            engine->m_NextFrameTime = 0;
+            return false;
+        }
+
+        const uint64_t frame_period = (1000000ULL + pacing_frequency - 1) / pacing_frequency;
+        uint64_t now = dmTime::GetMonotonicTime();
+
+        if (engine->m_NextFrameTime == 0)
+        {
+            engine->m_NextFrameTime = now;
+        }
+
+        while (now < engine->m_NextFrameTime)
+        {
+            dmTime::Sleep((uint32_t)(engine->m_NextFrameTime - now));
+            now = dmTime::GetMonotonicTime();
+        }
+
+        engine->m_NextFrameTime += frame_period;
+        if (engine->m_NextFrameTime <= now)
+        {
+            // Do not run several frames back-to-back when a deadline was missed.
+            engine->m_NextFrameTime = now + frame_period;
+        }
+        return true;
+    }
+
+    static void CalcTimeStep(HEngine engine, bool frame_was_paced, float& step_dt, uint32_t& num_steps)
     {
         uint64_t time = dmTime::GetMonotonicTime();
         uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
@@ -2298,22 +2380,34 @@ bail:
         // Fixed frame rate
         float fixed_dt = 1.0f / (float)engine->m_UpdateFrequency;
 
-        // We don't allow having a higher framerate than the actual variable frame rate
-        // since the update+render is currently coupled together and also Flip() would be called more than once.
+        // We don't allow having a higher framerate than the actual variable frame
+        // rate since the update+render is currently coupled together and also
+        // Flip() would be called more than once.
         // E.g. if the fixed_dt == 1/120 and the frame_dt == 1/60
         if (fixed_dt < frame_dt)
         {
             fixed_dt = frame_dt;
         }
 
-        engine->m_AccumFrameTime += frame_dt;
+        if (frame_was_paced)
+        {
+            // PaceFrame has already waited for this frame's deadline.
+            step_dt = fixed_dt;
+            num_steps = 1;
+            engine->m_AccumFrameTime = 0.0f;
+        }
+        else
+        {
+            // Platform-paced loops may call Step before a fixed update is due.
+            engine->m_AccumFrameTime += frame_dt;
 
-        float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
+            float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
 
-        num_steps = (uint32_t)num_steps_f;
-        step_dt = fixed_dt;
+            num_steps = (uint32_t)num_steps_f;
+            step_dt = fixed_dt;
 
-        engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+            engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+        }
     }
 
     void Step(HEngine engine)
@@ -2325,7 +2419,14 @@ bail:
         float step_dt;      // The dt for each step (the game frame)
         uint32_t num_steps; // Number of times to loop over the StepFrame function
 
-        CalcTimeStep(engine, step_dt, num_steps);
+        // Pace before calculating dt so the wait is included in frame_time.
+        // This remains effective even when StepFrame skips rendering and Flip().
+        bool frame_was_paced = false;
+        if (dmEngine::UseEngineFramePacing())
+        {
+            frame_was_paced = PaceFrame(engine);
+        }
+        CalcTimeStep(engine, frame_was_paced, step_dt, num_steps);
 
         for (uint32_t i = 0; i < num_steps; ++i)
         {

@@ -24,6 +24,15 @@
 namespace dmEngine
 {
 
+    bool UseEngineFramePacing()
+    {
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
+        return false;
+#else
+        return true;
+#endif
+    }
+
 #if defined(DM_PLATFORM_IOS)
 
     int RunLoop(const RunLoopParams* params)
