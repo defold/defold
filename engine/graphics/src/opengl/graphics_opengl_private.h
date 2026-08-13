@@ -179,10 +179,6 @@ namespace dmGraphics
         int32_t                 m_ScissorRect[4];
         int32_t                 m_ScissorRectDirty[4];
         HOpenglID               m_GlobalVAO;
-        // Last VAO handed to glBindVertexArray. We only ever use m_GlobalVAO, so this lets us
-        // skip rebinding it for every vertex declaration. 0 means "nothing bound yet", which is
-        // also the state after a context loss, so resetting it forces the next bind through.
-        GLuint                  m_BoundVAO;
         uint32_t                m_MaxTextureSize;
         uint32_t                m_MaxElementVertices;
         // Counter to keep track of various modifications. Used for cache flush etc
