@@ -62,6 +62,7 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import com.google.protobuf.Message;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.codehaus.jackson.JsonNode;
@@ -536,6 +537,21 @@ public class Project implements AutoCloseable {
     }
 
     /**
+     * Create a protobuf task whose source has already been parsed by its parent
+     * source message. The immutable message is injected before task creation so
+     * dependency scanning and building can both reuse it without TextFormat.
+     */
+    public Task createTask(IResource inputResource, Message srcMessage) throws CompileExceptionError {
+        Class<? extends Builder> builderClass = getBuilderFromExtension(inputResource);
+        if (builderClass == null) {
+            logWarning("No builder for '%s' found", inputResource);
+            return null;
+        }
+
+        return createTask(inputResource, builderClass, srcMessage);
+    }
+
+    /**
      * Create task from resource with explicit builder.
      * Make sure that task is unique.
      * @param inputResource input resource
@@ -544,6 +560,11 @@ public class Project implements AutoCloseable {
      * @throws CompileExceptionError
      */
     public Task createTask(IResource inputResource, Class<? extends Builder> builderClass) throws CompileExceptionError {
+        return createTask(inputResource, builderClass, null);
+    }
+
+    private Task createTask(IResource inputResource, Class<? extends Builder> builderClass, Message srcMessage)
+            throws CompileExceptionError {
         // It's possible to build the same resource using different builders
         String key = inputResource.getPath()+" "+builderClass;
         if (!circularDependencyChecker.add(key)) {
@@ -551,6 +572,9 @@ public class Project implements AutoCloseable {
         }
         Task task = tasks.get(key);
         if (task != null) {
+            if (srcMessage != null) {
+                setBuilderSrcMessage(inputResource, task.getBuilder(), srcMessage);
+            }
             circularDependencyChecker.remove(key);
             return task;
         }
@@ -560,6 +584,9 @@ public class Project implements AutoCloseable {
         try {
             builder = builderClass.newInstance();
             builder.setProject(this);
+            if (srcMessage != null) {
+                setBuilderSrcMessage(inputResource, builder, srcMessage);
+            }
             task = builder.create(inputResource);
             if (task != null) {
                 TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
@@ -576,6 +603,15 @@ public class Project implements AutoCloseable {
         } finally {
             TimeProfiler.stop();
         }
+    }
+
+    private static void setBuilderSrcMessage(IResource inputResource, Builder builder, Message srcMessage)
+            throws CompileExceptionError {
+        if (!(builder instanceof ProtoBuilder)) {
+            throw new CompileExceptionError(inputResource, 0,
+                    "Builder '" + builder.getClass().getName() + "' does not accept an injected protobuf source");
+        }
+        ((ProtoBuilder<?>) builder).setSrcMessage(inputResource, srcMessage);
     }
 
     public Task createGamepadTask(IResource gamepadDbInput, IResource gamepadsInput) throws CompileExceptionError {

@@ -21,8 +21,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
@@ -44,6 +45,7 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.bob.util.ComponentsCounter;
+import com.dynamo.bob.pipeline.GameObjectSourceUtil.GeneratedInput;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
@@ -124,31 +126,41 @@ public class GameObjectBuilder extends ProtoBuilder<GameObjectSource.PrototypeDe
         GameObjectSource.PrototypeDesc proto = builder.buildPartial();
 
         // Gather the unique resources first
-        LinkedHashSet<IResource> uniqueResources = new LinkedHashSet<>();
+        LinkedHashMap<IResource, GeneratedInput> uniqueResources = new LinkedHashMap<>();
         List<Task> embedTasks = new ArrayList<>();
 
         for (GameObjectSource.EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
-            byte[] data = GameObjectSourceUtil.getEmbeddedComponentData(input, ec);
+            GeneratedInput generatedInput = GameObjectSourceUtil.getEmbeddedComponentInput(input, ec);
+            byte[] data = generatedInput.getContent();
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, ec.getType());
             if (genResource == null) {
                 genResource = project.createGeneratedResource(hash, ec.getType());
-
-                // TODO: This is a hack derived from the same problem with embedded gameobjects from collections (see CollectionBuilder.create)!
-                // If the file isn't created here <EmbeddedComponent>#create
-                // can't access generated resource data (embedded component desc)
-                genResource.setContent(data);
-                uniqueResources.add(genResource);
             }
-            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, data, taskBuilder, input);
+
+            // The bytes identify the generated task and participate in its cache
+            // signature. Typed inputs are consumed directly from their immutable
+            // protobuf message instead of parsing these bytes.
+            genResource.setContent(data);
+            GeneratedInput previousInput = uniqueResources.putIfAbsent(genResource, generatedInput);
+            if (previousInput != null && !Arrays.equals(previousInput.getContent(), data)) {
+                throw new CompileExceptionError(input, 0,
+                        "Generated resource hash collision for '" + genResource.getPath() + "'");
+            }
+
+            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, generatedInput, taskBuilder, input);
             if (isStatic != null) {
                 ifObjectHasDynamicFactory |= !isStatic;
             }
         }
 
-        for (IResource genResource : uniqueResources) {
-            Task embedTask = createSubTask(genResource, taskBuilder);
+        for (Map.Entry<IResource, GeneratedInput> entry : uniqueResources.entrySet()) {
+            IResource genResource = entry.getKey();
+            GeneratedInput generatedInput = entry.getValue();
+            Task embedTask = generatedInput.isTyped()
+                    ? createSubTask(genResource, generatedInput.getMessage(), taskBuilder)
+                    : createSubTask(genResource, taskBuilder);
             embedTasks.add(embedTask);
         }
 
@@ -175,7 +187,8 @@ public class GameObjectBuilder extends ProtoBuilder<GameObjectSource.PrototypeDe
 
         // convert embedded components to generated components in the build folder
         for (GameObjectSource.EmbeddedComponentDesc ec : sourceBuilder.getEmbeddedComponentsList()) {
-            byte[] data = GameObjectSourceUtil.getEmbeddedComponentData(input, ec);
+            GeneratedInput generatedInput = GameObjectSourceUtil.getEmbeddedComponentInput(input, ec);
+            byte[] data = generatedInput.getContent();
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, ec.getType());

@@ -35,6 +35,7 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.bob.util.ComponentsCounter;
+import com.dynamo.bob.pipeline.GameObjectSourceUtil.GeneratedInput;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
@@ -68,23 +69,29 @@ public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionD
     }
 
     private void createGeneratedResources(Project project, IResource owner, GameObjectSource.CollectionDesc.Builder builder,
-        Map<Long, IResource> uniqueResources, Map<Long, IResource> allResources) throws IOException, CompileExceptionError {
+        Map<IResource, GeneratedInput> uniqueResources,
+        Map<IResource, GeneratedInput> allResources) throws IOException, CompileExceptionError {
 
         for (GameObjectSource.EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
-            byte[] data = GameObjectSourceUtil.getEmbeddedInstanceData(owner, desc);
+            GeneratedInput generatedInput = GameObjectSourceUtil.getEmbeddedInstanceInput(owner, desc);
+            byte[] data = generatedInput.getContent();
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, "go");
+            boolean newResource = genResource == null;
             if (genResource == null) {
                 genResource = project.createGeneratedResource(hash, "go");
-
-                // TODO: This is a hack derived from the same problem with embedded gameobjects from collections (see CollectionBuilder.create)!
-                // If the file isn't created here <EmbeddedComponent>#create
-                // can't access generated resource data (embedded component desc)
-                genResource.setContent(data);
-                uniqueResources.put(hash, genResource);
             }
-            allResources.put(hash, genResource);
+
+            genResource.setContent(data);
+            GeneratedInput previousInput = allResources.putIfAbsent(genResource, generatedInput);
+            if (previousInput != null && !Arrays.equals(previousInput.getContent(), data)) {
+                throw new CompileExceptionError(owner, 0,
+                        "Generated resource hash collision for '" + genResource.getPath() + "'");
+            }
+            if (newResource) {
+                uniqueResources.put(genResource, generatedInput);
+            }
         }
 
         for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
@@ -130,19 +137,26 @@ public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionD
             compCounterInputsCount.put(compCounterInput, 1);
         }
 
-        Map<Long, IResource> uniqueResources = new LinkedHashMap<>();
-        Map<Long, IResource> allResources = new LinkedHashMap<>();
+        Map<IResource, GeneratedInput> uniqueResources = new LinkedHashMap<>();
+        Map<IResource, GeneratedInput> allResources = new LinkedHashMap<>();
         createGeneratedResources(this.project, input, builder, uniqueResources, allResources);
 
         List<Task> embedTasks = new ArrayList<>();
-        for (long hash : uniqueResources.keySet()) {
-            IResource genResource = uniqueResources.get(hash);
-            Task embedTask = createSubTask(genResource, taskBuilder);
+        for (Map.Entry<IResource, GeneratedInput> entry : uniqueResources.entrySet()) {
+            IResource genResource = entry.getKey();
+            GeneratedInput generatedInput = entry.getValue();
+            Task embedTask = generatedInput.isTyped()
+                    ? createSubTask(genResource, generatedInput.getMessage(), taskBuilder)
+                    : createSubTask(genResource, taskBuilder);
             embedTasks.add(embedTask);
         }
 
-        for (IResource genResource : allResources.values()) {
-            Task embedTask = createSubTask(genResource, taskBuilder);
+        for (Map.Entry<IResource, GeneratedInput> entry : allResources.entrySet()) {
+            IResource genResource = entry.getKey();
+            GeneratedInput generatedInput = entry.getValue();
+            Task embedTask = generatedInput.isTyped()
+                    ? createSubTask(genResource, generatedInput.getMessage(), taskBuilder)
+                    : createSubTask(genResource, taskBuilder);
             // if embeded objects have factories, they should be in input for our collection
             Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
             for(IResource res : counterInputs) {
@@ -398,7 +412,8 @@ public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionD
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
         for (GameObjectSource.EmbeddedInstanceDesc desc : sourceBuilder.getEmbeddedInstancesList()) {
-            byte[] data = GameObjectSourceUtil.getEmbeddedInstanceData(resource, desc);
+            GeneratedInput generatedInput = GameObjectSourceUtil.getEmbeddedInstanceInput(resource, desc);
+            byte[] data = generatedInput.getContent();
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, "go");
@@ -409,7 +424,7 @@ public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionD
 
             // mergeSubCollections() embeds instances, but we want to count only "real" embeded instances
             if (embedIndex < countOfRealEmbededObjects) {
-                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, data, compStorage);
+                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, generatedInput, compStorage);
                 goCount++;
             }
 

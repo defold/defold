@@ -23,13 +23,18 @@ import org.junit.Test;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.gameobject.proto.GameObjectSource;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesys.proto.DataProto.Data;
+import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.proto.DdfStruct.Struct;
+import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.Message;
 
 public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
@@ -92,6 +97,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString()).get(0);
     }
 
+    // Verifies that legacy string and typed sprite payloads produce equivalent compiled game objects.
     @Test
     public void testLegacyAndTypedEmbeddedComponentsBuildEquivalently() throws Exception {
         addFile("/test.atlas", "");
@@ -130,6 +136,82 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(animation, typedSprite.getDefaultAnimation());
     }
 
+    // Verifies deterministic typed-payload identities and unchanged UTF-8 identities for legacy payloads.
+    @Test
+    public void testTypedGeneratedInputUsesDeterministicBinaryIdentity() throws Exception {
+        Value one = Value.newBuilder().setNumber(1.0).build();
+        Value two = Value.newBuilder().setNumber(2.0).build();
+        Struct firstStruct = Struct.newBuilder()
+                .putFields("b", two)
+                .putFields("a", one)
+                .build();
+        Struct secondStruct = Struct.newBuilder()
+                .putFields("a", one)
+                .putFields("b", two)
+                .build();
+
+        GameObjectSource.EmbeddedComponentDesc first = GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                .setId("light")
+                .setType("point_light")
+                .setPointLight(Data.newBuilder().setData(Value.newBuilder().setStruct(firstStruct)))
+                .build();
+        GameObjectSource.EmbeddedComponentDesc second = GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                .setId("light")
+                .setType("point_light")
+                .setPointLight(Data.newBuilder().setData(Value.newBuilder().setStruct(secondStruct)))
+                .build();
+
+        GameObjectSourceUtil.GeneratedInput firstInput = GameObjectSourceUtil.getEmbeddedComponentInput(
+                getProject().getResource("/test.go"), first);
+        GameObjectSourceUtil.GeneratedInput secondInput = GameObjectSourceUtil.getEmbeddedComponentInput(
+                getProject().getResource("/test.go"), second);
+
+        Assert.assertTrue(firstInput.isTyped());
+        Assert.assertSame(first.getPointLight(), firstInput.getMessage());
+        Assert.assertArrayEquals(firstInput.getContent(), secondInput.getContent());
+        Assert.assertEquals(0, firstInput.getContent()[0]);
+
+        String legacyText = "data { number: 1.0 }\n";
+        GameObjectSource.EmbeddedComponentDesc legacy = GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                .setId("light")
+                .setType("point_light")
+                .setData(legacyText)
+                .build();
+        GameObjectSourceUtil.GeneratedInput legacyInput = GameObjectSourceUtil.getEmbeddedComponentInput(
+                getProject().getResource("/test.go"), legacy);
+
+        Assert.assertFalse(legacyInput.isTyped());
+        Assert.assertArrayEquals(legacyText.getBytes(StandardCharsets.UTF_8), legacyInput.getContent());
+    }
+
+    // Verifies that a typed mesh payload is passed directly to its builder and its resources are compiled.
+    @Test
+    public void testTypedEmbeddedMeshUsesInjectedSourceMessage() throws Exception {
+        addTestFiles();
+        addFile("/test.buffer", "[]");
+        addFile("/test.material", "name: \"test\"\n"
+                + "vertex_program: \"/test.vp\"\n"
+                + "fragment_program: \"/test.fp\"\n");
+        String source = "embedded_components {\n"
+                + "  id: \"mesh\"\n"
+                + "  type: \"mesh\"\n"
+                + "  mesh {\n"
+                + "    material: \"/test.material\"\n"
+                + "    vertices: \"/test.buffer\"\n"
+                + "  }\n"
+                + "}\n";
+
+        List<Message> messages = build("/typed-mesh.go", source);
+        PrototypeDesc prototype = getMessage(messages, PrototypeDesc.class);
+        MeshDesc mesh = getMessage(messages, MeshDesc.class);
+
+        Assert.assertEquals(1, prototype.getComponentsCount());
+        Assert.assertNotNull(mesh);
+        Assert.assertEquals("/test.bufferc", mesh.getVertices());
+        Assert.assertEquals("/test.materialc", mesh.getMaterial());
+    }
+
+    // Verifies that ordinary singular message fragments retain protobuf text merge semantics.
     @Test
     public void testSingularMessageCanBeSplitAcrossFragments() throws Exception {
         String source = "embedded_components {\n"
@@ -147,6 +229,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(2.0f, prototype.getComponents(0).getPosition().getY(), 0.0f);
     }
 
+    // Verifies that a referenced raw audio file is converted into exactly one typed sound component.
     @Test
     public void testRawAudioComponentBecomesOneTypedSound() throws Exception {
         addTestFiles();
@@ -164,6 +247,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals("/test.oggc", sound.getSound());
     }
 
+    // Verifies that legacy fallback payloads preserve non-ASCII text through compilation.
     @Test
     public void testFallbackEmbeddedComponentPreservesUtf8() throws Exception {
         getProject().setOption("use-uncompressed-lua-source", "true");
@@ -184,6 +268,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertArrayEquals(script.getBytes(StandardCharsets.UTF_8), luaModule.getSource().getScript().toByteArray());
     }
 
+    // Verifies that equal payload hashes from different component types create distinct generated resources.
     @Test
     public void testEmbeddedComponentsWithSamePayloadHashAndDifferentTypes() throws Exception {
         String source = "embedded_components {\n"
@@ -207,23 +292,27 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertNotNull(getMessage(messages, LuaModule.class));
     }
 
+    // Verifies that an embedded component without any payload is rejected.
     @Test(expected = CompileExceptionError.class)
     public void testEmbeddedComponentMissingPayload() throws Exception {
         build("/missing-payload.go", "embedded_components { id: \"fx\" type: \"particlefx\" }");
     }
 
+    // Verifies that a typed payload whose arm differs from the component type is rejected.
     @Test(expected = CompileExceptionError.class)
     public void testEmbeddedComponentPayloadTypeMismatch() throws Exception {
         build("/mismatched-payload.go",
                 "embedded_components { id: \"fx\" type: \"sprite\" particlefx {} }");
     }
 
+    // Verifies that source text selecting conflicting embedded-component payload arms is rejected.
     @Test(expected = CompileExceptionError.class)
     public void testEmbeddedComponentMultiplePayloads() throws Exception {
         build("/multiple-payloads.go",
                 "embedded_components { id: \"fx\" type: \"particlefx\" data: \"\" particlefx {} }");
     }
 
+    // Verifies that missing and mismatched component payload errors identify the invalid component.
     @Test
     public void testEmbeddedComponentValidationMessages() throws Exception {
         try {

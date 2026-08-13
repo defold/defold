@@ -731,6 +731,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Verifies component counts and dependencies through a typed embedded prototype and static factory.
     @Test
     public void testTypedEmbeddedPrototypeStaticFactoryComponentCounter() throws Exception {
         addFile("/test.atlas", "");
@@ -1061,6 +1062,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Verifies that legacy string and typed embedded instances produce equivalent compiled resources.
     @Test
     public void testLegacyAndTypedEmbeddedInstancesBuildEquivalently() throws Exception {
         String typedSource = "name: \"main\"\n"
@@ -1103,6 +1105,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertNotNull(getMessage(typedMessages, ParticleFX.class));
     }
 
+    // Verifies that an explicitly empty typed prototype is equivalent to legacy empty data.
     @Test
     public void testEmptyTypedPrototypeEquivalentToLegacyEmptyData() throws Exception {
         String typedSource = "name: \"main\"\n"
@@ -1127,6 +1130,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(0, typedPrototype.getComponentsCount());
     }
 
+    // Verifies UTF-8 preservation for a legacy component payload nested inside a typed prototype.
     @Test
     public void testFallbackPayloadInTypedPrototypePreservesUtf8() throws Exception {
         getProject().setOption("use-uncompressed-lua-source", "true");
@@ -1156,11 +1160,13 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertArrayEquals(script.getBytes(StandardCharsets.UTF_8), luaModule.getSource().getScript().toByteArray());
     }
 
+    // Verifies that an embedded instance without any payload is rejected.
     @Test(expected = CompileExceptionError.class)
     public void testEmbeddedInstanceMissingPayload() throws Exception {
         build("/missing-payload.collection", "name: \"main\" embedded_instances { id: \"go\" }");
     }
 
+    // Verifies that lowering does not hide a missing required collection name.
     @Test
     public void testCollectionMissingRequiredName() throws Exception {
         try {
@@ -1171,12 +1177,14 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Verifies that source text selecting conflicting embedded-instance payload arms is rejected.
     @Test(expected = CompileExceptionError.class)
     public void testEmbeddedInstanceMultiplePayloads() throws Exception {
         build("/multiple-payloads.collection",
                 "name: \"main\" embedded_instances { id: \"go\" data: \"\" prototype {} }");
     }
 
+    // Verifies that a missing instance payload error identifies the invalid embedded instance.
     @Test
     public void testEmbeddedInstanceMissingPayloadValidationMessage() throws Exception {
         try {

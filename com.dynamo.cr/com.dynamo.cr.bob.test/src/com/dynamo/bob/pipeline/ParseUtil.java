@@ -27,11 +27,13 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObjectSource;
+import com.dynamo.gamesys.proto.BufferProto;
 import com.dynamo.gamesys.proto.DataProto;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.ModelProto;
+import com.dynamo.gamesys.proto.MeshProto;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -91,6 +93,18 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return SoundDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("bufferc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return BufferProto.BufferDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("meshc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return MeshProto.MeshDesc.parseFrom(content);
             }
         });
         parseMap.put("particlefxc", new IParser() {

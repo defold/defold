@@ -38,6 +38,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
 
     private ProtoParams protoParams;
     private HashMap<IResource, B> srcBuilders = new HashMap<>();
+    private HashMap<IResource, Message> srcMessages = new HashMap<>();
 
     private static Map<String, Class<? extends GeneratedMessageV3>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessageV3>>();
     private static Map<Class<? extends GeneratedMessageV3>,  byte[]> classToProtoDigest = new HashMap<Class<? extends GeneratedMessageV3>,  byte[]>();
@@ -160,6 +161,14 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         if (srcBuilder != null) {
             return srcBuilder;
         }
+
+        Message srcMessage = srcMessages.get(input);
+        if (srcMessage != null) {
+            srcBuilder = (B) srcMessage.toBuilder();
+            srcBuilders.put(input, srcBuilder);
+            return srcBuilder;
+        }
+
         try {
             Method newBuilder = protoParams.srcClass().getDeclaredMethod("newBuilder");
             srcBuilder = (B) newBuilder.invoke(null);
@@ -170,6 +179,20 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         mergeSrc(input, srcBuilder);
         srcBuilders.put(input, srcBuilder);
         return srcBuilder;
+    }
+
+    public void setSrcMessage(IResource input, Message srcMessage) throws CompileExceptionError {
+        if (!protoParams.srcClass().isInstance(srcMessage)) {
+            throw new CompileExceptionError(input, 0,
+                    "Injected protobuf source has type '" + srcMessage.getDescriptorForType().getFullName()
+                            + "', expected '" + protoParams.srcClass().getName() + "'");
+        }
+
+        Message previousMessage = srcMessages.putIfAbsent(input, srcMessage);
+        if (previousMessage != null && !previousMessage.equals(srcMessage)) {
+            throw new CompileExceptionError(input, 0,
+                    "Conflicting injected protobuf sources for generated resource '" + input.getPath() + "'");
+        }
     }
 
     protected void mergeSrc(IResource input, B srcBuilder) throws IOException, CompileExceptionError {
@@ -205,6 +228,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     public void clearState() {
         super.clearState();
         srcBuilders = null;
+        srcMessages = null;
     }
 
     // Update digest with the signature of the output proto format

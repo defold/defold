@@ -23,6 +23,7 @@ import java.util.Map;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.BuilderUtil;
+import com.google.protobuf.Message;
 
 /**
  * Abstract builder class. Extend this class to create a builder
@@ -104,6 +105,22 @@ public abstract class Builder {
      */
     protected Task createSubTask(IResource input, Task.TaskBuilder builder) throws CompileExceptionError {
         Task subTask = project.createTask(input);
+        if (subTask == null) {
+            throw new CompileExceptionError(input,
+                    0,
+                    String.format("Failed to create build task for '%s'", input.getPath()));
+        }
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    /**
+     * Create a protobuf subtask from an already parsed immutable source message.
+     * The resource content is still used for task identity and cache signatures,
+     * but the child ProtoBuilder does not parse that content again.
+     */
+    protected Task createSubTask(IResource input, Message srcMessage, Task.TaskBuilder builder) throws CompileExceptionError {
+        Task subTask = project.createTask(input, srcMessage);
         if (subTask == null) {
             throw new CompileExceptionError(input,
                     0,

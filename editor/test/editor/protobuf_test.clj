@@ -1997,12 +1997,14 @@ object {
     (is (= {:object {}}
            (protobuf/str->map-without-defaults TestDdf$JsonValue "object {}")))))
 
+;; Verifies that selected empty message-valued oneof arms are not removed as defaults.
 (deftest oneof-empty-message-make-map-without-defaults-test
   (is (= {:array {}}
          (protobuf/make-map-without-defaults TestDdf$JsonValue :array {})))
   (is (= {:object {}}
          (protobuf/make-map-without-defaults TestDdf$JsonValue :object {}))))
 
+;; Verifies that conflicting source payload arms are rejected at root and nested levels.
 (deftest strict-text-format-parser-oneof-test
   (testing "Rejects conflicting source payload fields at the root."
     (is (thrown-with-msg?
@@ -2025,12 +2027,14 @@ object {
                  "  sprite {}\n"
                  "}\n"))))))
 
+;; Verifies that strict source parsing preserves overwrite semantics for unrelated protobuf oneofs.
 (deftest strict-text-format-parser-allows-non-source-oneof-overwrites-test
   (is (= {:string "overwrites bool"}
          (protobuf/str->map-without-defaults-strict
            TestDdf$JsonValue
            "bool: true\nstring: 'overwrites bool'\n"))))
 
+;; Verifies that repeated occurrences of one source payload arm overwrite or merge normally.
 (deftest strict-text-format-parser-allows-same-source-payload-field-test
   (testing "Allows repeated scalar payload fields."
     (is (= {:id "component"
@@ -2055,6 +2059,7 @@ object {
                   "sprite { default_animation: 'idle' }\n"
                   "sprite { material: '/material.material' }\n"))))))
 
+;; Verifies that strict source parsing preserves ordinary scalar overwrite and message merge behavior.
 (deftest strict-text-format-parser-allows-ordinary-overwrites-test
   (is (= {:required-string "required"
           :optional-without-default "second"

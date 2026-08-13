@@ -116,9 +116,8 @@
           (let [source-component-data (:data source-embedded-component-desc)]
             (if (map? source-component-data)
               source-component-data
-              (let [component-read-fn (:read-fn component-resource-type)]
-                (with-open [reader (StringReader. source-component-data)]
-                  (component-read-fn reader)))))
+              (with-open [reader (StringReader. source-component-data)]
+                ((:read-fn component-resource-type) reader))))
           (let [expected-payload-key (component-type->payload-key component-type)]
             (when-not (= expected-payload-key payload-key)
               (throw (ex-info (format "Embedded component type '%s' does not match its '%s' payload."
@@ -156,15 +155,21 @@
 
 (defn source-decode-prototype-desc
   [ext->embedded-component-resource-type source-prototype-desc]
-  (let [decode-embedded-component-desc (partial source-decode-embedded-component-desc ext->embedded-component-resource-type)]
-    (protobuf/sanitize-repeated source-prototype-desc :embedded-components decode-embedded-component-desc)))
+  (protobuf/sanitize-repeated
+    source-prototype-desc
+    :embedded-components
+    (partial source-decode-embedded-component-desc ext->embedded-component-resource-type)))
 
 (defn source-decode-collection-desc
   [ext->embedded-component-resource-type source-collection-desc]
-  (let [decode-prototype-desc (partial source-decode-prototype-desc ext->embedded-component-resource-type)
-        decode-embedded-instance-desc (comp #(update % :data decode-prototype-desc)
-                                            source-decode-embedded-instance-desc)]
-    (protobuf/sanitize-repeated source-collection-desc :embedded-instances decode-embedded-instance-desc)))
+  (protobuf/sanitize-repeated
+    source-collection-desc
+    :embedded-instances
+    (fn [source-embedded-instance-desc]
+      (let [embedded-instance-desc (source-decode-embedded-instance-desc source-embedded-instance-desc)]
+        (assoc embedded-instance-desc
+          :data (source-decode-prototype-desc ext->embedded-component-resource-type
+                                              (:data embedded-instance-desc)))))))
 
 (defn source-encode-embedded-component-desc
   "Projects canonical :data to a typed source payload when the source schema
@@ -182,8 +187,10 @@
 
 (defn source-encode-prototype-desc
   [ext->embedded-component-resource-type prototype-desc]
-  (let [encode-embedded-component-desc (partial source-encode-embedded-component-desc ext->embedded-component-resource-type)]
-    (protobuf/sanitize-repeated prototype-desc :embedded-components encode-embedded-component-desc)))
+  (protobuf/sanitize-repeated
+    prototype-desc
+    :embedded-components
+    (partial source-encode-embedded-component-desc ext->embedded-component-resource-type)))
 
 (defn source-encode-embedded-instance-desc
   [ext->embedded-component-resource-type embedded-instance-desc]
@@ -194,8 +201,10 @@
 
 (defn source-encode-collection-desc
   [ext->embedded-component-resource-type collection-desc]
-  (let [encode-embedded-instance-desc (partial source-encode-embedded-instance-desc ext->embedded-component-resource-type)]
-    (protobuf/sanitize-repeated collection-desc :embedded-instances encode-embedded-instance-desc)))
+  (protobuf/sanitize-repeated
+    collection-desc
+    :embedded-instances
+    (partial source-encode-embedded-instance-desc ext->embedded-component-resource-type)))
 
 ;; -----------------------------------------------------------------------------
 ;; Legacy string format compatibility
@@ -204,51 +213,57 @@
 (defn string-decode-embedded-component-desc
   [ext->embedded-component-resource-type string-encoded-embedded-component-desc]
   (let [component-ext (:type string-encoded-embedded-component-desc)
-        component-resource-type (ext->embedded-component-resource-type component-ext)
-        component-read-fn (:read-fn component-resource-type)]
+        component-resource-type (ext->embedded-component-resource-type component-ext)]
     (update string-encoded-embedded-component-desc
             :data
             (fn [^String embedded-component-string]
               (with-open [reader (StringReader. embedded-component-string)]
-                (component-read-fn reader))))))
+                ((:read-fn component-resource-type) reader))))))
 
 (defn string-decode-prototype-desc
   [ext->embedded-component-resource-type string-encoded-prototype-desc]
-  (let [decode-embedded-component-desc (partial string-decode-embedded-component-desc ext->embedded-component-resource-type)]
-    (protobuf/sanitize-repeated string-encoded-prototype-desc :embedded-components decode-embedded-component-desc)))
+  (protobuf/sanitize-repeated
+    string-encoded-prototype-desc
+    :embedded-components
+    (partial string-decode-embedded-component-desc ext->embedded-component-resource-type)))
 
 (defn string-decode-embedded-instance-desc
   [ext->embedded-component-resource-type string-encoded-embedded-instance-desc]
-  (let [decode-prototype-desc (partial string-decode-prototype-desc ext->embedded-component-resource-type)
-        decode-embedded-prototype-desc (comp decode-prototype-desc
-                                             (partial protobuf/str->map-without-defaults GameObject$PrototypeDesc))]
-    (update string-encoded-embedded-instance-desc :data decode-embedded-prototype-desc)))
+  (update string-encoded-embedded-instance-desc
+          :data
+          (comp (partial string-decode-prototype-desc ext->embedded-component-resource-type)
+                (partial protobuf/str->map-without-defaults GameObject$PrototypeDesc))))
 
 (defn string-decode-collection-desc
   [ext->embedded-component-resource-type string-encoded-collection-desc]
-  (let [decode-embedded-instance-desc (partial string-decode-embedded-instance-desc ext->embedded-component-resource-type)]
-    (protobuf/sanitize-repeated string-encoded-collection-desc :embedded-instances decode-embedded-instance-desc)))
+  (protobuf/sanitize-repeated
+    string-encoded-collection-desc
+    :embedded-instances
+    (partial string-decode-embedded-instance-desc ext->embedded-component-resource-type)))
 
 (defn string-encode-embedded-component-desc
   [ext->embedded-component-resource-type string-decoded-embedded-component-desc]
   (let [component-ext (:type string-decoded-embedded-component-desc)
-        component-resource-type (ext->embedded-component-resource-type component-ext)
-        component-write-fn (:write-fn component-resource-type)]
-    (update string-decoded-embedded-component-desc :data component-write-fn)))
+        component-resource-type (ext->embedded-component-resource-type component-ext)]
+    (update string-decoded-embedded-component-desc :data (:write-fn component-resource-type))))
 
 (defn string-encode-prototype-desc
   [ext->embedded-component-resource-type string-decoded-prototype-desc]
-  (let [encode-embedded-component-desc (partial string-encode-embedded-component-desc ext->embedded-component-resource-type)]
-    (protobuf/sanitize-repeated string-decoded-prototype-desc :embedded-components encode-embedded-component-desc)))
+  (protobuf/sanitize-repeated
+    string-decoded-prototype-desc
+    :embedded-components
+    (partial string-encode-embedded-component-desc ext->embedded-component-resource-type)))
 
 (defn string-encode-embedded-instance-desc
   [ext->embedded-component-resource-type string-decoded-embedded-instance-desc]
-  (let [encode-prototype-desc (partial string-encode-prototype-desc ext->embedded-component-resource-type)
-        encode-embedded-prototype-desc (comp #(protobuf/map->str GameObject$PrototypeDesc % false)
-                                             encode-prototype-desc)]
-    (update string-decoded-embedded-instance-desc :data encode-embedded-prototype-desc)))
+  (update string-decoded-embedded-instance-desc
+          :data
+          (comp #(protobuf/map->str GameObject$PrototypeDesc % false)
+                (partial string-encode-prototype-desc ext->embedded-component-resource-type))))
 
 (defn string-encode-collection-desc
   [ext->embedded-component-resource-type string-decoded-collection-desc]
-  (let [encode-embedded-instance-desc (partial string-encode-embedded-instance-desc ext->embedded-component-resource-type)]
-    (protobuf/sanitize-repeated string-decoded-collection-desc :embedded-instances encode-embedded-instance-desc)))
+  (protobuf/sanitize-repeated
+    string-decoded-collection-desc
+    :embedded-instances
+    (partial string-encode-embedded-instance-desc ext->embedded-component-resource-type)))

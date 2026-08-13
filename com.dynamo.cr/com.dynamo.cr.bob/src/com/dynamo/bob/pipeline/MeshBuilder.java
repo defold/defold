@@ -14,10 +14,8 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,7 +28,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
-import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MeshDesc.class, messageClass = MeshDesc.class)
 @BuilderParams(name="Mesh", inExts=".mesh", outExt=".meshc")
@@ -38,10 +35,7 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
 
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
-        ByteArrayInputStream mesh_is = new ByteArrayInputStream(task.input(0).getContent());
-        InputStreamReader mesh_isr = new InputStreamReader(mesh_is);
-        MeshDesc.Builder meshDescBuilder = MeshDesc.newBuilder();
-        TextFormat.merge(mesh_isr, meshDescBuilder);
+        MeshDesc.Builder meshDescBuilder = getSrcBuilder(task.input(0));
 
         IResource resource = task.input(0);
         BuilderUtil.checkResource(this.project, resource, "vertices", meshDescBuilder.getVertices());

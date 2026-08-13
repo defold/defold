@@ -14,22 +14,46 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObjectSource;
+import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.OneofDescriptor;
+import com.google.protobuf.Message;
 import com.google.protobuf.MessageOrBuilder;
-import com.google.protobuf.TextFormat;
 
 /**
  * Converts the authoring-only game object messages into the standalone source
  * resources consumed by the existing component and game object builders.
  */
 public final class GameObjectSourceUtil {
-    private static final TextFormat.Printer TEXT_PRINTER = TextFormat.printer();
+    private static final byte[] TYPED_SOURCE_PREFIX = {0, 'D', 'E', 'F', 'O', 'L', 'D', '-', 'P', 'B', 1};
+
+    public static final class GeneratedInput {
+        private final byte[] content;
+        private final Message message;
+
+        private GeneratedInput(byte[] content, Message message) {
+            this.content = content;
+            this.message = message;
+        }
+
+        public byte[] getContent() {
+            return content;
+        }
+
+        public Message getMessage() {
+            return message;
+        }
+
+        public boolean isTyped() {
+            return message != null;
+        }
+    }
 
     private GameObjectSourceUtil() {
     }
@@ -59,14 +83,32 @@ public final class GameObjectSourceUtil {
         return selected;
     }
 
-    public static byte[] getEmbeddedComponentData(IResource input, GameObjectSource.EmbeddedComponentDesc desc)
-            throws CompileExceptionError {
+    private static GeneratedInput legacyInput(String text) {
+        return new GeneratedInput(text.getBytes(StandardCharsets.UTF_8), null);
+    }
+
+    private static GeneratedInput typedInput(Message message) throws IOException {
+        byte[] descriptorName = message.getDescriptorForType().getFullName().getBytes(StandardCharsets.UTF_8);
+        int payloadOffset = TYPED_SOURCE_PREFIX.length + descriptorName.length + 1;
+        byte[] content = new byte[payloadOffset + message.getSerializedSize()];
+        System.arraycopy(TYPED_SOURCE_PREFIX, 0, content, 0, TYPED_SOURCE_PREFIX.length);
+        System.arraycopy(descriptorName, 0, content, TYPED_SOURCE_PREFIX.length, descriptorName.length);
+
+        CodedOutputStream output = CodedOutputStream.newInstance(content, payloadOffset, message.getSerializedSize());
+        output.useDeterministicSerialization();
+        message.writeTo(output);
+        output.checkNoSpaceLeft();
+        return new GeneratedInput(content, message);
+    }
+
+    public static GeneratedInput getEmbeddedComponentInput(IResource input, GameObjectSource.EmbeddedComponentDesc desc)
+            throws CompileExceptionError, IOException {
         requireNonEmpty(input, desc.getId(), "id");
         requireNonEmpty(input, desc.getType(), "type");
 
         FieldDescriptor selected = selectedPayload(input, desc, "Embedded component '" + desc.getId() + "'");
         if (selected.getName().equals("data")) {
-            return ((String) desc.getField(selected)).getBytes(StandardCharsets.UTF_8);
+            return legacyInput((String) desc.getField(selected));
         }
 
         if (!selected.getName().equals(desc.getType())) {
@@ -75,24 +117,22 @@ public final class GameObjectSourceUtil {
                             + "' but uses payload '" + selected.getName() + "'");
         }
 
-        MessageOrBuilder payload = (MessageOrBuilder) desc.getField(selected);
-        return TEXT_PRINTER.printToString(payload).getBytes(StandardCharsets.UTF_8);
+        return typedInput((Message) desc.getField(selected));
     }
 
-    public static byte[] getEmbeddedInstanceData(IResource input, GameObjectSource.EmbeddedInstanceDesc desc)
-            throws CompileExceptionError {
+    public static GeneratedInput getEmbeddedInstanceInput(IResource input, GameObjectSource.EmbeddedInstanceDesc desc)
+            throws CompileExceptionError, IOException {
         requireNonEmpty(input, desc.getId(), "id");
 
         FieldDescriptor selected = selectedPayload(input, desc, "Embedded instance '" + desc.getId() + "'");
         if (selected.getName().equals("data")) {
-            return ((String) desc.getField(selected)).getBytes(StandardCharsets.UTF_8);
+            return legacyInput((String) desc.getField(selected));
         }
         if (!selected.getName().equals("prototype")) {
             throw new CompileExceptionError(input, 0,
                     "Embedded instance '" + desc.getId() + "' uses unsupported payload '" + selected.getName() + "'");
         }
 
-        MessageOrBuilder payload = (MessageOrBuilder) desc.getField(selected);
-        return TEXT_PRINTER.printToString(payload).getBytes(StandardCharsets.UTF_8);
+        return typedInput((Message) desc.getField(selected));
     }
 }

@@ -36,6 +36,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.GameObjectSourceUtil;
+import com.dynamo.bob.pipeline.GameObjectSourceUtil.GeneratedInput;
 import com.dynamo.bob.pipeline.ProtoUtil;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
@@ -189,12 +190,31 @@ public class ComponentsCounter {
         return null;
     }
 
+    private static Map.Entry<String, Boolean> getCounterNameAndPrototypeInfo(String type, IResource resource,
+                                                                              GeneratedInput generatedInput)
+            throws IOException, CompileExceptionError {
+        if (!generatedInput.isTyped()) {
+            return getCounterNameAndPrototypeInfo(type, resource, generatedInput.getContent());
+        }
+
+        if (type.equals("factory")) {
+            FactoryDesc factoryDesc = (FactoryDesc) generatedInput.getMessage();
+            String counterName = ResourceUtil.minifyPathAndReplaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
+            return new AbstractMap.SimpleEntry<String, Boolean>(counterName, factoryDesc.getDynamicPrototype());
+        } else if (type.equals("collectionfactory")) {
+            CollectionFactoryDesc factoryDesc = (CollectionFactoryDesc) generatedInput.getMessage();
+            String counterName = ResourceUtil.minifyPathAndReplaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
+            return new AbstractMap.SimpleEntry<String, Boolean>(counterName, factoryDesc.getDynamicPrototype());
+        }
+        return null;
+    }
+
     public static Boolean ifStaticFactoryAddProtoAsInput(GameObjectSource.EmbeddedComponentDesc ec,
                                                          IResource genResource,
-                                                         byte[] genResourceContent,
+                                                         GeneratedInput generatedInput,
                                                          TaskBuilder taskBuilder,
                                                          IResource input) throws IOException, CompileExceptionError {
-        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource, genResourceContent);
+        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource, generatedInput);
         if (info != null) {
             Boolean isStatic = !info.getValue();
             if (isStatic) {
@@ -278,18 +298,26 @@ public class ComponentsCounter {
         return replaceExt(path);
     }
 
-    public static void countComponentsInEmbededObjects(Project project, IResource input, byte[] inputContent, Storage compStorage) throws IOException, CompileExceptionError {
-        GameObjectSource.PrototypeDesc.Builder prot = GameObjectSource.PrototypeDesc.newBuilder();
-        ProtoUtil.mergeStrict(input, inputContent, prot);
+    public static void countComponentsInEmbededObjects(Project project, IResource input, GeneratedInput generatedInput,
+                                                       Storage compStorage) throws IOException, CompileExceptionError {
+        GameObjectSource.PrototypeDesc prot;
+        if (generatedInput.isTyped()) {
+            prot = (GameObjectSource.PrototypeDesc) generatedInput.getMessage();
+        } else {
+            GameObjectSource.PrototypeDesc.Builder builder = GameObjectSource.PrototypeDesc.newBuilder();
+            ProtoUtil.mergeStrict(input, generatedInput.getContent(), builder);
+            prot = builder.build();
+        }
 
         for (GameObjectSource.EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
-            byte[] data = GameObjectSourceUtil.getEmbeddedComponentData(input, cd);
+            GeneratedInput componentInput = GameObjectSourceUtil.getEmbeddedComponentInput(input, cd);
+            byte[] data = componentInput.getContent();
             String type = cd.getType();
             compStorage.add(type);
             if (isFactoryType(type, false)) {
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource genResource = project.getGeneratedResource(hash, type);
-                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource, data);
+                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource, componentInput);
                 if (info != null && info.getValue()) {
                     compStorage.makeDynamic();
                     return;

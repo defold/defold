@@ -52,6 +52,7 @@
   {"spinemodel" spinemodel-resource-type
    "sprite" sprite-resource-type})
 
+;; Verifies that legacy and typed component payloads decode to the same validated editor map.
 (deftest embedded-component-source-decode-test
   (testing "Legacy strings and typed messages decode to the same canonical map."
     (let [expected {:id "sprite"
@@ -97,6 +98,7 @@
              :type "sprite"
              :label {}})))))
 
+;; Verifies typed encoding for built-ins and string fallback encoding for extension components.
 (deftest embedded-component-source-encode-test
   (testing "Built-in components use typed payloads and their map encoder."
     (is (= {:id "sprite"
@@ -120,6 +122,7 @@
              source-desc))
       (is (not (contains? source-desc :spinemodel))))))
 
+;; Verifies that decoding and re-encoding a legacy built-in component migrates it to a typed payload.
 (deftest legacy-component-migrates-to-typed-source-test
   (is (= {:id "sprite"
           :type "sprite"
@@ -130,6 +133,7 @@
               (collection-string-data/source-decode-embedded-component-desc ext->resource-type)
               (collection-string-data/source-encode-embedded-component-desc ext->resource-type)))))
 
+;; Verifies nested typed and fallback payloads through embedded-instance serialization and decoding.
 (deftest embedded-instance-source-roundtrip-test
   (let [canonical-instance
         {:id "go"
@@ -167,6 +171,7 @@
                  (update :data (partial collection-string-data/source-decode-prototype-desc
                                         ext->resource-type))))))))
 
+;; Verifies that an explicitly selected empty prototype survives source conversion in both directions.
 (deftest empty-embedded-instance-prototype-test
   (let [source-instance {:id "empty"
                          :prototype {}}
@@ -180,6 +185,7 @@
              ext->resource-type
              canonical-instance)))))
 
+;; Verifies migration from a legacy embedded game-object string to a typed prototype and component.
 (deftest legacy-collection-migrates-to-typed-source-test
   (let [legacy-prototype-text
         (protobuf/map->str
@@ -205,6 +211,7 @@
            (get-in source-collection [:embedded-instances 0 :prototype :embedded-components 0 :sprite])))
     (is (not (contains? (get-in source-collection [:embedded-instances 0]) :data)))))
 
+;; Verifies that collection encoding preserves an empty typed component inside a typed prototype.
 (deftest collection-source-encode-test
   (let [source-collection
         (collection-string-data/source-encode-collection-desc
@@ -218,6 +225,7 @@
            (get-in source-collection [:embedded-instances 0 :prototype :embedded-components 0 :sprite])))
     (is (not (contains? (get-in source-collection [:embedded-instances 0]) :data)))))
 
+;; Verifies that the retained legacy codec still produces and consumes the original string format.
 (deftest legacy-string-codec-compatibility-test
   (let [canonical-prototype
         {:embedded-components [{:id "sprite"

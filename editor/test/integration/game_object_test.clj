@@ -73,16 +73,16 @@
                   source-value (protobuf/str->map-without-defaults GameObjectSource$PrototypeDesc save-data-content)
                   source-embedded-component (first (:embedded-components source-value))
                   source-payload-key (keyword (string/replace (:ext resource-type) \_ \-))
-                  source-payload-field-info (get (protobuf/field-infos GameObjectSource$EmbeddedComponentDesc)
-                                                 source-payload-key)
-                  typed-source-payload? (= (:ddf-type resource-type)
-                                           (:value-class source-payload-field-info))
+                  typed-source-payload (= (:ddf-type resource-type)
+                                          (-> (protobuf/field-infos GameObjectSource$EmbeddedComponentDesc)
+                                              (get source-payload-key)
+                                              (:value-class)))
                   load-value (with-open [reader (StringReader. save-data-content)]
                                (go-read-fn reader))
                   saved-embedded-components (:embedded-components save-value)
                   loaded-embedded-components (:embedded-components load-value)
                   [only-in-saved only-in-loaded] (data/diff saved-embedded-components loaded-embedded-components)]
-              (if typed-source-payload?
+              (if typed-source-payload
                 (do
                   (is (contains? source-embedded-component source-payload-key))
                   (is (not (contains? source-embedded-component :data))))
