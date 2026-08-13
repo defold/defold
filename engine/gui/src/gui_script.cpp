@@ -334,6 +334,18 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptInstanceGetUserData(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        uintptr_t user_data = 0;
+        if (scene != 0 && scene->m_Context->m_GetUserDataCallback != 0)
+        {
+            user_data = scene->m_Context->m_GetUserDataCallback(scene);
+        }
+        lua_pushlightuserdata(L, (void*)user_data);
+        return 1;
+    }
+
     static int GuiScriptInstanceResolvePath(lua_State* L)
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
@@ -389,6 +401,7 @@ namespace dmGui
         {"__index",                                     GuiScriptInstance_index},
         {"__newindex",                                  GuiScriptInstance_newindex},
         {dmScript::META_TABLE_GET_URL,                  GuiScriptInstanceGetURL},
+        {dmScript::META_TABLE_GET_USER_DATA,            GuiScriptInstanceGetUserData},
         {dmScript::META_TABLE_RESOLVE_PATH,             GuiScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},

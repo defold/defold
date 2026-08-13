@@ -347,12 +347,16 @@ set(_COMMON_EXPORTED
   ComponentTypeScript
   ComponentTypeSound
   ComponentTypeLight
+  ComponentTypeParticleFX
+  ComponentTypeTileMap
   ResourceProviderFile
   ResourceTypeAnim
   ResourceTypeAnimationSet
   ResourceTypeCollection
   ResourceTypeData
   ResourceTypeLight
+  ResourceTypeParticleFX
+  ResourceTypeTileMap
   ResourceTypeGameObject
   ResourceTypeGui
   ResourceTypeGuiScript
@@ -367,7 +371,9 @@ set(_COMMON_EXPORTED
   ScriptImageExt
   ScriptMaterialExt
   ScriptFont
-  ScriptHttp)
+  ScriptHttp
+  ScriptLibParticleFX
+  ScriptLibTileMap)
 
 defold_get_physics_libraries(_GAMESYS_TEST_PHYSICS_LIBS)
 defold_get_font_libraries(_GAMESYS_TEST_FONT_LIBS)
@@ -380,7 +386,7 @@ endif()
 set(_DEFOLD_TEST_LIBS
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate profile_null platform_null hid_null
-  render render_font_default sound_null
+  render sound_null
   ${_GAMESYS_TEST_PHYSICS_LIBS}
   ${_GAMESYS_TEST_FONT_LIBS})
 
@@ -466,7 +472,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   add_dependencies(test_gamesys_http gamesys_http_test_content)
   target_include_directories(test_gamesys_http PRIVATE "${GS_SRC_ROOT}" "${GS_PROTO_DIR}" "${GS_GENERATED_INCLUDE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(test_gamesys_http PRIVATE ${_GS_TEST_DEFINES})
-  target_link_libraries(test_gamesys_http PRIVATE gamesys gamesys_rig_null gamesys_model_null)
+  target_link_libraries(test_gamesys_http PRIVATE gamesys gamesys_gui gamesys_particle gamesys_rig_null gamesys_model_null)
   defold_target_link_libraries(test_gamesys_http ${TARGET_PLATFORM} ${_DEFOLD_TEST_LIBS})
   defold_target_link_libraries(test_gamesys_http ${TARGET_PLATFORM} ${_GS_TEST_GRAPHICS_LIBS})
   defold_target_link_bullet3d(test_gamesys_http ${TARGET_PLATFORM})

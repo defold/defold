@@ -35,8 +35,11 @@
 
   :local-repo       ~(pathname (local-maven-repository-directory))
 
-  :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
+  :plugins          [[dev.weavejester/lein-cljfmt "0.16.4"]
+                     [lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
+
+  :cljfmt           {:load-config-file? true}
 
   :dependencies     [[org.clojure/clojure                         "1.12.0"]
                      [org.clojure/core.cache                      "0.7.1"]

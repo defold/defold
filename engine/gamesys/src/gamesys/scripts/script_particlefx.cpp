@@ -20,6 +20,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
+#include <extension/extension.hpp>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -491,4 +492,14 @@ namespace dmGameSystem
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
     }
+
+    static dmExtension::Result ScriptParticleFXInitialize(dmExtension::Params* params)
+    {
+        ScriptLibContext context;
+        context.m_LuaState = params->m_L;
+        ScriptParticleFXRegister(context);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibParticleFX, "ScriptParticleFX", 0, 0, ScriptParticleFXInitialize, 0, 0, 0)
 }

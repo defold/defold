@@ -556,7 +556,6 @@
         start-pos (action->manip-pos start-action lead-transform active-manip manip-rotation project-fn)
         manipulations-fn (make-drag-manipulations-fn manip-opts active-manip manip-origin original-values initial-evaluation-context)]
     {:active-manip active-manip
-     :initial-evaluation-context initial-evaluation-context
      :lead-transform lead-transform
      :manip-origin manip-origin
      :manip-rotation manip-rotation

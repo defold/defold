@@ -376,8 +376,14 @@ editor.create_resources({
           :description "Module with functions for creating UI elements in the editor"}
          {:name "editor.ui.open_resource"
           :type :function
-          :description "Open a resource, either in the editor or in a third-party app"
-          :parameters [resource-path-param]}]
+          :description "Open a resource using its primary or selected view, either in the editor or in a third-party app. Code and Text views accept a one-based cursor or range in <code>args</code>: <code>{line = 42}</code>, <code>{line = 42, column = 12}</code>, or <code>{from = {line = 42, column = 12}, to = {line = 43, column = 4}}</code>"
+          :parameters [resource-path-param
+                       {:name "[view]"
+                        :types ["string"]
+                        :doc "View to open: <code>\"code\"</code>, <code>\"text\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}
+                       {:name "[args]"
+                        :types ["any"]
+                        :doc "View-specific open arguments; requires <code>view</code>. Currently supported by Code and Text views."}]}]
         (e/mapcat
           (fn [[enum-id enum-values]]
             (let [id (ui-docs/->screaming-snake-case enum-id)]

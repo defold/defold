@@ -50,6 +50,7 @@ enum WindowEvent
     WINDOW_EVENT_FOCUS_GAINED = 1,
     WINDOW_EVENT_RESIZED = 2,
     WINDOW_EVENT_ICONFIED = 3,
+    WINDOW_EVENT_ICONIFIED = 3,
     WINDOW_EVENT_DEICONIFIED = 4,
 };
 
@@ -144,8 +145,8 @@ static void RunCallback(CallbackInfo* cbinfo)
  *         print("window.WINDOW_EVENT_FOCUS_LOST")
  *     elseif event == window.WINDOW_EVENT_FOCUS_GAINED then
  *         print("window.WINDOW_EVENT_FOCUS_GAINED")
- *     elseif event == window.WINDOW_EVENT_ICONFIED then
- *         print("window.WINDOW_EVENT_ICONFIED")
+ *     elseif event == window.WINDOW_EVENT_ICONIFIED then
+ *         print("window.WINDOW_EVENT_ICONIFIED")
  *     elseif event == window.WINDOW_EVENT_DEICONIFIED then
  *         print("window.WINDOW_EVENT_DEICONIFIED")
  *     elseif event == window.WINDOW_EVENT_RESIZED then
@@ -506,7 +507,7 @@ static const luaL_reg Module_methods[] =
  * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
  * iconified (reduced to an application icon in a toolbar, application tray or similar).
  *
- * @name window.WINDOW_EVENT_ICONFIED
+ * @name window.WINDOW_EVENT_ICONIFIED
  * @constant
  */
 
@@ -550,7 +551,8 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(WINDOW_EVENT_FOCUS_LOST)
     SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
     SETCONSTANT(WINDOW_EVENT_RESIZED)
-    SETCONSTANT(WINDOW_EVENT_ICONFIED)
+    SETCONSTANT(WINDOW_EVENT_ICONFIED)      // https://github.com/defold/defold/issues/12910
+    SETCONSTANT(WINDOW_EVENT_ICONIFIED)
     SETCONSTANT(WINDOW_EVENT_DEICONIFIED)
 
     SETCONSTANT(DIMMING_UNKNOWN)
@@ -590,7 +592,7 @@ void ScriptWindowOnWindowIconify(bool iconify)
 {
     CallbackInfo cbinfo;
     cbinfo.m_Info = &g_Window;
-    cbinfo.m_Event = iconify ? WINDOW_EVENT_ICONFIED : WINDOW_EVENT_DEICONIFIED;
+    cbinfo.m_Event = iconify ? WINDOW_EVENT_ICONIFIED : WINDOW_EVENT_DEICONIFIED;
     RunCallback(&cbinfo);
 }
 
