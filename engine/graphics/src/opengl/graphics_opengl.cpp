@@ -1631,6 +1631,22 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
+        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
+        // On desktop GL this mandates acceptance of the ETC2/EAC internalformats.
+        bool es3_compatibility = OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility");
+
+        // ETC2 is a superset of ETC1. If the driver supports ETC2 we upload ETC1 payloads
+        // with the GL_COMPRESSED_RGB8_ETC2 internalformat instead of ETC1_RGB8_OES
+        // (see GetOpenGLSetTextureParams). Same approach as the Metal/Vulkan/WebGPU adapters.
+#if defined(__EMSCRIPTEN__)
+        // Never version-based on WebGL: the ETC2 enums are only legal with the extension enabled.
+        context->m_RGB8ETC2Support = OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc");
+#elif defined(__ANDROID__) || defined(DM_GRAPHICS_USE_OPENGLES) || defined(DM_PLATFORM_IOS)
+        context->m_RGB8ETC2Support = context->m_IsGles3Version; // ETC2/EAC is core in OpenGL ES 3.0
+#else
+        context->m_RGB8ETC2Support = es3_compatibility;
+#endif
+
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
         if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_s3tc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_s3tc"))
@@ -1658,8 +1674,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         }
 
-        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility"))
+        if (es3_compatibility)
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ETC2;
         }
@@ -1728,6 +1743,10 @@ static void LogFrameBufferError(GLenum status)
                 {
                     astc_supported = true;
                 }
+                else if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2)
+                {
+                    context->m_RGB8ETC2Support = 1;
+                }
                 else
                 {
                     switch (pCompressedFormats[i])
@@ -1751,6 +1770,17 @@ static void LogFrameBufferError(GLenum status)
             }
             #endif
             delete[] pCompressedFormats;
+        }
+
+        // An ETC2 capable driver can consume ETC1 payloads as-is, so advertise ETC1 as a
+        // supported format even when GL_OES_compressed_ETC1_RGB8_texture is missing. Without
+        // this the texture profile picker (GetSupportedCompressionFormatForType) never selects
+        // ETC1 on such drivers and RGB textures fall all the way back to uncompressed.
+        // The upload itself uses the RGB8_ETC2 internalformat, see GetOpenGLSetTextureParams.
+        // The Vulkan and Metal adapters key ETC1 support off ETC2 capability in the same way.
+        if (context->m_RGB8ETC2Support)
+        {
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
     #if defined(ANDROID)
@@ -2673,7 +2703,12 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
+        case TEXTURE_FORMAT_RGB_ETC1:
+            // ETC1 data decodes identically under ETC2. Prefer the ETC2 enum when available:
+            // Safari/WebGL2 rejects ETC1_RGB8_OES, and it is never legal for array textures.
+            gl_format = context->m_RGB8ETC2Support ? DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2
+                                                   : DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1;
+            break;
         case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
         case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
         case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
