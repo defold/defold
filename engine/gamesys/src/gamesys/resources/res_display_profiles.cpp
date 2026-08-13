@@ -26,7 +26,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::DisplayProfiles>(buffer, buffer_size, (&display_profiles_ddf));
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         dmRender::DisplayProfilesParams params;
         params.m_DisplayProfilesDDF = display_profiles_ddf;

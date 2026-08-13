@@ -131,7 +131,7 @@ namespace dmGameObject
 
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
@@ -190,7 +190,7 @@ namespace dmGameObject
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &proto_desc);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         Prototype* temp = new Prototype();
         dmResource::Result r = AcquireResources(params->m_Factory, regist, proto_desc, temp, params->m_Filename);

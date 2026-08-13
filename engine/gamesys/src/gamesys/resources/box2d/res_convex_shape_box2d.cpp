@@ -31,7 +31,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::ConvexShape>(buffer, buffer_size, &convex_shape);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmResource::Result result = dmResource::RESULT_OK;

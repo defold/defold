@@ -123,7 +123,7 @@ namespace dmGameObject
         if (ddf_result != dmDDF::RESULT_OK)
         {
             dmLogWarning("Failed to load LuaModule message from: %s (%d)", path, ddf_result);
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         PatchLuaBytecode(&(*module)->m_Source);
@@ -136,7 +136,7 @@ namespace dmGameObject
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
 
         PatchLuaBytecode(&lua_module->m_Source);
 
@@ -159,7 +159,7 @@ namespace dmGameObject
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
 
         PatchLuaBytecode(&lua_module->m_Source);
 

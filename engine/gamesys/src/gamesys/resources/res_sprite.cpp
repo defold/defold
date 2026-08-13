@@ -103,7 +103,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         uint32_t num_textures = ddf->m_Textures.m_Count;
@@ -160,7 +160,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &tmp_sprite_resource.m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmResource::Result r = AcquireResources(params->m_Factory, &tmp_sprite_resource, params->m_Filename);

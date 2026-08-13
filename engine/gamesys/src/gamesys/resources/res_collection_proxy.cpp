@@ -20,7 +20,7 @@ namespace dmGameSystem
     {
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &resource->m_DDF);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
 
         return dmResource::RESULT_OK;
     }

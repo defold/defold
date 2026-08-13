@@ -91,7 +91,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmParticleDDF_ParticleFX_DESCRIPTOR, (void**) &particle_fx);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         for(uint32_t i = 0; i < particle_fx->m_Emitters.m_Count; ++i)
@@ -109,7 +109,7 @@ namespace dmGameSystem
     {
         if(params->m_PreloadData == 0)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         dmParticle::HPrototype prototype = dmParticle::NewPrototypeFromDDF((dmParticleDDF::ParticleFX *) params->m_PreloadData);
         dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, prototype, params->m_Filename);

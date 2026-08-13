@@ -46,7 +46,7 @@ namespace dmGameSystem
         if (e != dmDDF::RESULT_OK)
         {
             dmLogError("Failed to parse collection prototype [%s]", prototype);
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         return dmResource::RESULT_OK;
     }
@@ -106,7 +106,7 @@ namespace dmGameSystem
         dmGameSystemDDF::CollectionFactoryDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &ddf);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
 
         CollectionFactoryResource* factory_res = new CollectionFactoryResource;
         memset(factory_res, 0, sizeof(CollectionFactoryResource));
@@ -141,7 +141,7 @@ namespace dmGameSystem
         if (r != dmResource::RESULT_OK)
         {
             delete factory_res;
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         if((!factory_res->m_LoadDynamically) && (params->m_HintInfo))

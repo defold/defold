@@ -48,7 +48,7 @@ namespace dmGameSystem
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &prototype_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         dmResource::Result result = dmResource::Get(factory, prototype_desc->m_Script, (void**)&prototype->m_Script);
         if (result == dmResource::RESULT_OK)

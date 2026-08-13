@@ -235,7 +235,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params->m_Buffer, params->m_BufferSize, &scene_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         // HACK: Gui nodes that have zero area are culled, but we can't know the
@@ -307,7 +307,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params->m_Buffer, params->m_BufferSize, &scene_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         GuiSceneResource tmp_scene_resource;

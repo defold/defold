@@ -84,7 +84,7 @@ range_error:
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::CollisionObjectDesc>(buffer, buffer_size, &resource_base->m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         resource_base->m_Group = dmHashString64(resource_base->m_DDF->m_Group);
         uint32_t mask_count = resource_base->m_DDF->m_Mask.m_Count;

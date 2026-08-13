@@ -227,7 +227,7 @@ dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams* para
     }
     else
     {
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }
 

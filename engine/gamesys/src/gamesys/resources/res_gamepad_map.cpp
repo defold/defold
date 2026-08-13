@@ -24,7 +24,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmInputDDF::GamepadMapsRuntime>(params->m_Buffer, params->m_BufferSize, &gamepad_maps);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         dmResource::SetResource(params->m_Resource, gamepad_maps);
 

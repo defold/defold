@@ -23,7 +23,7 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK )
         {
             delete cam_resource;
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         dmResource::SetResource(params->m_Resource, cam_resource);
 
@@ -44,7 +44,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmGamesysDDF_CameraDesc_DESCRIPTOR, (void**) &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         CameraResource* cam_resource = (CameraResource*)dmResource::GetResource(params->m_Resource);
         dmDDF::FreeMessage((void*)cam_resource->m_DDF);

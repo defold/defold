@@ -142,7 +142,7 @@ namespace dmGameSystem
         dmDDF::Result e  = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &tile_grid_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmResource::PreloadHint(params->m_HintInfo, tile_grid_ddf->m_TileSet);
@@ -187,7 +187,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &tile_grid_ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         TileGridResource* tile_grid = (TileGridResource*) dmResource::GetResource(params->m_Resource);

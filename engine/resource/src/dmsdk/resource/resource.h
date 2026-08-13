@@ -85,7 +85,7 @@ struct ResourceRecreateParams;
  * @name ResourceResult
  * @member RESOURCE_RESULT_OK
  * @member RESOURCE_RESULT_INVALID_DATA
- * @member RESOURCE_RESULT_DDF_ERROR
+ * @member RESOURCE_RESULT_PROTOBUF_ERROR
  * @member RESOURCE_RESULT_RESOURCE_NOT_FOUND
  * @member RESOURCE_RESULT_MISSING_FILE_EXTENSION
  * @member RESOURCE_RESULT_ALREADY_REGISTERED
@@ -105,7 +105,7 @@ struct ResourceRecreateParams;
  * @member RESOURCE_RESULT_VERSION_MISMATCH
  * @member RESOURCE_RESULT_SIGNATURE_MISMATCH
  * @member RESOURCE_RESULT_UNKNOWN_ERROR
- * @member RESOURCE_RESULT_SUBMODULE_ERROR
+ * @member RESOURCE_RESULT_LUA_ERROR
  * @member RESOURCE_RESULT_SCRIPT_CREATION_ERROR
  * Note: also add to ResultToString() in resource.cpp
  */
@@ -113,7 +113,7 @@ typedef enum ResourceResult
 {
     RESOURCE_RESULT_OK                        = 0,
     RESOURCE_RESULT_INVALID_DATA              = -1,
-    RESOURCE_RESULT_DDF_ERROR                 = -2,
+    RESOURCE_RESULT_PROTOBUF_ERROR                 = -2,
     RESOURCE_RESULT_RESOURCE_NOT_FOUND        = -3,
     RESOURCE_RESULT_MISSING_FILE_EXTENSION    = -4,
     RESOURCE_RESULT_ALREADY_REGISTERED        = -5,
@@ -133,7 +133,7 @@ typedef enum ResourceResult
     RESOURCE_RESULT_VERSION_MISMATCH          = -19,
     RESOURCE_RESULT_SIGNATURE_MISMATCH        = -20,
     RESOURCE_RESULT_UNKNOWN_ERROR             = -21,
-    RESOURCE_RESULT_SUBMODULE_ERROR           = -22,
+    RESOURCE_RESULT_LUA_ERROR                 = -22,
     RESOURCE_RESULT_SCRIPT_CREATION_ERROR     = -23,
 } ResourceResult;
 

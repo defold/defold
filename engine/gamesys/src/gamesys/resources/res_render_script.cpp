@@ -28,7 +28,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
@@ -37,7 +37,7 @@ namespace dmGameSystem
         if (!dmGameObject::RegisterSubModules(params->m_Factory, dmRender::GetScriptContext(render_context), lua_module))
         {
             dmDDF::FreeMessage(&lua_module->m_Source);
-            return dmResource::RESULT_SUBMODULE_ERROR;
+            return dmResource::RESULT_LUA_ERROR;
         }
 
         dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, &lua_module->m_Source);
@@ -69,7 +69,7 @@ namespace dmGameSystem
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK ) {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmGameObject::PatchLuaBytecode(&lua_module->m_Source);

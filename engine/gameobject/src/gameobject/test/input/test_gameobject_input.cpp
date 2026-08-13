@@ -125,7 +125,7 @@ dmResource::Result InputTest::ResInputTargetCreate(const dmResource::ResourceCre
     }
     else
     {
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }
 

@@ -176,7 +176,7 @@ dmResource::Result ReloadCollectionTest::ResReloadTargetCreate(const dmResource:
     }
     else
     {
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }
 
@@ -198,7 +198,7 @@ dmResource::Result ReloadCollectionTest::ResReloadTargetRecreate(const dmResourc
     }
     else
     {
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }
 

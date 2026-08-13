@@ -28,7 +28,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmInputDDF_InputBinding_DESCRIPTOR, (void**) &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         dmInput::HBinding binding = dmInput::NewBinding((dmInput::HContext) params->m_Context);
         dmInput::SetBinding(binding, ddf);
@@ -50,7 +50,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmInputDDF_InputBinding_DESCRIPTOR, (void**) &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         dmInput::HBinding binding = (dmInput::HBinding)dmResource::GetResource(params->m_Resource);
         dmInput::SetBinding(binding, ddf);

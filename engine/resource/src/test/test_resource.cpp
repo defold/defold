@@ -320,7 +320,7 @@ dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadPar
     dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
     if (e != dmDDF::RESULT_OK)
     {
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 
     for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
@@ -411,7 +411,7 @@ dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams* par
     }
     else
     {
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }
 
@@ -1518,7 +1518,7 @@ TEST_F(ResourceTest, ManifestLoadDdfFail)
     const char* buf = "this is not a manifest buffer";
     dmResource::Manifest* manifest;
     dmResource::Result result = dmResource::LoadManifestFromBuffer((uint8_t*)buf, strlen(buf), &manifest);
-    ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
+    ASSERT_EQ(dmResource::RESULT_PROTOBUF_ERROR, result);
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerification)

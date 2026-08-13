@@ -219,7 +219,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeDesc>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         ComputeProgramResources resources = {};
@@ -248,7 +248,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeDesc>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_ComputeProgram);
