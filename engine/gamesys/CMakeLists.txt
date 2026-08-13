@@ -111,23 +111,32 @@ add_dependencies(gamesys_proto_headers gamesys_proto_cpp)
 
 # Generate Python protobuf modules required by content tooling
 set(GS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto/gamesys")
+set(GS_PROTO_PY_ROOT "${CMAKE_CURRENT_BINARY_DIR}/proto")
+set(GS_PROTO_PY_INIT "${GS_PROTO_PY_DIR}/__init__.py")
 file(MAKE_DIRECTORY "${GS_PROTO_PY_DIR}")
 set(GS_PROTO_PY)
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/physics_ddf_pb2.py" "${GS_PROTO_DIR}/physics_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/gamesys_ddf_pb2.py" "${GS_PROTO_DIR}/gamesys_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/collectionproxy_ddf_pb2.py" "${GS_PROTO_DIR}/collectionproxy_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/gui_ddf_pb2.py" "${GS_PROTO_DIR}/gui_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/tile_ddf_pb2.py" "${GS_PROTO_DIR}/tile_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/label_ddf_pb2.py" "${GS_PROTO_DIR}/label_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/camera_ddf_pb2.py" "${GS_PROTO_DIR}/camera_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/sprite_ddf_pb2.py" "${GS_PROTO_DIR}/sprite_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/texture_set_ddf_pb2.py" "${GS_PROTO_DIR}/texture_set_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/sound_ddf_pb2.py" "${GS_PROTO_DIR}/sound_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/mesh_ddf_pb2.py" "${GS_PROTO_DIR}/mesh_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/atlas_ddf_pb2.py" "${GS_PROTO_DIR}/atlas_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/buffer_ddf_pb2.py" "${GS_PROTO_DIR}/buffer_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/data_ddf_pb2.py" "${GS_PROTO_DIR}/data_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
-defold_protoc_gen_py("${GS_PROTO_PY_DIR}/model_ddf_pb2.py" "${GS_PROTO_DIR}/model_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
+foreach(_gs_proto_py_name IN ITEMS
+    physics_ddf
+    gamesys_ddf
+    collectionproxy_ddf
+    gui_ddf
+    tile_ddf
+    label_ddf
+    camera_ddf
+    sprite_ddf
+    texture_set_ddf
+    sound_ddf
+    mesh_ddf
+    atlas_ddf
+    buffer_ddf
+    data_ddf
+    model_ddf)
+  defold_protoc_gen_py(
+    "${GS_PROTO_PY_DIR}/${_gs_proto_py_name}_pb2.py"
+    "${GS_PROTO_DIR}/${_gs_proto_py_name}.proto"
+    PYTHON_ROOT "${GS_PROTO_PY_ROOT}"
+    INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
+endforeach()
 list(APPEND GS_PROTO_PY
   "${GS_PROTO_PY_DIR}/physics_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/gamesys_ddf_pb2.py"
@@ -146,7 +155,7 @@ list(APPEND GS_PROTO_PY
   "${GS_PROTO_PY_DIR}/model_ddf_pb2.py"
 )
 
-add_custom_target(gamesys_proto_py ALL DEPENDS ${GS_PROTO_PY})
+add_custom_target(gamesys_proto_py ALL DEPENDS ${GS_PROTO_PY} "${GS_PROTO_PY_INIT}")
 
 set(GAMESYS_PROTO_PY_DIR "${GS_PROTO_PY_DIR}" CACHE INTERNAL "Generated gamesys python protobuf modules")
 
@@ -453,6 +462,7 @@ install(DIRECTORY "${GS_ROOT}/src/dmsdk/"
 install(FILES ${_ALL_PROTO_FILES} DESTINATION share/proto/gamesys)
 install(FILES "${GS_ROOT}/src/waf_gamesys.py" DESTINATION lib/python)
 install(FILES ${GS_PROTO_PY} DESTINATION lib/python)
+install(FILES "${GS_PROTO_PY_INIT}" ${GS_PROTO_PY} DESTINATION lib/python/gamesys)
 
 # ========= Tests =========
 if(BUILD_TESTS)

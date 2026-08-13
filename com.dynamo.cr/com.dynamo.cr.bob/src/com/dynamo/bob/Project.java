@@ -438,6 +438,9 @@ public class Project implements AutoCloseable {
                     if (protoParams != null) {
                         ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
                         ProtoBuilder.addProtoDigest(protoParams.messageClass());
+                        if (protoParams.srcClass() != protoParams.messageClass()) {
+                            ProtoBuilder.addProtoDigest(protoParams.srcClass());
+                        }
                         for (String ext : builderParams.inExts()) {
                             Class<?> inputClass = protoParams.srcClass();
                             if (inputClass != null) {

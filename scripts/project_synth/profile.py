@@ -7,10 +7,11 @@ from pathlib import Path
 import re
 
 from project_synth.progress import ProgressReporter
-from project_synth.proto import EMBEDDED_PROTO_BY_TYPE
+from project_synth.proto import embedded_component_message
+from project_synth.proto import embedded_instance_prototype
 from project_synth.proto import is_resource_field
+from project_synth.proto import is_gameobject_source_payload_field
 from project_synth.proto import parse_path
-from project_synth.proto import parse_text_proto
 from project_synth.schema import PROFILE_RELEVANT_EXTENSIONS
 from project_synth.schema import PROFILE_RELEVANT_TOPOLOGY_KEYS
 from project_synth.schema import SKIPPED_DIR_NAMES
@@ -183,6 +184,10 @@ def iter_resource_strings(message) -> list[str]:
     resources = []
     descriptor = message.DESCRIPTOR
     for field in descriptor.fields:
+        # Embedded source payloads are attributed below to the generated component
+        # or game object rather than directly to their containing source resource.
+        if is_gameobject_source_payload_field(field):
+            continue
         value = getattr(message, field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             if field.label == FieldDescriptor.LABEL_REPEATED:
@@ -211,25 +216,25 @@ def embedded_message_resources(message, source_extension: str) -> tuple[list[str
     if source_extension == "go":
         topology["component_count"] = len(message.components) + len(message.embedded_components)
         for embedded in message.embedded_components:
-            embedded_cls = EMBEDDED_PROTO_BY_TYPE.get(embedded.type)
-            if embedded_cls is None or not embedded.data:
-                continue
             try:
-                embedded_message = parse_text_proto(embedded.data, embedded_cls)
+                embedded_message = embedded_component_message(embedded)
             except Exception:
+                continue
+            if embedded_message is None:
                 continue
             resources.extend(iter_resource_strings(embedded_message))
     elif source_extension == "collection":
         topology["instance_count"] = len(message.instances) + len(message.embedded_instances)
         topology["collection_instance_count"] = len(message.collection_instances)
         for embedded in message.embedded_instances:
-            if not embedded.data:
-                continue
             try:
-                embedded_message = parse_text_proto(embedded.data, EMBEDDED_PROTO_BY_TYPE["go"])
+                embedded_message = embedded_instance_prototype(embedded)
             except Exception:
                 continue
+            if embedded_message is None:
+                continue
             embedded_resources, embedded_topology, _ = embedded_message_resources(embedded_message, "go")
+            embedded_resources = iter_resource_strings(embedded_message) + embedded_resources
             extra_samples.append(
                 {
                     "source_extension": "go",

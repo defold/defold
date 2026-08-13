@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -20,9 +20,12 @@
 # Strange error and probably a bug in google protocol buffers
 import ddf.ddf_extensions_pb2
 
-import google.protobuf.text_format
-import sys
+import importlib
 import os
+import sys
+
+from google.protobuf import text_format
+from protobuf_text import merge_gameobject_source_text
 
 # Script to add '/' in front of all resource. A blue-print script on how to automate content changes
 
@@ -33,7 +36,6 @@ def is_resource(field_desc):
     return False
 
 def fix_resource_files(msg):
-    import google.protobuf
     from google.protobuf.descriptor import FieldDescriptor
 
     descriptor = getattr(msg, 'DESCRIPTOR')
@@ -43,74 +45,137 @@ def fix_resource_files(msg):
             if field.label == FieldDescriptor.LABEL_REPEATED:
                 for x in value:
                     fix_resource_files(x)
-            else:
+            elif msg.HasField(field.name):
                 fix_resource_files(value)
         elif is_resource(field):
             if field.label == FieldDescriptor.LABEL_REPEATED:
                 for i, x in enumerate(value):
-                    if not x.startswith('/'):
+                    if x and not x.startswith('/'):
                         value[i] = '/' + x
             else:
-                if not value.startswith('/'):
+                if value and not value.startswith('/'):
                     setattr(msg, field.name, '/' + value)
 
 class ProtofileType(object):
     ext_to_protofile_type = {}
     def __init__(self, ext, module, msg_type):
-        self.module = module
-        self.py_module = __import__(module)
+        self.modules = (module, module.rsplit('.', 1)[-1])
         self.msg_type = msg_type
         self.ext = ext
         ProtofileType.ext_to_protofile_type[ext] = self
 
+    def new_message(self):
+        py_module = None
+        for module in self.modules:
+            try:
+                py_module = importlib.import_module(module)
+                break
+            except ModuleNotFoundError as error:
+                if error.name != module and not module.startswith(error.name + '.'):
+                    raise
+        if py_module is None:
+            raise ModuleNotFoundError(self.modules[0])
+
+        message_type = py_module
+        for name in self.msg_type.split('.'):
+            message_type = getattr(message_type, name)
+        return message_type()
+
+
+def message_to_text(message):
+    return text_format.MessageToString(message, as_utf8=True)
+
+
+def fix_legacy_embedded_component(embedded):
+    embedded_type = ProtofileType.ext_to_protofile_type.get('.' + embedded.type)
+    if embedded_type is None:
+        return
+
+    embedded_message = embedded_type.new_message()
+    merge_gameobject_source_text(embedded.data, embedded_message)
+    fix_resource_files(embedded_message)
+    embedded.data = message_to_text(embedded_message)
+
+
+def fix_source_prototype(prototype):
+    for embedded in prototype.embedded_components:
+        if embedded.WhichOneof('payload') == 'data':
+            fix_legacy_embedded_component(embedded)
+
+
+def fix_source_collection(collection):
+    prototype_type = ProtofileType.ext_to_protofile_type['.go']
+    for embedded in collection.embedded_instances:
+        payload = embedded.WhichOneof('payload')
+        if payload == 'prototype':
+            fix_source_prototype(embedded.prototype)
+        elif payload == 'data':
+            prototype = prototype_type.new_message()
+            merge_gameobject_source_text(embedded.data, prototype)
+            fix_resource_files(prototype)
+            fix_source_prototype(prototype)
+            embedded.data = message_to_text(prototype)
+
 def process_file(file_name):
     _, ext = os.path.splitext(file_name)
-    if ProtofileType.ext_to_protofile_type.has_key(ext):
-        type = ProtofileType.ext_to_protofile_type[ext]
+    if ext in ProtofileType.ext_to_protofile_type:
+        protofile_type = ProtofileType.ext_to_protofile_type[ext]
 
-        msg = eval('type.py_module.' + type.msg_type)() # Call constructor on message type
-        with open(file_name, 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), msg)
-        msg_str = str(msg)
+        msg = protofile_type.new_message()
+        with open(file_name, 'r', encoding='utf-8') as in_f:
+            merge_gameobject_source_text(in_f.read(), msg)
+        msg_str = message_to_text(msg)
         fix_resource_files(msg)
         if ext == '.go':
-            for embedded in msg.embedded_components:
-                embedded_type = ProtofileType.ext_to_protofile_type['.' + embedded.type]
-                embedded_msg = eval('embedded_type.py_module.' + embedded_type.msg_type)() # Call constructor on message type
-                google.protobuf.text_format.Merge(embedded.data, embedded_msg)
-                fix_resource_files(embedded_msg)
-                embedded.data = str(embedded_msg)
-        msg_str_prim = str(msg)
+            fix_source_prototype(msg)
+        elif ext == '.collection':
+            fix_source_collection(msg)
+        msg_str_prim = message_to_text(msg)
         if msg_str != msg_str_prim:
-            with open(file_name, 'wb') as out_f:
+            with open(file_name, 'w', encoding='utf-8') as out_f:
                 print('Updating %s' % file_name)
                 out_f.write(msg_str_prim)
-#        print msg
 
     else:
         print('Unsupported extension %s' % ext)
 
-ProtofileType('.collection', 'gameobject_ddf_pb2', 'CollectionDesc')
-ProtofileType('.go', 'gameobject_ddf_pb2', 'PrototypeDesc')
-ProtofileType('.collectionproxy', 'collectionproxy_ddf_pb2', 'CollectionProxyDesc')
-ProtofileType('.emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter')
-ProtofileType('.model', 'model_ddf_pb2', 'ModelDesc')
-ProtofileType('.convexshape',  'physics_ddf_pb2', 'ConvexShape')
-ProtofileType('.collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc')
-ProtofileType('.gui',  'gui_ddf_pb2', 'SceneDesc')
-ProtofileType('.camera', 'camera_ddf_pb2', 'CameraDesc')
-ProtofileType('.input_binding', 'input_ddf_pb2', 'InputBinding')
-ProtofileType('.gamepads', 'input_ddf_pb2', 'GamepadMaps')
-ProtofileType('.factory', 'gamesys_ddf_pb2', 'FactoryDesc')
-ProtofileType('.render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc')
-ProtofileType('.sprite', 'sprite_ddf_pb2', 'SpriteDesc')
-ProtofileType('.material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc')
-ProtofileType('.font', 'render.font_ddf_pb2', 'font_ddf_pb2.FontDesc')
+
+ProtofileType('.collection', 'gameobject_source.gameobject_source_ddf_pb2', 'CollectionDesc')
+ProtofileType('.go', 'gameobject_source.gameobject_source_ddf_pb2', 'PrototypeDesc')
+ProtofileType('.collectionproxy', 'gamesys.collectionproxy_ddf_pb2', 'CollectionProxyDesc')
+ProtofileType('.collectionfactory', 'gamesys.gamesys_ddf_pb2', 'CollectionFactoryDesc')
+ProtofileType('.emitter', 'particle.particle_ddf_pb2', 'Emitter')
+ProtofileType('.model', 'gamesys.model_ddf_pb2', 'ModelDesc')
+ProtofileType('.convexshape',  'gamesys.physics_ddf_pb2', 'ConvexShape')
+ProtofileType('.collisionobject',  'gamesys.physics_ddf_pb2', 'CollisionObjectDesc')
+ProtofileType('.gui',  'gamesys.gui_ddf_pb2', 'SceneDesc')
+ProtofileType('.camera', 'gamesys.camera_ddf_pb2', 'CameraDesc')
+ProtofileType('.input_binding', 'input.input_ddf_pb2', 'InputBinding')
+ProtofileType('.gamepads', 'input.input_ddf_pb2', 'GamepadMaps')
+ProtofileType('.factory', 'gamesys.gamesys_ddf_pb2', 'FactoryDesc')
+ProtofileType('.label', 'gamesys.label_ddf_pb2', 'LabelDesc')
+ProtofileType('.mesh', 'gamesys.mesh_ddf_pb2', 'MeshDesc')
+ProtofileType('.particlefx', 'particle.particle_ddf_pb2', 'ParticleFX')
+ProtofileType('.render', 'render.render_ddf_pb2', 'RenderPrototypeDesc')
+ProtofileType('.sound', 'gamesys.sound_ddf_pb2', 'SoundDesc')
+ProtofileType('.sprite', 'gamesys.sprite_ddf_pb2', 'SpriteDesc')
+ProtofileType('.tilemap', 'gamesys.tile_ddf_pb2', 'TileGrid')
+ProtofileType('.tilegrid', 'gamesys.tile_ddf_pb2', 'TileGrid')
+ProtofileType('.directional_light', 'gamesys.data_ddf_pb2', 'Data')
+ProtofileType('.point_light', 'gamesys.data_ddf_pb2', 'Data')
+ProtofileType('.spot_light', 'gamesys.data_ddf_pb2', 'Data')
+ProtofileType('.ambient_light', 'gamesys.data_ddf_pb2', 'Data')
+ProtofileType('.material', 'render.material_ddf_pb2', 'MaterialDesc')
+ProtofileType('.font', 'render.font_ddf_pb2', 'FontDesc')
 
 
-for root, dirs, files in os.walk(sys.argv[1]):
-    for f in files:
-        _, ext = os.path.splitext(f)
-        if ProtofileType.ext_to_protofile_type.has_key(ext):
-            full_path = os.path.join(root, f)
-            process_file(full_path)
+def main(project_root):
+    for root, _, files in os.walk(project_root):
+        for file_name in files:
+            _, ext = os.path.splitext(file_name)
+            if ext in ProtofileType.ext_to_protofile_type:
+                process_file(os.path.join(root, file_name))
+
+
+if __name__ == '__main__':
+    main(sys.argv[1])

@@ -14,15 +14,18 @@
 
 (ns integration.game-object-test
   (:require [clojure.data :as data]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.game-object :as game-object]
             [editor.defold-project :as project]
+            [editor.game-object :as game-object]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
-  (:import [java.io StringReader]))
+  (:import [com.dynamo.gameobject.proto GameObjectSource$EmbeddedComponentDesc GameObjectSource$PrototypeDesc]
+           [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
 
@@ -66,11 +69,26 @@
             (test-util/add-embedded-component! go-id resource-type)
             (let [save-data (g/node-value go-id :save-data)
                   save-value (:save-value save-data)
-                  load-value (with-open [reader (StringReader. (resource-node/save-data-content save-data))]
+                  save-data-content (resource-node/save-data-content save-data)
+                  source-value (protobuf/str->map-without-defaults GameObjectSource$PrototypeDesc save-data-content)
+                  source-embedded-component (first (:embedded-components source-value))
+                  source-payload-key (keyword (string/replace (:ext resource-type) \_ \-))
+                  source-payload-field-info (get (protobuf/field-infos GameObjectSource$EmbeddedComponentDesc)
+                                                 source-payload-key)
+                  typed-source-payload? (= (:ddf-type resource-type)
+                                           (:value-class source-payload-field-info))
+                  load-value (with-open [reader (StringReader. save-data-content)]
                                (go-read-fn reader))
                   saved-embedded-components (:embedded-components save-value)
                   loaded-embedded-components (:embedded-components load-value)
                   [only-in-saved only-in-loaded] (data/diff saved-embedded-components loaded-embedded-components)]
+              (if typed-source-payload?
+                (do
+                  (is (contains? source-embedded-component source-payload-key))
+                  (is (not (contains? source-embedded-component :data))))
+                (do
+                  (is (contains? source-embedded-component :data))
+                  (is (not (contains? source-embedded-component source-payload-key)))))
               (is (nil? only-in-saved))
               (is (nil? only-in-loaded))
               (when (or (some? only-in-saved)

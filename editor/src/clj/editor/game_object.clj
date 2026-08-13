@@ -45,7 +45,7 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.eduction :as e])
-  (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc GameObjectSource$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [javax.vecmath Vector3d]
            [org.apache.commons.io FilenameUtils]
@@ -671,10 +671,10 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
 
-(defn- string-encode-game-object [workspace prototype-desc]
+(defn- source-encode-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
+    (collection-string-data/source-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn- handle-drop
   [root-id _selection workspace world-pos resources]
@@ -787,12 +787,14 @@
       :ext "go"
       :label (localization/message "resource.type.go")
       :node-type GameObjectNode
-      :ddf-type GameObject$PrototypeDesc
+      :ddf-type GameObjectSource$PrototypeDesc
+      :built-pb-class GameObject$PrototypeDesc
+      :strict-source true
       :load-fn load-game-object
       :allow-unloaded-use true
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
       :sanitize-fn (partial sanitize-game-object workspace)
-      :pb-encode-fn (partial string-encode-game-object workspace)
+      :pb-encode-fn (partial source-encode-game-object workspace)
       :icon game-object-common/game-object-icon
       :icon-class :design
       :category (localization/message "resource.category.objects")

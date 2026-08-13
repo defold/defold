@@ -26,6 +26,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gameobject.proto.GameObjectSource;
 import com.dynamo.gamesys.proto.DataProto;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
@@ -36,6 +37,7 @@ import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.render.proto.Font;
 import com.dynamo.render.proto.Material;
 import com.dynamo.render.proto.Compute;
@@ -91,6 +93,12 @@ public class ParseUtil {
                 return SoundDesc.parseFrom(content);
             }
         });
+        parseMap.put("particlefxc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return ParticleFX.parseFrom(content);
+            }
+        });
         parseMap.put("oggc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
@@ -124,10 +132,10 @@ public class ParseUtil {
         parseMap.put("go", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                PrototypeDesc.Builder builder = PrototypeDesc.newBuilder();
+                GameObjectSource.PrototypeDesc.Builder builder = GameObjectSource.PrototypeDesc.newBuilder();
                 try {
-                    TextFormat.merge(new String(content), builder);
-                } catch (ParseException e) {
+                    ProtoUtil.mergeStrict(null, content, builder);
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
                 return builder.build();

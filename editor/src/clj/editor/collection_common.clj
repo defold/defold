@@ -15,6 +15,7 @@
 (ns editor.collection-common
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.game-object-common :as game-object-common]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -28,7 +29,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -74,15 +75,18 @@
 
 (defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedInstanceDesc in map format.
-  (try
-    (let [unsanitized-prototype-desc (protobuf/str->map-without-defaults GameObject$PrototypeDesc (:data embedded-instance-desc))
-          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
-      (assoc embedded-instance-desc
-        :data sanitized-prototype-desc))
-    (catch Exception error
-      ;; Leave unsanitized.
-      (log/warn :msg "Failed to sanitize embedded game object" :exception error)
-      embedded-instance-desc)))
+  (if (map? (:data embedded-instance-desc))
+    embedded-instance-desc
+    (try
+      (let [embedded-instance-desc (collection-string-data/source-decode-embedded-instance-desc embedded-instance-desc)
+            unsanitized-prototype-desc (:data embedded-instance-desc)
+            sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
+        (assoc embedded-instance-desc
+          :data sanitized-prototype-desc))
+      (catch Exception error
+        ;; Leave unsanitized.
+        (log/warn :msg "Failed to sanitize embedded game object" :exception error)
+        embedded-instance-desc))))
 
 (defn- sanitize-instance-desc [instance-desc]
   ;; GameObject$InstanceDesc in map format.
@@ -91,8 +95,9 @@
 
 (defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedInstanceDesc in map format.
-  (cond-> (sanitize-any-instance-desc embedded-instance-desc :component-properties)
-          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type)))
+  (-> embedded-instance-desc
+      (sanitize-any-instance-desc :component-properties)
+      (sanitize-embedded-game-object-data ext->embedded-component-resource-type)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.

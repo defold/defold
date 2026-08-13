@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertTrue;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,16 +40,26 @@ import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
+import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
+import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.google.protobuf.Message;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
     private static final double epsilon = 0.000001;
+
+    private static String escapeProtobufString(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n");
+    }
 
     @Test
     public void testProps() throws Exception {
@@ -154,6 +165,22 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(v0.getY(), v1.getY(), delta);
         Assert.assertEquals(v0.getZ(), v1.getZ(), delta);
         Assert.assertEquals(v0.getW(), v1.getW(), delta);
+    }
+
+    private static CollectionDesc normalizeGeneratedPrototypePaths(CollectionDesc collection) {
+        CollectionDesc.Builder builder = collection.toBuilder();
+        for (int i = 0; i < builder.getInstancesCount(); ++i) {
+            builder.setInstances(i, builder.getInstances(i).toBuilder().setPrototype("<generated>"));
+        }
+        return builder.build();
+    }
+
+    private static PrototypeDesc normalizeGeneratedComponentPaths(PrototypeDesc prototype) {
+        PrototypeDesc.Builder builder = prototype.toBuilder();
+        for (int i = 0; i < builder.getComponentsCount(); ++i) {
+            builder.setComponents(i, builder.getComponents(i).toBuilder().setComponent("<generated>"));
+        }
+        return builder.build();
     }
 
     /**
@@ -704,6 +731,46 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    @Test
+    public void testTypedEmbeddedPrototypeStaticFactoryComponentCounter() throws Exception {
+        addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
+        addFile("/spawned.go", "embedded_components {\n"
+                + "  id: \"sprite\"\n"
+                + "  type: \"sprite\"\n"
+                + "  sprite { tile_set: \"/test.atlas\" default_animation: \"\" material: \"\" }\n"
+                + "}\n");
+
+        String source = "name: \"main\"\n"
+                + "embedded_instances {\n"
+                + "  id: \"owner\"\n"
+                + "  prototype {\n"
+                + "    embedded_components {\n"
+                + "      id: \"factory\"\n"
+                + "      type: \"factory\"\n"
+                + "      factory { prototype: \"/spawned.go\" }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n";
+
+        List<Message> messages = build("/typed-factory.collection", source);
+        CollectionDesc collection = getMessage(messages, CollectionDesc.class);
+        Map<Long, Integer> maxCountByType = new HashMap<>();
+        for (ComponenTypeDesc type : collection.getComponentTypesList()) {
+            maxCountByType.put(type.getNameHash(), type.getMaxCount());
+        }
+
+        Assert.assertEquals(3, maxCountByType.size());
+        Assert.assertEquals(Integer.valueOf(1), maxCountByType.get(MurmurHash.hash64("factoryc")));
+        Assert.assertEquals(ComponentsCounter.DYNAMIC_VALUE, maxCountByType.get(MurmurHash.hash64("spritec")));
+        Assert.assertEquals(ComponentsCounter.DYNAMIC_VALUE, maxCountByType.get(MurmurHash.hash64("goc")));
+
+        FactoryDesc factory = getMessage(messages, FactoryDesc.class);
+        Assert.assertNotNull(factory);
+        Assert.assertEquals("/spawned.goc", factory.getPrototype());
+        Assert.assertNotNull(getFile("build/spawned.goc"));
+    }
+
     /**
      * Test that the component counter counts components right in factory
      * Structure:
@@ -991,6 +1058,133 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
             else if (type.getNameHash() == MurmurHash.hash64("goc")) {
                 Assert.assertEquals(2, type.getMaxCount());
             }
+        }
+    }
+
+    @Test
+    public void testLegacyAndTypedEmbeddedInstancesBuildEquivalently() throws Exception {
+        String typedSource = "name: \"main\"\n"
+                + "embedded_instances {\n"
+                + "  id: \"go\"\n"
+                + "  prototype {\n"
+                + "    embedded_components {\n"
+                + "      id: \"particlefx\"\n"
+                + "      type: \"particlefx\"\n"
+                + "      particlefx {}\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n";
+        List<Message> typedMessages = build("/typed.collection", typedSource);
+        CollectionDesc typedCollection = getMessage(typedMessages, CollectionDesc.class);
+        PrototypeDesc typedPrototype = getMessage(typedMessages, PrototypeDesc.class);
+
+        String legacyPrototypeSource = "embedded_components {\n"
+                + "  id: \"particlefx\"\n"
+                + "  type: \"particlefx\"\n"
+                + "  data: \"\"\n"
+                + "}\n";
+        String legacySource = "name: \"main\"\n"
+                + "embedded_instances {\n"
+                + "  id: \"go\"\n"
+                + "  data: \"" + StringEscapeUtils.escapeJava(legacyPrototypeSource) + "\"\n"
+                + "}\n";
+        List<Message> legacyMessages = build("/legacy.collection", legacySource);
+        CollectionDesc legacyCollection = getMessage(legacyMessages, CollectionDesc.class);
+        PrototypeDesc legacyPrototype = getMessage(legacyMessages, PrototypeDesc.class);
+
+        Assert.assertEquals(normalizeGeneratedPrototypePaths(legacyCollection),
+                normalizeGeneratedPrototypePaths(typedCollection));
+        Assert.assertEquals(normalizeGeneratedComponentPaths(legacyPrototype),
+                normalizeGeneratedComponentPaths(typedPrototype));
+        Assert.assertEquals(0, typedCollection.getEmbeddedInstancesCount());
+        Assert.assertEquals(1, typedCollection.getInstancesCount());
+        Assert.assertEquals(0, typedPrototype.getEmbeddedComponentsCount());
+        Assert.assertEquals(1, typedPrototype.getComponentsCount());
+        Assert.assertNotNull(getMessage(typedMessages, ParticleFX.class));
+    }
+
+    @Test
+    public void testEmptyTypedPrototypeEquivalentToLegacyEmptyData() throws Exception {
+        String typedSource = "name: \"main\"\n"
+                + "embedded_instances { id: \"go\" prototype {} }\n";
+        List<Message> typedMessages = build("/typed-empty.collection", typedSource);
+        CollectionDesc typedCollection = getMessage(typedMessages, CollectionDesc.class);
+        PrototypeDesc typedPrototype = getMessage(typedMessages, PrototypeDesc.class);
+
+        String legacySource = "name: \"main\"\n"
+                + "embedded_instances { id: \"go\" data: \"\" }\n";
+        List<Message> legacyMessages = build("/legacy-empty.collection", legacySource);
+        CollectionDesc legacyCollection = getMessage(legacyMessages, CollectionDesc.class);
+        PrototypeDesc legacyPrototype = getMessage(legacyMessages, PrototypeDesc.class);
+
+        Assert.assertEquals(normalizeGeneratedPrototypePaths(legacyCollection),
+                normalizeGeneratedPrototypePaths(typedCollection));
+        Assert.assertEquals(legacyPrototype, typedPrototype);
+        Assert.assertEquals(0, typedCollection.getEmbeddedInstancesCount());
+        Assert.assertEquals(1, typedCollection.getInstancesCount());
+        Assert.assertNotNull(typedPrototype);
+        Assert.assertEquals(0, typedPrototype.getEmbeddedComponentsCount());
+        Assert.assertEquals(0, typedPrototype.getComponentsCount());
+    }
+
+    @Test
+    public void testFallbackPayloadInTypedPrototypePreservesUtf8() throws Exception {
+        getProject().setOption("use-uncompressed-lua-source", "true");
+        String script = "print(\"Spelare åäö \ud83d\ude00\")\n";
+        String source = "name: \"main\"\n"
+                + "embedded_instances {\n"
+                + "  id: \"go\"\n"
+                + "  prototype {\n"
+                + "    embedded_components {\n"
+                + "      id: \"script\"\n"
+                + "      type: \"script\"\n"
+                + "      data: \"" + escapeProtobufString(script) + "\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n";
+
+        List<Message> messages = build("/utf8.collection", source);
+        CollectionDesc collection = getMessage(messages, CollectionDesc.class);
+        PrototypeDesc prototype = getMessage(messages, PrototypeDesc.class);
+        LuaModule luaModule = getMessage(messages, LuaModule.class);
+
+        Assert.assertEquals(0, collection.getEmbeddedInstancesCount());
+        Assert.assertEquals(1, collection.getInstancesCount());
+        Assert.assertEquals(0, prototype.getEmbeddedComponentsCount());
+        Assert.assertEquals(1, prototype.getComponentsCount());
+        Assert.assertNotNull(luaModule);
+        Assert.assertArrayEquals(script.getBytes(StandardCharsets.UTF_8), luaModule.getSource().getScript().toByteArray());
+    }
+
+    @Test(expected = CompileExceptionError.class)
+    public void testEmbeddedInstanceMissingPayload() throws Exception {
+        build("/missing-payload.collection", "name: \"main\" embedded_instances { id: \"go\" }");
+    }
+
+    @Test
+    public void testCollectionMissingRequiredName() throws Exception {
+        try {
+            build("/missing-name.collection", "");
+            Assert.fail("Expected missing name rejection");
+        } catch (CompileExceptionError e) {
+            Assert.assertTrue(e.getMessage().contains("missing required field 'name'"));
+        }
+    }
+
+    @Test(expected = CompileExceptionError.class)
+    public void testEmbeddedInstanceMultiplePayloads() throws Exception {
+        build("/multiple-payloads.collection",
+                "name: \"main\" embedded_instances { id: \"go\" data: \"\" prototype {} }");
+    }
+
+    @Test
+    public void testEmbeddedInstanceMissingPayloadValidationMessage() throws Exception {
+        try {
+            build("/missing-payload-message.collection",
+                    "name: \"main\" embedded_instances { id: \"go\" }");
+            Assert.fail("Expected missing payload rejection");
+        } catch (CompileExceptionError e) {
+            Assert.assertTrue(e.getMessage().contains("Embedded instance 'go' is missing a payload"));
         }
     }
 

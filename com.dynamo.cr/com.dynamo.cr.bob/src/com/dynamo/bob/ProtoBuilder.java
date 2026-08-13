@@ -17,13 +17,13 @@ package com.dynamo.bob;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.TreeMap;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
@@ -52,12 +52,19 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     public static void addProtoDigest(Class<? extends GeneratedMessageV3> klass) throws NoSuchAlgorithmException {
         if (classToProtoDigest.get(klass) == null) {
             MessageDigest digest = MessageDigest.getInstance("SHA1");
-            digest.update(klass.getName().getBytes());
+            digest.update(klass.getName().getBytes(StandardCharsets.UTF_8));
             try {
-                // Calculate the digest for the proto format based on the proto descriptor
                 Descriptors.Descriptor descriptor = (Descriptors.Descriptor) klass.getMethod("getDescriptor").invoke(null);
-                digest.update(descriptor.getFullName().getBytes());
-                addFieldsToDigest(descriptor, digest);
+                digest.update(descriptor.getFullName().getBytes(StandardCharsets.UTF_8));
+
+                // Hash complete, deterministic file descriptors instead of a subset of
+                // message fields. This includes oneofs, enums, cardinality, custom DDF
+                // options, and the transitive schemas used by source-only payloads.
+                TreeMap<String, Descriptors.FileDescriptor> files = new TreeMap<>();
+                collectFileDescriptors(descriptor.getFile(), files);
+                for (Descriptors.FileDescriptor file : files.values()) {
+                    digest.update(file.toProto().toByteArray());
+                }
             } catch (ReflectiveOperationException e) {
                 throw new RuntimeException("Failed to retrieve descriptor from protobuf class", e);
             }
@@ -65,34 +72,14 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         }
     }
 
-    private static void addFieldsToDigest(Descriptors.Descriptor descriptor, MessageDigest digest) {
-        addFieldsToDigest(descriptor, digest, new HashSet<Descriptors.Descriptor>());
-    }
-
-    private static void addFieldsToDigest(Descriptors.Descriptor descriptor, MessageDigest digest, Set<Descriptors.Descriptor> visited) {
-        // Avoid infinite recursion on cyclic descriptor graphs (e.g. recursive messages)
-        if (!visited.add(descriptor)) {
+    private static void collectFileDescriptors(Descriptors.FileDescriptor file,
+                                               Map<String, Descriptors.FileDescriptor> files) {
+        if (files.putIfAbsent(file.getName(), file) != null) {
             return;
         }
-
-        for (Descriptors.FieldDescriptor field : descriptor.getFields()) {
-            digest.update(field.getName().getBytes());
-            digest.update(field.getType().toString().getBytes());
-            digest.update(Integer.toString(field.getNumber()).getBytes());
-            if (field.hasDefaultValue()) {
-                digest.update(field.getDefaultValue().toString().getBytes());
-            }
-
-            // If the field is a sub-message, recursively process its descriptor
-            if (field.getType() == Descriptors.FieldDescriptor.Type.MESSAGE) {
-                Descriptors.Descriptor subDescriptor = field.getMessageType();
-                digest.update(subDescriptor.getFullName().getBytes());
-                addFieldsToDigest(subDescriptor, digest, visited);
-            }
+        for (Descriptors.FileDescriptor dependency : file.getDependencies()) {
+            collectFileDescriptors(dependency, files);
         }
-
-        // Allow the descriptor to appear again in a different independent path
-        visited.remove(descriptor);
     }
 
     static public void addMessageClass(String ext, Class<? extends GeneratedMessageV3> klass) {
@@ -135,6 +122,9 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
         List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
         for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
+            if (fieldDescriptor.getContainingOneof() != null && !builder.hasField(fieldDescriptor)) {
+                continue;
+            }
             DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
             Descriptors.FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
             boolean isResource = (Boolean) options.getField(resourceDesc);
@@ -177,9 +167,13 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
             throw new RuntimeException(e);
         }
 
-        ProtoUtil.merge(input, srcBuilder);
+        mergeSrc(input, srcBuilder);
         srcBuilders.put(input, srcBuilder);
         return srcBuilder;
+    }
+
+    protected void mergeSrc(IResource input, B srcBuilder) throws IOException, CompileExceptionError {
+        ProtoUtil.merge(input, srcBuilder);
     }
 
     @Override
@@ -220,6 +214,12 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         byte[] protoDigest = classToProtoDigest.get(protoParams.messageClass());
         if (protoDigest != null) {
             digest.update(protoDigest);
+        }
+        if (protoParams.srcClass() != protoParams.messageClass()) {
+            byte[] srcProtoDigest = classToProtoDigest.get(protoParams.srcClass());
+            if (srcProtoDigest != null) {
+                digest.update(srcProtoDigest);
+            }
         }
     }
 }

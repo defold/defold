@@ -32,7 +32,7 @@
             [util.text-util :as text-util])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Builder Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
            [com.dynamo.proto DdfExtensions]
-           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]))
+           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Descriptors$OneofDescriptor Message]))
 
 ;; Note: We use symbol or string representations of protobuf types and values
 ;; instead of the imported classes and enum values when declaring exclusions and
@@ -175,6 +175,11 @@
    'dmGameObjectDDF.EmbeddedInstanceDesc
    {:default
     {"component_properties" :unused ; Not used by the editor, Bob, or the runtime. Perhaps declared by mistake. Any edits to components are directly embedded in the PrototypeDesc inside the "data" field, so why do we need it?
+     "scale" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
+   'dmGameObjectSourceDDF.EmbeddedInstanceDesc
+   {:default
+    {"component_properties" :unused ; Not used by the editor, Bob, or the runtime. Perhaps declared by mistake. Any edits to components are directly embedded in the PrototypeDesc inside the "prototype" field, so why do we need it?
      "scale" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGameObjectDDF.InstanceDesc
@@ -1096,6 +1101,11 @@
 
 (def ^:private pb-descriptor-expected-fields (fn/memoize pb-descriptor-expected-fields-raw))
 
+(defn- game-object-source-payload-field? [^Descriptors$FieldDescriptor field-desc]
+  (when-let [^Descriptors$OneofDescriptor oneof-desc (.getContainingOneof field-desc)]
+    (and (= "payload" (.getName oneof-desc))
+         (= "dmGameObjectSourceDDF" (-> field-desc .getFile .getPackage)))))
+
 (defn- pb-type-field-name [^Descriptors$Descriptor pb-desc pb-path]
   (s/assert ::pb-path pb-path)
   (when-let [type-field-name (-> pb-desc pb-descriptor-key pb-type-field-names)]
@@ -1126,13 +1136,17 @@
                             field-frequency
                             (cond
                               (pb-message-field? field-desc)
-                              (let [pb-path (conj typed-pb-path field-name)]
-                                (if (.isRepeated field-desc)
-                                  (transduce
-                                    (map #(pb-nested-field-frequencies % pb-path count-field-value?))
-                                    merge-nested-frequencies
-                                    (.getField pb field-desc))
-                                  (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?)))
+                              ;; Message-valued oneof arms are source envelopes
+                              ;; for protobuf types covered by their own files.
+                              (if (game-object-source-payload-field? field-desc)
+                                1
+                                (let [pb-path (conj typed-pb-path field-name)]
+                                  (if (.isRepeated field-desc)
+                                    (transduce
+                                      (map #(pb-nested-field-frequencies % pb-path count-field-value?))
+                                      merge-nested-frequencies
+                                      (.getField pb field-desc))
+                                    (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?))))
 
                               (.isRepeated field-desc)
                               (.getRepeatedFieldCount pb field-desc) ; Repeated fields cannot specify a default, so any values count.
@@ -1150,7 +1164,12 @@
                                   (pos? (count field-frequency)))
                           (pair field-name
                                 field-frequency)))))
-              (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable :non-overridable}))]
+              ;; Only the selected oneof arm is part of this message value.
+              (into []
+                    (remove (fn [^Descriptors$FieldDescriptor field-desc]
+                              (and (game-object-source-payload-field? field-desc)
+                                   (not (.hasField pb field-desc)))))
+                    (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable :non-overridable})))]
 
     (if (nil? type-field-desc)
       field-frequencies

@@ -47,7 +47,7 @@
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc GameObjectSource$CollectionDesc]
            [internal.graph.types Arc]
            [org.apache.commons.io FilenameUtils]))
 
@@ -912,10 +912,10 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
 
-(defn- string-encode-collection [workspace collection-desc]
+(defn- source-encode-collection [workspace collection-desc]
   ;; GameObject$CollectionDesc in map format.
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
+    (collection-string-data/source-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- add-dropped-resource
   [collection transform-props [id resource] evaluation-context]
@@ -1017,12 +1017,14 @@
       :ext "collection"
       :label (localization/message "resource.type.collection")
       :node-type CollectionNode
-      :ddf-type GameObject$CollectionDesc
+      :ddf-type GameObjectSource$CollectionDesc
+      :built-pb-class GameObject$CollectionDesc
+      :strict-source true
       :load-fn load-collection
       :allow-unloaded-use true
       :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
       :sanitize-fn (partial sanitize-collection workspace)
-      :pb-encode-fn (partial string-encode-collection workspace)
+      :pb-encode-fn (partial source-encode-collection workspace)
       :icon collection-common/collection-icon
       :icon-class :design
       :category (localization/message "resource.category.objects")

@@ -15,6 +15,7 @@ import zlib
 from project_synth.progress import ProgressReporter
 from project_synth.profile import profile_project
 from project_synth.proto import EMBEDDED_PROTO_BY_TYPE
+from project_synth.proto import gameobject_source_ddf_pb2
 from project_synth.proto import text_format
 
 
@@ -988,17 +989,17 @@ def message_to_text(message) -> str:
     return text_format.MessageToString(message, as_utf8=True)
 
 
-def make_embedded_sprite(tile_set: str, material: str) -> str:
+def make_embedded_sprite(tile_set: str, material: str):
     message = EMBEDDED_PROTO_BY_TYPE["sprite"]()
     message.tile_set = tile_set
     message.default_animation = "anim"
     message.material = material
     if hasattr(message, "blend_mode"):
         message.blend_mode = message.BLEND_MODE_ALPHA
-    return message_to_text(message)
+    return message
 
 
-def make_embedded_label(font: str) -> str:
+def make_embedded_label(font: str):
     message = EMBEDDED_PROTO_BY_TYPE["label"]()
     message.size.x = 128.0
     message.size.y = 32.0
@@ -1030,23 +1031,33 @@ def make_embedded_label(font: str) -> str:
     message.text = "synthetic"
     message.font = font
     message.material = "/builtins/fonts/label.material"
-    return message_to_text(message)
+    return message
 
 
-def make_embedded_collectionproxy(collection: str) -> str:
+def make_embedded_collectionproxy(collection: str):
     message = EMBEDDED_PROTO_BY_TYPE["collectionproxy"]()
     message.collection = collection
     message.exclude = False
-    return message_to_text(message)
+    return message
 
 
-def make_embedded_factory(prototype: str) -> str:
+def make_embedded_factory(prototype: str):
     message = EMBEDDED_PROTO_BY_TYPE["factory"]()
     message.prototype = prototype
     message.load_dynamically = True
     if hasattr(message, "dynamic_prototype"):
         message.dynamic_prototype = True
-    return message_to_text(message)
+    return message
+
+
+def render_embedded_component(component_id: str, component_type: str, payload) -> list[str]:
+    embedded = gameobject_source_ddf_pb2.EmbeddedComponentDesc()
+    embedded.id = component_id
+    embedded.type = component_type
+    getattr(embedded, component_type).CopyFrom(payload)
+    return ["embedded_components {"] + [
+        f"  {line}" for line in message_to_text(embedded).splitlines()
+    ] + ["}"]
 
 
 def first_edge(node: Node, extension: str, fallback: str) -> str:
@@ -1372,46 +1383,38 @@ def render_go(node: Node) -> str:
     for index, atlas_path in enumerate(atlas_targets):
         material_path = material_targets[index % len(material_targets)]
         lines.extend(
-            [
-                "embedded_components {",
-                f'  id: "sprite_{index + 1}"',
-                '  type: "sprite"',
-                f'  data: {json.dumps(make_embedded_sprite(atlas_path, material_path))}',
-                "}",
-            ]
+            render_embedded_component(
+                f"sprite_{index + 1}",
+                "sprite",
+                make_embedded_sprite(atlas_path, material_path),
+            )
         )
 
     for index, font_path in enumerate(unique_edges(node, "font")):
         lines.extend(
-            [
-                "embedded_components {",
-                f'  id: "label_{index + 1}"',
-                '  type: "label"',
-                f'  data: {json.dumps(make_embedded_label(font_path))}',
-                "}",
-            ]
+            render_embedded_component(
+                f"label_{index + 1}",
+                "label",
+                make_embedded_label(font_path),
+            )
         )
 
     for index, collection_path in enumerate(unique_edges(node, "collection")):
         lines.extend(
-            [
-                "embedded_components {",
-                f'  id: "collection_proxy_{index + 1}"',
-                '  type: "collectionproxy"',
-                f'  data: {json.dumps(make_embedded_collectionproxy(collection_path))}',
-                "}",
-            ]
+            render_embedded_component(
+                f"collection_proxy_{index + 1}",
+                "collectionproxy",
+                make_embedded_collectionproxy(collection_path),
+            )
         )
 
     for index, go_path in enumerate(unique_edges(node, "go")):
         lines.extend(
-            [
-                "embedded_components {",
-                f'  id: "factory_{index + 1}"',
-                '  type: "factory"',
-                f'  data: {json.dumps(make_embedded_factory(go_path))}',
-                "}",
-            ]
+            render_embedded_component(
+                f"factory_{index + 1}",
+                "factory",
+                make_embedded_factory(go_path),
+            )
         )
 
     if not lines and node.path == "/main/main.go":

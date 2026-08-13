@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,35 +35,43 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.bob.util.ComponentsCounter;
-import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
-import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
+import com.dynamo.gameobject.proto.GameObjectSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 
-@ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
+@ProtoParams(srcClass = GameObjectSource.CollectionDesc.class, messageClass = GameObject.CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
-public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
+public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionDesc.Builder> {
     private Map<IResource, Integer> compCounterInputsCount = new HashMap<>();
 
-    private void collectSubCollections(CollectionDesc.Builder collection, Map<IResource, Integer> subCollections) throws CompileExceptionError, IOException {
+    @Override
+    protected void mergeSrc(IResource input, GameObjectSource.CollectionDesc.Builder srcBuilder)
+            throws IOException, CompileExceptionError {
+        ProtoUtil.mergeStrict(input, srcBuilder);
+    }
+
+    private void collectSubCollections(GameObjectSource.CollectionDesc.Builder collection,
+                                       Map<IResource, Integer> subCollections)
+            throws CompileExceptionError, IOException {
         for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
             IResource subResource = project.getResource(sub.getCollection());
             subCollections.put(subResource, subCollections.getOrDefault(subResource, 0) + 1);
-            CollectionDesc.Builder builder = CollectionDesc.newBuilder();
-            ProtoUtil.merge(subResource, builder);
+            GameObjectSource.CollectionDesc.Builder builder = GameObjectSource.CollectionDesc.newBuilder();
+            ProtoUtil.mergeStrict(subResource, builder);
             collectSubCollections(builder, subCollections);
         }
     }
 
-    private void createGeneratedResources(Project project, CollectionDesc.Builder builder,
+    private void createGeneratedResources(Project project, IResource owner, GameObjectSource.CollectionDesc.Builder builder,
         Map<Long, IResource> uniqueResources, Map<Long, IResource> allResources) throws IOException, CompileExceptionError {
 
-        for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
-            byte[] data = desc.getData().getBytes();
+        for (GameObjectSource.EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
+            byte[] data = GameObjectSourceUtil.getEmbeddedInstanceData(owner, desc);
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, "go");
@@ -80,10 +89,10 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
             IResource collectionResource = this.project.getResource(c.getCollection());
-            CollectionDesc.Builder subCollectionBuilder = CollectionDesc.newBuilder();
-            ProtoUtil.merge(collectionResource, subCollectionBuilder);
+            GameObjectSource.CollectionDesc.Builder subCollectionBuilder = GameObjectSource.CollectionDesc.newBuilder();
+            ProtoUtil.mergeStrict(collectionResource, subCollectionBuilder);
 
-            createGeneratedResources(project, subCollectionBuilder, uniqueResources, allResources);
+            createGeneratedResources(project, collectionResource, subCollectionBuilder, uniqueResources, allResources);
         }
     }
 
@@ -94,8 +103,10 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
-        CollectionDesc.Builder builder = getSrcBuilder(input);
-        createSubTasks(builder, taskBuilder);
+        GameObjectSource.CollectionDesc.Builder builder = getSrcBuilder(input);
+        GameObjectSource.CollectionDesc.Builder dependencyBuilder = builder.clone();
+        dependencyBuilder.clearEmbeddedInstances();
+        createSubTasks(dependencyBuilder, taskBuilder);
 
         Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
@@ -119,9 +130,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             compCounterInputsCount.put(compCounterInput, 1);
         }
 
-        Map<Long, IResource> uniqueResources = new HashMap<>();
-        Map<Long, IResource> allResources = new HashMap<>();
-        createGeneratedResources(this.project, builder, uniqueResources, allResources);
+        Map<Long, IResource> uniqueResources = new LinkedHashMap<>();
+        Map<Long, IResource> allResources = new LinkedHashMap<>();
+        createGeneratedResources(this.project, input, builder, uniqueResources, allResources);
 
         List<Task> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
@@ -187,20 +198,21 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return toList(sourceMap);
     }
 
-    private void mergeSubCollections(IResource owner, CollectionDesc.Builder collectionBuilder) throws IOException, CompileExceptionError {
+    private void mergeSubCollections(IResource owner, GameObjectSource.CollectionDesc.Builder collectionBuilder)
+            throws IOException, CompileExceptionError {
         Set<String> childIds = new HashSet<String>();
         Map<String, List<ComponentPropertyDesc>> properties = new HashMap<String, List<ComponentPropertyDesc>>();
         for (CollectionInstanceDesc collInst : collectionBuilder.getCollectionInstancesList()) {
             IResource collResource = this.project.getResource(collInst.getCollection());
-            CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
-            ProtoUtil.merge(collResource, subCollBuilder);
+            GameObjectSource.CollectionDesc.Builder subCollBuilder = GameObjectSource.CollectionDesc.newBuilder();
+            ProtoUtil.mergeStrict(collResource, subCollBuilder);
             mergeSubCollections(owner, subCollBuilder);
             // Collect child ids
             childIds.clear();
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
                 childIds.addAll(inst.getChildrenList());
             }
-            for (EmbeddedInstanceDesc inst : subCollBuilder.getEmbeddedInstancesList()) {
+            for (GameObjectSource.EmbeddedInstanceDesc inst : subCollBuilder.getEmbeddedInstancesList()) {
                 childIds.addAll(inst.getChildrenList());
             }
             String pathPrefix = collInst.getId() + "/";
@@ -264,8 +276,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 // add merged instance
                 collectionBuilder.addInstances(instBuilder);
             }
-            for (EmbeddedInstanceDesc inst : subCollBuilder.getEmbeddedInstancesList()) {
-                EmbeddedInstanceDesc.Builder instBuilder = EmbeddedInstanceDesc.newBuilder(inst);
+            for (GameObjectSource.EmbeddedInstanceDesc inst : subCollBuilder.getEmbeddedInstancesList()) {
+                GameObjectSource.EmbeddedInstanceDesc.Builder instBuilder = GameObjectSource.EmbeddedInstanceDesc.newBuilder(inst);
                 // merge id
                 String id = pathPrefix + inst.getId();
                 instBuilder.setId(id);
@@ -362,15 +374,31 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
-    @Override
-    protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
-        Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
-        int goCount = messageBuilder.getInstancesCount();
-        mergeSubCollections(resource, messageBuilder);
+    private GameObject.CollectionDesc.Builder transformCollection(Task task, IResource resource,
+                                                                   GameObjectSource.CollectionDesc.Builder sourceBuilder)
+            throws CompileExceptionError, IOException {
+        if (!sourceBuilder.hasName()) {
+            throw new CompileExceptionError(resource, 0, "missing required field 'name'");
+        }
+
+        Integer countOfRealEmbededObjects = sourceBuilder.getEmbeddedInstancesCount();
+        int goCount = sourceBuilder.getInstancesCount();
+        mergeSubCollections(resource, sourceBuilder);
+
+        GameObject.CollectionDesc.Builder messageBuilder = GameObject.CollectionDesc.newBuilder()
+                .setName(sourceBuilder.getName())
+                .addAllInstances(sourceBuilder.getInstancesList())
+                .addAllCollectionInstances(sourceBuilder.getCollectionInstancesList())
+                .addAllPropertyResources(sourceBuilder.getPropertyResourcesList())
+                .addAllComponentTypes(sourceBuilder.getComponentTypesList());
+        if (sourceBuilder.hasScaleAlongZ()) {
+            messageBuilder.setScaleAlongZ(sourceBuilder.getScaleAlongZ());
+        }
+
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
-        for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
-            byte[] data = desc.getData().getBytes();
+        for (GameObjectSource.EmbeddedInstanceDesc desc : sourceBuilder.getEmbeddedInstancesList()) {
+            byte[] data = GameObjectSourceUtil.getEmbeddedInstanceData(resource, desc);
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, "go");
@@ -406,7 +434,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             messageBuilder.addInstances(instBuilder);
             ++embedIndex;
         }
-        messageBuilder.clearEmbeddedInstances();
 
         // Sort instances by children/parent hierarchy
         List<InstanceDesc.Builder> sortedInstanceBuilders = sortInstancesByHierarchy(resource, messageBuilder.getInstancesList().stream()
@@ -455,6 +482,17 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         task.output(1).setContent(compStorage.toByteArray());
 
         return messageBuilder;
+    }
+
+    @Override
+    public void build(Task task) throws CompileExceptionError, IOException {
+        GameObjectSource.CollectionDesc.Builder sourceBuilder = getSrcBuilder(task.firstInput());
+        GameObject.CollectionDesc collection = transformCollection(task, task.firstInput(), sourceBuilder).build();
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
+        collection.writeTo(out);
+        out.close();
+        task.output(0).setContent(out.toByteArray());
     }
 
     @Override

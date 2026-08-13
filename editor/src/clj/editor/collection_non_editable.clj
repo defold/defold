@@ -33,7 +33,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObjectSource$CollectionDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -404,9 +404,9 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
 
-(defn- string-encode-non-editable-collection [workspace collection-desc]
+(defn- source-encode-non-editable-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
+    (collection-string-data/source-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- load-non-editable-collection [_project self resource collection-desc]
   ;; Validate the collection-desc.
@@ -428,10 +428,12 @@
       :ext "collection"
       :label (localization/message "resource.type.collection.non-editable")
       :node-type NonEditableCollectionNode
-      :ddf-type GameObject$CollectionDesc
+      :ddf-type GameObjectSource$CollectionDesc
+      :built-pb-class GameObject$CollectionDesc
+      :strict-source true
       :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
       :sanitize-fn (partial sanitize-non-editable-collection workspace)
-      :pb-encode-fn (partial string-encode-non-editable-collection workspace)
+      :pb-encode-fn (partial source-encode-non-editable-collection workspace)
       :load-fn load-non-editable-collection
       :allow-unloaded-use true
       :icon collection-common/collection-icon

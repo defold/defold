@@ -29,7 +29,7 @@
             [util.coll :as coll :refer [pair]])
   (:import [clojure.lang ExceptionInfo IHashEq ILookup Util]
            [com.defold.editor.test TestDdf$MappedMessage TestDdf$JsonValue]
-           [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [com.dynamo.gameobject.proto GameObjectSource$CollectionDesc GameObjectSource$PrototypeDesc]
            [com.dynamo.gamesys.proto DataProto$Data GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
            [java.io File Writer]))
 
@@ -204,7 +204,7 @@
 
         embedded-instance-data
         (protobuf/map->str
-          GameObject$PrototypeDesc
+          GameObjectSource$PrototypeDesc
           {:components [{:id "component_id"
                          :component "/referenced/prop.script"
                          :properties [property-desc]}]
@@ -228,7 +228,7 @@
                              :instance-properties {:id "instance_id"
                                                    :properties (required component-property-desc)}}
       :embedded-instances {:id "instance_id"
-                           :data embedded-instance-data
+                           :data (required embedded-instance-data)
                            :component-properties (exactly nil)}
       :instances {:id "instance_id"
                   :prototype "/referenced/instanced.go"
@@ -262,7 +262,7 @@
                    :properties property-desc}
       :embedded-components {:id "embedded_component_id"
                             :type "factory"
-                            :data embedded-component-data}}
+                            :data (required embedded-component-data)}}
 
      "gui"
      {:nodes {:id (required "node_id")
@@ -544,13 +544,13 @@
 
   (testing "go"
     (is (= {}
-           (sparse-pb-map GameObject$PrototypeDesc ["go"] 0)))
+           (sparse-pb-map GameObjectSource$PrototypeDesc ["go"] 0)))
     (is (= {:components [{:id "component_id"
                           :component "/referenced/prop.script"}]
             :embedded-components [{:id "embedded_component_id"
                                    :type "factory"
                                    :data "prototype: \"/referenced/instanced.go\"\n"}]}
-           (sparse-pb-map GameObject$PrototypeDesc ["go"] 1)))
+           (sparse-pb-map GameObjectSource$PrototypeDesc ["go"] 1)))
     (is (= {:components [{:id "component_id"
                           :component "/referenced/prop.script"
                           :position {}
@@ -565,17 +565,17 @@
                                    :position {}
                                    :rotation {}
                                    :scale {}}]}
-           (sparse-pb-map GameObject$PrototypeDesc ["go"] 2))))
+           (sparse-pb-map GameObjectSource$PrototypeDesc ["go"] 2))))
 
   (testing "collection"
     (is (= {:name ""}
-           (sparse-pb-map GameObject$CollectionDesc ["collection"] 0)))
+           (sparse-pb-map GameObjectSource$CollectionDesc ["collection"] 0)))
     (is (= {:name ""
             :instances [{:id "instance_id"
                          :prototype "/referenced/instanced.go"}]
             :embedded-instances [{:id "instance_id"
                                   :data (protobuf/map->str
-                                          GameObject$PrototypeDesc
+                                          GameObjectSource$PrototypeDesc
                                           {:components [{:id "component_id"
                                                          :component "/referenced/prop.script"
                                                          :properties [{:id "property_id"
@@ -586,7 +586,7 @@
                                                                   :data "prototype: \"/referenced/instanced.go\"\n"}]})}]
             :collection-instances [{:id "collection_instance_id"
                                     :collection "/referenced/instanced.collection"}]}
-           (sparse-pb-map GameObject$CollectionDesc ["collection"] 1)))
+           (sparse-pb-map GameObjectSource$CollectionDesc ["collection"] 1)))
     (is (= {:name ""
             :instances [{:id "instance_id"
                          :position {}
@@ -602,7 +602,7 @@
                                   :rotation {}
                                   :scale3 {}
                                   :data (protobuf/map->str
-                                          GameObject$PrototypeDesc
+                                          GameObjectSource$PrototypeDesc
                                           {:components [{:id "component_id"
                                                          :component "/referenced/prop.script"
                                                          :properties [{:id "property_id"
@@ -621,7 +621,7 @@
                                                                          :properties [{:id "property_id"
                                                                                        :type :property-type-number
                                                                                        :value "1.0"}]}]}]}]}
-           (sparse-pb-map GameObject$CollectionDesc ["collection"] 2))))
+           (sparse-pb-map GameObjectSource$CollectionDesc ["collection"] 2))))
 
   (testing "collisionobject"
     (is (= {:type :collision-object-type-dynamic

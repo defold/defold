@@ -17,6 +17,7 @@
             [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
   (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$JsonArray TestDdf$JsonNull TestDdf$JsonObject TestDdf$JsonValue TestDdf$MappedPrimitive TestDdf$MappedMessage TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceOneofDefaulted TestDdf$ResourceOneofDefaultedNested TestDdf$ResourceOneofRepeatedNested TestDdf$ResourceOneofSimple TestDdf$ResourceOneofSimpleNested TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSelfReferencingDefaulted TestDdf$ResourceSelfReferencingRepeated TestDdf$ResourceSelfReferencingSimple TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+           [com.dynamo.gameobject.proto GameObjectSource$EmbeddedComponentDesc GameObjectSource$PrototypeDesc]
            [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne DdfStruct$Value]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
@@ -1995,6 +1996,77 @@ object {
            (protobuf/str->map-without-defaults TestDdf$JsonValue "array {}")))
     (is (= {:object {}}
            (protobuf/str->map-without-defaults TestDdf$JsonValue "object {}")))))
+
+(deftest oneof-empty-message-make-map-without-defaults-test
+  (is (= {:array {}}
+         (protobuf/make-map-without-defaults TestDdf$JsonValue :array {})))
+  (is (= {:object {}}
+         (protobuf/make-map-without-defaults TestDdf$JsonValue :object {}))))
+
+(deftest strict-text-format-parser-oneof-test
+  (testing "Rejects conflicting source payload fields at the root."
+    (is (thrown-with-msg?
+          com.google.protobuf.TextFormat$ParseException
+          #"another member of oneof"
+          (protobuf/str->map-without-defaults-strict
+            GameObjectSource$EmbeddedComponentDesc
+            "id: 'component' type: 'sprite' data: '' sprite {}"))))
+
+  (testing "Rejects conflicting source payload fields in nested messages."
+    (is (thrown-with-msg?
+          com.google.protobuf.TextFormat$ParseException
+          #"another member of oneof"
+          (protobuf/str->map-without-defaults-strict
+            GameObjectSource$PrototypeDesc
+            (str "embedded_components {\n"
+                 "  id: 'component'\n"
+                 "  type: 'sprite'\n"
+                 "  data: ''\n"
+                 "  sprite {}\n"
+                 "}\n"))))))
+
+(deftest strict-text-format-parser-allows-non-source-oneof-overwrites-test
+  (is (= {:string "overwrites bool"}
+         (protobuf/str->map-without-defaults-strict
+           TestDdf$JsonValue
+           "bool: true\nstring: 'overwrites bool'\n"))))
+
+(deftest strict-text-format-parser-allows-same-source-payload-field-test
+  (testing "Allows repeated scalar payload fields."
+    (is (= {:id "component"
+            :type "extension"
+            :data "second"}
+           (protobuf/str->map-without-defaults-strict
+             GameObjectSource$EmbeddedComponentDesc
+             (str "id: 'component'\n"
+                  "type: 'extension'\n"
+                  "data: 'first'\n"
+                  "data: 'second'\n")))))
+
+  (testing "Merges repeated message payload fragments."
+    (is (= {:id "component"
+            :type "sprite"
+            :sprite {:default-animation "idle"
+                     :material "/material.material"}}
+           (protobuf/str->map-without-defaults-strict
+             GameObjectSource$EmbeddedComponentDesc
+             (str "id: 'component'\n"
+                  "type: 'sprite'\n"
+                  "sprite { default_animation: 'idle' }\n"
+                  "sprite { material: '/material.material' }\n"))))))
+
+(deftest strict-text-format-parser-allows-ordinary-overwrites-test
+  (is (= {:required-string "required"
+          :optional-without-default "second"
+          :optional-message {:optional-string "first"
+                             :optional-int 20}}
+         (protobuf/str->map-without-defaults-strict
+           TestDdf$NestedDefaults
+           (str "required_string: 'required'\n"
+                "optional_without_default: 'first'\n"
+                "optional_without_default: 'second'\n"
+                "optional_message { optional_string: 'first' }\n"
+                "optional_message { optional_int: 20 }\n")))))
 
 (deftest oneof-field-map-with-defaults-test
   (testing "Returns map with a single field of the selected type."

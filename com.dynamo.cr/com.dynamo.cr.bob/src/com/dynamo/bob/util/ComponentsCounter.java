@@ -35,13 +35,13 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.GameObjectSourceUtil;
 import com.dynamo.bob.pipeline.ProtoUtil;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
-import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gameobject.proto.GameObjectSource;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 
@@ -189,7 +189,7 @@ public class ComponentsCounter {
         return null;
     }
 
-    public static Boolean ifStaticFactoryAddProtoAsInput(EmbeddedComponentDesc ec,
+    public static Boolean ifStaticFactoryAddProtoAsInput(GameObjectSource.EmbeddedComponentDesc ec,
                                                          IResource genResource,
                                                          byte[] genResourceContent,
                                                          TaskBuilder taskBuilder,
@@ -279,14 +279,14 @@ public class ComponentsCounter {
     }
 
     public static void countComponentsInEmbededObjects(Project project, IResource input, byte[] inputContent, Storage compStorage) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(input, inputContent, prot);
+        GameObjectSource.PrototypeDesc.Builder prot = GameObjectSource.PrototypeDesc.newBuilder();
+        ProtoUtil.mergeStrict(input, inputContent, prot);
 
-        for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
+        for (GameObjectSource.EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
+            byte[] data = GameObjectSourceUtil.getEmbeddedComponentData(input, cd);
             String type = cd.getType();
             compStorage.add(type);
             if (isFactoryType(type, false)) {
-                byte[] data = cd.getData().getBytes();
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource genResource = project.getGeneratedResource(hash, type);
                 Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource, data);

@@ -29,7 +29,7 @@
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [support.test-support :refer [graph-dependencies with-clean-system]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc GameObjectSource$CollectionDesc GameObjectSource$PrototypeDesc]
            [com.dynamo.proto DdfMath$Vector3One]))
 
 (deftest hierarchical-outline
@@ -323,17 +323,16 @@
                 (is (= (vector3-one-pb 5.0 6.0 7.0) (.getScale referenced-component-built-pb))))))
 
           (game-object-saved-pb [game-object]
-            (test-util/saved-pb game-object GameObject$PrototypeDesc))
+            (test-util/saved-pb game-object GameObjectSource$PrototypeDesc))
 
           (game-object-built-pb [game-object]
             (test-util/built-pb game-object GameObject$PrototypeDesc))
 
           (collection-game-object-saved-pb [collection game-object-index]
-            (let [collection-saved-pb (test-util/saved-pb collection GameObject$CollectionDesc)]
+            (let [collection-saved-pb (test-util/saved-pb collection GameObjectSource$CollectionDesc)]
               (is (< game-object-index (.getEmbeddedInstancesCount collection-saved-pb)))
-              (let [game-object-embedded-instance-saved-pb (.getEmbeddedInstances collection-saved-pb game-object-index)
-                    embedded-game-object-string (.getData game-object-embedded-instance-saved-pb)]
-                (protobuf/str->pb GameObject$PrototypeDesc embedded-game-object-string))))
+              (let [game-object-embedded-instance-saved-pb (.getEmbeddedInstances collection-saved-pb game-object-index)]
+                (.getPrototype game-object-embedded-instance-saved-pb))))
 
           (collection-game-object-built-pb [collection game-object-index]
             (let [collection-resource (g/node-value collection :resource)

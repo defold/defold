@@ -288,23 +288,42 @@
                :path (path-fn pb-map path)))
            (coll/search-with-path pb-map init-path match-fn)))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [ddf-type read-defaults strict-source dependencies-fn sanitize-fn search-fn pb-encode-fn built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
          (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (boolean read-defaults)
-        read-raw-fn (if read-defaults
-                      (partial protobuf/read-map-with-defaults ddf-type)
+        read-raw-fn (cond
+                      read-defaults
+                      (partial (if strict-source
+                                 protobuf/read-map-with-defaults-strict
+                                 protobuf/read-map-with-defaults)
+                               ddf-type)
+
+                      strict-source
+                      (partial protobuf/read-map-without-defaults-strict ddf-type)
+
+                      :else
                       (partial protobuf/read-map-without-defaults ddf-type))
+        sanitize-pb-map-fn (let [inject-defaults-fn (if read-defaults
+                                                      (partial protobuf/inject-defaults ddf-type)
+                                                      identity)]
+                             (if sanitize-fn
+                               (comp sanitize-fn inject-defaults-fn)
+                               inject-defaults-fn))
+        encode-pb-map-fn (or pb-encode-fn identity)
         read-fn (cond->> read-raw-fn
-                         (some? sanitize-fn) (comp sanitize-fn))
+                         sanitize-fn (comp sanitize-fn))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
-                         (some? pb-encode-fn) (comp pb-encode-fn))
+                         pb-encode-fn (comp pb-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
-                 (dissoc :read-defaults :pb-encode-fn)
+                 (dissoc :read-defaults :strict-source :pb-encode-fn)
                  (assoc :textual? true
+                        :ddf-type ddf-type
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
+                        :encode-pb-map-fn encode-pb-map-fn
                         :read-fn read-fn
+                        :sanitize-pb-map-fn sanitize-pb-map-fn
                         :write-fn write-fn
                         :search-fn search-fn
                         :test-info {:type :ddf

@@ -15,6 +15,7 @@
 (ns editor.game-object-common
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.localization :as localization]
@@ -83,16 +84,19 @@
     (if (nil? resource-type)
       embedded-component-desc ; Unknown resource-type. Leave unsanitized.
       (let [tag-opts (:tag-opts resource-type)
-            read-fn (:read-fn resource-type)
             sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))
-            unsanitized-data-string (:data embedded-component-desc)]
+            canonical-data (map? (:data embedded-component-desc))]
         (try
-          (let [sanitized-data
-                (with-open [reader (StringReader. unsanitized-data-string)]
-                  (read-fn reader))
+          (let [embedded-component-desc
+                (collection-string-data/source-decode-embedded-component-desc
+                  ext->embedded-component-resource-type
+                  embedded-component-desc)
+
+                sanitized-data (:data embedded-component-desc)
 
                 [embedded-component-desc sanitized-data]
-                (if sanitize-embedded-component-fn
+                (if (and sanitize-embedded-component-fn
+                         (not canonical-data))
                   (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
                   [embedded-component-desc sanitized-data])]
             (assoc embedded-component-desc :data sanitized-data))

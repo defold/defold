@@ -257,6 +257,11 @@ ordinary paths."
     :read-fn            a fn from clojure.java.io/reader-able object (e.g.
                         a resource or a Reader) to a data structure
                         representation of the resource (a source value)
+    :ddf-type           the protobuf class for a DDF resource type
+    :sanitize-pb-map-fn a fn that performs the read-side transformation on an
+                        already parsed protobuf map
+    :encode-pb-map-fn   a fn that performs the write-side transformation before
+                        serializing a protobuf map
     :write-fn           a fn from a data representation of the resource
                         (a save-value) to string
     :source-value-fn    a fn from a save-value to whatever you want to cache as
@@ -320,7 +325,7 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn ddf-type sanitize-pb-map-fn encode-pb-map-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
@@ -331,8 +336,11 @@ ordinary paths."
                        :node-type node-type
                        :load-fn load-fn
                        :dependencies-fn dependencies-fn
+                       :ddf-type ddf-type
+                       :encode-pb-map-fn encode-pb-map-fn
                        :write-fn write-fn
                        :read-fn read-fn
+                       :sanitize-pb-map-fn sanitize-pb-map-fn
                        :search-fn search-fn
                        :search-value-fn (or search-value-fn default-search-value-fn)
                        :source-value-fn source-value-fn

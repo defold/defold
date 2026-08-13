@@ -65,13 +65,6 @@ components {
 embedded_components {
   id: "embedded_sprite"
   type: "sprite"
-  data: "default_animation: \"diamond\"\n"
-  "material: \"/checked.material\"\n"
-  "textures {\n"
-  "  sampler: \"texture0\"\n"
-  "  texture: \"/checked.atlas\"\n"
-  "}\n"
-  ""
   position {
     x: 0.1
     y: 0.2
@@ -87,5 +80,13 @@ embedded_components {
     x: 1.1
     y: 1.2
     z: 1.3
+  }
+  sprite {
+    default_animation: "diamond"
+    material: "/checked.material"
+    textures {
+      sampler: "texture0"
+      texture: "/checked.atlas"
+    }
   }
 }

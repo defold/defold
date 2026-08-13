@@ -16,12 +16,15 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.FileReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.HashSet;
 
 import com.dynamo.bob.ProtoBuilder;
@@ -31,7 +34,6 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.proto.DdfMath.Vector3One;
 import com.dynamo.proto.DdfMath.Vector4One;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
@@ -44,28 +46,30 @@ import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
-import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gameobject.proto.GameObjectSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.google.protobuf.TextFormat;
 
-@ProtoParams(srcClass = PrototypeDesc.class, messageClass = PrototypeDesc.class)
+@ProtoParams(srcClass = GameObjectSource.PrototypeDesc.class, messageClass = GameObject.PrototypeDesc.class)
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
-public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
+public class GameObjectBuilder extends ProtoBuilder<GameObjectSource.PrototypeDesc.Builder> {
     private Boolean ifObjectHasDynamicFactory = false;
 
-    private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {
-        return d.getType().equals(type);
-    }
     private boolean isComponentOfType(ComponentDesc d, String type) {
         return FilenameUtils.getExtension(d.getComponent()).equals(type);
     }
 
-    private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = getSrcBuilder(input);
+    @Override
+    protected void mergeSrc(IResource input, GameObjectSource.PrototypeDesc.Builder srcBuilder)
+            throws IOException, CompileExceptionError {
+        ProtoUtil.mergeStrict(input, srcBuilder);
+    }
+
+    private GameObjectSource.PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
+        GameObjectSource.PrototypeDesc.Builder b = getSrcBuilder(input);
 
         List<ComponentDesc> lst = b.getComponentsList();
         List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
@@ -76,10 +80,10 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             String comp = componentDesc.getComponent();
             if (comp.endsWith(".wav") || comp.endsWith(".ogg") || comp.endsWith(".opus")) {
                 SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(comp);
-                EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
+                GameObjectSource.EmbeddedComponentDesc ec = GameObjectSource.EmbeddedComponentDesc.newBuilder()
                     .setId(componentDesc.getId())
                     .setType("sound")
-                    .setData(TextFormat.printToString(sd.build()))
+                    .setSound(sd)
                     .build();
                 b.addEmbeddedComponents(ec);
             } else {
@@ -101,7 +105,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
-        PrototypeDesc.Builder builder = loadPrototype(input);
+        GameObjectSource.PrototypeDesc.Builder builder = loadPrototype(input);
 
         for (ComponentDesc cd : builder.getComponentsList()) {
             Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project);
@@ -114,15 +118,17 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             }
         }
 
-        createSubTasks(builder, taskBuilder);
-        PrototypeDesc proto = builder.build();
+        GameObjectSource.PrototypeDesc.Builder dependencyBuilder = builder.clone();
+        dependencyBuilder.clearEmbeddedComponents();
+        createSubTasks(dependencyBuilder, taskBuilder);
+        GameObjectSource.PrototypeDesc proto = builder.buildPartial();
 
         // Gather the unique resources first
-        Map<Long, IResource> uniqueResources = new HashMap<>();
+        LinkedHashSet<IResource> uniqueResources = new LinkedHashSet<>();
         List<Task> embedTasks = new ArrayList<>();
 
-        for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
-            byte[] data = ec.getData().getBytes();
+        for (GameObjectSource.EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
+            byte[] data = GameObjectSourceUtil.getEmbeddedComponentData(input, ec);
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, ec.getType());
@@ -133,7 +139,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                 // If the file isn't created here <EmbeddedComponent>#create
                 // can't access generated resource data (embedded component desc)
                 genResource.setContent(data);
-                uniqueResources.put(hash, genResource);
+                uniqueResources.add(genResource);
             }
             Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, data, taskBuilder, input);
             if (isStatic != null) {
@@ -141,8 +147,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             }
         }
 
-        for (long hash : uniqueResources.keySet()) {
-            IResource genResource = uniqueResources.get(hash);
+        for (IResource genResource : uniqueResources) {
             Task embedTask = createSubTask(genResource, taskBuilder);
             embedTasks.add(embedTask);
         }
@@ -158,19 +163,19 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource input = task.firstInput();
-        PrototypeDesc.Builder protoBuilder = getSrcBuilder(input);
-        for (ComponentDesc c : protoBuilder.getComponentsList()) {
+        GameObjectSource.PrototypeDesc.Builder sourceBuilder = loadPrototype(input);
+        for (ComponentDesc c : sourceBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
 
-        // convert embedded components to generated components in the build folder
-        for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
-            if (ec.getId().length() == 0) {
-                throw new CompileExceptionError(input, 0, "missing required field 'id'");
-            }
+        GameObject.PrototypeDesc.Builder protoBuilder = GameObject.PrototypeDesc.newBuilder()
+                .addAllComponents(sourceBuilder.getComponentsList())
+                .addAllPropertyResources(sourceBuilder.getPropertyResourcesList());
 
-            byte[] data = ec.getData().getBytes();
+        // convert embedded components to generated components in the build folder
+        for (GameObjectSource.EmbeddedComponentDesc ec : sourceBuilder.getEmbeddedComponentsList()) {
+            byte[] data = GameObjectSourceUtil.getEmbeddedComponentData(input, ec);
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, ec.getType());
@@ -205,18 +210,17 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             compStorage.makeDynamic();
         }
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), ComponentsCounter.DYNAMIC_VALUE);
-        protoBuilder.clearEmbeddedComponents();
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
-        PrototypeDesc proto = protoBuilder.build();
+        GameObject.PrototypeDesc proto = protoBuilder.build();
         proto.writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
         task.output(1).setContent(compStorage.toByteArray());
     }
 
-    private PrototypeDesc.Builder transformGo(IResource resource,
-            PrototypeDesc.Builder protoBuilder, ComponentsCounter.Storage compStorage) throws CompileExceptionError {
+    private GameObject.PrototypeDesc.Builder transformGo(IResource resource,
+            GameObject.PrototypeDesc.Builder protoBuilder, ComponentsCounter.Storage compStorage) throws CompileExceptionError {
 
         protoBuilder.clearPropertyResources();
         Collection<String> propertyResources = new HashSet<String>();
@@ -254,13 +258,14 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                     if (!labelResource.exists()) {
                         labelResource = labelResource.output();
                     }
-                    FileReader reader = new FileReader(labelResource.getAbsPath());
-                    LabelDesc.Builder lb = LabelDesc.newBuilder();
-                    TextFormat.merge(reader, lb);
-                    if (lb.hasScale()) {
-                        Vector4One labelScaleV4 = lb.getScale();
-                        Vector3One labelScaleV3 = Vector3One.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
-                        compBuilder.setScale(labelScaleV3);
+                    try (Reader reader = Files.newBufferedReader(Paths.get(labelResource.getAbsPath()), StandardCharsets.UTF_8)) {
+                        LabelDesc.Builder lb = LabelDesc.newBuilder();
+                        TextFormat.merge(reader, lb);
+                        if (lb.hasScale()) {
+                            Vector4One labelScaleV4 = lb.getScale();
+                            Vector3One labelScaleV3 = Vector3One.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
+                            compBuilder.setScale(labelScaleV3);
+                        }
                     }
                 }
                 catch(IOException e) {

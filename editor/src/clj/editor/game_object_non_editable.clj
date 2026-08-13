@@ -31,7 +31,7 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :refer [flipped-pair pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]))
+  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObjectSource$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -356,9 +356,9 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
 
-(defn- string-encode-non-editable-game-object [workspace prototype-desc]
+(defn- source-encode-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
+    (collection-string-data/source-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn- load-non-editable-game-object [_project self resource prototype-desc]
   ;; Validate the prototype-desc.
@@ -377,10 +377,12 @@
       :ext "go"
       :label (localization/message "resource.type.go.non-editable")
       :node-type NonEditableGameObjectNode
-      :ddf-type GameObject$PrototypeDesc
+      :ddf-type GameObjectSource$PrototypeDesc
+      :built-pb-class GameObject$PrototypeDesc
+      :strict-source true
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
       :sanitize-fn (partial sanitize-non-editable-game-object workspace)
-      :pb-encode-fn (partial string-encode-non-editable-game-object workspace)
+      :pb-encode-fn (partial source-encode-non-editable-game-object workspace)
       :load-fn load-non-editable-game-object
       :allow-unloaded-use true
       :icon game-object-common/game-object-icon

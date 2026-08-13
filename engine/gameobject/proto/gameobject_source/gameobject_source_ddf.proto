@@ -1,0 +1,90 @@
+syntax = "proto2";
+package dmGameObjectSourceDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+import "gameobject/gameobject_ddf.proto";
+import "gamesys/camera_ddf.proto";
+import "gamesys/collectionproxy_ddf.proto";
+import "gamesys/data_ddf.proto";
+import "gamesys/gamesys_ddf.proto";
+import "gamesys/label_ddf.proto";
+import "gamesys/mesh_ddf.proto";
+import "gamesys/model_ddf.proto";
+import "gamesys/physics_ddf.proto";
+import "gamesys/sound_ddf.proto";
+import "gamesys/sprite_ddf.proto";
+import "particle/particle_ddf.proto";
+
+option java_package = "com.dynamo.gameobject.proto";
+option java_outer_classname = "GameObjectSource";
+
+// Authoring format for game objects and collections. The engine runtime uses
+// dmGameObjectDDF from gameobject_ddf.proto after the build tools have replaced
+// embedded source descriptions with ordinary component and instance references.
+message EmbeddedComponentDesc
+{
+    required string id = 1;
+    required string type = 2;
+
+    oneof payload
+    {
+        string data = 3;
+        dmPhysicsDDF.CollisionObjectDesc collisionobject = 10;
+        dmGameSystemDDF.LabelDesc label = 11;
+        dmGameSystemDDF.SpriteDesc sprite = 12;
+        dmSoundDDF.SoundDesc sound = 13;
+        dmModelDDF.ModelDesc model = 14;
+        dmGameSystemDDF.FactoryDesc factory = 15;
+        dmGameSystemDDF.CollectionFactoryDesc collectionfactory = 16;
+        dmParticleDDF.ParticleFX particlefx = 17;
+        dmGamesysDDF.CameraDesc camera = 18;
+        dmCollectionProxyDDF.CollectionProxyDesc collectionproxy = 19;
+        dmMeshDDF.MeshDesc mesh = 20;
+        dmGameSystemDDF.Data directional_light = 21;
+        dmGameSystemDDF.Data point_light = 22;
+        dmGameSystemDDF.Data spot_light = 23;
+        dmGameSystemDDF.Data ambient_light = 24;
+    }
+
+    optional dmMath.Point3 position = 4;
+    optional dmMath.Quat rotation = 5;
+    optional dmMath.Vector3One scale = 6;
+}
+
+message PrototypeDesc
+{
+    repeated dmGameObjectDDF.ComponentDesc components = 1;
+    repeated EmbeddedComponentDesc embedded_components = 2;
+    repeated string property_resources = 3 [(runtime_only) = true, (resource) = true];
+}
+
+message EmbeddedInstanceDesc
+{
+    required string id = 1;
+    repeated string children = 2;
+
+    oneof payload
+    {
+        string data = 3;
+        PrototypeDesc prototype = 9;
+    }
+
+    optional dmMath.Point3 position = 4;
+    optional dmMath.Quat rotation = 5;
+    repeated dmGameObjectDDF.ComponentPropertyDesc component_properties = 6;
+    optional float scale = 7 [default = 1.0];
+    optional dmMath.Vector3One scale3 = 8;
+}
+
+message CollectionDesc
+{
+    required string name = 1;
+    repeated dmGameObjectDDF.InstanceDesc instances = 2;
+    repeated dmGameObjectDDF.CollectionInstanceDesc collection_instances = 3;
+    optional uint32 scale_along_z = 4 [default = 0]; // Deprecated
+    repeated EmbeddedInstanceDesc embedded_instances = 5;
+    repeated string property_resources = 6 [(runtime_only) = true, (resource) = true];
+    repeated dmGameObjectDDF.ComponenTypeDesc component_types = 7 [(runtime_only) = true];
+}

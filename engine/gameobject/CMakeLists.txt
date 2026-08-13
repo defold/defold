@@ -13,6 +13,10 @@ set(GAMEOBJECT_PROTO_ROOT "${GAMEOBJECT_ROOT}/proto")
 set(GAMEOBJECT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/src/proto/gameobject")
 set(GAMEOBJECT_PROTO_PY_ROOT "${CMAKE_CURRENT_BINARY_DIR}/proto")
 set(GAMEOBJECT_PROTO_PY_DIR "${GAMEOBJECT_PROTO_PY_ROOT}/gameobject")
+set(GAMEOBJECT_SOURCE_PROTO "${GAMEOBJECT_PROTO_ROOT}/gameobject_source/gameobject_source_ddf.proto")
+set(GAMEOBJECT_SOURCE_PROTO_PY_DIR "${GAMEOBJECT_PROTO_PY_ROOT}/gameobject_source")
+set(GAMEOBJECT_SOURCE_PROTO_PY "${GAMEOBJECT_SOURCE_PROTO_PY_DIR}/gameobject_source_ddf_pb2.py")
+set(GAMEOBJECT_SOURCE_PROTO_PY_INIT "${GAMEOBJECT_SOURCE_PROTO_PY_DIR}/__init__.py")
 set(GAMEOBJECT_DEPENDENCIES
   lua
   ddf
@@ -52,6 +56,21 @@ endforeach()
 set(GAMEOBJECT_PROTO_PY_INIT "${GAMEOBJECT_PROTO_PY_DIR}/__init__.py")
 add_custom_target(gameobject_proto_py ALL DEPENDS ${GAMEOBJECT_PROTO_PY} "${GAMEOBJECT_PROTO_PY_INIT}")
 add_custom_target(gameobject_proto_headers DEPENDS ${GAMEOBJECT_PROTO_CC} ${GAMEOBJECT_PROTO_HEADERS})
+
+# The authoring schema imports higher-level component descriptions, so it must
+# not be included in GAMEOBJECT_PROTO_FILES or compiled into the native runtime
+# library. Generate only the Python module used by source-format tooling.
+defold_protoc_gen_py("${GAMEOBJECT_SOURCE_PROTO_PY}" "${GAMEOBJECT_SOURCE_PROTO}"
+  PYTHON_ROOT "${GAMEOBJECT_PROTO_PY_ROOT}"
+  INCLUDES
+    "${GAMEOBJECT_PROTO_ROOT}"
+    "${GAMEOBJECT_ROOT}/../gamesys/proto"
+    "${GAMEOBJECT_ROOT}/../particle/proto"
+    "${GAMEOBJECT_ROOT}/../ddf/src"
+    "${GAMEOBJECT_ROOT}/../graphics/proto"
+    "${DEFOLD_SDK_ROOT}/share/proto")
+add_custom_target(gameobject_source_proto_py ALL
+  DEPENDS "${GAMEOBJECT_SOURCE_PROTO_PY}" "${GAMEOBJECT_SOURCE_PROTO_PY_INIT}")
 
 file(GLOB GAMEOBJECT_SOURCES CONFIGURE_DEPENDS "${GAMEOBJECT_SRC_DIR}/gameobject/*.cpp")
 
@@ -114,8 +133,10 @@ install(FILES
   DESTINATION include/gameobject)
 install(DIRECTORY "${GAMEOBJECT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 install(FILES ${GAMEOBJECT_PROTO_FILES} DESTINATION share/proto/gameobject)
+install(FILES "${GAMEOBJECT_SOURCE_PROTO}" DESTINATION share/proto/gameobject_source)
 install(FILES "${GAMEOBJECT_PROTO_PY_INIT}" ${GAMEOBJECT_PROTO_PY} DESTINATION lib/python/gameobject)
 install(FILES ${GAMEOBJECT_PROTO_PY} DESTINATION lib/python)
+install(FILES "${GAMEOBJECT_SOURCE_PROTO_PY_INIT}" "${GAMEOBJECT_SOURCE_PROTO_PY}" DESTINATION lib/python/gameobject_source)
 
 if(BUILD_TESTS)
   add_subdirectory(src/gameobject/test)

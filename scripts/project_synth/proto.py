@@ -21,6 +21,7 @@ def _bootstrap_python_paths() -> None:
 
     candidates.extend(
         [
+            root / "share",
             root / "tmp" / "dynamo_home" / "lib" / "python",
             root / "tmp" / "dynamo_home" / "ext" / "lib" / "python",
         ]
@@ -38,18 +39,22 @@ _bootstrap_python_paths()
 import ddf.ddf_extensions_pb2  # noqa: F401
 from google.protobuf import text_format
 from google.protobuf.descriptor import FieldDescriptor
-from gameobject import gameobject_ddf_pb2
+from gameobject_source import gameobject_source_ddf_pb2
 from gamesys import atlas_ddf_pb2
 from gamesys import camera_ddf_pb2
 from gamesys import collectionproxy_ddf_pb2
+from gamesys import data_ddf_pb2
 from gamesys import gamesys_ddf_pb2
 from gamesys import gui_ddf_pb2
 from gamesys import label_ddf_pb2
+from gamesys import mesh_ddf_pb2
 from gamesys import model_ddf_pb2
+from gamesys import physics_ddf_pb2
 from gamesys import sound_ddf_pb2
 from gamesys import sprite_ddf_pb2
 from gamesys import tile_ddf_pb2
 from particle import particle_ddf_pb2
+from protobuf_text import merge_gameobject_source_text
 from render import material_ddf_pb2
 from render import render_ddf_pb2
 
@@ -64,11 +69,11 @@ def is_resource_field(field_desc: FieldDescriptor) -> bool:
 PROTO_BY_EXTENSION = {
     ".atlas": atlas_ddf_pb2.Atlas,
     ".camera": camera_ddf_pb2.CameraDesc,
-    ".collection": gameobject_ddf_pb2.CollectionDesc,
+    ".collection": gameobject_source_ddf_pb2.CollectionDesc,
     ".collectionfactory": gamesys_ddf_pb2.CollectionFactoryDesc,
     ".collectionproxy": collectionproxy_ddf_pb2.CollectionProxyDesc,
     ".factory": gamesys_ddf_pb2.FactoryDesc,
-    ".go": gameobject_ddf_pb2.PrototypeDesc,
+    ".go": gameobject_source_ddf_pb2.PrototypeDesc,
     ".gui": gui_ddf_pb2.SceneDesc,
     ".label": label_ddf_pb2.LabelDesc,
     ".material": material_ddf_pb2.MaterialDesc,
@@ -83,23 +88,30 @@ PROTO_BY_EXTENSION = {
 
 
 EMBEDDED_PROTO_BY_TYPE = {
+    "ambient_light": data_ddf_pb2.Data,
     "camera": camera_ddf_pb2.CameraDesc,
     "collectionfactory": gamesys_ddf_pb2.CollectionFactoryDesc,
     "collectionproxy": collectionproxy_ddf_pb2.CollectionProxyDesc,
+    "collisionobject": physics_ddf_pb2.CollisionObjectDesc,
+    "directional_light": data_ddf_pb2.Data,
     "factory": gamesys_ddf_pb2.FactoryDesc,
-    "go": gameobject_ddf_pb2.PrototypeDesc,
+    "go": gameobject_source_ddf_pb2.PrototypeDesc,
     "label": label_ddf_pb2.LabelDesc,
+    "mesh": mesh_ddf_pb2.MeshDesc,
     "model": model_ddf_pb2.ModelDesc,
     "particlefx": particle_ddf_pb2.ParticleFX,
+    "point_light": data_ddf_pb2.Data,
     "sound": sound_ddf_pb2.SoundDesc,
+    "spot_light": data_ddf_pb2.Data,
     "sprite": sprite_ddf_pb2.SpriteDesc,
     "tilemap": tile_ddf_pb2.TileGrid,
+    "tilegrid": tile_ddf_pb2.TileGrid,
 }
 
 
 def parse_text_proto(text: str, message_cls):
     message = message_cls()
-    text_format.Merge(text, message)
+    merge_gameobject_source_text(text, message)
     return message
 
 
@@ -108,3 +120,32 @@ def parse_path(path: Path):
     if message_cls is None:
         return None
     return parse_text_proto(path.read_text(encoding="utf-8", errors="ignore"), message_cls)
+
+
+def embedded_component_message(embedded):
+    payload = embedded.WhichOneof("payload")
+    if payload is None:
+        return None
+    if payload == "data":
+        message_cls = EMBEDDED_PROTO_BY_TYPE.get(embedded.type)
+        if message_cls is None:
+            return None
+        return parse_text_proto(embedded.data, message_cls)
+    return getattr(embedded, payload)
+
+
+def embedded_instance_prototype(embedded):
+    payload = embedded.WhichOneof("payload")
+    if payload == "prototype":
+        return embedded.prototype
+    if payload == "data":
+        return parse_text_proto(embedded.data, gameobject_source_ddf_pb2.PrototypeDesc)
+    return None
+
+
+def is_gameobject_source_payload_field(field: FieldDescriptor) -> bool:
+    return (
+        field.containing_oneof is not None
+        and field.containing_oneof.name == "payload"
+        and field.containing_type.file.package == "dmGameObjectSourceDDF"
+    )

@@ -14,6 +14,7 @@ set(PARTICLE_PROTO "${PARTICLE_PROTO_ROOT}/particle/particle_ddf.proto")
 set(PARTICLE_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/particle")
 set(PARTICLE_PROTO_CC "${PARTICLE_GEN_DIR}/particle_ddf.cpp")
 set(PARTICLE_PROTO_H "${PARTICLE_GEN_DIR}/particle_ddf.h")
+set(PARTICLE_PROTO_PY_ROOT "${CMAKE_CURRENT_BINARY_DIR}/python")
 set(PARTICLE_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/particle")
 set(PARTICLE_PROTO_PY "${PARTICLE_PROTO_PY_DIR}/particle_ddf_pb2.py")
 set(PARTICLE_PROTO_PY_INIT "${PARTICLE_PROTO_PY_DIR}/__init__.py")
@@ -37,7 +38,9 @@ set(PARTICLE_SHARED_DEPENDENCIES
   graphics_proto_noasan)
 
 defold_protoc_gen_cpp("${PARTICLE_PROTO_CC}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
-defold_protoc_gen_py("${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
+defold_protoc_gen_py("${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO}"
+  PYTHON_ROOT "${PARTICLE_PROTO_PY_ROOT}"
+  INCLUDES "${PARTICLE_PROTO_ROOT}")
 defold_protoc_gen_bproto("${PARTICLE_BPROTO}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
 add_custom_target(particle_proto_headers DEPENDS "${PARTICLE_PROTO_CC}" "${PARTICLE_PROTO_H}")
 add_custom_target(particle_proto_py DEPENDS "${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO_PY_INIT}")
@@ -122,6 +125,7 @@ install(FILES
   "${PARTICLE_PROTO_H}"
   DESTINATION include/particle)
 install(FILES "${PARTICLE_PROTO}" DESTINATION share/proto)
+install(FILES "${PARTICLE_PROTO}" DESTINATION share/proto/particle)
 install(FILES "${PARTICLE_BPROTO}" DESTINATION share/proto/particle)
 install(FILES "${PARTICLE_PROTO_PY_INIT}" "${PARTICLE_PROTO_PY}" DESTINATION lib/python/particle)
 
