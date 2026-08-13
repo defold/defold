@@ -1780,9 +1780,9 @@ static void LogFrameBufferError(GLenum status)
         context->m_PackedDepthStencilSupport = 1;
     #endif
 
-        // Packed depth/stencil is part of the OpenGL ES 3.0 core API, so an ES 3
-        // driver is not required to advertise either of the legacy extensions.
-        if (context->m_IsGles3Version ||
+        // Packed depth/stencil is part of the OpenGL ES 3.0 core API, so a GLES 3
+        // context is not required to advertise either of the legacy extensions.
+        if ((context->m_IsShaderLanguageGles && context->m_IsGles3Version) ||
             OpenGLIsExtensionSupported(_context, "GL_OES_packed_depth_stencil") ||
             OpenGLIsExtensionSupported(_context, "GL_EXT_packed_depth_stencil"))
         {
