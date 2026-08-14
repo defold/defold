@@ -1238,9 +1238,13 @@ namespace dmEngine
 
         if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
         {
-            window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
         }
+
+#if defined(__EMSCRIPTEN__)
+        window_params.m_GraphicsApiVersionHint = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.webgl_version_hint", 2);
+#endif
 
         engine->m_Window = dmPlatform::NewWindow();
 

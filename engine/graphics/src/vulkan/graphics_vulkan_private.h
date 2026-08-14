@@ -48,7 +48,11 @@ namespace dmGraphics
     {
         DeviceBuffer()
         : m_Base()
+        , m_MappedDataPtr(0)
+        , m_Usage(0)
+        , m_Destroyed(0)
         {
+            memset(&m_Handle, 0, sizeof(m_Handle));
         }
         DeviceBuffer(const VkBufferUsageFlags usage)
         : m_Base()
@@ -261,11 +265,12 @@ namespace dmGraphics
 
     struct LogicalDevice
     {
-        VkDevice      m_Device;
-        VkQueue       m_GraphicsQueue;
-        VkQueue       m_PresentQueue;
-        VkCommandPool m_CommandPool;
-        VkCommandPool m_CommandPoolWorker;
+        VkDevice        m_Device;
+        VkQueue         m_GraphicsQueue;
+        VkQueue         m_PresentQueue;
+        VkCommandPool   m_CommandPool;
+        VkCommandPool   m_CommandPoolWorker;
+        dmMutex::HMutex m_QueueMutex; // Serializes host access to both queue handles (which may alias).
     };
 
     struct ShaderModule
@@ -593,13 +598,15 @@ namespace dmGraphics
 
     // Misc functions
     void            TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
-    VkResult        TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
     void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);
     void            ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool);
-    VkResult        SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out);
+    VkResult        QueueSubmit(LogicalDevice* logical_device, uint32_t submit_count, const VkSubmitInfo* submit_info, VkFence fence);
+    VkResult        QueuePresent(LogicalDevice* logical_device, const VkPresentInfoKHR* present_info);
+    VkResult        SubmitCommandBuffer(LogicalDevice* logical_device, VkCommandBuffer cmd, VkFence* fence_out);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
@@ -616,9 +623,10 @@ namespace dmGraphics
     int  OnWindowClose();
     void OnWindowFocus(int focus);
 
-    static inline void SynchronizeDevice(VkDevice vk_device)
+    static inline void SynchronizeDevice(LogicalDevice* logical_device)
     {
-        vkDeviceWaitIdle(vk_device);
+        DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+        vkDeviceWaitIdle(logical_device->m_Device);
     }
 
     // Implemented per supported platform

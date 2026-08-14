@@ -206,9 +206,12 @@
                             (g/set-property self :prev-selection nil)))
                         (when contextual?
                           (let [node ^Node (:target action)
-                                scene ^Scene (.getScene node)
-                                context-menu (init-scene-context-menu! scene node)]
-                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
+                                screen-x (:screen-x action)
+                                screen-y (:screen-y action)]
+                            (ui/request-context-menu!
+                              #(when-let [scene (.getScene node)]
+                                 (-> (init-scene-context-menu! scene node)
+                                     (.show node ^double screen-x ^double screen-y))))))
                         nil)
       :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
