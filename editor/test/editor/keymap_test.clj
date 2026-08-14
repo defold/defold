@@ -137,6 +137,23 @@
        (fire-key-event! root (key-event KeyEvent/KEY_TYPED "f" KeyCode/UNDEFINED :meta true))
        (is (= ["f"] @typed)))))
 
+(deftest installed-keymap-does-not-suppress-inactive-shortcut-characters-test
+  @(fx/on-fx-thread
+     (let [root (Pane.)
+           scene (Scene. root)
+           typed (atom [])
+           keymap (keymap/from keymap/empty :macos {:format {:add #{"Shift+Alt+F"}}})]
+       (.addEventHandler root KeyEvent/KEY_TYPED
+                         (reify EventHandler
+                           (handle [_ event]
+                             (swap! typed conj (.getCharacter ^KeyEvent event)))))
+       (keymap/install! keymap scene (constantly false) :macos)
+       (fire-key-event! root (key-event KeyEvent/KEY_PRESSED KeyEvent/CHAR_UNDEFINED KeyCode/F
+                                        :shift true :alt true))
+       (fire-key-event! root (key-event KeyEvent/KEY_TYPED "Ï" KeyCode/UNDEFINED
+                                        :shift true :alt true))
+       (is (= ["Ï"] @typed)))))
+
 (deftest reinstall-keymap-removes-old-handlers-test
   @(fx/on-fx-thread
      (let [root (Pane.)

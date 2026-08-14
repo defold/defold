@@ -752,9 +752,11 @@
                             (reduce-kv
                               (fn [_ ^KeyCombination shortcut commands]
                                 (when (.match shortcut e)
-                                  (vreset! suppress-key-typed-volatile (typable? shortcut os))
+                                  (vreset! suppress-key-typed-volatile
+                                           (and (execute-fn commands)
+                                                (typable? shortcut os)))
                                   (.consume e)
-                                  (reduced (execute-fn commands))))
+                                  (reduced nil)))
                               nil
                               shortcut->commands)))
         typed-filter (reify EventHandler
