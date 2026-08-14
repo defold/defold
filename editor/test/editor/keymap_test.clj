@@ -154,6 +154,30 @@
                                         :shift true :alt true))
        (is (= ["Ï"] @typed)))))
 
+(deftest installed-keymap-does-not-suppress-bare-shortcut-characters-test
+  @(fx/on-fx-thread
+     (let [root (Pane.)
+           scene (Scene. root)
+           executed (atom [])
+           typed (atom [])
+           keymap (keymap/from keymap/empty :macos {:d {:add #{"D"}}
+                                                    :e {:add #{"E"}}
+                                                    :r {:add #{"R"}}})]
+       (.addEventHandler root KeyEvent/KEY_TYPED
+                         (reify EventHandler
+                           (handle [_ event]
+                             (swap! typed conj (.getCharacter ^KeyEvent event)))))
+       (keymap/install! keymap scene #(swap! executed conj %) :macos)
+
+       (doseq [[code character] [[KeyCode/D "d"]
+                                 [KeyCode/E "e"]
+                                 [KeyCode/R "r"]]]
+         (fire-key-event! root (key-event KeyEvent/KEY_PRESSED KeyEvent/CHAR_UNDEFINED code))
+         (fire-key-event! root (key-event KeyEvent/KEY_TYPED character KeyCode/UNDEFINED)))
+
+       (is (= [#{:d} #{:e} #{:r}] @executed))
+       (is (= ["d" "e" "r"] @typed)))))
+
 (deftest reinstall-keymap-removes-old-handlers-test
   @(fx/on-fx-thread
      (let [root (Pane.)

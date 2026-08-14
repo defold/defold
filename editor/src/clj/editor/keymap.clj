@@ -752,8 +752,12 @@
                             (reduce-kv
                               (fn [_ ^KeyCombination shortcut commands]
                                 (when (.match shortcut e)
+                                  ;; NOTE: This is a workaround for macos where shortcuts that use shift+alt might send
+                                  ;; special runes first, so intercept so we can later consume
                                   (vreset! suppress-key-typed-volatile
                                            (and (execute-fn commands)
+                                                (= :macos os)
+                                                (= KeyCombination$ModifierValue/DOWN (.getAlt shortcut))
                                                 (typable? shortcut os)))
                                   (.consume e)
                                   (reduced nil)))
