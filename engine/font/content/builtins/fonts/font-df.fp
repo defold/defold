@@ -6,10 +6,16 @@ in mediump vec4 var_outline_color;
 in mediump vec4 var_shadow_color;
 in mediump vec4 var_sdf_params;
 in mediump vec4 var_layer_mask;
+in highp vec2 var_decoration;
 
 out vec4 out_fragColor;
 
 uniform mediump sampler2D texture_sampler;
+
+float decoration_mask()
+{
+    return var_decoration.y > 0.0 ? 1.0 - step(var_decoration.y, fract(var_decoration.x)) : 1.0;
+}
 
 void main()
 {
@@ -34,7 +40,7 @@ void main()
 
     shadow_alpha = mix(shadow_alpha,outline_alpha,sdf_shadow_as_outline);
 
-    out_fragColor = face_alpha * var_face_color * var_layer_mask.x +
+    out_fragColor = (face_alpha * var_face_color * var_layer_mask.x +
         outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +
-        shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer);
+        shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer)) * decoration_mask();
 }

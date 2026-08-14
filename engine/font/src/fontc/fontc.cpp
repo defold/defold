@@ -721,14 +721,13 @@ static float OffsetX(uint32_t align, float width)
     return 0.0f;
 }
 
-static float OffsetY(uint32_t align, float height, float ascent, float descent, float leading, uint32_t line_count)
+static float OffsetLayoutY(uint32_t align, float height, float layout_height)
 {
-    const float line_height = ascent + descent;
     if (align == 1)
-        return height * 0.5f + (line_count * line_height * leading - line_height * (leading - 1.0f)) * 0.5f - ascent;
+        return (height - layout_height) * 0.5f;
     if (align == 2)
-        return line_height * leading * (line_count - 1) + descent;
-    return height - ascent;
+        return 0.0f;
+    return height - layout_height;
 }
 
 FontRendererResult FontcSetProperties(HFontRenderer renderer, const FontcProperties* properties)
@@ -795,7 +794,7 @@ FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
         TextGlyph& text_glyph = glyphs[i];
-        if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint))
+        if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint) || (text_glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT))
             continue;
         GetOrCreateGlyph(renderer, text_glyph.m_Font, text_glyph.m_GlyphIndex, &texture_update);
     }
@@ -855,7 +854,7 @@ static bool GetVertexBufferMetrics(HFontRenderer renderer, HTextLayout layout, V
     uint32_t       visible_glyph_count = 0;
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
-        if (!dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint) && FindGlyph(renderer, glyphs[i].m_Font, glyphs[i].m_GlyphIndex))
+        if (!dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint) && (glyphs[i].m_Flags & TEXT_GLYPH_FLAG_OBJECT) == 0 && FindGlyph(renderer, glyphs[i].m_Font, glyphs[i].m_GlyphIndex))
             ++visible_glyph_count;
     }
 
@@ -938,11 +937,11 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
     Vector4     outline_color(properties.m_OutlineColor[0], properties.m_OutlineColor[1], properties.m_OutlineColor[2], properties.m_OutlineColor[3]);
     Vector4     shadow_color(properties.m_ShadowColor[0], properties.m_ShadowColor[1], properties.m_ShadowColor[2], properties.m_ShadowColor[3]);
 
-    const float font_scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
-    const float max_ascent = FontGetAscent(renderer->m_Font, font_scale);
-    const float max_descent = -FontGetDescent(renderer->m_Font, font_scale);
-    const float line_height = max_ascent + max_descent;
-    const float y_offset = OffsetY(properties.m_VerticalAlign, properties.m_Height, max_ascent, max_descent, properties.m_Leading, line_count);
+    float layout_width;
+    float layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    (void)layout_width;
+    const float layout_y = OffsetLayoutY(properties.m_VerticalAlign, properties.m_Height, layout_height);
     const float smoothing = 0.25f / (renderer->m_SdfSpread * dmMath::Max(0.000001f, properties.m_SdfScale));
     uint32_t    vertex_index = 0;
     for (uint32_t line_index = 0; line_index < line_count; ++line_index)
@@ -961,11 +960,11 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
                 resolved_align = 0;
         }
         const float line_x = OffsetX(resolved_align, properties.m_Width) - OffsetX(resolved_align, line.m_Width);
-        const float line_y = y_offset - line_index * line_height * properties.m_Leading;
+        const float line_y = layout_y + line.m_Baseline;
         for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
         {
             TextGlyph& text_glyph = glyphs[glyph_index];
-            if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint))
+            if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint) || (text_glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT))
                 continue;
             CachedGlyph* cached = FindGlyph(renderer, text_glyph.m_Font, text_glyph.m_GlyphIndex);
             if (!cached)
@@ -984,12 +983,13 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
                                   transform,
                                   line_x + text_glyph.m_X - first_x,
                                   line_y + text_glyph.m_Y - first_y,
+                                  text_glyph.m_RenderScale,
                                   face_color,
                                   outline_color,
                                   shadow_color,
                                   0.75f,
                                   renderer->m_SdfOutline,
-                                  smoothing,
+                                  smoothing / text_glyph.m_RenderScale,
                                   renderer->m_SdfShadow,
                                   renderer->m_ShadowX,
                                   renderer->m_ShadowY,

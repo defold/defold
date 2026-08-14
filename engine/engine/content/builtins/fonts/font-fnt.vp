@@ -3,6 +3,7 @@
 out mediump vec2 var_texcoord0;
 out mediump vec4 var_face_color;
 out mediump vec4 var_outline_color;
+out highp vec2 var_decoration;
 
 // positions are in world space
 in mediump vec4 position;
@@ -10,6 +11,7 @@ in mediump vec2 texcoord0;
 in mediump vec4 face_color;
 in mediump vec4 outline_color;
 in mediump vec4 shadow_color;
+in mediump vec3 layer_mask;
 
 uniform vs_uniforms
 {
@@ -20,5 +22,6 @@ void main()
 {
     var_texcoord0 = texcoord0;
     var_face_color = face_color;
+    var_decoration = layer_mask.z < 0.0 ? vec2(layer_mask.y, -layer_mask.z) : vec2(0.0);
     gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);
 }

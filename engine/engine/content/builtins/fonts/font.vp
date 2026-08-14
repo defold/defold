@@ -14,6 +14,7 @@ out mediump vec4 var_outline_color;
 out mediump vec4 var_shadow_color;
 out mediump vec4 var_layer_mask;
 out mediump float var_is_single_layer;
+out highp vec2 var_decoration;
 
 uniform vs_uniforms
 {
@@ -25,7 +26,9 @@ void main()
     var_texcoord0 = texcoord0;
     var_face_color = face_color;
     var_outline_color = outline_color;
-    var_layer_mask.rgb = layer_mask;
+    bool dashed_decoration = layer_mask.z < 0.0;
+    var_decoration = dashed_decoration ? vec2(layer_mask.y, -layer_mask.z) : vec2(0.0);
+    var_layer_mask.rgb = dashed_decoration ? vec3(1.0, 0.0, 0.0) : layer_mask;
     var_layer_mask.a = var_layer_mask.x * var_layer_mask.y * var_layer_mask.z;
     var_shadow_color = shadow_color;
     gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);

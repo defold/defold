@@ -67,6 +67,8 @@ namespace dmRender
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
         float m_ShadowY;
+        /// Blur radius baked into the shadow glyph channel
+        float m_ShadowBlur;
         /// Max ascent of font
         float m_MaxAscent;
         /// Max descent of font, positive value

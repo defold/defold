@@ -446,7 +446,7 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
     FontGlyph glyph;
-    uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    uint32_t  glyph_index = FontGetGlyphIndex(m_Font, 'A');
     ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
 
     FontGlyphVertex vertices[18];
@@ -454,17 +454,35 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
     dmVMath::Vector4 white(1.0f, 1.0f, 1.0f, 1.0f);
     dmVMath::Vector4 black(0.0f, 0.0f, 0.0f, 1.0f);
-    FontPackGlyphVertices(&glyph, 1.0f / 256.0f, 1.0f / 256.0f,
-                          0, 0, (uint32_t)glyph.m_Ascent, 1,
-                          3, FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW,
-                          0, 6, transform, 0.0f, 0.0f,
-                          white, black, black, 0.75f, 0.5f, 0.1f, 0.25f,
-                          2.0f, -2.0f, true, vertices);
+    FontPackGlyphVertices(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 3, FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW, 0, 6, transform, 0.0f, 0.0f, 1.0f, white, black, black, 0.75f, 0.5f, 0.1f, 0.25f, 2.0f, -2.0f, true, vertices);
 
     ASSERT_EQ(1.0f, vertices[12].m_LayerMasks[0]);
     ASSERT_EQ(1.0f, vertices[6].m_LayerMasks[1]);
     ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
     ASSERT_NE(vertices[12].m_Position[0], vertices[0].m_Position[0]);
+
+    TextGlyphFaceColors gradient_colors = {};
+    gradient_colors.m_BottomLeft[0] = 1.0f;
+    gradient_colors.m_BottomLeft[3] = 1.0f;
+    gradient_colors.m_BottomRight[1] = 1.0f;
+    gradient_colors.m_BottomRight[3] = 1.0f;
+    gradient_colors.m_TopLeft[2] = 1.0f;
+    gradient_colors.m_TopLeft[3] = 1.0f;
+    gradient_colors.m_TopRight[0] = gradient_colors.m_TopRight[1] = gradient_colors.m_TopRight[2] = gradient_colors.m_TopRight[3] = 1.0f;
+    FontPackGlyphVertices4Colors(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 1, FONT_RENDER_LAYER_FACE, 0, 6, transform, 0.0f, 0.0f, 1.0f, gradient_colors, black, black, 0.75f, 0.5f, 0.1f, 0.25f, 0.0f, 0.0f, true, vertices);
+    ASSERT_EQ(1.0f, vertices[0].m_FaceColor[0]);
+    ASSERT_EQ(1.0f, vertices[1].m_FaceColor[1]);
+    ASSERT_EQ(1.0f, vertices[2].m_FaceColor[2]);
+    ASSERT_EQ(1.0f, vertices[3].m_FaceColor[2]);
+    ASSERT_EQ(1.0f, vertices[4].m_FaceColor[1]);
+    ASSERT_EQ(1.0f, vertices[5].m_FaceColor[0]);
+    ASSERT_EQ(1.0f, vertices[5].m_FaceColor[1]);
+    ASSERT_EQ(1.0f, vertices[5].m_FaceColor[2]);
+    const float base_vertex_width = vertices[1].m_Position[0] - vertices[0].m_Position[0];
+    const float base_u_width = vertices[1].m_UV[0] - vertices[0].m_UV[0];
+    FontPackGlyphVertices4Colors(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 1, FONT_RENDER_LAYER_FACE, 0, 6, transform, 0.0f, 0.0f, 2.0f, gradient_colors, black, black, 0.75f, 0.5f, 0.05f, 0.25f, 0.0f, 0.0f, true, vertices);
+    ASSERT_NEAR(base_vertex_width * 2.0f, vertices[1].m_Position[0] - vertices[0].m_Position[0], 0.0001f);
+    ASSERT_NEAR(base_u_width, vertices[1].m_UV[0] - vertices[0].m_UV[0], 0.0001f);
     FontFreeGlyph(m_Font, &glyph);
 }
 

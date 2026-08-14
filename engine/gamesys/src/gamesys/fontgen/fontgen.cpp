@@ -411,6 +411,8 @@ static HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t 
     for (uint32_t i = 0; i < num_glyphs; ++i)
     {
         TextGlyph* glyph = &glyphs[i];
+        if (glyph->m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+            continue;
 
         uint32_t glyph_index = glyph->m_GlyphIndex;
 

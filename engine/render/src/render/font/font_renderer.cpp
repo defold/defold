@@ -45,6 +45,37 @@ namespace dmRender
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
 
+    static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
+    {
+        static uint8_t decoration_pixels[4][4] = {
+            { 255, 0, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 255, 0 }, { 255, 255, 255, 255 }
+        };
+        static FontGlyph decoration_glyphs[4] = {};
+        const uint32_t channel_index = dmMath::Clamp((uint32_t)font_map->m_CacheChannels, 1U, 4U) - 1;
+        FontGlyph& glyph = decoration_glyphs[channel_index];
+        if (glyph.m_Bitmap.m_Data == 0)
+        {
+            glyph.m_Bitmap.m_Data = decoration_pixels[channel_index];
+            glyph.m_Bitmap.m_DataSize = channel_index + 1;
+            glyph.m_Bitmap.m_Width = 1;
+            glyph.m_Bitmap.m_Height = 1;
+            glyph.m_Bitmap.m_Channels = channel_index + 1;
+            glyph.m_Width = glyph.m_Height = glyph.m_Advance = glyph.m_Ascent = 1.0f;
+        }
+        const uint64_t key = 0xfffffffffffffff0ULL | (channel_index + 1);
+        CacheGlyph* cached = GetFromCache(font_map, key, frame);
+        return cached ? cached : AddGlyphToCache(font_map, frame, key, &glyph, 0);
+    }
+
+    static uint32_t GetDecorationQuadCount(HTextLayout layout)
+    {
+        const TextDecoration* decorations = TextLayoutGetDecorations(layout);
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+            count += FontGetDecorationQuadCount(layout, decorations[i]);
+        return count;
+    }
+
     static void ReleaseTextEntries(TextContext& text_context)
     {
         uint32_t entry_count = text_context.m_TextEntries.Size();
@@ -198,10 +229,10 @@ namespace dmRender
         return dmMath::Max(local_scale, min_sdf_scale);
     }
 
-    static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics)
+    static dmVMath::Point3 CalcCenterPoint(const TextEntry& te, const TextMetrics& metrics)
     {
         float x_offset = OffsetX(te.m_Align, te.m_Width);
-        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, metrics.m_LineCount);
+        float layout_y = OffsetLayoutY(te.m_VAlign, te.m_Height, metrics.m_Height);
 
         // find X,Y local coordinate of text center
         float center_x = x_offset; // start from the X position of the pivot point
@@ -215,7 +246,7 @@ namespace dmRender
             break;
             // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
         }
-        float center_y = y_offset + font_map->m_MaxAscent - metrics.m_Height/2; // 'y_offset' to move to the baseline of first letter in text. +'MaAscent' to get to the top of the text. -layout_height to get to the center.
+        float center_y = layout_y + metrics.m_Height * 0.5f;
 
         dmVMath::Point3 center_point(center_x, center_y, 0); // fix at Z 0
         return center_point;
@@ -323,7 +354,7 @@ namespace dmRender
 
         // find center and radius for frustum culling
         // TODO: Calculate proper AABB
-        dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
+        dmVMath::Point3 centerpoint_local = CalcCenterPoint(te, metrics);
         dmVMath::Point3 cornerpoint_local(centerpoint_local.getX() + metrics.m_Width/2, centerpoint_local.getY() + metrics.m_Height/2, centerpoint_local.getZ());
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
@@ -338,13 +369,35 @@ namespace dmRender
         text_context->m_TextEntries.Push(te);
     }
 
+    // Mirrors left/right alignment for an RTL paragraph.
+    static uint32_t ResolveTextAlign(uint32_t align, TextDirection direction)
+    {
+        if (direction != TEXT_DIRECTION_RTL)
+            return align;
+        if (align == TEXT_ALIGN_LEFT)
+            return TEXT_ALIGN_RIGHT;
+        if (align == TEXT_ALIGN_RIGHT)
+            return TEXT_ALIGN_LEFT;
+        return align;
+    }
+
+    // Resolves the shaped line origin in the text entry's alignment space.
+    static float GetLineStartX(HFontMap font_map, const TextEntry& te, const TextLine& line, TextDirection direction)
+    {
+        const uint32_t align = ResolveTextAlign(te.m_Align, direction);
+        float x = OffsetX(align, te.m_Width) - OffsetX(align, line.m_Width);
+        if (font_map->m_IsMonospaced)
+            x -= font_map->m_Padding * 0.5f;
+        return x;
+    }
+
     static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t frame, HTextLayout layout, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
     {
         assert(layout->m_FontCollection == GetFontCollection(font_map));
+        TextLayoutRefreshObjectStyles(layout);
 
-        const float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
-        const float leading = line_height * te.m_Leading;
         const Vector4 face_color = dmGraphics::UnpackRGBA(te.m_FaceColor);
+        const float base_face_color[4] = { face_color.getX(), face_color.getY(), face_color.getZ(), face_color.getW() };
         const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
         const Vector4 shadow_color = dmGraphics::UnpackRGBA(te.m_ShadowColor);
         const float sdf_edge_value = 0.75f;
@@ -358,12 +411,19 @@ namespace dmRender
         const uint32_t line_count = TextLayoutGetLineCount(layout);
         TextLine* lines = TextLayoutGetLines(layout);
         TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
-        uint32_t visible_glyph_count = glyph_count;
+        uint32_t visible_glyph_count = 0;
+        const uint32_t decoration_quad_count = GetDecorationQuadCount(layout);
 
         const uint32_t vertices_per_quad = 6;
         uint32_t vertex_index = 0;
         uint32_t layer_count = 1;
-        const uint8_t layer_mask = font_map->m_LayerMask;
+        const bool    has_base_outline_layer = (font_map->m_LayerMask & OUTLINE) != 0;
+        const bool    has_base_shadow_layer = (font_map->m_LayerMask & SHADOW) != 0;
+        const bool    add_markup_outline_layer = font_map->m_SdfSpread > 0.0f && TextLayoutHasMarkupOutline(layout);
+        const bool    add_markup_shadow_layer = font_map->m_SdfSpread > 0.0f && TextLayoutHasMarkupShadow(layout);
+        const uint8_t layer_mask = font_map->m_LayerMask |
+                                   (add_markup_outline_layer ? OUTLINE : 0) |
+                                   (add_markup_shadow_layer ? SHADOW : 0);
         if ((layer_mask & FACE) == 0)
         {
             dmLogError("Encountered invalid layer mask when rendering font!");
@@ -372,19 +432,21 @@ namespace dmRender
 
         layer_count += (layer_mask & OUTLINE) != 0;
         layer_count += (layer_mask & SHADOW) != 0;
-        if (layer_count > 1)
+        for (uint32_t i = 0; i < glyph_count; ++i)
         {
-            for (uint32_t i = 0; i < glyph_count; ++i)
-            {
-                if (dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint))
-                    --visible_glyph_count;
-            }
+            if (!dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint) && (glyphs[i].m_Flags & TEXT_GLYPH_FLAG_OBJECT) == 0)
+                ++visible_glyph_count;
         }
         const uint32_t max_visible_glyph_count = max_vertices / (vertices_per_quad * layer_count);
         const uint32_t output_visible_glyph_count = dmMath::Min(visible_glyph_count, max_visible_glyph_count);
+        const uint32_t output_decoration_quad_count = dmMath::Min(decoration_quad_count, max_visible_glyph_count - output_visible_glyph_count);
+        const uint32_t output_quad_count = output_visible_glyph_count + output_decoration_quad_count;
 
-        const uint32_t align = te.m_Align;
-        const float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
+        float layout_width;
+        float layout_height;
+        TextLayoutGetBounds(layout, &layout_width, &layout_height);
+        (void)layout_width;
+        const float layout_y = OffsetLayoutY(te.m_VAlign, te.m_Height, layout_height);
 
         for (uint32_t line_index = 0; line_index < line_count; ++line_index)
         {
@@ -392,25 +454,15 @@ namespace dmRender
             if (line.m_Length == 0)
                 continue;
 
-            const int32_t first_x = glyphs[line.m_Index].m_X;
-            const int32_t first_y = glyphs[line.m_Index].m_Y;
-            uint32_t resolved_align = align;
-            if (paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL)
-            {
-                if (resolved_align == TEXT_ALIGN_LEFT)
-                    resolved_align = TEXT_ALIGN_RIGHT;
-                else if (resolved_align == TEXT_ALIGN_RIGHT)
-                    resolved_align = TEXT_ALIGN_LEFT;
-            }
-            float line_start_x = OffsetX(resolved_align, te.m_Width) - OffsetX(resolved_align, line.m_Width);
-            if (font_map->m_IsMonospaced)
-                line_start_x -= font_map->m_Padding * 0.5f;
-            const float line_start_y = y_offset - line_index * leading;
+            const float first_x = glyphs[line.m_Index].m_X;
+            const float first_y = glyphs[line.m_Index].m_Y;
+            const float line_start_x = GetLineStartX(font_map, te, line, paragraphs[line.m_ParagraphIndex].m_Direction);
+            const float line_start_y = layout_y + line.m_Baseline;
             const uint32_t glyph_end = line.m_Index + line.m_Length;
             for (uint32_t glyph_i = line.m_Index; glyph_i < glyph_end; ++glyph_i)
             {
                 TextGlyph* text_glyph = &glyphs[glyph_i];
-                if (dmUtf8::IsWhiteSpace(text_glyph->m_Codepoint))
+                if (dmUtf8::IsWhiteSpace(text_glyph->m_Codepoint) || (text_glyph->m_Flags & TEXT_GLYPH_FLAG_OBJECT))
                     continue;
                 if (vertex_index / vertices_per_quad >= output_visible_glyph_count)
                 {
@@ -452,35 +504,136 @@ namespace dmRender
                     result = FONT_RESULT_ERROR;
                 }
 
-                FontPackGlyphVertices(result == FONT_RESULT_OK ? glyph : 0,
-                                      recip_w,
-                                      recip_h,
-                                      cell_x,
-                                      cell_y,
-                                      font_map->m_CacheCellMaxAscent,
-                                      font_map->m_CacheCellPadding,
-                                      layer_count,
-                                      layer_mask,
-                                      vertex_index,
-                                      vertices_per_quad * output_visible_glyph_count,
-                                      te.m_Transform,
-                                      x,
-                                      y,
-                                      face_color,
-                                      outline_color,
-                                      shadow_color,
-                                      sdf_edge_value,
-                                      sdf_outline,
-                                      sdf_smoothing,
-                                      sdf_shadow,
-                                      font_map->m_ShadowX,
-                                      font_map->m_ShadowY,
-                                      metrics_from_ttf,
-                                      vertices);
+                TextGlyphRenderData glyph_render_data;
+                TextLayoutGetGlyphRenderData(layout, *text_glyph, base_face_color, &glyph_render_data);
+                const bool glyph_has_markup_outline = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0 && glyph_render_data.m_OutlineWidth > 0.0f;
+                // A markup outline adds a layout-wide vertex layer. Keep that
+                // layer invisible outside outlined spans unless the font itself
+                // already has a base outline layer.
+                const float glyph_outline_alpha = !has_base_outline_layer && !glyph_has_markup_outline ? 0.0f : outline_color.getW() * glyph_render_data.m_OutlineColor[3];
+                const bool glyph_has_markup_outline_color = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
+                const Vector4 glyph_outline_color(glyph_has_markup_outline_color ? glyph_render_data.m_OutlineColor[0] : outline_color.getX(),
+                                                  glyph_has_markup_outline_color ? glyph_render_data.m_OutlineColor[1] : outline_color.getY(),
+                                                  glyph_has_markup_outline_color ? glyph_render_data.m_OutlineColor[2] : outline_color.getZ(),
+                                                  glyph_outline_alpha);
+                float glyph_sdf_outline = sdf_outline;
+                if ((glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) && font_map->m_SdfSpread > 0.0f)
+                {
+                    const float outline_width = dmMath::Min(glyph_render_data.m_OutlineWidth / text_glyph->m_RenderScale, font_map->m_SdfSpread);
+                    glyph_sdf_outline = sdf_edge_value - (191.0f / 255.0f) * outline_width / font_map->m_SdfSpread;
+                }
+                const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
+                const bool glyph_has_markup_shadow = (glyph_render_data.m_StyleFlags & shadow_flags) != 0;
+                // A markup shadow adds a layout-wide vertex layer. Keep it
+                // invisible outside shadow spans unless the font itself has one.
+                const float glyph_shadow_alpha = !has_base_shadow_layer && !glyph_has_markup_shadow ? 0.0f : shadow_color.getW() * glyph_render_data.m_ShadowColor[3];
+                const bool glyph_has_markup_shadow_color = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
+                const Vector4 glyph_shadow_color(glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[0] : shadow_color.getX(),
+                                                 glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[1] : shadow_color.getY(),
+                                                 glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[2] : shadow_color.getZ(),
+                                                 glyph_shadow_alpha);
+                float glyph_sdf_shadow = !has_base_shadow_layer && glyph_has_markup_shadow ? 1.0f : sdf_shadow;
+                if (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR)
+                {
+                    const float shadow_blur = glyph_render_data.m_ShadowBlur / text_glyph->m_RenderScale;
+                    if (shadow_blur <= 0.0f)
+                    {
+                        glyph_sdf_shadow = 1.0f;
+                    }
+                    else if (has_base_shadow_layer && font_map->m_ShadowBlur > 0.0f && shadow_blur < font_map->m_ShadowBlur)
+                    {
+                        glyph_sdf_shadow = sdf_edge_value - (191.0f / 255.0f) * shadow_blur / font_map->m_SdfSpread;
+                    }
+                }
+                const float glyph_shadow_x = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X ? glyph_render_data.m_ShadowX : font_map->m_ShadowX;
+                const float glyph_shadow_y = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y ? glyph_render_data.m_ShadowY : font_map->m_ShadowY;
+                FontPackGlyphVertices4Colors(result == FONT_RESULT_OK ? glyph : 0,
+                                              recip_w,
+                                              recip_h,
+                                              cell_x,
+                                              cell_y,
+                                              font_map->m_CacheCellMaxAscent,
+                                              font_map->m_CacheCellPadding,
+                                              layer_count,
+                                              layer_mask,
+                                              vertex_index,
+                                              vertices_per_quad * output_quad_count,
+                                              te.m_Transform,
+                                              x + glyph_render_data.m_OffsetX,
+                                              y + glyph_render_data.m_OffsetY,
+                                              text_glyph->m_RenderScale,
+                                              glyph_render_data.m_FaceColors,
+                                              glyph_outline_color,
+                                              glyph_shadow_color,
+                                              sdf_edge_value,
+                                              glyph_sdf_outline,
+                                              sdf_smoothing / text_glyph->m_RenderScale,
+                                              glyph_sdf_shadow,
+                                              glyph_shadow_x,
+                                              glyph_shadow_y,
+                                              metrics_from_ttf,
+                                              vertices);
                 vertex_index += vertices_per_quad;
             }
         }
-        return vertex_index * layer_count;
+        CacheGlyph* decoration_cache = output_decoration_quad_count > 0 ? GetDecorationCacheGlyph(font_map, frame) : 0;
+        uint32_t emitted = 0;
+        if (decoration_cache)
+        {
+            const float texture_u = (decoration_cache->m_X + 0.5f) * recip_w;
+            const float texture_v = (decoration_cache->m_Y + 0.5f) * recip_h;
+            const TextDecoration* decorations = TextLayoutGetDecorations(layout);
+            for (uint32_t decoration_index = 0; decoration_index < TextLayoutGetDecorationCount(layout) && emitted < output_decoration_quad_count; ++decoration_index)
+            {
+                const TextDecoration& decoration = decorations[decoration_index];
+                const TextLine& line = lines[decoration.m_LineIndex];
+                const float first_x = glyphs[line.m_Index].m_X;
+                const float line_start_x = GetLineStartX(font_map, te, line, paragraphs[line.m_ParagraphIndex].m_Direction);
+                const float line_start_y = layout_y + line.m_Baseline;
+                const bool glyph_segments = FontDecorationRequiresGlyphSegments(layout, decoration);
+                const uint32_t segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
+                const float segment_length = decoration.m_Length / segment_count;
+                TextGlyphFaceColors decoration_colors;
+                if (!glyph_segments)
+                    FontGetDecorationFaceColors(layout, decoration, base_face_color, &decoration_colors);
+                for (uint32_t segment = 0; segment < segment_count && emitted < output_decoration_quad_count; ++segment)
+                {
+                    TextGlyphFaceColors segment_colors;
+                    if (glyph_segments)
+                    {
+                        TextGlyphRenderData render_data;
+                        TextLayoutGetGlyphRenderData(layout, glyphs[decoration.m_GlyphStart + segment], base_face_color, &render_data);
+                        segment_colors = render_data.m_FaceColors;
+                    }
+                    else
+                    {
+                        segment_colors = decoration_colors;
+                    }
+                    const float piece_x0 = line_start_x + decoration.m_X - first_x + segment_length * segment;
+                    const float piece_x1 = piece_x0 + segment_length;
+                    const float piece_y = line_start_y + decoration.m_Y;
+                    FontDecorationPattern pattern;
+                    FontGetDecorationPattern(decoration, segment, segment_count, &pattern);
+                    FontPackDecorationVertices(texture_u, texture_v, layer_count, vertex_index,
+                                               vertices_per_quad * output_quad_count, te.m_Transform,
+                                               piece_x0, piece_y, piece_x1, piece_y, decoration.m_Thickness,
+                                               pattern.m_Start, pattern.m_End, pattern.m_Duty, segment_colors, vertices);
+                    vertex_index += vertices_per_quad;
+                    ++emitted;
+                }
+            }
+        }
+        if (emitted < output_decoration_quad_count)
+        {
+            const uint32_t missing_vertex_count = (output_decoration_quad_count - emitted) * vertices_per_quad;
+            for (uint32_t layer = 0; layer < layer_count; ++layer)
+            {
+                FontGlyphVertex* missing = vertices + layer * vertices_per_quad * output_quad_count +
+                                           output_visible_glyph_count * vertices_per_quad + emitted * vertices_per_quad;
+                memset(missing, 0, missing_vertex_count * sizeof(FontGlyphVertex));
+            }
+        }
+        return output_quad_count * vertices_per_quad * layer_count;
     }
 
     uint32_t CreateFontVertexData(HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
@@ -503,10 +656,7 @@ namespace dmRender
         HTextLayout layout = 0;
         const TextResult result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layout_settings, &layout);
         if (result != TEXT_RESULT_OK)
-        {
-            TextLayoutRelease(layout);
             return 0;
-        }
         const uint32_t vertex_count = CreateFontVertexDataFromTextLayout(font_map, frame, layout, te, sdf_scale, recip_w, recip_h, vertices, max_vertices);
         TextLayoutRelease(layout);
         return vertex_count;

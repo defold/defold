@@ -19,6 +19,7 @@
 
 #include <dlib/vmath.h>
 #include <dmsdk/font/font.h>
+#include <dmsdk/font/text_layout.h>
 
 enum FontRenderLayerMask
 {
@@ -38,6 +39,17 @@ struct FontGlyphVertex
     float m_LayerMasks[3];
 };
 
+struct TextGlyphFaceColors;
+
+struct FontDecorationPattern
+{
+    // Pattern positions are measured in cycles. A zero duty marks a solid quad.
+    float m_Start;
+    float m_End;
+    float m_Duty;
+};
+
+// Packs one glyph quad per active font layer using a single face color.
 void FontPackGlyphVertices(FontGlyph*              glyph,
                            float                   recip_w,
                            float                   recip_h,
@@ -52,6 +64,7 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
                            const dmVMath::Matrix4& transform,
                            float                   x,
                            float                   y,
+                           float                   render_scale,
                            const dmVMath::Vector4& face_color,
                            const dmVMath::Vector4& outline_color,
                            const dmVMath::Vector4& shadow_color,
@@ -63,5 +76,63 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
                            float                   shadow_y,
                            bool                    metrics_from_ttf,
                            FontGlyphVertex*        vertices);
+
+// Packs one glyph quad per active font layer with independent corner colors.
+void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
+                                  float                      recip_w,
+                                  float                      recip_h,
+                                  uint32_t                   cell_x,
+                                  uint32_t                   cell_y,
+                                  uint32_t                   cache_cell_max_ascent,
+                                  uint32_t                   cache_cell_padding,
+                                  uint32_t                   layer_count,
+                                  uint32_t                   layer_mask,
+                                  uint32_t                   vertex_index,
+                                  uint32_t                   vertex_layer_stride,
+                                  const dmVMath::Matrix4&    transform,
+                                  float                      x,
+                                  float                      y,
+                                  float                      render_scale,
+                                  const TextGlyphFaceColors& face_colors,
+                                  const dmVMath::Vector4&    outline_color,
+                                  const dmVMath::Vector4&    shadow_color,
+                                  float                      sdf_edge_value,
+                                  float                      sdf_outline,
+                                  float                      sdf_smoothing,
+                                  float                      sdf_shadow,
+                                  float                      shadow_x,
+                                  float                      shadow_y,
+                                  bool                       metrics_from_ttf,
+                                  FontGlyphVertex*           vertices);
+
+// Packs a face-only line-decoration quad and its procedural dash parameters.
+void FontPackDecorationVertices(float                      texture_u,
+                                float                      texture_v,
+                                uint32_t                   layer_count,
+                                uint32_t                   vertex_index,
+                                uint32_t                   vertex_layer_stride,
+                                const dmVMath::Matrix4&    transform,
+                                float                      x0,
+                                float                      y0,
+                                float                      x1,
+                                float                      y1,
+                                float                      thickness,
+                                float                      pattern_start,
+                                float                      pattern_end,
+                                float                      pattern_duty,
+                                const TextGlyphFaceColors& face_colors,
+                                FontGlyphVertex*           vertices);
+
+// Returns whether per-glyph styling prevents this decoration from using one quad.
+bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration);
+
+// Returns the number of quads required to preserve the decoration's styling.
+uint32_t FontGetDecorationQuadCount(HTextLayout layout, const TextDecoration& decoration);
+
+// Resolves the procedural dash coordinates for one decoration segment.
+void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment_index, uint32_t segment_count, FontDecorationPattern* pattern);
+
+// Resolves the left and right decoration colors from its associated glyphs.
+void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors);
 
 #endif // DM_FONT_GLYPH_VERTEX_H

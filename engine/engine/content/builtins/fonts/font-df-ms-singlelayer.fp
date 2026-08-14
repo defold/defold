@@ -4,6 +4,7 @@ in mediump vec2 var_texcoord0;
 in mediump vec4 var_face_color;
 in mediump vec4 var_outline_color;
 in mediump vec4 var_sdf_params;
+in highp vec2 var_decoration;
 
 uniform mediump sampler2D texture_sampler;
 
@@ -13,6 +14,11 @@ uniform fs_uniforms
 };
 
 out vec4 out_fragColor;
+
+float decoration_mask()
+{
+    return var_decoration.y > 0.0 ? 1.0 - step(var_decoration.y, fract(var_decoration.x)) : 1.0;
+}
 
 float sample_df(vec2 where)
 {
@@ -39,5 +45,5 @@ void main()
     mediump float outline_alpha = smoothstep(sdf_outline - sdf_smoothing, sdf_outline + sdf_smoothing, distance);
     mediump vec4 color = mix(var_outline_color, var_face_color, alpha);
 
-    out_fragColor = color * outline_alpha;
+    out_fragColor = color * outline_alpha * decoration_mask();
 }
