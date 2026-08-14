@@ -1784,17 +1784,35 @@
       [(cr [begin-row 0] [last-row (count (lines last-row))])
        (if (seq replacement-rows) replacement-rows [""])])))
 
-(defspec format-document-edits-preserves-applied-lines 200
-  ;; format-document-edits splits an edit into finer-grained ones so cursors stay
-  ;; put, which must never change the lines the edit produces.
+(defn- whole-row-edits
+  [lines runs]
+  (let [row-count (count lines)]
+    (loop [row 0
+           [[gap span-rows replacement-rows] & more] runs
+           edits []]
+      (if (nil? gap)
+        edits
+        (let [begin-row (+ row (long gap))
+              end-row (+ begin-row (long span-rows))]
+          (if (< row-count end-row)
+            edits
+            ;; Skip the row after the span so the next edit cannot touch it.
+            (recur (inc end-row)
+                   more
+                   (conj edits (whole-row-edit lines begin-row end-row replacement-rows)))))))))
+
+(defspec format-document-edits-preserves-applied-lines 300
+  ;; format-document-edits splits edits into finer-grained ones so cursors stay
+  ;; put, which must never change the lines the edits produce.
   (prop/for-all
-    [[lines edit] (gen/let [lines (gen/vector format-line-gen 1 6)
-                            begin-row (gen/choose 0 (dec (count lines)))
-                            end-row (gen/choose (inc begin-row) (count lines))
-                            replacement-rows (gen/vector format-line-gen 0 4)]
-                    [lines (whole-row-edit lines begin-row end-row replacement-rows)])]
-    (= (apply-lines lines [edit])
-       (apply-lines lines (data/format-document-edits lines [edit])))))
+    [[lines edits] (gen/let [lines (gen/vector format-line-gen 1 10)
+                             runs (gen/vector (gen/tuple (gen/choose 0 1)
+                                                         (gen/choose 1 3)
+                                                         (gen/vector format-line-gen 0 4))
+                                              1 3)]
+                     [lines (whole-row-edits lines runs)])]
+    (= (apply-lines lines edits)
+       (apply-lines lines (data/format-document-edits lines edits)))))
 
 (deftest format-document-edits-minimality-test
   (letfn [(document-edits [lines replacement-lines]
