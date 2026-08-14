@@ -108,14 +108,24 @@ namespace dmGameSystem
     static const dmhash_t LABEL_PROP_TRACKING = dmHashString64("tracking");
     static const dmhash_t LABEL_PROP_LINE_BREAK = dmHashString64("line_break");
 
-    static void InvalidateTextLayout(LabelComponent* component);
+    static void        InvalidateTextLayout(LabelComponent* component);
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component);
+
+    // Reserves the proposed one-em or explicit sprite dimensions until resource loading is implemented.
+    static uint8_t ResolveLabelLayoutObject(void*, const char*, const TextLayoutObjectAttribute*,
+                                            float proposed_width, float proposed_height, TextLayoutObject* object)
+    {
+        object->m_Width = proposed_width;
+        object->m_Height = proposed_height;
+        object->m_Resource = 0;
+        return 1;
+    }
 
     dmGameObject::CreateResult CompLabelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         LabelContext* label_context = (LabelContext*)params.m_Context;
-        LabelWorld* world = new LabelWorld();
-        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
+        LabelWorld*   world = new LabelWorld();
+        uint32_t      comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
         world->m_Components.SetCapacity(comp_count);
         memset(world->m_Components.GetRawObjects().Begin(), 0, sizeof(LabelComponent) * comp_count);
 
@@ -125,11 +135,11 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLabelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        LabelWorld* world = (LabelWorld*)params.m_World;
+        LabelWorld*              world = (LabelWorld*)params.m_World;
 
         dmArray<LabelComponent>& components = world->m_Components.GetRawObjects();
-        uint32_t n = components.Size();
-        for (uint32_t i = 0; i < n; ++i )
+        uint32_t                 n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
         {
             LabelComponent& component = components[i];
             InvalidateTextLayout(&component);
@@ -143,19 +153,23 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline MaterialResource* GetMaterialResource(LabelComponent* component, LabelResource* resource) {
+    static inline MaterialResource* GetMaterialResource(LabelComponent* component, LabelResource* resource)
+    {
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    static inline dmRender::HMaterial GetMaterial(LabelComponent* component, LabelResource* resource) {
+    static inline dmRender::HMaterial GetMaterial(LabelComponent* component, LabelResource* resource)
+    {
         return GetMaterialResource(component, resource)->m_Material;
     }
 
-    static inline FontResource* GetFontResource(const LabelComponent* component, const LabelResource* resource) {
+    static inline FontResource* GetFontResource(const LabelComponent* component, const LabelResource* resource)
+    {
         return component->m_Font ? component->m_Font : resource->m_Font;
     }
 
-    static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource) {
+    static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource)
+    {
         FontResource* font = GetFontResource(component, resource);
         return dmGameSystem::ResFontGetHandle(font);
     }
@@ -174,7 +188,7 @@ namespace dmGameSystem
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component)
     {
         FontResource* font_resource = GetFontResource(component, component->m_Resource);
-        uint32_t font_version = font_resource ? ResFontGetVersion(font_resource) : 0;
+        uint32_t      font_version = font_resource ? ResFontGetVersion(font_resource) : 0;
 
         if (!component->m_TextLayoutDirty && component->m_TextLayout && font_resource &&
             component->m_TextLayoutFontVersion == font_version)
@@ -188,7 +202,7 @@ namespace dmGameSystem
         if (!font_map || !component->m_Text)
             return 0;
 
-        TextLayoutSettings settings = {0};
+        TextLayoutSettings settings = { 0 };
         settings.m_Width = component->m_Size.getX();
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;
@@ -196,13 +210,25 @@ namespace dmGameSystem
         settings.m_Size = dmRender::GetFontMapSize(font_map);
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+        settings.m_ResolveObject = ResolveLabelLayoutObject;
 
-        dmArray<uint32_t> codepoints;
-        TextToCodePoints(component->m_Text, codepoints);
-
-        HTextLayout layout = 0;
-        TextResult r = TextLayoutCreate(dmRender::GetFontCollection(font_map), codepoints.Begin(), codepoints.Size(), &settings, &layout);
-        if (r != TEXT_RESULT_OK)
+        HTextLayout  layout = 0;
+        HMarkup      markup = 0;
+        MarkupResult markup_result = MarkupCreateRecovering(component->m_Text, strlen(component->m_Text), &markup, 0);
+        TextResult   result = TEXT_RESULT_ERROR;
+        if (markup_result == MARKUP_RESULT_OK)
+            result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout);
+        MarkupDestroy(markup);
+        if (result != TEXT_RESULT_OK)
+        {
+            if (layout)
+                TextLayoutRelease(layout);
+            layout = 0;
+            dmArray<uint32_t> codepoints;
+            TextToCodePoints(component->m_Text, codepoints);
+            result = TextLayoutCreate(dmRender::GetFontCollection(font_map), codepoints.Begin(), codepoints.Size(), &settings, &layout);
+        }
+        if (result != TEXT_RESULT_OK)
         {
             if (layout)
                 TextLayoutRelease(layout);
@@ -417,8 +443,20 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLabelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
-        (void)params;
         (void)update_result;
+
+        LabelWorld* world = (LabelWorld*)params.m_World;
+        dmArray<LabelComponent>& components = world->m_Components.GetRawObjects();
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            LabelComponent* component = &components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate || !component->m_TextLayout)
+                continue;
+
+            TextLayoutUpdate(component->m_TextLayout, params.m_UpdateContext->m_DT);
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -625,11 +663,11 @@ namespace dmGameSystem
 
     void CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        LabelResource* resource = (LabelResource*)params.m_Resource;
+        LabelResource*              resource = (LabelResource*)params.m_Resource;
         dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
 
-        LabelWorld* label_world = (LabelWorld*)params.m_World;
-        LabelComponent* component = &label_world->m_Components.Get(*params.m_UserData);
+        LabelWorld*                 label_world = (LabelWorld*)params.m_World;
+        LabelComponent*             component = &label_world->m_Components.Get(*params.m_UserData);
         InvalidateTextLayout(component);
         InitParametersFromDescription(component, ddf);
     }
@@ -637,23 +675,27 @@ namespace dmGameSystem
     dmGameObject::HComponent CompLabelGetComponent(const dmGameObject::ComponentGetParams& params)
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
-        uint32_t index = (uint32_t)params.m_UserData;
+        uint32_t    index = (uint32_t)params.m_UserData;
         return (dmGameObject::HComponent)&world->m_Components.Get(index);
     }
-
 
     // For testing
     void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics)
     {
-        LabelComponent* mutable_component = const_cast<LabelComponent*>(component);
+        LabelComponent*    mutable_component = const_cast<LabelComponent*>(component);
         dmRender::HFontMap font_map = GetFontMap(mutable_component, mutable_component->m_Resource);
-        HTextLayout layout = GetOrCreateTextLayout(mutable_component);
+        HTextLayout        layout = GetOrCreateTextLayout(mutable_component);
         dmRender::GetTextMetrics(font_map, layout, &metrics);
     }
 
     const char* CompLabelGetText(const LabelComponent* component)
     {
         return component->m_Text;
+    }
+
+    HTextLayout CompLabelGetTextLayout(LabelComponent* component)
+    {
+        return GetOrCreateTextLayout(component);
     }
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)

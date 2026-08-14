@@ -47,6 +47,7 @@
 #include <testmain/testmain.h>
 
 #include <font/fontcollection.h>
+#include <font/text_layout.h>
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject.h>
@@ -3607,6 +3608,42 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(FontTest, ScriptSetNamedFontStyle)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font));
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'link:hover', '<color=#336699CC><outline size=2><shadow x=-1 blur=3>')"));
+
+    HFontCollection collection = dmGameSystem::ResFontGetFontCollection(font);
+    const TextRenderStyle* style = FontCollectionGetNamedStyle(collection, dmHashString64("link:hover"));
+    ASSERT_NE((const TextRenderStyle*)0, style);
+    ASSERT_EQ(TEXT_RENDER_STYLE_FACE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_BLUR, style->m_Flags);
+    ASSERT_NEAR(0.2f, style->m_FaceColor[0], 0.0001f);
+    ASSERT_NEAR(0.8f, style->m_FaceColor[3], 0.0001f);
+    ASSERT_EQ(2.0f, style->m_OutlineWidth);
+    ASSERT_EQ(-1.0f, style->m_ShadowX);
+    ASSERT_EQ(3.0f, style->m_ShadowBlur);
+
+    dmLogInfo("Expected errors ->");
+    ASSERT_FALSE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'bad', '<shadow blur=-1>')"));
+    ASSERT_FALSE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'bad', '<color=#ffffff></color>')"));
+    dmLogInfo("<- End of expected errors.");
+
+    dmResource::Release(m_Factory, font);
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(FontTest, OpenTypeResource)
 {
     const char* otf_path = "/font/SourceCodePro-Regular.otf";
@@ -5294,6 +5331,43 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
 
     dmResource::Release(m_Factory, replacement_font_resource);
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(LabelComponentTest, LabelRichTextAnimationAdvances)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    PostLabelSetText(m_Collection, go_id, label_id, "<wave amplitude=4 hz=1 fit=span>Wave</wave>", (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* label_component = GetLabelComponent(go, label_id);
+    ASSERT_NE((void*)0, label_component);
+
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_GT(TextLayoutGetGlyphCount(layout), 0u);
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    TextGlyphRenderData after = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &after);
+    ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
+
+    DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
