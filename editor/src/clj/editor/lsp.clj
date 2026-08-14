@@ -935,6 +935,20 @@
                :language (resource/language resource)
                :timeout-ms timeout-ms))))))
 
+(defn- first-complete-server [^long n]
+  (fn [rf]
+    (let [server->responses (volatile! {})]
+      (fn
+        ([] (rf))
+        ;; Never flush a partial group: an incomplete server has nothing to say
+        ([acc] (rf acc))
+        ([acc [server response]]
+         (let [responses (conj (@server->responses server []) response)]
+           (if (= n (count responses))
+             (rf acc responses)
+             (do (vswap! server->responses assoc server responses)
+                 acc))))))))
+
 (defn format-ranges! [lsp resource cursor-ranges indent-type result-callback & {:keys [timeout-ms]
                                                                                 :or {timeout-ms 5000}}]
   (if-not (and (coll/not-empty cursor-ranges)
@@ -943,15 +957,16 @@
     (do (result-callback []) nil)
     (lsp (bound-fn [state]
            ;; Every matching server answers every range, but the ranges are
-           ;; formatted as one edit, so mixing servers would corrupt the result.
-           ;; Keep whoever answers a range first and stop once all are answered.
-           (let [range-count (count cursor-ranges)
-                 ch (a/chan range-count (comp (util/distinct-by :requested-cursor-range)
-                                              (take range-count)))]
-             (a/go (result-callback (<! (a/into [] ch))))
+           ;; applied as one edit, so mixing servers would corrupt the result.
+           ;; Use the ranges of whoever answers them all first, and stop there.
+           (let [ch (a/chan 1 (comp (first-complete-server (count cursor-ranges))
+                                    (take 1)))]
+             (a/go (result-callback (or (<! ch) [])))
              (send-requests!
                state ch
-               :requests (mapv #(lsp.server/range-formatting resource % indent-type) cursor-ranges)
+               :requests-fn (fn [server _server-state]
+                              (mapv #(lsp.server/range-formatting resource % indent-type (partial pair server))
+                                    cursor-ranges))
                :capabilities-pred :range-formatting
                :language (resource/language resource)
                :timeout-ms timeout-ms))))))

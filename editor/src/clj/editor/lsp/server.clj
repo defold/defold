@@ -922,7 +922,7 @@
 (defn range-formatting
   "See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting"
-  [resource requested-cursor-range indent-type]
+  [resource requested-cursor-range indent-type result-converter]
   (raw-request
     (lsp.jsonrpc/notification
       "textDocument/rangeFormatting"
@@ -931,10 +931,11 @@
        :options {:tabSize (data/indent-type->tab-spaces indent-type)
                  :insertSpaces (not= :tabs indent-type)}})
     (bound-fn [result _project]
-      {:requested-cursor-range requested-cursor-range
-       :edits (->> result
-                   (mapv text-edit:lsp->editor)
-                   (sort-by :cursor-range)
-                   (mapv (fn [{:keys [cursor-range value]}]
-                           (coll/pair cursor-range (util/split-lines value)))))})))
+      (result-converter
+        {:requested-cursor-range requested-cursor-range
+         :edits (->> result
+                     (mapv text-edit:lsp->editor)
+                     (sort-by :cursor-range)
+                     (mapv (fn [{:keys [cursor-range value]}]
+                             (coll/pair cursor-range (util/split-lines value)))))}))))
 
