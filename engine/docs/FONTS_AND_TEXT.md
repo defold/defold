@@ -48,8 +48,18 @@ The text layout api uses the `TextGlyph`.
 
 ### Rich text
 
-We currently do not have any native support for any form of rich text.
-It is in our plans however.
+Rich text parsing and style/effect resolution are provided by the `font_richtext`
+library. The parser API remains link-compatible when markup is excluded: an
+engine built with `--disable-feature=font_richtext` links `font_richtext_null`
+instead, and markup creation returns `MARKUP_RESULT_UNSUPPORTED`. Plain text
+layout and rendering continue to work through pass-through render-data helpers,
+without linking the parser or style/effect implementation.
+
+See [`richtext.html`](richtext.html) for the markup syntax, supported tags,
+attribute combinations, layout objects, and recovery behavior.
+
+Markup can be applied through both the legacy and full layout paths. The parser
+itself is independent and may be used without enabling `font_layout`.
 
 ### Runtime generation
 
@@ -74,6 +84,8 @@ The main text render loop is in `engine/render/src/render/font/font_renderer.cpp
 The render library also manages the texture cache, via its `HFontMap`
 
 Final vertex data generation is coordinated by `dmRender::CreateFontVertexData` in `engine/render/src/render/font/font_renderer.cpp`. The `font` library handles fonts, glyph generation, and text layout without depending on graphics. The `font_render` library in `engine/font/src/render` owns the fixed `FontGlyphVertex` layout, packs glyph vertices, and creates the matching graphics vertex declaration. The `fontc_shared` C/FFM boundary lives separately in `engine/font/src/fontc` and links the full-text-shaping font implementation with `font_render`.
+
+Dashed underline and strikethrough decorations use one quad per compatible layout segment. Their normalized pattern position and duty are packed into the otherwise unused decoration `layer_mask` components and decoded by the built-in font shaders. Custom font materials that need dashed rich-text decorations must apply the same decoding as the built-in shaders; otherwise the decoration falls back visually to a solid line.
 
 For distance-field fonts, SDF smoothing is computed in screen space. The renderer derives a pixels-per-local-unit scale from the current view-projection matrix and viewport and uses it to keep edge thickness stable under camera zoom and perspective. If the projection is invalid for a text entry (e.g. clip `w` near zero or a zero-sized viewport), it falls back to the local/world scale.
 

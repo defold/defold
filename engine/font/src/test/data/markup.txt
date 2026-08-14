@@ -1,0 +1,18 @@
+This is Defold Rich Text!
+
+Common: <color=#00FF00>Color</color>  <outline size=3 color=#0000FF>Outlined text</outline>  <shadow x=5 y=-5 blur=3 color=#000000A0>Shadow</shadow>  <size=75%>F</size><size=90%>O</size><size=100%>N</size><size=120%>T S</size><size=100%>I</size><size=90%>Z</size><size=75%>E</size>
+
+Gradients:
+<gradient fit=glyph bottom=#FFFF00 top=#FF00FF>Vertical Gradient</gradient> <gradient left=#FF00FF right=#FFFFFF>Horizontal Gradient</gradient> <gradient fit=glyph tl=#FF00FF tr=#FFFFFF bl=#FFFFFF br=#00FF00>Four Vertices</gradient>
+<gradient hz=0.25 left=#FF00FF right=#FFFFFF fit=glyph>Flowing Glyph Colors</gradient>  <gradient hz=0.25 left=#FF00FF right=#FFFFFF fit=span>Flowing Span Color</gradient>
+
+Decorations:
+<ul>Solid underline</ul>  <ul pattern=dashed>Dashed underline</ul>
+<strike>Strikethrough</strike>  <ul><gradient left=#FF00FF right=#FFFFFF>Gradient underline</gradient></ul>
+
+Effects:
+<shake hz=20 amplitude=0.5 fit=glyph>Shaking glyphs</shake>  <shake hz=20 amplitude=0.5 fit=span>Shaking span</shake>
+<wave amplitude=4 hz=1 wavelength=6>Wave Characters</wave>  <wave amplitude=4 hz=1 fit=span>Wave Word</wave>
+
+Layout objects (metadata MVP):
+Visit <sprite src=engine/engine/content/builtins/assets/images/logo/logo_256.png/> <a href=https://defold.com>www.defold.com</a>  <sprite atlas=/images/icons.atlas animation=coin width=2em/>

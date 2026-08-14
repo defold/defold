@@ -20,6 +20,8 @@
 #include <platform_window_constants.h>
 #include <platform_window_glfw3_private.h>
 
+static GLFWcursor* g_LinkCursor = 0;
+
 void FontViewerMacOSInstallInput(HWindow                              window,
                                  FontViewerKeyboardCharCallback       char_callback,
                                  FontViewerKeyboardMarkedTextCallback marked_text_callback,
@@ -72,4 +74,21 @@ void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text
     value[text_length] = 0;
     glfwSetClipboardString(window->m_Window, value);
     free(value);
+}
+
+void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor)
+{
+    if (link_cursor && !g_LinkCursor)
+        g_LinkCursor = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+    glfwSetCursor(window->m_Window, link_cursor ? g_LinkCursor : 0);
+}
+
+void FontViewerMacOSDestroyLinkCursor(HWindow window)
+{
+    glfwSetCursor(window->m_Window, 0);
+    if (g_LinkCursor)
+    {
+        glfwDestroyCursor(g_LinkCursor);
+        g_LinkCursor = 0;
+    }
 }

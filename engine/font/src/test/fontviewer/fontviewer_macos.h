@@ -47,5 +47,7 @@ void FontViewerMacOSInstallInput(HWindow                              window,
                                  void*                                user_data);
 void FontViewerMacOSPollInput(HWindow window, uint32_t layout_width, uint32_t layout_height, FontViewerMacOSInput* input);
 void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text_length);
+void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor);
+void FontViewerMacOSDestroyLinkCursor(HWindow window);
 
 #endif // DM_FONT_VIEWER_MACOS_H

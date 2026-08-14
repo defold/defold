@@ -94,6 +94,9 @@ static void SetStyle(void)
     nk_style_from_table(&g_Context, colors);
     g_Context.style.window.padding = nk_vec2(16.0f, 14.0f);
     g_Context.style.window.spacing = nk_vec2(8.0f, 7.0f);
+    // The viewer lays out every control within the fixed-width side panel and
+    // only needs vertical scrolling for the text editor and panel contents.
+    g_Context.style.window.scrollbar_size.y = 0.0f;
     g_Context.style.window.border = 1.0f;
     g_Context.style.window.rounding = 0.0f;
     g_Context.style.button.rounding = 2.0f;
@@ -288,7 +291,7 @@ static void ConvertCommands(FontViewerNuklearLayout* layout)
     }
 }
 
-void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* shape_text, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout)
+void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* legacy_layout, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout)
 {
     const float panel_width = 380.0f;
     const float panel_x = (float)width - panel_width;
@@ -319,11 +322,6 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
         if (nk_tree_push(&g_Context, NK_TREE_TAB, "Text", NK_MINIMIZED))
         {
             SetFont(14.0f);
-            nk_bool shape = *shape_text;
-            nk_layout_row_dynamic(&g_Context, 26.0f, 1);
-            nk_checkbox_label(&g_Context, "Shape text", &shape);
-            *shape_text = shape != 0;
-
             nk_layout_row_dynamic(&g_Context, (float)height * 0.25f, 1);
             text_field = nk_widget_bounds(&g_Context);
             layout->m_TextField = ToBox(text_field);
@@ -381,12 +379,16 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
                 *zoom = 1.0f;
             nk_layout_row_end(&g_Context);
 
+            nk_bool legacy = *legacy_layout;
             nk_bool baselines = *show_baselines;
             nk_bool quads = *show_quads;
+            nk_layout_row_dynamic(&g_Context, 28.0f, 1);
+            nk_checkbox_label(&g_Context, "Legacy layout", &legacy);
             nk_layout_row_dynamic(&g_Context, 28.0f, 1);
             nk_checkbox_label(&g_Context, "Show base lines", &baselines);
             nk_layout_row_dynamic(&g_Context, 28.0f, 1);
             nk_checkbox_label(&g_Context, "Show glyph quads", &quads);
+            *legacy_layout = legacy != 0;
             *show_baselines = baselines != 0;
             *show_quads = quads != 0;
             DrawColorPicker("Background", properties->m_BackgroundColor);

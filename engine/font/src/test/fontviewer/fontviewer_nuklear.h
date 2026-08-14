@@ -100,7 +100,7 @@ extern "C"
     bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height);
     void FontViewerNuklearFinalize(void);
     bool FontViewerNuklearGetAtlas(const void** pixels, uint32_t* width, uint32_t* height);
-    void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* shape_text, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout);
+    void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* legacy_layout, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout);
 
 #ifdef __cplusplus
 }
