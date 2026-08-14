@@ -1734,13 +1734,12 @@
                (key-typed ["''''"] [(c 0 3)] "'")))))))
 
 (deftest format-document-edits-test
-  (letfn [(format-lines [lines replacement-lines]
-            (:lines
-              (data/apply-edits
-                lines
-                []
-                []
-                (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]]))))]
+  (letfn [(apply-lines [lines edits]
+            (if (seq edits)
+              (:lines (data/apply-edits lines [] [] edits))
+              lines))
+          (format-lines [lines replacement-lines]
+            (apply-lines lines (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]])))]
     (testing "preserves additions and removals of the final newline"
       (are [lines replacement-lines]
         (= replacement-lines (format-lines lines replacement-lines))
@@ -1759,7 +1758,14 @@
         ["a" "   "] ["a" ""]
         ["a" "\t"] ["a" ""]
         ["a" "b" "   "] ["a" "b" ""]
-        ["a" "   " "   "] ["a" "" ""]))))
+        ["a" "   " "   "] ["a" "" ""]))
+    (testing "deleting a blank row is preserved"
+      (are [lines edits]
+        (= (apply-lines lines edits)
+           (apply-lines lines (data/format-document-edits lines edits)))
+        ["" "b" "c"] [[(cr [0 0] [1 0]) [""]]]
+        ["a" "" "b"] [[(cr [1 0] [2 0]) [""]]]
+        ["a" "" ""] [[(cr [1 0] [2 0]) [""]]]))))
 
 (deftest format-document-edits-minimality-test
   (letfn [(document-edits [lines replacement-lines]

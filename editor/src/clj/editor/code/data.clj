@@ -3373,12 +3373,17 @@
           (not= (.charAt line end) (.charAt new-line new-end)) nil
           :else (recur (inc end) (inc new-end) edits))))))
 
+(defn- rows->diff-string [rows]
+  (if (coll/empty? rows)
+    ""
+    (str (coll/join-to-string "\n" rows) "\n")))
+
 (defn- replacement-edits
   "Diff a replacement of the rows in [span-begin-row span-end-row) into minimal
   per-line edits. Both sides are terminated so one diff row is one row."
   [lines ^long span-begin-row ^long span-end-row replacement-lines]
-  (let [{:keys [right-lines edits]} (diff/find-edits (str (coll/join-to-string "\n" (subvec lines span-begin-row span-end-row)) "\n")
-                                                     (str (coll/join-to-string "\n" replacement-lines) "\n"))
+  (let [{:keys [right-lines edits]} (diff/find-edits (rows->diff-string (subvec lines span-begin-row span-end-row))
+                                                     (rows->diff-string replacement-lines))
         line-count (long (count lines))
         line-edits (coll/into-> edits []
                      (mapcat
