@@ -202,6 +202,7 @@ struct LayoutMetrics
 
 static void TextLayoutLegacyFree(TextLayout* layout)
 {
+    TextLayoutReleaseObjects(layout);
     delete layout;
 }
 
@@ -212,6 +213,17 @@ static uint32_t GetParagraphIndex(const dmArray<TextParagraph>& paragraphs, uint
            text_index >= paragraphs[paragraph_index + 1].m_TextIndex)
         ++paragraph_index;
     return paragraph_index;
+}
+
+static const TextLayoutObject* FindSpriteObject(const TextLayout* layout, uint32_t text_offset)
+{
+    for (uint32_t i = 0; i < layout->m_Objects.Size(); ++i)
+    {
+        const TextLayoutObject& object = layout->m_Objects[i];
+        if (object.m_Type == TEXT_LAYOUT_OBJECT_SPRITE && object.m_TextOffset == text_offset)
+            return &object;
+    }
+    return 0;
 }
 
 static void CreateParagraphs(TextLayout* layout, uint32_t* codepoints, uint32_t num_codepoints)
@@ -239,9 +251,53 @@ static void CreateParagraphs(TextLayout* layout, uint32_t* codepoints, uint32_t 
     }
 }
 
-TextResult TextLayoutLegacyCreate(HFontCollection collection,
-                            uint32_t* codepoints, uint32_t num_codepoints,
-                            TextLayoutSettings* settings, HTextLayout* outlayout)
+static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
+{
+    for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
+    {
+        const TextLine& line = layout->m_Lines[line_index];
+        const uint32_t line_end = line.m_Index + line.m_Length;
+        for (uint32_t span_index = 0; span_index < layout->m_ResolvedSpans.Size(); ++span_index)
+        {
+            const TextResolvedSpan& span = layout->m_ResolvedSpans[span_index];
+            if (span.m_DecorationFlags == 0)
+                continue;
+            const uint32_t span_end = span.m_TextOffset + span.m_TextLength;
+            const uint32_t start = span.m_TextOffset > line.m_Index ? span.m_TextOffset : line.m_Index;
+            const uint32_t end = span_end < line_end ? span_end : line_end;
+            if (start >= end)
+                continue;
+            const TextGlyph& first = layout->m_Glyphs[start];
+            const TextGlyph& last = layout->m_Glyphs[end - 1];
+            const float font_size = settings->m_Size * first.m_RenderScale;
+            const float thickness = fmaxf(1.0f, font_size * 0.05f);
+            const float length = last.m_X + last.m_Advance - first.m_X;
+            for (uint32_t flag = TEXT_RESOLVED_DECORATION_UNDERLINE; flag <= TEXT_RESOLVED_DECORATION_STRIKE; flag <<= 1)
+            {
+                if ((span.m_DecorationFlags & flag) == 0)
+                    continue;
+                TextDecoration decoration = {};
+                decoration.m_X = first.m_X;
+                decoration.m_Y = flag == TEXT_RESOLVED_DECORATION_UNDERLINE ? -font_size * 0.1f : font_size * 0.3f;
+                decoration.m_Length = length;
+                decoration.m_Thickness = thickness;
+                decoration.m_PatternOffset = first.m_X;
+                decoration.m_GlyphStart = start;
+                decoration.m_GlyphCount = (uint16_t)(end - start);
+                decoration.m_LineIndex = (uint16_t)line_index;
+                decoration.m_Pattern = flag == TEXT_RESOLVED_DECORATION_UNDERLINE ? span.m_UnderlinePattern : span.m_StrikePattern;
+                if (layout->m_Decorations.Full())
+                    layout->m_Decorations.OffsetCapacity(8);
+                layout->m_Decorations.Push(decoration);
+            }
+        }
+    }
+}
+
+static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
+                                                 uint32_t* codepoints, uint32_t num_codepoints,
+                                                 TextLayoutSettings* settings, ResolvedMarkup* resolved,
+                                                 HTextLayout* outlayout)
 {
     TextLayout* layout = new TextLayout;
     layout->m_Destroy = TextLayoutLegacyFree;
@@ -253,7 +309,17 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     layout->m_Paragraphs.SetCapacity(num_codepoints);
     layout->m_Paragraphs.SetSize(0);
     layout->m_FontCollection = collection;
+    layout->m_NamedStyleRevision = 0xffffffff;
+    layout->m_BaseStyleCount = 0;
+    layout->m_BaseEffectCount = 0;
+    layout->m_BaseSpanEffectCount = 0;
+    layout->m_BaseResolvedSpanCount = 0;
     layout->m_NumValidGlyphs = 0;
+    layout->m_ElapsedTime = 0.0;
+    layout->m_ReleaseObject = 0;
+    layout->m_ObjectContext = 0;
+    if (resolved)
+        TextLayoutAdoptResolvedMarkup(layout, resolved, settings);
 
     HFont font = FontCollectionGetFont(collection, 0);
     float scale = FontGetScaleFromSize(font, settings->m_Size);
@@ -277,20 +343,36 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     for (uint32_t i = 0; i < num_codepoints; ++i)
     {
         uint32_t c = codepoints[i];
+        TextGlyph g = {0};
+        g.m_Font = font;
+        g.m_Codepoint = c;
+        g.m_Cluster = i;
+        g.m_RenderScale = 1.0f;
+        g.m_MarkupSpanIndex = MARKUP_INVALID_INDEX;
+        // make sure to always set the position of the glyph, regardless
+        // if FontGetGlyph was successful or not (see #11766)
+        g.m_X = x;
+        g.m_Y = y;
+
+        const TextLayoutObject* object = c == 0xfffc ? FindSpriteObject(layout, i) : 0;
+        if (object)
+        {
+            g.m_Width = object->m_Width;
+            g.m_Height = object->m_Height;
+            g.m_Advance = object->m_Width;
+            g.m_Flags = TEXT_GLYPH_FLAG_OBJECT;
+            x += g.m_Advance + tracking;
+            layout->m_Glyphs[i] = g;
+            ++num_whitespaces;
+            continue;
+        }
+
         FontResult r = FontGetGlyph(font, c, &options, &font_glyph);
 
         if (FONT_RESULT_OK != r && CHAR_FALLBACK)
         {
             r = FontGetGlyph(font, CHAR_FALLBACK, &options, &font_glyph);
         }
-
-        TextGlyph g = {0};
-        g.m_Font = font;
-        g.m_Codepoint = c;
-        // make sure to always set the position of the glyph, regardless
-        // if FontGetGlyph was successful or not (see #11766)
-        g.m_X = x;
-        g.m_Y = y;
 
         uint32_t whitespace = dmUtf8::IsWhiteSpace(c);
         num_whitespaces += whitespace;
@@ -313,6 +395,46 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
         layout->m_Glyphs[i] = g;
     }
 
+    if (!layout->m_ResolvedSpans.Empty())
+    {
+        uint32_t resolved_span_index = 0;
+        float    advance_adjustment = 0.0f;
+        for (uint32_t i = 0; i < num_codepoints; ++i)
+        {
+            while (resolved_span_index < layout->m_ResolvedSpans.Size() &&
+                   i >= layout->m_ResolvedSpans[resolved_span_index].m_TextOffset +
+                        layout->m_ResolvedSpans[resolved_span_index].m_TextLength)
+            {
+                ++resolved_span_index;
+            }
+            if (resolved_span_index < layout->m_ResolvedSpans.Size())
+            {
+                const TextResolvedSpan& span = layout->m_ResolvedSpans[resolved_span_index];
+                if (i >= span.m_TextOffset)
+                {
+                    layout->m_Glyphs[i].m_MarkupSpanIndex = (uint16_t)resolved_span_index;
+                    layout->m_Glyphs[i].m_StyleIndex = span.m_StyleIndex;
+                }
+            }
+            TextGlyph& glyph = layout->m_Glyphs[i];
+            glyph.m_X += advance_adjustment;
+            if ((glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) == 0 && glyph.m_StyleIndex < layout->m_Styles.Size())
+            {
+                const TextRenderStyle& style = layout->m_Styles[glyph.m_StyleIndex];
+                if (style.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE)
+                {
+                    glyph.m_RenderScale = style.m_FontSize / settings->m_Size;
+                    glyph.m_Width *= glyph.m_RenderScale;
+                    glyph.m_Height *= glyph.m_RenderScale;
+                    const float base_advance = glyph.m_Advance;
+                    glyph.m_Advance *= glyph.m_RenderScale;
+                    glyph.m_LeftBearing *= glyph.m_RenderScale;
+                    advance_adjustment += glyph.m_Advance - base_advance;
+                }
+            }
+        }
+    }
+
     layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
 
     LayoutMetrics lm(layout->m_Glyphs.Begin(), settings->m_Monospace, settings->m_Padding, settings->m_Tracking);
@@ -323,13 +445,38 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
         width = 1000000.0f;
     Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak);
     CreateParagraphs(layout, codepoints, num_codepoints);
+    TextLayoutFinalizeLineBaselines(layout, settings);
+    CreateDecorations(layout, settings);
 
     // metrics->m_MaxAscent = ascent;
     // metrics->m_MaxDescent = descent;
-    uint32_t num_lines = layout->m_Lines.Size();
     layout->m_Width = max_line_width;
-    layout->m_Height = num_lines * (line_height_scaled * settings->m_Leading) - line_height_scaled * (settings->m_Leading - 1.0f);
+    TextLayoutInitializeObjectStyles(layout);
 
     *outlayout = layout;
     return TEXT_RESULT_OK;
+}
+
+TextResult TextLayoutLegacyCreate(HFontCollection collection,
+                                  uint32_t* codepoints, uint32_t num_codepoints,
+                                  TextLayoutSettings* settings, HTextLayout* outlayout)
+{
+    return TextLayoutLegacyCreateInternal(collection, codepoints, num_codepoints, settings, 0, outlayout);
+}
+
+TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup markup,
+                                        TextLayoutSettings* settings, HTextLayout* outlayout)
+{
+    ResolvedMarkup resolved;
+    if (!TextLayoutResolveMarkup(markup, settings, &resolved))
+    {
+        *outlayout = 0;
+        return TEXT_RESULT_ERROR;
+    }
+    return TextLayoutLegacyCreateInternal(collection,
+                                          const_cast<uint32_t*>(MarkupGetText(markup)),
+                                          MarkupGetTextLength(markup),
+                                          settings,
+                                          &resolved,
+                                          outlayout);
 }
