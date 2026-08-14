@@ -26,6 +26,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   engine_service_null
   extension
   font
+  font_richtext
+  font_richtext_null
   font_render
   font_skribidi
   gameobject
@@ -365,10 +367,16 @@ endfunction()
 
 function(defold_get_font_libraries out_var)
   defold_feature_enabled(font_layout _with_font_layout)
+  defold_feature_disabled(font_richtext _without_font_richtext)
   if(_with_font_layout)
     set(_font_libs font_skribidi harfbuzz sheenbidi unibreak skribidi)
   else()
     set(_font_libs font)
+  endif()
+  if(_without_font_richtext)
+    list(APPEND _font_libs font_richtext_null)
+  else()
+    list(APPEND _font_libs font_richtext)
   endif()
   set(${out_var} ${_font_libs} PARENT_SCOPE)
 endfunction()

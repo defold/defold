@@ -12,11 +12,18 @@ set(RENDER_SRC_DIR "${RENDER_ROOT}/src")
 set(RENDER_PROTO_ROOT "${RENDER_ROOT}/proto")
 set(RENDER_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/render")
 set(RENDER_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/render")
+defold_feature_disabled(font_richtext RENDER_WITHOUT_FONT_RICHTEXT)
+if(RENDER_WITHOUT_FONT_RICHTEXT)
+  set(RENDER_RICHTEXT_DEPENDENCY font_richtext_null)
+else()
+  set(RENDER_RICHTEXT_DEPENDENCY font_richtext)
+endif()
 set(RENDER_DEPENDENCIES
   ddf
   dlib
   extension
   font
+  ${RENDER_RICHTEXT_DEPENDENCY}
   font_render
   graphics
   graphics_proto

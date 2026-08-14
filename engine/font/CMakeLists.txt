@@ -16,6 +16,7 @@ set(FONT_TRUETYPE_SRC_DIR "${FONT_SRC_DIR}/truetype")
 set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
   "${FONT_SRC_DIR}/fontcollection.h"
+  "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/text_layout.h")
 set(FONT_RENDER_PUBLIC_HEADERS
   "${FONT_RENDER_SRC_DIR}/font_render.h")
@@ -38,6 +39,8 @@ file(GLOB_RECURSE FONT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${FONT_SRC_DIR}/dmsdk/*.hpp")
 
 file(GLOB FONT_SOURCES CONFIGURE_DEPENDS "${FONT_SRC_DIR}/*.cpp")
+list(FILTER FONT_SOURCES EXCLUDE REGEX "/markup(_null)?\\.cpp$")
+list(FILTER FONT_SOURCES EXCLUDE REGEX "/text_layout_markup\\.cpp$")
 list(APPEND FONT_SOURCES
   "${FONT_TRUETYPE_SRC_DIR}/font_truetype.cpp"
   "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
@@ -46,6 +49,9 @@ set(FONT_GLYPH_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/glyph_vertex.cpp")
 set(FONT_RENDER_SOURCES
   "${FONT_RENDER_SRC_DIR}/font_render.cpp"
   "${FONT_GLYPH_VERTEX_SOURCE}")
+set(FONT_RICHTEXT_SOURCES
+  "${FONT_SRC_DIR}/markup.cpp"
+  "${FONT_SRC_DIR}/text_layout_markup.cpp")
 
 defold_add_library(font STATIC ${FONT_SOURCES})
 target_include_directories(font PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
@@ -66,6 +72,18 @@ target_compile_definitions(font_skribidi PRIVATE
   FONT_USE_SKRIBIDI)
 defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_SKRIBIDI_DEPENDENCIES})
 set_target_properties(font_skribidi PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
+defold_add_library(font_richtext STATIC ${FONT_RICHTEXT_SOURCES})
+target_include_directories(font_richtext PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}")
+target_compile_definitions(font_richtext PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font_richtext "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
+set_target_properties(font_richtext PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
+defold_add_library(font_richtext_null STATIC "${FONT_SRC_DIR}/markup_null.cpp")
+target_include_directories(font_richtext_null PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}")
+target_compile_definitions(font_richtext_null PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font_richtext_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
+set_target_properties(font_richtext_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
 
 if(NOT DEFOLD_ENGINE_LIB_SET STREQUAL "host")
   defold_add_library(font_render STATIC ${FONT_RENDER_SOURCES})
@@ -93,7 +111,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   target_compile_definitions(fontc_shared PRIVATE
     FONT_USE_HARFBUZZ
     FONT_USE_SKRIBIDI)
-  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi image profile_null)
+  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi font_richtext image profile_null)
   defold_codesign_target(fontc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(FONT_RENDERER_JAR "${CMAKE_CURRENT_BINARY_DIR}/fontrenderer.jar")
@@ -157,7 +175,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   install(FILES "${FONT_RENDERER_JAR}" DESTINATION share/java)
 endif()
 
-defold_install_targets(TARGETS font font_skribidi
+defold_install_targets(TARGETS font font_skribidi font_richtext font_richtext_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
@@ -210,6 +228,7 @@ add_custom_target(font_sdk_headers
 install(FILES
   "${FONT_SRC_DIR}/font.h"
   "${FONT_SRC_DIR}/fontcollection.h"
+  "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/text_layout.h"
   DESTINATION include/font)
 install(FILES ${FONT_RENDER_PUBLIC_HEADERS} DESTINATION include/font)

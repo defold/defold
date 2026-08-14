@@ -167,6 +167,20 @@
                                 :mobile {:context {:libs []}}}}
                    setting
                    identity)))))))
+  (testing "rich text can be replaced with its null implementation"
+    (is (false? (app-manifest/get-setting-value {} app-manifest/rich-text-setting)))
+    (let [excluded-manifest (app-manifest/set-setting-value {} app-manifest/rich-text-setting true)
+          included-manifest (app-manifest/set-setting-value excluded-manifest app-manifest/rich-text-setting false)]
+      (is (true? (app-manifest/get-setting-value excluded-manifest app-manifest/rich-text-setting)))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                     "font_richtext"))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :libs]))
+                     "font_richtext_null"))
+      (is (false? (app-manifest/get-setting-value included-manifest app-manifest/rich-text-setting)))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                          "font_richtext")))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :libs]))
+                          "font_richtext_null")))))
   (testing "choice setting is a enum of options or nil (indeterminate) setting"
     (let [setting (app-manifest/make-choice-setting
                     :all [(app-manifest/boolean-toggle :desktop :enabled true)

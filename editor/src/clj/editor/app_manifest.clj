@@ -79,6 +79,8 @@
     "engine_service_null"
     "extension"
     "font"
+    "font_richtext"
+    "font_richtext_null"
     "font_skribidi"
     "gamesys"
     "gamesys_gui"
@@ -494,6 +496,12 @@
     (concat
       (exclude-libs-toggles all-platforms ["font"])
       (libs-toggles all-platforms ["font_skribidi", "harfbuzz", "sheenbidi", "unibreak", "skribidi"]))))
+
+(def rich-text-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["font_richtext"])
+      (libs-toggles all-platforms ["font_richtext_null"]))))
 
 (def sound-setting
   (make-check-box-setting
@@ -1008,7 +1016,13 @@
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-font-layout))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter font-setting))
-            (set (setting-property-setter font-setting))))
+            (set (setting-property-setter font-setting)))
+  (property exclude-rich-text g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-rich-text))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-rich-text))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter rich-text-setting))
+            (set (setting-property-setter rich-text-setting))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type

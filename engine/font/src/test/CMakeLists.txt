@@ -17,6 +17,7 @@ function(font_configure_test target font_target)
     dlib
     profile_null
     ${font_target}
+    font_richtext
     font_render)
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_register_test_target(${target} ON "${FONT_ROOT}"
@@ -30,6 +31,63 @@ font_configure_test(test_font font)
 defold_add_executable(test_font_skribidi "${FONT_TEST_ROOT}/test_font.cpp")
 target_compile_definitions(test_font_skribidi PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
 font_configure_test(test_font_skribidi font_skribidi)
+
+defold_add_executable(test_markup "${FONT_TEST_ROOT}/test_markup.cpp")
+font_configure_test(test_markup font)
+
+defold_add_executable(test_markup_null "${FONT_TEST_ROOT}/test_markup_null.cpp")
+target_include_directories(test_markup_null PRIVATE
+  "${FONT_TEST_ROOT}"
+  "${FONT_SRC_DIR}"
+  "${FONT_ROOT}")
+defold_target_link_libraries(test_markup_null "${TARGET_PLATFORM}"
+  testmain
+  dlib
+  profile_null
+  font
+  font_richtext_null)
+defold_target_link_socket(test_markup_null "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_markup_null ON "${FONT_ROOT}")
+
+defold_add_executable(benchmark_text_layout
+  "${FONT_TEST_ROOT}/benchmark_text_layout.cpp"
+  "${FONT_SRC_DIR}/render/glyph_vertex.cpp")
+target_include_directories(benchmark_text_layout PRIVATE
+  "${FONT_TEST_ROOT}"
+  "${FONT_SRC_DIR}"
+  "${FONT_ROOT}")
+target_compile_definitions(benchmark_text_layout PRIVATE
+  FONT_BENCHMARK_MARKUP
+  FONT_BENCHMARK_TAGS
+  FONT_BENCHMARK_BUILD_LABEL="markup"
+  FONT_USE_HARFBUZZ
+  FONT_USE_SKRIBIDI)
+defold_target_link_libraries(benchmark_text_layout "${TARGET_PLATFORM}"
+  dlib
+  profile_null
+  font_skribidi
+  font_richtext)
+defold_target_link_socket(benchmark_text_layout "${TARGET_PLATFORM}" PRIVATE)
+
+defold_add_executable(benchmark_text_layout_null
+  "${FONT_TEST_ROOT}/benchmark_text_layout.cpp"
+  "${FONT_SRC_DIR}/render/glyph_vertex.cpp")
+target_include_directories(benchmark_text_layout_null PRIVATE
+  "${FONT_TEST_ROOT}"
+  "${FONT_SRC_DIR}"
+  "${FONT_ROOT}")
+target_compile_definitions(benchmark_text_layout_null PRIVATE
+  FONT_BENCHMARK_MARKUP
+  FONT_BENCHMARK_NULL
+  FONT_BENCHMARK_BUILD_LABEL="null_richtext"
+  FONT_USE_HARFBUZZ
+  FONT_USE_SKRIBIDI)
+defold_target_link_libraries(benchmark_text_layout_null "${TARGET_PLATFORM}"
+  dlib
+  profile_null
+  font_skribidi
+  font_richtext_null)
+defold_target_link_socket(benchmark_text_layout_null "${TARGET_PLATFORM}" PRIVATE)
 
 # Exercise the standalone parser directly even though the full-layout library
 # deliberately excludes it in favor of HarfBuzz.
@@ -140,6 +198,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     dlib
     profile_null
     font_skribidi
+    font_richtext
     font_render)
   set(WITH_OPENGL ON)
   defold_target_link_graphics(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)
