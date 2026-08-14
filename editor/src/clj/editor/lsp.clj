@@ -942,7 +942,12 @@
                (resource/editable? resource))
     (do (result-callback []) nil)
     (lsp (bound-fn [state]
-           (let [ch (a/chan (count cursor-ranges))]
+           ;; Every matching server answers every range, but the ranges are
+           ;; formatted as one edit, so mixing servers would corrupt the result.
+           ;; Keep whoever answers a range first and stop once all are answered.
+           (let [range-count (count cursor-ranges)
+                 ch (a/chan range-count (comp (util/distinct-by :requested-cursor-range)
+                                              (take range-count)))]
              (a/go (result-callback (<! (a/into [] ch))))
              (send-requests!
                state ch

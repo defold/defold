@@ -139,6 +139,12 @@
       (lsp/format-document! lsp resource indent-type ret)
       @ret)))
 
+(defn- format-ranges [lsp resource cursor-ranges indent-type]
+  (await-lsp lsp
+    (let [ret (promise)]
+      (lsp/format-ranges! lsp resource cursor-ranges indent-type ret)
+      @ret)))
+
 (defn- await-until [pred]
   (async-support/eventually
     (a/go-loop []
@@ -956,5 +962,37 @@
                                           "shutdown" (constantly nil)
                                           "exit" (constantly nil)})}})
         (is (nil? (format-document lsp resource :two-spaces))))
+
+      (set-servers! lsp #{}))))
+
+(deftest format-ranges-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-node-lsp project)
+          resource (test-util/resource workspace "/foo.json")
+          cursor-ranges [#code/range [[0 0] [0 10]]]
+          make-formatting-server (fn [new-text]
+                                   {:languages #{"json"}
+                                    :launcher (make-test-server-launcher
+                                                {"initialize" (constantly {:capabilities {:documentRangeFormattingProvider true}})
+                                                 "initialized" (constantly nil)
+                                                 "textDocument/rangeFormatting" (fn [{:keys [range]} _]
+                                                                                  [{:range range :newText new-text}])
+                                                 "shutdown" (constantly nil)
+                                                 "exit" (constantly nil)})})]
+      (testing "the reply is tagged with the range it answers"
+        (set-servers! lsp #{(make-formatting-server "a")})
+        (is (= [{:requested-cursor-range #code/range [[0 0] [0 10]]
+                 :edits [[#code/range [[0 0] [0 10]] ["a"]]]}]
+               (format-ranges lsp resource cursor-ranges :two-spaces))))
+
+      (testing "only one server's reply is used per range"
+        (set-servers! lsp #{(make-formatting-server "a")
+                            (make-formatting-server "b")})
+        (let [responses (format-ranges lsp resource cursor-ranges :two-spaces)
+              {:keys [requested-cursor-range edits]} (first responses)]
+          (is (= 1 (count responses)))
+          (is (= #code/range [[0 0] [0 10]] requested-cursor-range))
+          ;; whichever server won, its reply is used whole
+          (is (contains? #{["a"] ["b"]} (second (first edits))))))
 
       (set-servers! lsp #{}))))
