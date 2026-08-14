@@ -205,6 +205,7 @@ class TestLuaAnnotations(unittest.TestCase):
             metadata["migration"]["patch_entries"],
             sum(len(entries) for entries in manifest["patches"].values()))
         self.assertNotIn("known_types", metadata)
+        self.assertEqual({}, metadata["classes"]["hash"])
         self.assertEqual(
             {
                 "editor.schema",
@@ -555,6 +556,28 @@ class TestLuaAnnotations(unittest.TestCase):
             meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
             self.assertIn("---hash type", meta_lua)
             self.assertIn("---@alias hash userdata", meta_lua)
+
+    def test_source_typedef_can_be_rendered_as_nominal_class(self):
+        hash_type = typedef("hash", "userdata")
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
+            metadata_data["classes"]["hash"] = {}
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("hash.cpp", document("builtins", [hash_type]))],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn(
+                "---hash type\n---@class hash: userdata",
+                meta_lua)
+            self.assertNotIn("---@alias hash", meta_lua)
 
     def test_box2d_handle_types_remain_distinct_from_runtime_namespaces(self):
         handle_types = [

@@ -1116,6 +1116,10 @@ def _render_meta(
             lines.extend(_render_documented_class(class_name, element, metadata))
         class_data = metadata.get("classes", {}).get(class_name) or {}
         if not documented_class:
+            documented_alias = documented_aliases.get(class_name)
+            if documented_alias:
+                _, element, _ = documented_alias
+                lines.extend(lua_doc_lines(element.description or element.brief))
             base = aliases.get(class_name)
             lines.append("---@class %s%s" % (
                 class_name,
