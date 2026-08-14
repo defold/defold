@@ -63,6 +63,8 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static const char* GUI_MAX_COUNT_KEY = "gui.max_count";
+
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
@@ -1211,7 +1213,7 @@ namespace dmGameSystem
 
         if (gui_world->m_Components.Full())
         {
-            ShowFullBufferError("Gui", "gui.max_count", gui_world->m_Components.Capacity());
+            ShowFullBufferError("Gui", GUI_MAX_COUNT_KEY, gui_world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
@@ -3649,7 +3651,7 @@ namespace dmGameSystem
         gui_context->m_GuiContext = (dmGui::HContext) ContextRegistryGet(context_registry, "guic");
         gui_context->m_ScriptContext = (dmScript::HContext) ContextRegistryGet(context_registry, "gui_scriptc");
 
-        gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
+        gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, GUI_MAX_COUNT_KEY, 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
         gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
         gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);

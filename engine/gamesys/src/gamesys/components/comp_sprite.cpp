@@ -57,6 +57,8 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static const char* SPRITE_MAX_COUNT_KEY = "sprite.max_count";
+
     // In general, rare overrides should be kept out of the struct, to keep memory down
     struct SpriteResourceOverrides
     {
@@ -738,7 +740,7 @@ namespace dmGameSystem
 
         if (sprite_world->m_Components.Full())
         {
-            ShowFullBufferError("Sprite", "sprite.max_count", sprite_world->m_Components.Capacity());
+            ShowFullBufferError("Sprite", SPRITE_MAX_COUNT_KEY, sprite_world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = sprite_world->m_Components.Alloc();

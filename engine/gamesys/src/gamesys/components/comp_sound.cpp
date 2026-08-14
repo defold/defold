@@ -37,6 +37,8 @@ DM_PROPERTY_U32(rmtp_SoundPlaying, 0, PROFILE_PROPERTY_FRAME_RESET, "# sounds pl
 
 namespace dmGameSystem
 {
+    static const char* SOUND_MAX_COMPONENT_COUNT_KEY = "sound.max_component_count";
+
     static const dmhash_t SOUND_EXT_HASHES[] = { dmHashString64("wavc"), dmHashString64("oggc"), dmHashString64("opusc") };
 
     struct PlayEntry
@@ -128,7 +130,7 @@ namespace dmGameSystem
         SoundWorld* world = (SoundWorld*)params.m_World;
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Sound", "sound.max_component_count", world->m_Components.Capacity());
+            ShowFullBufferError("Sound", SOUND_MAX_COMPONENT_COUNT_KEY, world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
@@ -533,7 +535,7 @@ namespace dmGameSystem
     {
         SoundContext* context = new SoundContext;
         context->m_Factory = ctx->m_Factory;
-        context->m_MaxComponentCount  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_component_count", 32);
+        context->m_MaxComponentCount  = dmConfigFile::GetInt(ctx->m_Config, SOUND_MAX_COMPONENT_COUNT_KEY, 32);
         context->m_MaxSoundInstances  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_sound_instances", 256);
 
         int32_t stream_chunk_size = dmConfigFile::GetInt(ctx->m_Config, "sound.stream_chunk_size", 16384);
