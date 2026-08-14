@@ -2474,7 +2474,7 @@
 (defn- refresh-accelerators! [scene keymap]
   (when-not (identical? keymap (user-data scene ::accelerators))
     (user-data! scene ::accelerators keymap)
-    (keymap/install! keymap scene execute-accelerator-commands)))
+    (keymap/install! keymap scene execute-accelerator-commands (os/os))))
 
 (defn refresh
   ([^Scene scene]

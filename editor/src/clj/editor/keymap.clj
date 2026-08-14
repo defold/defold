@@ -126,6 +126,7 @@
            ["S" :scene.free-camera.backward]
            ["Shift+A" :edit.add-secondary-embedded-component]
            ["Shift+Alt+Down" :code.select-line-end]
+           ["Shift+Alt+F" :code.format]
            ["Shift+Alt+Left" :code.select-previous-word]
            ["Shift+Alt+Right" :code.select-next-word]
            ["Shift+Alt+Up" :code.select-line-start]
@@ -133,7 +134,6 @@
            ["Shift+Backspace" :code.delete-previous-char]
            ["Shift+Ctrl+A" :code.select-line-start]
            ["Shift+Ctrl+E" :code.select-line-end]
-           ["Shift+Ctrl+F" :code.format]
            ["Shift+Ctrl+Left" :code.select-previous-word]
            ["Shift+Ctrl+Right" :code.select-next-word]
            ["Shift+Down" :scene.move-down-major]
@@ -740,21 +740,31 @@
 
 (defn install!
   "Install a keymap on a scene, replacing any predefined accelerators"
-  [keymap ^Scene scene execute-fn]
-  (when-let [old-handler (.get (.getProperties scene) ::keymap)]
-    (.removeEventHandler scene KeyEvent/KEY_PRESSED old-handler))
+  [keymap ^Scene scene execute-fn os]
+  (when-let [{:keys [pressed-handler typed-filter]} (.get (.getProperties scene) ::keymap)]
+    (.removeEventHandler scene KeyEvent/KEY_PRESSED ^EventHandler pressed-handler)
+    (.removeEventFilter scene KeyEvent/KEY_TYPED ^EventHandler typed-filter))
   (let [{:keys [shortcut->commands]} keymap
-        new-handler (reify EventHandler
-                      (handle [_ e]
-                        (reduce-kv
-                          (fn [_ ^KeyCombination shortcut commands]
-                            (when (.match shortcut e)
-                              (.consume e)
-                              (reduced (execute-fn commands))))
-                          nil
-                          shortcut->commands)))]
-    (.put (.getProperties scene) ::keymap new-handler)
-    (.addEventHandler scene KeyEvent/KEY_PRESSED new-handler))
+        suppress-key-typed-volatile (volatile! false)
+        pressed-handler (reify EventHandler
+                          (handle [_ e]
+                            (vreset! suppress-key-typed-volatile false)
+                            (reduce-kv
+                              (fn [_ ^KeyCombination shortcut commands]
+                                (when (.match shortcut e)
+                                  (vreset! suppress-key-typed-volatile (typable? shortcut os))
+                                  (.consume e)
+                                  (reduced (execute-fn commands))))
+                              nil
+                              shortcut->commands)))
+        typed-filter (reify EventHandler
+                       (handle [_ e]
+                         (when @suppress-key-typed-volatile
+                           (.consume ^KeyEvent e))))]
+    (.put (.getProperties scene) ::keymap {:pressed-handler pressed-handler
+                                           :typed-filter typed-filter})
+    (.addEventHandler scene KeyEvent/KEY_PRESSED pressed-handler)
+    (.addEventFilter scene KeyEvent/KEY_TYPED typed-filter))
   nil)
 
 (defn shortcut-display-text
