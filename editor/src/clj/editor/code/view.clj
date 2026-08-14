@@ -3100,15 +3100,11 @@
 (defn- formatting-selected-rows? [cursor-ranges]
   (coll/not-every? data/cursor-range-empty? cursor-ranges))
 
-(handler/defhandler :code.format-document :code-view
+(handler/defhandler :code.format :code-view
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)]
-      (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
-  (label [view-node evaluation-context]
-    (if (formatting-selected-rows? (get-property view-node :cursor-ranges evaluation-context))
-      (localization/message "command.code.format-selection")
-      (localization/message "command.code.format-document")))
+              (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
   (run [view-node]
     (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
                lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
@@ -3672,7 +3668,7 @@
    {:command :code.toggle-comment :label (localization/message "command.code.toggle-comment")}
    {:command :code.reindent :label (localization/message "command.code.reindent-lines")}
    {:command :code.convert-indentation :expand true}
-   {:command :code.format-document :label (localization/message "command.code.format-document")}
+   {:command :code.format :label (localization/message "command.code.format")}
    {:label :separator}
    {:command :code.sort-lines :user-data :case-insensitive}
    {:command :code.sort-lines :user-data :case-sensitive}
