@@ -13,10 +13,29 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.keymap-test
-  (:require [clojure.test :refer :all]
+  (:require [cljfx.api :as fx]
+            [clojure.test :refer :all]
             [editor.keymap :as keymap]
             [util.coll :as coll])
-  (:import [javafx.scene.input KeyCombination]))
+  (:import [javafx.event EventHandler]
+           [javafx.scene Scene]
+           [javafx.scene.input KeyCode KeyCombination KeyEvent]
+           [javafx.scene.layout Pane]))
+
+(defn- key-event
+  [event-type character key-code & {:keys [shift control alt meta]}]
+  (KeyEvent. event-type
+             character
+             (if (= KeyEvent/KEY_TYPED event-type) "" character)
+             key-code
+             (boolean shift)
+             (boolean control)
+             (boolean alt)
+             (boolean meta)))
+
+(defn- fire-key-event! [target event]
+  (.fireEvent target event)
+  event)
 
 (deftest default-bindings-are-valid-test
   (doseq [os [:macos :win32 :linux]
@@ -76,3 +95,56 @@
         (is (nil? (keymap/commands m2 "Meta+A")))
         (is (nil? (keymap/shortcuts m2 :a)))
         (is (nil? (keymap/warnings m2 :a)))))))
+
+(deftest installed-keymap-suppresses-typed-shortcut-characters-test
+  @(fx/on-fx-thread
+     (let [root (Pane.)
+           scene (Scene. root)
+           executed (atom [])
+           typed (atom [])
+           keymap (keymap/from keymap/empty :macos {:format {:add #{"Shift+Alt+F"}}})]
+       (.addEventHandler root KeyEvent/KEY_TYPED
+                         (reify EventHandler
+                           (handle [_ event]
+                             (swap! typed conj (.getCharacter ^KeyEvent event)))))
+       (keymap/install! keymap scene #(swap! executed conj %) :macos)
+
+       (fire-key-event! root (key-event KeyEvent/KEY_PRESSED KeyEvent/CHAR_UNDEFINED KeyCode/F
+                                        :shift true :alt true))
+       (fire-key-event! root (key-event KeyEvent/KEY_TYPED "Ï" KeyCode/UNDEFINED
+                                        :shift true :alt true))
+       (fire-key-event! root (key-event KeyEvent/KEY_TYPED "unexpected-second-event" KeyCode/UNDEFINED
+                                        :shift true :alt true))
+       (is (= [#{:format}] @executed))
+       (is (coll/empty? @typed))
+
+       (fire-key-event! root (key-event KeyEvent/KEY_PRESSED KeyEvent/CHAR_UNDEFINED KeyCode/X))
+       (fire-key-event! root (key-event KeyEvent/KEY_TYPED "x" KeyCode/UNDEFINED))
+       (is (= ["x"] @typed)))))
+
+(deftest installed-keymap-does-not-suppress-non-typable-shortcut-characters-test
+  @(fx/on-fx-thread
+     (let [root (Pane.)
+           scene (Scene. root)
+           typed (atom [])
+           keymap (keymap/from keymap/empty :macos {:find {:add #{"Meta+F"}}})]
+       (.addEventHandler root KeyEvent/KEY_TYPED
+                         (reify EventHandler
+                           (handle [_ event]
+                             (swap! typed conj (.getCharacter ^KeyEvent event)))))
+       (keymap/install! keymap scene (constantly nil) :macos)
+       (fire-key-event! root (key-event KeyEvent/KEY_PRESSED KeyEvent/CHAR_UNDEFINED KeyCode/F :meta true))
+       (fire-key-event! root (key-event KeyEvent/KEY_TYPED "f" KeyCode/UNDEFINED :meta true))
+       (is (= ["f"] @typed)))))
+
+(deftest reinstall-keymap-removes-old-handlers-test
+  @(fx/on-fx-thread
+     (let [root (Pane.)
+           scene (Scene. root)
+           executed (atom [])
+           first-keymap (keymap/from keymap/empty :macos {:first {:add #{"Meta+F"}}})
+           second-keymap (keymap/from keymap/empty :macos {:second {:add #{"Meta+F"}}})]
+       (keymap/install! first-keymap scene #(swap! executed conj %) :macos)
+       (keymap/install! second-keymap scene #(swap! executed conj %) :macos)
+       (fire-key-event! root (key-event KeyEvent/KEY_PRESSED KeyEvent/CHAR_UNDEFINED KeyCode/F :meta true))
+       (is (= [#{:second}] @executed)))))
