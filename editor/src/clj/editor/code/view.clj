@@ -3102,7 +3102,7 @@
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)]
-              (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
+      (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
   (run [view-node]
     (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
                lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
