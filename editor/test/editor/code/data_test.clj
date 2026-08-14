@@ -15,6 +15,9 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
             [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
             [editor.code.script :as script])
   (:import (java.io IOException)
@@ -1733,12 +1736,15 @@
                 :cursor-ranges [#code/range [[0 4] [0 4]]]}
                (key-typed ["''''"] [(c 0 3)] "'")))))))
 
+(defn- apply-lines
+  "The lines that result from applying edits, or the lines as they were if there are none"
+  [lines edits]
+  (if (seq edits)
+    (:lines (data/apply-edits lines [] [] edits))
+    lines))
+
 (deftest format-document-edits-test
-  (letfn [(apply-lines [lines edits]
-            (if (seq edits)
-              (:lines (data/apply-edits lines [] [] edits))
-              lines))
-          (format-lines [lines replacement-lines]
+  (letfn [(format-lines [lines replacement-lines]
             (apply-lines lines (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]])))]
     (testing "preserves additions and removals of the final newline"
       (are [lines replacement-lines]
@@ -1766,6 +1772,29 @@
         ["" "b" "c"] [[(cr [0 0] [1 0]) [""]]]
         ["a" "" "b"] [[(cr [1 0] [2 0]) [""]]]
         ["a" "" ""] [[(cr [1 0] [2 0]) [""]]]))))
+
+(def ^:private format-line-gen
+  (gen/elements ["" " " "  " "\t" "a" "b" "a b" "  a" "a  "]))
+
+(defn- whole-row-edit
+  [lines ^long begin-row ^long end-row replacement-rows]
+  (if (< end-row (count lines))
+    [(cr [begin-row 0] [end-row 0]) (conj replacement-rows "")]
+    (let [last-row (dec end-row)]
+      [(cr [begin-row 0] [last-row (count (lines last-row))])
+       (if (seq replacement-rows) replacement-rows [""])])))
+
+(defspec format-document-edits-preserves-applied-lines 200
+  ;; format-document-edits splits an edit into finer-grained ones so cursors stay
+  ;; put, which must never change the lines the edit produces.
+  (prop/for-all
+    [[lines edit] (gen/let [lines (gen/vector format-line-gen 1 6)
+                            begin-row (gen/choose 0 (dec (count lines)))
+                            end-row (gen/choose (inc begin-row) (count lines))
+                            replacement-rows (gen/vector format-line-gen 0 4)]
+                    [lines (whole-row-edit lines begin-row end-row replacement-rows)])]
+    (= (apply-lines lines [edit])
+       (apply-lines lines (data/format-document-edits lines [edit])))))
 
 (deftest format-document-edits-minimality-test
   (letfn [(document-edits [lines replacement-lines]
