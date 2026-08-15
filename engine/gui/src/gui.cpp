@@ -4887,14 +4887,32 @@ namespace dmGui
         if (n->m_Node.m_FlipbookAnimHash != 0)
         {
             float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
+            // The visible cursor is ambiguous at a loop wrap, so preserve the active animation phase separately.
+            Animation* source_animation = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            bool copy_animation_phase = source_animation != 0 && source_animation->m_Cancelled == 0;
+            float animation_elapsed = copy_animation_phase ? source_animation->m_Elapsed : 0.0f;
+            uint16_t animation_backwards = copy_animation_phase ? source_animation->m_Backwards : 0;
+
             // Convert the visible cursor back to playback progress before starting the clone.
-            float offset = GetNodeFlipbookCursor(scene, node);
+            float cursor = GetNodeFlipbookCursor(scene, node);
+            float offset = cursor;
             Playback playback = (Playback)n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback;
             if (playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD)
             {
                 offset = 1.0f - offset;
             }
             PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, offset, playback_rate, 0, 0, 0);
+
+            if (copy_animation_phase)
+            {
+                Animation* clone_animation = GetComponentAnimation(scene, *out_node, &out_n->m_Node.m_FlipbookAnimPosition);
+                if (clone_animation != 0)
+                {
+                    clone_animation->m_Elapsed = animation_elapsed;
+                    clone_animation->m_Backwards = animation_backwards;
+                    out_n->m_Node.m_FlipbookAnimPosition = cursor;
+                }
+            }
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)
