@@ -489,7 +489,13 @@ TEST(dmSys, GetSystemInfo)
     CHECK_LANG_TERR("sv", "sv", "sv", "");
     CHECK_LANG_TERR("sv_SE", "sv", "sv", "SE");
     CHECK_LANG_TERR("sv-SE", "sv", "sv", "SE");
+    CHECK_LANG_TERR("en_GB.UTF-8", "en", "en", "GB");
+    CHECK_LANG_TERR("en_GB.utf8", "en", "en", "GB");
+    CHECK_LANG_TERR("en_GB.UTF-8@euro", "en", "en", "GB");
+    CHECK_LANG_TERR("en_GB@euro", "en", "en", "GB");
+    CHECK_LANG_TERR("C.UTF-8", "C", "C", "");
     CHECK_LANG_TERR("zh_Hant_CN", "zh", "zh-Hant", "CN");
+    CHECK_LANG_TERR("zh_Hant_CN.UTF-8", "zh", "zh-Hant", "CN");
     CHECK_LANG_TERR("zh-Hant-CN", "zh", "zh-Hant", "CN");
     CHECK_LANG_TERR("zh_Hant-CN", "zh", "zh-Hant", "CN");
     CHECK_LANG_TERR("zh-Hant_CN", "zh", "zh-Hant", "CN");
