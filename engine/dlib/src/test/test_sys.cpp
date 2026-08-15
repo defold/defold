@@ -485,21 +485,37 @@ TEST(dmSys, GetSystemInfo)
 
     CHECK_LANG_TERR((const char*)0x0, "en", "en", "US");
     CHECK_LANG_TERR("", "en", "en", "US");
-    CHECK_LANG_TERR("e", "e", "e", "");
+
+    // BCP 47 tags returned by Android and browsers.
     CHECK_LANG_TERR("sv", "sv", "sv", "");
-    CHECK_LANG_TERR("sv_SE", "sv", "sv", "SE");
     CHECK_LANG_TERR("sv-SE", "sv", "sv", "SE");
-    CHECK_LANG_TERR("en_GB.UTF-8", "en", "en", "GB");
-    CHECK_LANG_TERR("en_GB.utf8", "en", "en", "GB");
-    CHECK_LANG_TERR("en_GB.UTF-8@euro", "en", "en", "GB");
-    CHECK_LANG_TERR("en_GB@euro", "en", "en", "GB");
+    CHECK_LANG_TERR("fil-PH", "fil", "fil", "PH");
+    CHECK_LANG_TERR("es-419", "es", "es", "419");
+
+    // Script is optional in BCP 47 and is not inferred from region.
+    // https://www.rfc-editor.org/rfc/rfc5646.html#section-2.2.3
+    CHECK_LANG_TERR("zh-CN", "zh", "zh", "CN");
+    CHECK_LANG_TERR("zh-TW", "zh", "zh", "TW");
+    CHECK_LANG_TERR("zh-Hans-AU", "zh", "zh-Hans", "AU");
+    CHECK_LANG_TERR("zh-Hant-HK", "zh", "zh-Hant", "HK");
+
+    // POSIX locale names are system-specific. Codesets and modifiers are not
+    // BCP 47 script subtags and are ignored.
+    // https://sourceware.org/glibc/manual/latest/html_node/Locale-Names.html
     CHECK_LANG_TERR("C.UTF-8", "C", "C", "");
-    CHECK_LANG_TERR("zh_Hant_CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh_Hant_CN.UTF-8", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh-Hant-CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh_Hant-CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh-Hant_CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh_Hant-xxx_xxx_CN", "zh", "zh-Hant-xxx_xxx", "CN");
+    CHECK_LANG_TERR("POSIX", "POSIX", "POSIX", "");
+    CHECK_LANG_TERR("en_GB.UTF-8", "en", "en", "GB");
+    CHECK_LANG_TERR("de_DE@euro", "de", "de", "DE");
+    CHECK_LANG_TERR("sr_RS@latin", "sr", "sr", "RS");
+
+    // Apple currentLocale output observed with a non-Gregorian calendar.
+    CHECK_LANG_TERR("en_SE@calendar=Hebrew", "en", "en", "SE");
+
+    // Locale names shipped or documented by Windows NLS, including a script,
+    // a registered variant, and an alternate sort order.
+    CHECK_LANG_TERR("uz-Latn-UZ", "uz", "uz-Latn", "UZ");
+    CHECK_LANG_TERR("ca-ES-valencia", "ca", "ca", "ES");
+    CHECK_LANG_TERR("hu-HU_technl", "hu", "hu", "HU");
 
 #undef CHECK_LANG_TERR
 

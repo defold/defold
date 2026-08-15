@@ -229,49 +229,68 @@ namespace dmSys
 
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
     {
-        // POSIX locale names use <language>[_<territory>][.<codeset>][@<modifier>].
-        // Ignore the codeset and modifier before parsing the language tag.
-        size_t lang_len = lang ? strcspn(lang, ".@") : 0;
-        if(lang_len == 0)
+        // Platform locale names start with language[-script][-region]. Apple
+        // and POSIX may use underscores; POSIX may append codeset or modifier data.
+        const char* separators = "-_.@";
+        size_t language_len = lang ? strcspn(lang, separators) : 0;
+        if (language_len == 0)
         {
             lang = "en_US";
-            lang_len = strlen(lang);
+            language_len = 2;
             dmLogWarning("Invalid language parameter (empty field), using default: \"%s\"", lang);
         }
-        const char* lang_end = lang + lang_len;
+        dmStrlCpy(info->m_Language, lang, dmMath::Min(sizeof(info->m_Language), language_len + 1));
 
-        // Find the first and last separator ("-" or "_") in the cleaned locale name.
-        const char* sep_first = lang;
-        while((sep_first != lang_end) && (*sep_first != '-') && (*sep_first != '_'))
-            ++sep_first;
-        const char* sep_last = lang_end;
-        while((sep_last != sep_first) && (*sep_last != '-') && (*sep_last != '_'))
-            --sep_last;
+        const char* script = 0;
+        const char* region = 0;
+        size_t region_len = 0;
 
-        dmStrlCpy(info->m_Language, lang, dmMath::Min((size_t)(sep_first+1 - lang), sizeof(info->m_Language)));
+        // The subtag after the language is either a four-letter script or the
+        // region itself.
+        const char* subtag = lang + language_len;
+        if (*subtag == '-' || *subtag == '_')
+            ++subtag;
+        size_t subtag_len = strcspn(subtag, separators);
 
-        if(sep_first != sep_last)
+        // RFC 5646 section 2.2.3 defines script as an optional subtag that is
+        // separate from region. Preserve it only when the platform supplied it.
+        // https://www.rfc-editor.org/rfc/rfc5646.html#section-2.2.3
+        const char* ascii_letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        if (subtag_len == 4 && strspn(subtag, ascii_letters) == subtag_len)
         {
-            // With multiple separators, everything before the last one forms the device language (for example, <language>-<script>).
-            dmStrlCpy(info->m_DeviceLanguage, lang, dmMath::Min((size_t)(sep_last+1 - lang), sizeof(info->m_DeviceLanguage)));
-            info->m_DeviceLanguage[sep_first - lang] = '-';
-        }
-        else
-        {
-            // Without a script, the device language defaults to the language.
-            dmStrlCpy(info->m_DeviceLanguage, info->m_Language, dmMath::Min(sizeof(info->m_DeviceLanguage), sizeof(info->m_Language)));
-        }
+            script = subtag;
 
-        if(sep_last != lang_end)
-        {
-            dmStrlCpy(info->m_Territory, sep_last + 1, dmMath::Min((size_t)(lang_end - sep_last), sizeof(info->m_Territory)));
-        }
-        else
-        {
-            info->m_Territory[0] = '\0';
-            dmLogWarning("No territory detected in language string: \"%s\"", lang);
+            // If there is a script, the following subtag may be the region.
+            subtag += subtag_len;
+            if (*subtag == '-' || *subtag == '_')
+                ++subtag;
+            subtag_len = strcspn(subtag, separators);
         }
 
+        // Regions are either two ASCII letters or three digits.
+        bool is_region =
+            (subtag_len == 2 && strspn(subtag, ascii_letters) == subtag_len) ||
+            (subtag_len == 3 && strspn(subtag, "0123456789") == subtag_len);
+        if (is_region)
+        {
+            region = subtag;
+            region_len = subtag_len;
+        }
+
+        // Expose only explicitly supplied language-script and region. POSIX
+        // metadata, variants, extensions, and Windows sort-order subtags are ignored.
+        dmStrlCpy(info->m_DeviceLanguage, info->m_Language, sizeof(info->m_DeviceLanguage));
+        if (script)
+        {
+            char script_code[5];
+            dmStrlCpy(script_code, script, sizeof(script_code));
+            dmStrlCat(info->m_DeviceLanguage, "-", sizeof(info->m_DeviceLanguage));
+            dmStrlCat(info->m_DeviceLanguage, script_code, sizeof(info->m_DeviceLanguage));
+        }
+
+        info->m_Territory[0] = '\0';
+        if (region)
+            dmStrlCpy(info->m_Territory, region, region_len + 1);
     }
 
     void PumpMessageQueue() {
