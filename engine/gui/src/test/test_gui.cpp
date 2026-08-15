@@ -114,6 +114,8 @@ dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSour
     out_data->m_TexCoords = &uv_quad[0];
     out_data->m_State.m_End = 1;
     out_data->m_State.m_FPS = 30;
+    if (animation == dmHashString64("ta_backward"))
+        out_data->m_State.m_Playback = dmGui::PLAYBACK_ONCE_BACKWARD;
     out_data->m_FlipHorizontal = 1;
     return dmGui::FETCH_ANIMATION_OK;
 }
@@ -5463,6 +5465,40 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
     ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), dmGui::GetNodeFlipbookAnimId(m_Scene, clone));
 
     // cleanup
+    dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
+}
+
+TEST_F(dmGuiTest, CloneNodeAndBackwardAnim)
+{
+    int t1;
+    dmGui::Result r;
+
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta_backward", 0.25f, 2.0f, 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(0.75f, dmGui::GetNodeFlipbookCursor(m_Scene, node));
+
+    dmGui::HNode clone;
+    r = dmGui::CloneNode(m_Scene, node, &clone);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_NE((dmGui::HNode) 0, clone);
+
+    ASSERT_EQ(dmGui::GetNodeFlipbookPlaybackRate(m_Scene, node), dmGui::GetNodeFlipbookPlaybackRate(m_Scene, clone));
+    ASSERT_EQ(dmGui::GetNodeFlipbookCursor(m_Scene, node), dmGui::GetNodeFlipbookCursor(m_Scene, clone));
+    ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), dmGui::GetNodeFlipbookAnimId(m_Scene, clone));
+
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 240.0f);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(dmGui::GetNodeFlipbookCursor(m_Scene, node), dmGui::GetNodeFlipbookCursor(m_Scene, clone));
+
     dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
 }
 
