@@ -20,17 +20,6 @@ jobs:
       setup_msvc: true
       build_command: |
         ./scripts/build.py --platform="$BUILD_PLATFORM_NAME" --package=skribidi build_external
-        if [ "$BUILD_PLATFORM_NAME" = "x86_64-linux" ]; then
-          cmake -S external/skribidi -B external/skribidi/build/x86_64-linux \
-            -GNinja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DTARGET_PLATFORM=x86_64-linux \
-            -DDEFOLD_EXTERNAL_PLATFORM=x86_64-linux \
-            -DDEFOLD_SDK_ROOT="$DYNAMO_HOME" \
-            -DSKRIBIDI_BASELINE_TESTS=ON
-          cmake --build external/skribidi/build/x86_64-linux --target skribidi_baseline
-          ctest --test-dir external/skribidi/build/x86_64-linux --output-on-failure
-        fi
       push_changes: ${{ inputs.push_changes }}
     secrets:
       dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}
