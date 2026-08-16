@@ -9,6 +9,13 @@ add_compile_definitions(DLIB_LOG_DOMAIN="PROFILER")
 
 set(PROFILER_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(PROFILER_SRC_DIR "${PROFILER_ROOT}/src")
+set(PROFILER_GRAPHICS_DEPENDENCIES
+  graphics_null
+  image
+  graphics_proto)
+if(DEFOLD_PLATFORM_PROFILER_GRAPHICS_DEPENDENCIES)
+  set(PROFILER_GRAPHICS_DEPENDENCIES ${DEFOLD_PLATFORM_PROFILER_GRAPHICS_DEPENDENCIES})
+endif()
 set(PROFILER_DEPENDENCIES
   dlib
   zip
@@ -17,9 +24,7 @@ set(PROFILER_DEPENDENCIES
   resource
   extension
   script
-  graphics_null
-  image
-  graphics_proto
+  ${PROFILER_GRAPHICS_DEPENDENCIES}
   render
   render_font_default
   font

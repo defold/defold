@@ -8,9 +8,10 @@ defold_log("functions_platform.cmake:")
 #   defold_target_link_platform(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])
 #
 # Selection rules:
+# - A private platform may explicitly select its platform library
 # - Web targets -> platform
-# - GLFW3 desktop targets (macOS, Linux, Win32, Nx64):
-#     - If WITH_VULKAN=ON OR platform in {arm64-macos,x86_64-macos,arm64-nx64}
+# - GLFW3 desktop targets (macOS, Linux, Win32):
+#     - If WITH_VULKAN=ON OR platform in {arm64-macos,x86_64-macos}
 #       -> platform_vulkan
 #     - Else -> platform
 # - Other targets -> platform
@@ -28,22 +29,24 @@ function(defold_target_link_platform target platform)
         message(FATAL_ERROR "functions_platform: platform argument is required")
     endif()
 
-    # Web platforms map to platform
-    if(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
+    if(DEFOLD_PLATFORM_WINDOW_LIBRARY)
+        set(_plat_lib "${DEFOLD_PLATFORM_WINDOW_LIBRARY}")
+    # Web platforms use their platform-native window integration.
+    elseif(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
         set(_plat_lib platform)
     else()
         # Platforms using GLFW 3 (same set as waf's platform_glfw_version == 3)
-        set(_glfw3_platforms "x86_64-macos;arm64-macos;x86_64-win32;x86-win32;x86_64-linux;arm64-linux;arm64-nx64")
+        set(_glfw3_platforms "x86_64-macos;arm64-macos;x86_64-win32;x86-win32;x86_64-linux;arm64-linux")
 
         list(FIND _glfw3_platforms "${platform}" _idx)
         if(NOT _idx EQUAL -1)
-            # Vulkan if requested or on macOS/Nx64
+            # Vulkan if requested or on macOS
             set(_WITH_VULKAN OFF)
             if(DEFINED WITH_VULKAN AND WITH_VULKAN)
                 set(_WITH_VULKAN ON)
             endif()
 
-            if(_WITH_VULKAN OR platform STREQUAL "arm64-macos" OR platform STREQUAL "x86_64-macos" OR platform STREQUAL "arm64-nx64")
+            if(_WITH_VULKAN OR platform STREQUAL "arm64-macos" OR platform STREQUAL "x86_64-macos")
                 set(_plat_lib platform_vulkan)
             else()
                 set(_plat_lib platform)

@@ -106,35 +106,37 @@ def _exec_command(arg_list, **kwargs):
         arg_str = _sanitize_text(arg_str, secrets)
     if not silent: log('[exec] %s' % arg_str)
 
-    if sys.stdout.isatty():
-        # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
-        if not 'stdout' in kwargs:
-            kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
-        process = subprocess.Popen(arg_list, **kwargs)
-        output = process.communicate()[0]
-        if process.returncode != 0:
-            if not silent: log(_sanitize_text(output, secrets))
-    else:
-        # On the CI machines, we make sure we produce a steady stream of output
-        # However, this also makes us lose the color information
-        if 'stdout' in kwargs:
-            del kwargs['stdout']
-        process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
+    # Keep stdout and stderr in their original order. In particular, Ninja may
+    # print the failed command on stdout while the compiler or linker writes the
+    # useful diagnostic to stderr.
+    stream_output = 'stdout' not in kwargs and 'stderr' not in kwargs
+    if stream_output:
+        kwargs['stdout'] = subprocess.PIPE
+        kwargs['stderr'] = subprocess.STDOUT
 
-        output = ''
+    process = subprocess.Popen(arg_list, **kwargs)
+    output = ''
+    if stream_output:
         while True:
-            line = process.stdout.readline().decode(errors='replace')
-            if line != '':
-                output += line
-                if not silent: log(_sanitize_text(line, secrets).rstrip())
-            else:
+            line = _to_str(process.stdout.readline())
+            if line == '':
                 break
+            output += line
+            if not silent:
+                log(_sanitize_text(line, secrets).rstrip('\r\n'))
+        process.stdout.close()
+    else:
+        captured_stdout, captured_stderr = process.communicate()
+        output = _to_str(captured_stdout) + _to_str(captured_stderr)
 
-    if process.wait() != 0:
-        e = ExecException(process.returncode)
-        e.output = _sanitize_text(output, secrets)
-        log('[exec] %s' % arg_str)
-        log("Error: %s" % _sanitize_text(output, secrets))
+    retcode = process.wait()
+    output = _sanitize_text(output, secrets)
+    if retcode != 0:
+        e = ExecException(retcode)
+        e.output = output
+        if not silent:
+            log('[exec] failed command: %s' % arg_str)
+            log('[exec] command failed with exit code %s' % retcode)
         raise e
 
     output = _to_str(output)

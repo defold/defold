@@ -465,6 +465,12 @@ function(defold_register_test_target target_name)
   else()
     target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=0)
   endif()
+  if(DEFOLD_PLATFORM_TEST_REQUIRES_TESTMAIN AND TARGET testmain)
+    target_link_libraries(${target_name} PRIVATE testmain)
+  endif()
+  if(DEFOLD_PLATFORM_TEST_LINK_OPTIONS)
+    target_link_options(${target_name} PRIVATE ${DEFOLD_PLATFORM_TEST_LINK_OPTIONS})
+  endif()
   _defold_force_load_ios_testmain(${target_name})
 
   # Keep tests out of the default 'all' build. They are built via build_tests
