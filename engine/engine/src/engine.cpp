@@ -668,48 +668,53 @@ namespace dmEngine
         }
     }
 
-    static bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
+    bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
     {
+        // check up to four paths
+        char p0[DMPATH_MAX_PATH];   // projectc file if provided via last argument
+        char p1[DMPATH_MAX_PATH];   // mount: game.projectc
+        char p2[DMPATH_MAX_PATH];   // mount: build/default/game.projectc
+        char p3[DMPATH_MAX_PATH];   // game.projectc if resource path is provided
+        char* paths[4] = { 0x0, p1, p2, 0x0};
+
         if (argc > 1 && argv[argc-1][0] != '-')
         {
-            dmStrlCpy(project_file, argv[argc-1], project_file_size);
-            return true;
-        }
-        else
-        {
-            char p1[DMPATH_MAX_PATH];
-            char p2[DMPATH_MAX_PATH];
-            char p3[DMPATH_MAX_PATH];
-            char* paths[3];
-            uint32_t count = 0;
-
-            const char* mountstr = "";
-#if defined(__NX__)
-            mountstr = "data:/";
-#endif
-            // there's no way to check for a named mount, and it will assert
-            // So we'll only enter here if it's set on this platform
-            if (dmSys::GetEnv("DM_HOSTFS") != 0)
-                mountstr = dmSys::GetEnv("DM_HOSTFS");
-
-            dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
-            dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
-            paths[count++] = p1;
-            paths[count++] = p2;
-
-            if (resources_path)
+            // only care about the last provided arg if it is a .projectc file
+            const char* lastarg = argv[argc-1];
+            const char* suffix = ".projectc";
+            size_t arg_len = strlen(lastarg);
+            size_t suffix_len = strlen(suffix);
+            if ((suffix_len <= arg_len) && strcmp(lastarg + arg_len - suffix_len, suffix) == 0)
             {
-                dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
-                paths[count++] = p3;
+                strncpy(p0, lastarg, sizeof(p0));
+                paths[0] = p0;
             }
+        }
 
-            for (uint32_t i = 0; i < count; ++i)
+        const char* mountstr = "";
+#if defined(__NX__)
+        mountstr = "data:/";
+#endif
+        // there's no way to check for a named mount, and it will assert
+        // So we'll only enter here if it's set on this platform
+        if (dmSys::GetEnv("DM_HOSTFS") != 0)
+            mountstr = dmSys::GetEnv("DM_HOSTFS");
+
+        dmPath::Concat(mountstr, "game.projectc", p1, sizeof(p1));
+        dmPath::Concat(mountstr, "build/default/game.projectc", p2, sizeof(p2));
+
+        if (resources_path)
+        {
+            dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
+            paths[3] = p3;
+        }
+
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            if (paths[i] && dmSys::ResourceExists(paths[i]))
             {
-                if (dmSys::ResourceExists(paths[i]))
-                {
-                    dmStrlCpy(project_file, paths[i], project_file_size);
-                    return true;
-                }
+                dmStrlCpy(project_file, paths[i], project_file_size);
+                return true;
             }
         }
 
