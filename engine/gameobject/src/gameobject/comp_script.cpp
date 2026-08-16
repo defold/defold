@@ -404,9 +404,7 @@ namespace dmGameObject
 
                 const uint8_t* packed_payload = ((uint8_t*)params.m_Message->m_Data) + sizeof(dmGameObjectDDF::ScriptMessage);
 
-                // The payload is copied below, so keep its internal pointers as
-                // offsets that remain valid relative to the copied message.
-                dmDDF::Result ddf_result = dmDDF::LoadMessage(packed_payload, script_message->m_PayloadSize, descriptor, &payload_message, dmDDF::OPTION_OFFSET_POINTERS, &payload_message_size);
+                dmDDF::Result ddf_result = dmDDF::LoadMessage(packed_payload, script_message->m_PayloadSize, descriptor, &payload_message, 0, &payload_message_size);
                 if (ddf_result != dmDDF::RESULT_OK)
                 {
                     dmLogWarning("Failed to load message for type '%s'", descriptor->m_Name);
