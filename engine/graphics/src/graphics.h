@@ -389,6 +389,15 @@ namespace dmGraphics
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
+    HandleResult NewStorageBuffer(HContext context, uint32_t size, const void* data,
+                                  BufferUsage usage, HStorageBuffer* out_buffer);
+    HandleResult DeleteStorageBuffer(HContext context, HStorageBuffer buffer);
+    HandleResult SetStorageBufferData(HContext context, HStorageBuffer buffer,
+                                      uint32_t offset, uint32_t size, const void* data);
+    HandleResult EnableStorageBuffer(HContext context, HStorageBuffer buffer,
+                                     uint32_t offset, uint32_t size, HUniformLocation location);
+    HandleResult DisableStorageBuffer(HContext context, HStorageBuffer buffer);
+
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 

@@ -2321,6 +2321,103 @@ bail:
         delete ubo;
     }
 
+    static HandleResult VulkanNewStorageBuffer(HContext _context, uint32_t size,
+            const void* data, BufferUsage usage, HStorageBuffer* out_buffer)
+    {
+        if (!out_buffer || size == 0)
+            return HANDLE_RESULT_ERROR;
+        VulkanContext* context = (VulkanContext*)_context;
+        VkBufferUsageFlags flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        if (usage & BUFFER_USAGE_TRANSFER)
+            flags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        DeviceBuffer* buffer = new DeviceBuffer(flags);
+        VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device,
+                context->m_LogicalDevice.m_Device, size,
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                buffer);
+        if (result != VK_SUCCESS)
+        {
+            delete buffer;
+            *out_buffer = 0;
+            return HANDLE_RESULT_ERROR;
+        }
+        if (data)
+            DeviceBufferUploadHelper(context, data, size, 0, buffer);
+        *out_buffer = (HStorageBuffer)buffer;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult VulkanDisableStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        bool found = false;
+        for (uint32_t i = 0; i < MAX_STORAGE_BUFFERS; ++i)
+        {
+            if (context->m_CurrentStorageBuffers[i].m_Buffer == storage_buffer)
+            {
+                context->m_CurrentStorageBuffers[i] = StorageBufferBinding();
+                found = true;
+            }
+        }
+        return storage_buffer && found ? HANDLE_RESULT_OK :
+                (storage_buffer ? HANDLE_RESULT_OK : HANDLE_RESULT_ERROR);
+    }
+
+    static HandleResult VulkanDeleteStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer)
+    {
+        if (!storage_buffer) return HANDLE_RESULT_ERROR;
+        VulkanContext* context = (VulkanContext*)_context;
+        DeviceBuffer* buffer = (DeviceBuffer*)storage_buffer;
+        VulkanDisableStorageBuffer(_context, storage_buffer);
+        if (!buffer->m_Destroyed)
+            DestroyResourceDeferred(context, buffer);
+        delete buffer;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult VulkanSetStorageBufferData(HContext _context,
+            HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
+            const void* data)
+    {
+        DeviceBuffer* buffer = (DeviceBuffer*)storage_buffer;
+        if (!buffer || !data || size == 0 || offset > buffer->m_Base.m_Size ||
+            size > buffer->m_Base.m_Size - offset)
+            return HANDLE_RESULT_ERROR;
+        DeviceBufferUploadHelper((VulkanContext*)_context, data, size, offset, buffer);
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult VulkanEnableStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
+            HUniformLocation location)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        DeviceBuffer* buffer = (DeviceBuffer*)storage_buffer;
+        if (!buffer || !context->m_CurrentProgram ||
+            location == INVALID_UNIFORM_LOCATION ||
+            offset > buffer->m_Base.m_Size ||
+            (size && size > buffer->m_Base.m_Size - offset))
+            return HANDLE_RESULT_ERROR;
+        const uint32_t set = UNIFORM_LOCATION_GET_OP0(location);
+        const uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
+        if (set >= MAX_SET_COUNT || binding >= MAX_BINDINGS_PER_SET_COUNT)
+            return HANDLE_RESULT_ERROR;
+        ProgramResourceBinding& resource =
+                context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
+        if (!resource.m_Res || resource.m_Res->m_BindingFamily != BINDING_FAMILY_STORAGE_BUFFER ||
+            resource.m_StorageBufferUnit >= MAX_STORAGE_BUFFERS)
+            return HANDLE_RESULT_ERROR;
+        StorageBufferBinding& current =
+                context->m_CurrentStorageBuffers[resource.m_StorageBufferUnit];
+        current.m_Buffer = storage_buffer;
+        current.m_BufferOffset = offset;
+        current.m_BufferSize = size ? size : buffer->m_Base.m_Size - offset;
+        return HANDLE_RESULT_OK;
+    }
+
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VulkanContext* context = (VulkanContext*)_context;
@@ -2799,7 +2896,7 @@ bail:
                         vk_write_buffer_descriptors[buffer_to_write_index++],
                         vk_write_desc_info,
                         binding.m_BufferOffset,
-                        VK_WHOLE_SIZE);
+                        binding.m_BufferSize ? binding.m_BufferSize : VK_WHOLE_SIZE);
                 } break;
                 case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
@@ -2927,6 +3024,7 @@ bail:
                     VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
                     dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
                     dmHashUpdateBuffer64(&hash_state, &binding.m_BufferOffset, sizeof(binding.m_BufferOffset));
+                    dmHashUpdateBuffer64(&hash_state, &binding.m_BufferSize, sizeof(binding.m_BufferSize));
                 } break;
 
                 case BINDING_FAMILY_UNIFORM_BUFFER:
@@ -3265,22 +3363,39 @@ bail:
 
         const uint8_t ix = context->m_CurrentFrameInFlight;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
+        // Make storage writes from an earlier graphics pass visible to this
+        // dispatch. The post-dispatch barrier below covers the inverse
+        // compute-to-graphics/compute direction.
+        VkMemoryBarrier pre_barrier{};
+        pre_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        pre_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        pre_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT |
+                VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(vk_command_buffer,
+                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0, 1, &pre_barrier, 0, 0, 0, 0);
         DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[ix]);
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
 
         // DispatchCompute promises that shader writes are visible to later
         // render/compute commands on this context, even when an image remains
         // in GENERAL layout and therefore does not trigger a layout barrier.
-        VkMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        VkMemoryBarrier post_barrier{};
+        post_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        post_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        post_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT |
+                VK_ACCESS_SHADER_WRITE_BIT |
+                VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
         vkCmdPipelineBarrier(vk_command_buffer,
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
                 VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0, 1, &barrier, 0, 0, 0, 0);
+                0, 1, &post_barrier, 0, 0, 0, 0);
     }
 
     static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
@@ -5597,6 +5712,11 @@ bail:
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Vulkan);
+        fn_table.m_NewStorageBuffer = VulkanNewStorageBuffer;
+        fn_table.m_DeleteStorageBuffer = VulkanDeleteStorageBuffer;
+        fn_table.m_SetStorageBufferData = VulkanSetStorageBufferData;
+        fn_table.m_EnableStorageBuffer = VulkanEnableStorageBuffer;
+        fn_table.m_DisableStorageBuffer = VulkanDisableStorageBuffer;
         return fn_table;
     }
 }

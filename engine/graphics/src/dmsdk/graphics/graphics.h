@@ -472,6 +472,69 @@ namespace dmGraphics
         BUFFER_USAGE_TRANSFER     = 4,
     };
 
+    /*# create a portable shader storage buffer
+     * Creates a buffer that can be bound to storage-buffer declarations in
+     * compute or graphics programs. Check `CONTEXT_FEATURE_STORAGE_BUFFER`
+     * and `GraphicsContextLimits::m_MaxStorageBufferRange` before creating it.
+     *
+     * @name NewStorageBuffer
+     * @param context [type: HContext] graphics context
+     * @param size [type: uint32_t] buffer size in bytes
+     * @param data [type: const void*] initial data, or null to initialize to zero/undefined backend data
+     * @param usage [type: BufferUsage] expected update pattern
+     * @param out_buffer [type: HStorageBuffer*] receives the created handle
+     * @return result [type: HandleResult] `HANDLE_RESULT_OK`, `HANDLE_RESULT_ERROR`, or `HANDLE_RESULT_NOT_AVAILABLE`
+     */
+    HandleResult NewStorageBuffer(HContext context, uint32_t size,
+                                  const void* data, BufferUsage usage,
+                                  HStorageBuffer* out_buffer);
+
+    /*# delete a portable shader storage buffer
+     * @name DeleteStorageBuffer
+     * @param context [type: HContext] graphics context
+     * @param buffer [type: HStorageBuffer] storage buffer
+     * @return result [type: HandleResult] operation result
+     */
+    HandleResult DeleteStorageBuffer(HContext context, HStorageBuffer buffer);
+
+    /*# update a range of a portable shader storage buffer
+     * @name SetStorageBufferData
+     * @param context [type: HContext] graphics context
+     * @param buffer [type: HStorageBuffer] storage buffer
+     * @param offset [type: uint32_t] byte offset
+     * @param size [type: uint32_t] byte count
+     * @param data [type: const void*] source bytes
+     * @return result [type: HandleResult] operation result
+     */
+    HandleResult SetStorageBufferData(HContext context, HStorageBuffer buffer,
+                                      uint32_t offset, uint32_t size,
+                                      const void* data);
+
+    /*# bind a storage-buffer range to the current program
+     * The location must name a reflected storage-buffer resource in the
+     * currently enabled program. A size of zero binds from offset to the end
+     * of the buffer. The same API is valid for compute and graphics programs.
+     *
+     * @name EnableStorageBuffer
+     * @param context [type: HContext] graphics context
+     * @param buffer [type: HStorageBuffer] storage buffer
+     * @param offset [type: uint32_t] byte offset
+     * @param size [type: uint32_t] byte count, or zero for the remaining range
+     * @param location [type: HUniformLocation] reflected storage-buffer location
+     * @return result [type: HandleResult] operation result
+     */
+    HandleResult EnableStorageBuffer(HContext context, HStorageBuffer buffer,
+                                     uint32_t offset, uint32_t size,
+                                     HUniformLocation location);
+
+    /*# unbind a portable shader storage buffer
+     * @name DisableStorageBuffer
+     * @param context [type: HContext] graphics context
+     * @param buffer [type: HStorageBuffer] storage buffer
+     * @return result [type: HandleResult] operation result
+     */
+    HandleResult DisableStorageBuffer(HContext context, HStorageBuffer buffer);
+
     /*#
      * @enum
      * @name BufferAccess

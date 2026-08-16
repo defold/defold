@@ -137,6 +137,11 @@ namespace dmGraphics
     typedef void (*SetUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     typedef void (*EnableUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
     typedef void (*DisableUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer);
+    typedef HandleResult (*NewStorageBufferFn)(HContext, uint32_t, const void*, BufferUsage, HStorageBuffer*);
+    typedef HandleResult (*DeleteStorageBufferFn)(HContext, HStorageBuffer);
+    typedef HandleResult (*SetStorageBufferDataFn)(HContext, HStorageBuffer, uint32_t, uint32_t, const void*);
+    typedef HandleResult (*EnableStorageBufferFn)(HContext, HStorageBuffer, uint32_t, uint32_t, HUniformLocation);
+    typedef HandleResult (*DisableStorageBufferFn)(HContext, HStorageBuffer);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -227,6 +232,12 @@ namespace dmGraphics
         SetUniformBufferFn m_SetUniformBuffer;
         EnableUniformBufferFn m_EnableUniformBuffer;
         DisableUniformBufferFn m_DisableUniformBuffer;
+        // Optional until each backend advertises CONTEXT_FEATURE_STORAGE_BUFFER.
+        NewStorageBufferFn m_NewStorageBuffer;
+        DeleteStorageBufferFn m_DeleteStorageBuffer;
+        SetStorageBufferDataFn m_SetStorageBufferData;
+        EnableStorageBufferFn m_EnableStorageBuffer;
+        DisableStorageBufferFn m_DisableStorageBuffer;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \

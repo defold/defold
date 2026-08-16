@@ -100,6 +100,12 @@ namespace dmGraphics
         uint8_t       m_UsedInDraw : 1;
     };
 
+    struct NullStorageBuffer
+    {
+        Buffer   m_Base;
+        uint8_t* m_Data;
+    };
+
     struct NullProgram
     {
         Program                    m_BaseProgram;

@@ -100,6 +100,12 @@ namespace dmGraphics
         DeviceBufferType m_Type;
     };
 
+    struct OpenGLStorageBuffer
+    {
+        OpenGLBuffer m_Buffer;
+        uint32_t     m_Binding;
+    };
+
     struct OpenGLVertexAttribute
     {
         dmhash_t m_NameHash;

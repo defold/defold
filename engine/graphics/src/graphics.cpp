@@ -2102,6 +2102,51 @@ namespace dmGraphics
     {
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
+    HandleResult NewStorageBuffer(HContext context, uint32_t size, const void* data,
+                                  BufferUsage usage, HStorageBuffer* out_buffer)
+    {
+        if (!out_buffer) return HANDLE_RESULT_ERROR;
+        *out_buffer = 0;
+        GraphicsContextLimits limits = {};
+        GetGraphicsContextLimits(context, limits);
+        if (size == 0 || (limits.m_MaxStorageBufferRange &&
+                         size > limits.m_MaxStorageBufferRange))
+            return HANDLE_RESULT_ERROR;
+        return g_functions.m_NewStorageBuffer ?
+                g_functions.m_NewStorageBuffer(context, size, data, usage, out_buffer) :
+                HANDLE_RESULT_NOT_AVAILABLE;
+    }
+    HandleResult DeleteStorageBuffer(HContext context, HStorageBuffer buffer)
+    {
+        return g_functions.m_DeleteStorageBuffer ?
+                g_functions.m_DeleteStorageBuffer(context, buffer) : HANDLE_RESULT_NOT_AVAILABLE;
+    }
+    HandleResult SetStorageBufferData(HContext context, HStorageBuffer buffer,
+                                      uint32_t offset, uint32_t size, const void* data)
+    {
+        if (!buffer || !data || size == 0)
+            return HANDLE_RESULT_ERROR;
+        return g_functions.m_SetStorageBufferData ?
+                g_functions.m_SetStorageBufferData(context, buffer, offset, size, data) :
+                HANDLE_RESULT_NOT_AVAILABLE;
+    }
+    HandleResult EnableStorageBuffer(HContext context, HStorageBuffer buffer,
+                                     uint32_t offset, uint32_t size, HUniformLocation location)
+    {
+        if (!buffer || location == INVALID_UNIFORM_LOCATION)
+            return HANDLE_RESULT_ERROR;
+        return g_functions.m_EnableStorageBuffer ?
+                g_functions.m_EnableStorageBuffer(context, buffer, offset, size, location) :
+                HANDLE_RESULT_NOT_AVAILABLE;
+    }
+    HandleResult DisableStorageBuffer(HContext context, HStorageBuffer buffer)
+    {
+        if (!buffer)
+            return HANDLE_RESULT_ERROR;
+        return g_functions.m_DisableStorageBuffer ?
+                g_functions.m_DisableStorageBuffer(context, buffer) :
+                HANDLE_RESULT_NOT_AVAILABLE;
+    }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
     {
         Buffer* buffer_ptr = (Buffer*) buffer;

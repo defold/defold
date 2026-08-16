@@ -1340,11 +1340,10 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
-        // Storage buffers are deliberately not advertised: there is no user-facing
-        // SSBO support path for Metal yet.
         if (context->m_ASTCArrayTextureSupport)
         {
             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
@@ -1375,7 +1374,7 @@ namespace dmGraphics
         limits.m_MaxComputeWorkgroupInvocations = (uint32_t) max_threads_per_threadgroup.width;
         limits.m_MaxComputeSharedMemorySize     = (uint32_t) context->m_Device->maxThreadgroupMemoryLength();
         limits.m_MaxUniformBufferRange          = 64 * 1024;
-        limits.m_MaxStorageBufferRange          = 0;
+        limits.m_MaxStorageBufferRange          = (uint64_t) context->m_Device->maxBufferLength();
 
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
@@ -2046,6 +2045,90 @@ namespace dmGraphics
         }
 
         return (HVertexBuffer) buffer;
+    }
+
+    static HandleResult MetalNewStorageBuffer(HContext _context, uint32_t size,
+            const void* data, BufferUsage usage, HStorageBuffer* out_buffer)
+    {
+        (void)usage;
+        if (!out_buffer || size == 0) return HANDLE_RESULT_ERROR;
+        MetalDeviceBuffer* buffer = new MetalDeviceBuffer();
+        memset(buffer, 0, sizeof(*buffer));
+        buffer->m_StorageMode = MTL::StorageModeShared;
+        DeviceBufferUploadHelper((MetalContext*)_context, data, size, 0, buffer);
+        if (!buffer->m_Buffer)
+        {
+            delete buffer;
+            *out_buffer = 0;
+            return HANDLE_RESULT_ERROR;
+        }
+        *out_buffer = (HStorageBuffer)buffer;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult MetalDisableStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer)
+    {
+        if (!storage_buffer) return HANDLE_RESULT_ERROR;
+        MetalContext* context = (MetalContext*)_context;
+        for (uint32_t i = 0; i < MAX_STORAGE_BUFFERS; ++i)
+        {
+            if (context->m_CurrentStorageBuffers[i].m_Buffer == storage_buffer)
+                context->m_CurrentStorageBuffers[i] = {};
+        }
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult MetalDeleteStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer)
+    {
+        if (!storage_buffer) return HANDLE_RESULT_ERROR;
+        MetalContext* context = (MetalContext*)_context;
+        MetalDeviceBuffer* buffer = (MetalDeviceBuffer*)storage_buffer;
+        MetalDisableStorageBuffer(_context, storage_buffer);
+        if (!buffer->m_Destroyed)
+            DestroyResourceDeferred(context, buffer);
+        delete buffer;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult MetalSetStorageBufferData(HContext _context,
+            HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
+            const void* data)
+    {
+        MetalDeviceBuffer* buffer = (MetalDeviceBuffer*)storage_buffer;
+        if (!buffer || !data || size == 0 || offset > buffer->m_Base.m_Size ||
+            size > buffer->m_Base.m_Size - offset)
+            return HANDLE_RESULT_ERROR;
+        DeviceBufferUploadHelper((MetalContext*)_context, data, size, offset, buffer);
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult MetalEnableStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
+            HUniformLocation location)
+    {
+        MetalContext* context = (MetalContext*)_context;
+        MetalDeviceBuffer* buffer = (MetalDeviceBuffer*)storage_buffer;
+        if (!buffer || !context->m_CurrentProgram || location == INVALID_UNIFORM_LOCATION ||
+            offset > buffer->m_Base.m_Size ||
+            (size && size > buffer->m_Base.m_Size - offset))
+            return HANDLE_RESULT_ERROR;
+        const uint32_t set = UNIFORM_LOCATION_GET_OP0(location);
+        const uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
+        if (set >= MAX_SET_COUNT || binding >= MAX_BINDINGS_PER_SET_COUNT)
+            return HANDLE_RESULT_ERROR;
+        ProgramResourceBinding& resource =
+                context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
+        if (!resource.m_Res || resource.m_Res->m_BindingFamily != BINDING_FAMILY_STORAGE_BUFFER ||
+            resource.m_StorageBufferUnit >= MAX_STORAGE_BUFFERS)
+            return HANDLE_RESULT_ERROR;
+        MetalStorageBufferBinding& current =
+                context->m_CurrentStorageBuffers[resource.m_StorageBufferUnit];
+        current.m_Buffer = storage_buffer;
+        current.m_BufferOffset = offset;
+        current.m_BufferSize = size ? size : buffer->m_Base.m_Size - offset;
+        return HANDLE_RESULT_OK;
     }
 
     static void MetalDeleteVertexBuffer(HVertexBuffer _buffer)
@@ -3009,8 +3092,22 @@ namespace dmGraphics
                 } break;
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
-                    // Metal storage buffers are not exposed through the public graphics API yet.
-                    break;
+                {
+                    const MetalStorageBufferBinding& binding =
+                            context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    MetalDeviceBuffer* buffer = (MetalDeviceBuffer*)binding.m_Buffer;
+                    if (buffer)
+                    {
+                        arg_encoder->setBuffer(buffer->m_Buffer,
+                                (NSUInteger)binding.m_BufferOffset, (NSUInteger)msl_index);
+                        MTL::ResourceUsage resource_usage = (MTL::ResourceUsage)
+                                (MTL::ResourceUsageRead | MTL::ResourceUsageWrite);
+                        if (is_compute)
+                            UseResourceCached(context, cenc, buffer->m_Buffer, resource_usage);
+                        else
+                            UseResourceCached(context, renc, buffer->m_Buffer, resource_usage);
+                    }
+                } break;
                 case BINDING_FAMILY_GENERIC:
                     break;
 
@@ -5154,6 +5251,11 @@ namespace dmGraphics
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Metal);
+        fn_table.m_NewStorageBuffer = MetalNewStorageBuffer;
+        fn_table.m_DeleteStorageBuffer = MetalDeleteStorageBuffer;
+        fn_table.m_SetStorageBufferData = MetalSetStorageBufferData;
+        fn_table.m_EnableStorageBuffer = MetalEnableStorageBuffer;
+        fn_table.m_DisableStorageBuffer = MetalDisableStorageBuffer;
         return fn_table;
     }
 }

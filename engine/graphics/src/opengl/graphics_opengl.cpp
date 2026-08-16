@@ -2308,6 +2308,124 @@ static void LogFrameBufferError(GLenum status)
         return (HVertexBuffer) vertex_buffer;
     }
 
+    static HandleResult OpenGLNewStorageBuffer(HContext _context, uint32_t size,
+            const void* data, BufferUsage usage, HStorageBuffer* out_buffer)
+    {
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+        OpenGLContext* context = (OpenGLContext*)_context;
+        if (!context->m_StorageBufferSupport || !out_buffer || size == 0)
+            return context->m_StorageBufferSupport ? HANDLE_RESULT_ERROR : HANDLE_RESULT_NOT_AVAILABLE;
+        OpenGLStorageBuffer* buffer = new OpenGLStorageBuffer();
+        memset(buffer, 0, sizeof(*buffer));
+        buffer->m_Buffer.m_Base.m_Size = size;
+        buffer->m_Binding = 0xffffffffu;
+        GLuint handle = 0;
+        glGenBuffersARB(1, &handle);
+        buffer->m_Buffer.m_Id = AddNewGLHandle(context, handle);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(usage));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+        *out_buffer = (HStorageBuffer)buffer;
+        return HANDLE_RESULT_OK;
+    #else
+        (void)_context; (void)size; (void)data; (void)usage; (void)out_buffer;
+        return HANDLE_RESULT_NOT_AVAILABLE;
+    #endif
+    }
+
+    static HandleResult OpenGLDisableStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer)
+    {
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+        if (!storage_buffer) return HANDLE_RESULT_ERROR;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
+        if (buffer->m_Binding != 0xffffffffu)
+        {
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, buffer->m_Binding, 0);
+            buffer->m_Binding = 0xffffffffu;
+            CHECK_GL_ERROR;
+        }
+        return HANDLE_RESULT_OK;
+    #else
+        (void)_context; (void)storage_buffer;
+        return HANDLE_RESULT_NOT_AVAILABLE;
+    #endif
+    }
+
+    static HandleResult OpenGLDeleteStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer)
+    {
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+        if (!storage_buffer) return HANDLE_RESULT_ERROR;
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
+        OpenGLDisableStorageBuffer(_context, storage_buffer);
+        GLuint handle = GetGLHandle(context, buffer->m_Buffer.m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle(context, buffer->m_Buffer.m_Id);
+        CHECK_GL_ERROR;
+        delete buffer;
+        return HANDLE_RESULT_OK;
+    #else
+        (void)_context; (void)storage_buffer;
+        return HANDLE_RESULT_NOT_AVAILABLE;
+    #endif
+    }
+
+    static HandleResult OpenGLSetStorageBufferData(HContext _context,
+            HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
+            const void* data)
+    {
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
+        if (!buffer || !data || size == 0 || offset > buffer->m_Buffer.m_Base.m_Size ||
+            size > buffer->m_Buffer.m_Base.m_Size - offset)
+            return HANDLE_RESULT_ERROR;
+        GLuint handle = GetGLHandle((OpenGLContext*)_context, buffer->m_Buffer.m_Id);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, size, data);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+        return HANDLE_RESULT_OK;
+    #else
+        (void)_context; (void)storage_buffer; (void)offset; (void)size; (void)data;
+        return HANDLE_RESULT_NOT_AVAILABLE;
+    #endif
+    }
+
+    static HandleResult OpenGLEnableStorageBuffer(HContext _context,
+            HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
+            HUniformLocation location)
+    {
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
+        if (!buffer || !context->m_CurrentProgram || location == INVALID_UNIFORM_LOCATION ||
+            offset > buffer->m_Buffer.m_Base.m_Size ||
+            (size && size > buffer->m_Buffer.m_Base.m_Size - offset))
+            return HANDLE_RESULT_ERROR;
+        const uint32_t set = UNIFORM_LOCATION_GET_OP0(location);
+        const uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
+        if (set >= MAX_SET_COUNT || binding >= MAX_BINDINGS_PER_SET_COUNT)
+            return HANDLE_RESULT_ERROR;
+        ProgramResourceBinding& resource =
+                context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
+        if (!resource.m_Res || resource.m_Res->m_BindingFamily != BINDING_FAMILY_STORAGE_BUFFER)
+            return HANDLE_RESULT_ERROR;
+        const uint32_t gl_binding = resource.m_Res->m_Binding;
+        const uint32_t range = size ? size : buffer->m_Buffer.m_Base.m_Size - offset;
+        GLuint handle = GetGLHandle(context, buffer->m_Buffer.m_Id);
+        glBindBufferRange(GL_SHADER_STORAGE_BUFFER, gl_binding, handle, offset, range);
+        CHECK_GL_ERROR;
+        buffer->m_Binding = gl_binding;
+        return HANDLE_RESULT_OK;
+    #else
+        (void)_context; (void)storage_buffer; (void)offset; (void)size; (void)location;
+        return HANDLE_RESULT_NOT_AVAILABLE;
+    #endif
+    }
+
     static void OpenGLDeleteVertexBuffer(HVertexBuffer buffer)
     {
         if (!buffer)
@@ -3109,13 +3227,16 @@ static void LogFrameBufferError(GLenum status)
             DM_PROFILE(__FUNCTION__);
             DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
 
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            CHECK_GL_ERROR;
             DrawSetup(context);
 
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
 
             glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS |
-                            DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH);
+                            DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH |
+                            DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
             CHECK_GL_ERROR;
         }
     #endif
@@ -5561,6 +5682,11 @@ static void LogFrameBufferError(GLenum status)
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, OpenGL);
+        fn_table.m_NewStorageBuffer = OpenGLNewStorageBuffer;
+        fn_table.m_DeleteStorageBuffer = OpenGLDeleteStorageBuffer;
+        fn_table.m_SetStorageBufferData = OpenGLSetStorageBufferData;
+        fn_table.m_EnableStorageBuffer = OpenGLEnableStorageBuffer;
+        fn_table.m_DisableStorageBuffer = OpenGLDisableStorageBuffer;
         return fn_table;
     }
 }

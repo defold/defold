@@ -218,6 +218,7 @@ namespace dmGraphics
     {
         HStorageBuffer m_Buffer;
         uint32_t       m_BufferOffset;
+        uint32_t       m_BufferSize;
     };
 
     struct MetalShaderModule

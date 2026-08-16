@@ -254,6 +254,38 @@ TEST_F(dmGraphicsTest, VertexBuffer)
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
 }
 
+TEST_F(dmGraphicsTest, PortableStorageBuffer)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_Context,
+            dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER));
+    dmGraphics::GraphicsContextLimits limits = {};
+    dmGraphics::GetGraphicsContextLimits(m_Context, limits);
+    ASSERT_GE(limits.m_MaxStorageBufferRange, 32u);
+
+    uint32_t data[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    dmGraphics::HStorageBuffer handle = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK,
+            dmGraphics::NewStorageBuffer(m_Context, sizeof(data), data,
+                    dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW, &handle));
+    ASSERT_NE((dmGraphics::HStorageBuffer)0, handle);
+    dmGraphics::NullStorageBuffer* buffer =
+            (dmGraphics::NullStorageBuffer*)handle;
+    ASSERT_EQ(sizeof(data), buffer->m_Base.m_Size);
+    ASSERT_EQ(0, memcmp(data, buffer->m_Data, sizeof(data)));
+
+    const uint32_t replacement[2] = {42, 99};
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK,
+            dmGraphics::SetStorageBufferData(m_Context, handle,
+                    sizeof(uint32_t) * 3, sizeof(replacement), replacement));
+    ASSERT_EQ(42u, ((uint32_t*)buffer->m_Data)[3]);
+    ASSERT_EQ(99u, ((uint32_t*)buffer->m_Data)[4]);
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_ERROR,
+            dmGraphics::SetStorageBufferData(m_Context, handle,
+                    sizeof(data) - 1, sizeof(replacement), replacement));
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK,
+            dmGraphics::DeleteStorageBuffer(m_Context, handle));
+}
+
 TEST_F(dmGraphicsTest, IndexBuffer)
 {
     char data[16];

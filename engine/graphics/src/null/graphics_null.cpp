@@ -202,6 +202,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -455,6 +456,56 @@ namespace dmGraphics
         NullDisableUniformBuffer(_context, uniform_buffer);
         delete[] ubo->m_Buffer;
         delete ubo;
+    }
+
+    static HandleResult NullNewStorageBuffer(HContext, uint32_t size,
+            const void* data, BufferUsage, HStorageBuffer* out_buffer)
+    {
+        if (!out_buffer || size == 0)
+            return HANDLE_RESULT_ERROR;
+        NullStorageBuffer* buffer = new NullStorageBuffer();
+        buffer->m_Base.m_Size = size;
+        buffer->m_Data = new uint8_t[size];
+        if (data) memcpy(buffer->m_Data, data, size);
+        else memset(buffer->m_Data, 0, size);
+        *out_buffer = (HStorageBuffer)buffer;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult NullDeleteStorageBuffer(HContext, HStorageBuffer storage_buffer)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*)storage_buffer;
+        if (!buffer) return HANDLE_RESULT_ERROR;
+        delete[] buffer->m_Data;
+        delete buffer;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult NullSetStorageBufferData(HContext, HStorageBuffer storage_buffer,
+            uint32_t offset, uint32_t size, const void* data)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*)storage_buffer;
+        if (!buffer || !data || size == 0 || offset > buffer->m_Base.m_Size ||
+            size > buffer->m_Base.m_Size - offset)
+            return HANDLE_RESULT_ERROR;
+        memcpy(buffer->m_Data + offset, data, size);
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult NullEnableStorageBuffer(HContext, HStorageBuffer storage_buffer,
+            uint32_t offset, uint32_t size, HUniformLocation location)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*)storage_buffer;
+        if (!buffer || location == INVALID_UNIFORM_LOCATION ||
+            offset > buffer->m_Base.m_Size ||
+            (size && size > buffer->m_Base.m_Size - offset))
+            return HANDLE_RESULT_ERROR;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult NullDisableStorageBuffer(HContext, HStorageBuffer storage_buffer)
+    {
+        return storage_buffer ? HANDLE_RESULT_OK : HANDLE_RESULT_ERROR;
     }
 
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1958,6 +2009,11 @@ namespace dmGraphics
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Null);
+        fn_table.m_NewStorageBuffer = NullNewStorageBuffer;
+        fn_table.m_DeleteStorageBuffer = NullDeleteStorageBuffer;
+        fn_table.m_SetStorageBufferData = NullSetStorageBufferData;
+        fn_table.m_EnableStorageBuffer = NullEnableStorageBuffer;
+        fn_table.m_DisableStorageBuffer = NullDisableStorageBuffer;
         return fn_table;
     }
 }
