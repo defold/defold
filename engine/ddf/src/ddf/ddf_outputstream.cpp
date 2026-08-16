@@ -123,6 +123,12 @@ namespace dmDDF
         return WriteVarInt32(value);
     }
 
+    bool OutputStream::WriteSInt32(int32_t value)
+    {
+        uint32_t encoded = ((uint32_t) value << 1) ^ (uint32_t) -(value < 0);
+        return WriteVarInt32(encoded);
+    }
+
     bool OutputStream::WriteUInt32(uint32_t value)
     {
         return WriteVarInt32(value);
@@ -131,6 +137,12 @@ namespace dmDDF
     bool OutputStream::WriteInt64(int64_t value)
     {
         return WriteVarInt64(value);
+    }
+
+    bool OutputStream::WriteSInt64(int64_t value)
+    {
+        uint64_t encoded = ((uint64_t) value << 1) ^ (uint64_t) -(value < 0);
+        return WriteVarInt64(encoded);
     }
 
     bool OutputStream::WriteUInt64(uint64_t value)

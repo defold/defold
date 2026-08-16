@@ -204,6 +204,17 @@ namespace dmDDF
         }
     }
 
+    bool InputBuffer::ReadSInt32(int32_t* value)
+    {
+        uint32_t v;
+        if (ReadVarInt32(&v))
+        {
+            *value = (int32_t) ((v >> 1) ^ (uint32_t) -(int32_t) (v & 1));
+            return true;
+        }
+        return false;
+    }
+
     bool InputBuffer::ReadUInt32(uint32_t* value)
     {
         uint32_t v;
@@ -230,6 +241,17 @@ namespace dmDDF
         {
             return false;
         }
+    }
+
+    bool InputBuffer::ReadSInt64(int64_t* value)
+    {
+        uint64_t v;
+        if (ReadVarInt64(&v))
+        {
+            *value = (int64_t) ((v >> 1) ^ (uint64_t) -(int64_t) (v & 1));
+            return true;
+        }
+        return false;
     }
 
     bool InputBuffer::ReadUInt64(uint64_t* value)

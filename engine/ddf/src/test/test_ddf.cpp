@@ -189,7 +189,7 @@ TEST(ScalarTypes, Types)
     // Test descriptor
     const dmDDF::Descriptor& d = DUMMY::TestDDF_ScalarTypes_DESCRIPTOR;
     ASSERT_STREQ("scalar_types", d.m_Name);
-    ASSERT_EQ(8, d.m_FieldCount);
+    ASSERT_EQ(10, d.m_FieldCount);
 
     // Test field(s)
     const char* names[] =
@@ -202,6 +202,8 @@ TEST(ScalarTypes, Types)
         "uint64_val",
         "string_val",
         "bool_val",
+        "sint32_val",
+        "sint64_val",
     };
 
     enum dmDDF::Type types[] =
@@ -214,6 +216,8 @@ TEST(ScalarTypes, Types)
         dmDDF::TYPE_UINT64,
         dmDDF::TYPE_STRING,
         dmDDF::TYPE_BOOL,
+        dmDDF::TYPE_SINT32,
+        dmDDF::TYPE_SINT64,
     };
 
     for (uint32_t i = 0; i < d.m_FieldCount; ++i)
@@ -236,6 +240,8 @@ TEST(ScalarTypes, Load)
     scalar_types.set_uint64_val(UINT64_MAX);
     scalar_types.set_string_val("foo");
     scalar_types.set_bool_val(true);
+    scalar_types.set_sint32_val(INT32_MIN);
+    scalar_types.set_sint64_val(INT64_MIN);
 
     std::string msg_str = scalar_types.SerializeAsString();
     const char* msg_buf = msg_str.c_str();
@@ -254,6 +260,8 @@ TEST(ScalarTypes, Load)
     ASSERT_EQ(scalar_types.uint64_val(), msg->m_Uint64Val);
     ASSERT_STREQ(scalar_types.string_val().c_str(), msg->m_StringVal);
     ASSERT_EQ(scalar_types.bool_val(), msg->m_BoolVal);
+    ASSERT_EQ(scalar_types.sint32_val(), msg->m_Sint32Val);
+    ASSERT_EQ(scalar_types.sint64_val(), msg->m_Sint64Val);
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_ScalarTypes_DESCRIPTOR, msg_str2);

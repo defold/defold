@@ -38,8 +38,10 @@ namespace dmDDF
         bool WriteFloat(float value);
         bool WriteDouble(double value);
         bool WriteInt32(int32_t value);
+        bool WriteSInt32(int32_t value);
         bool WriteUInt32(uint32_t value);
         bool WriteInt64(int64_t value);
+        bool WriteSInt64(int64_t value);
         bool WriteUInt64(uint64_t value);
         bool WriteBool(bool value);
 

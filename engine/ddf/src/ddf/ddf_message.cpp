@@ -61,8 +61,10 @@ namespace dmDDF
             READSCALARFIELD_CASE(TYPE_FLOAT, float, ReadFloat);
             READSCALARFIELD_CASE(TYPE_DOUBLE, double, ReadDouble);
             READSCALARFIELD_CASE(TYPE_INT32, int32_t, ReadInt32);
+            READSCALARFIELD_CASE(TYPE_SINT32, int32_t, ReadSInt32);
             READSCALARFIELD_CASE(TYPE_UINT32, uint32_t, ReadUInt32);
             READSCALARFIELD_CASE(TYPE_INT64, int64_t, ReadInt64);
+            READSCALARFIELD_CASE(TYPE_SINT64, int64_t, ReadSInt64);
             READSCALARFIELD_CASE(TYPE_UINT64, uint64_t, ReadUInt64);
             READSCALARFIELD_CASE(TYPE_ENUM, uint32_t, ReadUInt32);
             READSCALARFIELD_CASE(TYPE_BOOL, bool, ReadBool);

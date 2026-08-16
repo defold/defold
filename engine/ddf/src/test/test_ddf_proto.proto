@@ -26,6 +26,8 @@ message ScalarTypes
     required uint64 uint64_val = 6;
     required string string_val = 7;
     required bool bool_val = 8;
+    required sint32 sint32_val = 9;
+    required sint64 sint64_val = 10;
 }
 
 enum TestEnum

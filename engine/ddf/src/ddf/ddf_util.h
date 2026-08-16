@@ -63,6 +63,8 @@ namespace dmDDF
         case TYPE_UINT64:
         case TYPE_INT32:
         case TYPE_UINT32:
+        case TYPE_SINT32:
+        case TYPE_SINT64:
         case TYPE_BOOL:
             return WIRETYPE_VARINT;
 
@@ -84,8 +86,6 @@ namespace dmDDF
 
             //case TYPE_SFIXED32: TODO: Fix support?
             //case TYPE_SFIXED64: TODO: Fix support?
-            //case TYPE_SINT32: TODO: Fix support?
-            //case TYPE_SINT64: TODO: Fix support?
             //case TYPE_BOOL: NOTE: NOT SUPPORTED
             //case TYPE_GROUP: NOTE: NOT SUPPORTED
         }

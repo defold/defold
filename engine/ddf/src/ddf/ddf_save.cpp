@@ -185,11 +185,11 @@ namespace dmDDF
                         break;
 
                     case TYPE_SINT32:
-                        assert(false);
+                        DDF_SAVEMESSAGE_CASE(int32_t, WIRETYPE_VARINT, WriteSInt32);
                         break;
 
                     case TYPE_SINT64:
-                        assert(false);
+                        DDF_SAVEMESSAGE_CASE(int64_t, WIRETYPE_VARINT, WriteSInt64);
                         break;
 
                     default:
