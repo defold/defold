@@ -2060,7 +2060,7 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
     TextLayoutRelease(layout);
 }
 
-TEST_F(dmRenderTest, MarkupOutlineLayerIsTransparentOutsideSpan)
+TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
 {
     const char* text = "AB";
     TextLayoutSettings settings = {};
@@ -2092,14 +2092,16 @@ TEST_F(dmRenderTest, MarkupOutlineLayerIsTransparentOutsideSpan)
     te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
     te.m_TextLayout = layout;
 
-    FontGlyphVertex vertices[24];
+    FontGlyphVertex vertices[18];
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
 
     for (uint32_t i = 0; i < 6; ++i)
     {
         ASSERT_EQ(1.0f, vertices[i].m_OutlineColor[3]);
-        ASSERT_EQ(0.0f, vertices[6 + i].m_OutlineColor[3]);
+        ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[1]);
+        ASSERT_EQ(0.0f, vertices[12 + i].m_OutlineColor[3]);
+        ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[1]);
     }
 
     TextLayoutRelease(layout);
@@ -2142,7 +2144,7 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
     MarkupDestroy(markup);
 }
 
-TEST_F(dmRenderTest, MarkupShadowLayerIsTransparentOutsideSpan)
+TEST_F(dmRenderTest, MarkupShadowLayerOnlyCoversSpan)
 {
     const char* text = "AB";
     TextLayoutSettings settings = {};
@@ -2174,15 +2176,17 @@ TEST_F(dmRenderTest, MarkupShadowLayerIsTransparentOutsideSpan)
     te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
     te.m_TextLayout = layout;
 
-    FontGlyphVertex vertices[24];
+    FontGlyphVertex vertices[18];
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
 
     for (uint32_t i = 0; i < 6; ++i)
     {
         ASSERT_EQ(1.0f, vertices[i].m_ShadowColor[3]);
-        ASSERT_EQ(0.0f, vertices[6 + i].m_ShadowColor[3]);
-        ASSERT_EQ(vertices[12 + i].m_Position[0] + 3.0f, vertices[i].m_Position[0]);
+        ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[2]);
+        ASSERT_EQ(vertices[6 + i].m_Position[0] + 3.0f, vertices[i].m_Position[0]);
+        ASSERT_EQ(0.0f, vertices[12 + i].m_ShadowColor[3]);
+        ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[2]);
     }
 
     TextLayoutRelease(layout);
