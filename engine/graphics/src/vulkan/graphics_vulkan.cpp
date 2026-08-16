@@ -181,6 +181,9 @@ namespace dmGraphics
         m_SwapInterval            = params.m_SwapInterval;
         m_JobContext              = params.m_JobContext;
         SetAllContextFeaturesSupported(&m_BaseContext);
+        // Indirect-count is advertised separately once a backend implementation
+        // and device feature have both been verified.
+        SetContextFeatureUnsupported(&m_BaseContext, CONTEXT_FEATURE_DRAW_INDIRECT_COUNT);
 
         // We need to have some sort of valid default filtering
         if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -2328,7 +2331,8 @@ bail:
             return HANDLE_RESULT_ERROR;
         VulkanContext* context = (VulkanContext*)_context;
         VkBufferUsageFlags flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
         if (usage & BUFFER_USAGE_TRANSFER)
             flags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         DeviceBuffer* buffer = new DeviceBuffer(flags);
@@ -3332,6 +3336,29 @@ bail:
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
         vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
+    }
+
+    static HandleResult VulkanDrawElementsIndirect(HContext _context, PrimitiveType prim_type,
+            Type type, HIndexBuffer index_buffer, HStorageBuffer command_buffer,
+            uint32_t offset, uint32_t draw_count, uint32_t stride)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        DeviceBuffer* commands = (DeviceBuffer*)command_buffer;
+        const uint64_t required_size = draw_count == 0 ? offset :
+            offset + (uint64_t)(draw_count - 1) * stride + sizeof(DrawIndexedIndirectCommand);
+        if (!commands || stride < sizeof(DrawIndexedIndirectCommand) ||
+            required_size > commands->m_Base.m_Size)
+            return HANDLE_RESULT_ERROR;
+        const uint8_t ix = context->m_CurrentFrameInFlight;
+        VkCommandBuffer cb = context->m_MainCommandBuffers[ix];
+        context->m_PipelineState.m_PrimtiveType = prim_type;
+        if (!DrawSetup(context, cb, &context->m_MainScratchBuffers[ix],
+                       (DeviceBuffer*)index_buffer, type))
+            return HANDLE_RESULT_ERROR;
+        TouchResource(context, commands);
+        vkCmdDrawIndexedIndirect(cb, commands->m_Handle.m_Buffer, offset, draw_count, stride);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, draw_count);
+        return HANDLE_RESULT_OK;
     }
 
     static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -5717,6 +5744,7 @@ bail:
         fn_table.m_SetStorageBufferData = VulkanSetStorageBufferData;
         fn_table.m_EnableStorageBuffer = VulkanEnableStorageBuffer;
         fn_table.m_DisableStorageBuffer = VulkanDisableStorageBuffer;
+        fn_table.m_DrawElementsIndirect = VulkanDrawElementsIndirect;
         return fn_table;
     }
 }

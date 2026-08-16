@@ -101,6 +101,15 @@ namespace dmRender
         dmGraphics::HTexture m_Texture;
     };
 
+    /*# One shader storage buffer bound by resource name for native compute. */
+    struct ComputeStorageBufferBinding
+    {
+        dmhash_t                   m_NameHash;
+        dmGraphics::HStorageBuffer m_Buffer;
+        uint32_t                   m_Offset;
+        uint32_t                   m_Size;
+    };
+
     /*#
     * Light prototype handle. Used to create light instances.
     * @typedef
@@ -231,6 +240,8 @@ namespace dmRender
             dmGraphics::HVertexDeclaration  m_VertexDeclarations[MAX_VERTEX_BUFFER_COUNT];
         };
         dmGraphics::HIndexBuffer        m_IndexBuffer;
+        dmGraphics::HStorageBuffer      m_IndirectBuffer;
+        dmGraphics::HStorageBuffer      m_IndirectCountBuffer;
         HMaterial                       m_Material;
         dmGraphics::HTexture            m_Textures[MAX_TEXTURE_COUNT];
         dmGraphics::PrimitiveType       m_PrimitiveType;
@@ -247,9 +258,15 @@ namespace dmRender
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint32_t                        m_InstanceCount;
+        uint32_t                        m_IndirectOffset;
+        uint32_t                        m_IndirectCountOffset;
+        uint32_t                        m_IndirectDrawCount;
+        uint32_t                        m_IndirectStride;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
         uint8_t                         m_SetFaceWinding : 1;
+        uint8_t                         m_UseIndirect : 1;
+        uint8_t                         m_UseIndirectCount : 1;
     };
 
     /*#
@@ -731,6 +748,13 @@ namespace dmRender
      */
     Result DispatchCompute(HRenderContext render_context, HComputeProgram program,
                            const ComputeTextureBinding* bindings, uint32_t binding_count,
+                           uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z,
+                           HNamedConstantBuffer constant_buffer);
+
+    /*# Native compute dispatch with named storage-buffer bindings. */
+    Result DispatchComputeStorage(HRenderContext render_context, HComputeProgram program,
+                           const ComputeTextureBinding* textures, uint32_t texture_count,
+                           const ComputeStorageBufferBinding* buffers, uint32_t buffer_count,
                            uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z,
                            HNamedConstantBuffer constant_buffer);
 

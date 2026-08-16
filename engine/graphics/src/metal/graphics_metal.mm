@@ -1341,6 +1341,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_DRAW_INDEXED_INDIRECT);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -3373,6 +3374,29 @@ namespace dmGraphics
         }
     }
 
+    static HandleResult MetalDrawElementsIndirect(HContext _context, PrimitiveType prim_type,
+            Type type, HIndexBuffer index_buffer, HStorageBuffer command_buffer,
+            uint32_t offset, uint32_t draw_count, uint32_t stride)
+    {
+        MetalContext* context = (MetalContext*)_context;
+        MetalDeviceBuffer* ib = (MetalDeviceBuffer*)index_buffer;
+        MetalDeviceBuffer* commands = (MetalDeviceBuffer*)command_buffer;
+        const uint64_t required_size = draw_count == 0 ? offset :
+            offset + (uint64_t)(draw_count - 1) * stride + sizeof(DrawIndexedIndirectCommand);
+        if (!ib || !ib->m_Buffer || !commands || !commands->m_Buffer ||
+            stride < sizeof(DrawIndexedIndirectCommand) || required_size > commands->m_Base.m_Size)
+            return HANDLE_RESULT_ERROR;
+        DrawSetup(context);
+        MTL::IndexType index_type = type == TYPE_UNSIGNED_INT ?
+                MTL::IndexTypeUInt32 : MTL::IndexTypeUInt16;
+        MTL::RenderCommandEncoder* encoder = GetCurrentFrameResource(context).m_RenderCommandEncoder;
+        for (uint32_t i = 0; i < draw_count; ++i)
+            encoder->drawIndexedPrimitives(ConvertPrimitiveType(prim_type), index_type,
+                    ib->m_Buffer, 0, commands->m_Buffer, offset + i * stride);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, draw_count);
+        return HANDLE_RESULT_OK;
+    }
+
     static void MetalDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
@@ -5256,6 +5280,7 @@ namespace dmGraphics
         fn_table.m_SetStorageBufferData = MetalSetStorageBufferData;
         fn_table.m_EnableStorageBuffer = MetalEnableStorageBuffer;
         fn_table.m_DisableStorageBuffer = MetalDisableStorageBuffer;
+        fn_table.m_DrawElementsIndirect = MetalDrawElementsIndirect;
         return fn_table;
     }
 }

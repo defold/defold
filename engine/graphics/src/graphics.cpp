@@ -2213,6 +2213,37 @@ namespace dmGraphics
     {
         g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer, instance_count);
     }
+
+    HandleResult DrawElementsIndirect(HContext context, PrimitiveType prim_type, Type index_type,
+                                      HIndexBuffer index_buffer, HStorageBuffer command_buffer,
+                                      uint32_t offset, uint32_t draw_count, uint32_t stride)
+    {
+        if (!context || !index_buffer || !command_buffer || !draw_count)
+            return HANDLE_RESULT_ERROR;
+        if (stride == 0) stride = sizeof(DrawIndexedIndirectCommand);
+        if (stride < sizeof(DrawIndexedIndirectCommand))
+            return HANDLE_RESULT_ERROR;
+        return g_functions.m_DrawElementsIndirect ?
+                g_functions.m_DrawElementsIndirect(context, prim_type, index_type, index_buffer,
+                                                    command_buffer, offset, draw_count, stride) :
+                HANDLE_RESULT_NOT_AVAILABLE;
+    }
+
+    HandleResult DrawElementsIndirectCount(HContext context, PrimitiveType prim_type, Type index_type,
+                                           HIndexBuffer index_buffer, HStorageBuffer command_buffer,
+                                           uint32_t offset, HStorageBuffer count_buffer,
+                                           uint32_t count_offset, uint32_t max_draw_count, uint32_t stride)
+    {
+        if (!context || !index_buffer || !command_buffer || !count_buffer || !max_draw_count)
+            return HANDLE_RESULT_ERROR;
+        if (stride == 0) stride = sizeof(DrawIndexedIndirectCommand);
+        if (stride < sizeof(DrawIndexedIndirectCommand))
+            return HANDLE_RESULT_ERROR;
+        return g_functions.m_DrawElementsIndirectCount ?
+                g_functions.m_DrawElementsIndirectCount(context, prim_type, index_type, index_buffer,
+                        command_buffer, offset, count_buffer, count_offset, max_draw_count, stride) :
+                HANDLE_RESULT_NOT_AVAILABLE;
+    }
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         g_functions.m_Draw(context, prim_type, first, count, instance_count);

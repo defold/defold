@@ -254,6 +254,12 @@ namespace dmGraphics
         }
     }
 
+    static inline void SetContextFeatureUnsupported(GraphicsContext* context, ContextFeature feature)
+    {
+        assert(feature < MAX_CONTEXT_FEATURE_COUNT);
+        context->m_ContextFeatureSupport &= ~(1u << feature);
+    }
+
     static inline void SetContextTextureFormatSupported(GraphicsContext* context, TextureFormat format)
     {
         context->m_TextureFormatSupport |= 1ULL << format;

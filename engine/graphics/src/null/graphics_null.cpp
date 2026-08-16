@@ -203,6 +203,8 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_DRAW_INDEXED_INDIRECT);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_DRAW_INDIRECT_COUNT);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -506,6 +508,32 @@ namespace dmGraphics
     static HandleResult NullDisableStorageBuffer(HContext, HStorageBuffer storage_buffer)
     {
         return storage_buffer ? HANDLE_RESULT_OK : HANDLE_RESULT_ERROR;
+    }
+
+    static HandleResult NullDrawElementsIndirect(HContext, PrimitiveType, Type,
+            HIndexBuffer index_buffer, HStorageBuffer command_buffer, uint32_t offset,
+            uint32_t draw_count, uint32_t stride)
+    {
+        NullStorageBuffer* commands = (NullStorageBuffer*)command_buffer;
+        const uint64_t required_size = draw_count == 0 ? offset :
+            offset + (uint64_t)(draw_count - 1) * stride + sizeof(DrawIndexedIndirectCommand);
+        if (!index_buffer || !commands || stride < sizeof(DrawIndexedIndirectCommand) ||
+            required_size > commands->m_Base.m_Size)
+            return HANDLE_RESULT_ERROR;
+        return HANDLE_RESULT_OK;
+    }
+
+    static HandleResult NullDrawElementsIndirectCount(HContext, PrimitiveType, Type,
+            HIndexBuffer index_buffer, HStorageBuffer command_buffer, uint32_t offset,
+            HStorageBuffer count_buffer, uint32_t count_offset, uint32_t max_draw_count,
+            uint32_t stride)
+    {
+        NullStorageBuffer* count = (NullStorageBuffer*)count_buffer;
+        if (!count || count_offset + sizeof(uint32_t) > count->m_Base.m_Size)
+            return HANDLE_RESULT_ERROR;
+        uint32_t draw_count = *(uint32_t*)(count->m_Data + count_offset);
+        return NullDrawElementsIndirect(0, PRIMITIVE_TRIANGLES, TYPE_UNSIGNED_INT,
+                index_buffer, command_buffer, offset, dmMath::Min(draw_count, max_draw_count), stride);
     }
 
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2014,6 +2042,8 @@ namespace dmGraphics
         fn_table.m_SetStorageBufferData = NullSetStorageBufferData;
         fn_table.m_EnableStorageBuffer = NullEnableStorageBuffer;
         fn_table.m_DisableStorageBuffer = NullDisableStorageBuffer;
+        fn_table.m_DrawElementsIndirect = NullDrawElementsIndirect;
+        fn_table.m_DrawElementsIndirectCount = NullDrawElementsIndirectCount;
         return fn_table;
     }
 }

@@ -1203,6 +1203,57 @@ namespace dmRender
         return RESULT_OK;
     }
 
+    Result DispatchComputeStorage(HRenderContext render_context, HComputeProgram compute_program,
+                           const ComputeTextureBinding* textures, uint32_t texture_count,
+                           const ComputeStorageBufferBinding* buffers, uint32_t buffer_count,
+                           uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z,
+                           HNamedConstantBuffer constant_buffer)
+    {
+        if (!render_context || !compute_program || (!textures && texture_count) ||
+            (!buffers && buffer_count) || !group_count_x || !group_count_y || !group_count_z)
+            return RESULT_INVALID_PARAMETER;
+        dmGraphics::HContext context = GetGraphicsContext(render_context);
+        if (!dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER) ||
+            !dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER))
+            return RESULT_INVALID_CONTEXT;
+
+        dmGraphics::EnableProgram(context, compute_program->m_Program);
+        ApplyComputeProgramConstants(render_context, compute_program);
+        if (constant_buffer)
+            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
+        for (uint32_t i = 0; i < texture_count; ++i)
+        {
+            if (!textures[i].m_Texture || textures[i].m_Unit >= RenderObject::MAX_TEXTURE_COUNT)
+                continue;
+            dmGraphics::EnableTexture(context, textures[i].m_Unit, 0, textures[i].m_Texture);
+            ApplyProgramSampler(render_context, GetComputeProgramSampler(compute_program, textures[i].m_Unit),
+                                (uint8_t)textures[i].m_Unit, textures[i].m_Texture);
+        }
+        for (uint32_t i = 0; i < buffer_count; ++i)
+        {
+            dmGraphics::HUniformLocation location = dmGraphics::FindUniformLocation(
+                    compute_program->m_Program, buffers[i].m_NameHash);
+            if (!buffers[i].m_Buffer || location == dmGraphics::INVALID_UNIFORM_LOCATION ||
+                dmGraphics::EnableStorageBuffer(context, buffers[i].m_Buffer,
+                        buffers[i].m_Offset, buffers[i].m_Size, location) != dmGraphics::HANDLE_RESULT_OK)
+            {
+                for (uint32_t j = 0; j < i; ++j)
+                    if (buffers[j].m_Buffer) dmGraphics::DisableStorageBuffer(context, buffers[j].m_Buffer);
+                dmGraphics::DisableProgram(context);
+                return RESULT_INVALID_PARAMETER;
+            }
+        }
+        ApplyComputeProgramLightBuffers(render_context, compute_program);
+        dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+        for (uint32_t i = 0; i < buffer_count; ++i)
+            if (buffers[i].m_Buffer) dmGraphics::DisableStorageBuffer(context, buffers[i].m_Buffer);
+        for (uint32_t i = 0; i < texture_count; ++i)
+            if (textures[i].m_Texture && textures[i].m_Unit < RenderObject::MAX_TEXTURE_COUNT)
+                dmGraphics::DisableTexture(context, textures[i].m_Unit, textures[i].m_Texture);
+        dmGraphics::DisableProgram(context);
+        return RESULT_OK;
+    }
+
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
@@ -1305,7 +1356,31 @@ namespace dmRender
             }
 
             if (ro->m_IndexBuffer)
-                dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer, ro->m_InstanceCount);
+            if (ro->m_UseIndirect)
+            {
+                dmGraphics::HandleResult indirect_result = dmGraphics::HANDLE_RESULT_NOT_AVAILABLE;
+                if (ro->m_UseIndirectCount && ro->m_IndirectCountBuffer)
+                    indirect_result = dmGraphics::DrawElementsIndirectCount(context,
+                            ro->m_PrimitiveType, ro->m_IndexType, ro->m_IndexBuffer,
+                            ro->m_IndirectBuffer, ro->m_IndirectOffset,
+                            ro->m_IndirectCountBuffer, ro->m_IndirectCountOffset,
+                            ro->m_IndirectDrawCount, ro->m_IndirectStride);
+                if (indirect_result != dmGraphics::HANDLE_RESULT_OK)
+                    indirect_result = dmGraphics::DrawElementsIndirect(context,
+                            ro->m_PrimitiveType, ro->m_IndexType, ro->m_IndexBuffer,
+                            ro->m_IndirectBuffer, ro->m_IndirectOffset,
+                            ro->m_IndirectDrawCount, ro->m_IndirectStride);
+                if (indirect_result != dmGraphics::HANDLE_RESULT_OK)
+                    dmGraphics::DrawElements(context, ro->m_PrimitiveType,
+                            ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType,
+                            ro->m_IndexBuffer, ro->m_InstanceCount);
+            }
+            else
+            {
+                dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart,
+                        ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer,
+                        ro->m_InstanceCount);
+            }
             else
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
 

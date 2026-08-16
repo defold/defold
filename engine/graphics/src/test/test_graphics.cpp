@@ -286,6 +286,48 @@ TEST_F(dmGraphicsTest, PortableStorageBuffer)
             dmGraphics::DeleteStorageBuffer(m_Context, handle));
 }
 
+TEST_F(dmGraphicsTest, PortableIndexedIndirectDraw)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_Context,
+            dmGraphics::CONTEXT_FEATURE_DRAW_INDEXED_INDIRECT));
+    ASSERT_EQ(20u, (uint32_t)sizeof(dmGraphics::DrawIndexedIndirectCommand));
+
+    const uint16_t indices[] = {0, 1, 2};
+    dmGraphics::HIndexBuffer index_buffer = dmGraphics::NewIndexBuffer(
+            m_Context, sizeof(indices), indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    dmGraphics::DrawIndexedIndirectCommand commands[2] = {};
+    commands[0].m_IndexCount = 3;
+    commands[0].m_InstanceCount = 1;
+    commands[1].m_IndexCount = 3;
+    commands[1].m_InstanceCount = 1;
+    dmGraphics::HStorageBuffer command_buffer = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK,
+            dmGraphics::NewStorageBuffer(m_Context, sizeof(commands), commands,
+                    dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW, &command_buffer));
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK,
+            dmGraphics::DrawElementsIndirect(m_Context, dmGraphics::PRIMITIVE_TRIANGLES,
+                    dmGraphics::TYPE_UNSIGNED_SHORT, index_buffer, command_buffer,
+                    0, 2, sizeof(commands[0])));
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_ERROR,
+            dmGraphics::DrawElementsIndirect(m_Context, dmGraphics::PRIMITIVE_TRIANGLES,
+                    dmGraphics::TYPE_UNSIGNED_SHORT, index_buffer, command_buffer,
+                    sizeof(commands), 1, sizeof(commands[0])));
+
+    uint32_t draw_count = 1;
+    dmGraphics::HStorageBuffer count_buffer = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK,
+            dmGraphics::NewStorageBuffer(m_Context, sizeof(draw_count), &draw_count,
+                    dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW, &count_buffer));
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK,
+            dmGraphics::DrawElementsIndirectCount(m_Context, dmGraphics::PRIMITIVE_TRIANGLES,
+                    dmGraphics::TYPE_UNSIGNED_SHORT, index_buffer, command_buffer, 0,
+                    count_buffer, 0, 2, sizeof(commands[0])));
+
+    dmGraphics::DeleteStorageBuffer(m_Context, count_buffer);
+    dmGraphics::DeleteStorageBuffer(m_Context, command_buffer);
+    dmGraphics::DeleteIndexBuffer(index_buffer);
+}
+
 TEST_F(dmGraphicsTest, IndexBuffer)
 {
     char data[16];

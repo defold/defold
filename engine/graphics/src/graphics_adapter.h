@@ -80,6 +80,8 @@ namespace dmGraphics
     typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
     typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+    typedef HandleResult (*DrawElementsIndirectFn)(HContext, PrimitiveType, Type, HIndexBuffer, HStorageBuffer, uint32_t, uint32_t, uint32_t);
+    typedef HandleResult (*DrawElementsIndirectCountFn)(HContext, PrimitiveType, Type, HIndexBuffer, HStorageBuffer, uint32_t, HStorageBuffer, uint32_t, uint32_t, uint32_t);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
     typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
     typedef HProgram (*NewProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
@@ -174,6 +176,8 @@ namespace dmGraphics
         EnableVertexBufferFn m_EnableVertexBuffer;
         DisableVertexBufferFn m_DisableVertexBuffer;
         DrawElementsFn m_DrawElements;
+        DrawElementsIndirectFn m_DrawElementsIndirect;
+        DrawElementsIndirectCountFn m_DrawElementsIndirectCount;
         DrawFn m_Draw;
         DispatchComputeFn m_DispatchCompute;
         NewProgramFn m_NewProgram;

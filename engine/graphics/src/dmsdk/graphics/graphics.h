@@ -179,7 +179,19 @@ namespace dmGraphics
         CONTEXT_FEATURE_3D_TEXTURES            = 6,
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
         CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
-        MAX_CONTEXT_FEATURE_COUNT              = 9,
+        CONTEXT_FEATURE_DRAW_INDEXED_INDIRECT  = 9,
+        CONTEXT_FEATURE_DRAW_INDIRECT_COUNT    = 10,
+        MAX_CONTEXT_FEATURE_COUNT              = 11,
+    };
+
+    /*# Backend-neutral layout consumed by indexed indirect draws. */
+    struct DrawIndexedIndirectCommand
+    {
+        uint32_t m_IndexCount;
+        uint32_t m_InstanceCount;
+        uint32_t m_FirstIndex;
+        int32_t  m_VertexOffset;
+        uint32_t m_FirstInstance;
     };
 
     /*# Backend-independent graphics limits for the active context. */
@@ -1935,6 +1947,22 @@ namespace dmGraphics
      * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
      */
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
+    /*# Draw fixed-count indexed commands from a storage/indirect buffer.
+     * `offset` and `stride` are bytes. A zero stride selects the canonical
+     * sizeof(DrawIndexedIndirectCommand) layout.
+     */
+    HandleResult DrawElementsIndirect(HContext context, PrimitiveType prim_type,
+                                      Type index_type, HIndexBuffer index_buffer,
+                                      HStorageBuffer command_buffer, uint32_t offset,
+                                      uint32_t draw_count, uint32_t stride);
+
+    /*# Draw indexed commands using a GPU-written uint32 command count. */
+    HandleResult DrawElementsIndirectCount(HContext context, PrimitiveType prim_type,
+                                           Type index_type, HIndexBuffer index_buffer,
+                                           HStorageBuffer command_buffer, uint32_t offset,
+                                           HStorageBuffer count_buffer, uint32_t count_offset,
+                                           uint32_t max_draw_count, uint32_t stride);
 
     /*#
      * Binds a texture sampler to a texture unit.

@@ -387,6 +387,13 @@ namespace dmGraphics
     uint32_t GetIndexBufferSize(HIndexBuffer buffer);
 
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+    HandleResult DrawElementsIndirect(HContext context, PrimitiveType prim_type, Type index_type,
+                                      HIndexBuffer index_buffer, HStorageBuffer command_buffer,
+                                      uint32_t offset, uint32_t draw_count, uint32_t stride);
+    HandleResult DrawElementsIndirectCount(HContext context, PrimitiveType prim_type, Type index_type,
+                                           HIndexBuffer index_buffer, HStorageBuffer command_buffer,
+                                           uint32_t offset, HStorageBuffer count_buffer,
+                                           uint32_t count_offset, uint32_t max_draw_count, uint32_t stride);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     HandleResult NewStorageBuffer(HContext context, uint32_t size, const void* data,
