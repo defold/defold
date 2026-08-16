@@ -233,6 +233,12 @@
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
+#if defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT) && defined(GL_SHADER_STORAGE_BUFFER)
+    // GLES builds may expose compute entry points without exposing the SSBO
+    // enums/API required by the portable storage-buffer implementation.
+    #define DM_HAVE_OPENGL_STORAGE_BUFFER_SUPPORT
+#endif
+
 namespace dmGraphics
 {
     using namespace dmVMath;
@@ -1888,6 +1894,12 @@ static void LogFrameBufferError(GLenum status)
         context->m_ComputeSupport &= glMemoryBarrier    != 0;
         context->m_ComputeSupport &= glBindImageTexture != 0;
 
+        #ifdef DM_HAVE_OPENGL_STORAGE_BUFFER_SUPPORT
+            context->m_StorageBufferSupport = context->m_ComputeSupport;
+        #else
+            context->m_StorageBufferSupport = 0;
+        #endif
+
         #undef COMPUTE_VERSION_NEEDED
     #endif
 
@@ -2311,7 +2323,7 @@ static void LogFrameBufferError(GLenum status)
     static HandleResult OpenGLNewStorageBuffer(HContext _context, uint32_t size,
             const void* data, BufferUsage usage, HStorageBuffer* out_buffer)
     {
-    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_STORAGE_BUFFER_SUPPORT
         OpenGLContext* context = (OpenGLContext*)_context;
         if (!context->m_StorageBufferSupport || !out_buffer || size == 0)
             return context->m_StorageBufferSupport ? HANDLE_RESULT_ERROR : HANDLE_RESULT_NOT_AVAILABLE;
@@ -2337,7 +2349,7 @@ static void LogFrameBufferError(GLenum status)
     static HandleResult OpenGLDisableStorageBuffer(HContext _context,
             HStorageBuffer storage_buffer)
     {
-    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_STORAGE_BUFFER_SUPPORT
         if (!storage_buffer) return HANDLE_RESULT_ERROR;
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
         if (buffer->m_Binding != 0xffffffffu)
@@ -2356,7 +2368,7 @@ static void LogFrameBufferError(GLenum status)
     static HandleResult OpenGLDeleteStorageBuffer(HContext _context,
             HStorageBuffer storage_buffer)
     {
-    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_STORAGE_BUFFER_SUPPORT
         if (!storage_buffer) return HANDLE_RESULT_ERROR;
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
@@ -2377,7 +2389,7 @@ static void LogFrameBufferError(GLenum status)
             HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
             const void* data)
     {
-    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_STORAGE_BUFFER_SUPPORT
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
         if (!buffer || !data || size == 0 || offset > buffer->m_Buffer.m_Base.m_Size ||
             size > buffer->m_Buffer.m_Base.m_Size - offset)
@@ -2398,7 +2410,7 @@ static void LogFrameBufferError(GLenum status)
             HStorageBuffer storage_buffer, uint32_t offset, uint32_t size,
             HUniformLocation location)
     {
-    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_STORAGE_BUFFER_SUPPORT
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*)storage_buffer;
         if (!buffer || !context->m_CurrentProgram || location == INVALID_UNIFORM_LOCATION ||
