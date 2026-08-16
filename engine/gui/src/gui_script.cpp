@@ -38,6 +38,7 @@ extern "C"
 namespace dmGui
 {
     static const dmhash_t GUI_PROP_TEXTURES = dmHashString64("textures");
+    static const dmhash_t TAG_SPRITE        = dmHashString64("sprite");
 
     /*# GUI API documentation
      *
@@ -1825,6 +1826,94 @@ namespace dmGui
     {
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         lua_pushstring(L, n->m_Node.m_Text);
+        return 1;
+    }
+
+    static const char* GetLayoutObjectTagName(dmhash_t tag)
+    {
+        return tag == TAG_SPRITE ? "sprite" : "link";
+    }
+
+    /*# gets the markup objects for a text node
+     * Returns the sprites and links found in the text node's current layout.
+     * Each object's `x` and `y` identify its lower-left corner relative to the
+     * text node's upper-left layout origin.
+     *
+     * @name gui.get_layout_objects
+     * @param node [type:node] text node to inspect
+     * @return objects [type:table] layout objects in source order
+     */
+    static int LuaGetLayoutObjects(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        HNode node;
+        LuaCheckNodeInternal(L, 1, &node);
+        HScene scene = GuiScriptInstance_Check(L);
+        TextLayout text_layout = {};
+        GetNodeTextLayout(scene, node, &text_layout);
+        HTextLayout layout = text_layout.m_Handle;
+        const uint32_t object_count = layout ? TextLayoutGetObjectCount(layout) : 0;
+        const TextLayoutObject* objects = layout ? TextLayoutGetObjects(layout) : 0;
+        const TextLayoutObjectAttribute* attributes = layout ? TextLayoutGetObjectAttributes(layout) : 0;
+        const char* source = layout ? TextLayoutGetObjectSource(layout) : "";
+        float layout_width = 0.0f;
+        float layout_height = 0.0f;
+
+        if (layout)
+        {
+            TextLayoutGetBounds(layout, &layout_width, &layout_height);
+        }
+
+        (void)layout_height;
+        lua_createtable(L, object_count, 0);
+
+        for (uint32_t i = 0; i < object_count; ++i)
+        {
+            const TextLayoutObject& object = objects[i];
+            lua_createtable(L, 0, 9);
+            lua_pushstring(L, GetLayoutObjectTagName(object.m_Tag));
+            lua_setfield(L, -2, "type");
+            dmScript::PushHash(L, object.m_Id);
+            lua_setfield(L, -2, "id");
+            lua_pushnumber(L, object.m_TextOffset);
+            lua_setfield(L, -2, "text_offset");
+            lua_pushnumber(L, object.m_TextLength);
+            lua_setfield(L, -2, "text_length");
+            lua_pushnumber(L, object.m_Width);
+            lua_setfield(L, -2, "width");
+            lua_pushnumber(L, object.m_Height);
+            lua_setfield(L, -2, "height");
+            float x = 0.0f;
+            float y = 0.0f;
+            TextLayoutGetObjectPosition(layout, &object, 0.0f, 0.0f, layout_width, &x, &y);
+            lua_pushnumber(L, x);
+            lua_setfield(L, -2, "x");
+            lua_pushnumber(L, y);
+            lua_setfield(L, -2, "y");
+            lua_createtable(L, 0, object.m_AttributeCount);
+
+            for (uint32_t j = 0; j < object.m_AttributeCount; ++j)
+            {
+                const TextLayoutObjectAttribute& attribute = attributes[object.m_AttributeIndex + j];
+
+                if (attribute.m_NameLength)
+                {
+                    lua_pushlstring(L, source + attribute.m_NameOffset, attribute.m_NameLength);
+                }
+                else
+                {
+                    lua_pushstring(L, "value");
+                }
+
+                lua_pushlstring(L, source + attribute.m_ValueOffset, attribute.m_ValueLength);
+                lua_settable(L, -3);
+            }
+
+            lua_setfield(L, -2, "attributes");
+            lua_rawseti(L, -2, i + 1);
+        }
+
         return 1;
     }
 
@@ -5053,6 +5142,7 @@ namespace dmGui
         {"new_text_node",   LuaNewTextNode},
         {"new_pie_node",    LuaNewPieNode},
         {"get_text",        LuaGetText},
+        {"get_layout_objects", LuaGetLayoutObjects},
         {"set_text",        LuaSetText},
         {"set_line_break",  LuaSetLineBreak},
         {"get_line_break",  LuaGetLineBreak},

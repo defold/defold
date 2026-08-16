@@ -51,8 +51,8 @@ dmResource::HFactory g_ResourceFactory = 0;
 /*# sets a named rich-text render style on a font
  *
  * Named object styles are resolved by text layouts without reshaping text.
- * An `a` tag uses `link` by default and overlays pseudo-state styles such as
- * `link:hover` and `link:active` when its layout object state changes.
+ * A `link` tag uses `link` by default. Callers may select another named style,
+ * such as `link:hover` or `link:active`, in response to input.
  * The definition is an opening-only sequence of rich-text tags. Tags are
  * implicitly closed in reverse order. Calling this function replaces the
  * complete named style.
@@ -78,18 +78,29 @@ static int SetStyle(lua_State* L)
     const char*    name = luaL_checklstring(L, 2, &name_length);
     size_t         definition_length = 0;
     const char*    definition = luaL_checklstring(L, 3, &definition_length);
+
     if (name_length == 0)
+    {
         return DM_LUA_ERROR("font.set_style() style name must not be empty");
+    }
 
     FontResource* resource = 0;
     dmResource::Result result = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
+
     if (result != dmResource::RESULT_OK)
+    {
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), result);
+    }
+
     MarkupError error = {};
     const bool valid = FontCollectionSetNamedStyleMarkup(ResFontGetFontCollection(resource), dmHashBuffer64(name, (uint32_t)name_length), definition, (uint32_t)definition_length, &error);
     dmResource::Release(g_ResourceFactory, resource);
+
     if (!valid)
+    {
         return DM_LUA_ERROR("font.set_style() invalid markup at byte %u", error.m_ByteOffset);
+    }
+
     return 0;
 }
 

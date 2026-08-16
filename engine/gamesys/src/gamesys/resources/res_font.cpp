@@ -313,7 +313,6 @@ namespace dmGameSystem
     {
         // If it's empty, we don't have a glyph bank
         return ddf->m_GlyphBank[0] == 0;
-
     }
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
@@ -343,7 +342,6 @@ namespace dmGameSystem
             {
                 return result;
             }
-
         }
         return dmResource::RESULT_OK;
     }

@@ -5178,6 +5178,67 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiPreparedRichTextLayout)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+
+    dmGui::HScene scene = gui_component->m_Scene;
+    dmGui::HNode  node = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+
+    dmGui::SetNodeText(scene, node, "Plain <color=#ff8040>orange</color> and <size=24>large</size>.");
+    GuiTextSubmitResult rich_text = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, rich_text.m_TextEntryCount);
+    ASSERT_NE((HTextLayout)0, rich_text.m_TextLayout);
+    ASSERT_EQ(0u, rich_text.m_TextBufferSize);
+    ASSERT_EQ(23u, TextLayoutGetGlyphCount(rich_text.m_TextLayout));
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(rich_text.m_TextLayout);
+    ASSERT_NE(glyphs[0].m_MarkupSpanIndex, glyphs[6].m_MarkupSpanIndex);
+    ASSERT_GT(glyphs[17].m_RenderScale, glyphs[0].m_RenderScale);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiRichTextAnimationAdvances)
+{
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+    dmGui::SetNodeText(gui_component->m_Scene, node, "<wave amplitude=4 hz=1 fit=span>Wave</wave>");
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    TextGlyphRenderData after = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &after);
+    ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
 {
     // The GUI node can clear its cached prepared layout after queueing text but
@@ -8002,7 +8063,6 @@ TEST_F(RenderConstantsTest, SetGetManyConstants)
 
         dmVMath::Vector4 v(i, i*3+1,0,0);
         dmGameSystem::SetRenderConstant(constants, name_hash, &v, 1);
-
     }
 
     for (int i = 0; i < 64; ++i)

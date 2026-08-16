@@ -61,4 +61,26 @@ message SetText
     required string text  = 1;
 }
 
+/*# Sent to the owning game object when the pointer enters a rich-text link. */
+message LabelLinkHovered
+{
+    required uint64 id = 1;
+    /*# Application-defined target from the link's `src` attribute. */
+    optional string src = 2;
+}
 
+/*# Sent to the owning game object when the pointer leaves a rich-text link. */
+message LabelLinkUnhovered
+{
+    required uint64 id = 1;
+    /*# Application-defined target from the link's `src` attribute. */
+    optional string src = 2;
+}
+
+/*# Sent to the owning game object when a rich-text link is clicked. */
+message LabelLinkClicked
+{
+    required uint64 id = 1;
+    /*# Application-defined target from the link's `src` attribute. */
+    optional string src = 2;
+}

@@ -45,6 +45,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult   CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
+    dmGameObject::InputResult    CompLabelOnInput(const dmGameObject::ComponentOnInputParams& params);
+
     void                         CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);

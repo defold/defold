@@ -1468,6 +1468,17 @@ namespace dmGameSystem
         return dmHashFinal64(&key_state);
     }
 
+    // Reserves the proposed one-em or explicit sprite dimensions until resource loading is implemented.
+    static uint8_t ResolveGuiLayoutObject(void*, const char*, const TextLayoutObjectAttribute*,
+                                          float proposed_width, float proposed_height, TextLayoutObject* object)
+    {
+        object->m_Width = proposed_width;
+        object->m_Height = proposed_height;
+        object->m_Resource = 0;
+
+        return 1;
+    }
+
     static HTextLayout GetOrCreateNodeTextLayout(dmGui::HScene scene, dmGui::HNode node, FontResource* font_resource, dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmArray<uint32_t>& codepoints)
     {
         const char* safe_text = text ? text : "";
@@ -1497,12 +1508,33 @@ namespace dmGameSystem
         settings.m_Size = dmRender::GetFontMapSize(font_map);
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+        settings.m_ResolveObject = ResolveGuiLayoutObject;
 
-        TextToCodePoints(safe_text, codepoints);
-        uint32_t* text_codepoints = codepoints.Empty() ? 0 : codepoints.Begin();
+        HTextLayout  layout = 0;
+        HMarkup      markup = 0;
+        MarkupResult markup_result = MarkupCreateRecovering(safe_text, strlen(safe_text), &markup, 0);
+        TextResult   result = TEXT_RESULT_ERROR;
 
-        HTextLayout layout = 0;
-        TextResult result = TextLayoutCreate(dmRender::GetFontCollection(font_map), text_codepoints, codepoints.Size(), &settings, &layout);
+        if (markup_result == MARKUP_RESULT_OK)
+        {
+            result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout);
+        }
+
+        MarkupDestroy(markup);
+
+        if (result != TEXT_RESULT_OK)
+        {
+            if (layout)
+            {
+                TextLayoutRelease(layout);
+            }
+
+            layout = 0;
+            TextToCodePoints(safe_text, codepoints);
+            uint32_t* text_codepoints = codepoints.Empty() ? 0 : codepoints.Begin();
+            result = TextLayoutCreate(dmRender::GetFontCollection(font_map), text_codepoints, codepoints.Size(), &settings, &layout);
+        }
+
         if (result != TEXT_RESULT_OK)
         {
             if (layout)
@@ -2952,6 +2984,22 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
+    static void UpdateNodeTextLayouts(dmGui::HScene scene, dmGui::HNode parent, float dt)
+    {
+        for (dmGui::HNode node = dmGui::GetFirstChildNode(scene, parent); node; node = dmGui::GetNextNode(scene, node))
+        {
+            dmGui::TextLayout text_layout = {};
+            dmGui::GetNodeTextLayout(scene, node, &text_layout);
+
+            if (text_layout.m_Handle)
+            {
+                TextLayoutUpdate(text_layout.m_Handle, dt);
+            }
+
+            UpdateNodeTextLayouts(scene, node, dt);
+        }
+    }
+
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         DM_PROFILE("Update");
@@ -2970,6 +3018,7 @@ namespace dmGameSystem
             if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)
             {
                 dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
+                UpdateNodeTextLayouts(gui_component->m_Scene, 0, params.m_UpdateContext->m_DT);
             }
         }
 
