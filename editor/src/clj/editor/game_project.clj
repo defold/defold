@@ -183,7 +183,8 @@
    ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]
-   ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]]})
+   ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]
+                                          [:use-rich-text :use-rich-text]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
@@ -240,6 +241,9 @@
 
   (input use-font-layout g/Any)
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
+
+  (input use-rich-text g/Any)
+  (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
 
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode

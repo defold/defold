@@ -1241,8 +1241,8 @@ property.appmanifest.graphics-web = Graphics (HTML5)
 property.appmanifest.graphics-web.tooltip = Select the graphics backend included in HTML5 builds. WebGL is the default; including both WebGL and WebGPU permits fallback but increases engine size.
 property.appmanifest.use-font-layout = Use full text layout system
 property.appmanifest.use-font-layout.tooltip = Include the full text layout system required for runtime SDF font generation from TrueType fonts. Runtime glyph rasterization also requires `font.runtime_generation` in `game.project`; it supports features such as right-to-left text.
-property.appmanifest.exclude-rich-text = Exclude Rich Text
-property.appmanifest.exclude-rich-text.tooltip = Replace rich text parsing and style effects with a null implementation to reduce engine size. Plain text layout and rendering remain available.
+property.appmanifest.use-rich-text = Use Rich Text
+property.appmanifest.use-rich-text.tooltip = Include rich text parsing and style effects for labels and GUI text. Disable this to reduce engine size; markup will then render as plain text.
 
 # Properties: atlas
 

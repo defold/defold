@@ -1017,12 +1017,14 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter font-setting))
             (set (setting-property-setter font-setting)))
-  (property exclude-rich-text g/Any
-            (dynamic label (properties/label-dynamic :appmanifest :exclude-rich-text))
-            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-rich-text))
+  (property use-rich-text g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :use-rich-text))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-rich-text))
             (dynamic edit-type (g/constantly {:type g/Bool}))
-            (value (setting-property-getter rich-text-setting))
-            (set (setting-property-setter rich-text-setting))))
+            (value (g/fnk [manifest]
+                     (not (true? (get-setting-value manifest rich-text-setting)))))
+            (set (setting-property-updater rich-text-setting (fn [_ enabled]
+                                                               (not enabled))))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type

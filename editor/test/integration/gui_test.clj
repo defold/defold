@@ -56,6 +56,17 @@
                       (into {}))]
     (id->node id)))
 
+(deftest invalid-markup-is-gui-text-property-warning-test
+  (test-util/with-loaded-project
+    (let [scene (project/get-resource-node project "/editor1/test.gui")
+          text-node (gui-node scene "text")]
+      (test-util/with-prop [text-node :text "valid\n<color>bad</size>"]
+        (let [property-error (test-util/prop-error text-node :text)]
+          (is (g/error-warning? property-error))
+          (is (g/error-warning? (g/node-value text-node :markup-error)))
+          (is (not (g/error? (g/node-value text-node :text-layout))))
+          (is (not (g/error? (g/node-value text-node :own-build-errors)))))))))
+
 (defn- gui-resources-node [resources-node-outline-key scene]
   (->> (g/node-value scene :node-outline)
        (:children)

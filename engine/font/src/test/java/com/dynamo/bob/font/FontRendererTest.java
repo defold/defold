@@ -185,6 +185,73 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testRichTextMeasureAndRender() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Layout plain = renderer.measure("Large red text", false, 0.0f, 1.0f, 0.0f);
+            FontRenderer.Layout markup = renderer.measureMarkup("<size=2em>Large</size> <color=#ff0000>red</color> text", false, 0.0f, 1.0f, 0.0f);
+            assertTrue(markup.width > plain.width);
+
+            renderer.setProperties(properties(100.0f, 1.0f, 0));
+            renderer.setMarkup("<color=#ff0000>red</color>");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertEquals(18, vertices.vertexCount);
+            assertEquals(1.0f, vertices.vertices.getFloat(20), 0.001f);
+            assertEquals(0.0f, vertices.vertices.getFloat(24), 0.001f);
+            assertEquals(0.0f, vertices.vertices.getFloat(28), 0.001f);
+
+            assertEquals(0.0f, renderer.measureMarkup("", false, 0.0f, 1.0f, 0.0f).width, 0.001f);
+            renderer.setMarkup("");
+            assertEquals(0, getVertices(renderer, IDENTITY).vertexCount);
+
+            FontRenderer.Layout inlineObject = renderer.measureMarkup("A<sprite/>B", false, 0.0f, 1.0f, 0.0f);
+            assertTrue(inlineObject.width > renderer.measure("AB", false, 0.0f, 1.0f, 0.0f).width);
+            renderer.setMarkup("A<sprite/>B");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            TestVertices inlineVertices = getVertices(renderer, IDENTITY);
+            assertEquals(36, inlineVertices.vertexCount);
+            assertEquals(32.0f,
+                         Math.abs(inlineVertices.vertices.getFloat(7 * VERTEX_STRIDE) - inlineVertices.vertices.getFloat(6 * VERTEX_STRIDE)),
+                         0.001f);
+            assertEquals(32.0f,
+                         Math.abs(inlineVertices.vertices.getFloat(19 * VERTEX_STRIDE + Float.BYTES) - inlineVertices.vertices.getFloat(18 * VERTEX_STRIDE + Float.BYTES)),
+                         0.001f);
+            assertEquals(1.0f,
+                         Math.abs(inlineVertices.vertices.getFloat(20 * VERTEX_STRIDE) - inlineVertices.vertices.getFloat(18 * VERTEX_STRIDE)),
+                         0.001f);
+
+            renderer.setMarkup("<ul>AB</ul><strike>CD</strike>");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            assertEquals(36, getVertices(renderer, IDENTITY).vertexCount);
+
+            FontRenderer.MarkupError error = renderer.measureMarkup("valid\n<color>bad</size>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(error);
+            assertEquals(2, error.line);
+            assertEquals(11, error.column);
+            assertEquals(8, error.errorType);
+            assertTrue(error.message.contains("mismatched closing tag"));
+
+            FontRenderer.MarkupError unknownTag = renderer.measureMarkup("<s ize=14>Text</size>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(unknownTag);
+            assertEquals(1, unknownTag.byteOffset);
+            assertTrue(unknownTag.message.contains("unknown tag"));
+
+            FontRenderer.MarkupError unknownAttribute = renderer.measureMarkup("<size sdf=14>Text</size>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(unknownAttribute);
+            assertEquals(6, unknownAttribute.byteOffset);
+            assertTrue(unknownAttribute.message.contains("unknown attribute"));
+
+            FontRenderer.MarkupError unknownConstant = renderer.measureMarkup("<wave fit=word>Text</wave>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(unknownConstant);
+            assertEquals(10, unknownConstant.byteOffset);
+            assertTrue(unknownConstant.message.contains("unknown value for attribute"));
+        }
+    }
+
+    @Test
     public void testMultilineBaselineSpacing() throws Exception {
         float leading = 1.2f;
         try (FontRenderer renderer = createRenderer(24.0f)) {

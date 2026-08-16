@@ -34,6 +34,8 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBuffer
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasure;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasureMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetProperties;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetText;
 
@@ -44,6 +46,7 @@ import java.lang.ref.Cleaner;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontcGlyph;
@@ -128,13 +131,35 @@ public final class FontRenderer implements AutoCloseable {
         public final int lineCount;
         public final float maxAscent;
         public final float maxDescent;
+        public final MarkupError markupError;
 
         private Layout(MemorySegment values) {
+            this(values, null);
+        }
+
+        private Layout(MemorySegment values, MarkupError markupError) {
             width = FontcLayout.m_Width(values);
             height = FontcLayout.m_Height(values);
             lineCount = FontcLayout.m_LineCount(values);
             maxAscent = FontcLayout.m_MaxAscent(values);
             maxDescent = FontcLayout.m_MaxDescent(values);
+            this.markupError = markupError;
+        }
+    }
+
+    public static final class MarkupError {
+        public final int byteOffset;
+        public final int line;
+        public final int column;
+        public final int errorType;
+        public final String message;
+
+        private MarkupError(int byteOffset, int line, int column, int errorType, String description) {
+            this.byteOffset = byteOffset;
+            this.line = line;
+            this.column = column;
+            this.errorType = errorType;
+            this.message = "Invalid rich text markup at line " + line + ", column " + column + ": " + description;
         }
     }
 
@@ -322,6 +347,26 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
+     * Parses, shapes, and measures UTF-8 rich-text markup.
+     *
+     * <p>Malformed tags fail validation so editor resources can report a build error.</p>
+     */
+    public synchronized Layout measureMarkup(String markup, boolean lineBreak, float width, float leading, float tracking) {
+        if (markup == null)
+            throw new NullPointerException("markup");
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment result = FontcLayout.allocate(arena);
+            int status = FontcMeasureMarkup(requireHandle(), arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
+                    flag(lineBreak), width, leading, tracking, result);
+            if (status == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR() && FontcLayout.m_ErrorType(result) != 0)
+                return new Layout(result, markupError(bytes, result));
+            checkResult(status, "Native rich-text shaping failed");
+            return new Layout(result);
+        }
+    }
+
+    /**
      * Generates a glyph bitmap and metrics using the same native font implementation as the engine runtime.
      *
      * <p>Used by Bob when compiling glyph banks. The Editor uses {@link #generateTexture} and
@@ -449,6 +494,17 @@ public final class FontRenderer implements AutoCloseable {
         try (Arena arena = Arena.ofConfined()) {
             checkResult(FontcSetText(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints), codepoints.length),
                     "Unable to set native font renderer text");
+        }
+    }
+
+    /** Retains UTF-8 rich-text markup for subsequent texture and vertex generation. */
+    public synchronized void setMarkup(String markup) {
+        if (markup == null)
+            throw new NullPointerException("markup");
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            checkResult(FontcSetMarkup(requireHandle(), arena.allocateFrom(JAVA_BYTE, bytes), bytes.length),
+                    "Unable to set native rich text");
         }
     }
 
@@ -588,6 +644,43 @@ public final class FontRenderer implements AutoCloseable {
 
     private static int flag(boolean value) {
         return value ? 1 : 0;
+    }
+
+    private static MarkupError markupError(byte[] markup, MemorySegment result) {
+        int byteOffset = Math.min(FontcLayout.m_ErrorByteOffset(result), markup.length);
+        int line = 1;
+        int column = 1;
+        for (int index = 0; index < byteOffset; ++index) {
+            int value = markup[index] & 0xff;
+            if (value == '\n') {
+                ++line;
+                column = 1;
+            } else if ((value & 0xc0) != 0x80) {
+                ++column;
+            }
+        }
+        int errorType = FontcLayout.m_ErrorType(result);
+        return new MarkupError(byteOffset, line, column, errorType, markupErrorDescription(errorType));
+    }
+
+    private static String markupErrorDescription(int errorType) {
+        return switch (errorType) {
+            case 1 -> "incomplete tag";
+            case 2 -> "incomplete entity";
+            case 3 -> "unclosed tag";
+            case 4 -> "invalid tag";
+            case 5 -> "invalid attribute";
+            case 6 -> "invalid entity";
+            case 7 -> "unexpected closing tag";
+            case 8 -> "mismatched closing tag";
+            case 9 -> "invalid UTF-8";
+            case 10 -> "parser limit exceeded";
+            case 11 -> "markup is unsupported";
+            case 12 -> "unknown tag";
+            case 13 -> "unknown attribute";
+            case 14 -> "unknown value for attribute";
+            default -> "parse error";
+        };
     }
 
     private static void checkResult(int result, String message) {

@@ -42,6 +42,16 @@
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
                                (is (g/error? (test-util/prop-error node-id prop)))))))))
 
+(deftest invalid-markup-is-label-text-property-warning-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
+      (test-util/with-prop [node-id :text "valid\n<color>bad</size>"]
+        (let [property-error (test-util/prop-error node-id :text)]
+          (is (g/error-warning? property-error))
+          (is (g/error-warning? (g/node-value node-id :markup-error)))
+          (is (not (g/error? (g/node-value node-id :text-layout))))
+          (is (not (g/error? (g/node-value node-id :build-targets)))))))))
+
 (deftest label-aabb-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]

@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.camera :as camera]
+            [editor.code.data :as code.data]
             [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.geom :as geom]
@@ -41,7 +42,7 @@
             [schema.core :as schema]
             [service.log :as log]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Layout FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Layout FontRenderer$MarkupError FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -415,7 +416,7 @@
 (defn- font-map->glyphs [font-map]
   (into {} (map (fn [g] [(:character g) g])) (:glyphs font-map)))
 
-(defonce/record NativeRendererSpec [name font-bytes render-params measure-params supported-codepoints])
+(defonce/record NativeRendererSpec [name font-bytes render-params measure-params supported-codepoints use-rich-text])
 
 (defn- restrict-native-preview-text
   ^String [^NativeRendererSpec renderer-spec ^String text]
@@ -448,7 +449,12 @@
   (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
         native-text (restrict-native-preview-text renderer-spec text)
-        ^FontRenderer$Layout layout (.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))]
+        ^FontRenderer$Layout layout (if (.-use-rich-text renderer-spec)
+                                      (let [^FontRenderer$Layout markup-layout (.measureMarkup renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))]
+                                        (if (.-markupError markup-layout)
+                                          (.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))
+                                          markup-layout))
+                                      (.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)))]
     {:width (double (.-width layout))
      :height (double (.-height layout))
      :line-count (long (.-lineCount layout))
@@ -460,6 +466,23 @@
      :layout-width max-width
      :text-tracking text-tracking
      :text-leading text-leading}))
+
+(defn markup-error
+  [node-id property font-map text]
+  (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)]
+    (when (and renderer-spec
+               (.-use-rich-text renderer-spec)
+               (not (s/blank? text)))
+      (let [^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
+            ^FontRenderer$Layout layout (.measureMarkup renderer text false 0.0 1.0 0.0)]
+        (when-let [^FontRenderer$MarkupError error (.-markupError layout)]
+          (let [line (.-line error)
+                column (.-column error)]
+            (g/->error node-id property :warning text (.-message error)
+                       {:byte-offset (.-byteOffset error)
+                        :column column
+                        :cursor-range (code.data/line-number->CursorRange line column)
+                        :line line})))))))
 
 (defn measure
   ([font-map text]
@@ -730,6 +753,7 @@
     (set! (.-sdfScale properties) sdf-scale)
     {:properties properties
      :text text
+     :use-rich-text (.-use-rich-text renderer-spec)
      :transform transform
      :atlas-key [line-break width tracking text]
      :state-key [line-break width height leading tracking align vertical-align
@@ -738,7 +762,9 @@
 (defn- apply-native-entry-state!
   [^FontRenderer native-renderer native-entry-state]
   (.setProperties native-renderer ^FontRenderer$Properties (:properties native-entry-state))
-  (.setText native-renderer ^String (:text native-entry-state)))
+  (if (:use-rich-text native-entry-state)
+    (.setMarkup native-renderer ^String (:text native-entry-state))
+    (.setText native-renderer ^String (:text native-entry-state))))
 
 (defn- generate-native-texture!
   [^GL2 gl ^FontRenderer native-renderer texture ^long known-atlas-version]
@@ -962,9 +988,10 @@
     :render-mode render-mode))
 
 (defn- make-native-renderer-spec
-  ^NativeRendererSpec [font font-desc font-map use-font-layout runtime-generation]
+  ^NativeRendererSpec [font font-desc font-map type use-font-layout use-rich-text runtime-generation]
   (let [render-params (FontRenderer$Params.)
         measure-params (FontRenderer$Params.)
+        output-bitmap (= :defold type)
         shadow-blur (double (if (pos? ^double (:shadow-alpha font-desc))
                               (:shadow-blur font-desc)
                               0.0))
@@ -986,10 +1013,19 @@
     (set! (.-shadowX render-params) (float (:shadow-x font-desc)))
     (set! (.-shadowY render-params) (float (:shadow-y font-desc)))
     (set! (.-layerMask render-params) (int (:layer-mask font-map)))
+    (set! (.-outputBitmap render-params) output-bitmap)
+    (set! (.-antialias render-params) (protobuf/int->boolean (:antialias font-desc)))
+    (set! (.-hasOutline render-params) (boolean (and (pos? ^double (:outline-width font-desc))
+                                                      (pos? ^double (:outline-alpha font-desc)))))
+    (set! (.-hasShadow render-params) (boolean (pos? ^double (:shadow-alpha font-desc))))
     (set! (.-useTextShaping render-params) (boolean (and use-font-layout runtime-generation)))
     (set! (.-size measure-params) (.-size render-params))
     (set! (.-cacheWidth measure-params) 1)
     (set! (.-cacheHeight measure-params) 1)
+    (set! (.-outputBitmap measure-params) output-bitmap)
+    (set! (.-antialias measure-params) (.-antialias render-params))
+    (set! (.-hasOutline measure-params) (.-hasOutline render-params))
+    (set! (.-hasShadow measure-params) (.-hasShadow render-params))
     (set! (.-useTextShaping measure-params) (.-useTextShaping render-params))
     (let [name (resource/proj-path font)
           font-bytes (resource/resource->bytes font)
@@ -1000,14 +1036,15 @@
                             font-bytes
                             render-params
                             measure-params
-                            supported-codepoints))))
+                            supported-codepoints
+                            use-rich-text))))
 
 (defn- font-compilation-error [node-id font ^Exception error]
   (let [message (.getMessage error)]
     (log/error :msg (str "Failed to generate bitmap from Font. " message) :exception error)
     (g/->error node-id :font :fatal font (localization/message "error.font-bitmap-generation-failed" {"error" message}))))
 
-(defn- make-font-map [_node-id font type pb-msg font-resource-map use-font-layout runtime-generation]
+(defn- make-font-map [_node-id font type pb-msg font-resource-map use-font-layout use-rich-text runtime-generation]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font font-message)
                                       (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message)
                                       (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) cache-width-message)
@@ -1028,14 +1065,16 @@
       (try
         (let [font-map (compile-font pb-msg font font-resource-map)]
           (cond-> font-map
-            (= :distance-field type) (assoc :native-renderer-spec (make-native-renderer-spec font pb-msg font-map use-font-layout runtime-generation))))
+            (or (= :defold type)
+                (= :distance-field type))
+            (assoc :native-renderer-spec (make-native-renderer-spec font pb-msg font-map type use-font-layout use-rich-text runtime-generation))))
         (catch Exception error
           (font-compilation-error _node-id font error)))))
 
-(g/defnk produce-font-map [_node-id font type font-resource-map save-value use-font-layout runtime-generation-build-target]
+(g/defnk produce-font-map [_node-id font type font-resource-map save-value use-font-layout use-rich-text runtime-generation-build-target]
   ;; TODO(save-value-cleanup): make-font-map expects all values to be present.
   (let [font-desc (protobuf/inject-defaults Font$FontDesc save-value)]
-    (make-font-map _node-id font type font-desc font-resource-map use-font-layout (some? runtime-generation-build-target))))
+    (make-font-map _node-id font type font-desc font-resource-map use-font-layout use-rich-text (some? runtime-generation-build-target))))
 
 (defn- build-glyph-bank [resource _dep-resources user-data]
   (let [{:keys [font-desc font font-resource-map digest-ignored/node-id]} user-data]
@@ -1336,6 +1375,7 @@
   (input material-shader ShaderLifecycle)
   (input font-resource-map g/Any)
   (input use-font-layout g/Bool)
+  (input use-rich-text g/Bool)
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
@@ -1370,7 +1410,8 @@
   (let [basis (g/now)
         resolve-resource #(workspace/resolve-resource basis resource %)]
     (into
-      [(g/connect project :use-font-layout self :use-font-layout)]
+      [(g/connect project :use-font-layout self :use-font-layout)
+       (g/connect project :use-rich-text self :use-rich-text)]
       (gu/set-properties-from-pb-map self Font$FontDesc font-desc
         font (resolve-resource :font)
         material (resolve-resource :material)

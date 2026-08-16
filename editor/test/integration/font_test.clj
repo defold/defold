@@ -16,6 +16,7 @@
   (:require [clojure.string :as s]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.code.data :as code.data]
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.form :as form]
@@ -101,6 +102,10 @@
                                                     [:native-renderer-spec :render-params])]
     (.-useTextShaping render-params)))
 
+(defn- font-map-uses-rich-text? [font-node]
+  (get-in (g/node-value font-node :font-map)
+          [:native-renderer-spec :use-rich-text]))
+
 (deftest app-manifest-layout-selection
   (test-util/with-loaded-project
     (let [game-project (test-util/resource-node project "/game.project")
@@ -120,6 +125,60 @@
       (testing "runtime-generated fonts use text shaping"
         (game-project/set-setting! game-project ["font" "runtime_generation"] true)
         (is (true? (font-map-uses-text-shaping? font-node)))))))
+
+(deftest app-manifest-rich-text-selection
+  (test-util/with-loaded-project
+    (let [game-project (test-util/resource-node project "/game.project")
+          font-node (test-util/resource-node project "/editor1/test.font")
+          app-manifest (test-util/resource-node project "/app_manifest/default.appmanifest")]
+      (testing "rich text is enabled without an app manifest"
+        (is (true? (font-map-uses-rich-text? font-node))))
+      (g/transact {:undoable false}
+        (form/set-value (:form-ops (g/node-value game-project :form-data))
+                        ["native_extension" "app_manifest"]
+                        (g/node-value app-manifest :resource)))
+      (testing "rich text is enabled by default in an app manifest"
+        (is (true? (font-map-uses-rich-text? font-node))))
+      (g/transact {:undoable false}
+        (g/set-property app-manifest :use-rich-text false))
+      (testing "rich text can be disabled in an app manifest"
+        (is (false? (font-map-uses-rich-text? font-node)))))))
+
+(deftest bitmap-font-uses-native-rich-text-preview
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        (g/set-property font-node :output-format :type-bitmap))
+      (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
+                                                       [:native-renderer-spec :render-params])]
+        (is (= :defold (g/node-value font-node :type)))
+        (is (true? (font-map-uses-rich-text? font-node)))
+        (is (true? (.-outputBitmap render-params))))
+      (let [error (font/markup-error font-node
+                                     :text
+                                     (g/node-value font-node :font-map)
+                                     "valid\n<color>bad</size>")]
+        (is (g/error-warning? error))
+        (is (= {:byte-offset 16
+                :column 11
+                :cursor-range (code.data/line-number->CursorRange 2 11)
+                :line 2}
+               (:user-data error)))
+        (is (s/includes? (test-util/localization (g/error-message error))
+                         "mismatched closing tag")))
+      (let [font-map (g/node-value font-node :font-map)
+            unknown-tag-error (font/markup-error font-node :text font-map "<s ize=14>Text</size>")
+            unknown-attribute-error (font/markup-error font-node :text font-map "<size sdf=14>Text</size>")
+            unknown-constant-error (font/markup-error font-node :text font-map "<wave fit=word>Text</wave>")]
+        (is (= 1 (get-in unknown-tag-error [:user-data :byte-offset])))
+        (is (s/includes? (test-util/localization (g/error-message unknown-tag-error))
+                         "unknown tag"))
+        (is (= 6 (get-in unknown-attribute-error [:user-data :byte-offset])))
+        (is (s/includes? (test-util/localization (g/error-message unknown-attribute-error))
+                         "unknown attribute"))
+        (is (= 10 (get-in unknown-constant-error [:user-data :byte-offset])))
+        (is (s/includes? (test-util/localization (g/error-message unknown-constant-error))
+                         "unknown value for attribute"))))))
 
 (deftest native-shadow-blur-does-not-depend-on-face-alpha
   (test-util/with-loaded-project
