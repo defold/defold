@@ -79,13 +79,17 @@ void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text
 void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor)
 {
     if (link_cursor && !g_LinkCursor)
+    {
         g_LinkCursor = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+    }
+
     glfwSetCursor(window->m_Window, link_cursor ? g_LinkCursor : 0);
 }
 
 void FontViewerMacOSDestroyLinkCursor(HWindow window)
 {
     glfwSetCursor(window->m_Window, 0);
+
     if (g_LinkCursor)
     {
         glfwDestroyCursor(g_LinkCursor);

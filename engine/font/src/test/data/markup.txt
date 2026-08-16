@@ -15,4 +15,4 @@ Effects:
 <wave amplitude=4 hz=1 wavelength=6>Wave Characters</wave>  <wave amplitude=4 hz=1 fit=span>Wave Word</wave>
 
 Layout objects (metadata MVP):
-Visit <sprite src=engine/engine/content/builtins/assets/images/logo/logo_256.png/> <a href=https://defold.com>www.defold.com</a>  <sprite atlas=/images/icons.atlas animation=coin width=2em/>
+Visit <sprite src=engine/engine/content/builtins/assets/images/logo/logo_256.png/> <link src=https://defold.com>www.defold.com</link>  <sprite src=/images/icons.atlas animation=coin width=2em/>

@@ -55,9 +55,6 @@ instead, and markup creation returns `MARKUP_RESULT_UNSUPPORTED`. Plain text
 layout and rendering continue to work through pass-through render-data helpers,
 without linking the parser or style/effect implementation.
 
-See [`richtext.html`](richtext.html) for the markup syntax, supported tags,
-attribute combinations, layout objects, and recovery behavior.
-
 Markup can be applied through both the legacy and full layout paths. The parser
 itself is independent and may be used without enabling `font_layout`.
 

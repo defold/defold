@@ -394,6 +394,7 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
             DrawColorPicker("Background", properties->m_BackgroundColor);
 
             nk_layout_row_dynamic(&g_Context, 24.0f, 1);
+
             if (nk_tree_push(&g_Context, NK_TREE_NODE, "Loaded fonts", NK_MAXIMIZED))
             {
                 SetFont(12.0f);

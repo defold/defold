@@ -24,7 +24,7 @@
 #include "font.h"
 #include "fontcollection.h"
 #include "glyph_gen.h"
-#include "glyph_vertex.h"
+#include "layout_vertex.h"
 #include "text_layout.h"
 
 #if defined(FONT_BENCHMARK_MARKUP)
@@ -94,10 +94,10 @@ struct VertexGenerationContext
     HTextLayout                 m_Layout;
     dmArray<CachedVertexGlyph>* m_GlyphCache;
     dmArray<FontGlyphVertex>*   m_Vertices;
+    FontLayoutVertexConfig      m_Config;
+    FontLayoutVertexMetrics     m_Metrics;
     float                       m_DefaultFontSize;
     uint32_t                    m_CacheMaxAscent;
-    uint32_t                    m_DecorationQuadCount;
-    uint32_t                    m_VertexCount;
 };
 
 struct PlainLayoutAndVerticesContext
@@ -161,6 +161,7 @@ static int CompareDouble(const void* left, const void* right)
 {
     double a = *(const double*)left;
     double b = *(const double*)right;
+
     return (a > b) - (a < b);
 }
 
@@ -168,50 +169,68 @@ static bool Measure(FBenchmarkIteration iteration, void* context, const Benchmar
 {
     const uint64_t warmup_duration = (uint64_t)options.m_WarmupMilliseconds * 1000;
     const uint64_t warmup_start = dmTime::GetMonotonicTime();
-    uint32_t warmup_iterations = 0;
-    uint64_t warmup_elapsed = 0;
+    uint32_t       warmup_iterations = 0;
+    uint64_t       warmup_elapsed = 0;
     do
     {
         if (!iteration(context))
+        {
             return false;
+        }
+
         ++warmup_iterations;
         warmup_elapsed = dmTime::GetMonotonicTime() - warmup_start;
     } while (warmup_elapsed < warmup_duration && warmup_iterations < MAX_ITERATIONS);
 
     uint32_t iterations = options.m_Iterations;
+
     if (iterations == 0)
     {
         if (warmup_elapsed == 0)
+        {
             warmup_elapsed = 1;
+        }
+
         const double microseconds_per_iteration = (double)warmup_elapsed / warmup_iterations;
         iterations = (uint32_t)((options.m_TargetMilliseconds * 1000.0) / microseconds_per_iteration + 0.5);
+
         if (iterations == 0)
+        {
             iterations = 1;
+        }
+
         if (iterations > MAX_ITERATIONS)
+        {
             iterations = MAX_ITERATIONS;
+        }
     }
 
     double* sample_times = (double*)malloc(sizeof(double) * options.m_Samples);
     double* deviations = (double*)malloc(sizeof(double) * options.m_Samples);
+
     if (!sample_times || !deviations)
     {
         free(sample_times);
         free(deviations);
+
         return false;
     }
 
     for (uint32_t sample = 0; sample < options.m_Samples; ++sample)
     {
         uint64_t start = dmTime::GetMonotonicTime();
+
         for (uint32_t i = 0; i < iterations; ++i)
         {
             if (!iteration(context))
             {
                 free(sample_times);
                 free(deviations);
+
                 return false;
             }
         }
+
         uint64_t elapsed = dmTime::GetMonotonicTime() - start;
         sample_times[sample] = (double)elapsed / iterations;
     }
@@ -220,13 +239,18 @@ static bool Measure(FBenchmarkIteration iteration, void* context, const Benchmar
     measurement->m_MedianMicroseconds = sample_times[options.m_Samples / 2];
     measurement->m_P25Microseconds = sample_times[options.m_Samples / 4];
     measurement->m_P75Microseconds = sample_times[(options.m_Samples * 3) / 4];
+
     for (uint32_t sample = 0; sample < options.m_Samples; ++sample)
+    {
         deviations[sample] = fabs(sample_times[sample] - measurement->m_MedianMicroseconds);
+    }
+
     qsort(deviations, options.m_Samples, sizeof(double), CompareDouble);
     measurement->m_MedianAbsoluteDeviationMicroseconds = deviations[options.m_Samples / 2];
     measurement->m_Iterations = iterations;
     free(sample_times);
     free(deviations);
+
     return true;
 }
 
@@ -235,10 +259,15 @@ static bool RunPlainLayout(void* context)
     PlainLayoutContext* plain = (PlainLayoutContext*)context;
     HTextLayout         layout = 0;
     TextResult          result = TextLayoutCreate(plain->m_Collection, plain->m_Codepoints, plain->m_CodepointCount, &plain->m_Settings, &layout);
+
     if (result != TEXT_RESULT_OK || !layout)
+    {
         return false;
+    }
+
     g_BenchmarkChecksum += TextLayoutGetGlyphCount(layout);
     TextLayoutRelease(layout);
+
     return true;
 }
 
@@ -250,16 +279,39 @@ static const CachedVertexGlyph* FindCachedGlyph(const dmArray<CachedVertexGlyph>
     for (uint32_t i = 0; i < glyph_cache.Size(); ++i)
     {
         const CachedVertexGlyph& glyph = glyph_cache[i];
+
         if (glyph.m_Font == font && glyph.m_GlyphIndex == glyph_index && glyph.m_FontSize == font_size)
+        {
             return &glyph;
+        }
     }
+
     return 0;
+}
+
+static bool ResolveCachedGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* output)
+{
+    VertexGenerationContext* context_data = (VertexGenerationContext*)context;
+    const CachedVertexGlyph* cached = FindCachedGlyph(*context_data->m_GlyphCache, text_glyph.m_Font, text_glyph.m_GlyphIndex, context_data->m_DefaultFontSize);
+
+    if (!cached)
+    {
+        return false;
+    }
+
+    output->m_Glyph = (FontGlyph*)&cached->m_Glyph;
+    output->m_CellX = cached->m_CellX;
+    output->m_CellY = cached->m_CellY;
+
+    return true;
 }
 
 static bool AddCachedGlyph(dmArray<CachedVertexGlyph>& glyph_cache, HFont font, uint32_t glyph_index, float font_size, uint32_t* max_ascent)
 {
     if (FindCachedGlyph(glyph_cache, font, glyph_index, font_size))
+    {
         return true;
+    }
 
     CachedVertexGlyph glyph;
     memset(&glyph, 0, sizeof(glyph));
@@ -269,247 +321,127 @@ static bool AddCachedGlyph(dmArray<CachedVertexGlyph>& glyph_cache, HFont font, 
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(font, font_size);
     params.m_SdfPadding = 6.0f;
+
     if (FontGenerateGlyph(font, glyph_index, &params, &glyph.m_Glyph) != FONT_RESULT_OK)
+    {
         return false;
+    }
+
     glyph.m_CellX = glyph_cache.Size() * 64;
     glyph.m_CellY = 0;
     *max_ascent = dmMath::Max(*max_ascent, (uint32_t)glyph.m_Glyph.m_Ascent);
+
     if (glyph_cache.Full())
+    {
         glyph_cache.OffsetCapacity(32);
+    }
+
     glyph_cache.Push(glyph);
+
     return true;
 }
 
-#if defined(FONT_BENCHMARK_MARKUP)
-static uint32_t CountDecorationQuads(HTextLayout layout)
-{
-    const TextDecoration* decorations = TextLayoutGetDecorations(layout);
-    uint32_t              count = 0;
-    for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
-        count += FontGetDecorationQuadCount(layout, decorations[i]);
-    return count;
-}
-#endif
-
-static bool PrepareVertexGeneration(HTextLayout layout, float default_font_size, dmArray<CachedVertexGlyph>& glyph_cache, dmArray<FontGlyphVertex>& vertices, uint32_t* max_ascent, uint32_t* decoration_quad_count, uint32_t* vertex_count)
+static bool PrepareVertexGeneration(HTextLayout layout, const TextLayoutSettings& settings, dmArray<CachedVertexGlyph>& glyph_cache, dmArray<FontGlyphVertex>& vertices, VertexGenerationContext* context)
 {
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    uint32_t   visible_glyph_count = 0;
+    uint32_t   max_ascent = 0;
+
     for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
     {
         const TextGlyph& glyph = glyphs[i];
-        if (dmUtf8::IsWhiteSpace(glyph.m_Codepoint)
-#if defined(FONT_BENCHMARK_MARKUP)
-            || (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
-#endif
-        )
+
+        if (dmUtf8::IsWhiteSpace(glyph.m_Codepoint) || (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT))
+        {
             continue;
-        if (!AddCachedGlyph(glyph_cache, glyph.m_Font, glyph.m_GlyphIndex, default_font_size, max_ascent))
+        }
+
+        if (!AddCachedGlyph(glyph_cache, glyph.m_Font, glyph.m_GlyphIndex, settings.m_Size, &max_ascent))
+        {
             return false;
-        ++visible_glyph_count;
+        }
     }
 
-#if defined(FONT_BENCHMARK_MARKUP)
-    const uint32_t layer_count = 1 + TextLayoutHasMarkupOutline(layout) + TextLayoutHasMarkupShadow(layout);
-    *decoration_quad_count = CountDecorationQuads(layout);
-#else
-    const uint32_t layer_count = 1;
-    *decoration_quad_count = 0;
-#endif
-    *vertex_count = (visible_glyph_count + *decoration_quad_count) * 6 * layer_count;
-    if (vertices.Capacity() < *vertex_count)
-        vertices.SetCapacity(*vertex_count);
-    vertices.SetSize(*vertex_count);
+    memset(context, 0, sizeof(*context));
+    context->m_Layout = layout;
+    context->m_GlyphCache = &glyph_cache;
+    context->m_Vertices = &vertices;
+    context->m_DefaultFontSize = settings.m_Size;
+    context->m_CacheMaxAscent = max_ascent;
+    context->m_Config.m_Layout = layout;
+    context->m_Config.m_ResolveGlyph = ResolveCachedGlyph;
+    context->m_Config.m_ResolveGlyphContext = context;
+    context->m_Config.m_Transform = dmVMath::Matrix4::identity();
+    context->m_Config.m_OutlineColor = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+    context->m_Config.m_ShadowColor = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        context->m_Config.m_FaceColor[i] = 1.0f;
+    }
+
+    context->m_Config.m_Width = settings.m_Width;
+    context->m_Config.m_Height = 0.0f;
+    context->m_Config.m_RecipAtlasWidth = 1.0f / 4096.0f;
+    context->m_Config.m_RecipAtlasHeight = 1.0f / 4096.0f;
+    context->m_Config.m_SdfEdge = 0.75f;
+    context->m_Config.m_SdfOutline = 1.0f;
+    context->m_Config.m_SdfSmoothing = 0.25f / 6.0f;
+    context->m_Config.m_SdfShadow = 1.0f;
+    context->m_Config.m_SdfSpread = 6.0f;
+    context->m_Config.m_CacheCellMaxAscent = max_ascent;
+    context->m_Config.m_CacheCellPadding = 1;
+    context->m_Config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    context->m_Config.m_MetricsFromTtf = true;
+    context->m_Config.m_RenderDecorations = true;
+    context->m_Config.m_RenderObjectOutlines = false;
+    context->m_Config.m_ResolveGlyphsForMetrics = false;
+
+    if (!FontGetLayoutVertexMetrics(context->m_Config, &context->m_Metrics))
+    {
+        return false;
+    }
+
+    if (vertices.Capacity() < context->m_Metrics.m_VertexCount)
+    {
+        vertices.SetCapacity(context->m_Metrics.m_VertexCount);
+    }
+
+    vertices.SetSize(context->m_Metrics.m_VertexCount);
+
     return true;
 }
 
-#if defined(FONT_BENCHMARK_MARKUP)
 static bool GenerateVertices(VertexGenerationContext* context)
 {
-    HTextLayout            layout = context->m_Layout;
-    TextGlyph*             glyphs = TextLayoutGetGlyphs(layout);
-    TextLine*              lines = TextLayoutGetLines(layout);
-    const dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
-    const float            white_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    const dmVMath::Vector4 black(0.0f, 0.0f, 0.0f, 1.0f);
-    const dmVMath::Vector4 white(1.0f, 1.0f, 1.0f, 1.0f);
-    const bool             has_markup_outline = TextLayoutHasMarkupOutline(layout);
-    const bool             has_markup_shadow = TextLayoutHasMarkupShadow(layout);
-    const uint32_t         layer_count = 1 + has_markup_outline + has_markup_shadow;
-    const uint32_t         layer_mask = FONT_RENDER_LAYER_FACE |
-                                        (has_markup_outline ? FONT_RENDER_LAYER_OUTLINE : 0) |
-                                        (has_markup_shadow ? FONT_RENDER_LAYER_SHADOW : 0);
-    const uint32_t         layer_stride = context->m_VertexCount / layer_count;
-    uint32_t               vertex_index = 0;
-    for (uint32_t line_index = 0; line_index < TextLayoutGetLineCount(layout); ++line_index)
+    context->m_Config.m_Layout = context->m_Layout;
+
+    if (!FontGetLayoutVertexMetrics(context->m_Config, &context->m_Metrics))
     {
-        const TextLine& line = lines[line_index];
-        if (line.m_Length == 0)
-            continue;
-        const float first_x = glyphs[line.m_Index].m_X;
-        const float first_y = glyphs[line.m_Index].m_Y;
-        for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
-        {
-            const TextGlyph& text_glyph = glyphs[glyph_index];
-            if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint) || (text_glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT))
-                continue;
-            const CachedVertexGlyph* cached = FindCachedGlyph(*context->m_GlyphCache, text_glyph.m_Font, text_glyph.m_GlyphIndex, context->m_DefaultFontSize);
-            if (!cached)
-                return false;
-            TextGlyphRenderData glyph_render_data;
-            TextLayoutGetGlyphRenderData(layout, text_glyph, white_color, &glyph_render_data);
-            const bool has_outline = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0 && glyph_render_data.m_OutlineWidth > 0.0f;
-            const dmVMath::Vector4 outline_color(glyph_render_data.m_OutlineColor[0],
-                                                  glyph_render_data.m_OutlineColor[1],
-                                                  glyph_render_data.m_OutlineColor[2],
-                                                  has_outline ? glyph_render_data.m_OutlineColor[3] : 0.0f);
-            const float sdf_outline = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH
-                                    ? 0.75f - (191.0f / 255.0f) * glyph_render_data.m_OutlineWidth / (6.0f * text_glyph.m_RenderScale)
-                                    : 1.0f;
-            const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
-            const bool has_shadow = (glyph_render_data.m_StyleFlags & shadow_flags) != 0;
-            const dmVMath::Vector4 shadow_color(glyph_render_data.m_ShadowColor[0],
-                                                 glyph_render_data.m_ShadowColor[1],
-                                                 glyph_render_data.m_ShadowColor[2],
-                                                 has_shadow ? glyph_render_data.m_ShadowColor[3] : 0.0f);
-            FontPackGlyphVertices4Colors((FontGlyph*)&cached->m_Glyph,
-                                          1.0f / 4096.0f,
-                                          1.0f / 4096.0f,
-                                          cached->m_CellX,
-                                          cached->m_CellY,
-                                          context->m_CacheMaxAscent,
-                                          1,
-                                          layer_count,
-                                          layer_mask,
-                                          vertex_index,
-                                          layer_stride,
-                                          transform,
-                                          text_glyph.m_X - first_x + glyph_render_data.m_OffsetX,
-                                          text_glyph.m_Y - first_y + glyph_render_data.m_OffsetY,
-                                          text_glyph.m_RenderScale,
-                                          glyph_render_data.m_FaceColors,
-                                          has_markup_outline ? outline_color : white,
-                                          has_markup_shadow ? shadow_color : black,
-                                          0.75f,
-                                          sdf_outline,
-                                          0.25f / (6.0f * text_glyph.m_RenderScale),
-                                          1.0f,
-                                          glyph_render_data.m_ShadowX,
-                                          glyph_render_data.m_ShadowY,
-                                          true,
-                                          context->m_Vertices->Begin());
-            vertex_index += 6;
-        }
+        return false;
     }
-    const TextDecoration* decorations = TextLayoutGetDecorations(layout);
-    uint32_t              emitted_decorations = 0;
-    for (uint32_t decoration_index = 0; decoration_index < TextLayoutGetDecorationCount(layout); ++decoration_index)
+
+    if (context->m_Metrics.m_VertexCount > context->m_Vertices->Capacity())
     {
-        const TextDecoration& decoration = decorations[decoration_index];
-        const TextLine&       line = lines[decoration.m_LineIndex];
-        const float           first_x = glyphs[line.m_Index].m_X;
-        const float           first_y = glyphs[line.m_Index].m_Y;
-        const bool            glyph_segments = FontDecorationRequiresGlyphSegments(layout, decoration);
-        const uint32_t        segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
-        const float           segment_length = decoration.m_Length / segment_count;
-        TextGlyphFaceColors   decoration_colors;
-        if (!glyph_segments)
-            FontGetDecorationFaceColors(layout, decoration, white_color, &decoration_colors);
-        for (uint32_t segment = 0; segment < segment_count; ++segment)
-        {
-            TextGlyphFaceColors segment_colors;
-            if (glyph_segments)
-            {
-                TextGlyphRenderData glyph_render_data;
-                TextLayoutGetGlyphRenderData(layout, glyphs[decoration.m_GlyphStart + segment], white_color, &glyph_render_data);
-                segment_colors = glyph_render_data.m_FaceColors;
-            }
-            else
-            {
-                segment_colors = decoration_colors;
-            }
-            const float piece_x0 = decoration.m_X - first_x + segment_length * segment;
-            const float piece_x1 = piece_x0 + segment_length;
-            const float piece_y = decoration.m_Y - first_y;
-            FontDecorationPattern pattern;
-            FontGetDecorationPattern(decoration, segment, segment_count, &pattern);
-            FontPackDecorationVertices(0.0f, 0.0f, layer_count, vertex_index, layer_stride, transform,
-                                       piece_x0, piece_y, piece_x1, piece_y, decoration.m_Thickness,
-                                       pattern.m_Start, pattern.m_End, pattern.m_Duty, segment_colors, context->m_Vertices->Begin());
-            vertex_index += 6;
-            ++emitted_decorations;
-        }
+        return false;
     }
-    if (emitted_decorations != context->m_DecorationQuadCount)
+
+    context->m_Vertices->SetSize(context->m_Metrics.m_VertexCount);
+    const uint32_t vertex_count = FontCreateLayoutVertices(context->m_Config, context->m_Metrics, context->m_Vertices->Begin(), context->m_Vertices->Size());
+
+    if (vertex_count != context->m_Metrics.m_VertexCount)
+    {
         return false;
-    if (vertex_index * layer_count != context->m_VertexCount)
-        return false;
-    g_BenchmarkChecksum += context->m_VertexCount;
-    if (vertex_index != 0)
+    }
+
+    g_BenchmarkChecksum += vertex_count;
+
+    if (vertex_count != 0)
+    {
         g_BenchmarkChecksum += (uint64_t)(context->m_Vertices->Back().m_Position[0] * 1000.0f);
+    }
+
     return true;
 }
-#else
-static bool GenerateVertices(VertexGenerationContext* context)
-{
-    HTextLayout            layout = context->m_Layout;
-    TextGlyph*             glyphs = TextLayoutGetGlyphs(layout);
-    TextLine*              lines = TextLayoutGetLines(layout);
-    const dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
-    const dmVMath::Vector4 black(0.0f, 0.0f, 0.0f, 1.0f);
-    const dmVMath::Vector4 white(1.0f, 1.0f, 1.0f, 1.0f);
-    uint32_t               vertex_index = 0;
-    for (uint32_t line_index = 0; line_index < TextLayoutGetLineCount(layout); ++line_index)
-    {
-        const TextLine& line = lines[line_index];
-        if (line.m_Length == 0)
-            continue;
-        const float first_x = glyphs[line.m_Index].m_X;
-        const float first_y = glyphs[line.m_Index].m_Y;
-        for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
-        {
-            const TextGlyph& text_glyph = glyphs[glyph_index];
-            if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint))
-                continue;
-            const CachedVertexGlyph* cached = FindCachedGlyph(*context->m_GlyphCache, text_glyph.m_Font, text_glyph.m_GlyphIndex, context->m_DefaultFontSize);
-            if (!cached)
-                return false;
-            FontPackGlyphVertices((FontGlyph*)&cached->m_Glyph,
-                                  1.0f / 4096.0f,
-                                  1.0f / 4096.0f,
-                                  cached->m_CellX,
-                                  cached->m_CellY,
-                                  context->m_CacheMaxAscent,
-                                  1,
-                                  1,
-                                  FONT_RENDER_LAYER_FACE,
-                                  vertex_index,
-                                  context->m_VertexCount,
-                                  transform,
-                                  text_glyph.m_X - first_x,
-                                  text_glyph.m_Y - first_y,
-                                  white,
-                                  white,
-                                  black,
-                                  0.75f,
-                                  1.0f,
-                                  0.25f / 6.0f,
-                                  1.0f,
-                                  0.0f,
-                                  0.0f,
-                                  true,
-                                  context->m_Vertices->Begin());
-            vertex_index += 6;
-        }
-    }
-    if (vertex_index != context->m_VertexCount)
-        return false;
-    g_BenchmarkChecksum += context->m_VertexCount;
-    if (vertex_index != 0)
-        g_BenchmarkChecksum += (uint64_t)(context->m_Vertices->Back().m_Position[0] * 1000.0f);
-    return true;
-}
-#endif
 
 static bool RunVertices(void* context)
 {
@@ -526,18 +458,24 @@ static bool RunPlainLayoutAndVertices(void* context)
                                          &end_to_end->m_Layout.m_Settings,
                                          &layout);
     if (result != TEXT_RESULT_OK || !layout)
+    {
         return false;
+    }
+
     end_to_end->m_Vertices->m_Layout = layout;
     bool generated = GenerateVertices(end_to_end->m_Vertices);
     TextLayoutRelease(layout);
     end_to_end->m_Vertices->m_Layout = 0;
+
     return generated;
 }
 
 static void FreeCachedGlyphs(dmArray<CachedVertexGlyph>& glyph_cache)
 {
     for (uint32_t i = 0; i < glyph_cache.Size(); ++i)
+    {
         FontFreeGlyph(glyph_cache[i].m_Font, &glyph_cache[i].m_Glyph);
+    }
 }
 
 static void BuildPlainText(dmArray<char>& text)
@@ -547,8 +485,12 @@ static void BuildPlainText(dmArray<char>& text)
     const uint32_t seed_length = sizeof(seed) - 1;
     text.SetCapacity(BENCHMARK_TEXT_LENGTH + 1);
     text.SetSize(0);
+
     for (uint32_t i = 0; i < BENCHMARK_TEXT_LENGTH; ++i)
+    {
         text.Push(seed[i % seed_length]);
+    }
+
     text.Push(0);
 }
 
@@ -556,13 +498,19 @@ static uint32_t CountWords(const dmArray<char>& text)
 {
     uint32_t word_count = 0;
     bool     in_word = false;
+
     for (uint32_t i = 0; i < BENCHMARK_TEXT_LENGTH; ++i)
     {
         bool is_word = text[i] != ' ';
+
         if (is_word && !in_word)
+        {
             ++word_count;
+        }
+
         in_word = is_word;
     }
+
     return word_count;
 }
 
@@ -658,7 +606,7 @@ static const char* GetOpeningTag(MarkupStyleType style)
         case MARKUP_STYLE_STRIKE_DASHED:
             return "<strike pattern=dashed>";
         case MARKUP_STYLE_LINK:
-            return "<a href=https://defold.com>";
+            return "<link src=https://defold.com>";
         case MARKUP_STYLE_SPRITE:
             return "<sprite src=/benchmark.png/>";
         default:
@@ -693,7 +641,7 @@ static const char* GetClosingTag(MarkupStyleType style)
         case MARKUP_STYLE_STRIKE_DASHED:
             return "</strike>";
         case MARKUP_STYLE_LINK:
-            return "</a>";
+            return "</link>";
         default:
             return "";
     }
@@ -702,7 +650,9 @@ static const char* GetClosingTag(MarkupStyleType style)
 static void AppendBytes(dmArray<char>& destination, const char* source, uint32_t length)
 {
     for (uint32_t i = 0; i < length; ++i)
+    {
         destination.Push(source[i]);
+    }
 }
 
 static void BuildMarkupSource(const dmArray<char>& plain_text, MarkupStyleType style, uint32_t tag_count, MarkupSource* source)
@@ -717,6 +667,7 @@ static void BuildMarkupSource(const dmArray<char>& plain_text, MarkupStyleType s
 
     uint32_t offset = 0;
     uint32_t word_index = 0;
+
     while (offset < BENCHMARK_TEXT_LENGTH)
     {
         if (plain_text[offset] == ' ')
@@ -727,8 +678,11 @@ static void BuildMarkupSource(const dmArray<char>& plain_text, MarkupStyleType s
         }
 
         uint32_t word_end = offset;
+
         while (word_end < BENCHMARK_TEXT_LENGTH && plain_text[word_end] != ' ')
+        {
             ++word_end;
+        }
 
         bool selected = style != MARKUP_STYLE_NONE &&
                         (word_index + 1) * tag_count / source->m_WordCount != word_index * tag_count / source->m_WordCount;
@@ -737,15 +691,20 @@ static void BuildMarkupSource(const dmArray<char>& plain_text, MarkupStyleType s
             AppendBytes(source->m_Bytes, opening_tag, (uint32_t)strlen(opening_tag));
             ++source->m_SelectedWordCount;
         }
+
         const bool sprite = selected && style == MARKUP_STYLE_SPRITE;
         const uint32_t text_offset = offset + (sprite ? 1 : 0);
         AppendBytes(source->m_Bytes, plain_text.Begin() + text_offset, word_end - text_offset);
+
         if (selected && !sprite)
+        {
             AppendBytes(source->m_Bytes, closing_tag, (uint32_t)strlen(closing_tag));
+        }
 
         ++word_index;
         offset = word_end;
     }
+
     source->m_Bytes.Push(0);
 }
 
@@ -754,6 +713,7 @@ static uint8_t ResolveBenchmarkObject(void*, const char*, const TextLayoutObject
     object->m_Width = proposed_width;
     object->m_Height = proposed_height;
     object->m_Resource = 1;
+
     return 1;
 }
 
@@ -766,10 +726,15 @@ static bool RunMarkupLayout(void* context)
     MarkupLayoutContext* markup = (MarkupLayoutContext*)context;
     HTextLayout          layout = 0;
     TextResult           result = TextLayoutCreateMarkup(markup->m_Collection, markup->m_Markup, &markup->m_Settings, &layout);
+
     if (result != TEXT_RESULT_OK || !layout)
+    {
         return false;
+    }
+
     g_BenchmarkChecksum += TextLayoutGetGlyphCount(layout);
     TextLayoutRelease(layout);
+
     return true;
 }
 
@@ -778,10 +743,15 @@ static bool RunMarkupParse(void* context)
     MarkupParseContext* parse = (MarkupParseContext*)context;
     HMarkup             markup = 0;
     MarkupResult        result = MarkupCreate(parse->m_Source, parse->m_SourceLength, &markup, 0);
+
     if (result != MARKUP_RESULT_OK || !markup)
+    {
         return false;
+    }
+
     g_BenchmarkChecksum += MarkupGetTextLength(markup);
     MarkupDestroy(markup);
+
     return true;
 }
 
@@ -790,19 +760,26 @@ static bool RunMarkupEndToEnd(void* context)
     MarkupEndToEndContext* end_to_end = (MarkupEndToEndContext*)context;
     HMarkup                markup = 0;
     MarkupResult           markup_result = MarkupCreate(end_to_end->m_Source, end_to_end->m_SourceLength, &markup, 0);
+
     if (markup_result != MARKUP_RESULT_OK || !markup)
+    {
         return false;
+    }
 
     HTextLayout layout = 0;
     TextResult  layout_result = TextLayoutCreateMarkup(end_to_end->m_Collection, markup, &end_to_end->m_Settings, &layout);
+
     if (layout_result != TEXT_RESULT_OK || !layout)
     {
         MarkupDestroy(markup);
+
         return false;
     }
+
     g_BenchmarkChecksum += TextLayoutGetGlyphCount(layout);
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
+
     return true;
 }
 
@@ -811,21 +788,28 @@ static bool RunMarkupParseLayoutAndVertices(void* context)
     MarkupEndToEndContext* end_to_end = (MarkupEndToEndContext*)context;
     HMarkup                markup = 0;
     MarkupResult           markup_result = MarkupCreate(end_to_end->m_Source, end_to_end->m_SourceLength, &markup, 0);
+
     if (markup_result != MARKUP_RESULT_OK || !markup)
+    {
         return false;
+    }
 
     HTextLayout layout = 0;
     TextResult  layout_result = TextLayoutCreateMarkup(end_to_end->m_Collection, markup, &end_to_end->m_Settings, &layout);
+
     if (layout_result != TEXT_RESULT_OK || !layout)
     {
         MarkupDestroy(markup);
+
         return false;
     }
+
     end_to_end->m_Vertices->m_Layout = layout;
     bool generated = GenerateVertices(end_to_end->m_Vertices);
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
     end_to_end->m_Vertices->m_Layout = 0;
+
     return generated;
 }
 
@@ -833,95 +817,117 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
 {
     uint32_t source_length = source.m_Bytes.Size() - 1;
     HMarkup  markup = 0;
+
     if (MarkupCreate(source.m_Bytes.Begin(), source_length, &markup, 0) != MARKUP_RESULT_OK)
+    {
         return false;
+    }
+
     if (MarkupGetTextLength(markup) != BENCHMARK_TEXT_LENGTH)
     {
         MarkupDestroy(markup);
+
         return false;
     }
+
     uint32_t           span_count = MarkupGetSpanCount(markup);
     uint32_t           style_node_count = MarkupGetStyleNodeCount(markup);
 
     HTextLayout        vertex_layout = 0;
     TextLayoutSettings vertex_settings = settings;
+
     if (TextLayoutCreateMarkup(collection, markup, &vertex_settings, &vertex_layout) != TEXT_RESULT_OK)
     {
         MarkupDestroy(markup);
+
         return false;
     }
+
     dmArray<CachedVertexGlyph> glyph_cache;
     dmArray<FontGlyphVertex>   vertices;
-    uint32_t                   cache_max_ascent = 0;
-    uint32_t                   decoration_quad_count = 0;
-    uint32_t                   vertex_count = 0;
-    if (!PrepareVertexGeneration(vertex_layout, settings.m_Size, glyph_cache, vertices, &cache_max_ascent, &decoration_quad_count, &vertex_count))
+    VertexGenerationContext    vertex_context;
+
+    if (!PrepareVertexGeneration(vertex_layout, settings, glyph_cache, vertices, &vertex_context))
     {
         TextLayoutRelease(vertex_layout);
         MarkupDestroy(markup);
+
         return false;
     }
-    VertexGenerationContext vertex_context = {
-        vertex_layout, &glyph_cache, &vertices, settings.m_Size, cache_max_ascent, decoration_quad_count, vertex_count
-    };
 
     Measurement         layout_measurement;
     MarkupLayoutContext layout_context = { collection, markup, settings };
     bool                result = Measure(RunMarkupLayout, &layout_context, options, &layout_measurement);
+
     if (!result)
     {
         TextLayoutRelease(vertex_layout);
         MarkupDestroy(markup);
         FreeCachedGlyphs(glyph_cache);
+
         return false;
     }
+
     PrintResult("layout_markup", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, 0, layout_measurement);
 
     Measurement vertex_measurement;
+
     if (!Measure(RunVertices, &vertex_context, options, &vertex_measurement))
     {
         TextLayoutRelease(vertex_layout);
         MarkupDestroy(markup);
         FreeCachedGlyphs(glyph_cache);
+
         return false;
     }
-    PrintResult("vertices", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_count, vertex_measurement);
+
+    PrintResult("vertices", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_measurement);
 
     Measurement        parse_measurement;
     MarkupParseContext parse_context = { source.m_Bytes.Begin(), source_length };
+
     if (!Measure(RunMarkupParse, &parse_context, options, &parse_measurement))
     {
         TextLayoutRelease(vertex_layout);
         MarkupDestroy(markup);
         FreeCachedGlyphs(glyph_cache);
+
         return false;
     }
+
     PrintResult("parse", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, 0, parse_measurement);
 
     Measurement           end_to_end_measurement;
     MarkupEndToEndContext end_to_end_context = { collection, source.m_Bytes.Begin(), source_length, settings, &vertex_context };
+
     if (!Measure(RunMarkupEndToEnd, &end_to_end_context, options, &end_to_end_measurement))
     {
         TextLayoutRelease(vertex_layout);
         MarkupDestroy(markup);
         FreeCachedGlyphs(glyph_cache);
+
         return false;
     }
+
     PrintResult("parse_and_layout", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, 0, end_to_end_measurement);
 
     Measurement full_measurement;
+
     if (!Measure(RunMarkupParseLayoutAndVertices, &end_to_end_context, options, &full_measurement))
     {
         TextLayoutRelease(vertex_layout);
         MarkupDestroy(markup);
         FreeCachedGlyphs(glyph_cache);
+
         return false;
     }
-    PrintResult("parse_layout_vertices", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_count, full_measurement);
+
+    PrintResult("parse_layout_vertices", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, full_measurement);
 
     TextLayoutRelease(vertex_layout);
     MarkupDestroy(markup);
     FreeCachedGlyphs(glyph_cache);
+
     return true;
 }
 #endif
@@ -929,13 +935,22 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
 static bool ParsePositiveOption(const char* argument, const char* prefix, uint32_t* value)
 {
     uint32_t prefix_length = (uint32_t)strlen(prefix);
+
     if (strncmp(argument, prefix, prefix_length) != 0)
+    {
         return false;
+    }
+
     char*         end = 0;
     unsigned long parsed = strtoul(argument + prefix_length, &end, 10);
+
     if (!end || *end != 0 || parsed == 0 || parsed > 100000)
+    {
         return false;
+    }
+
     *value = (uint32_t)parsed;
+
     return true;
 }
 
@@ -949,6 +964,7 @@ static bool ParseOptions(int argc, char** argv, BenchmarkOptions* options)
     options->m_WarmupMilliseconds = DEFAULT_WARMUP_MILLISECONDS;
     options->m_OrderSeed = 1;
     options->m_TagCountFilter = 0;
+
     for (int i = 1; i < argc; ++i)
     {
         if (strncmp(argv[i], "--font=", 7) == 0)
@@ -962,63 +978,87 @@ static bool ParseOptions(int argc, char** argv, BenchmarkOptions* options)
         else if (strncmp(argv[i], "--tag-count=", 12) == 0)
         {
             if (!ParsePositiveOption(argv[i], "--tag-count=", &options->m_TagCountFilter))
+            {
                 return false;
+            }
         }
         else if (strncmp(argv[i], "--iterations=", 13) == 0)
         {
             if (!ParsePositiveOption(argv[i], "--iterations=", &options->m_Iterations))
+            {
                 return false;
+            }
         }
         else if (strncmp(argv[i], "--samples=", 10) == 0)
         {
             if (!ParsePositiveOption(argv[i], "--samples=", &options->m_Samples))
+            {
                 return false;
+            }
         }
         else if (strncmp(argv[i], "--target-ms=", 12) == 0)
         {
             if (!ParsePositiveOption(argv[i], "--target-ms=", &options->m_TargetMilliseconds))
+            {
                 return false;
+            }
         }
         else if (strncmp(argv[i], "--warmup-ms=", 12) == 0)
         {
             if (!ParsePositiveOption(argv[i], "--warmup-ms=", &options->m_WarmupMilliseconds))
+            {
                 return false;
+            }
         }
         else if (strncmp(argv[i], "--order-seed=", 13) == 0)
         {
             if (!ParsePositiveOption(argv[i], "--order-seed=", &options->m_OrderSeed))
+            {
                 return false;
+            }
         }
         else
         {
             return false;
         }
     }
+
     return true;
 }
 
 int main(int argc, char** argv)
 {
     BenchmarkOptions options;
+
     if (!ParseOptions(argc, argv, &options))
     {
         fprintf(stderr, "Usage: %s [--font=PATH] [--style=NAME] [--tag-count=N] [--iterations=N] [--samples=N] [--target-ms=N] [--warmup-ms=N] [--order-seed=N]\n", argv[0]);
+
         return 1;
     }
 
     HFont font = FontLoadFromPath(options.m_FontPath);
+
     if (!font)
     {
         fprintf(stderr, "Failed to load font: %s\n", options.m_FontPath);
+
         return 1;
     }
+
     HFontCollection collection = FontCollectionCreate();
+
     if (!collection || FontCollectionAddFont(collection, font) != FONT_RESULT_OK)
     {
         fprintf(stderr, "Failed to create font collection\n");
+
         if (collection)
+        {
             FontCollectionDestroy(collection);
+        }
+
         FontDestroy(font);
+
         return 1;
     }
 
@@ -1026,11 +1066,13 @@ int main(int argc, char** argv)
     BuildPlainText(plain_text);
     dmArray<uint32_t> codepoints;
     TextToCodePoints(plain_text.Begin(), codepoints);
+
     if (codepoints.Size() != BENCHMARK_TEXT_LENGTH)
     {
         fprintf(stderr, "Generated text length mismatch\n");
         FontCollectionDestroy(collection);
         FontDestroy(font);
+
         return 1;
     }
 
@@ -1049,37 +1091,59 @@ int main(int argc, char** argv)
     PlainLayoutContext plain_context = { collection, codepoints.Begin(), codepoints.Size(), settings };
     Measurement        plain_measurement;
     bool               success = Measure(RunPlainLayout, &plain_context, options, &plain_measurement);
+
     if (success)
+    {
         PrintResult("layout_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, 0, plain_measurement);
+    }
 
     HTextLayout        plain_layout = 0;
     TextLayoutSettings plain_vertex_settings = settings;
+
     if (success)
+    {
         success = TextLayoutCreate(collection, codepoints.Begin(), codepoints.Size(), &plain_vertex_settings, &plain_layout) == TEXT_RESULT_OK;
+    }
+
     dmArray<CachedVertexGlyph> plain_glyph_cache;
     dmArray<FontGlyphVertex>   plain_vertices;
-    uint32_t                   plain_cache_max_ascent = 0;
-    uint32_t                   plain_decoration_quad_count = 0;
-    uint32_t                   plain_vertex_count = 0;
+    VertexGenerationContext    plain_vertex_context;
+
     if (success)
-        success = PrepareVertexGeneration(plain_layout, settings.m_Size, plain_glyph_cache, plain_vertices, &plain_cache_max_ascent, &plain_decoration_quad_count, &plain_vertex_count);
-    VertexGenerationContext plain_vertex_context = {
-        plain_layout, &plain_glyph_cache, &plain_vertices, settings.m_Size, plain_cache_max_ascent, plain_decoration_quad_count, plain_vertex_count
-    };
+    {
+        success = PrepareVertexGeneration(plain_layout, settings, plain_glyph_cache, plain_vertices, &plain_vertex_context);
+    }
+
     Measurement plain_vertex_measurement;
+
     if (success)
+    {
         success = Measure(RunVertices, &plain_vertex_context, options, &plain_vertex_measurement);
+    }
+
     if (success)
-        PrintResult("vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_count, plain_vertex_measurement);
+    {
+        PrintResult("vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_measurement);
+    }
 
     PlainLayoutAndVerticesContext plain_full_context = { plain_context, &plain_vertex_context };
     Measurement                   plain_full_measurement;
+
     if (success)
+    {
         success = Measure(RunPlainLayoutAndVertices, &plain_full_context, options, &plain_full_measurement);
+    }
+
     if (success)
-        PrintResult("layout_vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_count, plain_full_measurement);
+    {
+        PrintResult("layout_vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_full_measurement);
+    }
+
     if (plain_layout)
+    {
         TextLayoutRelease(plain_layout);
+    }
+
     FreeCachedGlyphs(plain_glyph_cache);
 
 #if defined(FONT_BENCHMARK_TAGS)
@@ -1115,25 +1179,35 @@ int main(int argc, char** argv)
     };
     BenchmarkCase cases[DM_ARRAY_SIZE(styles) * DM_ARRAY_SIZE(tag_counts)];
     uint32_t case_count = 0;
+
     for (uint32_t style_index = 0; style_index < DM_ARRAY_SIZE(styles); ++style_index)
     {
         for (uint32_t tag_count_index = 0; tag_count_index < DM_ARRAY_SIZE(tag_counts); ++tag_count_index)
         {
             if (options.m_StyleFilter && strcmp(options.m_StyleFilter, GetStyleName(styles[style_index])) != 0)
+            {
                 continue;
+            }
+
             if (options.m_TagCountFilter != 0 && options.m_TagCountFilter != tag_counts[tag_count_index])
+            {
                 continue;
+            }
+
             cases[case_count].m_Style = styles[style_index];
             cases[case_count].m_TagCount = tag_counts[tag_count_index];
             ++case_count;
         }
     }
+
     if (case_count == 0)
     {
         fprintf(stderr, "No tag benchmark matches the requested filters\n");
         success = false;
     }
+
     uint32_t order_state = options.m_OrderSeed;
+
     for (uint32_t count = case_count; count > 1; --count)
     {
         order_state = order_state * 1664525u + 1013904223u;
@@ -1143,10 +1217,12 @@ int main(int argc, char** argv)
         cases[index] = cases[other];
         cases[other] = temporary;
     }
+
     for (uint32_t case_index = 0; success && case_index < case_count; ++case_index)
     {
         MarkupSource source;
         BuildMarkupSource(plain_text, cases[case_index].m_Style, cases[case_index].m_TagCount, &source);
+
         if (source.m_SelectedWordCount != cases[case_index].m_TagCount)
         {
             fprintf(stderr, "Requested %u tags, but the generated text only supports %u\n",
@@ -1154,15 +1230,18 @@ int main(int argc, char** argv)
             success = false;
             break;
         }
+
         success = BenchmarkMarkupSource(collection, settings, source, cases[case_index].m_Style, options);
     }
 #endif
 
     FontCollectionDestroy(collection);
     FontDestroy(font);
+
     if (!success)
     {
         fprintf(stderr, "Benchmark operation failed\n");
+
         return 1;
     }
 
@@ -1174,5 +1253,6 @@ int main(int argc, char** argv)
             options.m_TargetMilliseconds,
             options.m_WarmupMilliseconds,
             options.m_OrderSeed);
+
     return 0;
 }
