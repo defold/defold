@@ -14,7 +14,7 @@ SHA1_SHORT=${SHA1:0:7}
 
 ZIP=${SHA1}.zip
 ZIP_SHORT=Skribidi-${SHA1_SHORT}.zip
-URL=https://github.com/memononen/Skribidi/archive/${ZIP}
+URL=https://github.com/JCash/Skribidi/archive/${ZIP}
 
 if [ ! -e ${ZIP_SHORT} ]; then
     wget ${URL}

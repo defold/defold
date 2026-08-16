@@ -14,13 +14,132 @@
 extern "C" {
 #endif
 
+/*
+* Helper macro to work around syntax differences in C vs C++
+* when instantiating structs.
+*/
+#if defined(__cplusplus__)
+	#define SKB_LITERAL(type) type
+#else
+	#define SKB_LITERAL(type) (type)
+#endif
+
+#if defined(_WIN32) && defined(SKB_BUILD_DLL)
+	#define SKB_API __declspec(dllexport)
+#elif defined(_WIN32) && defined(SKB_DLL)
+	#define SKB_API __declspec(dllimport)
+#elif defined(__GNUC__) && defined(SKB_BUILD_DLL)
+	#define SKB_API __attribute__((visibility("default")))
+#else
+	#define SKB_API
+#endif
+
 /**
  * @defgroup common Common
  * Common functionality used across the different features.
  * @{
  */
 
-// TODO: this feels out of place here, but it is needed in multiple places.
+/** Enum describing alignment of text relative to the layout box. */
+typedef enum {
+	/** Horizontal: Align to the language specific start. Left for LTR and right for RTL. Vertical: align to top. */
+	SKB_ALIGN_START = 0,
+	/** Horizontal & Vertical: align to center. */
+	SKB_ALIGN_CENTER,
+	/** Horizontal: Align to the language specific end. Right for LTR and left for RTL. Vertical: align to bottom. */
+	SKB_ALIGN_END,
+	/** Horizontal: Align to left. Vertical: n/a (will behave like top). */
+	SKB_ALIGN_LEFT,
+	/** Horizontal: Align to right. Vertical: n/a (will behave like bottom). */
+	SKB_ALIGN_RIGHT,
+	/** Horizontal: n/a (will behave like left). Vertical: align to top. */
+	SKB_ALIGN_TOP,
+	/** Horizontal: n/a (will behave like right). Vertical: align to bottom. */
+	SKB_ALIGN_BOTTOM,
+} skb_align_t;
+
+/** Enum describing how text is wrapped to layout box. */
+typedef enum {
+	/** No text wrapping. */
+	SKB_WRAP_NONE = 0,
+	/** Wrap text at word boundaries. If a single word is longer than the layout box, it will overflow. */
+	SKB_WRAP_WORD,
+	/** Wrap text at word boundaries. If a single word is longer than the layout box, it will be wrapped at a character. */
+	SKB_WRAP_WORD_CHAR,
+} skb_text_wrap_t;
+
+/** Enum describing how the text overflowing the layout box is handled. */
+typedef enum {
+	/** Overflowing text is visible. */
+	SKB_OVERFLOW_NONE = 0,
+	/** Overflowing text is clipped. */
+	SKB_OVERFLOW_CLIP,
+	/** Overflowing text is clipped and ellipsis is placed at the end of clipped text. */
+	SKB_OVERFLOW_ELLIPSIS,
+	/** Overflowing text should be scrolled. Scrolling is handled externalle, behaves like SKB_OVERFLOW_NONE during layout. */
+	SKB_OVERFLOW_SCROLL,
+} skb_text_overflow_t;
+
+/** Enum describing which font metrics is used to describe the line height. Used for aligning. */
+typedef enum {
+	/** Line height is from ascender to descender. */
+	SKB_VERTICAL_TRIM_DEFAULT = 0,
+	/** Line height is from cap height to baseline. This option is best suited for aligning text to UI widget bounds, it gives more visually centered result. */
+	SKB_VERTICAL_TRIM_CAP_TO_BASELINE,
+} skb_vertical_trim_t;
+
+/** Enum describing how line height is calculated */
+typedef enum {
+	/** Line height comes from font metrics. No scaling applied. */
+	SKB_LINE_HEIGHT_NORMAL = 0,
+	/** Line height is multiple of line height specified in font metrics. */
+	SKB_LINE_HEIGHT_METRICS_RELATIVE,
+	/** Line height is multiple of font size. */
+	SKB_LINE_HEIGHT_FONT_SIZE_RELATIVE,
+	/** Line height is the specified value.  */
+	SKB_LINE_HEIGHT_ABSOLUTE,
+} skb_line_height_t;
+
+/** Enum describing how baseline shift is calculated */
+typedef enum {
+	/** No baseline shift. */
+	SKB_BASELINE_SHIFT_NONE = 0,
+	/** Superscript baseline shift from font metrics. */
+	SKB_BASELINE_SHIFT_SUPERSCRIPT,
+	/** Subscript baseline shift from font metrics. */
+	SKB_BASELINE_SHIFT_SUBSCRIPT,
+	/** Baseline shift is multiple of font size. */
+	SKB_BASELINE_SHIFT_FONT_SIZE_RELATIVE,
+	/** Baseline shift is the specified value.  */
+	SKB_BASELINE_SHIFT_ABSOLUTE,
+} skb_baseline_shift_t;
+
+/** Enum describing how baseline shift is calculated */
+typedef enum {
+	/** Use font size as is. */
+	SKB_FONT_SIZE_SCALING_NONE = 0,
+	/** Font size scaled by provided scaling value. */
+	SKB_FONT_SIZE_SCALING_NORMAL,
+	/** Font size scaled by superscript size from font metrics. */
+	SKB_FONT_SIZE_SCALING_SUPERSCRIPT,
+	/** Font size scaled by subscript size from font metrics. */
+	SKB_FONT_SIZE_SCALING_SUBSCRIPT,
+} skb_font_size_scaling_t;
+
+/** Enum describing to which part of the text the object is aligned to. */
+typedef enum {
+	/** Align to the text run of the object. If the run does not have font attribute, use the default font attribute. */
+	SKB_OBJECT_ALIGN_SELF,
+	/** Align to text before the object in logical direction. */
+	SKB_OBJECT_ALIGN_TEXT_BEFORE,
+	/** Align to text before the object in logical direction, if there's no text before, align to text after. */
+	SKB_OBJECT_ALIGN_TEXT_BEFORE_OR_AFTER,
+	/** Align to text after the object in logical direction. */
+	SKB_OBJECT_ALIGN_TEXT_AFTER,
+	/** Align to text after the object in logical direction, if there's no text before, align to text before. */
+	SKB_OBJECT_ALIGN_TEXT_AFTER_OR_BEFORE,
+} skb_object_align_reference_t;
+
 /** Enum describing how the decoration should be drawn. */
 typedef enum {
 	/** Solid line. */
@@ -35,12 +154,113 @@ typedef enum {
 	SKB_DECORATION_STYLE_WAVY,
 } skb_decoration_style_t;
 
+/** Enum describing text decoration position. */
+typedef enum {
+	/** Under the alphabetic baseline. */
+	SKB_DECORATION_LINE_UNDER = 0,
+	/** Under the descender. */
+	SKB_DECORATION_LINE_BOTTOM,
+	/** Over the ascender */
+	SKB_DECORATION_LINE_OVER,
+	/** Through the text. */
+	SKB_DECORATION_LINE_THROUGH,
+} skb_decoration_position_t;
+
+/** Enum describing the caret's position in relation a codepoint, in logical text order. */
+typedef enum skb_caret_affinity_t {
+	/** Not specified. Generally translates to SKB_AFFINITY_TRAILING. */
+	SKB_AFFINITY_NONE,
+	/** The caret is at the trailing edge of the codepoint. */
+	SKB_AFFINITY_TRAILING,
+	/** The caret is at the leading edge of the codepoint. */
+	SKB_AFFINITY_LEADING,
+	/** The caret is at the start of the line. This can be different than trailing when line direction and text direction do not match. */
+	SKB_AFFINITY_SOL,
+	/** The caret is at the end of the line. This can be different than leading when line direction and text direction do not match. */
+	SKB_AFFINITY_EOL,
+} skb_caret_affinity_t;
+
+/** Enum describing if text position to offset should take affinity into account */
+typedef enum {
+	SKB_AFFINITY_USE = 0,
+	SKB_AFFINITY_IGNORE = 1,
+} skb_affinity_usage_t;
+
+/** Enum describing flags for skb_text_property_t. */
+enum skb_text_prop_flags_t {
+	/** Grapheme break after the codepoint. */
+	SKB_TEXT_PROP_GRAPHEME_BREAK   = 1 << 0,
+	/** Word break after the codepoint. */
+	SKB_TEXT_PROP_WORD_BREAK       = 1 << 1,
+	/** Must break line after the code point. */
+	SKB_TEXT_PROP_MUST_LINE_BREAK  = 1 << 2,
+	/** Allow line break after the codepoint. */
+	SKB_TEXT_PROP_ALLOW_LINE_BREAK = 1 << 3,
+	/** The codepoint is an emoji. */
+	SKB_TEXT_PROP_EMOJI            = 1 << 4,
+	/** The codepoint is a control character. */
+	SKB_TEXT_PROP_CONTROL          = 1 << 5,
+	/** The codepoint is a white space character. */
+	SKB_TEXT_PROP_WHITESPACE       = 1 << 6,
+	/** The codepoint is a punctuation character. */
+	SKB_TEXT_PROP_PUNCTUATION      = 1 << 7,
+};
+
+
+/** Struct describing position within the text in a layout. */
+typedef struct skb_text_position_t {
+	/** Offset (codepoints) within the text. */
+	int32_t offset;
+	/** Relation to the codepoint. See skb_caret_affinity_t */
+	skb_caret_affinity_t affinity;
+} skb_text_position_t;
+
+/** Struct describing a range of the text in a layout. */
+typedef struct skb_text_range_t {
+	/** Start position of the range. */
+	skb_text_position_t start;
+	/** End position of the range. */
+	skb_text_position_t end;
+} skb_text_range_t;
+
+/** Struct describing position within rich text. */
+typedef struct skb_paragraph_position_t {
+	/** Index of the paragraph */
+	int32_t paragraph_idx;
+	/** Text offset within the paragraph. */
+	int32_t text_offset;
+	/** Text offset amongst all paragraphs. Ambiguous: two positions in different
+	 * paragraphs can share the same global_text_offset (e.g. the end of one
+	 * paragraph and the start of the next). Use this only to map a
+	 * skb_paragraph_position_t to a flat offset, not to test ordering between
+	 * positions; for ordering use skb_paragraph_position_less_or_equal(). */
+	int32_t global_text_offset;
+} skb_paragraph_position_t;
+
+/** Struct describing range of positions within rich text */
+typedef struct skb_paragraph_range_t {
+	/** Start position of the range. */
+	skb_paragraph_position_t start;
+	/** End position of the range. */
+	skb_paragraph_position_t end;
+} skb_paragraph_range_t;
+
+/** Returns true if a comes at or before b in document order. Compares by
+ * (paragraph_idx, text_offset); do not compare global_text_offset directly, as
+ * it can tie across paragraph boundaries. */
+static inline bool skb_paragraph_position_less_or_equal(skb_paragraph_position_t a, skb_paragraph_position_t b)
+{
+	if (a.paragraph_idx != b.paragraph_idx)
+		return a.paragraph_idx < b.paragraph_idx;
+	return a.text_offset <= b.text_offset;
+}
+
 /**
  * Logs a debug message.
  * @param format printf style format string.
- * @param ... paramters to format.
+ * @param ... parameters to format.
  */
-void skb_debug_log(const char* format, ...);
+SKB_API void skb_debug_log(const char* format, ...);
 
 /** Counts the number of items in an array. */
 #define SKB_COUNTOF(arr) (sizeof((arr)) / sizeof((arr)[0]))
@@ -53,6 +273,9 @@ void skb_debug_log(const char* format, ...);
 
 /** Math constant PI */
 #define SKB_PI (3.14159265f)
+
+/** Size parameter indicating the value is not specified, but should be calculated instead. Indicated per use case if auto can be used. */
+#define SKB_SIZE_AUTO (-1.f)
 
 enum {
 	/** Invalid value used for indices. */
@@ -74,7 +297,15 @@ enum {
  * @param size number of bytes to allocate
  * @return pointer to the allocated memory.
  */
-void* skb_malloc(size_t size);
+SKB_API void* skb_malloc(size_t size);
+
+/**
+ * Allocates memory, and zeroinitializes it.
+ * The malloc will assert if the allocation failed.
+ * @param size number of bytes to allocate
+ * @return pointer to the allocated memory.
+ */
+SKB_API void* skb_malloc_zero(size_t size);
 
 /**
  * Reallocates existing memory to fit new size.
@@ -82,16 +313,16 @@ void* skb_malloc(size_t size);
  * @param new_size new size
  * @return return pointer to the allocated memory
  */
-void* skb_realloc(void* ptr, size_t new_size);
+SKB_API void* skb_realloc(void* ptr, size_t new_size);
 
 /**
  * Frees previously allocated memory.
  * @param ptr pointer to the memory to free.
  */
-void skb_free(void* ptr);
+SKB_API void skb_free(void* ptr);
 
 /** Signature of destroy function */
-typedef void skb_destroy_func_t(void *context);
+typedef void skb_destroy_func_t(void* context);
 
 /**
  * Helper macro to reserve space in an allocated array.
@@ -109,6 +340,12 @@ typedef void skb_destroy_func_t(void *context);
 		memset(&(arr)[arr##_cap], 0, sizeof((arr)[0]) * (new_cap - arr##_cap)); \
 		arr##_cap = new_cap; \
 	}
+
+/** Helper macro to alloc a struct initialized to zero. */
+#define SKB_MALLOC_STRUCT(type) skb_malloc_zero(sizeof(type))
+
+/** Helper macro to zero out a struct passed in by a pointer */
+#define SKB_ZERO_STRUCT(ptr) memset(ptr, 0, sizeof((ptr)[0]))
 
 /**
  * @defgroup math Math
@@ -175,6 +412,21 @@ static inline bool skb_equalsf(float lhs, float rhs, float eps)
 	return skb_absf(lhs - rhs) < eps;
 }
 
+static inline int32_t skb_ub_search(int32_t key, const void* values, const int32_t values_count, const int32_t values_stride)
+{
+	int32_t low = 0;
+	int32_t high = values_count - 1;
+	while (low <= high) {
+		const int32_t mid = low + (high - low) / 2;
+		const int32_t* value = (const int32_t*)((const uint8_t*)values + values_stride * mid);
+		if (*value > key)
+			high = mid - 1;
+		else
+			low = mid + 1;
+	}
+	return skb_clampi(high, 0, values_count - 1);
+}
+
 
 /** Range - defines range of items, end is non-inclusive. */
 typedef struct skb_range_t {
@@ -197,6 +449,11 @@ static inline bool skb_range_contains(skb_range_t r, int32_t idx)
 	return idx >= r.start && idx < r.end;
 }
 
+/** @return true if the range is empty. */
+static inline bool skb_range_is_empty(skb_range_t r)
+{
+	return r.start >= r.end;
+}
 
 /** 8-bits per component color, sRGB. */
 typedef struct skb_color_t {
@@ -212,6 +469,13 @@ static inline skb_color_t skb_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 	res.b = b;
 	res.a = a;
 	return res;
+}
+
+/** @return specified color with new alpha value */
+static inline skb_color_t skb_color_with_alpha(skb_color_t col, uint8_t alpha)
+{
+	col.a = alpha;
+	return col;
 }
 
 /** @return true if the colors are equal. */
@@ -275,10 +539,10 @@ static inline skb_color_t skb_color_average(skb_color_t a, skb_color_t b)
 	return *(const skb_color_t*)&r;
 }
 
-/** @return linearly interpolate color between a and b. */
-static inline skb_color_t skb_color_lerp(skb_color_t a, skb_color_t b, uint8_t t)
+/** @return blends color a over n with mask. */
+static inline skb_color_t skb_color_blend_with_mask(skb_color_t a, skb_color_t b, uint8_t mask)
 {
-	b = skb_color_mul_alpha(b, t);
+	b = skb_color_mul_alpha(b, mask);
 	if (b.a == 255)
 		return b;
 	if (b.a == 0)
@@ -291,7 +555,9 @@ static inline skb_color_t skb_color_lerp(skb_color_t a, skb_color_t b, uint8_t t
 static inline skb_color_t skb_color_lerpf(skb_color_t a, skb_color_t b, float t)
 {
 	const int32_t ti = (int32_t)(t * 255.0f);
-	return skb_color_lerp(a, b, (uint8_t)ti);
+	a = skb_color_mul_alpha(a, (uint8_t)(255 - ti));
+	b = skb_color_mul_alpha(b, (uint8_t)ti);
+	return skb_color_add(a, b);
 }
 
 /** @return dst blended over src (premultiplied colors). */
@@ -390,6 +656,17 @@ static inline float skb_vec2_dot(skb_vec2_t a, skb_vec2_t b)
 	return a.x * b.x + a.y * b.y;
 }
 
+static inline skb_vec2_t skb_vec2_norm(skb_vec2_t a)
+{
+	const float d = a.x*a.x + a.y*a.y;
+	if (d > 0.f) {
+		const float inv_d = 1.f / sqrtf(d);
+		a.x *= inv_d;
+		a.y *= inv_d;
+	}
+	return a;
+}
+
 static inline float skb_vec2_length(skb_vec2_t a)
 {
 	return sqrtf(a.x*a.x + a.y*a.y);
@@ -478,8 +755,8 @@ static inline skb_mat2_t skb_mat2_multiply(skb_mat2_t t, skb_mat2_t s)
 	res.yx = t.xx * s.yx + t.yx * s.yy;
 	res.xy = t.xy * s.xx + t.yy * s.xy;
 	res.yy = t.xy * s.yx + t.yy * s.yy;
-	res.dx = t.dx * s.xx + t.dx * s.xy + s.dx;
-	res.dy = t.dy * s.yx + t.dy * s.yy + s.dy;
+	res.dx = t.dx * s.xx + t.dy * s.xy + s.dx;
+	res.dy = t.dx * s.yx + t.dy * s.yy + s.dy;
 	return res;
 }
 
@@ -491,8 +768,15 @@ static inline skb_vec2_t skb_mat2_point(skb_mat2_t t, skb_vec2_t pt)
 	return res;
 }
 
-skb_mat2_t skb_mat2_inverse(skb_mat2_t t);
+SKB_API skb_mat2_t skb_mat2_inverse(skb_mat2_t t);
 
+/** 2D padding in rendering dimension. Not dependent on text direction. */
+typedef struct skb_padding2_t {
+	float left;
+	float right;
+	float top;
+	float bottom;
+} skb_padding2_t;
 
 /** 2D floating point rectangle.  */
 typedef struct skb_rect2_t {
@@ -577,6 +861,15 @@ static inline bool skb_rect2_pt_inside(const skb_rect2_t r, const skb_vec2_t pt)
 	return pt.x >= r.x && pt.y >= r.y && pt.x <= (r.x + r.width) && pt.y <= (r.y + r.height);
 }
 
+static inline bool arb_rect2_overlap(const skb_rect2_t a, const skb_rect2_t b)
+{
+	const float min_x = skb_maxf(a.x, b.x);
+	const float min_y = skb_maxf(a.y, b.y);
+	const float max_x = skb_minf(a.x + a.width, b.x + b.width);
+	const float max_y = skb_minf(a.y + a.height, b.y + b.height);
+	return (max_x - min_x) > 0.f && (max_y - min_y) > 0.f;
+}
+
 
 /** 2D integer rectangle. */
 typedef struct skb_rect2i_t {
@@ -643,6 +936,24 @@ static inline bool skb_rect2i_is_empty(const skb_rect2i_t r)
 {
 	return r.width <= 0 || r.height <= 0;
 }
+
+
+/**
+ * Calculates offset that aligns item relative to the container.
+ * @param align align type to use.
+ * @param item_size size of the item to align.
+ * @param container_size size of the container to align to.
+ * @return
+ */
+SKB_API float skb_calc_align_offset(skb_align_t align, float item_size, float container_size);
+
+/**
+ * Converts start or end align to left or right depending on text direction.
+ * @param is_rtl true if the use case is right-to-left
+ * @param align aling type to change
+ * @return changed align type.
+ */
+SKB_API skb_align_t skb_get_directional_align(bool is_rtl, skb_align_t align);
 
 /** @} */
 
@@ -749,26 +1060,26 @@ typedef struct skb_temp_alloc_stats_t {
  * @param default_block_size default blocks size to use, unless more memory is requested.
  * @return pointer to newly created allocator.
  */
-skb_temp_alloc_t* skb_temp_alloc_create(int32_t default_block_size);
+SKB_API skb_temp_alloc_t* skb_temp_alloc_create(int32_t default_block_size);
 
 /**
  * Frees all memory allocated by the allocator and clears the allocator.
  * @param alloc allocator to destroy
  */
-void skb_temp_alloc_destroy(skb_temp_alloc_t* alloc);
+SKB_API void skb_temp_alloc_destroy(skb_temp_alloc_t* alloc);
 
 /**
  * Reports statistics about the current allocation.
  * @param alloc allocator to report
  * @return struct containing statistics about the current state of the allocator.
  */
-skb_temp_alloc_stats_t skb_temp_alloc_stats(skb_temp_alloc_t* alloc);
+SKB_API skb_temp_alloc_stats_t skb_temp_alloc_stats(skb_temp_alloc_t* alloc);
 
 /**
  * Resets all the allocated memory blocks as free.
  * @param alloc allocator to reset
  */
-void skb_temp_alloc_reset(skb_temp_alloc_t* alloc);
+SKB_API void skb_temp_alloc_reset(skb_temp_alloc_t* alloc);
 
 /**
  * Returns a mark, which can be used to restore the allocators state later.
@@ -777,7 +1088,7 @@ void skb_temp_alloc_reset(skb_temp_alloc_t* alloc);
  * @param alloc allocator which location to save
  * @return mark which can be used to restore the allocator to current state later
  */
-skb_temp_alloc_mark_t skb_temp_alloc_save(skb_temp_alloc_t* alloc);
+SKB_API skb_temp_alloc_mark_t skb_temp_alloc_save(skb_temp_alloc_t* alloc);
 
 /**
  * Restores the alloctors state to a previous set mark.
@@ -785,7 +1096,7 @@ skb_temp_alloc_mark_t skb_temp_alloc_save(skb_temp_alloc_t* alloc);
  * @param alloc allocator to restore
  * @param mark state to restore
  */
-void skb_temp_alloc_restore(skb_temp_alloc_t* alloc, skb_temp_alloc_mark_t mark);
+SKB_API void skb_temp_alloc_restore(skb_temp_alloc_t* alloc, skb_temp_alloc_mark_t mark);
 
 /**
  * Allocates a requested size of memory. The returned memory is aligned to SKB_TEMPALLOC_ALIGN.
@@ -793,7 +1104,7 @@ void skb_temp_alloc_restore(skb_temp_alloc_t* alloc, skb_temp_alloc_mark_t mark)
  * @param size size of the allocation in bytes.
  * @return pointer to the allocated memory.
  */
-void* skb_temp_alloc_alloc(skb_temp_alloc_t* alloc, int32_t size);
+SKB_API void* skb_temp_alloc_alloc(skb_temp_alloc_t* alloc, int32_t size);
 
 /**
  * Reallocates existing allocation to new size. The returned memory is aligned to SKB_TEMPALLOC_ALIGN.
@@ -804,7 +1115,7 @@ void* skb_temp_alloc_alloc(skb_temp_alloc_t* alloc, int32_t size);
  * @param new_size new size of the allocation in bytes.
  * @return pointer to the allocated memory.
  */
-void* skb_temp_alloc_realloc(skb_temp_alloc_t* alloc, void* ptr, int32_t new_size);
+SKB_API void* skb_temp_alloc_realloc(skb_temp_alloc_t* alloc, void* ptr, int32_t new_size);
 
 /**
  * Frees allocated memory.
@@ -813,7 +1124,7 @@ void* skb_temp_alloc_realloc(skb_temp_alloc_t* alloc, void* ptr, int32_t new_siz
  * @param alloc allocator where the memory was allocated from.
  * @param ptr pointer to the allocation.
  */
-void skb_temp_alloc_free(skb_temp_alloc_t* alloc, void* ptr);
+SKB_API void skb_temp_alloc_free(skb_temp_alloc_t* alloc, void* ptr);
 
 /**
  * Helper macro to allocate number of items of specified type.
@@ -877,13 +1188,13 @@ typedef struct skb_hash_table_t skb_hash_table_t;
  * Creates an empty hash table. Use skb_hashtable_destroy() to destroy the hash table.
  * @return initialized empty hash table.
  */
-skb_hash_table_t* skb_hash_table_create(void);
+SKB_API skb_hash_table_t* skb_hash_table_create(void);
 
 /**
  * Cleans up hash table and frees any allocated memory.
  * @param ht hash table to clean.
  */
-void skb_hash_table_destroy(skb_hash_table_t* ht);
+SKB_API void skb_hash_table_destroy(skb_hash_table_t* ht);
 
 /**
  * Adds 'value' with key 'hash' into the hash table.
@@ -893,7 +1204,7 @@ void skb_hash_table_destroy(skb_hash_table_t* ht);
  * @param value data to place in the cache.
  * @return true if 'hash' already exists in the table.
  */
-bool skb_hash_table_add(skb_hash_table_t* ht, uint64_t hash, int32_t value);
+SKB_API bool skb_hash_table_add(skb_hash_table_t* ht, uint64_t hash, int32_t value);
 
 /**
  * Tries to get 'data' from hash table based on hash.
@@ -902,7 +1213,7 @@ bool skb_hash_table_add(skb_hash_table_t* ht, uint64_t hash, int32_t value);
  * @param value pointer to store the found value (can be NULL).
  * @return the true if found.
  */
-bool skb_hash_table_find(skb_hash_table_t* ht, uint64_t hash, int32_t* value);
+SKB_API bool skb_hash_table_find(skb_hash_table_t* ht, uint64_t hash, int32_t* value);
 
 /**
  * Removes item from the hash table associated with 'hash'.
@@ -910,7 +1221,7 @@ bool skb_hash_table_find(skb_hash_table_t* ht, uint64_t hash, int32_t* value);
  * @param hash hash associated with the data to remove.
  * @return true if data was removed.
  */
-bool skb_hash_table_remove(skb_hash_table_t* ht, uint64_t hash);
+SKB_API bool skb_hash_table_remove(skb_hash_table_t* ht, uint64_t hash);
 
 /** @} */
 
@@ -1029,6 +1340,148 @@ static inline void skb_list_move_to_front(skb_list_t* list, int32_t item_idx, sk
 
 
 /**
+ * @defgroup data_blob Data blob
+ * Data blob is a piece of data with duplicate and destroy handlers.
+ * @{
+ */
+
+typedef struct skb_data_blob_t skb_data_blob_t;
+
+/** Enum describing predefined types. */
+enum {
+	SKB_DATA_BLOB_UTF8 = SKB_TAG('u','t','0','8'),
+	SKB_DATA_BLOB_UTF32 = SKB_TAG('u','t','3','2'),
+};
+
+/**
+ * Signature for data blob duplicate function.
+ * @param data const pointer to data to duplicate
+ * @param data_size size of the data
+ * @param temp_alloc if set, the data should be duplicated using the temp allocator if possible
+ * @return duplicate of the data
+ */
+typedef void* skb_data_blob_duplicate_func_t(const void* data, int32_t data_size, skb_temp_alloc_t* temp_alloc);
+
+/**
+ * Signature for data blob destroy function.
+ * @param data const pointer to data to destroy
+ * @param data_size size of the data
+ * @param temp_alloc if set, the data should be freed using the temp allocator
+ */
+typedef void skb_data_blob_destroy_func_t(void* data, int32_t data_size, skb_temp_alloc_t* temp_alloc);
+
+/**
+ * Creates new empty data blob
+ * @return pointer to new data blob
+ */
+SKB_API skb_data_blob_t* skb_data_blob_create(void);
+
+/**
+ * Creates new empty data blob with temp allocator
+ * @param temp_alloc temp allocator to use
+ * @return pointer to new data blob
+ */
+SKB_API skb_data_blob_t* skb_data_blob_create_temp(skb_temp_alloc_t* temp_alloc);
+
+/**
+ * Duplicates data blob
+ * @param data_blob data blob to duplicate
+ * @return new duplicate of the given data blob.
+ */
+SKB_API skb_data_blob_t* skb_data_blob_duplicate(const skb_data_blob_t* data_blob);
+
+/**
+ * Duplicates data blob with temp allocator
+ * @param data_blob data blob to duplicate
+ * @param temp_alloc temp allocator to use
+ * @return new duplicate of the given data blob.
+ */
+SKB_API skb_data_blob_t* skb_data_blob_duplicate_temp(const skb_data_blob_t* data_blob, skb_temp_alloc_t* temp_alloc);
+
+/**
+ * Destroys the data blob
+ * @param data_blob data blob to destroy
+ */
+SKB_API void skb_data_blob_destroy(skb_data_blob_t* data_blob);
+
+/**
+ * Reset a data blob and destroys the contents.
+ * @param data_blob data blob to reset
+ */
+SKB_API void skb_data_blob_reset(skb_data_blob_t* data_blob);
+
+/**
+ * Sets data blob to a utf-8 string
+ * @param data_blob data blob to set
+ * @param utf8 utf-8 string to copy
+ * @param utf8_count length of the utf-8 string, or -1 if null terminated.
+ */
+SKB_API void skb_data_blob_set_utf8(skb_data_blob_t* data_blob, const char* utf8, int32_t utf8_count);
+
+/**
+ * Sets data blob to a utf-32 string
+ * @param data_blob data blob to set
+ * @param utf32 utf-32 string to copy
+ * @param utf32_count length of the utf-32 string, or -1 if null terminated.
+ */
+SKB_API void skb_data_blob_set_utf32(skb_data_blob_t* data_blob, const uint32_t* utf32, int32_t utf32_count);
+
+/**
+ * Sets the data blob to custom data. The data is duplicated using the duplicate function.
+ * @param data_blob data blob to set
+ * @param type custom type of the data
+ * @param data data to copy
+ * @param data_size size of the data to copy
+ * @param duplicate function to use to duplicate the data
+ * @param destroy function to use to destroy the data
+ */
+SKB_API void skb_data_blob_set(skb_data_blob_t* data_blob, uint32_t type, const void* data, int32_t data_size, skb_data_blob_duplicate_func_t* duplicate, skb_data_blob_destroy_func_t* destroy);
+
+/**
+ * Assings the data blob a custom data. The data pointer and size are stored as is, and are later passed to the destroy function.
+ * @param data_blob data blob to set
+ * @param type custom type of the data
+ * @param data data to copy
+ * @param data_size size of the data to copy
+ * @param duplicate function to use to duplicate the data
+ * @param destroy function to use to destroy the data
+ */
+SKB_API void skb_data_blob_assign(skb_data_blob_t* data_blob, uint32_t type, void* data, int32_t data_size, skb_data_blob_duplicate_func_t* duplicate, skb_data_blob_destroy_func_t* destroy);
+
+/**
+ * Returns const pointer to zero terminated utf-8 string stored in data blob.
+ * @param data_blob data blob to query
+ * @param utf8_count (out, optional) length of the utf-8 string (zero terminator not included)
+ * @return const pointer to the utf-8 string, or NULL if the data is not utf-8, or is empty
+ */
+SKB_API const char* skb_data_blob_get_utf8(const skb_data_blob_t* data_blob, int32_t* utf8_count);
+
+/**
+ * Returns const pointer to zero terminated utf-32 string stored in data blob.
+ * @param data_blob data blob to query
+ * @param utf32_count (out, optional) length of the utf-32 string (zero terminator not included)
+ * @return const pointer to the utf-32 string, or NULL if the data is not utf-32, or is empty
+ */
+SKB_API const uint32_t* skb_data_blob_get_utf32(const skb_data_blob_t* data_blob, int32_t* utf32_count);
+
+/**
+ * Returns the type of the data blob.
+ * @param data_blob data blob to query
+ * @return type tag of the data stored in the data blob
+ */
+SKB_API uint32_t skb_data_blob_get_type(const skb_data_blob_t* data_blob);
+
+/**
+ * Returns pointer the data stored in the data blob.
+ * @param data_blob
+ * @param data_size (out, optional) size of the data
+ * @return pointer to the  blob data.
+ */
+SKB_API void* skb_data_blob_get_data(skb_data_blob_t* data_blob, int32_t* data_size);
+
+/** @} */
+
+/**
  * @defgroup text Text
  * Unicode helpers and text related code.
  * See https://www.unicode.org/reports/tr51/ for further detail on the emoji functions.
@@ -1062,6 +1515,7 @@ typedef enum {
 	SKB_CHAR_ZERO_WIDTH_JOINER = 0x200D,
 	SKB_CHAR_REGIONAL_INDICATOR_BASE = 0x1F3F4,
 	SKB_CHAR_CANCEL_TAG = 0xE007F,
+	SKB_CHAR_HORIZONTAL_TAB = 0x09,
 	SKB_CHAR_LINE_FEED = 0x0A,
 	SKB_CHAR_VERTICAL_TAB = 0x0B,
 	SKB_CHAR_FORM_FEED = 0x0C,
@@ -1073,23 +1527,23 @@ typedef enum {
 } skb_character_t;
 
 /** @returns true of the character serve as a base for emoji modifiers (EBase). */
-bool skb_is_emoji_modifier_base(uint32_t codepoint);
+SKB_API bool skb_is_emoji_modifier_base(uint32_t codepoint);
 /** @returns true of the character has emoji presentation by default (EPres). */
-bool skb_is_emoji_presentation(uint32_t codepoint);
+SKB_API bool skb_is_emoji_presentation(uint32_t codepoint);
 /** @returns true if the character is emoji (Emoji). */
-bool skb_is_emoji(uint32_t codepoint);
+SKB_API bool skb_is_emoji(uint32_t codepoint);
 /** @returns true if the character is emoji modifier (Emod). */
-bool skb_is_emoji_modifier(uint32_t codepoint);
+SKB_API bool skb_is_emoji_modifier(uint32_t codepoint);
 /** @returns true if the character is emoji modifier (Emod). */
-bool skb_is_regional_indicator_symbol(uint32_t codepoint);
+SKB_API bool skb_is_regional_indicator_symbol(uint32_t codepoint);
 /** @returns true if the character is variation selector (VS15 or VS16). */
-bool skb_is_variation_selector(uint32_t codepoint);
+SKB_API bool skb_is_variation_selector(uint32_t codepoint);
 /** @returns true if the character is keycap. */
-bool skb_is_keycap_base(uint32_t codepoint);
+SKB_API bool skb_is_keycap_base(uint32_t codepoint);
 /** @returns true if the character is tag specifier (tag_spec). */
-bool skb_is_tag_spec_char(uint32_t codepoint);
+SKB_API bool skb_is_tag_spec_char(uint32_t codepoint);
 /** @returns true if the character is paragraph separator. */
-bool skb_is_paragraph_separator(uint32_t codepoint);
+SKB_API bool skb_is_paragraph_separator(uint32_t codepoint);
 
 /** Emoji iterator state, see skb_emoji_run_iterator_make(). */
 typedef struct skb_emoji_run_iterator_t {
@@ -1108,7 +1562,7 @@ typedef struct skb_emoji_run_iterator_t {
  * @param emoji_category_buffer buffer used internally to categorize the codepoints, length should be at least the length of the range (range.end - range.start).
  * @return initializes iterator.
  */
-skb_emoji_run_iterator_t skb_emoji_run_iterator_make(skb_range_t range, const uint32_t* text, uint8_t* emoji_category_buffer);
+SKB_API skb_emoji_run_iterator_t skb_emoji_run_iterator_make(skb_range_t range, const uint32_t* text, uint8_t* emoji_category_buffer);
 
 /**
  * Gets the next range of emojis or normal text. This function is meant to be used in a while loop to iterator over all the emoji and text ranges in the input text.
@@ -1125,7 +1579,7 @@ skb_emoji_run_iterator_t skb_emoji_run_iterator_make(skb_range_t range, const ui
  * @param range_has_emojis (out) true of the output range has emojis
  * @return true if there are more ranges to come.
  */
-bool skb_emoji_run_iterator_next(skb_emoji_run_iterator_t* iter, skb_range_t* range, bool* range_has_emojis);
+SKB_API bool skb_emoji_run_iterator_next(skb_emoji_run_iterator_t* iter, skb_range_t* range, bool* range_has_emojis);
 
 /**
  * Converts utf-8 string to utf-32 string.
@@ -1137,7 +1591,7 @@ bool skb_emoji_run_iterator_next(skb_emoji_run_iterator_t* iter, skb_range_t* ra
  * @param utf32_cap capacity of the result utf-32 string.
  * @return total number of codeunits in the utf-32 string.
  */
-int32_t skb_utf8_to_utf32(const char* utf8, int32_t utf8_len, uint32_t* utf32, int32_t utf32_cap);
+SKB_API int32_t skb_utf8_to_utf32(const char* utf8, int32_t utf8_len, uint32_t* utf32, int32_t utf32_cap);
 
 /**
  * Counts number of utf-32 codeunits in an utf-8 string.
@@ -1145,7 +1599,7 @@ int32_t skb_utf8_to_utf32(const char* utf8, int32_t utf8_len, uint32_t* utf32, i
  * @param utf8_len length of the utf-8 string.
  * @return total number of codepoints (equals to utf-32 code units) in the inputs string.
  */
-int32_t skb_utf8_to_utf32_count(const char* utf8, int32_t utf8_len);
+SKB_API int32_t skb_utf8_to_utf32_count(const char* utf8, int32_t utf8_len);
 
 /**
  * Returns an offset in the utf8 string to the specified codepoint offset.
@@ -1154,10 +1608,10 @@ int32_t skb_utf8_to_utf32_count(const char* utf8, int32_t utf8_len);
  * @param codepoint_offset offset of the codepoint to find.
  * @return returns start offset in the string to the specified codepoint.
  */
-int32_t skb_utf8_codepoint_offset(const char* utf8, int32_t utf8_len, int32_t codepoint_offset);
+SKB_API int32_t skb_utf8_codepoint_offset(const char* utf8, int32_t utf8_len, int32_t codepoint_offset);
 
 /** @return number of utf-8 code units in a codepoint. */
-int32_t skb_utf8_num_units(uint32_t cp);
+SKB_API int32_t skb_utf8_num_units(uint32_t cp);
 
 /**
  * Encodes a codepoint to utf-8 string (max 4 utf-8 code units).
@@ -1166,7 +1620,7 @@ int32_t skb_utf8_num_units(uint32_t cp);
  * @param utf8_cap capacity of the utf-8 string.
  * @return number of code units in the result string.
  */
-int32_t skb_utf8_encode(uint32_t cp, char* utf8, int32_t utf8_cap);
+SKB_API int32_t skb_utf8_encode(uint32_t cp, char* utf8, int32_t utf8_cap);
 
 /**
  * Converts utf-32 string into utf-8 string.
@@ -1178,7 +1632,7 @@ int32_t skb_utf8_encode(uint32_t cp, char* utf8, int32_t utf8_cap);
  * @param utf8_cap capacity of the result utf-8 string.
  * @return total number of codeunits in the utf-8 string.
  */
-int32_t skb_utf32_to_utf8(const uint32_t* utf32, int32_t utf32_len, char* utf8, int32_t utf8_cap);
+SKB_API int32_t skb_utf32_to_utf8(const uint32_t* utf32, int32_t utf32_len, char* utf8, int32_t utf8_cap);
 
 /**
  * Counts number of utf-8 codeunits in an utf-32 string.
@@ -1188,10 +1642,13 @@ int32_t skb_utf32_to_utf8(const uint32_t* utf32, int32_t utf32_len, char* utf8, 
  * @param utf8_cap capacity of the result utf-8 string.
  * @return total number of codeunits in the utf-8 string.
  */
-int32_t skb_utf32_to_utf8_count(const uint32_t* utf32, int32_t utf32_len);
+SKB_API int32_t skb_utf32_to_utf8_count(const uint32_t* utf32, int32_t utf32_len);
 
 /** @return number of code units in null terminated utf-32 string. */
-int32_t skb_utf32_strlen(const uint32_t* utf32);
+SKB_API int32_t skb_utf32_strlen(const uint32_t* utf32);
+
+SKB_API int32_t skb_utf32_copy(const uint32_t* src, int32_t src_len, uint32_t* dst, int32_t dst_cap);
+
 
 /** @} */
 
@@ -1202,7 +1659,7 @@ int32_t skb_utf32_strlen(const uint32_t* utf32);
  */
 
 /** @return performance timer time stamp. */
-int64_t skb_perf_timer_get(void);
+SKB_API int64_t skb_perf_timer_get(void);
 
 /**
  * Calculates elapsed time in micro seconds between two performance timer samples.
@@ -1210,7 +1667,7 @@ int64_t skb_perf_timer_get(void);
  * @param end  start time sample
  * @return elapsed time between samples in seconds.
  */
-int64_t skb_perf_timer_elapsed_us(int64_t start, int64_t end);
+SKB_API int64_t skb_perf_timer_elapsed_us(int64_t start, int64_t end);
 
 /** @} */
 

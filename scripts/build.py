@@ -168,7 +168,7 @@ PACKAGES_ALL=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -187,7 +187,7 @@ PACKAGES_IOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
@@ -202,7 +202,7 @@ PACKAGES_IOS_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
@@ -225,7 +225,7 @@ PACKAGES_MACOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
@@ -254,7 +254,7 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
@@ -276,7 +276,7 @@ PACKAGES_WIN32=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
@@ -299,7 +299,7 @@ PACKAGES_WIN32_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
@@ -328,7 +328,7 @@ PACKAGES_LINUX_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "apkc-0.1.0",
@@ -357,7 +357,7 @@ PACKAGES_LINUX_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
@@ -373,7 +373,7 @@ PACKAGES_ANDROID=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
@@ -389,7 +389,7 @@ PACKAGES_ANDROID_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
@@ -403,7 +403,7 @@ PACKAGES_EMSCRIPTEN=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -482,10 +482,17 @@ ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font 
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
 EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
-EXTERNAL_CMAKE_LIBS = "vkquality".split()
+EXTERNAL_CMAKE_LIBS = "vkquality skribidi".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
     "vkquality": "1.1-2642a0d",
+    "skribidi": "a4a2f5",
+}
+EXTERNAL_PACKAGE_OUTPUT_NAMES = {
+    "skribidi": "SkriBidi",
+}
+EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
+    "skribidi",
 }
 
 def get_host_platform():
@@ -2708,8 +2715,10 @@ class Configuration(object):
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
+        cmake_platform = 'x86-win32' if platform == 'win32' else platform
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
-        package_name = '%s-%s' % (lib, version)
+        package_output_name = EXTERNAL_PACKAGE_OUTPUT_NAMES.get(lib, lib)
+        package_name = '%s-%s' % (package_output_name, version)
         source_dir = join(self.defold_root, 'external', lib)
         build_dir = join(source_dir, 'build', platform)
         install_dir = join(self.dynamo_home, package_name)
@@ -2731,7 +2740,8 @@ class Configuration(object):
             '-B', build_dir,
             '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
-            '-DTARGET_PLATFORM=%s' % platform,
+            '-DTARGET_PLATFORM=%s' % cmake_platform,
+            '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
         ]
@@ -2753,13 +2763,31 @@ class Configuration(object):
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
-            package_command = ['tar', 'zcvf', os.path.normpath(package_path), 'include', 'lib', 'share']
+            package_dirs = [name for name in ('include', 'lib', 'share') if os.path.exists(join(install_dir, name))]
+            if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                package_dirs = [name for name in package_dirs if name != 'include']
+            if not package_dirs:
+                self.fatal("External package '%s' did not install any platform files" % lib)
+            package_command = ['tar', 'zcvf', os.path.normpath(package_path)] + package_dirs
             self.build_tracker.start_command('Package external %s' % lib)
             try:
                 run.command(package_command, cwd=install_dir)
             finally:
                 self.build_tracker.end_command('Package external %s' % lib)
             print("Installed to", package_path)
+
+            if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                include_dir = join(install_dir, 'include')
+                if not os.path.exists(include_dir):
+                    self.fatal("External package '%s' did not install common headers" % lib)
+                common_package_path = join(package_dir, '%s-common.tar.gz' % package_name)
+                common_package_command = ['tar', 'zcvf', os.path.normpath(common_package_path), 'include']
+                self.build_tracker.start_command('Package external %s common' % lib)
+                try:
+                    run.command(common_package_command, cwd=install_dir)
+                finally:
+                    self.build_tracker.end_command('Package external %s common' % lib)
+                print("Installed to", common_package_path)
         finally:
             self.build_tracker.end_component(lib, platform)
 
