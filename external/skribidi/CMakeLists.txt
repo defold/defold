@@ -5,6 +5,11 @@ include(functions)
 include(functions_sdk)
 include(sdk)
 
+if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-(macos|ios)$")
+  string(REGEX REPLACE "-.*$" "" SKRIBIDI_APPLE_ARCH "${TARGET_PLATFORM}")
+  set(CMAKE_OSX_ARCHITECTURES "${SKRIBIDI_APPLE_ARCH}" CACHE STRING "Skribidi Apple target architecture" FORCE)
+endif()
+
 project(skribidi LANGUAGES C)
 
 option(SKRIBIDI_BASELINE_TESTS "Build the standalone Skribidi correctness and performance baseline" OFF)
@@ -51,7 +56,9 @@ if(MSVC)
   set_property(TARGET skribidi PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-set_target_properties(skribidi PROPERTIES PREFIX "lib")
+set_target_properties(skribidi PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+  PREFIX "lib")
 
 install(TARGETS skribidi
   ARCHIVE DESTINATION "lib/${DEFOLD_EXTERNAL_PLATFORM}")
