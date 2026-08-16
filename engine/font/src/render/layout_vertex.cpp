@@ -13,12 +13,12 @@
 // specific language governing permissions and limitations under the License.
 
 #include "layout_vertex.h"
+#include "text_layout.h"
 
 #include <string.h>
 
 #include <dlib/math.h>
 #include <dlib/utf8.h>
-#include <font/text_layout.h>
 
 using namespace dmVMath;
 
