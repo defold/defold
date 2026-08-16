@@ -21,8 +21,9 @@
  *
  * Parses explicitly sized UTF-8 input into visible UTF-32 text, contiguous text
  * spans, generic tag attributes, and a persistent parent-linked style tree.
- * Parsing is syntactic: tag-specific values such as colors, sizes, gradients,
- * and effects are validated and resolved by later processing stages.
+ * Tag names, attributes, and named constants are validated while parsing.
+ * Tag-specific values such as colors, sizes, gradients, and effects are
+ * validated and resolved by later processing stages.
  *
  * Opening and closing tags must be strictly nested and use matching names.
  * Input ending inside a tag, entity, UTF-8 sequence, or unclosed tag hierarchy
@@ -100,6 +101,9 @@ enum MarkupResult
  * @member MARKUP_ERROR_INVALID_UTF8 The source contains an invalid or incomplete UTF-8 sequence.
  * @member MARKUP_ERROR_LIMIT_EXCEEDED A parser representation limit was exceeded.
  * @member MARKUP_ERROR_UNSUPPORTED Markup support is not linked into this engine.
+ * @member MARKUP_ERROR_UNKNOWN_TAG The tag name is syntactically valid but is not supported.
+ * @member MARKUP_ERROR_UNKNOWN_ATTRIBUTE The attribute name is not supported by its tag.
+ * @member MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE The attribute requires a known string constant.
  */
 enum MarkupErrorType
 {
@@ -115,6 +119,9 @@ enum MarkupErrorType
     MARKUP_ERROR_INVALID_UTF8,
     MARKUP_ERROR_LIMIT_EXCEEDED,
     MARKUP_ERROR_UNSUPPORTED,
+    MARKUP_ERROR_UNKNOWN_TAG,
+    MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
+    MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
 };
 
 /*# Markup parsing error
@@ -148,6 +155,62 @@ struct MarkupString
     uint16_t m_Length;
 };
 
+enum MarkupTagType
+{
+    MARKUP_TAG_ROOT,
+    MARKUP_TAG_COLOR,
+    MARKUP_TAG_GRADIENT,
+    MARKUP_TAG_LINK,
+    MARKUP_TAG_OUTLINE,
+    MARKUP_TAG_SHADOW,
+    MARKUP_TAG_SHAKE,
+    MARKUP_TAG_SIZE,
+    MARKUP_TAG_SPRITE,
+    MARKUP_TAG_STRIKE,
+    MARKUP_TAG_UNDERLINE,
+    MARKUP_TAG_WAVE,
+};
+
+enum MarkupAttributeType
+{
+    MARKUP_ATTRIBUTE_CUSTOM,
+    MARKUP_ATTRIBUTE_SHORTHAND,
+    MARKUP_ATTRIBUTE_AMPLITUDE,
+    MARKUP_ATTRIBUTE_BL,
+    MARKUP_ATTRIBUTE_BLUR,
+    MARKUP_ATTRIBUTE_BOTTOM,
+    MARKUP_ATTRIBUTE_BR,
+    MARKUP_ATTRIBUTE_COLOR,
+    MARKUP_ATTRIBUTE_DIRECTION,
+    MARKUP_ATTRIBUTE_FIT,
+    MARKUP_ATTRIBUTE_HEIGHT,
+    MARKUP_ATTRIBUTE_HZ,
+    MARKUP_ATTRIBUTE_ID,
+    MARKUP_ATTRIBUTE_LEFT,
+    MARKUP_ATTRIBUTE_PATTERN,
+    MARKUP_ATTRIBUTE_RIGHT,
+    MARKUP_ATTRIBUTE_SIZE,
+    MARKUP_ATTRIBUTE_TL,
+    MARKUP_ATTRIBUTE_TOP,
+    MARKUP_ATTRIBUTE_TR,
+    MARKUP_ATTRIBUTE_VALUE,
+    MARKUP_ATTRIBUTE_WAVELENGTH,
+    MARKUP_ATTRIBUTE_WIDTH,
+    MARKUP_ATTRIBUTE_X,
+    MARKUP_ATTRIBUTE_Y,
+};
+
+enum MarkupConstantType
+{
+    MARKUP_CONSTANT_NONE,
+    MARKUP_CONSTANT_DASHED,
+    MARKUP_CONSTANT_FORWARD,
+    MARKUP_CONSTANT_GLYPH,
+    MARKUP_CONSTANT_REVERSE,
+    MARKUP_CONSTANT_SOLID,
+    MARKUP_CONSTANT_SPAN,
+};
+
 /*# Parsed markup attribute
  *
  * Represents a generic key/value pair. A zero-length `m_Name` identifies the
@@ -157,11 +220,15 @@ struct MarkupString
  * @name MarkupAttribute
  * @member m_Name [type: MarkupString] Attribute name, or an empty slice for a shorthand attribute.
  * @member m_Value [type: MarkupString] Attribute value without surrounding quotes.
+ * @member m_Type [type: uint8_t] Parsed attribute identity, or `MARKUP_ATTRIBUTE_CUSTOM` for application-defined object attributes.
+ * @member m_Constant [type: uint8_t] Parsed named constant, or `MARKUP_CONSTANT_NONE` for unrestricted values.
  */
 struct MarkupAttribute
 {
     MarkupString m_Name;
     MarkupString m_Value;
+    uint8_t      m_Type;
+    uint8_t      m_Constant;
 };
 
 /*# Markup style node
@@ -179,6 +246,7 @@ struct MarkupAttribute
  * @member m_AttributeCount [type: uint16_t] Number of consecutive attributes belonging to this tag.
  * @member m_TextOffset [type: uint32_t] Visible UTF-32 text offset at the opening tag.
  * @member m_TextLength [type: uint32_t] Visible UTF-32 text length enclosed by the tag.
+ * @member m_Type [type: uint8_t] Parsed tag identity.
  */
 struct MarkupStyleNode
 {
@@ -186,6 +254,7 @@ struct MarkupStyleNode
     uint16_t     m_Parent;
     uint16_t     m_AttributeIndex;
     uint16_t     m_AttributeCount;
+    uint8_t      m_Type;
     uint32_t     m_TextOffset;
     uint32_t     m_TextLength;
 };

@@ -28,6 +28,8 @@
 
 #include "text_layout.h"
 
+static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
+
 static const uint32_t CHAR_NEWLINE = '\n';
 static const uint32_t CHAR_FALLBACK = '~'; // 126
 
@@ -209,9 +211,11 @@ static void TextLayoutLegacyFree(TextLayout* layout)
 static uint32_t GetParagraphIndex(const dmArray<TextParagraph>& paragraphs, uint32_t text_index)
 {
     uint32_t paragraph_index = 0;
+
     while (paragraph_index + 1 < paragraphs.Size() &&
            text_index >= paragraphs[paragraph_index + 1].m_TextIndex)
         ++paragraph_index;
+
     return paragraph_index;
 }
 
@@ -220,20 +224,29 @@ static const TextLayoutObject* FindSpriteObject(const TextLayout* layout, uint32
     for (uint32_t i = 0; i < layout->m_Objects.Size(); ++i)
     {
         const TextLayoutObject& object = layout->m_Objects[i];
-        if (object.m_Type == TEXT_LAYOUT_OBJECT_SPRITE && object.m_TextOffset == text_offset)
+
+        if (object.m_Tag == TAG_SPRITE && object.m_TextOffset == text_offset)
+        {
             return &object;
+        }
     }
+
     return 0;
 }
 
 static void CreateParagraphs(TextLayout* layout, uint32_t* codepoints, uint32_t num_codepoints)
 {
     uint32_t paragraph_start = 0;
+
     while (paragraph_start < num_codepoints)
     {
         uint32_t paragraph_end = paragraph_start;
+
         while (paragraph_end < num_codepoints && codepoints[paragraph_end] != CHAR_NEWLINE)
+        {
             ++paragraph_end;
+        }
+
         TextParagraph paragraph = { paragraph_start, paragraph_end - paragraph_start, 0, 0,
                                     TEXT_DIRECTION_LTR };
         layout->m_Paragraphs.Push(paragraph);
@@ -245,8 +258,12 @@ static void CreateParagraphs(TextLayout* layout, uint32_t* codepoints, uint32_t 
         TextLine& line = layout->m_Lines[i];
         line.m_ParagraphIndex = GetParagraphIndex(layout->m_Paragraphs, line.m_Index);
         TextParagraph& paragraph = layout->m_Paragraphs[line.m_ParagraphIndex];
+
         if (paragraph.m_LineCount == 0)
+        {
             paragraph.m_LineIndex = i;
+        }
+
         ++paragraph.m_LineCount;
     }
 }
@@ -257,37 +274,56 @@ static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
     {
         const TextLine& line = layout->m_Lines[line_index];
         const uint32_t line_end = line.m_Index + line.m_Length;
+
         for (uint32_t span_index = 0; span_index < layout->m_ResolvedSpans.Size(); ++span_index)
         {
             const TextResolvedSpan& span = layout->m_ResolvedSpans[span_index];
+
             if (span.m_DecorationFlags == 0)
+            {
                 continue;
+            }
+
             const uint32_t span_end = span.m_TextOffset + span.m_TextLength;
             const uint32_t start = span.m_TextOffset > line.m_Index ? span.m_TextOffset : line.m_Index;
             const uint32_t end = span_end < line_end ? span_end : line_end;
+
             if (start >= end)
+            {
                 continue;
+            }
+
             const TextGlyph& first = layout->m_Glyphs[start];
             const TextGlyph& last = layout->m_Glyphs[end - 1];
             const float font_size = settings->m_Size * first.m_RenderScale;
             const float thickness = fmaxf(1.0f, font_size * 0.05f);
-            const float length = last.m_X + last.m_Advance - first.m_X;
+            const float padded_length = last.m_X + last.m_Advance - first.m_X;
+            const float decoration_inset = padded_length > settings->m_Padding ? (float)settings->m_Padding : 0.0f;
+            const float length = padded_length;
+
             for (uint32_t flag = TEXT_RESOLVED_DECORATION_UNDERLINE; flag <= TEXT_RESOLVED_DECORATION_STRIKE; flag <<= 1)
             {
                 if ((span.m_DecorationFlags & flag) == 0)
+                {
                     continue;
+                }
+
                 TextDecoration decoration = {};
-                decoration.m_X = first.m_X;
+                decoration.m_X = first.m_X + decoration_inset;
                 decoration.m_Y = flag == TEXT_RESOLVED_DECORATION_UNDERLINE ? -font_size * 0.1f : font_size * 0.3f;
                 decoration.m_Length = length;
                 decoration.m_Thickness = thickness;
-                decoration.m_PatternOffset = first.m_X;
+                decoration.m_PatternOffset = first.m_X + decoration_inset;
                 decoration.m_GlyphStart = start;
                 decoration.m_GlyphCount = (uint16_t)(end - start);
                 decoration.m_LineIndex = (uint16_t)line_index;
                 decoration.m_Pattern = flag == TEXT_RESOLVED_DECORATION_UNDERLINE ? span.m_UnderlinePattern : span.m_StrikePattern;
+
                 if (layout->m_Decorations.Full())
+                {
                     layout->m_Decorations.OffsetCapacity(8);
+                }
+
                 layout->m_Decorations.Push(decoration);
             }
         }
@@ -318,8 +354,11 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     layout->m_ElapsedTime = 0.0;
     layout->m_ReleaseObject = 0;
     layout->m_ObjectContext = 0;
+
     if (resolved)
+    {
         TextLayoutAdoptResolvedMarkup(layout, resolved, settings);
+    }
 
     HFont font = FontCollectionGetFont(collection, 0);
     float scale = FontGetScaleFromSize(font, settings->m_Size);
@@ -355,6 +394,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
         g.m_Y = y;
 
         const TextLayoutObject* object = c == 0xfffc ? FindSpriteObject(layout, i) : 0;
+
         if (object)
         {
             g.m_Width = object->m_Width;
@@ -399,6 +439,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     {
         uint32_t resolved_span_index = 0;
         float    advance_adjustment = 0.0f;
+
         for (uint32_t i = 0; i < num_codepoints; ++i)
         {
             while (resolved_span_index < layout->m_ResolvedSpans.Size() &&
@@ -407,20 +448,25 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
             {
                 ++resolved_span_index;
             }
+
             if (resolved_span_index < layout->m_ResolvedSpans.Size())
             {
                 const TextResolvedSpan& span = layout->m_ResolvedSpans[resolved_span_index];
+
                 if (i >= span.m_TextOffset)
                 {
                     layout->m_Glyphs[i].m_MarkupSpanIndex = (uint16_t)resolved_span_index;
                     layout->m_Glyphs[i].m_StyleIndex = span.m_StyleIndex;
                 }
             }
+
             TextGlyph& glyph = layout->m_Glyphs[i];
             glyph.m_X += advance_adjustment;
+
             if ((glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) == 0 && glyph.m_StyleIndex < layout->m_Styles.Size())
             {
                 const TextRenderStyle& style = layout->m_Styles[glyph.m_StyleIndex];
+
                 if (style.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE)
                 {
                     glyph.m_RenderScale = style.m_FontSize / settings->m_Size;
@@ -468,11 +514,14 @@ TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup mark
                                         TextLayoutSettings* settings, HTextLayout* outlayout)
 {
     ResolvedMarkup resolved;
+
     if (!TextLayoutResolveMarkup(markup, settings, &resolved))
     {
         *outlayout = 0;
+
         return TEXT_RESULT_ERROR;
     }
+
     return TextLayoutLegacyCreateInternal(collection,
                                           const_cast<uint32_t*>(MarkupGetText(markup)),
                                           MarkupGetTextLength(markup),

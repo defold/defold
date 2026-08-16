@@ -38,25 +38,42 @@ static void SetPosition(float* position, const Vector4& value)
 bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration)
 {
     TextLayout* internal = (TextLayout*)layout;
+
     if (decoration.m_GlyphCount <= 1)
+    {
         return false;
+    }
+
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     const TextGlyph& first = glyphs[decoration.m_GlyphStart];
+
     for (uint32_t i = 1; i < decoration.m_GlyphCount; ++i)
     {
         const TextGlyph& glyph = glyphs[decoration.m_GlyphStart + i];
+
         if (glyph.m_StyleIndex != first.m_StyleIndex || glyph.m_MarkupSpanIndex != first.m_MarkupSpanIndex)
+        {
             return true;
+        }
     }
+
     if (first.m_MarkupSpanIndex == UINT16_MAX || first.m_MarkupSpanIndex >= internal->m_ResolvedSpans.Size())
+    {
         return false;
+    }
+
     const TextResolvedSpan& span = internal->m_ResolvedSpans[first.m_MarkupSpanIndex];
+
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
         const TextEffect& effect = internal->m_Effects[internal->m_SpanEffects[span.m_EffectIndex + i]];
+
         if (effect.m_Type == TEXT_EFFECT_GRADIENT && effect.m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH)
+        {
             return true;
+        }
     }
+
     return false;
 }
 
@@ -70,8 +87,12 @@ void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment
     pattern->m_Start = 0.0f;
     pattern->m_End = 0.0f;
     pattern->m_Duty = 0.0f;
+
     if (decoration.m_Pattern != TEXT_DECORATION_PATTERN_DASHED)
+    {
         return;
+    }
+
     const float segment_length = decoration.m_Length / segment_count;
     const float dash = fmaxf(1.0f, decoration.m_Thickness * 3.0f);
     const float gap = fmaxf(1.0f, decoration.m_Thickness * 2.0f);
@@ -87,14 +108,22 @@ void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decor
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     uint32_t left_index = decoration.m_GlyphStart;
     uint32_t right_index = left_index;
+
     for (uint32_t i = 1; i < decoration.m_GlyphCount; ++i)
     {
         const uint32_t glyph_index = decoration.m_GlyphStart + i;
+
         if (glyphs[glyph_index].m_X < glyphs[left_index].m_X)
+        {
             left_index = glyph_index;
+        }
+
         if (glyphs[glyph_index].m_X + glyphs[glyph_index].m_Width > glyphs[right_index].m_X + glyphs[right_index].m_Width)
+        {
             right_index = glyph_index;
+        }
     }
+
     TextGlyphRenderData left;
     TextGlyphRenderData right;
     TextLayoutGetGlyphRenderData(layout, glyphs[left_index], base_color, &left);
@@ -105,34 +134,34 @@ void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decor
     memcpy(face_colors->m_TopRight, right.m_FaceColors.m_TopRight, sizeof(face_colors->m_TopRight));
 }
 
-void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
-                                  float                      recip_w,
-                                  float                      recip_h,
-                                  uint32_t                   cell_x,
-                                  uint32_t                   cell_y,
-                                  uint32_t                   cache_cell_max_ascent,
-                                  uint32_t                   cache_cell_padding,
-                                  uint32_t                   layer_count,
-                                  uint32_t                   layer_mask,
-                                  uint32_t                   vertex_index,
-                                  uint32_t                   vertex_layer_stride,
-                                  const dmVMath::Matrix4&    transform,
-                                  float                      x,
-                                  float                      y,
-                                  float                      render_scale,
-                                  const TextGlyphFaceColors& face_colors,
-                                  const Vector4&             outline_color,
-                                  const Vector4&             shadow_color,
-                                  float                      sdf_edge_value,
-                                  float                      sdf_outline,
-                                  float                      sdf_smoothing,
-                                  float                      sdf_shadow,
-                                  float                      shadow_x,
-                                  float                      shadow_y,
-                                  bool                       metrics_from_ttf,
-                                  FontGlyphVertex*           vertices)
+void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
+                                          float                      recip_w,
+                                          float                      recip_h,
+                                          uint32_t                   cell_x,
+                                          uint32_t                   cell_y,
+                                          uint32_t                   cache_cell_max_ascent,
+                                          uint32_t                   cache_cell_padding,
+                                          uint32_t                   layer_count,
+                                          const dmVMath::Matrix4&    transform,
+                                          float                      x,
+                                          float                      y,
+                                          float                      render_scale,
+                                          const TextGlyphFaceColors& face_colors,
+                                          const Vector4&             outline_color,
+                                          const Vector4&             shadow_color,
+                                          float                      sdf_edge_value,
+                                          float                      sdf_outline,
+                                          float                      sdf_smoothing,
+                                          float                      sdf_shadow,
+                                          float                      shadow_x,
+                                          float                      shadow_y,
+                                          bool                       metrics_from_ttf,
+                                          FontGlyphVertex*           face_vertices,
+                                          FontGlyphVertex*           outline_vertices,
+                                          FontGlyphVertex*           shadow_vertices)
 {
     assert(layer_count > 0 && layer_count <= FONT_GLYPH_MAX_LAYER_COUNT);
+    assert(face_vertices);
 
     float source_width;
     float source_descent;
@@ -161,19 +190,18 @@ void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
     const int16_t    descent = (int16_t)source_descent;
     const int16_t    ascent = (int16_t)source_ascent;
     const int16_t    cell_offset_y = cache_cell_max_ascent - ascent;
-    const uint32_t   face_index = vertex_index + vertex_layer_stride * (layer_count - 1);
     const float      glyph_width = source_width * render_scale;
     const float      glyph_descent = source_descent * render_scale;
     const float      glyph_ascent = source_ascent * render_scale;
     const float      glyph_left_bearing = source_left_bearing * render_scale;
     const float      local_x = x - source_size_difference * render_scale * 0.5f;
 
-    FontGlyphVertex& face_1 = vertices[face_index + 0];
-    FontGlyphVertex& face_2 = vertices[face_index + 1];
-    FontGlyphVertex& face_3 = vertices[face_index + 2];
-    FontGlyphVertex& face_4 = vertices[face_index + 3];
-    FontGlyphVertex& face_5 = vertices[face_index + 4];
-    FontGlyphVertex& face_6 = vertices[face_index + 5];
+    FontGlyphVertex& face_1 = face_vertices[0];
+    FontGlyphVertex& face_2 = face_vertices[1];
+    FontGlyphVertex& face_3 = face_vertices[2];
+    FontGlyphVertex& face_4 = face_vertices[3];
+    FontGlyphVertex& face_5 = face_vertices[4];
+    FontGlyphVertex& face_6 = face_vertices[5];
 
     SetPosition(face_1.m_Position, transform * Vector4(local_x + glyph_left_bearing, y - glyph_descent, 0, 1));
     SetPosition(face_2.m_Position, transform * Vector4(local_x + glyph_left_bearing + glyph_width, y - glyph_descent, 0, 1));
@@ -221,28 +249,26 @@ void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
     vertex.m_LayerMasks[1] = outline; \
     vertex.m_LayerMasks[2] = shadow;
 
-    if (HAS_LAYER(layer_mask, FONT_RENDER_LAYER_OUTLINE))
+    if (outline_vertices)
     {
-        const uint32_t outline_index = vertex_index + vertex_layer_stride * (layer_count - 2);
         for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
         {
-            vertices[outline_index + i] = vertices[face_index + i];
-            SET_MASK(vertices[outline_index + i], 0, 1, 0)
+            outline_vertices[i] = face_vertices[i];
+            SET_MASK(outline_vertices[i], 0, 1, 0)
         }
     }
 
-    if (HAS_LAYER(layer_mask, FONT_RENDER_LAYER_SHADOW))
+    if (shadow_vertices)
     {
-        const uint32_t shadow_index = vertex_index;
         for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
-            vertices[shadow_index + i] = vertices[face_index + i];
+            shadow_vertices[i] = face_vertices[i];
 
-        FontGlyphVertex& shadow_1 = vertices[shadow_index + 0];
-        FontGlyphVertex& shadow_2 = vertices[shadow_index + 1];
-        FontGlyphVertex& shadow_3 = vertices[shadow_index + 2];
-        FontGlyphVertex& shadow_4 = vertices[shadow_index + 3];
-        FontGlyphVertex& shadow_5 = vertices[shadow_index + 4];
-        FontGlyphVertex& shadow_6 = vertices[shadow_index + 5];
+        FontGlyphVertex& shadow_1 = shadow_vertices[0];
+        FontGlyphVertex& shadow_2 = shadow_vertices[1];
+        FontGlyphVertex& shadow_3 = shadow_vertices[2];
+        FontGlyphVertex& shadow_4 = shadow_vertices[3];
+        FontGlyphVertex& shadow_5 = shadow_vertices[4];
+        FontGlyphVertex& shadow_6 = shadow_vertices[5];
         SetPosition(shadow_1.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x, y - glyph_descent + shadow_y, 0, 1));
         SetPosition(shadow_2.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x + glyph_width, y - glyph_descent + shadow_y, 0, 1));
         SetPosition(shadow_3.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x, y + glyph_ascent + shadow_y, 0, 1));
@@ -251,17 +277,50 @@ void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
         shadow_5 = shadow_2;
         for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
         {
-            SET_MASK(vertices[shadow_index + i], 0, 0, 1)
+            SET_MASK(shadow_vertices[i], 0, 0, 1)
         }
     }
 
     const uint8_t one_layer = layer_count == 1 ? 1 : 0;
     for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
     {
-        SET_MASK(vertices[face_index + i], 1, one_layer, one_layer)
+        SET_MASK(face_vertices[i], 1, one_layer, one_layer)
     }
 
 #undef SET_MASK
+}
+
+void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
+                                  float                      recip_w,
+                                  float                      recip_h,
+                                  uint32_t                   cell_x,
+                                  uint32_t                   cell_y,
+                                  uint32_t                   cache_cell_max_ascent,
+                                  uint32_t                   cache_cell_padding,
+                                  uint32_t                   layer_count,
+                                  uint32_t                   layer_mask,
+                                  uint32_t                   vertex_index,
+                                  uint32_t                   vertex_layer_stride,
+                                  const dmVMath::Matrix4&    transform,
+                                  float                      x,
+                                  float                      y,
+                                  float                      render_scale,
+                                  const TextGlyphFaceColors& face_colors,
+                                  const Vector4&             outline_color,
+                                  const Vector4&             shadow_color,
+                                  float                      sdf_edge_value,
+                                  float                      sdf_outline,
+                                  float                      sdf_smoothing,
+                                  float                      sdf_shadow,
+                                  float                      shadow_x,
+                                  float                      shadow_y,
+                                  bool                       metrics_from_ttf,
+                                  FontGlyphVertex*           vertices)
+{
+    FontGlyphVertex* face_vertices = vertices + vertex_index + vertex_layer_stride * (layer_count - 1);
+    FontGlyphVertex* outline_vertices = HAS_LAYER(layer_mask, FONT_RENDER_LAYER_OUTLINE) ? vertices + vertex_index + vertex_layer_stride * (layer_count - 2) : 0;
+    FontGlyphVertex* shadow_vertices = HAS_LAYER(layer_mask, FONT_RENDER_LAYER_SHADOW) ? vertices + vertex_index : 0;
+    FontPackGlyphVertices4ColorsToLayers(glyph, recip_w, recip_h, cell_x, cell_y, cache_cell_max_ascent, cache_cell_padding, layer_count, transform, x, y, render_scale, face_colors, outline_color, shadow_color, sdf_edge_value, sdf_outline, sdf_smoothing, sdf_shadow, shadow_x, shadow_y, metrics_from_ttf, face_vertices, outline_vertices, shadow_vertices);
 }
 
 void FontPackGlyphVertices(FontGlyph*              glyph,
@@ -292,6 +351,7 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
                            FontGlyphVertex*        vertices)
 {
     TextGlyphFaceColors face_colors;
+
     for (uint32_t i = 0; i < 4; ++i)
     {
         face_colors.m_BottomLeft[i] = face_color[i];
@@ -299,6 +359,7 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
         face_colors.m_TopLeft[i] = face_color[i];
         face_colors.m_TopRight[i] = face_color[i];
     }
+
     FontPackGlyphVertices4Colors(glyph, recip_w, recip_h, cell_x, cell_y, cache_cell_max_ascent, cache_cell_padding, layer_count, layer_mask, vertex_index, vertex_layer_stride, transform, x, y, render_scale, face_colors, outline_color, shadow_color, sdf_edge_value, sdf_outline, sdf_smoothing, sdf_shadow, shadow_x, shadow_y, metrics_from_ttf, vertices);
 }
 
@@ -321,13 +382,19 @@ void FontPackDecorationVertices(float                      texture_u,
 {
     const uint32_t face_index = vertex_index + vertex_layer_stride * (layer_count - 1);
     FontGlyphVertex* face = vertices + face_index;
-    const float half_thickness = thickness * 0.5f;
-    SetPosition(face[0].m_Position, transform * Vector4(x0, y0 - half_thickness, 0, 1));
-    SetPosition(face[1].m_Position, transform * Vector4(x1, y1 - half_thickness, 0, 1));
-    SetPosition(face[2].m_Position, transform * Vector4(x0, y0 + half_thickness, 0, 1));
-    SetPosition(face[5].m_Position, transform * Vector4(x1, y1 + half_thickness, 0, 1));
+    const float delta_x = x1 - x0;
+    const float delta_y = y1 - y0;
+    const float length = sqrtf(delta_x * delta_x + delta_y * delta_y);
+    const float normal_scale = length > 0.0f ? thickness * 0.5f / length : 0.0f;
+    const float normal_x = -delta_y * normal_scale;
+    const float normal_y = delta_x * normal_scale;
+    SetPosition(face[0].m_Position, transform * Vector4(x0 - normal_x, y0 - normal_y, 0, 1));
+    SetPosition(face[1].m_Position, transform * Vector4(x1 - normal_x, y1 - normal_y, 0, 1));
+    SetPosition(face[2].m_Position, transform * Vector4(x0 + normal_x, y0 + normal_y, 0, 1));
+    SetPosition(face[5].m_Position, transform * Vector4(x1 + normal_x, y1 + normal_y, 0, 1));
     const float* colors[4] = { face_colors.m_BottomLeft, face_colors.m_BottomRight, face_colors.m_TopLeft, face_colors.m_TopRight };
     const uint32_t corners[4] = { 0, 1, 2, 5 };
+
     for (uint32_t i = 0; i < 4; ++i)
     {
         FontGlyphVertex& vertex = face[corners[i]];
@@ -347,14 +414,19 @@ void FontPackDecorationVertices(float                      texture_u,
         vertex.m_LayerMasks[1] = i == 0 || i == 2 ? pattern_start : pattern_end;
         vertex.m_LayerMasks[2] = -pattern_duty;
     }
+
     face[3] = face[2];
     face[4] = face[1];
+
     for (uint32_t layer = 0; layer + 1 < layer_count; ++layer)
     {
         FontGlyphVertex* hidden = vertices + vertex_index + vertex_layer_stride * layer;
         memcpy(hidden, face, sizeof(FontGlyphVertex) * FONT_GLYPH_VERTICES_PER_QUAD);
+
         for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
+        {
             memset(hidden[i].m_LayerMasks, 0, sizeof(hidden[i].m_LayerMasks));
+        }
     }
 }
 

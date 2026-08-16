@@ -160,6 +160,7 @@ struct TextLayout
     dmArray<char>                      m_ObjectSource;
     dmArray<TextLayoutObject>          m_Objects;
     dmArray<TextLayoutObjectAttribute> m_ObjectAttributes;
+    dmArray<dmhash_t>                  m_ObjectStyleOverrides;
 
     HFontCollection                    m_FontCollection;
 
@@ -216,7 +217,7 @@ void TextLayoutReleaseObjects(HTextLayout layout);
 // Captures base glyph styles and applies named layout-object styles.
 void TextLayoutInitializeObjectStyles(HTextLayout layout);
 
-// Reapplies named object styles after states or font style definitions change.
+// Reapplies named object styles after overrides or font style definitions change.
 bool TextLayoutRefreshObjectStyles(HTextLayout layout);
 
 struct TextGlyphFaceColors

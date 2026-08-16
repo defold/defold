@@ -16,6 +16,7 @@
 #define DMSDK_TEXT_LAYOUT_H
 
 #include <stdint.h>
+#include <dmsdk/dlib/hash.h>
 
 typedef struct Font*           HFont;
 typedef struct FontCollection* HFontCollection;
@@ -35,39 +36,6 @@ typedef struct FontCollection* HFontCollection;
  * @name HTextLayout
  */
 typedef struct TextLayout* HTextLayout;
-
-/*# Layout object type
- * @enum
- * @name TextLayoutObjectType
- * @member TEXT_LAYOUT_OBJECT_SPRITE An inline sprite tag.
- * @member TEXT_LAYOUT_OBJECT_LINK A link span produced by an `a` tag.
- */
-enum TextLayoutObjectType
-{
-    TEXT_LAYOUT_OBJECT_SPRITE,
-    TEXT_LAYOUT_OBJECT_LINK,
-};
-
-/*# Layout object interaction state
- *
- * States are stored by the layout. A caller that performs hit testing reports
- * input transitions through `TextLayoutSetObjectState()`; the layout then
- * resolves the corresponding named render styles.
- *
- * @enum
- * @name TextLayoutObjectState
- * @member TEXT_LAYOUT_OBJECT_STATE_HOVERED The pointer is over the object.
- * @member TEXT_LAYOUT_OBJECT_STATE_ACTIVE The primary pointer is pressed on the object.
- * @member TEXT_LAYOUT_OBJECT_STATE_VISITED The object has previously been activated.
- * @member TEXT_LAYOUT_OBJECT_STATE_DISABLED The object is disabled.
- */
-enum TextLayoutObjectState
-{
-    TEXT_LAYOUT_OBJECT_STATE_HOVERED  = 1 << 0,
-    TEXT_LAYOUT_OBJECT_STATE_ACTIVE   = 1 << 1,
-    TEXT_LAYOUT_OBJECT_STATE_VISITED  = 1 << 2,
-    TEXT_LAYOUT_OBJECT_STATE_DISABLED = 1 << 3,
-};
 
 /*# Attribute belonging to a layout object
  *
@@ -106,8 +74,7 @@ struct TextLayoutObjectAttribute
  * @member m_Id [type: uint64_t] Stable object identifier derived from the `id` attribute, or generated from its order in the layout source.
  * @member m_AttributeIndex [type: uint16_t] First object attribute in the layout attribute array.
  * @member m_AttributeCount [type: uint16_t] Number of consecutive object attributes.
- * @member m_State [type: uint16_t] Bit mask of `TextLayoutObjectState` values owned by the layout.
- * @member m_Type [type: TextLayoutObjectType] Object type.
+ * @member m_Tag [type: dmhash_t] Hash of the markup tag name.
  */
 struct TextLayoutObject
 {
@@ -119,8 +86,7 @@ struct TextLayoutObject
     uint32_t             m_TextLength;
     uint16_t             m_AttributeIndex;
     uint16_t             m_AttributeCount;
-    uint16_t             m_State;
-    TextLayoutObjectType m_Type;
+    dmhash_t             m_Tag;
 };
 
 /*# Resolve a resource-backed layout object
@@ -228,9 +194,9 @@ enum TextGlyphFlags
  * @member m_GlyphIndex [type: uint16_t] the glyph index in the font
  * @member m_Cluster [type: uint32_t] the index in the visible UTF-32 text that this glyph corresponds to
  * @member m_StyleIndex [type: uint16_t] resolved render style index
- * @member m_BaseStyleIndex [type: uint16_t] render style before layout-object state styles are applied
+ * @member m_BaseStyleIndex [type: uint16_t] render style before layout-object named styles are applied
  * @member m_MarkupSpanIndex [type: uint16_t] resolved markup span index, or 0xffff when no markup is present
- * @member m_BaseMarkupSpanIndex [type: uint16_t] markup span before layout-object state styles are applied
+ * @member m_BaseMarkupSpanIndex [type: uint16_t] markup span before layout-object named styles are applied
  * @member m_Flags [type: uint16_t] `TextGlyphFlags` describing non-text layout glyphs
  */
 struct TextGlyph
@@ -249,9 +215,9 @@ struct TextGlyph
     uint32_t m_Cluster;             // index into visible UTF-32 text
     uint16_t m_GlyphIndex;          // index into the font
     uint16_t m_StyleIndex;          // index into resolved render styles
-    uint16_t m_BaseStyleIndex;      // style index before layout-object state styles
+    uint16_t m_BaseStyleIndex;      // style index before layout-object named styles
     uint16_t m_MarkupSpanIndex;     // index into resolved markup spans
-    uint16_t m_BaseMarkupSpanIndex; // markup span before layout-object state styles
+    uint16_t m_BaseMarkupSpanIndex; // markup span before layout-object named styles
     uint16_t m_Flags;
 
     // private
@@ -497,6 +463,25 @@ uint32_t TextLayoutGetObjectCount(HTextLayout layout);
  */
 const TextLayoutObject* TextLayoutGetObjects(HTextLayout layout);
 
+/*# Get the rendered position of a layout object
+ *
+ * Resolves the lower-left corner of an object using the same shaped-line
+ * coordinate normalization as text rendering. `paragraph_x` and
+ * `paragraph_top` define the upper-left layout origin. `paragraph_width` is
+ * used to place right-to-left lines.
+ *
+ * @name TextLayoutGetObjectPosition
+ * @param layout [type: HTextLayout] the text layout
+ * @param object [type: const TextLayoutObject*] object borrowed from `TextLayoutGetObjects`
+ * @param paragraph_x [type: float] left layout origin
+ * @param paragraph_top [type: float] top layout origin
+ * @param paragraph_width [type: float] layout width
+ * @param x [type: float*] resolved lower-left x coordinate (out)
+ * @param y [type: float*] resolved lower-left y coordinate (out)
+ * @return found [type: uint8_t] non-zero when the object belongs to a layout line
+ */
+uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, float* x, float* y);
+
 /*# Get layout object attributes
  * @name TextLayoutGetObjectAttributes
  * @param layout [type: HTextLayout] the text layout
@@ -511,21 +496,20 @@ const TextLayoutObjectAttribute* TextLayoutGetObjectAttributes(HTextLayout layou
  */
 const char* TextLayoutGetObjectSource(HTextLayout layout);
 
-/*# Set or clear a layout object interaction state
+/*# Set a layout object's named style override
  *
- * The layout owns the resulting state and immediately resolves the matching
- * named object styles. This affects rendering only and never reshapes or
- * reflows text. The function returns false when no object has the supplied ID
- * or when the requested state was already set to the supplied value.
+ * The named style is applied after the object's default style. The default is
+ * the markup `style` attribute when present, otherwise the object's tag name.
+ * Pass zero to restore the default style. This affects rendering only and
+ * never reshapes or reflows text.
  *
- * @name TextLayoutSetObjectState
+ * @name TextLayoutSetObjectStyle
  * @param layout [type: HTextLayout] the text layout
  * @param object_id [type: uint64_t] ID returned in `TextLayoutObject.m_Id`
- * @param state [type: TextLayoutObjectState] one state bit to update
- * @param enabled [type: uint8_t] non-zero to set the state, zero to clear it
- * @return changed [type: uint8_t] non-zero when object state changed
+ * @param style [type: dmhash_t] named style hash, or zero to restore the default
+ * @return changed [type: uint8_t] non-zero when the object style changed
  */
-uint8_t TextLayoutSetObjectState(HTextLayout layout, uint64_t object_id, TextLayoutObjectState state, uint8_t enabled);
+uint8_t TextLayoutSetObjectStyle(HTextLayout layout, uint64_t object_id, dmhash_t style);
 
 /*#
  * Get the lines in the layout

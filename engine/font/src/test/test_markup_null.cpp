@@ -58,6 +58,7 @@ TEST(MarkupNull, ResolvesPlainRenderData)
     ASSERT_EQ(0.0f, data.m_ShadowBlur);
     ASSERT_EQ(0.0f, data.m_OffsetX);
     ASSERT_EQ(0.0f, data.m_OffsetY);
+
     for (uint32_t channel = 0; channel < DM_ARRAY_SIZE(base_color); ++channel)
     {
         ASSERT_EQ(base_color[channel], data.m_FaceColors.m_BottomLeft[channel]);
@@ -67,6 +68,7 @@ TEST(MarkupNull, ResolvesPlainRenderData)
         ASSERT_EQ(1.0f, data.m_OutlineColor[channel]);
         ASSERT_EQ(1.0f, data.m_ShadowColor[channel]);
     }
+
     ASSERT_FALSE(TextLayoutHasMarkupOutline(0));
     ASSERT_EQ(0.0f, TextLayoutGetMaxMarkupOutlineWidth(0));
     ASSERT_FALSE(TextLayoutHasMarkupShadow(0));
@@ -82,5 +84,6 @@ TEST(MarkupNull, LinksPlainTextLayout)
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
+
     return jc_test_run_all();
 }

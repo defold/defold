@@ -279,7 +279,9 @@ namespace dmRender
     void DeleteFontMap(HFontMap font_map)
     {
         if (font_map->m_FontCollection)
+        {
             FontCollectionDestroy(font_map->m_FontCollection);
+        }
         dmMutex::Delete(font_map->m_Mutex);
         delete font_map;
     }

@@ -105,6 +105,34 @@ void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
                                   bool                       metrics_from_ttf,
                                   FontGlyphVertex*           vertices);
 
+// Packs a glyph directly into compact, independently sized layer ranges.
+// The face output is required; outline and shadow outputs may be null.
+void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
+                                          float                      recip_w,
+                                          float                      recip_h,
+                                          uint32_t                   cell_x,
+                                          uint32_t                   cell_y,
+                                          uint32_t                   cache_cell_max_ascent,
+                                          uint32_t                   cache_cell_padding,
+                                          uint32_t                   layer_count,
+                                          const dmVMath::Matrix4&    transform,
+                                          float                      x,
+                                          float                      y,
+                                          float                      render_scale,
+                                          const TextGlyphFaceColors& face_colors,
+                                          const dmVMath::Vector4&    outline_color,
+                                          const dmVMath::Vector4&    shadow_color,
+                                          float                      sdf_edge_value,
+                                          float                      sdf_outline,
+                                          float                      sdf_smoothing,
+                                          float                      sdf_shadow,
+                                          float                      shadow_x,
+                                          float                      shadow_y,
+                                          bool                       metrics_from_ttf,
+                                          FontGlyphVertex*           face_vertices,
+                                          FontGlyphVertex*           outline_vertices,
+                                          FontGlyphVertex*           shadow_vertices);
+
 // Packs a face-only line-decoration quad and its procedural dash parameters.
 void FontPackDecorationVertices(float                      texture_u,
                                 float                      texture_v,

@@ -32,8 +32,11 @@ static void AssertText(HMarkup markup, const uint32_t* expected, uint32_t expect
 {
     ASSERT_EQ(expected_count, MarkupGetTextLength(markup));
     const uint32_t* actual = MarkupGetText(markup);
+
     for (uint32_t i = 0; i < expected_count; ++i)
+    {
         ASSERT_EQ(expected[i], actual[i]);
+    }
 }
 
 static void AssertAsciiText(HMarkup markup, const char* expected)
@@ -41,8 +44,11 @@ static void AssertAsciiText(HMarkup markup, const char* expected)
     uint32_t expected_count = strlen(expected);
     ASSERT_EQ(expected_count, MarkupGetTextLength(markup));
     const uint32_t* actual = MarkupGetText(markup);
+
     for (uint32_t i = 0; i < expected_count; ++i)
+    {
         ASSERT_EQ((uint32_t)expected[i], actual[i]);
+    }
 }
 
 TEST(Markup, PlainText)
@@ -75,20 +81,26 @@ TEST(Markup, NestedTagsAndAttributes)
     ASSERT_EQ(3u, MarkupGetStyleNodeCount(markup));
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
     AssertString(markup, nodes[1].m_Tag, "wave");
-    ASSERT_EQ(0u, nodes[1].m_Parent);
-    ASSERT_EQ(1u, nodes[1].m_AttributeCount);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_WAVE,   nodes[1].m_Type);
+    ASSERT_EQ(0u,                         nodes[1].m_Parent);
+    ASSERT_EQ(1u,                         nodes[1].m_AttributeCount);
     AssertString(markup, nodes[2].m_Tag, "gradient");
-    ASSERT_EQ(1u, nodes[2].m_Parent);
-    ASSERT_EQ(2u, nodes[2].m_AttributeCount);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_GRADIENT,   nodes[2].m_Type);
+    ASSERT_EQ(1u,                             nodes[2].m_Parent);
+    ASSERT_EQ(2u,                             nodes[2].m_AttributeCount);
 
     ASSERT_EQ(3u, MarkupGetAttributeCount(markup));
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
     AssertString(markup, attributes[0].m_Name, "amplitude");
     AssertString(markup, attributes[0].m_Value, "4");
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_AMPLITUDE, attributes[0].m_Type);
+    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_NONE,       attributes[0].m_Constant);
     AssertString(markup, attributes[1].m_Name, "left");
     AssertString(markup, attributes[1].m_Value, "#FF00FF");
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_LEFT, attributes[1].m_Type);
     AssertString(markup, attributes[2].m_Name, "right");
     AssertString(markup, attributes[2].m_Value, "#FFFFFF");
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_RIGHT, attributes[2].m_Type);
 
     ASSERT_EQ(5u, MarkupGetSpanCount(markup));
     const MarkupSpan* spans = MarkupGetSpans(markup);
@@ -103,16 +115,20 @@ TEST(Markup, NestedTagsAndAttributes)
 
 TEST(Markup, ShorthandAndQuotedValue)
 {
-    const char text[] = "<color=red>R</color><gradient=\"Warning - Vertical\">G</gradient>";
+    const char text[] = "<color=red>R</color><size=\"14\">G</size>";
     HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
 
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
-    ASSERT_EQ(0u, attributes[nodes[1].m_AttributeIndex].m_Name.m_Length);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_COLOR,            nodes[1].m_Type);
+    ASSERT_EQ(0u,                                   attributes[nodes[1].m_AttributeIndex].m_Name.m_Length);
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_SHORTHAND,  attributes[nodes[1].m_AttributeIndex].m_Type);
     AssertString(markup, attributes[nodes[1].m_AttributeIndex].m_Value, "red");
-    ASSERT_EQ(0u, attributes[nodes[2].m_AttributeIndex].m_Name.m_Length);
-    AssertString(markup, attributes[nodes[2].m_AttributeIndex].m_Value, "Warning - Vertical");
+    ASSERT_EQ((uint8_t)MARKUP_TAG_SIZE,             nodes[2].m_Type);
+    ASSERT_EQ(0u,                                   attributes[nodes[2].m_AttributeIndex].m_Name.m_Length);
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_SHORTHAND,  attributes[nodes[2].m_AttributeIndex].m_Type);
+    AssertString(markup, attributes[nodes[2].m_AttributeIndex].m_Value, "14");
     MarkupDestroy(markup);
 }
 
@@ -158,6 +174,43 @@ TEST(Markup, BrokenMarkup)
     }
 }
 
+TEST(Markup, RejectsUnknownTagsAttributesAndConstants)
+{
+    struct UnsupportedMarkupCase
+    {
+        const char*     m_Text;
+        MarkupErrorType m_Error;
+        uint32_t        m_ByteOffset;
+    };
+    const UnsupportedMarkupCase cases[] = {
+        { "<s ize=14>Text</size>", MARKUP_ERROR_UNKNOWN_TAG, 1 },
+        { "<a href=https://defold.com>Defold</a>", MARKUP_ERROR_UNKNOWN_TAG, 1 },
+        { "<unknown>Text</unknown>", MARKUP_ERROR_UNKNOWN_TAG, 1 },
+        { "<size sdf=14>Text</size>", MARKUP_ERROR_UNKNOWN_ATTRIBUTE, 6 },
+        { "<wave fit=word>Text</wave>", MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, 10 },
+        { "<wave direction=backward>Text</wave>", MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, 16 },
+        { "<ul pattern=dotted>Text</ul>", MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, 12 },
+    };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        HMarkup     markup = (HMarkup)(uintptr_t)1;
+        MarkupError error = {};
+        ASSERT_EQ(MARKUP_RESULT_SYNTAX_ERROR, MarkupCreate(cases[i].m_Text, (uint32_t)strlen(cases[i].m_Text), &markup, &error));
+        ASSERT_EQ((HMarkup)0, markup);
+        ASSERT_EQ(cases[i].m_Error, error.m_Type);
+        ASSERT_EQ(cases[i].m_ByteOffset, error.m_ByteOffset);
+    }
+}
+
+TEST(Markup, AllowsApplicationDefinedObjectAttributes)
+{
+    const char text[] = "<sprite src=/logo.atlas animation=defold/><link src=https://defold.com data=manual>Defold</link>";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
+    MarkupDestroy(markup);
+}
+
 TEST(Markup, SelfClosingTag)
 {
     const char text[] = "A<sprite src=/icon.atlas width=2em/>B";
@@ -169,9 +222,27 @@ TEST(Markup, SelfClosingTag)
     ASSERT_EQ(2u, MarkupGetStyleNodeCount(markup));
     const MarkupStyleNode& node = MarkupGetStyleNodes(markup)[1];
     AssertString(markup, node.m_Tag, "sprite");
-    ASSERT_EQ(1u, node.m_TextOffset);
-    ASSERT_EQ(1u, node.m_TextLength);
-    ASSERT_EQ(2u, node.m_AttributeCount);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_SPRITE,  node.m_Type);
+    ASSERT_EQ(1u,                          node.m_TextOffset);
+    ASSERT_EQ(1u,                          node.m_TextLength);
+    ASSERT_EQ(2u,                          node.m_AttributeCount);
+    const MarkupAttribute* attributes = MarkupGetAttributes(markup);
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_CUSTOM, attributes[node.m_AttributeIndex].m_Type);
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_WIDTH,  attributes[node.m_AttributeIndex + 1].m_Type);
+    MarkupDestroy(markup);
+}
+
+TEST(Markup, NamedConstants)
+{
+    const char text[] = "<wave fit=span direction=reverse>X</wave><ul pattern=dashed>Y</ul>";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
+
+    const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
+    const MarkupAttribute* attributes = MarkupGetAttributes(markup);
+    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_SPAN,    attributes[nodes[1].m_AttributeIndex].m_Constant);
+    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_REVERSE, attributes[nodes[1].m_AttributeIndex + 1].m_Constant);
+    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_DASHED,  attributes[nodes[2].m_AttributeIndex].m_Constant);
     MarkupDestroy(markup);
 }
 
@@ -186,13 +257,13 @@ TEST(Markup, StrictLifo)
 
 TEST(Markup, RecoverMismatchedTagAndContinue)
 {
-    const char  text[] = "<col or=00000000>hello</color> <size=+4>world</size>";
+    const char  text[] = "<wave hz=00000000>hello</color> <size=+4>world</size>";
     HMarkup     markup = 0;
     MarkupError error;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreateRecovering(text, sizeof(text) - 1, &markup, &error));
     ASSERT_EQ(MARKUP_ERROR_MISMATCHED_CLOSING_TAG, error.m_Type);
-    ASSERT_EQ(22u, error.m_ByteOffset);
-    AssertAsciiText(markup, "<col or=00000000>hello</color> world");
+    ASSERT_EQ(23u, error.m_ByteOffset);
+    AssertAsciiText(markup, "<wave hz=00000000>hello</color> world");
 
     ASSERT_EQ(2u, MarkupGetStyleNodeCount(markup));
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
@@ -289,13 +360,22 @@ TEST(Markup, EveryPrefixOfLongValidText)
         HMarkup      markup = 0;
         MarkupError  error;
         MarkupResult result = MarkupCreate(text, length, &markup, &error);
+
         if (result != MARKUP_RESULT_OK && result != MARKUP_RESULT_INCOMPLETE)
+        {
             printf("Unexpected prefix result at byte %u: result=%d error=%d offset=%u\n", length, result, error.m_Type, error.m_ByteOffset);
+        }
+
         ASSERT_TRUE(result == MARKUP_RESULT_OK || result == MARKUP_RESULT_INCOMPLETE);
+
         if (result == MARKUP_RESULT_OK)
+        {
             MarkupDestroy(markup);
+        }
         else
+        {
             ASSERT_EQ((HMarkup)0, markup);
+        }
     }
 
     HMarkup markup = 0;
@@ -305,7 +385,7 @@ TEST(Markup, EveryPrefixOfLongValidText)
 
 TEST(Markup, ExplicitLengthDoesNotRequireTerminator)
 {
-    const char text[] = { '<', 'b', '>', 'O', 'K', '<', '/', 'b', '>' };
+    const char text[] = { '<', 'u', 'l', '>', 'O', 'K', '<', '/', 'u', 'l', '>' };
     HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text), &markup, 0));
     const uint32_t expected[] = { 'O', 'K' };
@@ -320,16 +400,22 @@ TEST(Markup, EveryPrefixOfLongTextWithManyTags)
     static const uint32_t segment_count = 64;
     static const uint32_t segment_length = sizeof(segment) - 1;
     char                  text[segment_count * segment_length];
+
     for (uint32_t i = 0; i < segment_count; ++i)
+    {
         memcpy(text + i * segment_length, segment, segment_length);
+    }
 
     for (uint32_t length = 0; length <= sizeof(text); ++length)
     {
         HMarkup      markup = 0;
         MarkupResult result = MarkupCreate(text, length, &markup, 0);
         ASSERT_TRUE(result == MARKUP_RESULT_OK || result == MARKUP_RESULT_INCOMPLETE);
+
         if (markup)
+        {
             MarkupDestroy(markup);
+        }
 
         markup = 0;
         ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreateRecovering(text, length, &markup, 0));
@@ -347,5 +433,6 @@ TEST(Markup, EveryPrefixOfLongTextWithManyTags)
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
+
     return jc_test_run_all();
 }

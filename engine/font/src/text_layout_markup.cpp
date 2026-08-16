@@ -24,35 +24,47 @@ template <typename T>
 static void EnsurePushCapacity(dmArray<T>& array)
 {
     if (array.Full())
+    {
         array.SetCapacity(array.Capacity() ? array.Capacity() * 2 : 8);
+    }
 }
 
-static bool StringEquals(const char* source, MarkupString string, const char* value)
-{
-    uint32_t value_length = (uint32_t)strlen(value);
-    return string.m_Length == value_length && memcmp(source + string.m_Offset, value, value_length) == 0;
-}
+static const dmhash_t TAG_LINK   = dmHashString64("link");
+static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
 
 static bool ParseFloat(const char* source, MarkupString string, float* value)
 {
     if (string.m_Length == 0 || string.m_Length >= 64)
+    {
         return false;
+    }
+
     char buffer[64];
     memcpy(buffer, source + string.m_Offset, string.m_Length);
     buffer[string.m_Length] = 0;
     char* end = 0;
     *value = strtof(buffer, &end);
+
     return end == buffer + string.m_Length && isfinite(*value);
 }
 
 static int HexDigit(char c)
 {
     if (c >= '0' && c <= '9')
+    {
         return c - '0';
+    }
+
     if (c >= 'a' && c <= 'f')
+    {
         return c - 'a' + 10;
+    }
+
     if (c >= 'A' && c <= 'F')
+    {
         return c - 'A' + 10;
+    }
+
     return -1;
 }
 
@@ -60,167 +72,236 @@ static bool ParseColor(const char* source, MarkupString string, float color[4])
 {
     uint32_t offset = string.m_Offset;
     uint32_t length = string.m_Length;
+
     if (length == 0 || source[offset] != '#')
+    {
         return false;
+    }
+
     ++offset;
     --length;
+
     if (length != 6 && length != 8)
+    {
         return false;
+    }
+
     uint32_t rgba = 0;
+
     for (uint32_t i = 0; i < length; ++i)
     {
         int digit = HexDigit(source[offset + i]);
+
         if (digit < 0)
+        {
             return false;
+        }
+
         rgba = (rgba << 4) | (uint32_t)digit;
     }
+
     if (length == 6)
+    {
         rgba = (rgba << 8) | 0xff;
+    }
+
     color[0] = ((rgba >> 24) & 0xff) / 255.0f;
     color[1] = ((rgba >> 16) & 0xff) / 255.0f;
     color[2] = ((rgba >> 8) & 0xff) / 255.0f;
     color[3] = (rgba & 0xff) / 255.0f;
+
     return true;
 }
 
-static const MarkupAttribute* FindAttribute(HMarkup markup, const MarkupStyleNode& node, const char* name)
+static const MarkupAttribute* FindAttribute(HMarkup markup, const MarkupStyleNode& node, MarkupAttributeType type)
 {
-    const char*            source = MarkupGetSource(markup);
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
+
     for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
     {
         const MarkupAttribute& attribute = attributes[node.m_AttributeIndex + i];
-        if ((name[0] == 0 && attribute.m_Name.m_Length == 0) || StringEquals(source, attribute.m_Name, name))
+
+        if (attribute.m_Type == type)
+        {
             return &attribute;
+        }
     }
+
     return 0;
 }
 
-static bool HasOnlyAttributes(HMarkup markup, const MarkupStyleNode& node, const char* const* names, uint32_t name_count)
-{
-    const char*            source = MarkupGetSource(markup);
-    const MarkupAttribute* attributes = MarkupGetAttributes(markup);
-    for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
-    {
-        const MarkupAttribute& attribute = attributes[node.m_AttributeIndex + i];
-        bool                   found = false;
-        for (uint32_t j = 0; j < name_count && !found; ++j)
-            found = StringEquals(source, attribute.m_Name, names[j]);
-        if (!found)
-            return false;
-    }
-    return true;
-}
-
-static bool ParseEffectFit(const char* source, const MarkupAttribute* attribute, uint8_t default_fit, uint8_t* fit)
+static bool ParseEffectFit(const MarkupAttribute* attribute, uint8_t default_fit, uint8_t* fit)
 {
     *fit = default_fit;
+
     if (!attribute)
+    {
         return true;
-    if (StringEquals(source, attribute->m_Value, "glyph"))
+    }
+
+    if (attribute->m_Constant == MARKUP_CONSTANT_GLYPH)
+    {
         *fit = TEXT_EFFECT_FIT_GLYPH;
-    else if (StringEquals(source, attribute->m_Value, "span"))
+    }
+    else if (attribute->m_Constant == MARKUP_CONSTANT_SPAN)
+    {
         *fit = TEXT_EFFECT_FIT_SPAN;
+    }
     else
+    {
         return false;
+    }
+
     return true;
 }
 
-static bool ParseAnimationDirection(const char* source, const MarkupAttribute* attribute, float* direction)
+static bool ParseAnimationDirection(const MarkupAttribute* attribute, float* direction)
 {
     *direction = 1.0f;
-    if (!attribute || StringEquals(source, attribute->m_Value, "forward"))
-        return true;
-    if (StringEquals(source, attribute->m_Value, "reverse"))
+
+    if (!attribute || attribute->m_Constant == MARKUP_CONSTANT_FORWARD)
     {
-        *direction = -1.0f;
         return true;
     }
+
+    if (attribute->m_Constant == MARKUP_CONSTANT_REVERSE)
+    {
+        *direction = -1.0f;
+
+        return true;
+    }
+
     return false;
 }
 
 static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float base_size, float* size)
 {
-    const MarkupAttribute* attribute = FindAttribute(markup, node, "");
+    const MarkupAttribute* attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_SHORTHAND);
+
     if (!attribute)
-        attribute = FindAttribute(markup, node, "value");
+    {
+        attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_VALUE);
+    }
+
     if (!attribute)
+    {
         return false;
+    }
+
     const char*  source = MarkupGetSource(markup);
     MarkupString value = attribute->m_Value;
     float        number;
     float        resolved_size;
+
     if (value.m_Length > 0 && source[value.m_Offset + value.m_Length - 1] == '%')
     {
         --value.m_Length;
+
         if (!ParseFloat(source, value, &number))
+        {
             return false;
+        }
+
         resolved_size = base_size * number / 100.0f;
     }
     else if (value.m_Length > 2 && source[value.m_Offset + value.m_Length - 2] == 'e' && source[value.m_Offset + value.m_Length - 1] == 'm')
     {
         value.m_Length -= 2;
+
         if (!ParseFloat(source, value, &number))
+        {
             return false;
+        }
+
         resolved_size = base_size * number;
     }
     else
     {
         if (value.m_Length > 2 && source[value.m_Offset + value.m_Length - 2] == 'p' && source[value.m_Offset + value.m_Length - 1] == 'x')
+        {
             value.m_Length -= 2;
+        }
+
         if (!ParseFloat(source, value, &number))
+        {
             return false;
+        }
+
         resolved_size = (source[value.m_Offset] == '+' || source[value.m_Offset] == '-') ? base_size + number : number;
     }
+
     if (!isfinite(resolved_size) || resolved_size <= 0.0f)
+    {
         return false;
+    }
+
     *size = resolved_size;
+
     return true;
 }
 
 static bool ParseObjectDimension(const char* source, MarkupString value, float em, float* dimension)
 {
     float number;
+
     if (value.m_Length > 0 && source[value.m_Offset + value.m_Length - 1] == '%')
     {
         --value.m_Length;
+
         if (!ParseFloat(source, value, &number))
+        {
             return false;
+        }
+
         number = em * number / 100.0f;
     }
     else if (value.m_Length > 2 && source[value.m_Offset + value.m_Length - 2] == 'e' && source[value.m_Offset + value.m_Length - 1] == 'm')
     {
         value.m_Length -= 2;
+
         if (!ParseFloat(source, value, &number))
+        {
             return false;
+        }
+
         number *= em;
     }
     else
     {
         if (value.m_Length > 2 && source[value.m_Offset + value.m_Length - 2] == 'p' && source[value.m_Offset + value.m_Length - 1] == 'x')
+        {
             value.m_Length -= 2;
+        }
+
         if (!ParseFloat(source, value, &number))
+        {
             return false;
+        }
     }
+
     if (!isfinite(number) || number <= 0.0f)
+    {
         return false;
+    }
+
     *dimension = number;
+
     return true;
 }
 
-static bool GetObjectType(const char* source, const MarkupStyleNode& node, TextLayoutObjectType* type)
+static dmhash_t GetObjectTag(const MarkupStyleNode& node)
 {
-    if (StringEquals(source, node.m_Tag, "sprite"))
+    if (node.m_Type == MARKUP_TAG_SPRITE)
     {
-        *type = TEXT_LAYOUT_OBJECT_SPRITE;
-        return true;
+        return TAG_SPRITE;
     }
-    if (StringEquals(source, node.m_Tag, "a"))
+
+    if (node.m_Type == MARKUP_TAG_LINK)
     {
-        *type = TEXT_LAYOUT_OBJECT_LINK;
-        return true;
+        return TAG_LINK;
     }
-    return false;
+
+    return 0;
 }
 
 // Resolves resources after all object and attribute arrays have stable storage.
@@ -229,8 +310,11 @@ static bool ResolveObjectResources(TextLayoutSettings* settings, ResolvedMarkup*
     for (uint32_t i = 0; i < resolved->m_Objects.Size(); ++i)
     {
         TextLayoutObject& object = resolved->m_Objects[i];
-        if (object.m_Type == TEXT_LAYOUT_OBJECT_LINK)
+
+        if (object.m_Tag == TAG_LINK)
+        {
             continue;
+        }
 
         const float proposed_width = object.m_Width;
         const float proposed_height = object.m_Height;
@@ -241,20 +325,28 @@ static bool ResolveObjectResources(TextLayoutSettings* settings, ResolvedMarkup*
                                                         proposed_height,
                                                         &object) != 0;
         if (success && isfinite(object.m_Width) && isfinite(object.m_Height) && object.m_Width > 0.0f && object.m_Height > 0.0f)
+        {
             continue;
+        }
 
         if (settings->m_ReleaseObject)
         {
             const uint32_t release_count = success ? i + 1 : i;
+
             for (uint32_t j = 0; j < release_count; ++j)
             {
                 const TextLayoutObject& acquired = resolved->m_Objects[j];
-                if (acquired.m_Type == TEXT_LAYOUT_OBJECT_SPRITE)
+
+                if (acquired.m_Tag == TAG_SPRITE)
+                {
                     settings->m_ReleaseObject(settings->m_ObjectContext, &acquired);
+                }
             }
         }
+
         return false;
     }
+
     return true;
 }
 
@@ -267,19 +359,25 @@ static bool ResolveObjects(HMarkup markup, TextLayoutSettings* settings, Resolve
 
     uint32_t               object_count = 0;
     uint32_t               object_attribute_count = 0;
+
     for (uint32_t i = 1; i < node_count; ++i)
     {
-        TextLayoutObjectType type;
-        if (GetObjectType(source, nodes[i], &type))
+        if (GetObjectTag(nodes[i]))
         {
             ++object_count;
             object_attribute_count += nodes[i].m_AttributeCount;
         }
     }
+
     if (object_count == 0)
+    {
         return true;
+    }
+
     if (object_count > MARKUP_INVALID_INDEX || object_attribute_count > MARKUP_INVALID_INDEX)
+    {
         return false;
+    }
 
     const uint32_t source_length = MarkupGetSourceLength(markup);
     resolved->m_ObjectSource.SetCapacity(source_length + 1);
@@ -290,19 +388,24 @@ static bool ResolveObjects(HMarkup markup, TextLayoutSettings* settings, Resolve
 
     for (uint32_t i = 1; i < node_count; ++i)
     {
-        TextLayoutObjectType type;
-        if (!GetObjectType(source, nodes[i], &type))
+        const dmhash_t tag = GetObjectTag(nodes[i]);
+
+        if (!tag)
+        {
             continue;
+        }
+
         TextLayoutObject object = {};
-        object.m_Type = type;
+        object.m_Tag = tag;
         object.m_TextOffset = nodes[i].m_TextOffset;
         object.m_TextLength = nodes[i].m_TextLength;
-        const MarkupAttribute* id = FindAttribute(markup, nodes[i], "id");
+        const MarkupAttribute* id = FindAttribute(markup, nodes[i], MARKUP_ATTRIBUTE_ID);
         object.m_Id = id && id->m_Value.m_Length
                           ? dmHashBuffer64(source + id->m_Value.m_Offset, id->m_Value.m_Length)
                           : 0x8000000000000000ULL | (resolved->m_Objects.Size() + 1);
         object.m_AttributeIndex = (uint16_t)resolved->m_ObjectAttributes.Size();
         object.m_AttributeCount = nodes[i].m_AttributeCount;
+
         for (uint32_t j = 0; j < nodes[i].m_AttributeCount; ++j)
         {
             const MarkupAttribute&    source_attribute = attributes[nodes[i].m_AttributeIndex + j];
@@ -316,20 +419,27 @@ static bool ResolveObjects(HMarkup markup, TextLayoutSettings* settings, Resolve
             resolved->m_ObjectAttributes.Push(attribute);
         }
 
-        if (type != TEXT_LAYOUT_OBJECT_LINK)
+        if (tag != TAG_LINK)
         {
             if (!settings->m_ResolveObject)
+            {
                 return false;
+            }
+
             float                  proposed_width = settings->m_Size;
             float                  proposed_height = settings->m_Size;
-            const MarkupAttribute* width = FindAttribute(markup, nodes[i], "width");
-            const MarkupAttribute* height = FindAttribute(markup, nodes[i], "height");
+            const MarkupAttribute* width = FindAttribute(markup, nodes[i], MARKUP_ATTRIBUTE_WIDTH);
+            const MarkupAttribute* height = FindAttribute(markup, nodes[i], MARKUP_ATTRIBUTE_HEIGHT);
+
             if ((width && !ParseObjectDimension(source, width->m_Value, settings->m_Size, &proposed_width)) ||
                 (height && !ParseObjectDimension(source, height->m_Value, settings->m_Size, &proposed_height)))
+            {
                 return false;
+            }
             object.m_Width = proposed_width;
             object.m_Height = proposed_height;
         }
+
         EnsurePushCapacity(resolved->m_Objects);
         resolved->m_Objects.Push(object);
     }
@@ -349,79 +459,145 @@ static bool AddStyle(ResolvedMarkup* resolved, const TextRenderStyle& style, uin
         if (StyleEquals(resolved->m_Styles[i], style))
         {
             *style_index = (uint16_t)i;
+
             return true;
         }
     }
+
     if (resolved->m_Styles.Size() == MARKUP_INVALID_INDEX)
+    {
         return false;
+    }
+
     EnsurePushCapacity(resolved->m_Styles);
     resolved->m_Styles.Push(style);
     *style_index = (uint16_t)(resolved->m_Styles.Size() - 1);
+
     return true;
 }
 
 static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float base_size, TextRenderStyle* style)
 {
     const char* source = MarkupGetSource(markup);
-    if (StringEquals(source, node.m_Tag, "color"))
+
+    if (node.m_Type == MARKUP_TAG_COLOR)
     {
-        const MarkupAttribute* attribute = FindAttribute(markup, node, "");
+        const MarkupAttribute* attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_SHORTHAND);
+
         if (!attribute)
-            attribute = FindAttribute(markup, node, "value");
+        {
+            attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_VALUE);
+        }
+
         if (!attribute || !ParseColor(source, attribute->m_Value, style->m_FaceColor))
+        {
             return false;
+        }
+
         style->m_Flags |= TEXT_RENDER_STYLE_FACE_COLOR;
     }
-    else if (StringEquals(source, node.m_Tag, "size"))
+    else if (node.m_Type == MARKUP_TAG_SIZE)
     {
         if (!ParseSize(markup, node, base_size, &style->m_FontSize))
+        {
             return false;
+        }
+
         style->m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
     }
-    else if (StringEquals(source, node.m_Tag, "outline"))
+    else if (node.m_Type == MARKUP_TAG_OUTLINE)
     {
-        const MarkupAttribute* size = FindAttribute(markup, node, "size");
-        const MarkupAttribute* color = FindAttribute(markup, node, "color");
+        const MarkupAttribute* size = FindAttribute(markup, node, MARKUP_ATTRIBUTE_SIZE);
+        const MarkupAttribute* color = FindAttribute(markup, node, MARKUP_ATTRIBUTE_COLOR);
+
         if (!size && !color)
+        {
             return false;
+        }
+
         if (size && !ParseFloat(source, size->m_Value, &style->m_OutlineWidth))
+        {
             return false;
+        }
+
         if (size && style->m_OutlineWidth < 0.0f)
+        {
             return false;
+        }
+
         if (color && !ParseColor(source, color->m_Value, style->m_OutlineColor))
+        {
             return false;
+        }
+
         if (size)
+        {
             style->m_Flags |= TEXT_RENDER_STYLE_OUTLINE_WIDTH;
+        }
+
         if (color)
+        {
             style->m_Flags |= TEXT_RENDER_STYLE_OUTLINE_COLOR;
+        }
     }
-    else if (StringEquals(source, node.m_Tag, "shadow"))
+    else if (node.m_Type == MARKUP_TAG_SHADOW)
     {
-        const MarkupAttribute* color = FindAttribute(markup, node, "color");
-        const MarkupAttribute* x = FindAttribute(markup, node, "x");
-        const MarkupAttribute* y = FindAttribute(markup, node, "y");
-        const MarkupAttribute* blur = FindAttribute(markup, node, "blur");
+        const MarkupAttribute* color = FindAttribute(markup, node, MARKUP_ATTRIBUTE_COLOR);
+        const MarkupAttribute* x = FindAttribute(markup, node, MARKUP_ATTRIBUTE_X);
+        const MarkupAttribute* y = FindAttribute(markup, node, MARKUP_ATTRIBUTE_Y);
+        const MarkupAttribute* blur = FindAttribute(markup, node, MARKUP_ATTRIBUTE_BLUR);
+
         if (!color && !x && !y && !blur)
+        {
             return false;
+        }
+
         if (color && !ParseColor(source, color->m_Value, style->m_ShadowColor))
+        {
             return false;
+        }
+
         if (x && !ParseFloat(source, x->m_Value, &style->m_ShadowX))
+        {
             return false;
+        }
+
         if (y && !ParseFloat(source, y->m_Value, &style->m_ShadowY))
+        {
             return false;
+        }
+
         if (blur && !ParseFloat(source, blur->m_Value, &style->m_ShadowBlur))
+        {
             return false;
+        }
+
         if (blur && style->m_ShadowBlur < 0.0f)
+        {
             return false;
+        }
+
         if (color)
+        {
             style->m_Flags |= TEXT_RENDER_STYLE_SHADOW_COLOR;
+        }
+
         if (x)
+        {
             style->m_Flags |= TEXT_RENDER_STYLE_SHADOW_X;
+        }
+
         if (y)
+        {
             style->m_Flags |= TEXT_RENDER_STYLE_SHADOW_Y;
+        }
+
         if (blur)
+        {
             style->m_Flags |= TEXT_RENDER_STYLE_SHADOW_BLUR;
+        }
     }
+
     return true;
 }
 
@@ -431,33 +607,59 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
     memset(effect, 0, sizeof(*effect));
     effect->m_TextOffset = text_offset;
     effect->m_TextLength = text_length;
-    if (StringEquals(source, node.m_Tag, "gradient"))
+
+    if (node.m_Type == MARKUP_TAG_GRADIENT)
     {
-        static const char* const ATTRIBUTE_NAMES[] = { "left", "right", "top", "bottom", "bl", "br", "tl", "tr", "fit", "hz", "direction" };
-        if (!HasOnlyAttributes(markup, node, ATTRIBUTE_NAMES, DM_ARRAY_SIZE(ATTRIBUTE_NAMES)))
-            return false;
-        const MarkupAttribute* left = FindAttribute(markup, node, "left");
-        const MarkupAttribute* right = FindAttribute(markup, node, "right");
-        const MarkupAttribute* top = FindAttribute(markup, node, "top");
-        const MarkupAttribute* bottom = FindAttribute(markup, node, "bottom");
-        const MarkupAttribute* bl = FindAttribute(markup, node, "bl");
-        const MarkupAttribute* br = FindAttribute(markup, node, "br");
-        const MarkupAttribute* tl = FindAttribute(markup, node, "tl");
-        const MarkupAttribute* tr = FindAttribute(markup, node, "tr");
-        const MarkupAttribute* fit = FindAttribute(markup, node, "fit");
-        const MarkupAttribute* hz = FindAttribute(markup, node, "hz");
-        const MarkupAttribute* direction_attribute = FindAttribute(markup, node, "direction");
+        const MarkupAttribute* left                = 0;
+        const MarkupAttribute* right               = 0;
+        const MarkupAttribute* top                 = 0;
+        const MarkupAttribute* bottom              = 0;
+        const MarkupAttribute* bl                  = 0;
+        const MarkupAttribute* br                  = 0;
+        const MarkupAttribute* tl                  = 0;
+        const MarkupAttribute* tr                  = 0;
+        const MarkupAttribute* fit                 = 0;
+        const MarkupAttribute* hz                  = 0;
+        const MarkupAttribute* direction_attribute = 0;
+        const MarkupAttribute* attributes          = MarkupGetAttributes(markup) + node.m_AttributeIndex;
+
+        for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
+        {
+            const MarkupAttribute* attribute = &attributes[i];
+
+            switch (attribute->m_Type)
+            {
+                case MARKUP_ATTRIBUTE_LEFT:      left = attribute; break;
+                case MARKUP_ATTRIBUTE_RIGHT:     right = attribute; break;
+                case MARKUP_ATTRIBUTE_TOP:       top = attribute; break;
+                case MARKUP_ATTRIBUTE_BOTTOM:    bottom = attribute; break;
+                case MARKUP_ATTRIBUTE_BL:        bl = attribute; break;
+                case MARKUP_ATTRIBUTE_BR:        br = attribute; break;
+                case MARKUP_ATTRIBUTE_TL:        tl = attribute; break;
+                case MARKUP_ATTRIBUTE_TR:        tr = attribute; break;
+                case MARKUP_ATTRIBUTE_FIT:       fit = attribute; break;
+                case MARKUP_ATTRIBUTE_HZ:        hz = attribute; break;
+                case MARKUP_ATTRIBUTE_DIRECTION: direction_attribute = attribute; break;
+            }
+        }
+
         float direction;
-        const bool             horizontal = left && right && !top && !bottom && !bl && !br && !tl && !tr;
-        const bool             vertical = top && bottom && !left && !right && !bl && !br && !tl && !tr;
-        const bool             quad = bl && br && tl && tr && !left && !right && !top && !bottom;
+        const bool horizontal = left && right && !top && !bottom && !bl && !br && !tl && !tr;
+        const bool vertical   = top && bottom && !left && !right && !bl && !br && !tl && !tr;
+        const bool quad       = bl && br && tl && tr && !left && !right && !top && !bottom;
+
         if (!horizontal && !vertical && !quad)
+        {
             return false;
+        }
+
         if (horizontal)
         {
             effect->m_Gradient.m_Mode = TEXT_GRADIENT_MODE_HORIZONTAL;
+
             if (!ParseColor(source, left->m_Value, effect->m_Gradient.m_BottomLeft) ||
                 !ParseColor(source, right->m_Value, effect->m_Gradient.m_BottomRight))
+
                 return false;
             memcpy(effect->m_Gradient.m_TopLeft, effect->m_Gradient.m_BottomLeft, sizeof(effect->m_Gradient.m_TopLeft));
             memcpy(effect->m_Gradient.m_TopRight, effect->m_Gradient.m_BottomRight, sizeof(effect->m_Gradient.m_TopRight));
@@ -465,8 +667,10 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
         else if (vertical)
         {
             effect->m_Gradient.m_Mode = TEXT_GRADIENT_MODE_VERTICAL;
+
             if (!ParseColor(source, bottom->m_Value, effect->m_Gradient.m_BottomLeft) ||
                 !ParseColor(source, top->m_Value, effect->m_Gradient.m_TopLeft))
+
                 return false;
             memcpy(effect->m_Gradient.m_BottomRight, effect->m_Gradient.m_BottomLeft, sizeof(effect->m_Gradient.m_BottomRight));
             memcpy(effect->m_Gradient.m_TopRight, effect->m_Gradient.m_TopLeft, sizeof(effect->m_Gradient.m_TopRight));
@@ -474,82 +678,100 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
         else
         {
             effect->m_Gradient.m_Mode = TEXT_GRADIENT_MODE_QUAD;
+
             if (!ParseColor(source, bl->m_Value, effect->m_Gradient.m_BottomLeft) ||
                 !ParseColor(source, br->m_Value, effect->m_Gradient.m_BottomRight) ||
                 !ParseColor(source, tl->m_Value, effect->m_Gradient.m_TopLeft) ||
                 !ParseColor(source, tr->m_Value, effect->m_Gradient.m_TopRight))
+
                 return false;
         }
-        if (!ParseEffectFit(source, fit, TEXT_EFFECT_FIT_TEXT, &effect->m_Gradient.m_Fit))
+
+        if (!ParseEffectFit(fit, TEXT_EFFECT_FIT_TEXT, &effect->m_Gradient.m_Fit))
+        {
             return false;
+        }
+
         if ((hz && !ParseFloat(source, hz->m_Value, &effect->m_Gradient.m_Hz)) || effect->m_Gradient.m_Hz < 0.0f ||
-            !ParseAnimationDirection(source, direction_attribute, &direction))
+            !ParseAnimationDirection(direction_attribute, &direction))
+
             return false;
         effect->m_Gradient.m_Hz *= direction;
         effect->m_Type = TEXT_EFFECT_GRADIENT;
         effect->m_Flags = TEXT_EFFECT_AFFECTS_COLOR;
+
         return true;
     }
-    if (StringEquals(source, node.m_Tag, "wave"))
+
+    if (node.m_Type == MARKUP_TAG_WAVE)
     {
-        static const char* const ATTRIBUTE_NAMES[] = { "amplitude", "hz", "wavelength", "fit", "direction" };
-        if (!HasOnlyAttributes(markup, node, ATTRIBUTE_NAMES, DM_ARRAY_SIZE(ATTRIBUTE_NAMES)))
-            return false;
         effect->m_Wave.m_Amplitude = 1.0f;
         effect->m_Wave.m_Hz = 1.0f;
         effect->m_Wave.m_Wavelength = 6.0f;
-        const MarkupAttribute* amplitude = FindAttribute(markup, node, "amplitude");
-        const MarkupAttribute* hz = FindAttribute(markup, node, "hz");
-        const MarkupAttribute* wavelength = FindAttribute(markup, node, "wavelength");
-        const MarkupAttribute* fit = FindAttribute(markup, node, "fit");
-        const MarkupAttribute* direction_attribute = FindAttribute(markup, node, "direction");
+        const MarkupAttribute* amplitude = FindAttribute(markup, node, MARKUP_ATTRIBUTE_AMPLITUDE);
+        const MarkupAttribute* hz = FindAttribute(markup, node, MARKUP_ATTRIBUTE_HZ);
+        const MarkupAttribute* wavelength = FindAttribute(markup, node, MARKUP_ATTRIBUTE_WAVELENGTH);
+        const MarkupAttribute* fit = FindAttribute(markup, node, MARKUP_ATTRIBUTE_FIT);
+        const MarkupAttribute* direction_attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_DIRECTION);
         float direction;
+
         if ((amplitude && !ParseFloat(source, amplitude->m_Value, &effect->m_Wave.m_Amplitude)) ||
             (hz && !ParseFloat(source, hz->m_Value, &effect->m_Wave.m_Hz)) ||
             (wavelength && !ParseFloat(source, wavelength->m_Value, &effect->m_Wave.m_Wavelength)) ||
             effect->m_Wave.m_Amplitude < 0.0f || effect->m_Wave.m_Hz < 0.0f || effect->m_Wave.m_Wavelength <= 0.0f ||
-            !ParseEffectFit(source, fit, TEXT_EFFECT_FIT_GLYPH, &effect->m_Wave.m_Fit) ||
-            !ParseAnimationDirection(source, direction_attribute, &direction))
+            !ParseEffectFit(fit, TEXT_EFFECT_FIT_GLYPH, &effect->m_Wave.m_Fit) ||
+            !ParseAnimationDirection(direction_attribute, &direction))
+
             return false;
         effect->m_Wave.m_Hz *= direction;
         effect->m_Type = TEXT_EFFECT_WAVE;
         effect->m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+
         return true;
     }
-    if (StringEquals(source, node.m_Tag, "shake"))
+
+    if (node.m_Type == MARKUP_TAG_SHAKE)
     {
-        static const char* const ATTRIBUTE_NAMES[] = { "amplitude", "hz", "fit" };
-        if (!HasOnlyAttributes(markup, node, ATTRIBUTE_NAMES, DM_ARRAY_SIZE(ATTRIBUTE_NAMES)))
-            return false;
         effect->m_Shake.m_Amplitude = 0.5f;
         effect->m_Shake.m_Hz = 20.0f;
-        const MarkupAttribute* amplitude = FindAttribute(markup, node, "amplitude");
-        const MarkupAttribute* hz = FindAttribute(markup, node, "hz");
-        const MarkupAttribute* fit = FindAttribute(markup, node, "fit");
+        const MarkupAttribute* amplitude = FindAttribute(markup, node, MARKUP_ATTRIBUTE_AMPLITUDE);
+        const MarkupAttribute* hz = FindAttribute(markup, node, MARKUP_ATTRIBUTE_HZ);
+        const MarkupAttribute* fit = FindAttribute(markup, node, MARKUP_ATTRIBUTE_FIT);
+
         if ((amplitude && !ParseFloat(source, amplitude->m_Value, &effect->m_Shake.m_Amplitude)) ||
             (hz && !ParseFloat(source, hz->m_Value, &effect->m_Shake.m_Hz)) ||
             effect->m_Shake.m_Amplitude < 0.0f || effect->m_Shake.m_Hz < 0.0f ||
-            !ParseEffectFit(source, fit, TEXT_EFFECT_FIT_GLYPH, &effect->m_Shake.m_Fit))
+            !ParseEffectFit(fit, TEXT_EFFECT_FIT_GLYPH, &effect->m_Shake.m_Fit))
+
             return false;
         effect->m_Type = TEXT_EFFECT_SHAKE;
         effect->m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+
         return true;
     }
+
     return false;
 }
 
 static float MirroredWrap(float value)
 {
     value = value - floorf(value * 0.5f) * 2.0f;
+
     return value <= 1.0f ? value : 2.0f - value;
 }
 
 static float Clamp01(float value)
 {
     if (value < 0.0f)
+    {
         return 0.0f;
+    }
+
     if (value > 1.0f)
+    {
         return 1.0f;
+    }
+
     return value;
 }
 
@@ -569,12 +791,14 @@ static uint32_t MixHash(uint32_t value)
     value *= 0x7feb352dU;
     value ^= value >> 15;
     value *= 0x846ca68bU;
+
     return value ^ (value >> 16);
 }
 
 static float ShakeAngle(uint32_t effect_index, uint32_t glyph_key, uint32_t tick)
 {
     const uint32_t hash = MixHash(glyph_key ^ MixHash(effect_index + 0x9e3779b9U) ^ MixHash(tick));
+
     return (hash & 0x00ffffffU) * (6.28318530717958647692f / 16777216.0f);
 }
 
@@ -589,11 +813,16 @@ static void InitializeGlyphRenderData(const TextRenderStyle* style, const float 
     data->m_ShadowY = style ? style->m_ShadowY : 0.0f;
     data->m_ShadowBlur = style ? style->m_ShadowBlur : 0.0f;
     data->m_StyleFlags = style ? style->m_Flags : 0;
+
     for (uint32_t channel = 0; channel < 4; ++channel)
     {
         float value = base_color[channel];
+
         if (style && (style->m_Flags & TEXT_RENDER_STYLE_FACE_COLOR))
+        {
             value *= style->m_FaceColor[channel];
+        }
+
         colors->m_BottomLeft[channel] = value;
         colors->m_BottomRight[channel] = value;
         colors->m_TopLeft[channel] = value;
@@ -601,8 +830,11 @@ static void InitializeGlyphRenderData(const TextRenderStyle* style, const float 
         data->m_OutlineColor[channel] = style && (style->m_Flags & TEXT_RENDER_STYLE_OUTLINE_COLOR) ? style->m_OutlineColor[channel] : 1.0f;
         data->m_ShadowColor[channel] = style && (style->m_Flags & TEXT_RENDER_STYLE_SHADOW_COLOR) ? style->m_ShadowColor[channel] : 1.0f;
     }
+
     if ((data->m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) && data->m_OutlineWidth <= 0.0f)
+    {
         data->m_OutlineColor[3] = 0.0f;
+    }
 }
 
 // Applies one color sample uniformly to all four glyph corners.
@@ -622,24 +854,31 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
 {
     const TextGradientEffect& gradient = effect.m_Gradient;
     const float animation_t = (float)(layout->m_ElapsedTime * gradient.m_Hz * 2.0);
+
     if (gradient.m_Fit == TEXT_EFFECT_FIT_SPAN)
     {
         const float first_glyph_center = 0.5f / effect.m_TextLength;
         float       sample_x;
+
         if (gradient.m_Mode == TEXT_GRADIENT_MODE_HORIZONTAL)
         {
             sample_x = MirroredWrap(fabsf(animation_t));
+
             if (gradient.m_Hz < 0.0f)
+            {
                 sample_x = 1.0f - sample_x;
+            }
         }
         else
         {
             sample_x = MirroredWrap(first_glyph_center + animation_t);
         }
+
         const float sample_y = MirroredWrap(0.5f + animation_t);
         float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
         MultiplyGradient(sample, gradient, sample_x, sample_y);
         MultiplyFaceColors(colors, sample);
+
         return;
     }
 
@@ -650,6 +889,7 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
         float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
         MultiplyGradient(sample, gradient, sample_x, 0.5f);
         MultiplyFaceColors(colors, sample);
+
         return;
     }
 
@@ -700,39 +940,58 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
     InitializeGlyphRenderData(style, base_color, data);
 
     if (glyph.m_MarkupSpanIndex >= internal->m_ResolvedSpans.Size())
+    {
         return;
+    }
 
     const TextResolvedSpan& span = internal->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
+
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
         const uint32_t    effect_index = internal->m_SpanEffects[span.m_EffectIndex + i];
         const TextEffect& effect = internal->m_Effects[effect_index];
+
         if (effect.m_Type == TEXT_EFFECT_GRADIENT)
         {
             if (effect.m_TextLength != 0)
+            {
                 ApplyGradientEffect(internal, glyph, effect, &data->m_FaceColors);
+            }
+
             continue;
         }
+
         if (effect.m_Type == TEXT_EFFECT_SHAKE)
         {
             if (effect.m_Shake.m_Amplitude > 0.0f)
+            {
                 ApplyShakeEffect(internal, glyph, effect, effect_index, data);
+            }
+
             continue;
         }
+
         if (effect.m_Type == TEXT_EFFECT_WAVE && effect.m_Wave.m_Amplitude != 0.0f)
+        {
             ApplyWaveEffect(internal, glyph, effect, data);
+        }
     }
 }
 
 bool TextLayoutHasMarkupOutline(HTextLayout layout)
 {
     TextLayout* internal = (TextLayout*)layout;
+
     for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
     {
         const TextRenderStyle& style = internal->m_Styles[i];
+
         if ((style.m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) && style.m_OutlineWidth > 0.0f)
+        {
             return true;
+        }
     }
+
     return false;
 }
 
@@ -740,12 +999,17 @@ float TextLayoutGetMaxMarkupOutlineWidth(HTextLayout layout)
 {
     TextLayout* internal = (TextLayout*)layout;
     float       width = 0.0f;
+
     for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
     {
         const TextRenderStyle& style = internal->m_Styles[i];
+
         if (style.m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH)
+        {
             width = fmaxf(width, style.m_OutlineWidth);
+        }
     }
+
     return width;
 }
 
@@ -753,11 +1017,15 @@ bool TextLayoutHasMarkupShadow(HTextLayout layout)
 {
     TextLayout* internal = (TextLayout*)layout;
     const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
+
     for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
     {
         if (internal->m_Styles[i].m_Flags & shadow_flags)
+        {
             return true;
+        }
     }
+
     return false;
 }
 
@@ -768,17 +1036,15 @@ void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, co
     *colors = data.m_FaceColors;
 }
 
-static bool IsEffectNode(HMarkup markup, const MarkupStyleNode& node)
+static bool IsEffectNode(const MarkupStyleNode& node)
 {
-    const char* source = MarkupGetSource(markup);
-    return StringEquals(source, node.m_Tag, "gradient") || StringEquals(source, node.m_Tag, "wave") || StringEquals(source, node.m_Tag, "shake");
+    return node.m_Type == MARKUP_TAG_GRADIENT || node.m_Type == MARKUP_TAG_WAVE || node.m_Type == MARKUP_TAG_SHAKE;
 }
 
-static bool IsStyleNode(HMarkup markup, const MarkupStyleNode& node)
+static bool IsStyleNode(const MarkupStyleNode& node)
 {
-    const char* source = MarkupGetSource(markup);
-    return StringEquals(source, node.m_Tag, "color") || StringEquals(source, node.m_Tag, "size") ||
-           StringEquals(source, node.m_Tag, "outline") || StringEquals(source, node.m_Tag, "shadow");
+    return node.m_Type == MARKUP_TAG_COLOR || node.m_Type == MARKUP_TAG_SIZE ||
+           node.m_Type == MARKUP_TAG_OUTLINE || node.m_Type == MARKUP_TAG_SHADOW;
 }
 
 static void LogInvalidNode(HMarkup markup, const MarkupStyleNode& node)
@@ -787,38 +1053,55 @@ static void LogInvalidNode(HMarkup markup, const MarkupStyleNode& node)
     dmLogWarning("Ignoring invalid rich-text tag <%.*s> at source byte %u", node.m_Tag.m_Length, source + node.m_Tag.m_Offset, node.m_Tag.m_Offset - 1);
 }
 
-static bool IsDecorationNode(HMarkup markup, const MarkupStyleNode& node)
+static bool IsDecorationNode(const MarkupStyleNode& node)
 {
-    const char* source = MarkupGetSource(markup);
-    return StringEquals(source, node.m_Tag, "ul") || StringEquals(source, node.m_Tag, "strike");
+    return node.m_Type == MARKUP_TAG_UNDERLINE || node.m_Type == MARKUP_TAG_STRIKE;
 }
 
 static bool ParseDecorationNode(HMarkup markup, const MarkupStyleNode& node, uint8_t* pattern)
 {
-    if (!IsDecorationNode(markup, node) || node.m_AttributeCount > 1)
-        return false;
-    *pattern = TEXT_DECORATION_PATTERN_SOLID;
-    if (node.m_AttributeCount == 0)
-        return true;
-    const MarkupAttribute* attribute = FindAttribute(markup, node, "pattern");
-    if (!attribute)
-        return false;
-    const char* source = MarkupGetSource(markup);
-    if (StringEquals(source, attribute->m_Value, "solid"))
-        return true;
-    if (StringEquals(source, attribute->m_Value, "dashed"))
+    if (!IsDecorationNode(node) || node.m_AttributeCount > 1)
     {
-        *pattern = TEXT_DECORATION_PATTERN_DASHED;
+        return false;
+    }
+
+    *pattern = TEXT_DECORATION_PATTERN_SOLID;
+
+    if (node.m_AttributeCount == 0)
+    {
         return true;
     }
+
+    const MarkupAttribute* attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_PATTERN);
+
+    if (!attribute)
+    {
+        return false;
+    }
+
+    if (attribute->m_Constant == MARKUP_CONSTANT_SOLID)
+    {
+        return true;
+    }
+
+    if (attribute->m_Constant == MARKUP_CONSTANT_DASHED)
+    {
+        *pattern = TEXT_DECORATION_PATTERN_DASHED;
+
+        return true;
+    }
+
     return false;
 }
 
 bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_length, TextRenderStyle* style, dmArray<TextEffect>* effects, MarkupError* error)
 {
     HMarkup markup = 0;
+
     if (MarkupCreateStyleFragment(definition, definition_length, &markup, error) != MARKUP_RESULT_OK)
+    {
         return false;
+    }
 
     memset(style, 0, sizeof(*style));
     style->m_FaceColor[0] = style->m_FaceColor[1] = style->m_FaceColor[2] = style->m_FaceColor[3] = 1.0f;
@@ -828,10 +1111,12 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
     bool                   valid = true;
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
     const uint32_t         node_count = MarkupGetStyleNodeCount(markup);
+
     for (uint32_t i = 1; i < node_count; ++i)
     {
         TextEffect effect = {};
-        if (IsEffectNode(markup, nodes[i]))
+
+        if (IsEffectNode(nodes[i]))
         {
             if (!CreateEffect(markup, nodes[i], 0, 1, &effect))
             {
@@ -840,22 +1125,24 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
                     error->m_ByteOffset = nodes[i].m_Tag.m_Offset - 1;
                     error->m_Type = MARKUP_ERROR_INVALID_TAG;
                 }
+
                 valid = false;
                 break;
             }
+
             EnsurePushCapacity(*effects);
             effects->Push(effect);
         }
-        else if (IsStyleNode(markup, nodes[i]))
+        else if (IsStyleNode(nodes[i]))
         {
-            const char* source = MarkupGetSource(markup);
-            if (StringEquals(source, nodes[i].m_Tag, "size") || !ApplyStyleNode(markup, nodes[i], 1.0f, style))
+            if (nodes[i].m_Type == MARKUP_TAG_SIZE || !ApplyStyleNode(markup, nodes[i], 1.0f, style))
             {
                 if (error)
                 {
                     error->m_ByteOffset = nodes[i].m_Tag.m_Offset - 1;
                     error->m_Type = MARKUP_ERROR_INVALID_TAG;
                 }
+
                 valid = false;
                 break;
             }
@@ -867,11 +1154,14 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
                 error->m_ByteOffset = nodes[i].m_Tag.m_Offset - 1;
                 error->m_Type = MARKUP_ERROR_INVALID_TAG;
             }
+
             valid = false;
             break;
         }
     }
+
     MarkupDestroy(markup);
+
     return valid;
 }
 
@@ -882,31 +1172,15 @@ bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, Resol
     const MarkupSpan*      spans = MarkupGetSpans(markup);
     uint32_t               node_count = MarkupGetStyleNodeCount(markup);
     uint32_t               span_count = MarkupGetSpanCount(markup);
-    if (span_count > MARKUP_INVALID_INDEX)
-        return false;
 
-    dmArray<uint32_t> node_starts;
-    dmArray<uint32_t> node_ends;
-    node_starts.SetCapacity(node_count);
-    node_starts.SetSize(node_count);
-    node_ends.SetCapacity(node_count);
-    node_ends.SetSize(node_count);
-    for (uint32_t i = 0; i < node_count; ++i)
+    if (span_count > MARKUP_INVALID_INDEX)
     {
-        node_starts[i] = UINT32_MAX;
-        node_ends[i] = 0;
+        return false;
     }
-    for (uint32_t i = 0; i < span_count; ++i)
-    {
-        uint16_t node_index = spans[i].m_StyleNodeIndex;
-        while (node_index != MARKUP_INVALID_INDEX)
-        {
-            node_starts[node_index] = node_starts[node_index] < spans[i].m_TextOffset ? node_starts[node_index] : spans[i].m_TextOffset;
-            uint32_t end = spans[i].m_TextOffset + spans[i].m_TextLength;
-            node_ends[node_index] = node_ends[node_index] > end ? node_ends[node_index] : end;
-            node_index = nodes[node_index].m_Parent;
-        }
-    }
+
+    resolved->m_Effects.SetCapacity(node_count);
+    resolved->m_SpanEffects.SetCapacity(span_count);
+    resolved->m_Spans.SetCapacity(span_count);
 
     dmArray<uint16_t> node_effects;
     dmArray<uint8_t>  node_invalid;
@@ -914,47 +1188,62 @@ bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, Resol
     node_effects.SetSize(node_count);
     node_invalid.SetCapacity(node_count);
     node_invalid.SetSize(node_count);
+
     for (uint32_t i = 0; i < node_count; ++i)
     {
         node_effects[i] = MARKUP_INVALID_INDEX;
         node_invalid[i] = 0;
     }
+
     for (uint32_t i = 1; i < node_count; ++i)
     {
-        if (node_starts[i] == UINT32_MAX)
+        if (nodes[i].m_TextLength == 0)
+        {
             continue;
+        }
+
         const uint16_t parent = nodes[i].m_Parent;
+
         if (parent != MARKUP_INVALID_INDEX && node_invalid[parent])
         {
             node_invalid[i] = 1;
             continue;
         }
-        TextEffect effect = {};
-        if (CreateEffect(markup, nodes[i], node_starts[i], node_ends[i] - node_starts[i], &effect))
+
+        if (IsEffectNode(nodes[i]))
         {
+            TextEffect effect = {};
+
+            if (!CreateEffect(markup, nodes[i], nodes[i].m_TextOffset, nodes[i].m_TextLength, &effect))
+            {
+                node_invalid[i] = 1;
+                LogInvalidNode(markup, nodes[i]);
+                continue;
+            }
+
             if (resolved->m_Effects.Size() == MARKUP_INVALID_INDEX)
+            {
                 return false;
+            }
+
             EnsurePushCapacity(resolved->m_Effects);
             resolved->m_Effects.Push(effect);
             node_effects[i] = (uint16_t)(resolved->m_Effects.Size() - 1);
         }
-        else if (IsEffectNode(markup, nodes[i]))
-        {
-            node_invalid[i] = 1;
-            LogInvalidNode(markup, nodes[i]);
-        }
-        if (!node_invalid[i] && IsStyleNode(markup, nodes[i]))
+        else if (IsStyleNode(nodes[i]))
         {
             TextRenderStyle style = {};
+
             if (!ApplyStyleNode(markup, nodes[i], base_font_size, &style))
             {
                 node_invalid[i] = 1;
                 LogInvalidNode(markup, nodes[i]);
             }
         }
-        if (!node_invalid[i] && IsDecorationNode(markup, nodes[i]))
+        else if (IsDecorationNode(nodes[i]))
         {
             uint8_t pattern;
+
             if (!ParseDecorationNode(markup, nodes[i], &pattern))
             {
                 node_invalid[i] = 1;
@@ -965,10 +1254,12 @@ bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, Resol
 
     dmArray<uint16_t> chain;
     chain.SetCapacity(node_count);
+
     for (uint32_t i = 0; i < span_count; ++i)
     {
         chain.SetSize(0);
         uint16_t node_index = spans[i].m_StyleNodeIndex;
+
         while (node_index != 0 && node_index != MARKUP_INVALID_INDEX)
         {
             chain.Push(node_index);
@@ -985,17 +1276,24 @@ bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, Resol
         uint8_t  decoration_flags = 0;
         uint8_t  underline_pattern = TEXT_DECORATION_PATTERN_SOLID;
         uint8_t  strike_pattern = TEXT_DECORATION_PATTERN_SOLID;
+
         for (uint32_t j = chain.Size(); j > 0; --j)
         {
             uint16_t current = chain[j - 1];
+
             if (node_invalid[current])
+            {
                 break;
+            }
+
             ApplyStyleNode(markup, nodes[current], base_font_size, &style);
-            if (IsDecorationNode(markup, nodes[current]))
+
+            if (IsDecorationNode(nodes[current]))
             {
                 uint8_t pattern;
                 ParseDecorationNode(markup, nodes[current], &pattern);
-                if (StringEquals(MarkupGetSource(markup), nodes[current].m_Tag, "ul"))
+
+                if (nodes[current].m_Type == MARKUP_TAG_UNDERLINE)
                 {
                     decoration_flags |= TEXT_RESOLVED_DECORATION_UNDERLINE;
                     underline_pattern = pattern;
@@ -1006,24 +1304,37 @@ bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, Resol
                     strike_pattern = pattern;
                 }
             }
+
             if (node_effects[current] != MARKUP_INVALID_INDEX)
             {
                 if (resolved->m_SpanEffects.Size() == MARKUP_INVALID_INDEX)
+                {
                     return false;
+                }
+
                 if (effect_count == 0)
+                {
                     effect_index = (uint16_t)resolved->m_SpanEffects.Size();
+                }
+
                 EnsurePushCapacity(resolved->m_SpanEffects);
                 resolved->m_SpanEffects.Push(node_effects[current]);
                 ++effect_count;
             }
         }
+
         uint16_t style_index;
+
         if (!AddStyle(resolved, style, &style_index))
+        {
             return false;
+        }
+
         TextResolvedSpan resolved_span = { spans[i].m_TextOffset, spans[i].m_TextLength, style_index, effect_index, effect_count,
                                            decoration_flags, underline_pattern, strike_pattern };
         EnsurePushCapacity(resolved->m_Spans);
         resolved->m_Spans.Push(resolved_span);
     }
+
     return ResolveObjects(markup, settings, resolved);
 }

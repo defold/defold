@@ -25,10 +25,16 @@ function(font_configure_test target font_target)
       "src/test/data" "src/test/data")
 endfunction()
 
-defold_add_executable(test_font "${FONT_TEST_ROOT}/test_font.cpp")
+defold_add_executable(test_font
+  "${FONT_TEST_ROOT}/test_font.cpp"
+  "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
+  "${FONT_SRC_DIR}/render/layout_vertex.cpp")
 font_configure_test(test_font font)
 
-defold_add_executable(test_font_skribidi "${FONT_TEST_ROOT}/test_font.cpp")
+defold_add_executable(test_font_skribidi
+  "${FONT_TEST_ROOT}/test_font.cpp"
+  "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
+  "${FONT_SRC_DIR}/render/layout_vertex.cpp")
 target_compile_definitions(test_font_skribidi PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
 font_configure_test(test_font_skribidi font_skribidi)
 
@@ -51,7 +57,8 @@ defold_register_test_target(test_markup_null ON "${FONT_ROOT}")
 
 defold_add_executable(benchmark_text_layout
   "${FONT_TEST_ROOT}/benchmark_text_layout.cpp"
-  "${FONT_SRC_DIR}/render/glyph_vertex.cpp")
+  "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
+  "${FONT_SRC_DIR}/render/layout_vertex.cpp")
 target_include_directories(benchmark_text_layout PRIVATE
   "${FONT_TEST_ROOT}"
   "${FONT_SRC_DIR}"
@@ -71,7 +78,8 @@ defold_target_link_socket(benchmark_text_layout "${TARGET_PLATFORM}" PRIVATE)
 
 defold_add_executable(benchmark_text_layout_null
   "${FONT_TEST_ROOT}/benchmark_text_layout.cpp"
-  "${FONT_SRC_DIR}/render/glyph_vertex.cpp")
+  "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
+  "${FONT_SRC_DIR}/render/layout_vertex.cpp")
 target_include_directories(benchmark_text_layout_null PRIVATE
   "${FONT_TEST_ROOT}"
   "${FONT_SRC_DIR}"

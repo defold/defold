@@ -17,12 +17,16 @@
 static MarkupResult MarkupUnsupported(HMarkup* out_markup, MarkupError* out_error)
 {
     if (out_markup)
+    {
         *out_markup = 0;
+    }
+
     if (out_error)
     {
         out_error->m_ByteOffset = 0;
         out_error->m_Type = MARKUP_ERROR_UNSUPPORTED;
     }
+
     return MARKUP_RESULT_UNSUPPORTED;
 }
 
@@ -116,6 +120,7 @@ void TextLayoutGetGlyphRenderData(HTextLayout, const TextGlyph&, const float bas
         data->m_OutlineColor[channel] = 1.0f;
         data->m_ShadowColor[channel] = 1.0f;
     }
+
     data->m_OffsetX = 0.0f;
     data->m_OffsetY = 0.0f;
     data->m_OutlineWidth = 0.0f;

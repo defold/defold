@@ -1898,13 +1898,11 @@ TEST_F(dmRenderTest, TextAlignment)
         offset = OffsetLayoutY(dmRender::TEXT_VALIGN_BOTTOM, box_height, metrics.m_Height);
         ASSERT_EQ(0.0f, offset);
     }
-
 }
 
 
 TEST_F(dmRenderTest, GetTextMetrics)
 {
-
     dmRender::TextMetrics metrics = {0};
 
     const int charwidth     = 2;
@@ -1974,7 +1972,6 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(charwidth*7, metrics.m_Width);
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
     ASSERT_EQ(numlines, metrics.m_LineCount);
-
 }
 
 TEST_F(dmRenderTest, GetPreparedTextMetrics)
@@ -2100,6 +2097,7 @@ TEST_F(dmRenderTest, MarkupOutlineLayerIsTransparentOutsideSpan)
     FontGlyphVertex vertices[24];
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+
     for (uint32_t i = 0; i < 6; ++i)
     {
         ASSERT_EQ(1.0f, vertices[i].m_OutlineColor[3]);
@@ -2181,6 +2179,7 @@ TEST_F(dmRenderTest, MarkupShadowLayerIsTransparentOutsideSpan)
     FontGlyphVertex vertices[24];
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+
     for (uint32_t i = 0; i < 6; ++i)
     {
         ASSERT_EQ(1.0f, vertices[i].m_ShadowColor[3]);
@@ -2410,11 +2409,13 @@ TEST_F(dmRenderTest, MarkupAnimatedGlyphGradientReachesFinalVertices)
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
     const uint32_t before_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, before, DM_ARRAY_SIZE(before));
     ASSERT_GT(before_count, 12u);
+
     for (uint32_t i = 1; i < 6; ++i)
     {
         ASSERT_EQ(before[0].m_FaceColor[0], before[i].m_FaceColor[0]);
         ASSERT_EQ(before[0].m_FaceColor[2], before[i].m_FaceColor[2]);
     }
+
     ASSERT_NE(before[0].m_FaceColor[0], before[6].m_FaceColor[0]);
     ASSERT_NE(before[0].m_FaceColor[2], before[6].m_FaceColor[2]);
 
@@ -2463,6 +2464,7 @@ TEST_F(dmRenderTest, MarkupAnimatedSpanGradientUsesOneFinalVertexColor)
     ASSERT_EQ(1.0f, before[0].m_FaceColor[0]);
     ASSERT_EQ(0.0f, before[0].m_FaceColor[1]);
     ASSERT_EQ(1.0f, before[0].m_FaceColor[2]);
+
     for (uint32_t i = 1; i < before_count; ++i)
     {
         ASSERT_EQ(before[0].m_FaceColor[0], before[i].m_FaceColor[0]);
@@ -2477,6 +2479,7 @@ TEST_F(dmRenderTest, MarkupAnimatedSpanGradientUsesOneFinalVertexColor)
     ASSERT_EQ(1.0f, after[0].m_FaceColor[0]);
     ASSERT_EQ(0.5f, after[0].m_FaceColor[1]);
     ASSERT_EQ(1.0f, after[0].m_FaceColor[2]);
+
     for (uint32_t i = 1; i < after_count; ++i)
     {
         ASSERT_EQ(after[0].m_FaceColor[0], after[i].m_FaceColor[0]);
@@ -2527,6 +2530,7 @@ TEST_F(dmRenderTest, MarkupUnderlineIgnoresGlyphPositionEffects)
     m_SystemFontMap->m_LayerMask = old_layer_mask;
 
     ASSERT_TRUE(before[0].m_Position[0] != after[0].m_Position[0] || before[0].m_Position[1] != after[0].m_Position[1]);
+
     for (uint32_t i = 6; i < DM_ARRAY_SIZE(before); ++i)
     {
         ASSERT_EQ(before[i].m_Position[0], after[i].m_Position[0]);

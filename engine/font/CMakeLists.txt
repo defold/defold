@@ -46,9 +46,11 @@ list(APPEND FONT_SOURCES
   "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
 
 set(FONT_GLYPH_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/glyph_vertex.cpp")
+set(FONT_LAYOUT_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/layout_vertex.cpp")
 set(FONT_RENDER_SOURCES
   "${FONT_RENDER_SRC_DIR}/font_render.cpp"
-  "${FONT_GLYPH_VERTEX_SOURCE}")
+  "${FONT_GLYPH_VERTEX_SOURCE}"
+  "${FONT_LAYOUT_VERTEX_SOURCE}")
 set(FONT_RICHTEXT_SOURCES
   "${FONT_SRC_DIR}/markup.cpp"
   "${FONT_SRC_DIR}/text_layout_markup.cpp")
@@ -105,7 +107,8 @@ if(FONT_RENDERER_IS_DESKTOP)
 
   add_library(fontc_shared SHARED
     "${FONTC_SRC_DIR}/fontc.cpp"
-    "${FONT_GLYPH_VERTEX_SOURCE}")
+    "${FONT_GLYPH_VERTEX_SOURCE}"
+    "${FONT_LAYOUT_VERTEX_SOURCE}")
   defold_target_skip_sanitizer(fontc_shared)
   target_include_directories(fontc_shared PRIVATE "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONTC_SRC_DIR}")
   target_compile_definitions(fontc_shared PRIVATE

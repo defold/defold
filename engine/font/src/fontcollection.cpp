@@ -57,6 +57,7 @@ static TextRenderStyle MakeColorStyle(float r, float g, float b, float a)
     style.m_FaceColor[2] = b;
     style.m_FaceColor[3] = a;
     style.m_Flags = TEXT_RENDER_STYLE_FACE_COLOR;
+
     return style;
 }
 
@@ -65,22 +66,32 @@ static TextNamedStyle* FindNamedStyle(HFontCollection collection, dmhash_t name)
     for (uint32_t i = 0; i < collection->m_NamedStyles.Size(); ++i)
     {
         if (collection->m_NamedStyles[i]->m_Name == name)
+        {
             return collection->m_NamedStyles[i];
+        }
     }
+
     return 0;
 }
 
 static TextNamedStyle* GetOrCreateNamedStyle(HFontCollection collection, dmhash_t name)
 {
     TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
     if (named_style)
+    {
         return named_style;
+    }
 
     if (collection->m_NamedStyles.Full())
+    {
         collection->m_NamedStyles.OffsetCapacity(1);
+    }
+
     named_style = new TextNamedStyle;
     named_style->m_Name = name;
     collection->m_NamedStyles.Push(named_style);
+
     return named_style;
 }
 
@@ -104,7 +115,9 @@ HFontCollection FontCollectionCreate()
 void FontCollectionDestroy(HFontCollection coll)
 {
     for (uint32_t i = 0; i < coll->m_NamedStyles.Size(); ++i)
+    {
         delete coll->m_NamedStyles[i];
+    }
 #if defined(FONT_USE_SKRIBIDI)
     skb_font_collection_destroy(coll->m_Collection);
 #endif
@@ -130,9 +143,10 @@ FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
 #if defined(FONT_USE_SKRIBIDI)
     hb_font_t* hb_font = FontGetHarfbuzzFontFromTTF(hfont);
     skb_font_handle_t skbfont = skb_font_collection_add_hb_font(coll->m_Collection,
-                                                hb_font,
-                                                FontGetPath(hfont),
-                                                SKB_FONT_FAMILY_DEFAULT);
+                                                                FontGetPath(hfont),
+                                                                hb_font,
+                                                                SKB_FONT_FAMILY_DEFAULT,
+                                                                0);
 
     if (skbfont)
     {
@@ -192,9 +206,11 @@ bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name
 {
     TextRenderStyle    style = {};
     dmArray<TextEffect> effects;
+
     if (!TextLayoutCompileStyleFragment(definition, definition_length, &style, &effects, error))
     {
         effects.SetCapacity(0);
+
         return false;
     }
 
@@ -203,24 +219,30 @@ bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name
     named_style->m_Effects.Swap(effects);
     effects.SetCapacity(0);
     ++collection->m_NamedStyleRevision;
+
     return true;
 }
 
 const TextRenderStyle* FontCollectionGetNamedStyle(HFontCollection collection, dmhash_t name)
 {
     const TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
     return named_style ? &named_style->m_Style : 0;
 }
 
 const TextEffect* FontCollectionGetNamedStyleEffects(HFontCollection collection, dmhash_t name, uint32_t* effect_count)
 {
     const TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
     if (!named_style)
     {
         *effect_count = 0;
+
         return 0;
     }
+
     *effect_count = named_style->m_Effects.Size();
+
     return named_style->m_Effects.Begin();
 }
 
@@ -245,6 +267,7 @@ static bool OnFontFallback(skb_font_collection_t* collection, const char* langua
 {
     (void)collection;
     FontCollection* font_collection = (FontCollection*)context;
+
     return font_collection->m_FallbackCallback(font_collection, language,
                                                 skb_script_to_iso15924_tag(script), font_family,
                                                 font_collection->m_FallbackContext);
