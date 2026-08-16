@@ -189,7 +189,6 @@ protected:
         m_GlyphBank = CreateGlyphBank(2, 1, 128);
         m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
 
-        printf("%s : %d\n", __FUNCTION__, __LINE__);
         HFontCollection font_collection = FontCollectionCreate();
         FontCollectionAddFont(font_collection, m_Font);
 
@@ -202,7 +201,6 @@ protected:
         font_map_params.m_MaxDescent = 1;
         font_map_params.m_FontCollection = font_collection;
 
-        printf("%s : %d\n", __FUNCTION__, __LINE__);
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
     }
 
