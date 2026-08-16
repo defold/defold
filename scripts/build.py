@@ -168,7 +168,7 @@ PACKAGES_ALL=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "SkriBidi-1e8038"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -187,7 +187,7 @@ PACKAGES_IOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "SkriBidi-1e8038"]
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
@@ -202,7 +202,7 @@ PACKAGES_IOS_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
@@ -225,7 +225,7 @@ PACKAGES_MACOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
+    "SkriBidi-1e8038",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
@@ -254,7 +254,7 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
+    "SkriBidi-1e8038",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
@@ -276,7 +276,7 @@ PACKAGES_WIN32=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
@@ -299,7 +299,7 @@ PACKAGES_WIN32_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
+    "SkriBidi-1e8038",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
@@ -328,7 +328,7 @@ PACKAGES_LINUX_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
+    "SkriBidi-1e8038",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "apkc-0.1.0",
@@ -357,7 +357,7 @@ PACKAGES_LINUX_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
+    "SkriBidi-1e8038",
     "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
@@ -373,7 +373,7 @@ PACKAGES_ANDROID=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
@@ -389,7 +389,7 @@ PACKAGES_ANDROID_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
@@ -403,7 +403,7 @@ PACKAGES_EMSCRIPTEN=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "SkriBidi-1e8038"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
