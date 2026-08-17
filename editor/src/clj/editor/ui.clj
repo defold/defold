@@ -1484,21 +1484,15 @@
   ;; stage is changed during the event dispatch. This happens for
   ;; example when we have a shortcut triggering the opening of a
   ;; dialog.
-  (let [command-contexts (contexts (main-scene) true)
-        executable (coll/any? #(let [handler-ctx (resolve-handler-ctx command-contexts % nil)]
-                                (not (#{::not-active ::not-enabled} handler-ctx)))
-                             commands)]
-    (when executable
-      (run-later (let [command-contexts (contexts (main-scene) true)]
-                   (reduce
-                     (fn [acc command]
-                       (let [ret (invoke-handler command-contexts command)]
-                         (case ret
-                           (::not-active ::not-enabled) acc
-                           (reduced ret))))
-                     nil
-                     commands))))
-    executable))
+  (run-later (let [command-contexts (contexts (main-scene) true)]
+               (reduce
+                 (fn [acc command]
+                   (let [ret (invoke-handler command-contexts command)]
+                     (case ret
+                       (::not-active ::not-enabled) acc
+                       (reduced ret))))
+                 nil
+                 commands))))
 
 (defn- make-desc [control menu-id]
   {:control control
@@ -2480,7 +2474,7 @@
 (defn- refresh-accelerators! [scene keymap]
   (when-not (identical? keymap (user-data scene ::accelerators))
     (user-data! scene ::accelerators keymap)
-    (keymap/install! keymap scene execute-accelerator-commands (os/os))))
+    (keymap/install! keymap scene execute-accelerator-commands)))
 
 (defn refresh
   ([^Scene scene]

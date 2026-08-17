@@ -740,37 +740,21 @@
 
 (defn install!
   "Install a keymap on a scene, replacing any predefined accelerators"
-  [keymap ^Scene scene execute-fn os]
-  (when-let [{:keys [pressed-handler typed-filter]} (.get (.getProperties scene) ::keymap)]
-    (.removeEventHandler scene KeyEvent/KEY_PRESSED ^EventHandler pressed-handler)
-    (.removeEventFilter scene KeyEvent/KEY_TYPED ^EventHandler typed-filter))
+  [keymap ^Scene scene execute-fn]
+  (when-let [old-handler (.get (.getProperties scene) ::keymap)]
+    (.removeEventHandler scene KeyEvent/KEY_PRESSED old-handler))
   (let [{:keys [shortcut->commands]} keymap
-        suppress-key-typed-volatile (volatile! false)
-        pressed-handler (reify EventHandler
-                          (handle [_ e]
-                            (vreset! suppress-key-typed-volatile false)
-                            (reduce-kv
-                              (fn [_ ^KeyCombination shortcut commands]
-                                (when (.match shortcut e)
-                                  ;; NOTE: This is a workaround for macos where shortcuts that use shift+alt might send
-                                  ;; special runes first, so intercept so we can later consume
-                                  (vreset! suppress-key-typed-volatile
-                                           (and (execute-fn commands)
-                                                (= :macos os)
-                                                (= KeyCombination$ModifierValue/DOWN (.getAlt shortcut))
-                                                (typable? shortcut os)))
-                                  (.consume e)
-                                  (reduced nil)))
-                              nil
-                              shortcut->commands)))
-        typed-filter (reify EventHandler
-                       (handle [_ e]
-                         (when @suppress-key-typed-volatile
-                           (.consume ^KeyEvent e))))]
-    (.put (.getProperties scene) ::keymap {:pressed-handler pressed-handler
-                                           :typed-filter typed-filter})
-    (.addEventHandler scene KeyEvent/KEY_PRESSED pressed-handler)
-    (.addEventFilter scene KeyEvent/KEY_TYPED typed-filter))
+        new-handler (reify EventHandler
+                      (handle [_ e]
+                        (reduce-kv
+                          (fn [_ ^KeyCombination shortcut commands]
+                            (when (.match shortcut e)
+                              (.consume e)
+                              (reduced (execute-fn commands))))
+                          nil
+                          shortcut->commands)))]
+    (.put (.getProperties scene) ::keymap new-handler)
+    (.addEventHandler scene KeyEvent/KEY_PRESSED new-handler))
   nil)
 
 (defn shortcut-display-text
