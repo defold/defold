@@ -528,6 +528,28 @@ foobar
         self.assertIn("MyDelegate", examples)
         self.assertNotIn("```", examples)
 
+    def test_at_tag_syntax_inside_fenced_description(self):
+        doc = r'''
+/*# Objective-C description.
+ *
+ * ```objective-c
+ * @interface MyDelegate : NSObject
+ * @end
+ * ```
+ * @name MY_MESSAGE
+ */
+'''
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertIn("@interface MyDelegate : NSObject", element.description)
+        self.assertIn("@end", element.description)
+        self.assertTrue(element.description.endswith("```"))
+
+        description = script_doc.message_to_json_dict(
+            script_doc.parse_document(doc))["elements"][0]["description"]
+        self.assertIn("@interface", description)
+        self.assertIn("MyDelegate", description)
+        self.assertNotIn("```", description)
+
     def test_unclosed_description_fence_fails_validation(self):
         doc= '''
 /*#

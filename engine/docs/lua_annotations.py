@@ -339,15 +339,76 @@ class _LuaDocHtmlConverter(HTMLParser):
         return value.strip()
 
 
+def _protect_balanced_doc_tags(value):
+    replacements = {}
+    parts = []
+    cursor = 0
+    prefixes = ("[ref:", "[type:")
+    opening_to_closing = {"[": "]", "{": "}", "(": ")", "<": ">"}
+    closing = frozenset(opening_to_closing.values())
+
+    while cursor < len(value):
+        matches = [
+            (value.find(prefix, cursor), prefix)
+            for prefix in prefixes
+        ]
+        matches = [match for match in matches if match[0] >= 0]
+        if not matches:
+            parts.append(value[cursor:])
+            break
+
+        start, prefix = min(matches)
+        stack = ["]"]
+        quote = None
+        escaped = False
+        end = None
+        for index in range(start + len(prefix), len(value)):
+            char = value[index]
+            if quote is not None:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = None
+                continue
+            if char in ("'", '"'):
+                quote = char
+            elif char in opening_to_closing:
+                stack.append(opening_to_closing[char])
+            elif char in closing:
+                if char != stack[-1]:
+                    break
+                stack.pop()
+                if not stack:
+                    end = index
+                    break
+
+        parts.append(value[cursor:start])
+        if end is None:
+            parts.append(value[start:start + 1])
+            cursor = start + 1
+            continue
+
+        token = "\ue000%d\ue001" % len(replacements)
+        replacements[token] = "`%s`" % html.unescape(
+            value[start + len(prefix):end])
+        parts.append(token)
+        cursor = end + 1
+
+    return "".join(parts), replacements
+
+
 def lua_doc_text(value):
     if not value:
         return ""
     value = re.sub(r"\[icon:.*?\]", "", value)
-    value = re.sub(r"\[type:(.*?)\]", r"`\1`", value)
-    value = re.sub(r"\[ref:(.*?)\]", r"`\1`", value)
+    value, replacements = _protect_balanced_doc_tags(value)
     converter = _LuaDocHtmlConverter()
     converter.feed(value)
     value = converter.text()
+    for token, replacement in replacements.items():
+        value = value.replace(token, replacement)
     value = re.sub(r"^\s*:\s*", "", value, flags=re.MULTILINE)
     return value
 

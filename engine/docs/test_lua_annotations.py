@@ -495,6 +495,20 @@ class TestLuaAnnotations(unittest.TestCase):
             lua_annotations.lua_doc_text(
                 "<code>headers table&lt;string, string&gt;</code>"))
 
+    def test_balanced_type_tags_are_preserved_as_text(self):
+        cases = {
+            "[type:number[]]": "`number[]`",
+            "[type:table<string, string>]": "`table<string, string>`",
+            "[type:table&lt;string, string&gt;]": "`table<string, string>`",
+            "[type:{[1]:string, [2]?:string}]":
+                "`{[1]:string, [2]?:string}`",
+            "[type:table<string, {items:string[], pair:{[1]:string, [2]?:number}}>]":
+                "`table<string, {items:string[], pair:{[1]:string, [2]?:number}}>`",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(expected, lua_annotations.lua_doc_text(source))
+
     def test_receiver_functions_are_rendered_as_documented_class_methods(self):
         send = function("client:send", "string", "number|nil")
         send.description = "<p>Sends <code>data</code> like [ref:string.sub].</p>"

@@ -42,7 +42,6 @@ local lifecycle_signatures = {
 local lifecycle_patterns = {
     '()function[ \t\r\n]+([%a_][%w_]*)[ \t\r\n]*%(([^)]*)%)',
     '()function[ \t\r\n]+_G%.([%a_][%w_]*)[ \t\r\n]*%(([^)]*)%)',
-    '()([%a_][%w_]*)[ \t\r\n]*=[ \t\r\n]*function[ \t\r\n]*%(([^)]*)%)',
     '()_G%.([%a_][%w_]*)[ \t\r\n]*=[ \t\r\n]*function[ \t\r\n]*%(([^)]*)%)',
 }
 

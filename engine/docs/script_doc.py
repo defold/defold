@@ -237,6 +237,22 @@ def _markdownify(t):
 _FENCED_CODE_LINE = re.compile(r'^[ ]{0,3}(?P<fence>`{3,}|~{3,})(?P<suffix>.*)$')
 
 
+def _fence_after_line(opening_fence, line):
+    fence_match = _FENCED_CODE_LINE.match(line)
+    if not fence_match:
+        return opening_fence
+
+    fence = fence_match.group("fence")
+    suffix = fence_match.group("suffix")
+    if opening_fence is None:
+        return fence
+    if (fence[0] == opening_fence[0]
+            and len(fence) >= len(opening_fence)
+            and not suffix.strip()):
+        return None
+    return opening_fence
+
+
 def _validate_fenced_code_blocks(text, context):
     """Return validation errors for malformed Markdown fenced code blocks."""
     errors = []
@@ -383,18 +399,7 @@ def _parse_tags(text):
         elif current_tag is not None:
             current_value_lines.append(line)
 
-        fence_match = _FENCED_CODE_LINE.match(line)
-        if not fence_match:
-            continue
-
-        fence = fence_match.group("fence")
-        suffix = fence_match.group("suffix")
-        if opening_fence is None:
-            opening_fence = fence
-        elif (fence[0] == opening_fence[0]
-              and len(fence) >= len(opening_fence)
-              and not suffix.strip()):
-            opening_fence = None
+        opening_fence = _fence_after_line(opening_fence, line)
 
     finish_tag()
     return parsed_tags
@@ -432,10 +437,23 @@ def proto_to_type(p):
     elif p == script_doc_ddf_pb2.CONSTANT: return 'constant'
     return "function"
 
+def _first_tag_offset(text):
+    opening_fence = None
+    offset = 0
+    for line_with_ending in text.splitlines(keepends=True):
+        line = line_with_ending.rstrip("\r\n")
+        if opening_fence is None and re.match(r'^\s*@\S+', line):
+            return offset
+        opening_fence = _fence_after_line(opening_fence, line)
+        offset += len(line_with_ending)
+    return len(text)
+
+
 def _parse_description(text):
-    desc_start = min(len(text), text.find('\n'))
+    first_newline = text.find('\n')
+    desc_start = len(text) if first_newline < 0 else first_newline
     brief = text[0:desc_start]
-    desc_end = min(len(text), text.find('\n@'))
+    desc_end = _first_tag_offset(text)
     description = text[desc_start:desc_end].strip()
     if not brief and description:
         brief = description.split('.\n')[0]

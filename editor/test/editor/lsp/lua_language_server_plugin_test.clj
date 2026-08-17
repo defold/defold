@@ -128,16 +128,25 @@
                     "_G.update = function(context, delta) end\n\n"
                     "function _G.on_reload(self) end\n\n"
                     "local final = function(self) end\n"
-                    "callbacks.on_message = function(self, message_id, message, sender) end\n")]
-    (is (= (str "---@param self script_instance\n"
-                "init = function(self) end\n\n"
+                    "callbacks.on_message = function(self, message_id, message, sender) end\n"
+                    "local update\n"
+                    "update = function(self, dt) end\n"
+                    "local callbacks = {\n"
+                    "    update = function(self, dt) end,\n"
+                    "}\n")]
+    (is (= (str "init = function(self) end\n\n"
                 "---@param context script_instance\n"
                 "---@param delta number\n"
                 "_G.update = function(context, delta) end\n\n"
                 "---@param self script_instance\n"
                 "function _G.on_reload(self) end\n\n"
                 "local final = function(self) end\n"
-                "callbacks.on_message = function(self, message_id, message, sender) end\n")
+                "callbacks.on_message = function(self, message_id, message, sender) end\n"
+                "local update\n"
+                "update = function(self, dt) end\n"
+                "local callbacks = {\n"
+                "    update = function(self, dt) end,\n"
+                "}\n")
            (apply-plugin "file:///project/main.script" source)))))
 
 (deftest annotates-multiline-lifecycle-definitions-test
