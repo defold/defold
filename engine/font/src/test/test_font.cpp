@@ -443,7 +443,7 @@ TEST_F(FontTest, GlyphChannelCountMatchesOutputMode)
 
 TEST_F(FontTest, PackLayeredGlyphVertices)
 {
-    ASSERT_EQ(96u, sizeof(FontGlyphVertex));
+    ASSERT_EQ(60u, sizeof(FontGlyphVertex));
 
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
@@ -470,16 +470,19 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     gradient_colors.m_BottomRight[3] = 1.0f;
     gradient_colors.m_TopLeft[2] = 1.0f;
     gradient_colors.m_TopLeft[3] = 1.0f;
-    gradient_colors.m_TopRight[0] = gradient_colors.m_TopRight[1] = gradient_colors.m_TopRight[2] = gradient_colors.m_TopRight[3] = 1.0f;
+    gradient_colors.m_TopRight[0] = 1.0f;
+    gradient_colors.m_TopRight[1] = 0.5f;
+    gradient_colors.m_TopRight[2] = 1.0f;
+    gradient_colors.m_TopRight[3] = 1.0f;
     FontPackGlyphVertices4Colors(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 1, FONT_RENDER_LAYER_FACE, 0, 6, transform, 0.0f, 0.0f, 1.0f, gradient_colors, black, black, 0.75f, 0.5f, 0.1f, 0.25f, 0.0f, 0.0f, true, vertices);
-    ASSERT_EQ(1.0f, vertices[0].m_FaceColor[0]);
-    ASSERT_EQ(1.0f, vertices[1].m_FaceColor[1]);
-    ASSERT_EQ(1.0f, vertices[2].m_FaceColor[2]);
-    ASSERT_EQ(1.0f, vertices[3].m_FaceColor[2]);
-    ASSERT_EQ(1.0f, vertices[4].m_FaceColor[1]);
-    ASSERT_EQ(1.0f, vertices[5].m_FaceColor[0]);
-    ASSERT_EQ(1.0f, vertices[5].m_FaceColor[1]);
-    ASSERT_EQ(1.0f, vertices[5].m_FaceColor[2]);
+    ASSERT_EQ(255u, vertices[0].m_FaceColor[0]);
+    ASSERT_EQ(255u, vertices[1].m_FaceColor[1]);
+    ASSERT_EQ(255u, vertices[2].m_FaceColor[2]);
+    ASSERT_EQ(255u, vertices[3].m_FaceColor[2]);
+    ASSERT_EQ(255u, vertices[4].m_FaceColor[1]);
+    ASSERT_EQ(255u, vertices[5].m_FaceColor[0]);
+    ASSERT_EQ(127u, vertices[5].m_FaceColor[1]);
+    ASSERT_EQ(255u, vertices[5].m_FaceColor[2]);
     const float base_vertex_width = vertices[1].m_Position[0] - vertices[0].m_Position[0];
     const float base_u_width = vertices[1].m_UV[0] - vertices[0].m_UV[0];
     FontPackGlyphVertices4Colors(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 1, FONT_RENDER_LAYER_FACE, 0, 6, transform, 0.0f, 0.0f, 2.0f, gradient_colors, black, black, 0.75f, 0.5f, 0.05f, 0.25f, 0.0f, 0.0f, true, vertices);

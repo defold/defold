@@ -516,7 +516,7 @@ static uint32_t CountWords(const dmArray<char>& text)
 
 static void PrintResult(const char* operation, const char* style, uint32_t tag_count, uint32_t source_bytes, uint32_t word_count, uint32_t span_count, uint32_t style_node_count, uint32_t generated_vertices, const Measurement& measurement)
 {
-    printf("%s,%s,%s,%u,%u,%u,%u,%u,%u,%u,%.3f,%.3f,%.3f,%.3f,%u,%.6f\n",
+    printf("%s,%s,%s,%u,%u,%u,%u,%u,%u,%u,%u,%llu,%.3f,%.3f,%.3f,%.3f,%u,%.6f\n",
            FONT_BENCHMARK_BUILD_LABEL,
            operation,
            style,
@@ -527,6 +527,8 @@ static void PrintResult(const char* operation, const char* style, uint32_t tag_c
            span_count,
            style_node_count,
            generated_vertices,
+           (uint32_t)sizeof(FontGlyphVertex),
+           (unsigned long long)generated_vertices * sizeof(FontGlyphVertex),
            measurement.m_MedianMicroseconds,
            measurement.m_P25Microseconds,
            measurement.m_P75Microseconds,
@@ -1086,7 +1088,7 @@ int main(int argc, char** argv)
     settings.m_ReleaseObject = ReleaseBenchmarkObject;
 #endif
 
-    printf("build,operation,style,tag_count,visible_characters,source_bytes,total_words,spans,style_nodes,generated_vertices,median_us,p25_us,p75_us,mad_us,iterations,median_us_per_character\n");
+    printf("build,operation,style,tag_count,visible_characters,source_bytes,total_words,spans,style_nodes,generated_vertices,vertex_stride_bytes,generated_vertex_bytes,median_us,p25_us,p75_us,mad_us,iterations,median_us_per_character\n");
 
     PlainLayoutContext plain_context = { collection, codepoints.Begin(), codepoints.Size(), settings };
     Measurement        plain_measurement;

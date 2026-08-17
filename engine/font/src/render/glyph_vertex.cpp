@@ -35,6 +35,26 @@ static void SetPosition(float* position, const Vector4& value)
     position[2] = value[2];
 }
 
+// Converts a unit RGBA color to the normalized byte format used by the GPU.
+static void PackColor(uint8_t* packed, const float* color)
+{
+    packed[0] = (uint8_t)(color[0] * 255.0f);
+    packed[1] = (uint8_t)(color[1] * 255.0f);
+    packed[2] = (uint8_t)(color[2] * 255.0f);
+    packed[3] = (uint8_t)(color[3] * 255.0f);
+}
+
+static void PackColor(uint8_t* packed, const Vector4& color)
+{
+    packed[0] = (uint8_t)(color[0] * 255.0f);
+    packed[1] = (uint8_t)(color[1] * 255.0f);
+    packed[2] = (uint8_t)(color[2] * 255.0f);
+    packed[3] = (uint8_t)(color[3] * 255.0f);
+}
+
+// A decoration can use one quad when its color is constant or varies only
+// across the complete span. Split it at glyph boundaries when glyphs refer to
+// different styles/spans, or when a glyph-fitted gradient must be preserved.
 bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration)
 {
     TextLayout* internal = (TextLayout*)layout;
@@ -77,11 +97,16 @@ bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoratio
     return false;
 }
 
+// Returns the number of six-vertex quads needed for the decoration. Most
+// decorations use one quad for the complete span.
 uint32_t FontGetDecorationQuadCount(HTextLayout layout, const TextDecoration& decoration)
 {
     return FontDecorationRequiresGlyphSegments(layout, decoration) ? decoration.m_GlyphCount : 1;
 }
 
+// Converts the dashed pattern from layout units to repeating shader
+// coordinates. Start and end are measured in cycles and duty is the visible
+// fraction of each cycle. A zero duty identifies a solid decoration.
 void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment_index, uint32_t segment_count, FontDecorationPattern* pattern)
 {
     pattern->m_Start = 0.0f;
@@ -103,6 +128,9 @@ void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment
     pattern->m_Duty = dash / cycle;
 }
 
+// Resolves the colors at the geometrical ends of a decoration. Looking up the
+// leftmost and rightmost glyph, rather than the first and last logical glyph,
+// also produces the correct gradient direction for right-to-left text.
 void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors)
 {
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
@@ -134,6 +162,9 @@ void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decor
     memcpy(face_colors->m_TopRight, right.m_FaceColors.m_TopRight, sizeof(face_colors->m_TopRight));
 }
 
+// Packs a six-vertex glyph quad into each requested output layer. Face vertices
+// are required; outline and shadow vertices are optional. Corner colors allow
+// horizontal, vertical, and four-corner gradients without subdividing a glyph.
 void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
                                           float                      recip_w,
                                           float                      recip_h,
@@ -217,19 +248,15 @@ void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
     face_6.m_UV[0] = face_2.m_UV[0];
     face_6.m_UV[1] = face_3.m_UV[1];
 
+    uint8_t packed_outline_color[4];
+    uint8_t packed_shadow_color[4];
+    PackColor(packed_outline_color, outline_color);
+    PackColor(packed_shadow_color, shadow_color);
+
 #define SET_PROPERTIES(vertex, face_color) \
-    vertex.m_FaceColor[0] = face_color[0]; \
-    vertex.m_FaceColor[1] = face_color[1]; \
-    vertex.m_FaceColor[2] = face_color[2]; \
-    vertex.m_FaceColor[3] = face_color[3]; \
-    vertex.m_OutlineColor[0] = outline_color[0]; \
-    vertex.m_OutlineColor[1] = outline_color[1]; \
-    vertex.m_OutlineColor[2] = outline_color[2]; \
-    vertex.m_OutlineColor[3] = outline_color[3]; \
-    vertex.m_ShadowColor[0] = shadow_color[0]; \
-    vertex.m_ShadowColor[1] = shadow_color[1]; \
-    vertex.m_ShadowColor[2] = shadow_color[2]; \
-    vertex.m_ShadowColor[3] = shadow_color[3]; \
+    PackColor(vertex.m_FaceColor, face_color); \
+    memcpy(vertex.m_OutlineColor, packed_outline_color, sizeof(vertex.m_OutlineColor)); \
+    memcpy(vertex.m_ShadowColor, packed_shadow_color, sizeof(vertex.m_ShadowColor)); \
     vertex.m_SdfParams[0] = sdf_edge_value; \
     vertex.m_SdfParams[1] = sdf_outline; \
     vertex.m_SdfParams[2] = sdf_smoothing; \
@@ -290,6 +317,9 @@ void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
 #undef SET_MASK
 }
 
+// Packs a gradient-colored glyph into the renderer's layer-major vertex buffer.
+// vertex_layer_stride is the distance between corresponding shadow, outline,
+// and face ranges; vertex_index selects the glyph within each range.
 void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
                                   float                      recip_w,
                                   float                      recip_h,
@@ -323,6 +353,8 @@ void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
     FontPackGlyphVertices4ColorsToLayers(glyph, recip_w, recip_h, cell_x, cell_y, cache_cell_max_ascent, cache_cell_padding, layer_count, transform, x, y, render_scale, face_colors, outline_color, shadow_color, sdf_edge_value, sdf_outline, sdf_smoothing, sdf_shadow, shadow_x, shadow_y, metrics_from_ttf, face_vertices, outline_vertices, shadow_vertices);
 }
 
+// Packs a glyph with one face color by forwarding that color to all four
+// corners of FontPackGlyphVertices4Colors.
 void FontPackGlyphVertices(FontGlyph*              glyph,
                            float                   recip_w,
                            float                   recip_h,
@@ -363,6 +395,11 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
     FontPackGlyphVertices4Colors(glyph, recip_w, recip_h, cell_x, cell_y, cache_cell_max_ascent, cache_cell_padding, layer_count, layer_mask, vertex_index, vertex_layer_stride, transform, x, y, render_scale, face_colors, outline_color, shadow_color, sdf_edge_value, sdf_outline, sdf_smoothing, sdf_shadow, shadow_x, shadow_y, metrics_from_ttf, vertices);
 }
 
+// Packs one line-decoration quad around the local-space center line from
+// (x0, y0) to (x1, y1). The quad samples a single opaque atlas texel and renders
+// only in the face layer. Pattern start/end are repeating shader coordinates;
+// pattern_duty is the visible fraction of a cycle, or zero for a solid line.
+// Hidden copies keep the layer-major vertex ranges aligned with glyph quads.
 void FontPackDecorationVertices(float                      texture_u,
                                 float                      texture_v,
                                 uint32_t                   layer_count,
@@ -400,7 +437,7 @@ void FontPackDecorationVertices(float                      texture_u,
         FontGlyphVertex& vertex = face[corners[i]];
         vertex.m_UV[0] = texture_u;
         vertex.m_UV[1] = texture_v;
-        memcpy(vertex.m_FaceColor, colors[i], sizeof(vertex.m_FaceColor));
+        PackColor(vertex.m_FaceColor, colors[i]);
         memset(vertex.m_OutlineColor, 0, sizeof(vertex.m_OutlineColor));
         memset(vertex.m_ShadowColor, 0, sizeof(vertex.m_ShadowColor));
         vertex.m_SdfParams[0] = 0.75f;

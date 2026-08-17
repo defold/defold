@@ -30,13 +30,14 @@ enum FontRenderLayerMask
 
 struct FontGlyphVertex
 {
-    float m_Position[3];
-    float m_UV[2];
-    float m_FaceColor[4];
-    float m_OutlineColor[4];
-    float m_ShadowColor[4];
-    float m_SdfParams[4];
-    float m_LayerMasks[3];
+    float    m_Position[3];
+    float    m_UV[2];
+    // The vertex declaration expands these normalized bytes to vec4 inputs.
+    uint8_t  m_FaceColor[4];
+    uint8_t  m_OutlineColor[4];
+    uint8_t  m_ShadowColor[4];
+    float    m_SdfParams[4];
+    float    m_LayerMasks[3];
 };
 
 struct TextGlyphFaceColors;
@@ -49,7 +50,7 @@ struct FontDecorationPattern
     float m_Duty;
 };
 
-// Packs one glyph quad per active font layer using a single face color.
+// Packs a glyph with a single face color into a layer-major vertex buffer.
 void FontPackGlyphVertices(FontGlyph*              glyph,
                            float                   recip_w,
                            float                   recip_h,
@@ -77,7 +78,7 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
                            bool                    metrics_from_ttf,
                            FontGlyphVertex*        vertices);
 
-// Packs one glyph quad per active font layer with independent corner colors.
+// Packs a glyph with independent corner colors into a layer-major vertex buffer.
 void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
                                   float                      recip_w,
                                   float                      recip_h,
@@ -105,8 +106,8 @@ void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
                                   bool                       metrics_from_ttf,
                                   FontGlyphVertex*           vertices);
 
-// Packs a glyph directly into compact, independently sized layer ranges.
-// The face output is required; outline and shadow outputs may be null.
+// Packs one six-vertex glyph quad into each requested output layer. The face
+// output is required; outline and shadow outputs may be null.
 void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
                                           float                      recip_w,
                                           float                      recip_h,
@@ -133,7 +134,8 @@ void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
                                           FontGlyphVertex*           outline_vertices,
                                           FontGlyphVertex*           shadow_vertices);
 
-// Packs a face-only line-decoration quad and its procedural dash parameters.
+// Packs a face-only line-decoration quad around the supplied center line.
+// Pattern positions are in cycles; a zero duty produces a solid line.
 void FontPackDecorationVertices(float                      texture_u,
                                 float                      texture_v,
                                 uint32_t                   layer_count,
@@ -151,16 +153,16 @@ void FontPackDecorationVertices(float                      texture_u,
                                 const TextGlyphFaceColors& face_colors,
                                 FontGlyphVertex*           vertices);
 
-// Returns whether per-glyph styling prevents this decoration from using one quad.
+// Returns whether the decoration must be split to preserve per-glyph styling.
 bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration);
 
 // Returns the number of quads required to preserve the decoration's styling.
 uint32_t FontGetDecorationQuadCount(HTextLayout layout, const TextDecoration& decoration);
 
-// Resolves the procedural dash coordinates for one decoration segment.
+// Resolves shader pattern coordinates for one of the decoration's segments.
 void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment_index, uint32_t segment_count, FontDecorationPattern* pattern);
 
-// Resolves the left and right decoration colors from its associated glyphs.
+// Resolves decoration corner colors from its geometrically outermost glyphs.
 void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors);
 
 #endif // DM_FONT_GLYPH_VERTEX_H

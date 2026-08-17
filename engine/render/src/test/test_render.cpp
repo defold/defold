@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <stddef.h>
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -2098,9 +2099,9 @@ TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
 
     for (uint32_t i = 0; i < 6; ++i)
     {
-        ASSERT_EQ(1.0f, vertices[i].m_OutlineColor[3]);
+        ASSERT_EQ(255u, vertices[i].m_OutlineColor[3]);
         ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[1]);
-        ASSERT_EQ(0.0f, vertices[12 + i].m_OutlineColor[3]);
+        ASSERT_EQ(0u, vertices[12 + i].m_OutlineColor[3]);
         ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[1]);
     }
 
@@ -2135,10 +2136,10 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
     FontGlyphVertex vertices[256];
     const uint32_t vertex_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices));
     ASSERT_GT(vertex_count, 0u);
-    ASSERT_EQ(1.0f, vertices[0].m_OutlineColor[0]);
-    ASSERT_EQ(1.0f, vertices[0].m_OutlineColor[1]);
-    ASSERT_EQ(1.0f, vertices[0].m_OutlineColor[2]);
-    ASSERT_EQ(1.0f, vertices[0].m_OutlineColor[3]);
+    ASSERT_EQ(255u, vertices[0].m_OutlineColor[0]);
+    ASSERT_EQ(255u, vertices[0].m_OutlineColor[1]);
+    ASSERT_EQ(255u, vertices[0].m_OutlineColor[2]);
+    ASSERT_EQ(255u, vertices[0].m_OutlineColor[3]);
 
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
@@ -2182,10 +2183,10 @@ TEST_F(dmRenderTest, MarkupShadowLayerOnlyCoversSpan)
 
     for (uint32_t i = 0; i < 6; ++i)
     {
-        ASSERT_EQ(1.0f, vertices[i].m_ShadowColor[3]);
+        ASSERT_EQ(255u, vertices[i].m_ShadowColor[3]);
         ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[2]);
         ASSERT_EQ(vertices[6 + i].m_Position[0] + 3.0f, vertices[i].m_Position[0]);
-        ASSERT_EQ(0.0f, vertices[12 + i].m_ShadowColor[3]);
+        ASSERT_EQ(0u, vertices[12 + i].m_ShadowColor[3]);
         ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[2]);
     }
 
@@ -2323,10 +2324,10 @@ TEST_F(dmRenderTest, MarkupUnderlineGeneratesGradientVertices)
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), vertex_count);
     ASSERT_GT(vertices[8].m_Position[1], vertices[6].m_Position[1]);
     ASSERT_EQ(1.0f, vertices[6].m_LayerMasks[0]);
-    ASSERT_EQ(1.0f, vertices[6].m_FaceColor[0]);
-    ASSERT_EQ(0.0f, vertices[6].m_FaceColor[2]);
-    ASSERT_EQ(0.0f, vertices[7].m_FaceColor[0]);
-    ASSERT_EQ(1.0f, vertices[7].m_FaceColor[2]);
+    ASSERT_EQ(255u, vertices[6].m_FaceColor[0]);
+    ASSERT_EQ(0u, vertices[6].m_FaceColor[2]);
+    ASSERT_EQ(0u, vertices[7].m_FaceColor[0]);
+    ASSERT_EQ(255u, vertices[7].m_FaceColor[2]);
 
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
@@ -2463,9 +2464,9 @@ TEST_F(dmRenderTest, MarkupAnimatedSpanGradientUsesOneFinalVertexColor)
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
     const uint32_t before_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, before, DM_ARRAY_SIZE(before));
     ASSERT_GT(before_count, 0u);
-    ASSERT_EQ(1.0f, before[0].m_FaceColor[0]);
-    ASSERT_EQ(0.0f, before[0].m_FaceColor[1]);
-    ASSERT_EQ(1.0f, before[0].m_FaceColor[2]);
+    ASSERT_EQ(255u, before[0].m_FaceColor[0]);
+    ASSERT_EQ(0u, before[0].m_FaceColor[1]);
+    ASSERT_EQ(255u, before[0].m_FaceColor[2]);
 
     for (uint32_t i = 1; i < before_count; ++i)
     {
@@ -2478,9 +2479,9 @@ TEST_F(dmRenderTest, MarkupAnimatedSpanGradientUsesOneFinalVertexColor)
     const uint32_t after_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, after, DM_ARRAY_SIZE(after));
     m_SystemFontMap->m_LayerMask = old_layer_mask;
     ASSERT_EQ(before_count, after_count);
-    ASSERT_EQ(1.0f, after[0].m_FaceColor[0]);
-    ASSERT_EQ(0.5f, after[0].m_FaceColor[1]);
-    ASSERT_EQ(1.0f, after[0].m_FaceColor[2]);
+    ASSERT_EQ(255u, after[0].m_FaceColor[0]);
+    ASSERT_EQ(127u, after[0].m_FaceColor[1]);
+    ASSERT_EQ(255u, after[0].m_FaceColor[2]);
 
     for (uint32_t i = 1; i < after_count; ++i)
     {
@@ -2748,6 +2749,22 @@ TEST_F(dmRenderTest, FontVertexDeclaration)
 {
     ASSERT_NE((dmGraphics::HVertexDeclaration)0, m_Context->m_TextContext.m_VertexDecl);
     ASSERT_EQ(sizeof(FontGlyphVertex), dmGraphics::GetVertexDeclarationStride(m_Context->m_TextContext.m_VertexDecl));
+
+    dmGraphics::VertexDeclaration* declaration = (dmGraphics::VertexDeclaration*)m_Context->m_TextContext.m_VertexDecl;
+    ASSERT_EQ(7u, declaration->m_StreamCount);
+    for (uint32_t i = 2; i <= 4; ++i)
+    {
+        ASSERT_EQ(4u, declaration->m_Streams[i].m_Size);
+        ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_BYTE, declaration->m_Streams[i].m_Type);
+        ASSERT_TRUE(declaration->m_Streams[i].m_Normalize);
+    }
+
+    ASSERT_EQ(offsetof(FontGlyphVertex, m_UV), declaration->m_Streams[1].m_Offset);
+    ASSERT_EQ(offsetof(FontGlyphVertex, m_FaceColor), declaration->m_Streams[2].m_Offset);
+    ASSERT_EQ(offsetof(FontGlyphVertex, m_OutlineColor), declaration->m_Streams[3].m_Offset);
+    ASSERT_EQ(offsetof(FontGlyphVertex, m_ShadowColor), declaration->m_Streams[4].m_Offset);
+    ASSERT_EQ(offsetof(FontGlyphVertex, m_SdfParams), declaration->m_Streams[5].m_Offset);
+    ASSERT_EQ(offsetof(FontGlyphVertex, m_LayerMasks), declaration->m_Streams[6].m_Offset);
 }
 
 // TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
