@@ -1150,22 +1150,22 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
         if (x <= min_x)
         {
             min_x = x;
-            uv_at_min_x = vertex.m_UV[0];
+            uv_at_min_x = FontUnpackGlyphUV(vertex.m_UV[0]);
         }
         if (x >= max_x)
         {
             max_x = x;
-            uv_at_max_x = vertex.m_UV[0];
+            uv_at_max_x = FontUnpackGlyphUV(vertex.m_UV[0]);
         }
         if (y <= min_y)
         {
             min_y = y;
-            uv_at_min_y = vertex.m_UV[1];
+            uv_at_min_y = FontUnpackGlyphUV(vertex.m_UV[1]);
         }
         if (y >= max_y)
         {
             max_y = y;
-            uv_at_max_y = vertex.m_UV[1];
+            uv_at_max_y = FontUnpackGlyphUV(vertex.m_UV[1]);
         }
     }
     const float clip_max_x = clip_box.m_X + clip_box.m_Width;
@@ -1188,8 +1188,8 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
         const float      y = (vertex.m_Position[1] + 1.0f) * WINDOW_HEIGHT * 0.5f;
         const float      clipped_x = dmMath::Max(clip_box.m_X, dmMath::Min(clip_max_x, x));
         const float      clipped_y = dmMath::Max(clip_box.m_Y, dmMath::Min(clip_max_y, y));
-        vertex.m_UV[0] = uv_at_min_x + (clipped_x - min_x) * (uv_at_max_x - uv_at_min_x) / (max_x - min_x);
-        vertex.m_UV[1] = uv_at_min_y + (clipped_y - min_y) * (uv_at_max_y - uv_at_min_y) / (max_y - min_y);
+        vertex.m_UV[0] = FontPackGlyphUV(uv_at_min_x + (clipped_x - min_x) * (uv_at_max_x - uv_at_min_x) / (max_x - min_x));
+        vertex.m_UV[1] = FontPackGlyphUV(uv_at_min_y + (clipped_y - min_y) * (uv_at_max_y - uv_at_min_y) / (max_y - min_y));
         vertex.m_Position[0] = 2.0f * clipped_x / WINDOW_WIDTH - 1.0f;
         vertex.m_Position[1] = 2.0f * clipped_y / WINDOW_HEIGHT - 1.0f;
     }

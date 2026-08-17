@@ -149,7 +149,7 @@
 
 (vtx/defvertex ^:private ^:no-put NativeFontVertex
   (vec3 position)
-  (vec2 texcoord0)
+  (vec2.ushort texcoord0 true)
   (vec4.ubyte face_color true)
   (vec4.ubyte outline_color true)
   (vec4.ubyte shadow_color true)

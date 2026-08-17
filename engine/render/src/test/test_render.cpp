@@ -2752,6 +2752,9 @@ TEST_F(dmRenderTest, FontVertexDeclaration)
 
     dmGraphics::VertexDeclaration* declaration = (dmGraphics::VertexDeclaration*)m_Context->m_TextContext.m_VertexDecl;
     ASSERT_EQ(7u, declaration->m_StreamCount);
+    ASSERT_EQ(2u, declaration->m_Streams[1].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_SHORT, declaration->m_Streams[1].m_Type);
+    ASSERT_TRUE(declaration->m_Streams[1].m_Normalize);
     for (uint32_t i = 2; i <= 4; ++i)
     {
         ASSERT_EQ(4u, declaration->m_Streams[i].m_Size);

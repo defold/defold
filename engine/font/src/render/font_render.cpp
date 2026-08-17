@@ -20,7 +20,7 @@ dmGraphics::HVertexDeclaration FontCreateGlyphVertexDeclaration(dmGraphics::HCon
 {
     dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
     dmGraphics::AddVertexStream(streams, "position", 3, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(streams, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(streams, "texcoord0", 2, dmGraphics::TYPE_UNSIGNED_SHORT, true);
     dmGraphics::AddVertexStream(streams, "face_color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);
     dmGraphics::AddVertexStream(streams, "outline_color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);
     dmGraphics::AddVertexStream(streams, "shadow_color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);

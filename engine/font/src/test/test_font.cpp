@@ -441,9 +441,19 @@ TEST_F(FontTest, GlyphChannelCountMatchesOutputMode)
     ASSERT_EQ(3u, FontGetGlyphChannelCount(true, false, true, 0.0f));
 }
 
+TEST_F(FontTest, GlyphUVPacking)
+{
+    const float uv = 1234.5f / 4096.0f;
+    const float max_error = 0.5f / 65535.0f;
+
+    ASSERT_EQ(0u, FontPackGlyphUV(0.0f));
+    ASSERT_EQ(UINT16_MAX, FontPackGlyphUV(1.0f));
+    ASSERT_NEAR(uv, FontUnpackGlyphUV(FontPackGlyphUV(uv)), max_error + 0.0000001f);
+}
+
 TEST_F(FontTest, PackLayeredGlyphVertices)
 {
-    ASSERT_EQ(60u, sizeof(FontGlyphVertex));
+    ASSERT_EQ(56u, sizeof(FontGlyphVertex));
 
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
@@ -484,10 +494,10 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     ASSERT_EQ(127u, vertices[5].m_FaceColor[1]);
     ASSERT_EQ(255u, vertices[5].m_FaceColor[2]);
     const float base_vertex_width = vertices[1].m_Position[0] - vertices[0].m_Position[0];
-    const float base_u_width = vertices[1].m_UV[0] - vertices[0].m_UV[0];
+    const float base_u_width = FontUnpackGlyphUV(vertices[1].m_UV[0]) - FontUnpackGlyphUV(vertices[0].m_UV[0]);
     FontPackGlyphVertices4Colors(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 1, FONT_RENDER_LAYER_FACE, 0, 6, transform, 0.0f, 0.0f, 2.0f, gradient_colors, black, black, 0.75f, 0.5f, 0.05f, 0.25f, 0.0f, 0.0f, true, vertices);
     ASSERT_NEAR(base_vertex_width * 2.0f, vertices[1].m_Position[0] - vertices[0].m_Position[0], 0.0001f);
-    ASSERT_NEAR(base_u_width, vertices[1].m_UV[0] - vertices[0].m_UV[0], 0.0001f);
+    ASSERT_NEAR(base_u_width, FontUnpackGlyphUV(vertices[1].m_UV[0]) - FontUnpackGlyphUV(vertices[0].m_UV[0]), 0.0001f);
     FontFreeGlyph(m_Font, &glyph);
 }
 

@@ -52,6 +52,12 @@ static void PackColor(uint8_t* packed, const Vector4& color)
     packed[3] = (uint8_t)(color[3] * 255.0f);
 }
 
+// Packs an atlas texel coordinate using a pre-scaled reciprocal dimension.
+static uint16_t PackTexelCoordinate(float coordinate, float packed_reciprocal)
+{
+    return (uint16_t)(coordinate * packed_reciprocal + 0.5f);
+}
+
 // A decoration can use one quad when its color is constant or varies only
 // across the complete span. Split it at glyph boundaries when glyphs refer to
 // different styles/spans, or when a glyph-fitted gradient must be preserved.
@@ -239,12 +245,14 @@ void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
     SetPosition(face_3.m_Position, transform * Vector4(local_x + glyph_left_bearing, y + glyph_ascent, 0, 1));
     SetPosition(face_6.m_Position, transform * Vector4(local_x + glyph_left_bearing + glyph_width, y + glyph_ascent, 0, 1));
 
-    face_1.m_UV[0] = (cell_x + cache_cell_padding) * recip_w;
-    face_1.m_UV[1] = (cell_y + cache_cell_padding + ascent + descent + cell_offset_y) * recip_h;
-    face_2.m_UV[0] = (cell_x + cache_cell_padding + width) * recip_w;
+    const float packed_recip_w = recip_w * 65535.0f;
+    const float packed_recip_h = recip_h * 65535.0f;
+    face_1.m_UV[0] = PackTexelCoordinate(cell_x + cache_cell_padding, packed_recip_w);
+    face_1.m_UV[1] = PackTexelCoordinate(cell_y + cache_cell_padding + ascent + descent + cell_offset_y, packed_recip_h);
+    face_2.m_UV[0] = PackTexelCoordinate(cell_x + cache_cell_padding + width, packed_recip_w);
     face_2.m_UV[1] = face_1.m_UV[1];
     face_3.m_UV[0] = face_1.m_UV[0];
-    face_3.m_UV[1] = (cell_y + cache_cell_padding + cell_offset_y) * recip_h;
+    face_3.m_UV[1] = PackTexelCoordinate(cell_y + cache_cell_padding + cell_offset_y, packed_recip_h);
     face_6.m_UV[0] = face_2.m_UV[0];
     face_6.m_UV[1] = face_3.m_UV[1];
 
@@ -431,12 +439,14 @@ void FontPackDecorationVertices(float                      texture_u,
     SetPosition(face[5].m_Position, transform * Vector4(x1 + normal_x, y1 + normal_y, 0, 1));
     const float* colors[4] = { face_colors.m_BottomLeft, face_colors.m_BottomRight, face_colors.m_TopLeft, face_colors.m_TopRight };
     const uint32_t corners[4] = { 0, 1, 2, 5 };
+    const uint16_t packed_texture_u = FontPackGlyphUV(texture_u);
+    const uint16_t packed_texture_v = FontPackGlyphUV(texture_v);
 
     for (uint32_t i = 0; i < 4; ++i)
     {
         FontGlyphVertex& vertex = face[corners[i]];
-        vertex.m_UV[0] = texture_u;
-        vertex.m_UV[1] = texture_v;
+        vertex.m_UV[0] = packed_texture_u;
+        vertex.m_UV[1] = packed_texture_v;
         PackColor(vertex.m_FaceColor, colors[i]);
         memset(vertex.m_OutlineColor, 0, sizeof(vertex.m_OutlineColor));
         memset(vertex.m_ShadowColor, 0, sizeof(vertex.m_ShadowColor));

@@ -28,10 +28,23 @@ enum FontRenderLayerMask
     FONT_RENDER_LAYER_SHADOW = 0x4,
 };
 
+// Packs a normalized texture coordinate into the font vertex UV format.
+static inline uint16_t FontPackGlyphUV(float uv)
+{
+    return (uint16_t)(uv * 65535.0f + 0.5f);
+}
+
+// Expands a packed font vertex UV into a normalized texture coordinate.
+static inline float FontUnpackGlyphUV(uint16_t uv)
+{
+    return uv * (1.0f / 65535.0f);
+}
+
 struct FontGlyphVertex
 {
     float    m_Position[3];
-    float    m_UV[2];
+    // The vertex declaration expands these normalized shorts to a vec2 input.
+    uint16_t m_UV[2];
     // The vertex declaration expands these normalized bytes to vec4 inputs.
     uint8_t  m_FaceColor[4];
     uint8_t  m_OutlineColor[4];
