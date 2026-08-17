@@ -354,10 +354,7 @@
   {completion-item-tag-deprecated :deprecated})
 
 (def ^:private ^:const insert-text-mode-as-is 1)
-(def ^:private ^:const insert-text-mode-adjust-indentation 2)
-(def ^:private insert-text-mode:lsp->editor
-  {insert-text-mode-as-is :as-is
-   insert-text-mode-adjust-indentation :adjust-indentation})
+(def ^:private insert-text-mode-adjust-indentation 2)
 
 (def ^:private ^:const insert-text-format-plaintext 1)
 (def ^:private ^:const insert-text-format-snippet 2)
@@ -667,17 +664,14 @@
          insertTextFormat insert-text-format-plaintext}
     :as source}]
   (let [insert-text-format (insert-text-format:lsp->editor insertTextFormat)
-        editor-insert-text-mode (insert-text-mode:lsp->editor insertTextMode)
         text-edit (some-> textEdit text-edit:lsp->editor)]
     (vary-meta
       (code-completion/make
         (or filterText label)
         :display-string label
-        :insert (or (some-> text-edit (assoc :type insert-text-format
-                                             :insert-text-mode editor-insert-text-mode))
+        :insert (or (some-> text-edit (assoc :type insert-text-format))
                     {:type insert-text-format
-                     :value (or insertText label)
-                     :insert-text-mode editor-insert-text-mode})
+                     :value (or insertText label)})
         :commit-characters (set commitCharacters)
         :type (some-> kind completion-item-kind:lsp->editor)
         :detail detail

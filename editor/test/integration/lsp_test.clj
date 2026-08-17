@@ -201,17 +201,6 @@
 
 (def ^:private foo-json-lines ["{\"asd\": 1}"])
 
-(deftest completion-insert-text-mode-test
-  (are [completion-item expected-insert-text-mode]
-       (= expected-insert-text-mode
-          (get-in (#'lsp.server/completion-item:lsp->editor completion-item)
-                  [:insert :insert-text-mode]))
-    {:label "default"} :adjust-indentation
-    {:label "as-is"
-     :insertTextMode 1} :as-is
-    {:label "adjust"
-     :insertTextMode 2} :adjust-indentation))
-
 (deftest lua-configuration-includes-official-annotations-test
   (with-scratch-project "test/resources/lsp_project"
     (let [official-annotations-path (str (path/of "/defold"
@@ -352,8 +341,7 @@
                            (completion-items! "/scripts/player.script" "local hash_partial = \"#player-v"))]
           (is (= {:value "player-visual"
                   :cursor-range (data/->CursorRange (data/->Cursor 19 23) (data/->Cursor 19 31))
-                  :type :plaintext
-                  :insert-text-mode :adjust-indentation}
+                  :type :plaintext}
                  (:insert completion))))
         (is (= #{"controller" "player-visual"}
                (completion-labels! "/scripts/player.script" "local hash_punctuation = \"#player."))))
@@ -371,8 +359,7 @@
                            (completion-items! "/scripts/player.script" "local path_double = \"/pla"))]
           (is (= {:value "/player"
                   :cursor-range (data/->CursorRange (data/->Cursor 4 21) (data/->Cursor 4 25))
-                  :type :plaintext
-                  :insert-text-mode :adjust-indentation}
+                  :type :plaintext}
                  (:insert completion)))))
 
       (testing "Socket urls in scripts"
@@ -397,16 +384,14 @@
                            (completion-items! "/scripts/player.script" "local socket_double = \"world:/pla"))]
           (is (= {:value "world:/player"
                   :cursor-range (data/->CursorRange (data/->Cursor 6 23) (data/->Cursor 6 33))
-                  :type :plaintext
-                  :insert-text-mode :adjust-indentation}
+                  :type :plaintext}
                  (:insert completion))))
         (let [completion (coll/first-where
                            #(= "world:/player" (:display-string %))
                            (completion-items! "/scripts/player.script" "local socket_empty_double = \"world:"))]
           (is (= {:value "world:/player"
                   :cursor-range (data/->CursorRange (data/->Cursor 8 29) (data/->Cursor 8 35))
-                  :type :plaintext
-                  :insert-text-mode :adjust-indentation}
+                  :type :plaintext}
                  (:insert completion)))))
 
       (testing "Direct and transitive Lua module contexts"

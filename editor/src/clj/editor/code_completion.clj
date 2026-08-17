@@ -15,7 +15,6 @@
 (ns editor.code-completion
   (:require [clojure.spec.alpha :as s]
             [editor.code.data]
-            [editor.code.util :as code.util]
             [internal.util :as util]
             [util.fn :as fn])
   (:import [com.defold.editor LSPSnippetLexer LSPSnippetParser]
@@ -33,12 +32,10 @@
 (s/def :editor.code-completion.insert/type #{:snippet :plaintext})
 (s/def :editor.code-completion.insert/value string?)
 (s/def :editor.code-completion.insert/cursor-range #(instance? CursorRange %))
-(s/def :editor.code-completion.insert/insert-text-mode #{:as-is :adjust-indentation})
 (s/def ::insert
   (s/keys :req-un [:editor.code-completion.insert/type
                    :editor.code-completion.insert/value]
-          :opt-un [:editor.code-completion.insert/cursor-range
-                   :editor.code-completion.insert/insert-text-mode]))
+          :opt-un [:editor.code-completion.insert/cursor-range]))
 (s/def ::type
   #{;; defold-specific
     :message :typedef
@@ -85,8 +82,6 @@
                             :type            required, :plaintext or :snippet
                             :value           required, a string
                             :cursor-range    optional, document insertion range
-                            :insert-text-mode optional, :as-is or
-                                              :adjust-indentation
     :additional-edits     vector of additional plaintext changes to apply when
                           accepting the completion, e.g. adding a require/import
                           statement at the top of the file. a vector of maps
@@ -151,11 +146,7 @@
 (s/def ::tab-triggers (s/coll-of ::tab-trigger :kind vector?))
 (s/def ::insertion
   (s/keys :req-un [::insert-string]
-          :opt-un [::tab-triggers
-                   ::exit-ranges
-                   :editor.code-completion.insert/cursor-range
-                   :editor.code-completion.insert/insert-text-mode
-                   ::additional-edits]))
+          :opt-un [::tab-triggers ::exit-ranges :editor.code-completion.insert/cursor-range ::additional-edits]))
 
 (defn- ->ast [^ParseTree ctx rule-names]
   (if (instance? ParserRuleContext ctx)
@@ -326,51 +317,8 @@
                                             choice
                                             (assoc :choices choice))))))))))))))
 
-(defn- normalize-indentation
-  ^String [^String value ^String indent-string ^long tab-spaces]
-  (let [value-length (.length value)
-        indentation
-        (loop [index 0
-               visual-width 0]
-          (if-not (< index value-length)
-            [index visual-width]
-            (case (.charAt value index)
-              \space
-              (recur (inc index) (inc visual-width))
-
-              \tab
-              (let [visual-width-increase (- tab-spaces ^long (mod visual-width tab-spaces))]
-                (recur (inc index) (+ visual-width visual-width-increase)))
-
-              [index visual-width])))
-        ^long text-index (indentation 0)
-        ^long indent-width (indentation 1)
-
-        indent-level (quot indent-width tab-spaces)
-        indent-rest (mod indent-width tab-spaces)]
-    (str (.repeat indent-string (int indent-level))
-         (.repeat " " (int indent-rest))
-         (subs value text-index))))
-
-(defn- adjust-indentation
-  ^String [^String value ^String indent-string ^long tab-spaces ^String line-leading-whitespace]
-  (code.util/join-lines
-    (into []
-          (map-indexed
-            (fn [^long line-index line]
-              (normalize-indentation
-                (if (zero? line-index)
-                  line
-                  (str line-leading-whitespace line))
-                indent-string
-                tab-spaces)))
-          (code.util/split-lines value))))
-
 (defn insertion
   "Convert completion item to insertion item
-
-  indent-string, tab-spaces, and line-leading-whitespace are used to adapt
-  multiline completions whose insert text mode is :adjust-indentation.
 
   Returns a map with the following keys:
     :insert-string       required, the string to insert
@@ -390,30 +338,21 @@
     :cursor-range        optional, explicit document insertion range. When
                          present, only this range should be used even when there
                          are multiple cursor ranges
-    :insert-text-mode    optional, :as-is or :adjust-indentation
     :additional-edits    optional, vector of additional plaintext changes to
                          apply when accepting the completion, e.g. adding a
                          require/import statement at the top of the file. a
                          vector of maps with the following keys (all required):
                            :value           replacement string
                            :cursor-range    document replacement range"
-  [completion indent-string tab-spaces line-leading-whitespace]
-  {:pre [(s/assert ::completion completion)
-         (string? indent-string)
-         (pos-int? tab-spaces)
-         (string? line-leading-whitespace)]
+  [completion]
+  {:pre [(s/assert ::completion completion)]
    :post [(s/assert ::insertion %)]}
   (let [{:keys [insert additional-edits]} completion
-        {:keys [type value cursor-range insert-text-mode]} insert
-        value (if-not (= :adjust-indentation insert-text-mode)
-                value
-                (adjust-indentation value indent-string tab-spaces line-leading-whitespace))]
+        {:keys [type value cursor-range]} insert]
     (cond-> (case type
               :plaintext {:insert-string value}
               :snippet (evaluate-snippet value))
             cursor-range
             (assoc :cursor-range cursor-range)
-            insert-text-mode
-            (assoc :insert-text-mode insert-text-mode)
             additional-edits
             (assoc :additional-edits additional-edits))))
