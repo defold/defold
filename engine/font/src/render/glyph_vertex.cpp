@@ -35,6 +35,41 @@ static void SetPosition(float* position, const Vector4& value)
     position[2] = value[2];
 }
 
+struct QuadPositions
+{
+    Vector4 m_BottomLeft;
+    Vector4 m_BottomRight;
+    Vector4 m_TopLeft;
+    Vector4 m_TopRight;
+};
+
+// Transforms one quad origin and derives the other corners from its two edges.
+static void CalculateQuadPositions(const dmVMath::Matrix4& transform,
+                                   float                   origin_x,
+                                   float                   origin_y,
+                                   float                   edge_x_x,
+                                   float                   edge_x_y,
+                                   float                   edge_y_x,
+                                   float                   edge_y_y,
+                                   QuadPositions*          positions)
+{
+    const Vector4 transformed_edge_x = transform.getCol0() * edge_x_x + transform.getCol1() * edge_x_y;
+    const Vector4 transformed_edge_y = transform.getCol0() * edge_y_x + transform.getCol1() * edge_y_y;
+    positions->m_BottomLeft = transform * Vector4(origin_x, origin_y, 0.0f, 1.0f);
+    positions->m_BottomRight = positions->m_BottomLeft + transformed_edge_x;
+    positions->m_TopLeft = positions->m_BottomLeft + transformed_edge_y;
+    positions->m_TopRight = positions->m_BottomRight + transformed_edge_y;
+}
+
+// Writes the four unique corners used by a six-vertex triangle-list quad.
+static void SetQuadPositions(FontGlyphVertex* vertices, const QuadPositions& positions)
+{
+    SetPosition(vertices[0].m_Position, positions.m_BottomLeft);
+    SetPosition(vertices[1].m_Position, positions.m_BottomRight);
+    SetPosition(vertices[2].m_Position, positions.m_TopLeft);
+    SetPosition(vertices[5].m_Position, positions.m_TopRight);
+}
+
 // Converts a unit RGBA color to the normalized byte format used by the GPU.
 static void PackColor(uint8_t* packed, const float* color)
 {
@@ -240,10 +275,9 @@ void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
     FontGlyphVertex& face_5 = face_vertices[4];
     FontGlyphVertex& face_6 = face_vertices[5];
 
-    SetPosition(face_1.m_Position, transform * Vector4(local_x + glyph_left_bearing, y - glyph_descent, 0, 1));
-    SetPosition(face_2.m_Position, transform * Vector4(local_x + glyph_left_bearing + glyph_width, y - glyph_descent, 0, 1));
-    SetPosition(face_3.m_Position, transform * Vector4(local_x + glyph_left_bearing, y + glyph_ascent, 0, 1));
-    SetPosition(face_6.m_Position, transform * Vector4(local_x + glyph_left_bearing + glyph_width, y + glyph_ascent, 0, 1));
+    QuadPositions face_positions;
+    CalculateQuadPositions(transform, local_x + glyph_left_bearing, y - glyph_descent, glyph_width, 0.0f, 0.0f, glyph_ascent + glyph_descent, &face_positions);
+    SetQuadPositions(face_vertices, face_positions);
 
     const float packed_recip_w = recip_w * 65535.0f;
     const float packed_recip_h = recip_h * 65535.0f;
@@ -298,18 +332,17 @@ void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
         for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
             shadow_vertices[i] = face_vertices[i];
 
-        FontGlyphVertex& shadow_1 = shadow_vertices[0];
-        FontGlyphVertex& shadow_2 = shadow_vertices[1];
-        FontGlyphVertex& shadow_3 = shadow_vertices[2];
         FontGlyphVertex& shadow_4 = shadow_vertices[3];
         FontGlyphVertex& shadow_5 = shadow_vertices[4];
-        FontGlyphVertex& shadow_6 = shadow_vertices[5];
-        SetPosition(shadow_1.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x, y - glyph_descent + shadow_y, 0, 1));
-        SetPosition(shadow_2.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x + glyph_width, y - glyph_descent + shadow_y, 0, 1));
-        SetPosition(shadow_3.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x, y + glyph_ascent + shadow_y, 0, 1));
-        SetPosition(shadow_6.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x + glyph_width, y + glyph_ascent + shadow_y, 0, 1));
-        shadow_4 = shadow_3;
-        shadow_5 = shadow_2;
+        const Vector4    shadow_offset = transform.getCol0() * shadow_x + transform.getCol1() * shadow_y;
+        QuadPositions    shadow_positions;
+        shadow_positions.m_BottomLeft = face_positions.m_BottomLeft + shadow_offset;
+        shadow_positions.m_BottomRight = face_positions.m_BottomRight + shadow_offset;
+        shadow_positions.m_TopLeft = face_positions.m_TopLeft + shadow_offset;
+        shadow_positions.m_TopRight = face_positions.m_TopRight + shadow_offset;
+        SetQuadPositions(shadow_vertices, shadow_positions);
+        shadow_4 = shadow_vertices[2];
+        shadow_5 = shadow_vertices[1];
         for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
         {
             SET_MASK(shadow_vertices[i], 0, 0, 1)
@@ -433,10 +466,9 @@ void FontPackDecorationVertices(float                      texture_u,
     const float normal_scale = length > 0.0f ? thickness * 0.5f / length : 0.0f;
     const float normal_x = -delta_y * normal_scale;
     const float normal_y = delta_x * normal_scale;
-    SetPosition(face[0].m_Position, transform * Vector4(x0 - normal_x, y0 - normal_y, 0, 1));
-    SetPosition(face[1].m_Position, transform * Vector4(x1 - normal_x, y1 - normal_y, 0, 1));
-    SetPosition(face[2].m_Position, transform * Vector4(x0 + normal_x, y0 + normal_y, 0, 1));
-    SetPosition(face[5].m_Position, transform * Vector4(x1 + normal_x, y1 + normal_y, 0, 1));
+    QuadPositions positions;
+    CalculateQuadPositions(transform, x0 - normal_x, y0 - normal_y, delta_x, delta_y, normal_x * 2.0f, normal_y * 2.0f, &positions);
+    SetQuadPositions(face, positions);
     const float* colors[4] = { face_colors.m_BottomLeft, face_colors.m_BottomRight, face_colors.m_TopLeft, face_colors.m_TopRight };
     const uint32_t corners[4] = { 0, 1, 2, 5 };
     const uint16_t packed_texture_u = FontPackGlyphUV(texture_u);

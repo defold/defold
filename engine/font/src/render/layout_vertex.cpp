@@ -128,13 +128,17 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         return false;
     }
 
-    uint32_t   glyph_quad_count = 0;
-    uint32_t   outline_quad_count = 0;
-    uint32_t   shadow_quad_count = 0;
-    uint32_t   object_quad_count = 0;
-    TextGlyph* glyphs = TextLayoutGetGlyphs(config.m_Layout);
+    uint32_t       glyph_quad_count = 0;
+    uint32_t       outline_quad_count = 0;
+    uint32_t       shadow_quad_count = 0;
+    uint32_t       object_quad_count = 0;
+    TextGlyph*     glyphs = TextLayoutGetGlyphs(config.m_Layout);
+    const uint32_t glyph_count = TextLayoutGetGlyphCount(config.m_Layout);
+    uint16_t       cached_style_index = 0;
+    uint8_t        cached_layer_mask = 0;
+    bool           has_cached_layer_mask = false;
 
-    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(config.m_Layout); ++i)
+    for (uint32_t i = 0; i < glyph_count; ++i)
     {
         const TextGlyph& text_glyph = glyphs[i];
 
@@ -144,17 +148,24 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         }
         else if (IsRenderableGlyph(config, text_glyph))
         {
-            const uint8_t glyph_layer_mask = GetGlyphLayerMask(config, text_glyph);
+            if (!has_cached_layer_mask || cached_style_index != text_glyph.m_StyleIndex)
+            {
+                cached_style_index = text_glyph.m_StyleIndex;
+                cached_layer_mask = GetGlyphLayerMask(config, text_glyph);
+                has_cached_layer_mask = true;
+            }
+
             ++glyph_quad_count;
-            outline_quad_count += (glyph_layer_mask & FONT_RENDER_LAYER_OUTLINE) != 0;
-            shadow_quad_count += (glyph_layer_mask & FONT_RENDER_LAYER_SHADOW) != 0;
+            outline_quad_count += (cached_layer_mask & FONT_RENDER_LAYER_OUTLINE) != 0;
+            shadow_quad_count += (cached_layer_mask & FONT_RENDER_LAYER_SHADOW) != 0;
         }
     }
 
     uint32_t              decoration_quad_count = 0;
     const TextDecoration* decorations = TextLayoutGetDecorations(config.m_Layout);
+    const uint32_t        decoration_count = TextLayoutGetDecorationCount(config.m_Layout);
 
-    for (uint32_t i = 0; config.m_RenderDecorations && i < TextLayoutGetDecorationCount(config.m_Layout); ++i)
+    for (uint32_t i = 0; config.m_RenderDecorations && i < decoration_count; ++i)
     {
         decoration_quad_count += FontGetDecorationQuadCount(config.m_Layout, decorations[i]);
     }
@@ -175,7 +186,7 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         output_shadow_count = 0;
         uint32_t used_quad_count = 0;
 
-        for (uint32_t i = 0; i < TextLayoutGetGlyphCount(config.m_Layout); ++i)
+        for (uint32_t i = 0; i < glyph_count; ++i)
         {
             const TextGlyph& text_glyph = glyphs[i];
 
@@ -372,8 +383,9 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
     uint32_t             emitted_shadows = 0;
     uint32_t             emitted_objects = 0;
     GlyphRenderDataCache render_data_cache = {};
+    const uint32_t       line_count = TextLayoutGetLineCount(config.m_Layout);
 
-    for (uint32_t line_index = 0; line_index < TextLayoutGetLineCount(config.m_Layout); ++line_index)
+    for (uint32_t line_index = 0; line_index < line_count; ++line_index)
     {
         const TextLine& line = lines[line_index];
 
@@ -508,9 +520,12 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
     // styling. Position effects remain on glyphs and do not move decorations.
     const TextDecoration* decorations = TextLayoutGetDecorations(config.m_Layout);
     const uint32_t        decoration_vertex_index = face_vertex_index;
+    const uint32_t        decoration_count = TextLayoutGetDecorationCount(config.m_Layout);
     uint32_t              emitted_decorations = 0;
+    uint32_t              cached_line_index = UINT32_MAX;
+    float                 cached_first_x = 0.0f;
 
-    for (uint32_t decoration_index = 0; config.m_RenderDecorations && decoration_index < TextLayoutGetDecorationCount(config.m_Layout) && emitted_decorations < metrics.m_DecorationQuadCount; ++decoration_index)
+    for (uint32_t decoration_index = 0; config.m_RenderDecorations && decoration_index < decoration_count && emitted_decorations < metrics.m_DecorationQuadCount; ++decoration_index)
     {
         const TextDecoration& decoration = decorations[decoration_index];
         const TextLine&       line = lines[decoration.m_LineIndex];
@@ -520,11 +535,15 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             continue;
         }
 
-        float first_x = glyphs[line.m_Index].m_X;
-
-        for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
+        if (cached_line_index != decoration.m_LineIndex)
         {
-            first_x = dmMath::Min(first_x, glyphs[i].m_X);
+            cached_line_index = decoration.m_LineIndex;
+            cached_first_x = glyphs[line.m_Index].m_X;
+
+            for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
+            {
+                cached_first_x = dmMath::Min(cached_first_x, glyphs[i].m_X);
+            }
         }
 
         const float         line_x = GetLineStartX(config, line, paragraphs[line.m_ParagraphIndex].m_Direction);
@@ -554,7 +573,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                 colors = decoration_colors;
             }
 
-            const float           x0 = line_x + decoration.m_X - first_x + segment_length * segment;
+            const float           x0 = line_x + decoration.m_X - cached_first_x + segment_length * segment;
             FontDecorationPattern pattern;
             FontGetDecorationPattern(decoration, segment, segment_count, &pattern);
             FontPackDecorationVertices(config.m_DecorationU, config.m_DecorationV, 1, face_vertex_index, 0, config.m_Transform, x0, line_y + decoration.m_Y, x0 + segment_length, line_y + decoration.m_Y, decoration.m_Thickness, pattern.m_Start, pattern.m_End, pattern.m_Duty, colors, vertices);
