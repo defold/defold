@@ -141,6 +141,7 @@ public class ShaderProgramBuilderEditor {
             }
 
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
+            compileResult.setShaderSourcePaths(shaderModuleDescsArrayList);
 
             for(Graphics.ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
                 SPIRVReflector reflector = pipeline.getReflectionData(type);

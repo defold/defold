@@ -323,6 +323,7 @@ public class ShaderCompilers {
 
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
+            compileResult.setShaderSourcePaths(shaderModules);
 
             for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
                 compileResult.reflectors.add(pipeline.getReflectionData(type));
