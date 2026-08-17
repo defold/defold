@@ -2335,7 +2335,17 @@ static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration 
     context->m_VertexDeclaration[binding_index].m_StepFunction = declaration->m_StepFunction;
     context->m_VertexDeclaration[binding_index].m_PipelineHash = declaration->m_PipelineHash;
 
-    context->m_CurrentVertexDeclaration[binding_index] = &context->m_VertexDeclaration[binding_index];
+    context->m_CurrentVertexDeclaration[binding_index]  = &context->m_VertexDeclaration[binding_index];
+    context->m_CurrentVertexBufferOffsets[binding_index] = base_offset;
+
+    dmArray<VertexDeclaration::Stream>& streams = context->m_VertexDeclarationStreams[binding_index];
+    if (streams.Capacity() < declaration->m_StreamCount)
+    {
+        streams.SetCapacity(declaration->m_StreamCount);
+    }
+    streams.SetSize(declaration->m_StreamCount);
+    memset(streams.Begin(), 0, sizeof(VertexDeclaration::Stream) * declaration->m_StreamCount);
+    context->m_VertexDeclaration[binding_index].m_Streams = streams.Begin();
 
     uint32_t stream_ix = 0;
     uint32_t num_inputs = program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
@@ -2372,7 +2382,10 @@ static void WebGPUDisableVertexDeclaration(HContext _context, HVertexDeclaration
     for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
         if (context->m_CurrentVertexDeclaration[i] == ((VertexDeclaration*)declaration))
-            context->m_CurrentVertexDeclaration[i] = 0;
+        {
+            context->m_CurrentVertexDeclaration[i]  = 0;
+            context->m_CurrentVertexBufferOffsets[i] = 0;
+        }
     }
 }
 
@@ -2601,11 +2614,17 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
     // Set the vertexbuffer(s)
     for (int slot = 0; slot < MAX_VERTEX_BUFFERS; ++slot)
     {
-        if (context->m_CurrentVertexBuffers[slot] && context->m_CurrentVertexBuffers[slot]->m_Buffer != context->m_CurrentRenderPass.m_VertexBuffers[slot])
+        WebGPUBuffer* vertex_buffer = context->m_CurrentVertexBuffers[slot];
+        const uint64_t buffer_offset = context->m_CurrentVertexBufferOffsets[slot];
+        if (vertex_buffer &&
+            (vertex_buffer->m_Buffer != context->m_CurrentRenderPass.m_VertexBuffers[slot] ||
+             buffer_offset != context->m_CurrentRenderPass.m_VertexBufferOffsets[slot]))
         {
-            wgpuRenderPassEncoderSetVertexBuffer(context->m_CurrentRenderPass.m_Encoder, slot, context->m_CurrentVertexBuffers[slot]->m_Buffer, 0, context->m_CurrentVertexBuffers[slot]->m_Used);
-            context->m_CurrentRenderPass.m_VertexBuffers[slot] = context->m_CurrentVertexBuffers[slot]->m_Buffer;
-            context->m_CurrentVertexBuffers[slot]->m_LastRenderPass = context->m_RenderPasses;
+            assert(buffer_offset <= vertex_buffer->m_Used);
+            wgpuRenderPassEncoderSetVertexBuffer(context->m_CurrentRenderPass.m_Encoder, slot, vertex_buffer->m_Buffer, buffer_offset, vertex_buffer->m_Used - buffer_offset);
+            context->m_CurrentRenderPass.m_VertexBuffers[slot]       = vertex_buffer->m_Buffer;
+            context->m_CurrentRenderPass.m_VertexBufferOffsets[slot] = buffer_offset;
+            vertex_buffer->m_LastRenderPass = context->m_RenderPasses;
         }
     }
 
