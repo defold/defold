@@ -229,18 +229,22 @@ namespace dmSys
 
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
     {
-        // find first separator ("-" or "_")
-        size_t lang_len = lang ? strlen(lang) : 0;
+        // POSIX locale names use <language>[_<territory>][.<codeset>][@<modifier>].
+        // Ignore the codeset and modifier before parsing the language tag.
+        size_t lang_len = lang ? strcspn(lang, ".@") : 0;
         if(lang_len == 0)
         {
             lang = "en_US";
             lang_len = strlen(lang);
             dmLogWarning("Invalid language parameter (empty field), using default: \"%s\"", lang);
         }
+        const char* lang_end = lang + lang_len;
+
+        // Find the first and last separator ("-" or "_") in the cleaned locale name.
         const char* sep_first = lang;
-        while((*sep_first) && (*sep_first != '-') && (*sep_first != '_'))
+        while((sep_first != lang_end) && (*sep_first != '-') && (*sep_first != '_'))
             ++sep_first;
-        const char* sep_last = lang + lang_len;
+        const char* sep_last = lang_end;
         while((sep_last != sep_first) && (*sep_last != '-') && (*sep_last != '_'))
             --sep_last;
 
@@ -248,19 +252,19 @@ namespace dmSys
 
         if(sep_first != sep_last)
         {
-            // Language script. If there is more than one separator, this is what is up to the last separator (<language>-<script>-<territory> format)
+            // With multiple separators, everything before the last one forms the device language (for example, <language>-<script>).
             dmStrlCpy(info->m_DeviceLanguage, lang, dmMath::Min((size_t)(sep_last+1 - lang), sizeof(info->m_DeviceLanguage)));
             info->m_DeviceLanguage[sep_first - lang] = '-';
         }
         else
         {
-            // No language script, default to language
+            // Without a script, the device language defaults to the language.
             dmStrlCpy(info->m_DeviceLanguage, info->m_Language, dmMath::Min(sizeof(info->m_DeviceLanguage), sizeof(info->m_Language)));
         }
 
-        if(sep_last != lang + lang_len)
+        if(sep_last != lang_end)
         {
-            dmStrlCpy(info->m_Territory, sep_last + 1, dmMath::Min((size_t)((lang + lang_len) - sep_last), sizeof(info->m_Territory)));
+            dmStrlCpy(info->m_Territory, sep_last + 1, dmMath::Min((size_t)(lang_end - sep_last), sizeof(info->m_Territory)));
         }
         else
         {
