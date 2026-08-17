@@ -31,11 +31,18 @@ message MaterialDesc
         CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE = 16;
     }
 
+    enum ConstantSemanticType
+    {
+        CONSTANT_SEMANTIC_TYPE_NONE  = 0;
+        CONSTANT_SEMANTIC_TYPE_COLOR = 1;
+    }
+
     message Constant
     {
         required string name = 1;
         required ConstantType type = 2;
         repeated dmMath.Vector4 value = 3;
+        optional ConstantSemanticType semantic_type = 4 [default = CONSTANT_SEMANTIC_TYPE_NONE];
     }
 
     enum VertexSpace

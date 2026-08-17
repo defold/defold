@@ -15,9 +15,22 @@
 (ns editor.render-program-utils
   (:require [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms])
-  (:import [com.dynamo.render.proto Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$Sampler Material$MaterialDesc$WrapMode]))
+  (:import [com.dynamo.render.proto Material$MaterialDesc$ConstantSemanticType Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$Sampler Material$MaterialDesc$WrapMode]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private default-constant-semantic-type
+  (ffirst (protobuf/enum-values Material$MaterialDesc$ConstantSemanticType)))
+
+(defn- semantic-type-constant-type? [constant-type]
+  ;; Only plain user-supplied vec4 constants can be flagged as colors. Matrix
+  ;; constants and built-in (engine-provided) constants have no use for it.
+  (= :constant-type-user constant-type))
+
+(defn- semantic-type->form-field-type [semantic-type]
+  (case semantic-type
+    :constant-semantic-type-color :color
+    :vec4))
 
 (defn gen-form-data-constants [localization-key path-key]
   {:path [path-key]
@@ -26,18 +39,33 @@
    :panel-key {:path [:name]
                :type :string
                :default "new_constant"}
-   :panel-form
-   {:sections
-    [{:fields
-      (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-        [{:path [:type]
-          :localization-key (str localization-key ".type")
-          :type :choicebox
-          :options (protobuf-forms/make-options constant-values)
-          :default (ffirst constant-values)}
-         {:path [:value]
-          :localization-key (str localization-key ".value")
-          :type :vec4}])}]}})
+   :panel-form-fn
+   (fn panel-form-fn [selected-constant]
+     (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)
+           semantic-type-values (protobuf/enum-values Material$MaterialDesc$ConstantSemanticType)
+           constant-type (:type selected-constant (ffirst constant-values))
+           semantic-type (:semantic-type selected-constant default-constant-semantic-type)]
+       {:sections
+        [{:fields
+          (cond-> [{:path [:type]
+                    :localization-key (str localization-key ".type")
+                    :type :choicebox
+                    :options (protobuf-forms/make-options constant-values)
+                    :default (ffirst constant-values)}]
+
+                  (semantic-type-constant-type? constant-type)
+                  (conj {:path [:semantic-type]
+                         :localization-key (str localization-key ".semantic-type")
+                         :type :choicebox
+                         :options (protobuf-forms/make-options semantic-type-values)
+                         :default default-constant-semantic-type})
+
+                  :always
+                  (conj {:path [:value]
+                         :localization-key (str localization-key ".value")
+                         :type (if (semantic-type-constant-type? constant-type)
+                                 (semantic-type->form-field-type semantic-type)
+                                 :vec4)}))}]}))})
 
 (defn gen-form-data-samplers [localization-key path-key]
   {:path [path-key]
@@ -114,23 +142,37 @@
     :constant-type-worldviewproj-inverse false
     :constant-type-user-matrix4 true))
 
+(defn- clear-unsupported-semantic-type [constant]
+  (if (semantic-type-constant-type? (:type constant))
+    constant
+    (dissoc constant :semantic-type)))
+
 (defn sanitize-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (if (editable-constant-type? (:type constant))
-    (update constant :value #(or % [protobuf/vector4-zero]))
-    (dissoc constant :value)))
+  (-> constant
+      clear-unsupported-semantic-type
+      (as-> constant
+            (if (editable-constant-type? (:type constant))
+              (update constant :value #(or % [protobuf/vector4-zero]))
+              (dissoc constant :value)))))
 
 (defn- constant->editable-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (if (editable-constant-type? (:type constant))
-    (protobuf/sanitize constant :value hack-downgrade-constant-value)
-    (assoc constant :value protobuf/vector4-zero)))
+  (-> constant
+      clear-unsupported-semantic-type
+      (as-> constant
+            (if (editable-constant-type? (:type constant))
+              (protobuf/sanitize constant :value hack-downgrade-constant-value)
+              (assoc constant :value protobuf/vector4-zero)))))
 
 (defn- editable-constant->constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (if (editable-constant-type? (:type constant))
-    (protobuf/sanitize constant :value hack-upgrade-constant-value)
-    (dissoc constant :value)))
+  (-> constant
+      clear-unsupported-semantic-type
+      (as-> constant
+            (if (editable-constant-type? (:type constant))
+              (protobuf/sanitize constant :value hack-upgrade-constant-value)
+              (dissoc constant :value)))))
 
 (def constants->editable-constants (partial mapv constant->editable-constant))
 

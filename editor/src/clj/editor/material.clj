@@ -260,12 +260,22 @@
                       filter-min)))))
           samplers)))
 
-(defn- vector-type->form-field-type [vector-type]
+(defn- normalized-value-range?
+  "Whether the attribute's stored values already live in the 0.0-1.0 range
+  that a color picker can safely round-trip: plain floats, or integer types
+  normalized on read/write."
+  [data-type normalize]
+  (or (= :type-float data-type) normalize))
+
+(defn- vector-type->form-field-type [semantic-type vector-type data-type normalize]
   (case vector-type
     :vector-type-scalar :vec4
     :vector-type-vec2 :vec4
     :vector-type-vec3 :vec4
-    :vector-type-vec4 :vec4
+    :vector-type-vec4 (if (and (= :semantic-type-color semantic-type)
+                                (normalized-value-range? data-type normalize))
+                         :color
+                         :vec4)
     :vector-type-mat2 :mat4
     :vector-type-mat3 :mat4
     :vector-type-mat4 :mat4))
@@ -302,7 +312,7 @@
     :default graphics/default-attribute-vector-type}
    {:path [:values]
     :localization-key "material.attributes.value"
-    :type (vector-type->form-field-type graphics/default-attribute-vector-type)
+    :type (vector-type->form-field-type graphics/default-attribute-semantic-type graphics/default-attribute-vector-type graphics/default-attribute-data-type false)
     :default (graphics.types/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
    {:path [:normalize]
     :localization-key "material.attributes.normalize"
@@ -350,7 +360,9 @@
                 value-vertex-attribute-field-index
                 (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
                       vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
-                      type (vector-type->form-field-type vector-type)
+                      data-type (:data-type selected-attribute graphics/default-attribute-data-type)
+                      normalize (:normalize selected-attribute false)
+                      type (vector-type->form-field-type semantic-type vector-type data-type normalize)
                       default (graphics.types/default-attribute-doubles semantic-type vector-type)]
                   {:path [:values]
                    :localization-key "material.attributes.value"
