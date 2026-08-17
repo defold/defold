@@ -300,6 +300,34 @@ def _validate_document_markdown(doc, file):
     return errors
 
 
+_BOOLEAN_LITERAL_NAMES = frozenset(("true", "false"))
+
+
+def _validate_document_names(doc, file):
+    """Reject boolean literals used as names in generated API signatures."""
+    source = file if file else "<string>"
+    errors = []
+
+    def validate_name(name, value_kind, element_name):
+        if name in _BOOLEAN_LITERAL_NAMES:
+            errors.append(
+                "'%s' %s has invalid name '%s' in file %s" %
+                (element_name, value_kind, name, source))
+
+    def validate(values, value_kind, element_name):
+        for value in values:
+            validate_name(value.name, value_kind, element_name)
+
+    for element in doc.elements:
+        validate_name(element.name, "element", element.name)
+        validate(element.parameters, "parameter", element.name)
+        validate(element.returnvalues, "return value", element.name)
+        validate(element.members, "member", element.name)
+        validate(element.tparams, "template parameter", element.name)
+
+    return errors
+
+
 def _parse_tags(text):
     """Parse documentation tags without treating fenced code as tags."""
     parsed_tags = []
@@ -705,6 +733,12 @@ def parse_document(doc_str, file=None):
         print("  ERROR", err)
     if markdown_errors:
         raise ValueError("Malformed Markdown fenced code block")
+
+    value_name_errors = _validate_document_names(doc, file)
+    for err in value_name_errors:
+        print("  ERROR", err)
+    if value_name_errors:
+        raise ValueError("Invalid documentation value name")
 
     if doc.info.name != "Editor":
         print("Validating %s types in %s (%s) %s" % (doc.info.language, doc.info.name, doc.info.path, file))

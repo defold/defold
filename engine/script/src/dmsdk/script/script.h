@@ -280,7 +280,7 @@ namespace dmScript
      * @name IsVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Vector3*
+     * @return is_vector3 [type:bool] true if value at #index is a dmVMath::Vector3*
      */
     bool IsVector3(lua_State* L, int index);
 
@@ -318,7 +318,7 @@ namespace dmScript
      * @name IsVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Vector4*
+     * @return is_vector4 [type:bool] true if value at #index is a dmVMath::Vector4*
      */
     bool IsVector4(lua_State* L, int index);
 
@@ -355,7 +355,7 @@ namespace dmScript
      * @name IsQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Quat*
+     * @return is_quat [type:bool] true if value at #index is a dmVMath::Quat*
      */
     bool IsQuat(lua_State* L, int index);
 
@@ -392,7 +392,7 @@ namespace dmScript
      * @name IsMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Matrix4*
+     * @return is_matrix4 [type:bool] true if value at #index is a dmVMath::Matrix4*
      */
     bool IsMatrix4(lua_State* L, int index);
 
@@ -642,7 +642,7 @@ namespace dmScript
      *
      * @name SetupCallback
      * @param cbk [type:LuaCallbackInfo*] Lua callback struct
-     * @return true [type:bool] if the setup was successful
+     * @return success [type:bool] true if the setup was successful
      */
     bool SetupCallback(LuaCallbackInfo* cbk);
 

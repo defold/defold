@@ -218,6 +218,48 @@ foobar
         self.assertEqual('number', r2.types[0])
         self.assertEqual('nil', r2.types[1])
 
+    def test_boolean_literal_value_names_fail_validation(self):
+        invalid_tags = (
+            "@param true [type:boolean] DOC",
+            "@return false [type:boolean] DOC",
+            "@member true [type:boolean] DOC",
+            "@tparam false DOC",
+        )
+        for invalid_tag in invalid_tags:
+            with self.subTest(invalid_tag=invalid_tag):
+                doc = """
+/*#
+ * MY_DESC
+ * @name MY_NAME
+ * %s
+ */
+""" % invalid_tag
+                with self.assertRaisesRegex(ValueError, "Invalid documentation value name"):
+                    script_doc.parse_document(doc)
+
+    def test_boolean_literal_element_name_fails_validation(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name true
+ * @variable
+ */
+"""
+        with self.assertRaisesRegex(ValueError, "Invalid documentation value name"):
+            script_doc.parse_document(doc)
+
+    def test_boolean_literals_are_allowed_in_value_docs(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name MY_NAME
+ * @return active [type:boolean] true if active, false otherwise
+ */
+"""
+        returnvalue = script_doc.parse_document(doc).elements[0].returnvalues[0]
+        self.assertEqual("active", returnvalue.name)
+        self.assertEqual("true if active, false otherwise", returnvalue.doc)
+
 
     def test_all_lua_types(self):
         doc= """

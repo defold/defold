@@ -723,14 +723,14 @@ namespace dmScript
      *
      * @name timer.cancel
      * @param handle [type:timer_handle] the timer handle returned by timer.delay()
-     * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @return cancelled [type:boolean] `true` if the timer was active and cancelled, `false` if the timer was already cancelled or complete
      * @examples
      *
      * ```lua
      * self.handle = timer.delay(1, true, function() print("print every second") end)
      * ...
-     * local result = timer.cancel(self.handle)
-     * if not result then
+     * local cancelled = timer.cancel(self.handle)
+     * if not cancelled then
      *    print("the timer is already cancelled")
      * end
      * ```
@@ -755,14 +755,14 @@ namespace dmScript
      *
      * @name timer.trigger
      * @param handle [type:timer_handle] the timer handle returned by timer.delay()
-     * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @return triggered [type:boolean] `true` if the timer was active and triggered, `false` if the timer was already cancelled or complete
      * @examples
      *
      * ```lua
      * self.handle = timer.delay(1, true, function() print("print every second or manually by timer.trigger") end)
      * ...
-     * local result = timer.trigger(self.handle)
-     * if not result then
+     * local triggered = timer.trigger(self.handle)
+     * if not triggered then
      *    print("the timer is already cancelled or complete")
      * end
      * ```
