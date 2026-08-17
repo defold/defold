@@ -2159,7 +2159,30 @@
                  line-indent-level))))))
 
 (defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
-  (let [fixed-rows (volatile! #{})]
+  (let [tab-trigger-boundary-by-row
+        (reduce
+          (fn [acc ^CursorRange region]
+            (case (:type region)
+              (:tab-trigger-word :tab-trigger-exit)
+              (let [start (cursor-range-start region)
+                    end (cursor-range-end region)
+                    start-row (.row start)
+                    end-row (.row end)
+                    end-row-exclusive (if (or (= start-row end-row) (pos? (.col end)))
+                                        (inc end-row)
+                                        end-row)]
+                (loop [row start-row
+                       acc acc]
+                  (if (= end-row-exclusive row)
+                    acc
+                    (let [col (if (= start-row row) (.col start) 0)]
+                      (recur (inc row)
+                             (update acc row (fnil max col) col))))))
+
+              acc))
+          {}
+          regions)
+        fixed-rows (volatile! #{})]
     (splice-indentation lines cursor-ranges regions
                         (into []
                               (mapcat (fn [^CursorRange cursor-range]
@@ -2184,6 +2207,12 @@
                                                   (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
                                                         typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
                                                         line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
+                                                        last-line (= end-row next-row)
+                                                        tab-trigger-indentation-boundary (get tab-trigger-boundary-by-row row)
+                                                        indentation-boundary (Math/min (long (or tab-trigger-indentation-boundary Long/MAX_VALUE))
+                                                                                       (long (if last-line (.col end) (count line))))
+                                                        unindented-line (str (string/triml (subs line 0 indentation-boundary))
+                                                                             (subs line indentation-boundary))
                                                         indented-line (cond
                                                                         ;; Insert typed whitespace (except newlines) without adjusting indentation.
                                                                         (and typed? (whitespace-character-at-index? line (.col start)))
@@ -2196,16 +2225,15 @@
                                                                         line
 
                                                                         ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
-                                                                        (= end-row next-row)
-                                                                        (let [unindented-line (str (string/triml (subs line 0 (.col end))) (subs line (.col end)))]
-                                                                          (indent-line unindented-line indent-string line-indent-level))
+                                                                        last-line
+                                                                        (indent-line unindented-line indent-string line-indent-level)
 
                                                                         ;; On in-between lines, we only want to keep whitespace that comes before code.
                                                                         :else
-                                                                        (let [unindented-line (string/triml line)]
-                                                                          (if (seq unindented-line)
-                                                                            (indent-line unindented-line indent-string line-indent-level)
-                                                                            "")))
+                                                                        (if (or tab-trigger-indentation-boundary
+                                                                                (pos? (count unindented-line)))
+                                                                          (indent-line unindented-line indent-string line-indent-level)
+                                                                          ""))
                                                         splices (if (= line indented-line)
                                                                   splices
                                                                   (conj! splices [line-cursor-range [indented-line]]))]
@@ -2224,13 +2252,13 @@
                                           [line-cursor-range [new-line]])))))
                             rows)))
 
-(defn- fix-indentation-after-splice [{:keys [lines cursor-ranges regions] :as splice-properties} indent-level-pattern indent-string grammar]
-  (when (some? splice-properties)
+(defn- fix-indentation-after-splice [{:keys [lines cursor-ranges regions] :as splice-properties} affected-cursor-ranges indent-level-pattern indent-string grammar]
+  (when splice-properties
     (assert (vector? lines))
     (assert (vector? cursor-ranges))
     (if (nil? (:indent grammar))
       splice-properties
-      (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
+      (let [indentation-properties (fix-indentation (or affected-cursor-ranges cursor-ranges) indent-level-pattern indent-string grammar lines cursor-ranges regions)]
         (merge splice-properties
                (dissoc indentation-properties :invalidated-row))))))
 
@@ -2252,9 +2280,9 @@
         splice-properties))))
 
 (defn- insert-lines-seqs [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
-  (when-not (empty? lines-seqs)
+  (when-not (coll/empty? lines-seqs)
     (-> (splice lines regions (map #(pair (adjust-cursor-range lines %1) %2) cursor-ranges lines-seqs))
-        (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+        (fix-indentation-after-splice nil indent-level-pattern indent-string grammar)
         (update-document-width-after-splice layout)
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
@@ -2418,7 +2446,16 @@
 
 (defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
   (-> (splice lines regions splices)
-      (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+      (fix-indentation-after-splice
+        (introduce-replacement-ranges
+          (mapv (fn [[cursor-range replacement-lines]]
+                  [cursor-range
+                   replacement-lines
+                   [(->CursorRange document-start-cursor (document-end-cursor replacement-lines))]])
+                splices))
+        indent-level-pattern
+        indent-string
+        grammar)
       (update-document-width-after-splice layout)))
 
 ;; -----------------------------------------------------------------------------
@@ -2497,7 +2534,7 @@
                             :else
                             (pair cursor-range (util/split-lines typed))))
                         cursor-ranges))
-                    (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+                    (fix-indentation-after-splice nil indent-level-pattern indent-string grammar)
                     (update-document-width-after-splice layout))
         {:keys [lines]} changes]
     (-> changes

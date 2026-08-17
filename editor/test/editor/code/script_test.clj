@@ -43,6 +43,87 @@
   (comp xform-test-lines->cursors
         (map data/Cursor->CursorRange)))
 
+(deftest replace-typed-chars-preserves-tab-trigger-indentation-test
+  (testing "uses configured indentation before an exit tab stop"
+    (let [lines ["if true then"
+                 "    foo"]
+          replacement-range (data/->CursorRange (data/->Cursor 1 4)
+                                                (data/->Cursor 1 7))
+          exit-range (assoc (data/->CursorRange (data/->Cursor 1 1)
+                                                (data/->Cursor 1 1))
+                       :type :tab-trigger-exit)
+          result (data/replace-typed-chars
+                   indent-level-pattern
+                   indent-string
+                   script/lua-grammar
+                   lines
+                   []
+                   (layout-info lines)
+                   [[replacement-range ["do" "\t" "end"] [exit-range]]])]
+      (is (= ["if true then"
+              "    do"
+              "        "
+              "    end"]
+             (:lines result)))
+      (is (= [(assoc (data/->CursorRange (data/->Cursor 2 8)
+                                         (data/->Cursor 2 8))
+                :type :tab-trigger-exit)]
+             (:regions result)))))
+
+  (testing "uses configured indentation before a tab trigger word"
+    (let [lines ["if true then"
+                 "    foo"]
+          replacement-range (data/->CursorRange (data/->Cursor 1 4)
+                                                (data/->Cursor 1 7))
+          word-range (assoc (data/->CursorRange (data/->Cursor 1 1)
+                                                (data/->Cursor 1 6))
+                       :type :tab-trigger-word)
+          result (data/replace-typed-chars
+                   indent-level-pattern
+                   indent-string
+                   script/lua-grammar
+                   lines
+                   []
+                   (layout-info lines)
+                   [[replacement-range ["do" "\tvalue" "end"] [word-range]]])]
+      (is (= ["if true then"
+              "    do"
+              "        value"
+              "    end"]
+             (:lines result)))
+      (is (= [(assoc (data/->CursorRange (data/->Cursor 2 8)
+                                         (data/->Cursor 2 13))
+                :type :tab-trigger-word)]
+             (:regions result)))))
+
+  (testing "uses configured indentation for a nested completion"
+    (let [lines ["if true then"
+                 "    foo"]
+          outer-word-range (assoc (data/->CursorRange (data/->Cursor 1 4)
+                                                      (data/->Cursor 1 7))
+                             :type :tab-trigger-word)
+          replacement-range (data/->CursorRange (data/->Cursor 1 4)
+                                                (data/->Cursor 1 6))
+          clear-range (data/->CursorRange (data/->Cursor 1 6)
+                                          (data/->Cursor 1 7))
+          exit-range (assoc (data/->CursorRange (data/->Cursor 1 1)
+                                                (data/->Cursor 1 1))
+                       :type :tab-trigger-exit)
+          result (data/replace-typed-chars
+                   indent-level-pattern
+                   indent-string
+                   script/lua-grammar
+                   lines
+                   [outer-word-range]
+                   (layout-info lines)
+                   [[replacement-range ["do" "\t" "end"] [exit-range]]
+                    [clear-range [""]]])]
+      (is (= ["if true then"
+              "    do"
+              "        "
+              "    end"]
+             (:lines result))))))
+
 (deftest insert-indentation-test
   (are [inserted-lines before after]
     (= {:lines           (into [] xform-test-lines->lines after)
