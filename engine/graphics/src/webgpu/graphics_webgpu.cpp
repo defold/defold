@@ -632,6 +632,10 @@ static inline WGPUVertexFormat WebGPUDeduceVertexAttributeFormat(Type type, uint
                 return WGPUVertexFormat_Float32x3;
             case 4:
                 return WGPUVertexFormat_Float32x4;
+            case 9:
+                return WGPUVertexFormat_Float32x3;
+            case 16:
+                return WGPUVertexFormat_Float32x4;
             default:
                 break;
         }
@@ -648,6 +652,10 @@ static inline WGPUVertexFormat WebGPUDeduceVertexAttributeFormat(Type type, uint
                 return WGPUVertexFormat_Sint32x3;
             case 4:
                 return WGPUVertexFormat_Sint32x4;
+            case 9:
+                return WGPUVertexFormat_Sint32x3;
+            case 16:
+                return WGPUVertexFormat_Sint32x4;
             default:
                 break;
         }
@@ -663,6 +671,10 @@ static inline WGPUVertexFormat WebGPUDeduceVertexAttributeFormat(Type type, uint
             case 3:
                 return WGPUVertexFormat_Uint32x3;
             case 4:
+                return WGPUVertexFormat_Uint32x4;
+            case 9:
+                return WGPUVertexFormat_Uint32x3;
+            case 16:
                 return WGPUVertexFormat_Uint32x4;
             default:
                 break;
@@ -730,6 +742,16 @@ static inline WGPUVertexFormat WebGPUDeduceVertexAttributeFormat(Type type, uint
 #else
     return WGPUVertexFormat_Undefined;
 #endif
+}
+
+static inline uint16_t WebGPUGetVertexAttributeCount(const VertexDeclaration::Stream& stream)
+{
+    switch (stream.m_Size)
+    {
+        case 9:  return 3;
+        case 16: return 4;
+        default: return 1;
+    }
 }
 
 static WGPUComputePipeline WebGPUGetOrCreateComputePipeline(WebGPUContext* context)
@@ -819,7 +841,11 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     {
         if (context->m_CurrentVertexDeclaration[i])
         {
-            total_attribute_count += context->m_CurrentVertexDeclaration[i]->m_StreamCount;
+            VertexDeclaration* declaration = context->m_CurrentVertexDeclaration[i];
+            for (uint16_t s = 0; s < declaration->m_StreamCount; ++s)
+            {
+                total_attribute_count += WebGPUGetVertexAttributeCount(declaration->m_Streams[s]);
+            }
         }
     }
 
@@ -841,17 +867,24 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
                 vertexBuffers[desc.vertex.bufferCount].stepMode = WGPUVertexStepMode_Instance;
             if (declaration->m_StreamCount)
             {
-                vertexBuffers[desc.vertex.bufferCount].attributeCount = declaration->m_StreamCount;
                 vertexBuffers[desc.vertex.bufferCount].attributes     = vertexAttributes.Begin() + attributes;
                 for (uint16_t s = 0; s < declaration->m_StreamCount; ++s)
                 {
-                    vertexAttributes[attributes]                = {};
-                    vertexAttributes[attributes].offset         = declaration->m_Streams[s].m_Offset;
-                    vertexAttributes[attributes].shaderLocation = declaration->m_Streams[s].m_Location;
-                    vertexAttributes[attributes].format         = WebGPUDeduceVertexAttributeFormat(declaration->m_Streams[s].m_Type,
-                                                                                                    declaration->m_Streams[s].m_Size,
-                                                                                                    declaration->m_Streams[s].m_Normalize);
-                    ++attributes;
+                    const VertexDeclaration::Stream& stream = declaration->m_Streams[s];
+                    const uint16_t attribute_count = WebGPUGetVertexAttributeCount(stream);
+                    const uint16_t component_count = stream.m_Size == 9 ? 3 : (stream.m_Size == 16 ? 4 : stream.m_Size);
+                    const uint32_t column_size = GetGraphicsTypeDataSize(stream.m_Type) * component_count;
+                    const WGPUVertexFormat format = WebGPUDeduceVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+
+                    for (uint16_t column = 0; column < attribute_count; ++column)
+                    {
+                        vertexAttributes[attributes]                = {};
+                        vertexAttributes[attributes].offset         = stream.m_Offset + column * column_size;
+                        vertexAttributes[attributes].shaderLocation = stream.m_Location + column;
+                        vertexAttributes[attributes].format         = format;
+                        ++attributes;
+                    }
+                    vertexBuffers[desc.vertex.bufferCount].attributeCount += attribute_count;
                 }
                 ++desc.vertex.bufferCount;
             }
