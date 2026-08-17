@@ -2608,11 +2608,12 @@
   (.consume event)
   (let [character (.getCharacter event)]
     (when (and (keymap/typable? event)
-               ;; Ignore characters that macOS produces for shortcuts we bind
-               ;; as commands: Alt+Space, and Shift+Alt+F for :code.format.
+               ;; Ignore characters that macOS produces for shortcuts we bind as
+               ;; commands: a non-breaking space for Alt+Space, and Ï for
+               ;; Shift+Alt+F (:code.format).
                (not (and (os/is-mac-os?)
                          (.isAltDown event)
-                         (#{" " "Ï"} character)))
+                         (#{"\u00a0" "Ï"} character)))
                ;; Ignore characters in the control range and the ASCII delete
                ;; as it is done by JavaFX in `TextInputControlBehavior`'s
                ;; `defaultKeyTyped` method.
