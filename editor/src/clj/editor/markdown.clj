@@ -34,6 +34,7 @@
             [editor.code.resource :as r]
             [editor.defold-project :as project]
             [editor.fxui :as fxui]
+            [editor.image-util :as image-util]
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -401,6 +402,16 @@
                                            :max-width 1000}))
          :children views}))))
 
+(def ^:private max-image-decode-width 2048)
+
+(defn- decode-width [resource]
+  (let [size (try
+               (image-util/read-size resource)
+               (catch Exception _
+                 nil))]
+    (when (and size (> (long (:width size)) (long max-image-decode-width)))
+      (double max-image-decode-width))))
+
 (defn- construct-image [src base-resource]
   (when-not (coll/empty? src)
     (when-let [^URI uri (try (URI. src) (catch URISyntaxException _))]
@@ -409,8 +420,11 @@
         (when-let [base-resource base-resource]
           (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
             (when (resource/exists? resource)
-              (with-open [is (io/input-stream resource)]
-                (Image. is)))))))))
+              (let [width (decode-width resource)]
+                (with-open [is (io/input-stream resource)]
+                  (if width
+                    (Image. is (double width) 0.0 #_preserve-ratio true #_smooth true)
+                    (Image. is)))))))))))
 
 (def ^:private prop-image-width-cap
   (fx/make-binding-prop

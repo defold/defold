@@ -796,7 +796,8 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::ShaderDescBuilder shader_desc_reload;
     shader_desc_reload.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, program_data_vs, 1024);
     shader_desc_reload.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, program_data_fs, 1024);
-    dmGraphics::ReloadProgram(m_Context, program, shader_desc_reload.Get());
+    char error_buffer[4096] = {};
+    dmGraphics::ReloadProgram(m_Context, program, shader_desc_reload.Get(), error_buffer, sizeof(error_buffer));
 
     delete [] program_data_vs;
     delete [] program_data_fs;

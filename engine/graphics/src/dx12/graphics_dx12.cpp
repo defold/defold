@@ -3300,7 +3300,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         ((DX12Context*) context)->m_CurrentProgram = 0;
     }
 
-    static bool DX12ReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
+    static bool DX12ReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return true;
     }

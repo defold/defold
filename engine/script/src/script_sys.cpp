@@ -765,13 +765,15 @@ union SaveLoadBuffer
      * : [type:string] The API version on the system.
      *
      * `language`
-     * : [type:string] Two character ISO-639 format, i.e. "en".
+     * : [type:string] ISO 639 language code, i.e. "en" or "fil".
      *
      * `device_language`
-     * : [type:string] Two character ISO-639 format (i.e. "sr") and, if applicable, followed by a dash (-) and an ISO 15924 script code (i.e. "sr-Cyrl" or "sr-Latn"). Reflects the device preferred language.
+     * : [type:string] ISO 639 language code and, if reported by the platform, followed by a dash (-)
+     * and an ISO 15924 script code (i.e. "sr-Cyrl", "sr-Latn", "zh-Hans", or "zh-Hant").
+     * Reflects the device preferred language.
      *
      * `territory`
-     * : [type:string] Two character ISO-3166 format, i.e. "US".
+     * : [type:string] ISO 3166-1 alpha-2 country code or UN M.49 numeric region code, i.e. "US" or "419".
      *
      * `gmt_offset`
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
