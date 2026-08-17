@@ -411,14 +411,18 @@ static bool PrepareVertexGeneration(HTextLayout layout, const TextLayoutSettings
     return true;
 }
 
-static bool GenerateVertices(VertexGenerationContext* context)
+// Calculates vertex counts without writing to the output buffer.
+static bool CalculateVertexMetrics(VertexGenerationContext* context)
 {
     context->m_Config.m_Layout = context->m_Layout;
 
-    if (!FontGetLayoutVertexMetrics(context->m_Config, &context->m_Metrics))
-    {
-        return false;
-    }
+    return FontGetLayoutVertexMetrics(context->m_Config, &context->m_Metrics);
+}
+
+// Packs vertices with metrics and output capacity prepared in advance.
+static bool PackVertices(VertexGenerationContext* context)
+{
+    context->m_Config.m_Layout = context->m_Layout;
 
     if (context->m_Metrics.m_VertexCount > context->m_Vertices->Capacity())
     {
@@ -441,6 +445,35 @@ static bool GenerateVertices(VertexGenerationContext* context)
     }
 
     return true;
+}
+
+static bool GenerateVertices(VertexGenerationContext* context)
+{
+    if (!CalculateVertexMetrics(context))
+    {
+        return false;
+    }
+
+    return PackVertices(context);
+}
+
+static bool RunVertexMetrics(void* context)
+{
+    VertexGenerationContext* vertex_context = (VertexGenerationContext*)context;
+
+    if (!CalculateVertexMetrics(vertex_context))
+    {
+        return false;
+    }
+
+    g_BenchmarkChecksum += vertex_context->m_Metrics.m_VertexCount;
+
+    return true;
+}
+
+static bool RunVertexPacking(void* context)
+{
+    return PackVertices((VertexGenerationContext*)context);
 }
 
 static bool RunVertices(void* context)
@@ -885,6 +918,32 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
 
     PrintResult("vertices", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_measurement);
 
+    Measurement vertex_metrics_measurement;
+
+    if (!Measure(RunVertexMetrics, &vertex_context, options, &vertex_metrics_measurement))
+    {
+        TextLayoutRelease(vertex_layout);
+        MarkupDestroy(markup);
+        FreeCachedGlyphs(glyph_cache);
+
+        return false;
+    }
+
+    PrintResult("vertex_metrics", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_metrics_measurement);
+
+    Measurement vertex_packing_measurement;
+
+    if (!Measure(RunVertexPacking, &vertex_context, options, &vertex_packing_measurement))
+    {
+        TextLayoutRelease(vertex_layout);
+        MarkupDestroy(markup);
+        FreeCachedGlyphs(glyph_cache);
+
+        return false;
+    }
+
+    PrintResult("vertex_pack", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_packing_measurement);
+
     Measurement        parse_measurement;
     MarkupParseContext parse_context = { source.m_Bytes.Begin(), source_length };
 
@@ -1126,6 +1185,30 @@ int main(int argc, char** argv)
     if (success)
     {
         PrintResult("vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_measurement);
+    }
+
+    Measurement plain_vertex_metrics_measurement;
+
+    if (success)
+    {
+        success = Measure(RunVertexMetrics, &plain_vertex_context, options, &plain_vertex_metrics_measurement);
+    }
+
+    if (success)
+    {
+        PrintResult("vertex_metrics_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_metrics_measurement);
+    }
+
+    Measurement plain_vertex_packing_measurement;
+
+    if (success)
+    {
+        success = Measure(RunVertexPacking, &plain_vertex_context, options, &plain_vertex_packing_measurement);
+    }
+
+    if (success)
+    {
+        PrintResult("vertex_pack_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_packing_measurement);
     }
 
     PlainLayoutAndVerticesContext plain_full_context = { plain_context, &plain_vertex_context };
