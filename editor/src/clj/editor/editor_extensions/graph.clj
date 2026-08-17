@@ -124,6 +124,19 @@
       (throw (LuaError. (str (resource/proj-path editor-lookup) " is not a file resource"))))
     (editor-lookup->node-id editor-lookup)))
 
+(defn editable-unresolved-editor-lookup->node-id
+  "Resolve unresolved-editor-lookup and return existing non-defective node id.
+
+  Folder resources and defective nodes are rejected with LuaError."
+  [unresolved-editor-lookup project evaluation-context]
+  (let [node-id (unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)]
+    (when (g/defective? (:basis evaluation-context) node-id)
+      (throw (LuaError. (if (string? unresolved-editor-lookup)
+                          (str "Cannot edit defective resource: " unresolved-editor-lookup)
+                          (str "Cannot edit defective node of type "
+                               (name (g/node-type-kw (:basis evaluation-context) node-id)))))))
+    node-id))
+
 (defn node-id->type-keyword [node-id evaluation-context]
   (g/node-type-kw (:basis evaluation-context) node-id))
 
@@ -397,6 +410,16 @@
       nil))
   (fn ResourceNode-lister [node-id evaluation-context]
     (cond-> ["path"] (textual-resource-node? node-id evaluation-context) (conj "text"))))
+
+(register-property-getter!
+  :editor.view/WorkbenchView
+  (fn WorkbenchView-getter [node-id property evaluation-context]
+    (case property
+      "resource" #(rt/wrap-userdata (g/node-value node-id :resource-node evaluation-context))
+      "dirty" #(g/node-value node-id :dirty evaluation-context)
+      nil))
+  (fn WorkbenchView-lister [_node-id _evaluation-context]
+    ["dirty" "resource"]))
 
 (register-property-getter!
   :editor.tile-source/TileSourceNode
@@ -743,7 +766,7 @@
 (defn make-ext-reset-fn [project]
   (rt/varargs-lua-fn ext-reset [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt reset-args-coercer varargs)
-          node-id (unresolved-editor-lookup->node-id node project evaluation-context)]
+          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)]
       (if-let [resetter ((ext-property-resetter (node-id->type-keyword node-id evaluation-context)) node-id property evaluation-context)]
         (-> (resetter)
             (with-meta {:type :transaction-step})
@@ -1032,7 +1055,7 @@
   (rt/varargs-lua-fn ext-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property attachment]} (rt/->clj rt add-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
@@ -1065,7 +1088,7 @@
   (rt/varargs-lua-fn ext-clear [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt clear-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
@@ -1082,7 +1105,7 @@
   (rt/varargs-lua-fn ext-remove [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property child]} (rt/->clj rt remove-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
           child-node-id (unresolved-editor-lookup->node-id child project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
@@ -1117,7 +1140,7 @@
   (rt/varargs-lua-fn ext-reorder [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property children]} (rt/->clj rt reorder-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)
           reordered-child-node-ids (mapv #(unresolved-editor-lookup->node-id % project evaluation-context) children)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)

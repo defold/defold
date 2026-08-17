@@ -49,7 +49,7 @@ DM_PROPERTY_U32(rmtp_GODeleted, 0, PROFILE_PROPERTY_FRAME_RESET, "# deleted inst
 
 namespace dmGameObject
 {
-    DM_STATIC_ASSERT(sizeof(InputAction) == 344, Invalid_Struct_Size); // to avoid it accidentally growing
+    DM_STATIC_ASSERT(sizeof(InputAction) == 464, Invalid_Struct_Size); // to avoid it accidentally growing
 
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
@@ -214,6 +214,7 @@ namespace dmGameObject
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
+        m_ContextRegistry = 0;
         m_Mutex = dmMutex::New();
     }
 
@@ -289,6 +290,16 @@ namespace dmGameObject
     {
         assert(regist != 0x0);
         return regist->m_DefaultCollectionCapacity;
+    }
+
+    void SetContextRegistry(HRegister regist, HContextRegistry context_registry)
+    {
+        regist->m_ContextRegistry = context_registry;
+    }
+
+    HContextRegistry GetContextRegistry(HRegister regist)
+    {
+        return regist->m_ContextRegistry;
     }
 
     void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -406,7 +417,7 @@ namespace dmGameObject
         {
             instances_in_collection = dmMath::Min(max_instances, instances_in_collection);
         }
-        Collection* collection = new Collection(0, 0, instances_in_collection, GetInputStackDefaultCapacity(regist));
+        Collection* collection = new Collection(0, regist, instances_in_collection, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -2828,16 +2839,21 @@ namespace dmGameObject
         // 1. for each fixed step, call component's fixed update
         //      - Lua fixed_update() (comp_script.cpp)
         //      - CompCollisionObjectFixedUpdate() (comp_collision_object.cpp)
+        // Keep running subsequent update phases after a component error. The engine
+        // still renders the collection, and late update prepares component render data.
         for (uint32_t step = 0; step < num_fixed_steps; ++step)
         {
-            ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params);
+            if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params))
+                ret = false;
         }
 
         // 2. call component's regular update
-        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params);
+        if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params))
+            ret = false;
 
         // 3. call component's late update
-        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params);
+        if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params))
+            ret = false;
 
         collection->m_InUpdate = 0;
         if (collection->m_DirtyTransforms)

@@ -16,6 +16,7 @@ ext {
             [dir: "../../engine/gameobject/proto", file: "gameobject/lua_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/atlas_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/camera_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/collectionproxy_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/gamesys_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/gui_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/label_ddf.proto"],
@@ -48,32 +49,28 @@ ext {
 gradle.taskGraph.whenReady { taskGraph ->
     // Determine Python executable
     def pythonExec = null
-    try {
-        // Check if python3 exists
-        def process = new ProcessBuilder("python3", "--version")
+    def pythonCandidates = []
+    def configuredPython = project.findProperty("python") ?: System.getenv("DEFOLD_PYTHON") ?: System.getenv("PYTHON")
+    if (configuredPython) {
+        pythonCandidates << configuredPython.toString()
+    }
+    pythonCandidates.addAll(["python3", "python"])
+
+    for (def pythonCandidate : pythonCandidates.unique()) {
+        try {
+            def process = new ProcessBuilder(pythonCandidate, "--version")
                 .redirectErrorStream(true)
                 .start()
-        process.waitFor()
-        if (process.exitValue() == 0) {
-            pythonExec = "python3"
-        } else {
-            throw new Exception("python3 not available")
-        }
-    } catch (Exception ignored) {
-        try {
-            // Fall back to python
-            def process = new ProcessBuilder("python", "--version")
-                    .redirectErrorStream(true)
-                    .start()
             process.waitFor()
             if (process.exitValue() == 0) {
-                pythonExec = "python"
-            } else {
-                throw new Exception("python not available")
+                pythonExec = pythonCandidate
+                break
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Neither python3 nor python is available on the system")
+        } catch (Exception ignored) {
         }
+    }
+    if (!pythonExec) {
+        throw new RuntimeException("Neither configured Python nor python3/python is available on the system")
     }
 
     // Save Python executable to environment variable

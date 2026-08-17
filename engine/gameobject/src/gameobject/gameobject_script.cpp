@@ -2153,11 +2153,10 @@ namespace dmGameObject
         DM_LUA_STACK_CHECK(L, 1);
         dmVMath::Vector3* world_position = dmScript::CheckVector3(L, 1);
         Instance* instance = ResolveInstance(L, 2);
-        dmVMath::Matrix4 go_transform = dmGameObject::GetWorldMatrix(instance);
-        dmVMath::Matrix4 world_transform = dmVMath::Matrix4::identity();
-        world_transform.setTranslation(*world_position);
-        dmVMath::Matrix4 result_transfrom = world_transform * go_transform;
-        dmScript::PushVector3(L, result_transfrom.getTranslation());
+        dmVMath::Matrix4 go_world_transform = dmGameObject::GetWorldMatrix(instance);
+        dmVMath::Matrix4 inv_transform = dmVMath::Inverse(go_world_transform);
+        dmVMath::Vector4 local_position = inv_transform * dmVMath::Vector4(*world_position, 1.0f);
+        dmScript::PushVector3(L, local_position.getXYZ());
         return 1;
     }
 
@@ -2184,9 +2183,9 @@ namespace dmGameObject
         DM_LUA_STACK_CHECK(L, 1);
         dmVMath::Matrix4* world_transform = dmScript::CheckMatrix4(L, 1);
         Instance* instance = ResolveInstance(L, 2);
-        const dmVMath::Matrix4& go_transform = dmGameObject::GetWorldMatrix(instance);
+        dmVMath::Matrix4 inv_transform = dmVMath::Inverse(dmGameObject::GetWorldMatrix(instance));
 
-        dmScript::PushMatrix4(L,  *world_transform * go_transform);
+        dmScript::PushMatrix4(L, inv_transform * *world_transform);
         return 1;
     }
 

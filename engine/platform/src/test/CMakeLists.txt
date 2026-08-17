@@ -22,10 +22,7 @@ defold_target_link_libraries(test_platform "${TARGET_PLATFORM}"
 
 defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
-# Ensure platform libs are built before tests when available
-if(TARGET platform_null)
-    add_dependencies(test_platform platform_null)
-endif()
+add_dependencies(test_platform platform_null)
 
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
@@ -33,7 +30,7 @@ defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 # ******************************************************************
 # test_platform_app (windowed test application)
 
-if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web"))
+if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web|x86_64-xbone"))
 
     defold_add_executable(test_platform_app
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_app.cpp")
@@ -64,10 +61,7 @@ if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web"))
     defold_target_link_platform(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
 
-    # Ensure platform libs are built before app test when available
-    if(TARGET platform)
-        add_dependencies(test_platform_app platform)
-    endif()
+    add_dependencies(test_platform_app platform)
     if(TARGET platform_vulkan)
         add_dependencies(test_platform_app platform_vulkan)
     endif()

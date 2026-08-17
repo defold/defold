@@ -45,7 +45,6 @@ import java.util.stream.Stream;
 
 import com.defold.editor.Editor;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.util.FileUtil;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,6 +70,7 @@ public class ResourceUnpacker {
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
     public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
     public static final String DEFOLD_EDITOR_SHA1_KEY = "defold.editor.sha1";
+    private static final String JOGAMP_PRIMARY_LIBRARY_PATH_KEY = "jogamp.primary.library.path";
 
     private static volatile boolean isInitialized = false;
     private static volatile Map<String, Path> preloadedLibraryPaths = Collections.emptyMap();
@@ -162,6 +162,7 @@ public class ResourceUnpacker {
                 }
 
                 Path unpackedLibDir = unpackPath.resolve(platform.getPair() + "/lib").toAbsolutePath();
+                configureWindowsNativeLibrarySearch(unpackedLibDir, platform);
                 System.setProperty("jna.nosys", "true");
                 // Exact-path preloading is authoritative, but JOGL still resolves some bundled
                 // natives by logical name, and JNA-by-name callers still expect these paths.
@@ -201,6 +202,39 @@ public class ResourceUnpacker {
             throw new IllegalStateException("Bundled native library '" + logicalName + "' has not been preloaded");
         }
         return libraryPath;
+    }
+
+    private static void configureWindowsNativeLibrarySearch(Path unpackedLibDir, Platform platform) {
+        if (!platform.isWindows()) {
+            return;
+        }
+
+        if (System.getProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY) != null) {
+            return;
+        }
+
+        Path windowsSystemDirectory = getWindowsSystemDirectory();
+        if (windowsSystemDirectory == null) {
+            logger.warn("Unable to determine the Windows system directory");
+            return;
+        }
+
+        System.setProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY,
+                           String.join(File.pathSeparator,
+                                       unpackedLibDir.toAbsolutePath().normalize().toString(),
+                                       Paths.get(System.getProperty("java.home"), "bin").toAbsolutePath().normalize().toString(),
+                                       windowsSystemDirectory.toString()));
+    }
+
+    private static Path getWindowsSystemDirectory() {
+        String windowsDirectory = System.getenv("SystemRoot");
+        if (windowsDirectory == null || windowsDirectory.isBlank()) {
+            windowsDirectory = System.getenv("windir");
+        }
+        if (windowsDirectory == null || windowsDirectory.isBlank()) {
+            return null;
+        }
+        return Paths.get(windowsDirectory).resolve("System32").toAbsolutePath().normalize();
     }
 
     public static Map<String, Path> discoverBundledNativeLibraries(Path libDir, Platform platform) throws IOException {
@@ -460,7 +494,7 @@ public class ResourceUnpacker {
             return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1 + "-" + arch)));
         } else {
             Path tmpDir = Files.createTempDirectory("defold-unpack");
-            FileUtil.deleteOnExit(tmpDir);
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(tmpDir.toFile())));
             return tmpDir;
         }
     }

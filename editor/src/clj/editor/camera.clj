@@ -20,11 +20,12 @@
             [editor.input :as i]
             [editor.keymap :as keymap]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.settings-popup :as settings-popup]
-            [editor.prefs :as prefs])
+            [editor.ui.settings-popup :as settings-popup])
   (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
            [javafx.scene Node Parent]
@@ -43,6 +44,8 @@
 
 (def fov-x-35mm-full-frame 54.4)
 (def fov-y-35mm-full-frame 37.8)
+
+(def ^:const orthographic-framing-margin 1.1)
 
 (def vector3-up (Vector3d. 0.0 1.0 0.0))
 
@@ -401,7 +404,7 @@
     :orthographic (dolly-orthographic camera (- delta))
     :perspective (dolly-perspective camera delta)))
 
-(def ^:private zoom-inertia 0.04)
+(def ^:private dolly-inertia 0.04)
 
 (defn- interpolate-position-and-focus-point [camera target-camera ^double factor]
   (let [current-pos (types/position camera)
@@ -418,7 +421,7 @@
   (let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (if (nil? target-camera)
       camera
-      (let [factor (- 1.0 (Math/exp (- (/ dt ^double zoom-inertia))))
+      (let [factor (- 1.0 (Math/exp (- (/ dt ^double dolly-inertia))))
             [new-pos ^Vector4d new-fp] (interpolate-position-and-focus-point camera target-camera factor)]
         (case (:type camera)
           :perspective
@@ -519,22 +522,16 @@
            :position (Point3d. (.x delta) (.y delta) (.z delta))
            :rotation r)))
 
-(def ^:private button-interpretation
-  ;; button    shift ctrl  alt   meta => movement
-  {[:primary   false true  false false] :tumble
-   [:primary   false false true  false] :track
-   [:primary   false true  true  false] :dolly
-   [:secondary false false true  false] :dolly
-   [:secondary false false false false] :track
-   [:middle    false false false false] :track})
+(def ^:private camera-command->movement
+  {:scene.camera.free-look :look
+   :scene.camera.orbit :tumble
+   :scene.camera.pan :track
+   :scene.camera.zoom :dolly})
 
-(defn camera-movement [action movements-enabled]
-  ;; NOTE: Hardcoding secondary to start free camera mode, but should be easy to add :middle in the future as an option
-  (if (and (movements-enabled :look) (= (:button action) :secondary))
-    :look
-    (let [movement (button-interpretation [(:button action) (:shift action) (:control action) (:alt action) (:meta action)])]
-      (or (and (movements-enabled movement) movement)
-          :idle))))
+(defn- camera-mouse-binding-context [camera]
+  (if (= :orthographic (:type camera))
+    ::scene-camera-orthographic
+    ::scene-camera-perspective))
 
 (defn camera-orthographic-fov-from-aabb [^Camera camera ^Region viewport ^AABB aabb]
   {:pre [camera aabb]}
@@ -552,14 +549,14 @@
               factor-y (/ proj-height h)
               fov-x-prim  (* factor-x (.fov-x camera))
               fov-y-prim  (* factor-y (.fov-y camera))]
-          [(* 1.1 fov-x-prim) (* 1.1 fov-y-prim)])))))
+          [(* orthographic-framing-margin fov-x-prim) (* orthographic-framing-margin fov-y-prim)])))))
 
 (defn camera-orthographic-frame-aabb
   ^Camera [^Camera camera ^Region viewport ^AABB aabb]
   {:pre [(= :orthographic (:type camera))]}
   (let [aspect (/ ^double (:fov-x camera) ^double (:fov-y camera))
         [^double fov-x ^double fov-y] (camera-orthographic-fov-from-aabb camera viewport aabb)
-        [fov-x fov-y] (if (> (/ fov-x aspect) (* aspect fov-y))
+        [fov-x fov-y] (if (> (/ fov-x aspect) fov-y)
                         [fov-x (/ fov-x aspect)]
                         [(* aspect fov-y) fov-y])
         filter-fn (or (:filter-fn camera) identity)]
@@ -705,11 +702,6 @@
     (-> local-camera
         (set-extents fov-x fov-y z-near z-far)
         filter-fn)))
-
-(defn significant-drag?
-  [[^double cx ^double cy] [^double px ^double py]]
-  (< 2.0 (max (Math/abs (- cx px))
-              (Math/abs (- cy py)))))
 
 (defn- lerp [^double a ^double b ^double t]
   (let [d (- b a)]
@@ -966,8 +958,24 @@
           free-cam-mode (:free-cam-mode camera-state)
           {:keys [x y type key-code]} action
           local-cam (g/node-value self :local-camera evaluation-context)
-          movement (if (= type :mouse-pressed)
-                     (camera-movement action movements-enabled)
+          mouse-binding-command (and (= type :mouse-pressed)
+                                     (:mouse-binding-command action))
+          override-camera (and mouse-binding-command
+                               (nil? (camera-command->movement mouse-binding-command)))
+          movement (cond
+                     (and mouse-binding-command (not override-camera))
+                     (let [movement (camera-command->movement mouse-binding-command)]
+                       (or (and movement (movements-enabled movement) movement)
+                           :idle))
+
+                     (= type :mouse-pressed)
+                     (let [command (mouse-binding/command-for-action (camera-mouse-binding-context local-cam)
+                                                                     action)
+                           movement (camera-command->movement command)]
+                       (or (and movement (movements-enabled movement) movement)
+                           :idle))
+
+                     :else
                      (get camera-state :movement :idle))]
       (case type
         :scroll (if (and (contains? movements-enabled :dolly)
@@ -984,18 +992,25 @@
                     nil)
                   action)
         :mouse-pressed
-        (do
-          ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
-          (reset-dolly! self)
-          (g/user-data-swap! self ::camera-state assoc
-                             :last-x x
-                             :last-y y
-                             :initial-x x
-                             :initial-y y
-                             :movement movement)
-          (when (and (= movement :idle)
-                     (not free-cam-mode))
-            action))
+        (if override-camera
+          action
+          (do
+            ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
+            (reset-dolly! self)
+            (g/user-data-swap! self ::camera-state assoc
+                               :last-x x
+                               :last-y y
+                               :initial-x x
+                               :initial-y y
+                               :movement movement)
+            ;; NOTE: For a secondary (right) press we still propagate the action so the
+            ;; selection handler can pick the object under the cursor before showing the
+            ;; context menu. The camera tracks/free-looks via handle-update-tick and swallows
+            ;; the release only when an actual drag occurred, so a plain click still selects.
+            (when (and (not free-cam-mode)
+                       (or (= movement :idle)
+                           (= (:button action) :secondary)))
+              action)))
 
         :drag-detected
         (do
@@ -1042,13 +1057,16 @@
         (cond
           (and (= key-code KeyCode/ESCAPE)
                free-cam-mode
-               (not (contains? (:mouse-buttons input-state) :secondary)))
+               (not (mouse-binding/command-active? ::scene-camera-perspective :scene.camera.free-look input-state)))
           (stop-free-cam-mode! image-view self)
 
           (and (= movement :look)
                (not free-cam-mode)
                (contains-key-code? (:pressed-keys input-state) (:all (g/node-value self :free-cam-shortcuts evaluation-context))))
-          (start-free-cam-mode! image-view self))
+          (start-free-cam-mode! image-view self)
+
+          :else
+          action)
 
         ;; NOTE: Don't let other handlers receive input if we're in free camera mode
         (if free-cam-mode
@@ -1108,12 +1126,12 @@
       (if free-cam-mode
         (let [current-camera (g/node-value self :local-camera evaluation-context)
               prefs (g/node-value self :prefs evaluation-context)
-              {:keys [modifiers pressed-keys]} input-state
-              shift (contains? modifiers :shift)
-              alt (contains? modifiers :alt)
+              {:keys [pressed-keys]} input-state
               speed (* ^double camera-speed
-                       (double (cond shift camera-speed-boost
-                                     alt camera-speed-precision
+                       (double (cond (mouse-binding/command-active? ::scene-camera-perspective :scene.camera.free-look.speed-boost input-state)
+                                     camera-speed-boost
+                                     (mouse-binding/command-active? ::scene-camera-perspective :scene.camera.free-look.speed-precision input-state)
+                                     camera-speed-precision
                                      :else 1.0))
                        (double (prefs/get prefs prefs-key-move-speed)))
               walking-mode (prefs/get prefs prefs-key-walking-mode)
@@ -1193,12 +1211,12 @@
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
   (output free-cam-shortcuts g/Any :cached
           (g/fnk [keymap]
-            (let [forward  (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.forward))
-                  left     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.left))
-                  backward (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.backward))
-                  right    (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.right))
-                  down     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.down))
-                  up       (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.up))]
+            (let [forward  (keymap/shortcut-key-codes (keymap/shortcuts keymap :scene.free-camera.forward))
+                  left     (keymap/shortcut-key-codes (keymap/shortcuts keymap :scene.free-camera.left))
+                  backward (keymap/shortcut-key-codes (keymap/shortcuts keymap :scene.free-camera.backward))
+                  right    (keymap/shortcut-key-codes (keymap/shortcuts keymap :scene.free-camera.right))
+                  down     (keymap/shortcut-key-codes (keymap/shortcuts keymap :scene.free-camera.down))
+                  up       (keymap/shortcut-key-codes (keymap/shortcuts keymap :scene.free-camera.up))]
               {:forward forward :left left :backward backward :right right :down down :up up
                :all (into [] cat [forward left backward right down up])})))
 
@@ -1223,6 +1241,50 @@
   (run [app-view prefs]
     (let [current-value (prefs/get prefs prefs-key-walking-mode)]
       (prefs/set! prefs prefs-key-walking-mode (not current-value)))))
+
+(mouse-binding/register!
+  ::scene-camera-orthographic
+  "Scene 2D Camera"
+  [{:command :scene.camera.orbit
+    :action ["Orbit"]
+    :binding {:button :primary :modifiers #{:control}}}
+   {:command :scene.camera.pan
+    :action ["Pan"]
+    :binding {:button :primary :modifiers #{:alt}}}
+   {:command :scene.camera.pan
+    :action ["Pan"]
+    :binding {:button :middle :modifiers #{}}}
+   {:command :scene.camera.pan
+    :action ["Pan"]
+    :binding {:button :secondary :modifiers #{}}}
+   {:command :scene.camera.zoom
+    :action ["Zoom"]
+    :binding {:button :primary :modifiers #{:control :alt}}}])
+
+(mouse-binding/register!
+  ::scene-camera-perspective
+  "Scene 3D Camera"
+  [{:command :scene.camera.free-look
+    :action ["Free Look"]
+    :binding {:button :secondary :modifiers #{}}}
+   {:command :scene.camera.free-look.speed-boost
+    :action ["Free Look" "Speed Boost"]
+    :modifier :shift}
+   {:command :scene.camera.free-look.speed-precision
+    :action ["Free Look" "Speed Precision"]
+    :modifier :alt}
+   {:command :scene.camera.orbit
+    :action ["Orbit"]
+    :binding {:button :primary :modifiers #{:control}}}
+   {:command :scene.camera.pan
+    :action ["Pan"]
+    :binding {:button :primary :modifiers #{:alt}}}
+   {:command :scene.camera.pan
+    :action ["Pan"]
+    :binding {:button :middle :modifiers #{}}}
+   {:command :scene.camera.zoom
+    :action ["Dolly"]
+    :binding {:button :primary :modifiers #{:control :alt}}}])
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]
   (let [persp-fov-fn

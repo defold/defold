@@ -7,6 +7,7 @@ context:
                 "ComponentTypeMesh",
                 "ComponentTypeScript",
                 "ComponentTypeSound",
+                "ComponentTypeLight",
                 "CrashExt",
                 "DefaultSoundDevice",
                 "LiveUpdateExt",
@@ -28,145 +29,97 @@ context:
                 "ResourceTypeScript",
                 "ResourceTypeTTF",
                 "ResourceTypeWav",
+                "ResourceTypeLight",
                 "ScriptBox2DExt",
                 "ScriptFont",
                 "ScriptHttp",
                 "ScriptImageExt",
                 "ScriptModelExt",
-                "ScriptTypesExt"]
+                "ScriptTypesExt",
+                "ScriptMaterialExt"
+                ]
     allowedLibs: [
-                "engine",
-                "engine_release",
-                "crashext",
-                "crashext_null",
-                "record",
-                "record_null",
-                "gameobject",
-                "ddf",
-                "resource",
-                "gamesys",
-                "gamesys_model",
-                "gamesys_rig",
-                "gamesys_model_null",
-                "gamesys_rig_null",
-                "rig_null",
-                "graphics",
-                "graphics_opengles",
-                "graphics_webgpu",
-                "graphics_webgpu_wagyu",
-                "graphics_null",
-                "graphics_transcoder_null",
-                "graphics_transcoder_basisu",
-                "basis_transcoder",
-                "physics_2d",
-                "physics_2d_defold",
-                "physics_3d",
-                "physics_null",
-                "platform",
-                "platform_vulkan",
-                "platform_null",
-                "BulletDynamics",
-                "BulletCollision",
-                "LinearMath",
-                "box2d",
-                "box2d_defold",
-                "render",
-                "render_font_default",
-                "script",
-                "luajit-5.1",
-                "extension",
-                "hid",
-                "hid_null",
-                "input",
-                "particle",
-                "rig",
-                "dlib",
-                "dmbedtls",
-                "image",
-                "image_null",
-                "dmglfw",
-                "glfw3",
-                "gui",
-                "crashext",
-                "sound",
-                "sound_null",
-                "tremolo",
-                "vpx",
-                "liveupdate",
+                "engine", "engine.lib", "libengine.lib",
+                "engine_release", "engine_release.lib", "libengine_release.lib",
+                "basis_transcoder", "basis_transcoder.lib", "libbasis_transcoder.lib",
+                "crashext", "crashext.lib", "libcrashext.lib",
+                "crashext_null", "crashext_null.lib", "libcrashext_null.lib",
+                "record", "record.lib", "librecord.lib",
+                "record_null", "record_null.lib", "librecord_null.lib",
+                "gameobject", "gameobject.lib", "libgameobject.lib",
+                "ddf", "ddf.lib", "libddf.lib",
+                "dmbedtls", "dmbedtls.lib", "libdmbedtls.lib",
+                "resource", "resource.lib", "libresource.lib",
+                "gamesys", "gamesys.lib", "libgamesys.lib",
+                "gamesys_model", "gamesys_model.lib", "libgamesys_model.lib",
+                "gamesys_rig", "gamesys_rig.lib", "libgamesys_rig.lib",
+                "gamesys_model_null", "gamesys_model_null.lib", "libgamesys_model_null.lib",
+                "gamesys_rig_null", "gamesys_rig_null.lib", "libgamesys_rig_null.lib",
+                "rig", "rig.lib", "librig.lib",
+                "rig_null", "rig_null.lib", "librig_null.lib",
+                "graphics", "graphics.lib", "libgraphics.lib",
+                "graphics_metal", "graphics_metal.lib", "libgraphics_metal.lib",
+                "graphics_opengles", "graphics_opengles.lib", "libgraphics_opengles.lib",
+                "graphics_webgpu", "graphics_webgpu.lib", "libgraphics_webgpu.lib",
+                "graphics_webgpu_wagyu", "graphics_webgpu_wagyu.lib", "libgraphics_webgpu_wagyu.lib",
+                "graphics_null", "graphics_null.lib", "libgraphics_null.lib",
+                "graphics_transcoder_null", "graphics_transcoder_null.lib", "libgraphics_transcoder_null.lib",
+                "graphics_transcoder_basisu", "graphics_transcoder_basisu.lib", "libgraphics_transcoder_basisu.lib",
+                "physics_2d", "physics_2d.lib", "libphysics_2d.lib",
+                "physics_2d_defold", "physics_2d_defold.lib", "libphysics_2d_defold.lib",
+                "physics_3d", "physics_3d.lib", "libphysics_3d.lib",
+                "physics_null", "physics_null.lib", "libphysics_null.lib",
+                "platform", "platform.lib", "libplatform.lib",
+                "platform_vulkan", "platform_vulkan.lib", "libplatform_vulkan.lib",
+                "platform_null", "platform_null.lib", "libplatform_null.lib",
+                "render", "render.lib", "librender.lib",
+                "render_font_default", "render_font_default.lib", "librender_font_default.lib",
+                "script", "script.lib", "libscript.lib",
+                "extension", "extension.lib", "libextension.lib",
+                "hid", "hid.lib", "libhid.lib",
+                "hid_null", "hid_null.lib", "libhid_null.lib",
+                "input", "input.lib", "libinput.lib",
+                "particle", "particle.lib", "libparticle.lib",
+                "dlib", "dlib.lib", "libdlib.lib",
+                "image", "image.lib", "libimage.lib",
+                "image_null", "image_null.lib", "libimage_null.lib",
+                "dmglfw", "dmglfw.lib", "libdmglfw.lib",
+                "gui", "gui.lib", "libgui.lib",
+                "sound", "sound.lib", "libsound.lib",
+                "sound_null", "sound_null.lib", "libsound_null.lib",
+                "liveupdate", "liveupdate.lib", "libliveupdate.lib",
+                "engine_service", "engine_service.lib", "libengine_service.lib",
+                "engine_service_null", "engine_service_null.lib", "libengine_service_null.lib",
+                "script_box2d", "script_box2d.lib", "libscript_box2d.lib",
+                "script_box2d_defold", "script_box2d_defold.lib", "libscript_box2d_defold.lib",
+                "script_box2d_null", "script_box2d_null.lib", "libscript_box2d_null.lib",
+                "font", "font.lib", "libfont.lib",
+                "profile", "profile.lib", "libprofile.lib",
+                "profile_null", "profile_null.lib", "libprofile_null.lib",
+                "profiler_remotery", "profiler_remotery.lib", "libprofiler_remotery.lib",
+                "profiler_js", "profiler_js.lib", "libprofiler_js.lib",
+                "profilerext", "profilerext.lib", "libprofilerext.lib",
+                "profilerext_null", "profilerext_null.lib", "libprofilerext_null.lib",
+                "decoder_wav", "decoder_wav.lib", "libdecoder_wav.lib",
+                "decoder_ogg", "decoder_ogg.lib", "libdecoder_ogg.lib",
+                "decoder_opus", "decoder_opus.lib", "libdecoder_opus.lib",
+                # External libraries
+                "BulletDynamics", "libBulletDynamics.lib",
+                "BulletCollision", "libBulletCollision.lib",
+                "LinearMath", "libLinearMath.lib",
+                "box2d", "libbox2d.lib",
+                "box2d_defold", "libbox2d_defold.lib",
+                "luajit-5.1", "libluajit.lib-5.1",
+                "glfw3", "libglfw3.lib",
                 "MoltenVK",
-                "libengine.lib",
-                "libengine_release.lib",
-                "libcrashext",
-                "libcrashext_null",
-                "librecord.lib",
-                "librecord_null.lib",
-                "libgameobject.lib",
-                "libddf.lib",
-                "libresource.lib",
-                "gamesys.lib",
-                "gamesys_model.lib",
-                "gamesys_rig.lib",
-                "librig.lib",
-                "gamesys_model_null.lib",
-                "gamesys_rig_null.lib",
-                "librig_null.lib",
-                "libgraphics.lib",
-                "libgraphics_null.lib",
-                "libgraphics_opengl.lib",
-                "libgraphics_transcoder_null.lib",
-                "libgraphics_transcoder_basisu.lib",
-                "libbasis_transcoder.lib",
-                "libphysics_2d.lib",
-                "libphysics_2d_defold.lib",
-                "libphysics_3d.lib",
-                "libphysics_null.lib",
-                "libBulletDynamics.lib",
-                "libBulletCollision.lib",
-                "libplatform.lib",
-                "libplatform_null.lib",
-                "libLinearMath.lib",
-                "libbox2d.lib",
-                "librender.lib",
-                "librender_font_default.lib",
-                "libscript.lib",
-                "libluajit.lib-5.1",
-                "libextension.lib",
-                "libhid.lib",
-                "libhid_null.lib",
-                "libinput.lib",
-                "libparticle.lib",
-                "librig.lib",
-                "libdlib.lib",
-                "libimage.lib",
-                "libimage_null.lib",
-                "libdmglfw.lib",
-                "libgui.lib",
-                "libcrashext.lib",
-                "libsound.lib",
-                "libsound_null.lib",
-                "libtremolo.lib",
-                "libvpx.lib",
-                "libliveupdate.lib",
-                "engine_service", "libengine_service.lib",
-                "engine_service_null", "libengine_service_null.lib",
-                "script_box2d", "script_box2d.lib",
-                "script_box2d_defold", "script_box2d_defold.lib",
-                "font", "libfont.lib",
                 "opus", "libopus.lib",
-                "profile", "libprofile.lib",
-                "profile_null", "libprofile_null.lib",
-                "profiler_remotery", "libprofiler_remotery.lib",
-                "profiler_js", "libprofiler_js.lib",
-                "profilerext", "libprofilerext.lib",
-                "profilerext_null", "libprofilerext_null.lib",
-                "decoder_wav", "libdecoder_wav.lib",
-                "decoder_ogg", "libdecoder_ogg.lib",
-                "decoder_opus", "libdecoder_opus.lib"]
+                "tremolo", "libtremolo.lib",
+                "vpx", "vpx.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
-                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
+                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterMetal", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
                     "ScriptFont", "ResourceTypeFont", "ResourceTypeTTF",
-                    "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus"]
+                    "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus", "ResourceTypeLight", "ComponentTypeLight"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
 
 main: |
@@ -282,23 +235,23 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_CLANG_VERSION}}"
         MACOS_VERSION:          "{{env.MACOS_VERSION}}"
         MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
-        SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_VERSION}}"
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk"
     context:
         frameworks:     ["Foundation", "AppKit", "Cocoa", "Metal", "IOSurface", "OpenAL", "IOKit", "GameController", "Carbon", "CoreVideo", "QuartzCore", "AVFoundation", "CFNetwork", "Security"]
         engineLibs:     ["engine", "engine_service", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "MoltenVK", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform_vulkan", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate", "decoder_wav", "decoder_ogg"]
         libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
-        defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
+        defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED", "DM_HAVE_PLATFORM_COMPUTE_SUPPORT"]
         systemIncludes: ["{{env.SYSROOT}}/usr/include/c++/v1"]
-        flags:          ["-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
+        flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
         linkFlags:      ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-dead_strip", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-dead_strip", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
-        symbols:        ["AudioDecoderTremolo", "GraphicsAdapterVulkan", "ProfilerRemotery"]
+        symbols:        ["AudioDecoderTremolo", "GraphicsAdapterVulkan", "ProfilerRemotery", "ScriptComputeExt"]
         libStartGroup_replace:  []
         libEndGroup_replace:    []
         osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
@@ -334,6 +287,7 @@ platforms:
         libPaths:       ["{{dynamo_home}}/lib/arm64-macos", "{{dynamo_home}}/ext/lib/arm64-macos"]
         clangArch:      "arm64"
         clangTarget:    "arm64-apple-darwin19"
+        flags:          ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         zig-target:     'aarch64-macos'
@@ -344,6 +298,7 @@ platforms:
         libPaths:       ["{{dynamo_home}}/lib/x86_64-macos", "{{dynamo_home}}/ext/lib/x86_64-macos"]
         clangArch:      "x86_64"
         clangTarget:    "x86_64-apple-darwin19"
+        flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         zig-target:     'x86_64-macos'
@@ -358,14 +313,14 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
-        SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_VERSION}}"
         IOS_VERSION:            "{{env.IOS_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
 
     context:
         weakFrameworks: ["Foundation"]
-        frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation", "CFNetwork", "Security", "GameController"]
+        frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation", "CFNetwork", "Security", "GameController", "CoreMotion"]
         engineLibs: ["engine", "engine_service", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv", "decoder_wav", "decoder_ogg"]
         systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         dynamicLibs: []
@@ -399,7 +354,8 @@ platforms:
         SYSROOT:    "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk"
     context:
         libPaths:   ["{{dynamo_home}}/lib/arm64-ios", "{{dynamo_home}}/ext/lib/arm64-ios", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
-        defines:    ["DM_PLATFORM_IOS"]
+        defines:    ["DM_PLATFORM_IOS", "DM_HAVE_PLATFORM_COMPUTE_SUPPORT"]
+        symbols:    ["ScriptComputeExt"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-Wl,-U,_objc_loadClassref']
         libs:       ['clang_rt.ios']
@@ -439,6 +395,7 @@ platforms:
         ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION}}"
         ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH}}"
     context:
+        defines:    ["DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         engineJars: ["{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/ext/share/java/vkquality.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_opengles", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "decoder_wav", "decoder_ogg"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
@@ -446,7 +403,7 @@ platforms:
         linkFlags:  ["-Wl,--build-id=uuid"]
         libs:       []
         dynamicLibs: ["OpenSLES","m","log","c","EGL","GLESv1_CM","GLESv2"]
-        symbols:    ["AudioDecoderTremolo", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "ProfilerRemotery"]
+        symbols:    ["AudioDecoderTremolo", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "ProfilerRemotery", "ScriptComputeExt"]
 
     exePrefix: 'lib'
     exeExt: '.so'
@@ -463,7 +420,7 @@ platforms:
     javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     # mainDexList is automatically created by listing all classes inside the engine jars
-    dxCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/d8 --main-dex-rules {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
+    dxCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/d8 --min-api {{minAndroidSdkVersion}} --main-dex-rules {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
     aapt2compileCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
@@ -576,10 +533,11 @@ platforms:
         SDK_VERSION:        "{{env.WINDOWS_SDK_VERSION}}"
         CLANG_HOME:         "{{env.CLANG_RESOURCE_DIR}}"
     context:
+        defines:        ["DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/ucrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/winrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/um", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/shared"]
-        engineLibs:     ["libengine","libengine_service","libdmbedtls","libzip","libprofile","libprofilerext","libprofiler_remotery","librecord","libgameobject","libddf","libfont","libresource","gamesys","gamesys_model","gamesys_rig","script_box2d_defold","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","platform","libLinearMath","libbox2d_defold","librender","librender_font_default","libscript","libluajit-5.1","libextension","hid","input","libparticle","librig","libdlib", "libimage", "libglfw3","libgui","libcrashext","libliveupdate","libsound","vpx", "libdecoder_wav", "libdecoder_ogg"]
+        engineLibs:     ["engine","engine_service","dmbedtls","zip","profile","profilerext","profiler_remotery","record","gameobject","ddf","font","resource","gamesys","gamesys_model","gamesys_rig","script_box2d_defold","graphics","graphics_transcoder_basisu","basis_transcoder","physics","libBulletDynamics","libBulletCollision","platform","libLinearMath","libbox2d_defold","render","render_font_default","script","libluajit-5.1","extension","hid","input","particle","rig","dlib", "image", "libglfw3","gui","crashext","liveupdate","sound","vpx", "decoder_wav", "decoder_ogg"]
         libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "bcrypt", "Psapi", "Gdi32", "ole32"]
-        symbols:        ["GraphicsAdapterOpenGL", "ProfilerRemotery"]
+        symbols:        ["GraphicsAdapterOpenGL", "ProfilerRemotery", "ScriptComputeExt"]
 
     exePrefix:      ''
     exeExt:         '.exe'
@@ -621,14 +579,14 @@ platforms:
   linux:
     context:
         engineLibs:     ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx", "decoder_wav", "decoder_ogg"]
-        defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
+        defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS", "DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
         linkFlags:      ["-g", "-O2", "-fuse-ld=lld"]
         cxxLinkShFlags: ["-g", "-O2", "-fuse-ld=lld"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
-        dynamicLibs: ["openal","Xext","X11","Xi","pthread","m","dl"]
-        symbols:        ["ProfilerRemotery"]
+        dynamicLibs:    ["openal","Xext","X11","Xi","pthread","m","dl"]
+        symbols:        ["ProfilerRemotery", "ScriptComputeExt"]
 
     exePrefix:      ''
     exeExt:         ''

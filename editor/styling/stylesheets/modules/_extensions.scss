@@ -1,3 +1,5 @@
+@use "sass:string";
+
 $ext-spacing-small: 4px;
 $ext-spacing-medium: 8px;
 $ext-spacing-large: 16px;
@@ -109,6 +111,14 @@ $ext-line-height: 26px;
             & > .box { -fx-border-color: -df-error-severity-fatal-dim; }
             &:focused > .box { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
         }
+    }
+    &-radio-button {
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-label-padding: 0 0 0 $ext-spacing-small;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
     }
     &-text-field {
         -fx-min-height: $ext-line-height;
@@ -540,5 +550,16 @@ $ext-line-height: 26px;
                 & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal; }
             }
         }
+    }
+    &-tab-pane {
+        & > .tab-content-area {
+            -fx-background-color: string.unquote("null");
+        }
+    }
+    &-tab-icon {
+        -fx-min-width: 16px;
+        -fx-max-width: 16px;
+        -fx-min-height: 16px;
+        -fx-max-height: 16px;
     }
 }

@@ -100,7 +100,7 @@ def build(bld):
     bob_flags = ['--variant=debug']
     bob_flags.append("--platform=%s" % platform)
     if Options.options.use_vanilla_lua:
-        bob_flags.append("--use-vanilla-lua")
+        bob_flags.append("--use-uncompressed-lua-source")
     bob_flags = ' '.join(bob_flags)
 
     classpath = os.pathsep.join(['./build/content/bob-engine.jar'] + bld.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR'])
@@ -115,6 +115,7 @@ def build(bld):
     # Build custom collections first to prevent overrides in default game.projectc
     settings = [
         'cross_script_messaging.ini',
+        'issue-12703.ini',
         'render_script.ini',
         'camera_acquire_input_focus.ini',
         'text_input.ini']

@@ -24,7 +24,6 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.pipeline.ShaderUtil;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.apache.commons.io.FileUtils;
@@ -75,13 +74,11 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return null;
     }
 
-    static private String compileSPIRVToWGSL(String resourcePath, byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
-        File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-        FileUtil.deleteOnExit(file_in_spv);
+    private String compileSPIRVToWGSL(String resourcePath, byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+        File file_in_spv = createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
 
-        File file_out_wgsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".wgsl");
-        FileUtil.deleteOnExit(file_out_wgsl);
+        File file_out_wgsl = createTempFile(FilenameUtils.getName(resourceOutput), ".wgsl");
         generateWGSL(resourcePath, file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
         return FileUtils.readFileToString(file_out_wgsl);
     }
@@ -102,12 +99,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
             ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers, this.options.glslEsDefaultFloatPrecision, this.options.glslEsDefaultIntPrecision);
 
-            File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
-            FileUtil.deleteOnExit(file_in_compute);
+            File file_in_compute = createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
             FileUtils.writeByteArrayToFile(file_in_compute, es3Result.output.getBytes());
 
-            file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-            FileUtil.deleteOnExit(file_out_spv);
+            file_out_spv = createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
 
             result = Exec.execResult(glslangExe,
                     "-w",
@@ -144,12 +139,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             }
 
             // compile GLSL (ES3 or Desktop 140) to SPIR-V
-            File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
-            FileUtil.deleteOnExit(file_in_glsl);
+            File file_in_glsl = createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
             FileUtils.writeByteArrayToFile(file_in_glsl, shaderSource.getBytes());
 
-            file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-            FileUtil.deleteOnExit(file_out_spv);
+            file_out_spv = createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
 
             String spirvShaderStage = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? "vert" : "frag");
 
@@ -185,8 +178,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             checkResult(moduleLegacy.desc.resourcePath, resultString);
         }
 
-        File file_out_spv_opt = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-        FileUtil.deleteOnExit(file_out_spv_opt);
+        File file_out_spv_opt = createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
 
         // Run optimization pass
         result = Exec.execResult(spirvOptExe,

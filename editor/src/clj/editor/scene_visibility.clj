@@ -18,14 +18,58 @@
             [editor.handler :as handler]
             [editor.system :as system]
             [editor.types :as types]
+            [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
             [internal.util :as iutil]
             [schema.core :as s])
   (:import [javafx.css PseudoClass]
-           [javafx.scene Parent]
+           [javafx.scene Node Parent]
            [javafx.scene.control Tab ToggleButton]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private renderable-tag-toggles-info
+  (cond-> [{:label "Collision Shapes" :tag :collision-shape}
+           {:label "Camera" :tag :camera}
+           #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
+           {:label "GUI Bounds" :tag :gui-bounds}
+           {:label "GUI Shapes" :tag :gui-shape}
+           {:label "GUI Particle Effects" :tag :gui-particlefx}
+           {:label "GUI Spine Scenes" :tag :gui-spine}
+           {:label "GUI Text" :tag :gui-text}
+           {:label "Lights" :tag :light}
+           {:label "Models" :tag :model}
+           {:label "Particle Effects" :tag :particlefx}
+           {:label "Skeletons" :tag :skeleton}
+           {:label "Spine Scenes" :tag :spine}
+           {:label "Sprites" :tag :sprite}
+           {:label "Text" :tag :text}
+           {:label "Tile Maps" :tag :tilemap}
+           {:label :separator}
+           {:label "Component Guides" :tag :outline :command :scene.visibility.toggle-component-guides :always-enabled true}]
+
+          (system/defold-dev?)
+          (into [{:label :separator}
+                 {:label "Scene Visibility Bounds" :tag :dev-visibility-bounds :appear-filtered false}])))
+
+(def ^:private appear-filtered-renderable-tags
+  (into #{}
+        (keep (fn [{:keys [appear-filtered tag]
+                    :or {appear-filtered true}}]
+                (when appear-filtered
+                  tag)))
+        renderable-tag-toggles-info))
+
+(defn filters-appear-active?
+  "Returns true if some parts of the scene are hidden due to visibility filters."
+  ([scene-visibility]
+   (g/with-auto-evaluation-context evaluation-context
+     (filters-appear-active? scene-visibility evaluation-context)))
+  ([scene-visibility evaluation-context]
+   (boolean
+     (and (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
+          (some appear-filtered-renderable-tags
+                (g/node-value scene-visibility :filtered-renderable-tags evaluation-context))))))
 
 ;; -----------------------------------------------------------------------------
 ;; SceneVisibilityNode
@@ -295,10 +339,10 @@
         (renderable-tag-descriptors scene-visibility)))
 
 (defn toggle-button [app-view]
-  (some-> ^Tab (g/node-value app-view :active-tab)
-          .getContent
-          (.lookup "#visibility-settings-graphic")
-          .getParent))
+  (some-> (g/node-value app-view :active-tab)
+          Tab/.getContent
+          (ui/lookup-by-id "visibility-settings-graphic")
+          Node/.getParent))
 
 (defn sync-filter-button-style! [app-view scene-visibility evaluation-context]
   (when-let [btn ^ToggleButton (toggle-button app-view)]

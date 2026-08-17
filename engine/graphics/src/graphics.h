@@ -26,7 +26,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include <platform/window.h>
+#include <dmsdk/platform/window.h>
 
 namespace dmGraphics
 {
@@ -83,6 +83,7 @@ namespace dmGraphics
         ADAPTER_FAMILY_PRIORITY_VENDOR   = 0,
         ADAPTER_FAMILY_PRIORITY_WEBGPU   = 0,
         ADAPTER_FAMILY_PRIORITY_DIRECTX  = 0,
+        ADAPTER_FAMILY_PRIORITY_METAL    = 0,
     };
 
     enum AssetType
@@ -199,6 +200,7 @@ namespace dmGraphics
         uint32_t m_HasAttributeNormalMatrix       : 1;
         uint32_t m_HasAttributeNone               : 1;
         uint32_t m_HasAttributeTextureTransform2D : 1;
+        uint32_t m_HasAttributeMorphTargetWeights : 1;
     };
 
     struct WriteAttributeStreamDesc
@@ -229,6 +231,7 @@ namespace dmGraphics
         WriteAttributeStreamDesc    m_TexCoords;
         WriteAttributeStreamDesc    m_PageIndices;
         WriteAttributeStreamDesc    m_TextureTransform2D;
+        WriteAttributeStreamDesc    m_MorphTargetWeights;
         VertexStepFunction          m_StepFunction;
     };
 
@@ -263,14 +266,10 @@ namespace dmGraphics
     };
 
     // The uniform buffer layout is used to validate a uniform buffer
-    // with a shader resource binding by comparing the hash of
-    // the layout of the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
+    // with a shader resource binding by comparing the layout hash of
+    // the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
     // If the buffer layout differs from the binding, it cannot be used.
-    struct UniformBufferLayout
-    {
-        uint32_t m_Size;
-        uint32_t m_Hash;
-    };
+    typedef uint32_t UniformBufferLayout;
 
     struct ShaderResourceType
     {
@@ -300,7 +299,7 @@ namespace dmGraphics
     };
 
     // Callback invoked for each resource binding in a program that matches the specified family.
-    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, void* user_data);
+    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, UniformBufferLayout* layout, void* user_data);
 
     // Iterate over all resource bindings for the given program that belong to the specified
     // binding family and invoke the supplied callback for each binding.
@@ -460,8 +459,10 @@ namespace dmGraphics
 
     // Uniform buffers
     void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
-    void                GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
-    HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
+    UniformBufferLayout GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types);
+    uint32_t            GetUniformBufferTypeSize(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types);
+    bool                IsUniformBufferLayoutCompatible(UniformBufferLayout bound_layout, uint32_t bound_size, UniformBufferLayout program_layout, uint32_t program_size);
+    HUniformBuffer      NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
@@ -588,6 +589,9 @@ namespace dmGraphics
             break;
         case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
             metadata.m_HasAttributeTextureTransform2D = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS:
+            metadata.m_HasAttributeMorphTargetWeights = true;
             break;
         default:
             break;

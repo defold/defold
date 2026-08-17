@@ -4,7 +4,6 @@ import com.dynamo.bob.archive.EngineVersion;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
-import javax.xml.bind.DatatypeConverter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -15,24 +14,21 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.FileWriter;
-import java.nio.file.Files;
-import java.security.MessageDigest;
 
 public class BuildInputDataCollector {
     private static final String DATA_FILE_NAME = "build_input_data.json";
 
     private static String[] bobArguments;
-    private static Map<String, File> dependencies;
 
     public static void setArgs(String[] args) {
         bobArguments = args;
     }
 
-    public static void setDependencies(Map<String, File> libFiles) {
-        dependencies = libFiles;
+    public static void saveDataAsJson(String rootDirectory, File bundleOutputDirectory, String defoldSdk) {
+        saveDataAsJson(rootDirectory, bundleOutputDirectory, defoldSdk, new File(rootDirectory, DependencyMetadata.PROJECT_PATH));
     }
 
-    public static void saveDataAsJson(String rootDirectory, File bundleOutputDirectory, String defoldSdk) {
+    public static void saveDataAsJson(String rootDirectory, File bundleOutputDirectory, String defoldSdk, File dependencyMetadataFile) {
         TimeProfiler.start("BuildInputDataCollector");
         Map<String, Object> data = new HashMap<>();
         data.put("bob_arguments", bobArguments);
@@ -49,27 +45,9 @@ public class BuildInputDataCollector {
             data.put("project_git", gitInfo);
         }
 
-        if (dependencies != null && !dependencies.isEmpty()) {
-            List<Map<String, String>> depsList = new ArrayList<>();
-            for (Map.Entry<String, File> entry : dependencies.entrySet()) {
-                File file = entry.getValue();
-                if (file.exists() && file.isFile()) {
-                    try {
-                        byte[] fileBytes = Files.readAllBytes(file.toPath());
-                        MessageDigest md = MessageDigest.getInstance("MD5");
-                        md.update(fileBytes);
-                        Map<String, String> depEntry = new HashMap<>();
-                        depEntry.put("link", entry.getKey());
-                        depEntry.put("md5", DatatypeConverter.printHexBinary(md.digest()).toUpperCase());
-                        depsList.add(depEntry);
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to generate dependencies info", e);
-                    }
-                }
-            }
-            if (!depsList.isEmpty()) {
-                data.put("dependencies", depsList);
-            }
+        Object dependencyMetadata = readDependencyMetadataIfAvailable(dependencyMetadataFile);
+        if (dependencyMetadata != null) {
+            data.put("dependencies", dependencyMetadata);
         }
 
         File outputFile = new File(bundleOutputDirectory, DATA_FILE_NAME);
@@ -80,6 +58,18 @@ public class BuildInputDataCollector {
             throw new RuntimeException("Failed to write data to JSON file", e);
         }
         TimeProfiler.stop();
+    }
+
+    private static Object readDependencyMetadataIfAvailable(File dependencyMetadataFile) {
+        if (!dependencyMetadataFile.exists()) {
+            return null;
+        }
+
+        try {
+            return new ObjectMapper().readValue(dependencyMetadataFile, Object.class);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read dependencies JSON", e);
+        }
     }
 
     private static Map<String, String> getGitInfoIfAvailable(String rootDirectory) {

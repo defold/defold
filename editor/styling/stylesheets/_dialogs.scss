@@ -91,6 +91,10 @@ $spacing-largest: 40px;
   }
 }
 
+.ext-button.button-darker {
+  -fx-background-color: derive(-df-component-dark, -25%);
+}
+
 .button-icon {
   -fx-text-fill: -df-text;
   -fx-background-radius: 2px;
@@ -427,4 +431,8 @@ Text {
   &.matched {
     -fx-fill: -df-defold-blue-lighter;
   }
+}
+TextFlow.deprecated > Text {
+  -fx-strikethrough: true;
+  -fx-opacity: 0.75;
 }

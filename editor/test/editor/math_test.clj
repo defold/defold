@@ -21,25 +21,22 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- near? [^double v1 ^double v2]
-  (<= (Math/abs (- v1 v2)) math/epsilon))
-
 (defn- clj-vec-eq? [a b]
   (and (= (count a)
           (count b))
        (every? true?
-               (map near? a b))))
+               (map math/near? a b))))
 
 (defn- vec3-eq? [^Tuple3d a ^Tuple3d b]
-  (and (near? (.getX a) (.getX b))
-       (near? (.getY a) (.getY b))
-       (near? (.getZ a) (.getZ b))))
+  (and (math/near? (.getX a) (.getX b))
+       (math/near? (.getY a) (.getY b))
+       (math/near? (.getZ a) (.getZ b))))
 
 (defn- vec4-eq? [^Tuple4d a ^Tuple4d b]
-  (and (near? (.getX a) (.getX b))
-       (near? (.getY a) (.getY b))
-       (near? (.getZ a) (.getZ b))
-       (near? (.getW a) (.getW b))))
+  (and (math/near? (.getX a) (.getX b))
+       (math/near? (.getY a) (.getY b))
+       (math/near? (.getZ a) (.getZ b))
+       (math/near? (.getW a) (.getW b))))
 
 (defn- quat-eq? [^Quat4d a ^Quat4d b]
   ;; Rotation applied by a negated quaternion is equivalent.
@@ -53,7 +50,7 @@
                     (.getW quat)]
         sign (double
                (or (some (fn [^double component]
-                           (when-not (near? 0.0 component)
+                           (when-not (math/near? 0.0 component)
                              (if (neg? component) -1.0 1.0)))
                          components)
                    1.0))]
@@ -67,8 +64,8 @@
     true?
     (for [row (range 4)
           col (range 4)]
-      (near? (.getElement a row col)
-             (.getElement b row col)))))
+      (math/near? (.getElement a row col)
+                  (.getElement b row col)))))
 
 (defn- ->vec3
   ^Vector3d [v]

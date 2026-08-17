@@ -38,7 +38,6 @@
 
 #include <android/sensor.h>
 
-#include <math.h> // ceil
 #include <stdlib.h>
 #include <string.h>
 
@@ -61,8 +60,6 @@ extern int g_KeyboardActive;
 extern int g_autoCloseKeyboard;
 extern int g_SpecialKeyActive;
 
-static int g_appLaunchInterrupted = 0;
-
 static ASensorEventQueue* g_sensorEventQueue = 0;
 static ASensorRef g_accelerometer = 0;
 static int g_accelerometerEnabled = 0;
@@ -78,6 +75,14 @@ pthread_t g_MainThread = 0;
 bool g_AppResumed = false;
 
 #define COMMAND_LINE_ARGUMENTS_EXTRA "com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS"
+
+int _glfwAndroidIsAppResumed(void)
+{
+    spinlock_lock(&g_EventLock);
+    int resumed = g_AppResumed;
+    spinlock_unlock(&g_EventLock);
+    return resumed;
+}
 
 void JNIAndroidFreeCommandLine(int argc, char** argv)
 {
@@ -473,15 +478,6 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         _glfwWin.opened = 1;
         break;
     case APP_CMD_TERM_WINDOW:
-        if (!_glfwInitialized) {
-            // If TERM arrives before the GL context etc. have been created, (e.g.
-            // if the user opens search in a narrow time window during app launch),
-            // then we can be placed in an unrecoverable situation:
-            // TERM can arrive before _glPlatformInit is called, and so creation of the
-            // GL context will fail. Deferred creation is not effective either, as the
-            // application will attempt to open the GL window before it has regained focus.
-            g_appLaunchInterrupted = 1;
-        }
         // Defer surface teardown to the engine thread to avoid blocking the looper.
         break;
     case APP_CMD_GAINED_FOCUS:
@@ -1087,29 +1083,119 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
     return 0;
 }
 
+static uint32_t getNewInputEventCapacity(uint32_t current_capacity, uint32_t required_capacity)
+{
+    uint32_t new_capacity = current_capacity > 0 ? current_capacity : APP_INPUT_EVENTS_SIZE_INCREASE_STEP;
+
+    while (new_capacity < required_capacity)
+    {
+        uint32_t next_capacity = new_capacity * 2;
+        if (next_capacity < new_capacity)
+        {
+            return required_capacity;
+        }
+        new_capacity = next_capacity;
+    }
+
+    return new_capacity;
+}
+
+static int ensureInputEventCapacity(uint32_t required_capacity)
+{
+    uint32_t current_capacity = 0;
+
+    spinlock_lock(&g_EventLock);
+    current_capacity = (uint32_t) g_MaxAppInputEvents;
+    spinlock_unlock(&g_EventLock);
+
+    if (current_capacity >= required_capacity)
+    {
+        return 1;
+    }
+
+    uint32_t new_capacity = getNewInputEventCapacity(current_capacity, required_capacity);
+    // Allocate outside g_EventLock so heap work does not block event producers or flushes.
+    // The capacity is rechecked under the lock before swapping this buffer in.
+    struct InputEvent* new_input_events = (struct InputEvent*) malloc(sizeof(struct InputEvent) * new_capacity);
+    if (new_input_events == 0)
+    {
+        LOGE("glfwAndroidHandleInput: failed to allocate %u input events", new_capacity);
+        return 0;
+    }
+
+    struct InputEvent* old_input_events = 0;
+
+    spinlock_lock(&g_EventLock);
+
+    required_capacity = (uint32_t) g_NumAppInputEvents > required_capacity ? (uint32_t) g_NumAppInputEvents : required_capacity;
+
+    if ((uint32_t) g_MaxAppInputEvents < required_capacity)
+    {
+        if (new_capacity >= required_capacity)
+        {
+            if (g_AppInputEvents != 0 && g_NumAppInputEvents > 0)
+            {
+                memcpy(new_input_events, g_AppInputEvents, sizeof(struct InputEvent) * g_NumAppInputEvents);
+            }
+
+            old_input_events = g_AppInputEvents;
+            g_AppInputEvents = new_input_events;
+            g_MaxAppInputEvents = (int) new_capacity;
+            new_input_events = 0;
+        }
+    }
+
+    spinlock_unlock(&g_EventLock);
+
+    free(old_input_events);
+    free(new_input_events);
+
+    return 1;
+}
+
 int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
 {
     int ret = 0;
-    spinlock_lock(&g_EventLock);
 
     // We need to make sure we process all events in the queue, otherwise some gestures might end up
     // in a wrong state and get stuck forever.
     uint32_t all_event_count = countInputEvents(app, event);
-    if ((g_NumAppInputEvents + all_event_count) >= g_MaxAppInputEvents)
+    if (all_event_count == 0)
     {
-        uint32_t size_increase = APP_INPUT_EVENTS_SIZE_INCREASE_STEP * (uint32_t) ceil((float) all_event_count / (float) APP_INPUT_EVENTS_SIZE_INCREASE_STEP);
-        g_MaxAppInputEvents += size_increase;
-        g_AppInputEvents = realloc(g_AppInputEvents, sizeof(struct InputEvent) * g_MaxAppInputEvents);
-        memset(g_AppInputEvents + g_NumAppInputEvents, 0, sizeof(struct InputEvent) * size_increase);
+        spinlock_lock(&g_EventLock);
+        int has_input_buffer = g_MaxAppInputEvents > 0;
+        spinlock_unlock(&g_EventLock);
+
+        if (!has_input_buffer)
+        {
+            return 0;
+        }
+
+        struct InputEvent ignored_event;
+        int ignored_event_count = 0;
+        return addInputEvents(app, event, &ignored_event, &ignored_event_count, 1);
     }
 
-    if (g_MaxAppInputEvents > 0)
+    int input_added = 0;
+    while (!input_added)
     {
-        // This will let the engine thread know (engine_main)
-        ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
-    }
+        spinlock_lock(&g_EventLock);
 
-    spinlock_unlock(&g_EventLock);
+        uint32_t required_capacity = (uint32_t) g_NumAppInputEvents + all_event_count;
+        if (required_capacity <= (uint32_t) g_MaxAppInputEvents)
+        {
+            // This will let the engine thread know (engine_main)
+            ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
+            input_added = 1;
+        }
+
+        spinlock_unlock(&g_EventLock);
+
+        if (!input_added && !ensureInputEventCapacity(required_capacity))
+        {
+            return 0;
+        }
+    }
 
     return ret;
 }
@@ -1191,10 +1277,6 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 int _glfwPlatformInit( void )
 {
     LOGV("_glfwPlatformInit");
-
-    if (g_appLaunchInterrupted) {
-        return GL_FALSE;
-    }
 
     g_MainThread = pthread_self();
 

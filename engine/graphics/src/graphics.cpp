@@ -141,6 +141,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_VENDOR;
         if (dmStrCaseCmp("dx12", adapter_name) == 0)
             return ADAPTER_FAMILY_DIRECTX;
+        if (dmStrCaseCmp("metal", adapter_name) == 0)
+            return ADAPTER_FAMILY_METAL;
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
     }
@@ -159,6 +161,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
             default:break;
         }
         return "<unknown dmGraphics::AdapterFamily>";
@@ -1422,8 +1425,8 @@ namespace dmGraphics
                 continue;
             }
 
-            const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
-            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
+            UniformBufferLayout* layout = (UniformBufferLayout*) binding->m_BindingUserData;
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, type_infos.Begin(), type_infos.Size(), root_type_index, layout, user_data);
         }
     }
 
@@ -1471,8 +1474,7 @@ namespace dmGraphics
     UniformBufferLayout* AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
     {
         // Create a uniform buffer layout that can be used to check uniform buffer compatability
-        UniformBufferLayout ubo_layout;
-        GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos, &ubo_layout);
+        UniformBufferLayout ubo_layout = GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos);
 
         uint32_t layout_offset = program->m_UniformBufferLayouts.Size();
         program->m_UniformBufferLayouts.Push(ubo_layout);
@@ -1642,7 +1644,7 @@ namespace dmGraphics
         return DM_ALIGN(offset, max_alignment);
     }
 
-    static uint32_t CalculateShaderTypesSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    uint32_t GetUniformBufferTypeSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
     {
         assert(root_type_index < num_type_infos);
         uint32_t size = CalculateStd140StructSize(type_infos, root_type_index, false);
@@ -1873,7 +1875,7 @@ namespace dmGraphics
     }
     // This function expects that the offsets are already calculated! I.e, if the types are created manually
     // you can use the UpdateShaderTypesOffsets function (graphics_private.h) first.
-    void GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc)
+    UniformBufferLayout GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types)
     {
         HashState32 hash_state;
         dmHashInit32(&hash_state, false);
@@ -1884,8 +1886,12 @@ namespace dmGraphics
 
         HashTypeRecursive(root_type_index, types, num_types, &hash_state, visited);
 
-        layout_desc->m_Hash = dmHashFinal32(&hash_state);
-        layout_desc->m_Size = CalculateShaderTypesSize(root_type_index, types, num_types);
+        return dmHashFinal32(&hash_state);
+    }
+
+    bool IsUniformBufferLayoutCompatible(UniformBufferLayout bound_layout, uint32_t bound_size, UniformBufferLayout program_layout, uint32_t program_size)
+    {
+        return bound_layout == program_layout && bound_size >= program_size;
     }
     void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits)
     {
@@ -2044,11 +2050,13 @@ namespace dmGraphics
     }
     uint32_t GetWidth(HContext context)
     {
-        return g_functions.m_GetWidth(context);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return gc->m_Width;
     }
     uint32_t GetHeight(HContext context)
     {
-        return g_functions.m_GetHeight(context);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return gc->m_Height;
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
@@ -2060,7 +2068,9 @@ namespace dmGraphics
     }
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
-        g_functions.m_GetDefaultTextureFilters(context, out_min_filter, out_mag_filter);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        out_min_filter = gc->m_DefaultTextureMinFilter;
+        out_mag_filter = gc->m_DefaultTextureMagFilter;
     }
     void BeginFrame(HContext context)
     {
@@ -2092,7 +2102,8 @@ namespace dmGraphics
     }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
     {
-        return g_functions.m_GetVertexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     uint32_t GetMaxElementsVertices(HContext context)
     {
@@ -2116,7 +2127,8 @@ namespace dmGraphics
     }
     uint32_t GetIndexBufferSize(HIndexBuffer buffer)
     {
-        return g_functions.m_GetIndexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
@@ -2324,7 +2336,9 @@ namespace dmGraphics
     }
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return g_functions.m_IsTextureFormatSupported(context, format);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        uint32_t format_index = (uint32_t) format;
+        return format_index < TEXTURE_FORMAT_COUNT && (gc->m_TextureFormatSupport & (1ULL << format_index)) != 0;
     }
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
@@ -2348,7 +2362,10 @@ namespace dmGraphics
     }
     uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureResourceSize(context, texture);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_ResourceSize : 0;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -2393,7 +2410,8 @@ namespace dmGraphics
             AdapterFamily family = GetInstalledAdapterFamily();
             return !(family == ADAPTER_FAMILY_NULL || family == ADAPTER_FAMILY_NONE);
         }
-        return g_functions.m_IsContextFeatureSupported(context, feature);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return feature < MAX_CONTEXT_FEATURE_COUNT && (gc->m_ContextFeatureSupport & (1 << feature)) != 0;
     }
     PipelineState GetPipelineState(HContext context)
     {
@@ -2401,12 +2419,32 @@ namespace dmGraphics
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {
-        return g_functions.m_GetTexturePageCount(texture);
+        GraphicsContext* gc = (GraphicsContext*) GetInstalledContext();
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_PageCount : 0;
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
-        return g_functions.m_IsAssetHandleValid(context, asset_handle);
+        if (asset_handle == 0)
+        {
+            return false;
+        }
+
+        GraphicsContext* gc = (GraphicsContext*) context;
+        AssetType type = GetAssetType(asset_handle);
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        switch(type)
+        {
+            case ASSET_TYPE_TEXTURE:
+                return GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_RENDER_TARGET:
+                return GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, asset_handle) != 0;
+            default:
+                return false;
+        }
     }
     void InvalidateGraphicsHandles(HContext context)
     {
@@ -2416,9 +2454,9 @@ namespace dmGraphics
     {
         g_functions.m_GetViewport(context, x, y, width, height);
     }
-    HUniformBuffer NewUniformBuffer(HContext context, const UniformBufferLayout& layout)
+    HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
     {
-        return g_functions.m_NewUniformBuffer(context, layout);
+        return g_functions.m_NewUniformBuffer(context, layout, size);
     }
     void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
     {

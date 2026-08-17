@@ -42,6 +42,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.form :as form]
@@ -93,6 +94,8 @@
   (property renderer g/Any)
   (output sidebar-panes g/Any (g/constantly [:outline-pane]))
   (output form-view g/Any :cached produce-form-view))
+
+(node-types/register-node-type-name! CljfxFormView "form")
 
 (defmulti handle-event :event-type)
 
@@ -458,7 +461,7 @@
 
 ;; region choicebox input
 
-(fxui/defc form-choicebox-combo-box-view
+(ui/defc form-choicebox-combo-box-view
   {:compose [{:fx/type fxui/ext-map-event-handler}]}
   [{:keys [value on-value-changed options to-string show-on-focus map-event-handler]
     :or {to-string str}}]
@@ -1646,7 +1649,7 @@
         annotated-sections (mapv #(annotate-section % values filter-term localization-state) sections)
         navigation (:navigation form-data true)]
     {:fx/type fxui/ext-with-anchor-pane-props
-     :desc {:fx/type fxui/ext-value
+     :desc {:fx/type ui/ext-value
             :value parent}
      :props {:children [(if navigation
                           (let [visible-sections (filterv :visible annotated-sections)

@@ -799,18 +799,20 @@
                    (into result propagated-arcs))))))))
 
 (defn- lift-target-arcs [basis target-id target-override-chain arcs]
-  (loop [override-chain target-override-chain
-         arcs arcs]
-    (let [override-id (first override-chain)]
-      (if (nil? override-id)
-        (mapv #(assoc % :target-id target-id) arcs)
-        (recur (rest override-chain)
-               (mapv (fn [^Arc arc]
-                       (let [source-id (.source-id arc)]
-                         (if-some [source-override-node-id (override-of (node-id->graph basis source-id) source-id override-id)]
-                           (assoc arc :source-id source-override-node-id)
-                           arc)))
-                     arcs))))))
+  (mapv
+    (fn [^Arc arc]
+      (let [original-source-id (.source-id arc)
+            graph (node-id->graph basis original-source-id)
+            source-id (reduce (fn [source-id override-id]
+                                (or (override-of graph source-id override-id)
+                                    source-id))
+                              original-source-id
+                              target-override-chain)]
+        (if (and (= source-id original-source-id)
+                 (= target-id (.target-id arc)))
+          arc
+          (Arc. source-id (.source-label arc) target-id (.target-label arc)))))
+    arcs))
 
 (defn- collect-override-chains+explicit-arcs
   "Used by arcs-by-source to find explicit arcs from all original nodes

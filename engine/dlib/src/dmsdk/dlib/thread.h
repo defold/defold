@@ -17,16 +17,6 @@
 
 #include <stdint.h>
 
-// These headers define the dmThread::Thread and dmThread::TlsKey with the native types
-
-#if defined(DM_PLATFORM_VENDOR)
-    #include <dmsdk/dlib/thread_native_vendor.h>
-#elif defined(_WIN32)
-    #include <dmsdk/dlib/thread_native_win32.h>
-#else
-    #include <dmsdk/dlib/thread_native_posix.h>
-#endif
-
 /*# Thread API documentation
  *
  * Thread functions.
@@ -39,6 +29,9 @@
 
 namespace dmThread
 {
+    typedef uintptr_t Thread;
+    typedef uintptr_t TlsKey;
+
     /*#
      * @typedef
      * @name ThreadStart

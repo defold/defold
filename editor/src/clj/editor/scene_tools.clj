@@ -53,25 +53,25 @@
 (defmethod manip-movable? :default [_] false)
 (defmulti manip-move (fn [node-id ^Vector3d _delta _manip-phase initial-evaluation-context]
                        (g/node-type-kw (:basis initial-evaluation-context) node-id)))
+(def default-manip-move-manips [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
 (defmulti manip-move-manips (fn [node-id] (g/node-type-kw node-id)))
-(defmethod manip-move-manips :default [_]
-  [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
+(defmethod manip-move-manips :default [_] default-manip-move-manips)
 
 (defmulti manip-rotatable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-rotatable? :default [_] false)
 (defmulti manip-rotate (fn [node-id ^Quat4d _delta _manip-phase initial-evaluation-context]
                          (g/node-type-kw (:basis initial-evaluation-context) node-id)))
+(def default-manip-rotate-manips [:rot-x :rot-y :rot-z :rot-screen])
 (defmulti manip-rotate-manips (fn [node-id] (g/node-type-kw node-id)))
-(defmethod manip-rotate-manips :default [_]
-  [:rot-x :rot-y :rot-z :rot-screen])
+(defmethod manip-rotate-manips :default [_] default-manip-rotate-manips)
 
 (defmulti manip-scalable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-scalable? :default [_] false)
 (defmulti manip-scale (fn [node-id ^Vector3d _delta _manip-phase initial-evaluation-context]
                         (g/node-type-kw (:basis initial-evaluation-context) node-id)))
+(def default-manip-scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 (defmulti manip-scale-manips (fn [node-id] (g/node-type-kw node-id)))
-(defmethod manip-scale-manips :default [_]
-  [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
+(defmethod manip-scale-manips :default [_] default-manip-scale-manips)
 
 ; Render assets
 
@@ -235,6 +235,13 @@
   (concat
     (vtx-add [90.0 0.0 0.0] (vtx-scale [14.0 6.0 6.0] (gen-cone sub-divs)))
     (vtx-add [15.0 0.0 0.0] (vtx-scale [85.0 1.0 1.0] (gen-line)))))
+
+(defn move-arrow-vertex-groups
+  "Returns a sequence of `[gl-mode vertices]` for the translation-tool arrow along +X (3D cone
+  head + line shaft). Same mesh as used for move-x / move-y / move-z manipulators."
+  ([] (move-arrow-vertex-groups 10))
+  ([^double sub-divs]
+   (gen-arrow sub-divs)))
 
 (defn- gen-vertex-buffer [vertices vtx-count]
   (let [vbuf  (->pos-vtx vtx-count)]
@@ -549,7 +556,6 @@
         start-pos (action->manip-pos start-action lead-transform active-manip manip-rotation project-fn)
         manipulations-fn (make-drag-manipulations-fn manip-opts active-manip manip-origin original-values initial-evaluation-context)]
     {:active-manip active-manip
-     :initial-evaluation-context initial-evaluation-context
      :lead-transform lead-transform
      :manip-origin manip-origin
      :manip-rotation manip-rotation
@@ -666,6 +672,7 @@
 
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output mouse-binding-context g/Keyword (g/constantly nil))
   (output info-text g/Str (g/constantly nil))
   (output manip-opts g/Any produce-manip-opts)
   (output manip-space g/Keyword produce-manip-space))

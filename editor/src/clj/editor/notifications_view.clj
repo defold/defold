@@ -42,7 +42,7 @@
 (defn- notifications-view [{:keys [id->notification ids]} parent localization]
   (let [n (count ids)]
     {:fx/type ext-with-v-box-props
-     :desc {:fx/type fxui/ext-value :value parent}
+     :desc {:fx/type ui/ext-value :value parent}
      :props
      {:padding 10
       :children
