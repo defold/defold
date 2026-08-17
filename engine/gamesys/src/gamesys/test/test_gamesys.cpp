@@ -60,6 +60,7 @@
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
 #include "../components/comp_model.h"
+#include "../components/comp_private.h"
 #include "../components/comp_collection_proxy.h"
 #include "../scripts/script_sys_gamesys.h"
 #include "../scripts/script_resource.h"
@@ -123,6 +124,7 @@ namespace dmGameSystem
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
     extern void GetModelWorldInstanceRenderBuffer(void* model_world, dmRender::HBufferedRenderBuffer* instance_buffer);
     extern void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count);
+    extern void GetModelWorldScratchConstantBuffers(void* model_world, dmGameSystem::HComponentRenderConstants** constant_buffers, uint32_t* count);
     extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
     extern void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
@@ -9755,6 +9757,130 @@ TEST_F(ModelTest, MorphTargetUniformWeightsSplitInstancedBatches)
     ASSERT_EQ(0, world_batch_count);
     ASSERT_EQ(0, local_batch_count);
     ASSERT_EQ(2, local_instanced_batch_count);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// One model component can hold meshes with different morph target counts, but the blend weights are
+// stored once per component. Each mesh must only apply as many of them as it has morph targets, the
+// rest are ignored (model.set_blend_weights). Without the per mesh clamp the mesh with fewer targets
+// keeps the extra weights and samples morph texture layers outside its own range, which corrupts it.
+// morph_mixed_targets.gltf has one mesh with two targets and one with a single target.
+TEST_F(ModelTest, MorphTargetInstancedWeightsClampedPerMesh)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_mixed_targets_attr.goc", dmHashString64("/morph"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    const float weights[] = { 0.25f, 0.75f };
+    dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*) component, weights, DM_ARRAY_SIZE(weights));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void*    model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    struct MorphInstanceData
+    {
+        float mtx_world[16];
+        float mtx_normal[16];
+        float morph_targets_weights[16];
+    };
+
+    dmRender::BufferedRenderBuffer* instance_buffer = 0;
+    dmGameSystem::GetModelWorldInstanceRenderBuffer(model_world, &instance_buffer);
+    ASSERT_NE((dmRender::BufferedRenderBuffer*)0, instance_buffer);
+    ASSERT_EQ(1u, instance_buffer->m_Buffers.Size());
+
+    // The meshes are rendered in separate batches, but both write into the same instance buffer.
+    dmGraphics::HVertexBuffer vx_buffer_handle = instance_buffer->m_Buffers[0];
+    dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer_handle;
+    ASSERT_EQ(2u * sizeof(MorphInstanceData), dmGraphics::GetVertexBufferSize(vx_buffer_handle));
+
+    const MorphInstanceData* instances = (const MorphInstanceData*) gfx_vx_buffer->m_Buffer;
+    bool found_two_targets = false;
+    bool found_one_target = false;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        const float* w = instances[i].morph_targets_weights;
+        found_two_targets |= dmMath::Abs(w[0] - 0.25f) < EPSILON && dmMath::Abs(w[1] - 0.75f) < EPSILON;
+        found_one_target  |= dmMath::Abs(w[0] - 0.25f) < EPSILON && dmMath::Abs(w[1]) < EPSILON;
+        ASSERT_NEAR(0.0f, w[2], EPSILON);
+        ASSERT_NEAR(0.0f, w[3], EPSILON);
+    }
+    ASSERT_TRUE(found_two_targets);
+    ASSERT_TRUE(found_one_target);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Same per mesh clamp as above, but for materials that take the weights as a uniform instead of an
+// instance attribute. The weights are written to a scratch constant buffer per render object.
+TEST_F(ModelTest, MorphTargetUniformWeightsClampedPerMesh)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_mixed_targets_legacy.goc", dmHashString64("/morph"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    const float weights[] = { 0.25f, 0.75f };
+    dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*) component, weights, DM_ARRAY_SIZE(weights));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void*    model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    dmGameSystem::HComponentRenderConstants* constant_buffers = 0;
+    uint32_t constant_buffer_count = 0;
+    dmGameSystem::GetModelWorldScratchConstantBuffers(model_world, &constant_buffers, &constant_buffer_count);
+    ASSERT_EQ(2u, constant_buffer_count);
+
+    bool found_two_targets = false;
+    bool found_one_target = false;
+    for (uint32_t i = 0; i < constant_buffer_count; ++i)
+    {
+        dmRender::HNamedConstantBuffer buffer = dmGameSystem::GetRenderConstantsNamedBuffer(constant_buffers[i]);
+
+        dmVMath::Vector4* values = 0;
+        uint32_t num_values = 0;
+        ASSERT_TRUE(dmRender::GetNamedConstant(buffer, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, &values, &num_values));
+        ASSERT_EQ(1u, num_values);
+
+        found_two_targets |= dmMath::Abs(values[0].getX() - 0.25f) < EPSILON && dmMath::Abs(values[0].getY() - 0.75f) < EPSILON;
+        found_one_target  |= dmMath::Abs(values[0].getX() - 0.25f) < EPSILON && dmMath::Abs(values[0].getY()) < EPSILON;
+        ASSERT_NEAR(0.0f, values[0].getZ(), EPSILON);
+        ASSERT_NEAR(0.0f, values[0].getW(), EPSILON);
+    }
+    ASSERT_TRUE(found_two_targets);
+    ASSERT_TRUE(found_one_target);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
