@@ -3646,6 +3646,7 @@ static void WebGPUCloseWindow(HContext _context)
 }
 
 static void WebGPUInvalidateGraphicsHandles(HContext context) { }
+static void WebGPURecreateGraphicsHandles(HContext context) { }
 
 ///////////////////////////////////
 // dmsdk / graphics_webgpu.h impls:

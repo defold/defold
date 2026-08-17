@@ -210,6 +210,49 @@ namespace dmResource
     Result ReloadResource(HFactory factory, const char* name, ResourceDescriptor** out_descriptor);
 
     /**
+     * Recreate a single, already loaded resource from its original bytes, addressed by its name hash.
+     * Unlike ReloadResource(), this does not require the hash->filename table (RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
+     * and does not invoke ResourceReloadedCallbacks, so it works in release/production builds.
+     * The original bytes are read by content hash from the mounts (bundled archive is hash-keyed).
+     * The resource type's recreate function is invoked, reusing the existing resource handle.
+     * Intended for graphics context-loss recovery (recreating GPU objects in place).
+     * @param factory Resource factory
+     * @param name_hash Hashed canonical name of the resource (as used as the key in the resource table, e.g. IteratorResource::m_Id)
+     * @return RESULT_OK on success, RESULT_RESOURCE_NOT_FOUND if not loaded, RESULT_NOT_SUPPORTED if the type has no recreate function
+     */
+    Result RecreateResource(HFactory factory, dmhash_t name_hash);
+
+    /**
+     * Get the registered type's extension hash for an already loaded resource, addressed by its name hash.
+     * Useful for classifying resources during iteration without depending on concrete resource types.
+     * @param factory Resource factory
+     * @param name_hash Hashed canonical name of the resource
+     * @return The type extension hash (e.g. dmHashString64("texturec")), or 0 if the resource is not loaded
+     */
+    dmhash_t GetResourceTypeExtensionHash(HFactory factory, dmhash_t name_hash);
+
+    /**
+     * Check if an already loaded resource was created directly from an in-memory buffer
+     * (dmResource::CreateResource). Such resources have no source bytes in any mount, so
+     * RecreateResource() can never succeed for them.
+     * @param factory Resource factory
+     * @param name_hash Hashed canonical name of the resource
+     * @return true if the resource exists and was created from memory
+     */
+    bool IsResourceCreatedFromMemory(HFactory factory, dmhash_t name_hash);
+
+    /**
+     * Get the graphics restore order (recreation bucket) of an already loaded resource's type,
+     * see ResourceTypeSetGraphicsRestoreOrder. Used by the render reload driver to build the
+     * recreation worklist after a graphics context restore.
+     * @param factory Resource factory
+     * @param name_hash Hashed canonical name of the resource
+     * @param out_order (out) The recreation bucket, set on success
+     * @return true if the resource is loaded and its type has opted into graphics restore
+     */
+    bool GetResourceTypeGraphicsRestoreOrder(HFactory factory, dmhash_t name_hash, uint8_t* out_order);
+
+    /**
      * Get type for resource
      * @param factory Factory handle
      * @param resource Resource

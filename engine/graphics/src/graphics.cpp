@@ -2320,10 +2320,34 @@ namespace dmGraphics
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
+        HRenderTarget render_target = g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
+        if (render_target)
+        {
+            GraphicsContext* gc = (GraphicsContext*) context;
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+            if (gc->m_RenderTargets.Full())
+            {
+                gc->m_RenderTargets.OffsetCapacity(8);
+            }
+            gc->m_RenderTargets.Push(render_target);
+        }
+        return render_target;
     }
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
+        GraphicsContext* gc = (GraphicsContext*) context;
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+            dmArray<HRenderTarget>& render_targets = gc->m_RenderTargets;
+            for (uint32_t i = 0; i < render_targets.Size(); ++i)
+            {
+                if (render_targets[i] == render_target)
+                {
+                    render_targets.EraseSwap(i);
+                    break;
+                }
+            }
+        }
         g_functions.m_DeleteRenderTarget(context, render_target);
     }
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
@@ -2448,7 +2472,16 @@ namespace dmGraphics
     }
     void InvalidateGraphicsHandles(HContext context)
     {
+        ((GraphicsContext*) context)->m_InvalidationGeneration++;
         g_functions.m_InvalidateGraphicsHandles(context);
+    }
+    uint32_t GetInvalidationGeneration(HContext context)
+    {
+        return ((GraphicsContext*) context)->m_InvalidationGeneration;
+    }
+    void RecreateGraphicsHandles(HContext context)
+    {
+        g_functions.m_RecreateGraphicsHandles(context);
     }
     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {

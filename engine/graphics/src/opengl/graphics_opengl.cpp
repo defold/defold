@@ -237,6 +237,8 @@ namespace dmGraphics
 {
     using namespace dmVMath;
 
+    static const char* BASE_OUTPUT_NAME = "_DMENGINE_GENERATED_gl_FragColor";
+
     #define TO_STR_CASE(x) case x: return #x;
     static const char* GetGLErrorLiteral(GLint err)
     {
@@ -264,6 +266,12 @@ namespace dmGraphics
 
 // We use defines here so that we get a callstack from the correct function
 
+// The graphics context can be lost while a frame is still in flight (WebGL, GL_KHR_robustness):
+// GL then reports one of these codes and every call is a no-op until the context is restored —
+// not a programming error, so don't assert on it.
+#define DMGRAPHICS_GL_ERROR_CONTEXT_LOST       0x0507
+#define DMGRAPHICS_GL_ERROR_CONTEXT_LOST_WEBGL 0x9242
+
 #if !defined(ANDROID)
 
 #define CHECK_GL_ERROR \
@@ -272,8 +280,12 @@ namespace dmGraphics
             GLint err = glGetError(); \
             if (err != 0) \
             { \
-                LogGLError(err, __FUNCTION__, __LINE__); \
-                assert(0); \
+                if (err == DMGRAPHICS_GL_ERROR_CONTEXT_LOST || err == DMGRAPHICS_GL_ERROR_CONTEXT_LOST_WEBGL) { \
+                    dmLogWarning("OpenGL context lost (%s:%d)", __FUNCTION__, __LINE__); \
+                } else { \
+                    LogGLError(err, __FUNCTION__, __LINE__); \
+                    assert(0); \
+                } \
             } \
         } \
     }
@@ -452,13 +464,35 @@ static void LogFrameBufferError(GLenum status)
     }
 }
 
+// The graphics context can be lost while a frame is still in flight (WebGL dispatches the loss
+// event only after the current tick, so the engine renders up to one full frame on an already
+// lost context). Every GL call is a no-op then and framebuffer status queries fail — that is
+// not a programming error, so the asserting validation macros below must stand down for it.
+// Mirrors the Android surface-destroyed handling in CHECK_GL_ERROR.
+static inline bool IsNativeContextLost()
+{
+#if defined(__EMSCRIPTEN__)
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+    return ctx == 0 || emscripten_is_webgl_context_lost(ctx);
+#else
+    return false;
+#endif
+}
+
 #define CHECK_GL_FRAMEBUFFER_ERROR \
     { \
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
         if (status != GL_FRAMEBUFFER_COMPLETE) \
         { \
-            LogFrameBufferError(status);\
-            assert(false);\
+            if (status == 0 || IsNativeContextLost()) \
+            { \
+                dmLogWarning("glCheckFramebufferStatus failed (graphics context lost)"); \
+            } \
+            else \
+            { \
+                LogFrameBufferError(status);\
+                assert(false);\
+            } \
         } \
     } \
 
@@ -601,6 +635,104 @@ static void LogFrameBufferError(GLenum status)
         }
         context->m_GLHandlesData.m_FreeIndexes.Push(idx);
     }
+
+    static inline void SetGLHandle(OpenGLContext* context, HOpenglID idx, GLuint handle)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_GLHandlesData.m_Mutex);
+        context->m_GLHandlesData.m_AllGLHandles[idx] = handle;
+    }
+
+    // Phase A of context-loss recovery: if the GL object name behind an existing handle slot was
+    // invalidated (set to 0 by OpenGLInvalidateGraphicsHandles), generate a fresh GL name into the
+    // SAME slot so the engine-visible HOpenglID/HAssetHandle stays stable. Returns the valid GL name.
+    static inline GLuint EnsureGLTexture(OpenGLContext* context, HOpenglID idx)
+    {
+        GLuint handle = GetGLHandle(context, idx);
+        if (handle == 0)
+        {
+            glGenTextures(1, &handle);
+            SetGLHandle(context, idx, handle);
+        }
+        return handle;
+    }
+
+    static inline GLuint EnsureGLBuffer(OpenGLContext* context, HOpenglID idx)
+    {
+        GLuint handle = GetGLHandle(context, idx);
+        if (handle == 0)
+        {
+            glGenBuffersARB(1, &handle);
+            SetGLHandle(context, idx, handle);
+        }
+        return handle;
+    }
+
+    static inline GLuint EnsureGLRenderbuffer(OpenGLContext* context, HOpenglID idx)
+    {
+        GLuint handle = GetGLHandle(context, idx);
+        if (handle == 0)
+        {
+            glGenRenderbuffers(1, &handle);
+            SetGLHandle(context, idx, handle);
+        }
+        return handle;
+    }
+
+    static void ApplySamplerState(OpenGLContext* context, const OpenGLTexture* texture);
+
+#if defined(__EMSCRIPTEN__)
+    // Enables all official WebGL extensions on the current context. Called at initialization,
+    // and again after a lost WebGL context has been restored: extension objects returned by
+    // getExtension() are invalidated together with the lost context, and emscripten caches them
+    // in closures on the GL context at creation time (GL.initExtensions is one-shot), so they
+    // must be re-enabled explicitly — otherwise VAO/instancing (WebGL1) and compressed texture
+    // formats stay dead after the restore. emscripten_webgl_enable_extension re-fetches the
+    // extension object unconditionally.
+    static void OpenGLEnableWebGLExtensions()
+    {
+        EMSCRIPTEN_WEBGL_CONTEXT_HANDLE emscripten_ctx = emscripten_webgl_get_current_context();
+        assert(emscripten_ctx != 0 && "Unable to get GL context from emscripten.");
+
+        // These are all the available official webgl extensions, taken from this list:
+        // https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Using_Extensions
+        emscripten_webgl_enable_extension(emscripten_ctx, "ANGLE_instanced_arrays");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_blend_minmax");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_disjoint_timer_query");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_float_blend");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_frag_depth");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_shader_texture_lod");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_sRGB");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_bptc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_rgtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_filter_anisotropic");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_norm16");
+        emscripten_webgl_enable_extension(emscripten_ctx, "KHR_parallel_shader_compile");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_element_index_uint");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_fbo_render_mipmap");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_standard_derivatives");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_vertex_array_object");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OVR_multiview2");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_astc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc1");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_pvrtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc_srgb");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_renderer_info");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_shaders");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_depth_texture");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_draw_buffers");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
+    }
+#endif
 
 
     OpenGLContext::OpenGLContext(const ContextParams& params)
@@ -1492,47 +1624,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
 #if defined(__EMSCRIPTEN__)
-        EMSCRIPTEN_WEBGL_CONTEXT_HANDLE emscripten_ctx = emscripten_webgl_get_current_context();
-        assert(emscripten_ctx != 0 && "Unable to get GL context from emscripten.");
-
-        // These are all the available official webgl extensions, taken from this list:
-        // https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Using_Extensions
-        emscripten_webgl_enable_extension(emscripten_ctx, "ANGLE_instanced_arrays");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_blend_minmax");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_float");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_half_float");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_disjoint_timer_query");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_float_blend");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_frag_depth");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_shader_texture_lod");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_sRGB");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_bptc");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_rgtc");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_filter_anisotropic");
-        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_norm16");
-        emscripten_webgl_enable_extension(emscripten_ctx, "KHR_parallel_shader_compile");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_element_index_uint");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_fbo_render_mipmap");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_standard_derivatives");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float_linear");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float_linear");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OES_vertex_array_object");
-        emscripten_webgl_enable_extension(emscripten_ctx, "OVR_multiview2");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_color_buffer_float");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_astc");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc1");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_pvrtc");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc_srgb");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_renderer_info");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_shaders");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_depth_texture");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_draw_buffers");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
-        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
+        OpenGLEnableWebGLExtensions();
 #endif
 
 #if defined(DM_PLATFORM_MACOS)
@@ -2365,7 +2457,7 @@ static void LogFrameBufferError(GLenum status)
         }
         OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
         vertex_buffer->m_Base.m_Size = size;
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, GetGLHandle(g_Context, vertex_buffer->m_Id));
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, EnsureGLBuffer(g_Context, vertex_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -2407,7 +2499,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
         index_buffer->m_Base.m_Size = size;
 
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, GetGLHandle(g_Context, index_buffer->m_Id));
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, EnsureGLBuffer(g_Context, index_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -3739,11 +3831,10 @@ static void LogFrameBufferError(GLenum status)
         // For MRT bindings to work correctly on all platforms,
         // we need to specify output locations manually
 #ifndef GL_ES_VERSION_2_0
-        const char* base_output_name = "_DMENGINE_GENERATED_gl_FragColor";
         char buf[64] = {0};
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            snprintf(buf, sizeof(buf), "%s_%d", base_output_name, i);
+            snprintf(buf, sizeof(buf), "%s_%d", BASE_OUTPUT_NAME, i);
             glBindFragDataLocation(p, i, buf);
         }
 #endif
@@ -3756,8 +3847,13 @@ static void LogFrameBufferError(GLenum status)
             return false;
         }
 
-        program->m_Id       = AddNewGLHandle(context, p);
-        program->m_Language = vertex_shader->m_Language;
+        program->m_Id             = AddNewGLHandle(context, p);
+        program->m_Language       = vertex_shader->m_Language;
+        // Store the shader wrappers on the program (mirrors SetupComputeProgram). Without this,
+        // OpenGLReloadProgram dereferences null pointers (both resolving to the same handle slot on
+        // wasm, corrupting the reload) and OpenGLDeleteProgram leaks the shader objects.
+        program->m_VertexShader   = vertex_shader;
+        program->m_FragmentShader = fragment_shader;
 
         OpenGLShader* shaders[] = { vertex_shader, fragment_shader };
 
@@ -3933,12 +4029,67 @@ static void LogFrameBufferError(GLenum status)
         if (success)
         {
             GLuint id = GetGLHandle(context, shader->m_Id);
-            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
-            CHECK_GL_ERROR;
-            glCompileShader(id);
-            CHECK_GL_ERROR;
+            if (id == 0)
+            {
+                // Context was lost: regenerate the shader object into the same slot before recompiling.
+                id = glCreateShader(type);
+                SetGLHandle(context, shader->m_Id, id);
+            }
+            // Compile into the real object and verify the status: a silent failure here would only
+            // surface later as an unlinkable program (e.g. when the object's stage type does not
+            // match the source).
+            success = TryCompileShader(id, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         }
         return success;
+    }
+
+    // If the program's GL object was invalidated by a context loss, recreate it into the SAME handle
+    // slot and reattach the (already recompiled) shaders, so the engine-visible HProgram stays stable.
+    // Fragment data locations must be bound before linking, so they are set here for graphics programs.
+    // Returns true if the program object was regenerated (i.e. we are restoring after a context loss).
+    static bool EnsureGLProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders, bool bind_frag_data)
+    {
+        if (GetGLHandle(context, program->m_Id) != 0)
+        {
+            return false;
+        }
+
+        GLuint p = glCreateProgram();
+        for (uint32_t i = 0; i < num_shaders; ++i)
+        {
+            glAttachShader(p, GetGLHandle(context, shaders[i]->m_Id));
+            CHECK_GL_ERROR;
+        }
+
+#ifndef GL_ES_VERSION_2_0
+        if (bind_frag_data)
+        {
+            char buf[64] = {0};
+            for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                snprintf(buf, sizeof(buf), "%s_%d", BASE_OUTPUT_NAME, i);
+                glBindFragDataLocation(p, i, buf);
+            }
+        }
+#else
+        (void) bind_frag_data;
+#endif
+
+        SetGLHandle(context, program->m_Id, p);
+        return true;
+    }
+
+    // After a context restore, the program object is new, so its uniform reflection and uniform-buffer
+    // GL objects must be rebuilt. Free the previous scratch block memory first (the old UBO handle
+    // slots were invalidated; OpenGLBuildUniforms allocates fresh ones).
+    static void RebuildProgramUniformsAfterRestore(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    {
+        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            delete [] program->m_UniformBuffers[i].m_BlockMemory;
+            program->m_UniformBuffers[i].m_BlockMemory = 0;
+        }
+        OpenGLBuildUniforms(context, program, shaders, num_shaders);
     }
 
     static bool OpenGLReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
@@ -3969,8 +4120,16 @@ static void LogFrameBufferError(GLenum status)
                 return false;
             }
 
+            OpenGLShader* compute_shaders[] = { program->m_ComputeShader };
+            bool restoring = EnsureGLProgram(context, program, compute_shaders, 1, false);
+
             glLinkProgram(GetGLHandle(context, program->m_Id));
             CHECK_GL_ERROR;
+
+            if (restoring)
+            {
+                RebuildProgramUniformsAfterRestore(context, program, compute_shaders, 1);
+            }
         }
         else
         {
@@ -3993,10 +4152,18 @@ static void LogFrameBufferError(GLenum status)
                 return false;
             }
 
+            OpenGLShader* graphics_shaders[] = { program->m_VertexShader, program->m_FragmentShader };
+            bool restoring = EnsureGLProgram(context, program, graphics_shaders, 2, true);
+
             glLinkProgram(GetGLHandle(context, program->m_Id));
             CHECK_GL_ERROR;
 
             BuildAttributes(program);
+
+            if (restoring)
+            {
+                RebuildProgramUniformsAfterRestore(context, program, graphics_shaders, 2);
+            }
         }
 
         return true;
@@ -4311,7 +4478,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthStencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, EnsureGLRenderbuffer(context, rt->m_DepthStencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_Base.m_DepthStencilTextureParams.m_Width, rt->m_Base.m_DepthStencilTextureParams.m_Height);
                 CHECK_GL_ERROR;
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
@@ -4328,6 +4495,14 @@ static void LogFrameBufferError(GLenum status)
             else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
                 OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
+
+                // Context restore: this branch bypasses SetTexture (see the workaround note below), so the
+                // regenerate-and-reapply-sampler-state guard from OpenGLSetTexture is mirrored here.
+                if (GetGLHandle(context, attachment_tex->m_TextureIds[0]) == 0)
+                {
+                    EnsureGLTexture(context, attachment_tex->m_TextureIds[0]);
+                    ApplySamplerState(context, attachment_tex);
+                }
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
@@ -4360,7 +4535,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, EnsureGLRenderbuffer(context, rt->m_DepthAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), rt->m_Base.m_DepthBufferParams.m_Width, rt->m_Base.m_DepthBufferParams.m_Height);
                 CHECK_GL_ERROR;
 
@@ -4379,7 +4554,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_StencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, EnsureGLRenderbuffer(context, rt->m_StencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, rt->m_Base.m_StencilBufferParams.m_Width, rt->m_Base.m_StencilBufferParams.m_Height);
                 CHECK_GL_ERROR;
 
@@ -4553,6 +4728,65 @@ static void LogFrameBufferError(GLenum status)
         context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
         delete rt;
+    }
+
+    // Context-loss recovery for render targets. Unlike textures/buffers/programs they are not
+    // resource-backed in general (render scripts create them at runtime) and their contents are
+    // transient (re-rendered every frame), so they are restored wholesale here instead of through
+    // the resource reload worklist: regenerate the FBO name into the same handle slot, then re-run
+    // the attachment setup, which re-allocates texture/renderbuffer storage from the creation
+    // params retained on the render target and re-attaches everything to the fresh FBO. Every
+    // engine-visible handle (HRenderTarget, attachment HTextures, HOpenglID slots) stays stable.
+    static void OpenGLRestoreRenderTargets(OpenGLContext* context)
+    {
+        bool any_restored = false;
+        dmArray<HRenderTarget>& render_targets = context->m_BaseContext.m_RenderTargets;
+        for (uint32_t i = 0; i < render_targets.Size(); ++i)
+        {
+            OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_targets[i]);
+            if (rt == 0x0 || GetGLHandle(context, rt->m_Id) != 0)
+            {
+                continue; // reload without a preceding context loss
+            }
+
+            GLuint handle = 0;
+            glGenFramebuffers(1, &handle);
+            SetGLHandle(context, rt->m_Id, handle);
+            CHECK_GL_ERROR;
+            glBindFramebuffer(GL_FRAMEBUFFER, handle);
+            CHECK_GL_ERROR;
+
+            // Nothing is attached to the fresh FBO yet.
+            for (int j = 0; j < MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+            {
+                rt->m_ColorAttachments[j].m_Attached = false;
+            }
+            rt->m_DepthAttachment.m_Attached        = false;
+            rt->m_StencilAttachment.m_Attached      = false;
+            rt->m_DepthStencilAttachment.m_Attached = false;
+
+            ApplyRenderTargetAttachments((HContext) context, rt, false);
+
+            if (rt->m_Base.m_ColorAttachmentCount == 0)
+            {
+            #if !defined(GL_ES_VERSION_2_0)
+                // See the matching block in OpenGLNewRenderTarget.
+                glDrawBuffer(GL_NONE);
+                CHECK_GL_ERROR;
+                glReadBuffer(GL_NONE);
+                CHECK_GL_ERROR;
+            #endif
+            }
+
+            CHECK_GL_FRAMEBUFFER_ERROR;
+            any_restored = true;
+        }
+
+        if (any_restored)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+            CHECK_GL_ERROR;
+        }
     }
 
     uint32_t OpenGLGetDefaultFramebufferId(HContext _context)
@@ -5072,6 +5306,24 @@ static void LogFrameBufferError(GLenum status)
 
         SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
+        // Context restore: if the GL objects were lost, regenerate the names into the same slots
+        // and re-apply the previously set sampler state to the fresh objects — they start with
+        // default parameters (a mipmapped min filter), which would otherwise leave e.g. a
+        // non-mipmapped texture incomplete (sampling as black).
+        bool is_gl_handles_regenerated = false;
+        for (uint16_t i = 0; i < tex->m_Base.m_NumTextureIds; ++i)
+        {
+            if (GetGLHandle(context, tex->m_TextureIds[i]) == 0)
+            {
+                EnsureGLTexture(context, tex->m_TextureIds[i]);
+                is_gl_handles_regenerated = true;
+            }
+        }
+        if (is_gl_handles_regenerated)
+        {
+            ApplySamplerState(context, tex);
+        }
+
         for (int i = 0; i < tex->m_Base.m_NumTextureIds; ++i)
         {
             glBindTexture(type, GetGLHandle(context, tex->m_TextureIds[i]));
@@ -5541,6 +5793,36 @@ static void LogFrameBufferError(GLenum status)
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_GLHandlesData.m_Mutex);
         // Set all handles to 0. It indicates that handles not valid.
         memset(context->m_GLHandlesData.m_AllGLHandles.Begin(), 0, (context->m_GLHandlesData.m_AllGLHandles.End() - context->m_GLHandlesData.m_AllGLHandles.Begin()) * sizeof(uint32_t));
+    }
+
+    static void OpenGLRecreateGraphicsHandles(HContext _context)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+#if defined(__EMSCRIPTEN__)
+        // Extension objects are invalidated together with a lost WebGL context; re-fetch them
+        // BEFORE regenerating any GL objects — on WebGL1 glGenVertexArrays itself routes through
+        // the OES_vertex_array_object extension closure, and texture re-uploads need the
+        // compressed-texture formats re-enabled on the restored context.
+        OpenGLEnableWebGLExtensions();
+#endif
+
+        // Resource-backed objects (textures, programs, buffers) are regenerated in place by their own
+        // recreate paths. Here we only restore objects the resource layer never touches. The global
+        // VAO is created with the same glGenVertexArrays guard; the zero-check keeps a reload without
+        // a preceding context loss from leaking the live VAO.
+        if (glGenVertexArrays && GetGLHandle(context, context->m_GlobalVAO) == 0)
+        {
+            GLuint vao = 0;
+            glGenVertexArrays(1, &vao);
+            SetGLHandle(context, context->m_GlobalVAO, vao);
+        }
+
+        // Render targets (and the attachment storage they own) are restored wholesale — runtime-created
+        // ones have no resource recreate path, and their contents are transient. This runs before the
+        // reload worklist re-uploads any resource content, so the compressed/depth texture extensions
+        // re-enabled above are already in effect.
+        OpenGLRestoreRenderTargets(context);
     }
 
     static void OpenGLGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)

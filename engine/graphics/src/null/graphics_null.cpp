@@ -73,6 +73,7 @@ namespace dmGraphics
     NullContext::NullContext(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
+        m_GpuGeneration = 1; // testing: assets created/uploaded at this generation are GPU-valid
         m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_BaseContext.m_Width                   = params.m_Width;
@@ -462,6 +463,7 @@ namespace dmGraphics
         vb->m_Buffer = new char[size];
         vb->m_Copy = 0x0;
         vb->m_Base.m_Size = size;
+        vb->m_GpuGeneration = g_NullContext->m_GpuGeneration;
         if (size > 0 && data != 0x0)
             memcpy(vb->m_Buffer, data, size);
         return (uintptr_t)vb;
@@ -484,6 +486,7 @@ namespace dmGraphics
         delete [] vb->m_Buffer;
         vb->m_Buffer = new char[size];
         vb->m_Base.m_Size = size;
+        vb->m_GpuGeneration = g_NullContext->m_GpuGeneration; // re-uploading data revalidates the GPU object
         if (data != 0x0)
             memcpy(vb->m_Buffer, data, size);
     }
@@ -506,6 +509,7 @@ namespace dmGraphics
         ib->m_Buffer = new char[size];
         ib->m_Copy = 0x0;
         ib->m_Base.m_Size = size;
+        ib->m_GpuGeneration = g_NullContext->m_GpuGeneration;
         if (size > 0 && data != 0x0)
             memcpy(ib->m_Buffer, data, size);
         return (uintptr_t)ib;
@@ -530,6 +534,7 @@ namespace dmGraphics
         delete [] ib->m_Buffer;
         ib->m_Buffer = new char[size];
         ib->m_Base.m_Size = size;
+        ib->m_GpuGeneration = g_NullContext->m_GpuGeneration; // re-uploading data revalidates the GPU object
         if (data != 0x0)
             memcpy(ib->m_Buffer, data, size);
     }
@@ -944,6 +949,8 @@ namespace dmGraphics
         CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram.m_ShaderMeta);
         CreateProgramResourceBindings(p, p->m_VP, p->m_FP, p->m_Compute);
 
+        p->m_GpuGeneration = g_NullContext->m_GpuGeneration;
+
         return (HProgram) p;
     }
 
@@ -1002,6 +1009,8 @@ namespace dmGraphics
             p->m_FP->m_Data = new char[ddf_fp->m_Source.m_Count];
             memcpy((char*)p->m_FP->m_Data, ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count);
         }
+
+        p->m_GpuGeneration = g_NullContext->m_GpuGeneration; // reloading the program revalidates the GPU object
 
         return true;
     }
@@ -1286,6 +1295,7 @@ namespace dmGraphics
             }
         }
 
+        rt->m_GpuGeneration = context->m_GpuGeneration;
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -1436,6 +1446,7 @@ namespace dmGraphics
         NullTexture* tex = new NullTexture();
         tex->m_Data          = 0;
         tex->m_LastBoundUnit = new int32_t[num_texture_ids];
+        tex->m_GpuGeneration = context->m_GpuGeneration;
 
         Texture& b     = tex->m_Base;
         b.m_Type           = texture_type;
@@ -1602,6 +1613,7 @@ namespace dmGraphics
             delete [] (char*)tex->m_Data;
         }
 
+        tex->m_GpuGeneration = g_NullContext->m_GpuGeneration; // uploading data (re)validates the GPU object
         tex->m_Base.m_Format = params.m_Format;
         // Allocate even for 0x0 size so that the rendertarget dummies will work.
         tex->m_Data = new char[params.m_DataSize];
@@ -1905,7 +1917,55 @@ namespace dmGraphics
         return "";
     }
 
-    static void NullInvalidateGraphicsHandles(HContext context) { }
+    static void NullInvalidateGraphicsHandles(HContext context)
+    {
+        // Simulate a WebGL context loss: bumping the generation makes every existing asset's recorded
+        // generation stale, i.e. GPU-invalid, until it is recreated/re-uploaded (which restamps it).
+        NullContext* ctx = (NullContext*) context;
+        ctx->m_GpuGeneration++;
+    }
+
+    static void NullRecreateGraphicsHandles(HContext context)
+    {
+        // Mirror the OpenGL adapter: render targets (and the attachment textures they own) have no
+        // resource recreate path — runtime-created ones are not resources at all — and their contents
+        // are transient, so a context restore revalidates them wholesale here. Every other asset is
+        // revalidated by its own re-upload/reload path.
+        NullContext* ctx = (NullContext*) context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_BaseContext.m_AssetHandleContainerMutex);
+        dmArray<HRenderTarget>& render_targets = ctx->m_BaseContext.m_RenderTargets;
+        for (uint32_t i = 0; i < render_targets.Size(); ++i)
+        {
+            NullRenderTarget* rt = GetAssetFromContainer<NullRenderTarget>(ctx->m_BaseContext.m_AssetHandleContainer, render_targets[i]);
+            if (rt == 0x0)
+            {
+                continue;
+            }
+            rt->m_GpuGeneration = ctx->m_GpuGeneration;
+
+            HTexture attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 3];
+            uint32_t num_attachments = 0;
+            for (int j = 0; j < MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+            {
+                attachments[num_attachments++] = rt->m_Base.m_TextureColor[j];
+            }
+            attachments[num_attachments++] = rt->m_Base.m_TextureDepth;
+            attachments[num_attachments++] = rt->m_Base.m_TextureStencil;
+            attachments[num_attachments++] = rt->m_Base.m_TextureDepthStencil;
+
+            for (uint32_t j = 0; j < num_attachments; ++j)
+            {
+                if (attachments[j])
+                {
+                    NullTexture* tex = GetAssetFromContainer<NullTexture>(ctx->m_BaseContext.m_AssetHandleContainer, attachments[j]);
+                    if (tex)
+                    {
+                        tex->m_GpuGeneration = ctx->m_GpuGeneration;
+                    }
+                }
+            }
+        }
+    }
 
     static void NullGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {

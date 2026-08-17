@@ -209,6 +209,28 @@ TEST_F(dmRenderScriptTest, TestNewDelete)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+static void TestRenderContextEventListener(void* user_data, dmRender::RenderContextEvent event)
+{
+    int* counters = (int*) user_data;
+    counters[event == dmRender::CONTEXT_LOST ? 0 : 1]++;
+}
+
+TEST_F(dmRenderScriptTest, ContextEventListenerDispatch)
+{
+    // A context loss is forwarded to the native listener (the engine forwards it on to extensions)
+    // right after rendering has been paused. The RESTORED counterpart is dispatched from
+    // StartResourceReload once the context is safe to use again; that path needs a resource
+    // factory and is exercised at the engine level.
+    int counters[2] = {0, 0};
+    dmRender::SetRenderContextEventListener(m_Context, TestRenderContextEventListener, counters);
+    dmRender::OnContextEvent((void*) m_Context, dmRender::CONTEXT_LOST);
+    ASSERT_EQ(1, counters[0]);
+    ASSERT_EQ(0, counters[1]);
+    ASSERT_TRUE(dmRender::IsRenderPaused(m_Context));
+    dmRender::SetRenderPause(m_Context, 0u);
+    dmRender::SetRenderContextEventListener(m_Context, 0, 0);
+}
+
 TEST_F(dmRenderScriptTest, TestNewDeleteInstance)
 {
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));

@@ -5502,6 +5502,11 @@ bail:
         // NOP
     }
 
+    static void VulkanRecreateGraphicsHandles(HContext context)
+    {
+        // NOP
+    }
+
     ///////////////////////////////////
     // dmsdk / graphics_vulkan.h impls:
     ///////////////////////////////////

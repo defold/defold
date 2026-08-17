@@ -589,6 +589,41 @@ void ResourceTypeSetDestroyFn(HResourceType type, FResourceDestroy fn);
  * @param fn [type: FResourceRecreate] Function to be called when recreating the resource
  */
 void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn);
+
+/*#
+ * Recreation buckets for ResourceTypeSetGraphicsRestoreOrder: lower values are recreated first.
+ * @enum
+ * @name ResourceGraphicsRestoreOrder
+ * @member RESOURCE_GRAPHICS_RESTORE_ORDER_TEXTURES
+ * @member RESOURCE_GRAPHICS_RESTORE_ORDER_PROGRAMS
+ * @member RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS
+ */
+typedef enum ResourceGraphicsRestoreOrder
+{
+    RESOURCE_GRAPHICS_RESTORE_ORDER_TEXTURES = 0,
+    RESOURCE_GRAPHICS_RESTORE_ORDER_PROGRAMS = 1,
+    RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS  = 2,
+} ResourceGraphicsRestoreOrder;
+
+/*# opt the type into GPU recreation after a graphics context restore
+ * Resources of a type registered with this call are recreated by `render.reload_resources`
+ * after a lost+restored graphics context. The type's recreate function is then called with
+ * `ResourceRecreateParams.m_IsContextRestore` set: the source bytes are unchanged, and the
+ * implementation must restore its GPU objects in place, keeping every handle and sub-object
+ * pointer stable (re-uploading content through the regular dmGraphics set/reload calls).
+ * @name ResourceTypeSetGraphicsRestoreOrder
+ * @param type [type: HResourceType] The type
+ * @param order [type: ResourceGraphicsRestoreOrder] Recreation bucket; lower orders run first
+ */
+void ResourceTypeSetGraphicsRestoreOrder(HResourceType type, ResourceGraphicsRestoreOrder order);
+
+/*# get the graphics restore order of the type
+ * @name ResourceTypeGetGraphicsRestoreOrder
+ * @param type [type: HResourceType] The type
+ * @param out_order [type: uint8_t*] (out) The recreation bucket, set on success
+ * @return result [type: bool] true if the type has opted into graphics restore
+ */
+bool ResourceTypeGetGraphicsRestoreOrder(HResourceType type, uint8_t* out_order);
 // Enables streaming for a resource
 void        ResourceTypeSetStreaming(HResourceType type, uint32_t preload_size);
 bool        ResourceTypeIsStreaming(HResourceType type);
@@ -701,6 +736,7 @@ struct ResourcePostCreateParams
  * @member m_Message [type: const void*] Pointer holding a precreated message
  * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update. Temporary, don't copy.
  * @member m_Type [type: HResourceType] The resource type
+ * @member m_IsContextRestore [type: uint8_t] Set when re-creating GPU resources after a lost+restored graphics context. The source bytes are unchanged, so implementations should restore GPU objects in place (keeping handles and pointers stable) instead of destroying and re-creating sub-objects.
  */
 struct ResourceRecreateParams
 {
@@ -710,11 +746,12 @@ struct ResourceRecreateParams
     const char*         m_Filename;
     const void*         m_Buffer;
     uint32_t            m_BufferSize;
-    uint32_t            m_FileSize:31;
-    uint32_t            m_IsBufferPartial:1;
+    uint32_t            m_FileSize : 31;
+    uint32_t            m_IsBufferPartial : 1;
     const void*         m_Message;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
+    uint8_t             m_IsContextRestore;
 };
 
 /*#

@@ -4155,6 +4155,11 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         // NOP
     }
 
+    static void DX12RecreateGraphicsHandles(HContext context)
+    {
+        // NOP
+    }
+
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};

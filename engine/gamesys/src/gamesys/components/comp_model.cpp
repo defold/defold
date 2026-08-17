@@ -173,6 +173,9 @@ namespace dmGameSystem
         uint32_t                         m_MaxElementsVertices;
         uint32_t                         m_MaxBatchIndex;
         uint32_t                         m_ScratchConstantBuffersCount;
+        // Last seen dmGraphics::GetInvalidationGeneration value; a mismatch means the graphics
+        // context was lost and the once-uploaded custom vertex attribute buffers must be re-uploaded.
+        uint32_t                         m_ObservedInvalidationGeneration;
         // For profiling data:
         uint32_t                         m_StatisticsVertexCount;
         uint32_t                         m_StatisticsVertexDataSize;
@@ -262,6 +265,7 @@ namespace dmGameSystem
         dmGraphics::SetTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
 
         world->m_CurrentFrameTick           = 0;
+        world->m_ObservedInvalidationGeneration = dmGraphics::GetInvalidationGeneration(graphics_context);
         world->m_VertexBuffers              = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferData           = new dmArray<uint8_t>[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferDispatchCounts = new uint32_t[VERTEX_BUFFER_MAX_BATCHES];
@@ -2344,12 +2348,36 @@ namespace dmGameSystem
         return false;
     }
 
+    // After a lost graphics context, the custom vertex attribute buffers (uploaded once and then
+    // only on attribute changes) hold no GPU data anymore. Their source data is CPU-side, so marking
+    // every render item dirty makes the existing dispatch path re-upload it into the same buffer
+    // handles the next time the items are drawn.
+    static void MarkDynamicVertexAttributesDirty(ModelWorld* world)
+    {
+        const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
+        for (uint32_t i = 0; i < components.Size(); ++i)
+        {
+            dmArray<MeshRenderItem>& render_items = components[i]->m_RenderItems;
+            for (uint32_t j = 0; j < render_items.Size(); ++j)
+            {
+                render_items[j].m_DynamicVertexAttributesDirty = 1;
+            }
+        }
+    }
+
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         ModelContext* context = (ModelContext*)params.m_Context;
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context->m_RenderContext);
         dmRig::ResetPoseMatrixCache(world->m_RigContext);
+
+        uint32_t invalidation_generation = dmGraphics::GetInvalidationGeneration(graphics_context);
+        if (invalidation_generation != world->m_ObservedInvalidationGeneration)
+        {
+            world->m_ObservedInvalidationGeneration = invalidation_generation;
+            MarkDynamicVertexAttributesDirty(world);
+        }
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();

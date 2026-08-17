@@ -302,6 +302,10 @@ namespace dmRender
         dmVMath::Vector4 m_Params;
     };
 
+    // Drives the chunked recreation of GPU resources after a graphics context restore.
+    // Defined in render.cpp; only ever referenced by pointer here.
+    struct ResourceReloadState;
+
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -311,6 +315,7 @@ namespace dmRender
         dmArray<RenderObject*>      m_RenderObjects;
         dmScript::ScriptWorld*      m_ScriptWorld;
         dmScript::LuaCallbackInfo*  m_CallbackInfo;
+        ResourceReloadState*        m_ResourceReload; // != 0 while a render.reload_resources() is in flight
 
         dmArray<RenderListEntry>    m_RenderList;
         dmArray<RenderListDispatch> m_RenderListDispatch;
@@ -347,6 +352,10 @@ namespace dmRender
         HMaterial                   m_Material;
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
+
+        // See SetRenderContextEventListener (render.h)
+        RenderContextEventListener  m_ContextEventListener;
+        void*                       m_ContextEventListenerUserData;
 
         uint32_t                    m_LightBufferDirtyStart;
         uint32_t                    m_LightBufferDirtyEnd;
