@@ -8,6 +8,7 @@ constants {
     z: 13.0
     w: 99.0
   }
+  semantic_type: CONSTANT_SEMANTIC_TYPE_COLOR
 }
 constants {
   name: "constant_2"

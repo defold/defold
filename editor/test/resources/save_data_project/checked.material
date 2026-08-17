@@ -12,6 +12,7 @@ vertex_constants {
     z: 10.0
     w: 1.0
   }
+  semantic_type: CONSTANT_SEMANTIC_TYPE_COLOR
 }
 vertex_constants {
   name: "viewproj"
@@ -26,6 +27,7 @@ fragment_constants {
     z: 10.0
     w: 1.0
   }
+  semantic_type: CONSTANT_SEMANTIC_TYPE_COLOR
 }
 fragment_constants {
   name: "proj"
