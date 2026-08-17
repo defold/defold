@@ -90,47 +90,47 @@
           :type :function
           :description "Create an editor command"
           :parameters [{:name "opts"
-                        :types ["{ label:string|editor.message, locations:string[], query?:{ selection?:{ type:string, cardinality:string }, active_view?:{ type:string }, argument?:table<any, any> }, id?:string, active?:function, run?:function }"]
+                        :types ["{ label:string|editor.message, locations:editor.command_location[], query?:{ selection?:{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }, active_view?:{ type:\"code\"|\"scene\"|\"html\"|\"form\" }, argument?:true }, id?:string, active?:(fun(opts:editor.command_context):boolean), run?:(fun(opts:editor.command_context):any) }"]
                         :doc (str "A table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "label"
                                       :types ["string" "editor.message"]
                                       :doc "required, user-visible command name, either a string or a localization message"}
                                      {:name "locations"
-                                      :types ["string[]"]
-                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), <code>\"Outline\"</code> (the outline pane), <code>\"Scene\"</code> (the scene view), or <code>\"Code\"</code> (the code editor)"}
+                                      :types ["editor.command_location[]"]
+                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code>, <code>\"Bundle\"</code>, <code>\"Help\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), <code>\"Outline\"</code> (the outline pane), <code>\"Scene\"</code> (the scene view), or <code>\"Code\"</code> (the code editor)"}
                                      {:name "query"
-                                      :types ["{ selection?:{ type:string, cardinality:string }, active_view?:{ type:string }, argument?:table<any, any> }"]
+                                      :types ["{ selection?:{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }, active_view?:{ type:\"code\"|\"scene\"|\"html\"|\"form\" }, argument?:true }"]
                                       :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
                                                 (lua-completion/args-doc-html
                                                   [{:name "selection"
-                                                    :types ["{ type:string, cardinality:string }"]
+                                                    :types ["{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }"]
                                                     :doc (str "current selection, a table with the following keys:"
                                                               (lua-completion/args-doc-html
                                                                 [{:name "type"
-                                                                  :types ["string"]
+                                                                  :types ["\"resource\"" "\"outline\"" "\"scene\""]
                                                                   :doc "either <code>\"resource\"</code> (selected resource), <code>\"outline\"</code> (selected outline node), or <code>\"scene\"</code> (selected scene node)"}
                                                                  {:name "cardinality"
-                                                                  :types ["string"]
+                                                                  :types ["\"one\"" "\"many\""]
                                                                   :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
                                                    {:name "active_view"
-                                                    :types ["{ type:string }"]
+                                                    :types ["{ type:\"code\"|\"scene\"|\"html\"|\"form\" }"]
                                                     :doc (str "current active editor view, a table with the following keys:"
                                                               (lua-completion/args-doc-html
                                                                 [{:name "type"
-                                                                  :types ["string"]
+                                                                  :types ["\"code\"" "\"scene\"" "\"html\"" "\"form\""]
                                                                   :doc "either <code>\"code\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}]))}
                                                    {:name "argument"
-                                                    :types ["table<any, any>"]
-                                                    :doc "the command argument"}]))}
+                                                    :types ["true"]
+                                                    :doc "set to <code>true</code> to provide the command argument to the handler functions as <code>opts.argument</code>"}]))}
                                      {:name "id"
                                       :types ["string"]
                                       :doc "optional, keyword identifier that may be used for assigning a shortcut to a command; should be a dot-separated identifier string, e.g. <code>\"my-extension.do-stuff\"</code>"}
                                      {:name "active"
-                                      :types ["function"]
+                                      :types ["fun(opts:editor.command_context):boolean"]
                                       :doc "optional function that additionally checks if a command is active in the current context; will receive opts table with values populated by the query; should be fast to execute since the editor might invoke it in response to UI interactions (on key typed, mouse clicked)"}
                                      {:name "run"
-                                      :types ["function"]
+                                      :types ["fun(opts:editor.command_context):any"]
                                       :doc "optional function that is invoked when the user decides to execute the command; will receive opts table with values populated by the query"}]))}]
           :returnvalues [{:name "command"
                           :types ["editor.command"]
@@ -180,7 +180,7 @@ editor.command({
          {:name "editor.create_resources"
           :type :function
           :parameters [{:name "resources"
-                        :types ["string[]"]
+                        :types ["(string|editor.resource_definition)[]"]
                         :doc (str "Array of resource paths (strings starting with <code>/</code>) or resource definitions, lua tables with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "1"
@@ -339,8 +339,9 @@ editor.create_resources({
           :parameters [node-param
                        property-param
                        {:name "value"
-                        :types ["any"]
+                        :types ["table<string, any>"]
                         :doc "Added item for the property, a table from property key to either a valid <code>editor.tx.set()</code>-able value, or an array of valid <code>editor.tx.add()</code>-able values"}]
+          :returnvalues [transaction-step-param]
           :description "Create a transaction step that will add a child item to a node's list property when transacted with `editor.transact()`."}
          {:name "editor.tx.clear"
           :type :function
@@ -507,13 +508,13 @@ editor.create_resources({
                         :types ["string"]
                         :doc "HTTP request method, default <code>\"GET\"</code>"}
                        {:name "[as]"
-                        :types ["string"]
+                        :types ["\"string\"" "\"json\""]
                         :doc "Request body converter, either <code>\"string\"</code> or <code>\"json\"</code>; the body will be discarded if not specified"}
                        {:name "[openapi]"
                         :types ["table<string, any>"]
                         :doc "Optional OpenAPI Operation Object for this route method, exposed from <code>/openapi.json</code>. Must follow <code>https://spec.openapis.org/oas/v3.0.3.html#operation-object</code>."}
                        {:name "handler"
-                        :types ["function"]
+                        :types ["http.server.handler"]
                         :doc (str "Request handler function, will receive request argument, a table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "path"
@@ -984,8 +985,8 @@ end
                           :doc (str "compression options, a table with the following keys:"
                                     (lua-completion/args-doc-html [method-param level-param]))}
                          {:name "entries"
-                          :types ["string" "(string|table<any, string|integer>)[]"]
-                          :doc (str "entries to compress, either a string (relative path to file or folder to include) or a table with the following keys:"
+                          :types ["zip.entries"]
+                          :doc (str "entries to compress; each entry is either a string (relative path to file or folder to include) or a table with the following keys:"
                                     (lua-completion/args-doc-html
                                       [{:name "1" :types ["string"] :doc "required; source file or folder path to include, resolved against project root if relative"}
                                        {:name "2" :types ["string"] :doc "optional; target file or folder path in the zip archive. May be omitted if source is a relative path that does not go above the project directory."}
@@ -1033,7 +1034,7 @@ zip.pack(\"build.zip\", {
                         :types ["string"]
                         :doc "target path for extraction, defaults to parent of <code>archive_path</code> if omitted"}
                        {:name "[opts]"
-                        :types ["{ on_conflict?:zip.ON_CONFLICT }"]
+                        :types ["zip.unpack_options"]
                         :doc (str "extraction options, a table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "on_conflict"
@@ -1090,7 +1091,7 @@ zip.unpack(
           :description "`\"skip\"`, existing file is preserved"}
          {:name "zip.ON_CONFLICT.OVERWRITE"
           :type :constant
-          :description "`\"skip\"`, existing file is overwritten"}
+          :description "`\"overwrite\"`, existing file is overwritten"}
          {:name "zlib"
           :type :module
           :description "Module for compressing and decompressing string buffers"}

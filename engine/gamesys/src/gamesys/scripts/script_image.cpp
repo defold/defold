@@ -69,7 +69,7 @@ namespace dmGameSystem
      * @constant
      */
 
-    /*# luminance image type
+    /*# luminance-alpha image type
      *
      * @name image.TYPE_LUMINANCE_ALPHA
      * @constant

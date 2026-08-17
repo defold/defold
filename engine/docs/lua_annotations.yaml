@@ -55,6 +55,8 @@ allowed_diagnostics:
   - args-after-dots
 
 aliases:
+  editor.command_location: '"Assets"|"Bundle"|"Code"|"Debug"|"Edit"|"Help"|"Outline"|"Project"|"Scene"|"View"'
+  editor.resource_definition: "{[1]:string, [2]?:string}"
   editor.schema: userdata
   editor.component: userdata
   editor.transaction_step: userdata
@@ -64,6 +66,10 @@ aliases:
   editor.message: userdata
   http.response: userdata
   http.route: userdata
+  http.server.handler: "fun(request:http.server.request):(http.response|integer|nil, table<string, string>|nil, string|nil)"
+  zip.entries: "(string|zip.entry)[]"
+  zip.entry: "{[1]:string, [2]?:string, method?:zip.METHOD, level?:integer}"
+  zip.unpack_options: "{on_conflict:zip.ON_CONFLICT}"
 
 type_replacements:
   b2BodyType: b2d.body.B2
@@ -72,6 +78,7 @@ type_replacements:
   b2Transform: b2d.transform
 
 generics:
+  editor.ui.component: table<string, any>
   vmath.clamp: number|vector3|vector4
   vmath.dot: vector3|vector4
   vmath.normalize: vector3|vector4|quaternion
@@ -80,10 +87,38 @@ generics:
   vmath.lerp: vector3|vector4
 
 function_overloads:
+  http.server.route:
+    - "fun(path:string, handler:http.server.handler):http.route"
+    - "fun(path:string, method:string, handler:http.server.handler):http.route"
+    - 'fun(path:string, as:"string"|"json", handler:http.server.handler):http.route'
+    - "fun(path:string, openapi:table<string, any>, handler:http.server.handler):http.route"
+    - 'fun(path:string, method:string, as:"string"|"json", handler:http.server.handler):http.route'
+    - "fun(path:string, method:string, openapi:table<string, any>, handler:http.server.handler):http.route"
+    - 'fun(path:string, as:"string"|"json", openapi:table<string, any>, handler:http.server.handler):http.route'
   render.render_target:
     - "fun(name:string, parameters:table<graphics.BUFFER_TYPE, { format:graphics.TEXTURE_FORMAT, width:integer, height:integer, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:render.RENDER_TARGET_FLAG }>):render_target"
+  zip.pack:
+    - "fun(output_path:string, entries:zip.entries)"
+  zip.unpack:
+    - "fun(archive_path:string, opts:zip.unpack_options)"
+    - "fun(archive_path:string, paths:string[])"
+    - "fun(archive_path:string, target_path:string, paths:string[])"
+    - "fun(archive_path:string, opts:zip.unpack_options, paths:string[])"
 
 classes:
+  editor.command_context:
+    fields:
+      selection?: "string|userdata|(string|userdata)[]"
+      active_view?: userdata
+      argument?: any
+  http.server.request:
+    fields:
+      "[string]": any
+      path: string
+      method: string
+      headers: "table<string, string|string[]>"
+      query?: string
+      body?: any
   # Keep hashes nominal in LuaLS. A plain alias is expanded to userdata in
   # hovers, hiding the useful API type.
   hash: {}

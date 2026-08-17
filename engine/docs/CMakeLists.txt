@@ -19,6 +19,7 @@ set(DOCS_SHARE_DIR "${DEFOLD_SDK_ROOT}/share")
 set(DOCS_OUTPUT_DIR "${DOCS_SHARE_DIR}/doc")
 set(DOCS_ARCHIVE "${DOCS_SHARE_DIR}/ref-doc.zip")
 set(DOCS_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/docs_outputs.txt")
+set(DOCS_LUA_INPUT_LIST "${DOCS_BUILD_DIR}/lua_inputs.txt")
 set(DOCS_LUA_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/lua_outputs.txt")
 set(DOCS_LUA_METADATA "${DOCS_ROOT}/lua_annotations.yaml")
 set(DOCS_LUA_MIGRATION_MANIFEST "${DOCS_ROOT}/lua_annotations_migration.json")
@@ -207,16 +208,16 @@ endforeach()
 set(_DOCS_LUA_DEPS)
 if(_DOCS_GENERATE_LUA)
   set(DOCS_LUA_STAMP "${DOCS_STAMP_DIR}/lua.stamp")
-  set(_DOCS_LUA_INPUT_ARGS)
-  foreach(_docs_apidoc IN LISTS _DOCS_APIDOC_OUTPUTS)
-    list(APPEND _DOCS_LUA_INPUT_ARGS --input "${_docs_apidoc}")
-  endforeach()
+  list(JOIN _DOCS_APIDOC_OUTPUTS "\n" _DOCS_LUA_INPUT_LIST_CONTENT)
+  file(GENERATE
+    OUTPUT "${DOCS_LUA_INPUT_LIST}"
+    CONTENT "${_DOCS_LUA_INPUT_LIST_CONTENT}\n")
   add_custom_command(
     OUTPUT "${DOCS_LUA_STAMP}" "${DOCS_LUA_OUTPUT_MANIFEST}"
     COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
       lua
       --docs-dir "${DOCS_ROOT}"
-      ${_DOCS_LUA_INPUT_ARGS}
+      --input-list "${DOCS_LUA_INPUT_LIST}"
       --output-dir "${DOCS_LUA_DIR}"
       --manifest "${DOCS_LUA_OUTPUT_MANIFEST}"
       --metadata "${DOCS_LUA_METADATA}"
@@ -224,6 +225,7 @@ if(_DOCS_GENERATE_LUA)
       --stamp "${DOCS_LUA_STAMP}"
     DEPENDS
       ${_DOCS_APIDOC_OUTPUTS}
+      "${DOCS_LUA_INPUT_LIST}"
       "${DOCS_PROTO_PY}"
       "${DOCS_ROOT}/build_docs.py"
       "${DOCS_ROOT}/script_doc.py"

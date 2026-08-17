@@ -218,6 +218,20 @@ def convert_apidoc(docs_dir, apidoc, output_dir, key, formats, pythonpath):
     log("Converted API doc %s to %d formats" % (key, len(output_specs)))
 
 
+def read_input_list(path):
+    path = Path(path).resolve()
+    inputs = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        input_path = Path(line)
+        if not input_path.is_absolute():
+            input_path = path.parent / input_path
+        inputs.append(str(input_path.resolve()))
+    return inputs
+
+
 def generate_lua_annotations(docs_dir, inputs, output_dir, manifest, metadata, pythonpath, stamp):
     add_python_paths([docs_dir] + pythonpath)
     import lua_annotations
@@ -315,7 +329,7 @@ def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
     fixture_dir = Path(fixture_dir)
     expected_negative = {
         "assign-type-mismatch": 1,
-        "param-type-mismatch": 3,
+        "param-type-mismatch": 5,
     }
     with tempfile.TemporaryDirectory(prefix="defold-lua-behavior.") as temp_dir:
         temp_dir = Path(temp_dir)
@@ -503,7 +517,9 @@ def main():
 
     lua = subparsers.add_parser("lua")
     lua.add_argument("--docs-dir", required=True)
-    lua.add_argument("--input", action="append", required=True)
+    lua_inputs = lua.add_mutually_exclusive_group(required=True)
+    lua_inputs.add_argument("--input", action="append")
+    lua_inputs.add_argument("--input-list")
     lua.add_argument("--output-dir", required=True)
     lua.add_argument("--manifest", required=True)
     lua.add_argument("--metadata", required=True)
@@ -559,9 +575,10 @@ def main():
     elif args.command == "convert":
         timed("Converting API doc %s" % args.key, lambda: convert_apidoc(os.path.abspath(args.docs_dir), os.path.abspath(args.input), os.path.abspath(args.output_dir), args.key, parse_formats(args.formats), [os.path.abspath(path) for path in args.pythonpath]))
     elif args.command == "lua":
+        inputs = args.input or read_input_list(args.input_list)
         timed("Generating aggregate Lua annotations", lambda: generate_lua_annotations(
             os.path.abspath(args.docs_dir),
-            [os.path.abspath(path) for path in args.input],
+            [os.path.abspath(path) for path in inputs],
             os.path.abspath(args.output_dir),
             os.path.abspath(args.manifest),
             os.path.abspath(args.metadata),

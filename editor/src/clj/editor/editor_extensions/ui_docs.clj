@@ -657,11 +657,11 @@
    :description (str "Convert a function to a UI component.\n\nThe wrapped function may call any hooks functions (`editor.ui.use_*`), but on any function invocation, the hooks calls must be the same, and in the same order. This means that hooks should not be used inside loops and conditions or after a conditional return statement.\n\nThe following props are supported automatically:"
                      (props-doc-html read-only-common-props))
    :parameters [{:name "fn"
-                 :types ["function"]
+                 :types ["fun(props:T):editor.component"]
                  :doc "function, will receive a single table of props when called"}]
    :returnvalues [{:name "value"
-                   :types ["function"]
-                   :doc "decorated component function that may be invoked with a props table create component"}]})
+                   :types ["fun(props:T):editor.component"]
+                   :doc "decorated component function that may be invoked with a props table to create a component"}]})
 
 (def show-external-file-dialog-doc
   {:name "show_external_file_dialog"

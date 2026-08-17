@@ -21,6 +21,13 @@ go.animate(
         pprint(completed_url, completed_property)
     end)
 
+gui.animate(
+    gui.get_node("box"),
+    "position",
+    position,
+    gui.EASING_LINEAR,
+    1.0)
+
 resource.create_texture(
     "/generated.texturec",
     {
@@ -117,4 +124,43 @@ b2d.world.cast_ray(
 render.clear({
     [graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(),
     [graphics.BUFFER_TYPE_DEPTH_BIT] = 1,
+})
+
+http.server.route("/health", function(request)
+    pprint(request.path, request.method, request.headers)
+    return 200
+end)
+
+zip.pack("build.zip", {
+    "game.project",
+    {"assets", method = zip.METHOD.STORED},
+})
+zip.unpack("build.zip", {on_conflict = zip.ON_CONFLICT.OVERWRITE})
+zip.unpack("build.zip", {"game.project"})
+
+editor.create_resources({
+    {"/generated.script", "print('generated')"},
+})
+
+editor.transact({
+    editor.tx.add("/main/main.collection", "instances", {
+        id = "generated",
+    }),
+})
+
+local text_component = editor.ui.component(function(props)
+    return editor.ui.label({text = props.text})
+end)
+text_component({text = "Hello"})
+
+editor.command({
+    label = "Inspect Argument",
+    locations = {"Bundle", "Help"},
+    query = {argument = true},
+    active = function(opts)
+        return opts.argument ~= nil
+    end,
+    run = function(opts)
+        pprint(opts.argument)
+    end,
 })

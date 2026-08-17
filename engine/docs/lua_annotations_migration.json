@@ -11,6 +11,7 @@
   "patches": {
     "editor.apidoc_doc.lua": [
       {
+        "current": "(string|editor.resource_definition)[]",
         "expected": "[string]",
         "path_pattern": "elements.editor.create_resources.parameters.resources.types.string["
       },
@@ -185,6 +186,7 @@
         "path_pattern": "elements.gui.animate.parameters.complete_function.types.function(self, node)"
       },
       {
+        "current": "string|hash|gui.PROP",
         "expected": "gui.PROP|hash",
         "path_pattern": "elements.gui.animate.parameters.property.types"
       },

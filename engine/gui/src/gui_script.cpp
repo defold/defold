@@ -1531,7 +1531,7 @@ namespace dmGui
      *
      * @name gui.animate
      * @param node [type:node] node to animate
-     * @param property [type:gui.PROP|hash] property to animate
+     * @param property [type:string|hash|gui.PROP] property to animate
      *
      * - `"position"`
      * - `"rotation"`

@@ -148,6 +148,22 @@ class TestLuaAnnotations(unittest.TestCase):
         path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
         return path
 
+    def test_input_list_resolves_relative_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            absolute_input = directory / "nested" / "absolute.apidoc"
+            input_list = directory / "inputs.txt"
+            input_list.write_text(
+                "relative input.apidoc\n\n%s\n" % absolute_input,
+                encoding="utf-8")
+
+            self.assertEqual(
+                [
+                    str((directory / "relative input.apidoc").resolve()),
+                    str(absolute_input.resolve()),
+                ],
+                build_docs.read_input_list(input_list))
+
     def test_aggregate_namespaces_duplicates_overloads_and_exclusions(self):
         duplicate = function("go.play", "string")
         overload = function("go.play", "number")
@@ -176,7 +192,12 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertEqual(1, go_lua.count("function go.play("))
             self.assertIn("---@overload fun(value:number)", go_lua)
             self.assertNotIn("function init", go_lua)
-            self.assertIn("---@alias go.PLAYBACK integer", go_lua)
+            self.assertIn(
+                "---@enum defold_enum.go.PLAYBACK: integer",
+                go_lua)
+            self.assertIn(
+                "---@alias go.PLAYBACK defold_enum.go.PLAYBACK",
+                go_lua)
 
             editor_lua = (output / "editor.lua").read_text(encoding="utf-8")
             self.assertIn("editor.ui = {}", editor_lua)
@@ -208,6 +229,8 @@ class TestLuaAnnotations(unittest.TestCase):
         self.assertEqual({}, metadata["classes"]["hash"])
         self.assertEqual(
             {
+                "editor.command_location",
+                "editor.resource_definition",
                 "editor.schema",
                 "editor.component",
                 "editor.transaction_step",
@@ -217,6 +240,10 @@ class TestLuaAnnotations(unittest.TestCase):
                 "editor.message",
                 "http.response",
                 "http.route",
+                "http.server.handler",
+                "zip.entries",
+                "zip.entry",
+                "zip.unpack_options",
             },
             set(metadata["aliases"]))
         self.assertEqual(
@@ -331,8 +358,10 @@ class TestLuaAnnotations(unittest.TestCase):
             "editor.component|false",
             "(string|hash)[]",
             "table<string, {value:number|nil, items?:vector3[]}>",
+            "{[1]:string, [2]?:string, method?:\"stored\"|\"deflated\"}",
             "{callback:fun(value:number, ...:any):(string, nil), enabled?:boolean}",
             "fun(value:T):T",
+            '"one"|"many"',
             "number?",
         ]
         for expression in valid:
@@ -346,6 +375,7 @@ class TestLuaAnnotations(unittest.TestCase):
             "fun(value):string",
             "string[",
             "table<string, number>>",
+            "{[bad-field]:string}",
         ]
         for expression in invalid:
             with self.subTest(expression=expression):
@@ -634,7 +664,16 @@ class TestLuaAnnotations(unittest.TestCase):
                 metadata)
 
             go_lua = (output / "go.lua").read_text(encoding="utf-8")
-            self.assertIn("---@alias go.PLAYBACK integer", go_lua)
+            self.assertIn(
+                "---@enum defold_enum.go.PLAYBACK: integer",
+                go_lua)
+            self.assertIn(
+                "local __defold_enum_go_PLAYBACK = {",
+                go_lua)
+            self.assertIn("    PLAYBACK_NONE = nil,", go_lua)
+            self.assertIn(
+                "---@alias go.PLAYBACK defold_enum.go.PLAYBACK",
+                go_lua)
             self.assertIn("---| `go.PLAYBACK_NONE`", go_lua)
             self.assertIn(
                 "---@field PLAYBACK_NONE go.PLAYBACK",
@@ -657,7 +696,13 @@ class TestLuaAnnotations(unittest.TestCase):
                 metadata)
 
             editor_lua = (output / "editor.lua").read_text(encoding="utf-8")
-            self.assertIn("---@alias editor.ui.ALIGNMENT string", editor_lua)
+            self.assertIn(
+                "---@enum defold_enum.editor.ui.ALIGNMENT: string",
+                editor_lua)
+            self.assertIn(
+                "---@alias editor.ui.ALIGNMENT "
+                "defold_enum.editor.ui.ALIGNMENT",
+                editor_lua)
             self.assertIn("---| `editor.ui.ALIGNMENT.TOP`", editor_lua)
             self.assertIn("---@field TOP editor.ui.ALIGNMENT", editor_lua)
 
@@ -734,7 +779,12 @@ class TestLuaAnnotations(unittest.TestCase):
                 metadata)
 
             gui_lua = (output / "gui.lua").read_text(encoding="utf-8")
-            self.assertIn("---@alias gui.PROP string", gui_lua)
+            self.assertIn(
+                "---@enum defold_enum.gui.PROP: string",
+                gui_lua)
+            self.assertIn(
+                "---@alias gui.PROP defold_enum.gui.PROP",
+                gui_lua)
             self.assertIn("---| `gui.PROP_ROTATION`", gui_lua)
 
     def test_conflicting_source_typedefs_report_both_sources(self):

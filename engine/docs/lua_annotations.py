@@ -414,7 +414,9 @@ def join_types(types, metadata):
 
 
 class _TypeExpressionParser:
-    TOKEN = re.compile(r"\s*(?:(\.\.\.)|(\[\])|([A-Za-z_][A-Za-z0-9_.]*)|([{}()<>,:|?]))")
+    TOKEN = re.compile(
+        r'\s*(?:(\.\.\.)|(\[\])|("(?:\\.|[^"\\])*")|'
+        r'(-?\d+(?:\.\d+)?)|([A-Za-z_][A-Za-z0-9_.]*)|([\[\]{}()<>,:|?]))')
 
     def __init__(self, expression):
         self.expression = expression
@@ -445,6 +447,12 @@ class _TypeExpressionParser:
     def is_identifier(token):
         return token is not None and re.match(r"^[A-Za-z_][A-Za-z0-9_.]*$", token)
 
+    @staticmethod
+    def is_literal(token):
+        return token is not None and (
+            token.startswith('"')
+            or re.match(r"^-?\d+(?:\.\d+)?$", token))
+
     def parse(self):
         if not self.tokens:
             raise ValueError("empty expression")
@@ -472,6 +480,8 @@ class _TypeExpressionParser:
             self.parse_tuple_or_group()
         elif token == "fun":
             self.parse_function()
+        elif self.is_literal(token):
+            self.take()
         elif self.is_identifier(token):
             identifier = self.take()
             self.references.append(identifier)
@@ -496,9 +506,20 @@ class _TypeExpressionParser:
         self.take("{")
         if self.peek() != "}":
             while True:
-                field_name = self.take()
-                if not self.is_identifier(field_name):
-                    raise ValueError("invalid table field '%s'" % field_name)
+                if self.peek() == "[":
+                    self.take("[")
+                    field_name = self.take()
+                    if not (
+                            self.is_identifier(field_name)
+                            or self.is_literal(field_name)):
+                        raise ValueError(
+                            "invalid table field '%s'" % field_name)
+                    self.take("]")
+                else:
+                    field_name = self.take()
+                    if not self.is_identifier(field_name):
+                        raise ValueError(
+                            "invalid table field '%s'" % field_name)
                 if self.peek() == "?":
                     self.take("?")
                 self.take(":")
@@ -1003,11 +1024,20 @@ def _render_class_method(class_name, method_name, variants, metadata):
 
 
 def _render_enum(enum_name, enum):
-    lines = []
+    backing_type = "defold_enum.%s" % enum_name
+    backing_variable = "__defold_enum_%s" % re.sub(r"\W", "_", enum_name)
+    lines = [
+        "---@enum %s: %s" % (backing_type, enum["value_type"]),
+        "local %s = {" % backing_variable,
+    ]
+    lines.extend(
+        "    %s = nil," % _field_name(member)
+        for member in enum["members"])
+    lines.extend(["}", ""])
     if enum["element"]:
         lines.extend(lua_doc_lines(
             enum["element"].description or enum["element"].brief))
-    lines.append("---@alias %s %s" % (enum_name, enum["value_type"]))
+    lines.append("---@alias %s %s" % (enum_name, backing_type))
     lines.extend("---| `%s`" % member for member in enum["members"])
     return lines
 
