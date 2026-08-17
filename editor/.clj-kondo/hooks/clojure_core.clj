@@ -13,17 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.clojure-core
-  (:refer-clojure :exclude [boolean bounded-count definterface defprotocol defrecord deftype empty? every? map not-any? not-empty not-every? some])
+  (:refer-clojure :exclude [boolean bounded-count definterface defprotocol defrecord deftype empty? every? keys map not-any? not-empty not-every? some vals])
   (:require [clj-kondo.hooks-api :as api]))
 
 (defn- warn-prefer-util-coll! [node function-name]
   (let [warning-node (or (first (:children node)) node)]
     (api/reg-finding!
       (assoc (meta warning-node)
-             :message (format "Use util.coll/%s instead of clojure.core/%s."
-                              function-name
-                              function-name)
-             :type :defold/prefer-util-coll))))
+        :message (format "Use util.coll/%s instead of clojure.core/%s."
+                         function-name
+                         function-name)
+        :type :defold/prefer-util-coll))))
 
 (defn- returnable-tail-expr? [arg expr]
   (or (= arg expr)
@@ -70,9 +70,9 @@
 (defn- warn-prefer-coll-some! [node replacement]
   (api/reg-finding!
     (assoc (meta node)
-           :message (format "Use util.coll/%s instead of clojure.core/some."
-                            replacement)
-           :type :defold/prefer-util-coll)))
+      :message (format "Use util.coll/%s instead of clojure.core/some."
+                       replacement)
+      :type :defold/prefer-util-coll)))
 
 (defn- some-call-node? [node]
   (when (= :list (:tag node))
@@ -84,8 +84,8 @@
 (defn- warn-prefer-coll-any! [node]
   (api/reg-finding!
     (assoc (meta node)
-           :message "Use util.coll/any? instead of boolean-wrapped some."
-           :type :defold/prefer-util-coll)))
+      :message "Use util.coll/any? instead of boolean-wrapped some."
+      :type :defold/prefer-util-coll)))
 
 (defn- compare-function-replacement [function-sexpr]
   (when (and (seq? function-sexpr)
@@ -110,15 +110,15 @@
 (defn- warn-prefer-coll-order! [node replacement]
   (api/reg-finding!
     (assoc (meta node)
-           :message (format "Use util.coll/%s instead of an inline compare function."
-                            replacement)
-           :type :defold/prefer-util-coll)))
+      :message (format "Use util.coll/%s instead of an inline compare function."
+                       replacement)
+      :type :defold/prefer-util-coll)))
 
 (defn- warn-defn-return-type-hint-placement! [finding-meta]
   (api/reg-finding!
     (assoc finding-meta
-           :message "Put defn return type hint and argument vector on the next line."
-           :type :defold/defn-return-type-hint-placement)))
+      :message "Put defn return type hint and argument vector on the next line."
+      :type :defold/defn-return-type-hint-placement)))
 
 (defn- single-arity-arg-vector-node [children]
   (loop [previous-node nil
@@ -143,10 +143,10 @@
     (when-not (:defold/defonce (meta form-node))
       (api/reg-finding!
         (assoc (meta form-node)
-               :message (format "Use util.defonce/%s instead of clojure.core/%s."
-                                defonce-form
-                                core-form)
-               :type :defold/prefer-defonce))))
+          :message (format "Use util.defonce/%s instead of clojure.core/%s."
+                           defonce-form
+                           core-form)
+          :type :defold/prefer-defonce))))
   {:node node})
 
 (defn defprotocol [{:keys [node]}]
@@ -166,12 +166,13 @@
         [previous-node arg-vector-node] (single-arity-arg-vector-node tail-nodes)]
     (when (and previous-node
                arg-vector-node
+               (:meta arg-vector-node)
                (= (:row (meta previous-node)) (:row (meta arg-vector-node)))
                (< (inc (:end-col (meta previous-node)))
                   (:col (meta arg-vector-node))))
       (warn-defn-return-type-hint-placement!
         (assoc (meta arg-vector-node)
-               :col (inc (:end-col (meta previous-node))))))
+          :col (inc (:end-col (meta previous-node))))))
     {:node node}))
 
 (defn fn-call [{:keys [node]}]
@@ -187,6 +188,10 @@
 
 (defn every? [{:keys [node]}]
   (warn-prefer-util-coll! node "every?")
+  {:node node})
+
+(defn keys [{:keys [node]}]
+  (warn-prefer-util-coll! node "keys")
   {:node node})
 
 (defn- map-fn-node [map-node arity]
@@ -233,3 +238,7 @@
                       "some")]
     (warn-prefer-coll-some! some-node replacement)
     {:node node}))
+
+(defn vals [{:keys [node]}]
+  (warn-prefer-util-coll! node "vals")
+  {:node node})

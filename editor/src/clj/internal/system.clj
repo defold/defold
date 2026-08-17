@@ -125,7 +125,7 @@
   affected by them. Outputs are specified as a seq of Endpoints
   for both the argument and return value."
   [system outputs]
-  (assert (every? gt/endpoint? outputs))
+  (assert (coll/every? gt/endpoint? outputs))
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (let [basis (basis system)
         cache-entries (gt/dependencies basis outputs)]
@@ -167,7 +167,7 @@
   [system outputs-modified nodes-deleted]
   (-> system
       (update :cache c/cache-invalidate outputs-modified)
-      (update :user-data remove-deleted-user-data (keys nodes-deleted))
+      (update :user-data remove-deleted-user-data (coll/keys nodes-deleted))
       (update :invalidate-counters bump-invalidate-counters outputs-modified)))
 
 (defn modified-graph-states
@@ -272,8 +272,8 @@
 
 (defn- next-available-graph-id
   [system]
-  (let [used (into #{} (keys (graphs system)))]
-    (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
+  (let [used (set (coll/keys (graphs system)))]
+    (coll/first-where (complement used) (range 0 gt/MAX-GROUP-ID))))
 
 (defn next-node-id
   ^long [system ^long graph-id]
@@ -340,12 +340,17 @@
       (commit-graph-states modified-post-tx-graphs)
       (commit-transaction-effects outputs-modified nodes-deleted)))
 
-(defn basis-graphs-identical? [basis1 basis2]
-  (let [graph-ids (keys (:graphs basis1))]
-    (and (= graph-ids (keys (:graphs basis2)))
-         (every? true? (map identical?
-                            (map (:graphs basis1) graph-ids)
-                            (map (:graphs basis2) graph-ids))))))
+(defn basis-graphs-identical?
+  [basis1 basis2]
+  (let [graphs1 (:graphs basis1)
+        graphs2 (:graphs basis2)]
+    (or (identical? graphs1 graphs2)
+        (and (= (count graphs1) (count graphs2))
+             (coll/reduce-kv-> graphs1 true
+               (fn [_ graph-id graph]
+                 (if (identical? graph (get graphs2 graph-id))
+                   true
+                   (reduced false))))))))
 
 (defn default-evaluation-context [system]
   (in/default-evaluation-context (basis system)
@@ -408,25 +413,31 @@
   ;; initial-invalidate-counters to compare with, and we dont even try to
   ;; update the cache.
   (if-some [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
-    (let [invalidate-counters (:invalidate-counters system)
+    (let [system-basis (basis system)
+          invalidate-counters (:invalidate-counters system)
           evaluation-context-hits @(:hits evaluation-context)
           evaluation-context-misses @(:local evaluation-context)]
-      (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
+      (if (and (identical? invalidate-counters initial-invalidate-counters)
+               (basis-graphs-identical? system-basis (:basis evaluation-context))) ; nice case
         (cond-> system
-                (coll/not-empty evaluation-context-hits)
-                (update :cache c/cache-hit evaluation-context-hits)
+          (coll/not-empty evaluation-context-hits)
+          (update :cache c/cache-hit evaluation-context-hits)
 
-                (coll/not-empty evaluation-context-misses)
-                (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
-        (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
-              safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
-              safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
+          (coll/not-empty evaluation-context-misses)
+          (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
+        (let [unsafe-cache-entry? (fn [endpoint]
+                                    (or (nil? (gt/node-by-id-at system-basis (gt/endpoint-node-id endpoint)))
+                                        (endpoint-invalidated-since? endpoint initial-invalidate-counters invalidate-counters)))
+              safe-cache-hits (coll/into-> evaluation-context-hits []
+                                (remove unsafe-cache-entry?))
+              safe-cache-misses (coll/into-> evaluation-context-misses []
+                                  (remove (comp unsafe-cache-entry? first)))]
           (cond-> system
-                  (coll/not-empty safe-cache-hits)
-                  (update :cache c/cache-hit safe-cache-hits)
+            (coll/not-empty safe-cache-hits)
+            (update :cache c/cache-hit safe-cache-hits)
 
-                  (coll/not-empty safe-cache-misses)
-                  (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
+            (coll/not-empty safe-cache-misses)
+            (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
     system))
 
 (defn user-data [system node-id key]
