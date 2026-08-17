@@ -420,6 +420,7 @@ notification.ensure-exists.reason.folder = the configured path points to a folde
 
 notification.lsp.language-server-missing.prompt = Cannot perform this action because there is no Language Server running for the {language} language.
 notification.lsp.language-server-missing.action.about = About LSP in Defold
+notification.lsp.formatting-failed.prompt = Cannot format {path} because no Language Server responded.
 
 # Asset browser notifications
 
@@ -986,6 +987,7 @@ command.code.replace = Replace…
 command.code.replace-next = Replace Next
 command.code.toggle-comment = Toggle Comment
 command.code.reindent-lines = Reindent Lines
+command.code.format = Format Document/Selection
 command.code.convert-indentation = Convert Indentation
 command.code.convert-indentation.to-tabs = To Tabs
 command.code.convert-indentation.to-two-spaces = To Two Spaces
