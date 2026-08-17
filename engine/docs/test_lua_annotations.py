@@ -577,6 +577,35 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@field x number", meta_lua)
             self.assertIn("---@operator unm: vector3", meta_lua)
 
+    def test_metadata_operator_overloads_are_rendered(self):
+        matrix4 = struct("matrix4", [("m00", "number", "M00")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
+            metadata_data["classes"]["matrix4"] = {
+                "operators": {
+                    "mul": [
+                        ["matrix4", "matrix4"],
+                        ["vector4", "vector4"],
+                        ["number", "matrix4"],
+                    ],
+                },
+            }
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("vmath.cpp", document("vmath", [matrix4]))],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn("---@operator mul(matrix4): matrix4", meta_lua)
+            self.assertIn("---@operator mul(vector4): vector4", meta_lua)
+            self.assertIn("---@operator mul(number): matrix4", meta_lua)
+
     def test_source_typedef_is_rendered_as_alias(self):
         hash_type = typedef("hash", "userdata")
 
@@ -909,6 +938,29 @@ class TestLuaAnnotations(unittest.TestCase):
             meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
             self.assertIn("---@class message.model.model_animation_done", meta_lua)
             self.assertNotIn("message.model =", meta_lua)
+
+    def test_foreign_namespace_does_not_override_owner_description(self):
+        editor_doc = document("editor", [function("json.decode", "string")])
+        json_doc = document("json", [function("json.encode", "string")])
+        inputs = [
+            ("editor.apidoc", editor_doc),
+            ("json.cpp", json_doc),
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            contents = []
+            for index, documents in enumerate((inputs, list(reversed(inputs)))):
+                output = Path(directory) / ("output-%d" % index)
+                lua_annotations.generate(documents, output, metadata)
+                contents.append(
+                    (output / "json.lua").read_text(encoding="utf-8"))
+
+            self.assertEqual(contents[0], contents[1])
+            self.assertIn(
+                "---@class defold_api.json\n---json docs",
+                contents[0])
+            self.assertNotIn("---editor docs", contents[0])
 
     def test_conflicting_duplicate_message_fails_with_both_sources(self):
         first = document("model", [message("done", "string")])

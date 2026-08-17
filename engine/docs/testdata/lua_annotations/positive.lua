@@ -4,6 +4,38 @@ local normalized = vmath.normalize(position)
 ---@type vector3
 local correlated_vector = normalized
 
+---@type vector3
+local divided_vector3 = position / 2
+
+---@type vector4
+local divided_vector4 = vmath.vector4(1, 2, 3, 4) / 2
+
+local transform = vmath.matrix4_translation(position)
+
+---@type matrix4
+local combined_transform = transform * vmath.matrix4()
+
+---@type vector4
+local transformed_vector = transform * vmath.vector4(1, 2, 3, 1)
+
+---@type matrix4
+local scaled_transform = transform * 2
+
+---@type matrix4
+local reverse_scaled_transform = 2 * transform
+
+---@type quaternion
+local combined_rotation = vmath.quat() * vmath.quat_rotation_z(1)
+
+go.set_rotation(combined_rotation)
+pprint(
+    divided_vector3,
+    divided_vector4,
+    combined_transform,
+    transformed_vector,
+    scaled_transform,
+    reverse_scaled_transform)
+
 go.animate(
     ".",
     "position",

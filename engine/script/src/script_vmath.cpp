@@ -180,9 +180,12 @@ namespace dmScript
      * [ref:vmath.quat_rotation_z]. Quaternion components are available as `x`,
      * `y`, `z`, and `w`.
      *
-     * @typedef
+     * @class
      * @name quaternion
-     * @param value [type:vector4] quaternion components
+     * @member x [type:number] x component
+     * @member y [type:number] y component
+     * @member z [type:number] z component
+     * @member w [type:number] w component
      * @examples
      *
      * ```lua

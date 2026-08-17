@@ -32,3 +32,23 @@ font.prewarm_text("/invalid.fontc", "text", 42)
 
 local tcp_client = assert(socket.connect("127.0.0.1", 8000))
 tcp_client:send(42)
+
+go.set_rotation(vmath.vector4())
+
+---@type string
+local invalid_vector_division = vmath.vector3() / 2
+
+---@type string
+local invalid_matrix_product = vmath.matrix4() * vmath.matrix4()
+
+---@type string
+local invalid_transformed_vector = vmath.matrix4() * vmath.vector4()
+
+---@type string
+local invalid_quaternion_product = vmath.quat() * vmath.quat()
+
+pprint(
+    invalid_vector_division,
+    invalid_matrix_product,
+    invalid_transformed_vector,
+    invalid_quaternion_product)

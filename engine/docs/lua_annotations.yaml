@@ -127,15 +127,26 @@ classes:
   # Keep hashes nominal in LuaLS. A plain alias is expanded to userdata in
   # hovers, hiding the useful API type.
   hash: {}
+  matrix4:
+    operators:
+      mul:
+        - ["matrix4", "matrix4"]
+        - ["vector4", "vector4"]
+        - ["number", "matrix4"]
+  quaternion:
+    operators:
+      mul: ["quaternion", "quaternion"]
   vector3:
     operators:
       add: ["vector3", "vector3"]
+      div: ["number", "vector3"]
       sub: ["vector3", "vector3"]
       mul: ["number", "vector3"]
       unm: [null, "vector3"]
   vector4:
     operators:
       add: ["vector4", "vector4"]
+      div: ["number", "vector4"]
       sub: ["vector4", "vector4"]
       mul: ["number", "vector4"]
       unm: [null, "vector4"]

@@ -788,10 +788,15 @@ def _collect(documents, metadata):
         if document.info.namespace in standard_namespaces:
             continue
 
+        document_namespace = document.info.namespace.strip()
+        if document_namespace and "." not in document_namespace:
+            descriptions.setdefault(
+                document_namespace,
+                document.info.description)
+
         for element in document.elements:
             name = _canonical_name(document, element)
             root = _root_namespace(name)
-            descriptions.setdefault(root, document.info.description)
             if element.type == script_doc_ddf_pb2.FUNCTION:
                 method_target = _method_target(name, metadata)
                 if method_target:
@@ -1023,6 +1028,49 @@ def _render_class_method(class_name, method_name, variants, metadata):
         " " + description if description else "")
 
 
+def _class_operator_variants(class_name, operator, operator_data):
+    sequence_types = (list, tuple)
+    if not isinstance(operator_data, sequence_types):
+        raise ValueError(
+            "Metadata class operator '%s.%s' must be a pair or list of pairs"
+            % (class_name, operator))
+
+    if (
+            len(operator_data) == 2
+            and not any(
+                isinstance(value, sequence_types)
+                for value in operator_data)):
+        variants = [operator_data]
+    else:
+        variants = operator_data
+
+    if not variants:
+        raise ValueError(
+            "Metadata class operator '%s.%s' must define at least one variant"
+            % (class_name, operator))
+
+    result = []
+    for index, variant in enumerate(variants, 1):
+        if not isinstance(variant, sequence_types) or len(variant) != 2:
+            raise ValueError(
+                "Metadata class operator '%s.%s' variant %d must be a "
+                "two-item pair"
+                % (class_name, operator, index))
+        parameter_type, result_type = variant
+        if parameter_type is not None and not isinstance(parameter_type, str):
+            raise ValueError(
+                "Metadata class operator '%s.%s' variant %d parameter must "
+                "be a type string or null"
+                % (class_name, operator, index))
+        if not isinstance(result_type, str):
+            raise ValueError(
+                "Metadata class operator '%s.%s' variant %d result must be "
+                "a type string"
+                % (class_name, operator, index))
+        result.append((parameter_type, result_type))
+    return result
+
+
 def _render_enum(enum_name, enum):
     backing_type = "defold_enum.%s" % enum_name
     backing_variable = "__defold_enum_%s" % re.sub(r"\W", "_", enum_name)
@@ -1166,12 +1214,15 @@ def _render_meta(
                 method_name,
                 variants,
                 metadata))
-        for operator, operator_types in sorted((class_data.get("operators") or {}).items()):
-            parameter_type, result_type = operator_types
-            if parameter_type is None:
-                lines.append("---@operator %s: %s" % (operator, result_type))
-            else:
-                lines.append("---@operator %s(%s): %s" % (operator, parameter_type, result_type))
+        for operator, operator_data in sorted((class_data.get("operators") or {}).items()):
+            for parameter_type, result_type in _class_operator_variants(
+                    class_name,
+                    operator,
+                    operator_data):
+                if parameter_type is None:
+                    lines.append("---@operator %s: %s" % (operator, result_type))
+                else:
+                    lines.append("---@operator %s(%s): %s" % (operator, parameter_type, result_type))
         lines.append("")
 
     for root in sorted(messages):
@@ -1328,11 +1379,14 @@ def _validate_types(
                     % (metadata_path, class_name, field_name))
                 continue
             validate(field_type, metadata_path, "%s field %s" % (class_name, field_name))
-        for operator, operator_types in (class_data.get("operators") or {}).items():
-            parameter_type, result_type = operator_types
-            if parameter_type is not None:
-                validate(parameter_type, metadata_path, "%s operator %s parameter" % (class_name, operator))
-            validate(result_type, metadata_path, "%s operator %s result" % (class_name, operator))
+        for operator, operator_data in (class_data.get("operators") or {}).items():
+            for parameter_type, result_type in _class_operator_variants(
+                    class_name,
+                    operator,
+                    operator_data):
+                if parameter_type is not None:
+                    validate(parameter_type, metadata_path, "%s operator %s parameter" % (class_name, operator))
+                validate(result_type, metadata_path, "%s operator %s result" % (class_name, operator))
     for function_name, constraint in metadata.get("generics", {}).items():
         validate(constraint, metadata_path, "%s generic constraint" % function_name)
     for function_name, overloads in metadata.get("function_overloads", {}).items():

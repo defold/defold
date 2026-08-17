@@ -445,13 +445,19 @@ namespace dmRender
      * end
      *
      * function update(self)
+     *     if not self.target then
+     *         return
+     *     end
      *     render.set_render_target(self.target)
      *     -- Draw off-screen content here.
      *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      * end
      *
-     * function final(self)
-     *     render.delete_render_target(self.target)
+     * function on_message(self, message_id)
+     *     if message_id == hash("release_render_target") and self.target then
+     *         render.delete_render_target(self.target)
+     *         self.target = nil
+     *     end
      * end
      * ```
      */

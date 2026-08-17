@@ -328,8 +328,8 @@ def validate_lua_archive(executable, archive, metadata, stamp):
 def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
     fixture_dir = Path(fixture_dir)
     expected_negative = {
-        "assign-type-mismatch": 1,
-        "param-type-mismatch": 5,
+        "assign-type-mismatch": 5,
+        "param-type-mismatch": 6,
     }
     with tempfile.TemporaryDirectory(prefix="defold-lua-behavior.") as temp_dir:
         temp_dir = Path(temp_dir)
