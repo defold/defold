@@ -1771,24 +1771,34 @@
            (apply-lines lines (data/format-document-edits lines edits)))
         ["" "b" "c"] [[(cr [0 0] [1 0]) [""]]]
         ["a" "" "b"] [[(cr [1 0] [2 0]) [""]]]
-        ["a" "" ""] [[(cr [1 0] [2 0]) [""]]]))))
+        ["a" "" ""] [[(cr [1 0] [2 0]) [""]]]))
+    (testing "an edit without a trailing newline joins rows rather than replacing them"
+      (are [lines edits]
+        (= (apply-lines lines edits)
+           (apply-lines lines (data/format-document-edits lines edits)))
+        ["a" "" "b"] [[(cr [0 0] [1 0]) ["a"]]]
+        ["a" "" ""] [[(cr [0 0] [1 0]) ["a"]]]
+        ;; The join must not claim the blank row the next edit deletes.
+        ["a" "" ""] [[(cr [0 0] [1 0]) ["a"]]
+                     [(cr [1 0] [2 0]) [""]]]))))
 
 (def ^:private format-line-gen
   (gen/elements ["" " " "  " "\t" "a" "b" "a b" "  a" "a  "]))
 
-(defn- whole-row-edit
-  [lines ^long begin-row ^long end-row replacement-rows]
-  (if (< end-row (count lines))
-    [(cr [begin-row 0] [end-row 0]) (conj replacement-rows "")]
-    (let [last-row (dec end-row)]
-      [(cr [begin-row 0] [last-row (count (lines last-row))])
-       (if (seq replacement-rows) replacement-rows [""])])))
+(defn- whole-row-edit [lines begin-row end-row replacement-rows join?]
+  (let [replacement-rows (if (seq replacement-rows) replacement-rows [""])]
+    (if (< end-row (count lines))
+      [(cr [begin-row 0] [end-row 0])
+       (if join? replacement-rows (conj replacement-rows ""))]
+      (let [last-row (dec end-row)]
+        [(cr [begin-row 0] [last-row (count (lines last-row))])
+         replacement-rows]))))
 
 (defn- whole-row-edits
   [lines runs]
   (let [row-count (count lines)]
     (loop [row 0
-           [[gap span-rows replacement-rows] & more] runs
+           [[gap span-rows replacement-rows join?] & more] runs
            edits []]
       (if (nil? gap)
         edits
@@ -1796,19 +1806,20 @@
               end-row (+ begin-row (long span-rows))]
           (if (< row-count end-row)
             edits
-            ;; Skip the row after the span so the next edit cannot touch it.
-            (recur (inc end-row)
+            ;; The next edit may start where this one ends, but not before.
+            (recur end-row
                    more
-                   (conj edits (whole-row-edit lines begin-row end-row replacement-rows)))))))))
+                   (conj edits (whole-row-edit lines begin-row end-row replacement-rows join?)))))))))
 
 (defspec format-document-edits-preserves-applied-lines 300
   ;; format-document-edits splits edits into finer-grained ones so cursors stay
   ;; put, which must never change the lines the edits produce.
   (prop/for-all
     [[lines edits] (gen/let [lines (gen/vector format-line-gen 1 10)
-                             runs (gen/vector (gen/tuple (gen/choose 0 1)
+                             runs (gen/vector (gen/tuple (gen/choose 0 2)
                                                          (gen/choose 1 3)
-                                                         (gen/vector format-line-gen 0 4))
+                                                         (gen/vector format-line-gen 0 4)
+                                                         gen/boolean)
                                               1 3)]
                      [lines (whole-row-edits lines runs)])]
     (= (apply-lines lines edits)

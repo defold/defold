@@ -3457,9 +3457,9 @@
         ;; Ends where a later row starts. The trailing empty line is the line
         ;; break in front of that row, which stays where it is.
         (and (zero? (.col end))
-             (< begin-row end-row)
-             (= "" (peek replacement-lines)))
-        [begin-row end-row (pop replacement-lines)]
+             (< begin-row end-row))
+        (when (= "" (peek replacement-lines))
+          [begin-row end-row (pop replacement-lines)])
 
         ;; Ends where its own row ends.
         (= (.col end) (count (lines end-row)))
