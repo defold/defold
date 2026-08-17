@@ -1345,9 +1345,26 @@ namespace dmGameSystem
  */
 
 /*# Box2D joint
+ *
+ * An opaque handle connecting two [type:b2Body] values. Create one with a
+ * function such as [ref:b2d.joint.create_distance], use the functions in
+ * `b2d.joint` to inspect or configure it, and release it with
+ * [ref:b2d.joint.destroy]. Use [ref:b2d.joint.is_valid] before retaining a
+ * handle across body or world destruction.
+ *
  * @typedef
  * @name b2Joint
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D joint handle
+ * @examples
+ *
+ * ```lua
+ * local body_a = b2d.get_body("#collisionobject_a")
+ * local body_b = b2d.get_body("#collisionobject_b")
+ * local joint = b2d.joint.create_distance(body_a, body_b)
+ * if b2d.joint.is_valid(joint) then
+ *     print(b2d.joint.get_type(joint))
+ * end
+ * ```
  */
 
 /*# Distance joint type.

@@ -155,15 +155,43 @@ namespace dmGameSystem
 
 
 /*# Box2D world
+ *
+ * An opaque handle to the Box2D physics world owned by the current collection.
+ * Obtain it with [ref:b2d.get_world] and pass it to functions in `b2d.world`.
+ * The engine creates and destroys the world together with the collection; it
+ * cannot be constructed directly from Lua.
+ *
  * @typedef
  * @name b2World
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D world handle
+ * @examples
+ *
+ * ```lua
+ * local world = b2d.get_world()
+ * if world then
+ *     pprint(world)
+ * end
+ * ```
  */
 
 /*# Box2D body
+ *
+ * An opaque handle to the native Box2D body of a collision-object component.
+ * Obtain it with [ref:b2d.get_body] and pass it to functions in `b2d.body`.
+ * The collision object owns the body, so the handle becomes invalid when its
+ * component or game object is deleted.
+ *
  * @typedef
  * @name b2Body
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D body handle
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * if body then
+ *     print(b2d.body.get_position(body))
+ * end
+ * ```
  */
 
 /*# Box2D body contact entry

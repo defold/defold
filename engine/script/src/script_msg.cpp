@@ -50,13 +50,39 @@ namespace dmScript
      * @language Lua
      */
 
-    /*# URL value
+    /*# Component URL
+     *
+     * A URL identifies a message endpoint in Defold. Its string form is
+     * `[socket:][path][#fragment]`: the socket identifies a collection, the path
+     * identifies a game object, and the fragment identifies a component. Missing
+     * parts are resolved relative to the script that creates the URL.
+     *
+     * Create URLs with [ref:msg.url]. The `socket`, `path`, and `fragment`
+     * components are exposed as [type:hash] values and can be inspected or
+     * replaced individually. URLs are commonly passed to [ref:msg.post] and to
+     * functions that address game objects or components.
      *
      * @class
      * @name url
      * @member socket [type:hash] socket component
      * @member path [type:hash] path component
      * @member fragment [type:hash] fragment component
+     * @examples
+     *
+     * Create a relative URL for a component on the current game object:
+     *
+     * ```lua
+     * local sprite_url = msg.url("#sprite")
+     * msg.post(sprite_url, "disable")
+     * print(sprite_url.fragment) --> hash: [sprite]
+     * ```
+     *
+     * Create an absolute URL by specifying all three components:
+     *
+     * ```lua
+     * local controller_url = msg.url("main:/player#controller")
+     * print(controller_url) --> url: [main:/player#controller]
+     * ```
      */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;

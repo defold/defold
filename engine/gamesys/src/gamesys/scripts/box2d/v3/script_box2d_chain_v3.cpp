@@ -637,9 +637,28 @@ namespace dmGameSystem
  */
 
 /*# Box2D chain
+ *
+ * An opaque handle to a chain of connected segment shapes attached to a
+ * [type:b2Body]. Create one with [ref:b2d.body.create_chain], use the functions
+ * in `b2d.chain` to inspect or configure it, and release it with
+ * [ref:b2d.chain.destroy]. Destroying its body also destroys the chain.
+ *
  * @typedef
  * @name b2Chain
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D chain handle
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * local chain = b2d.body.create_chain(body, {
+ *     vertices = {
+ *         vmath.vector3(-64, 0, 0),
+ *         vmath.vector3(0, 16, 0),
+ *         vmath.vector3(64, 0, 0),
+ *     },
+ * })
+ * print(b2d.chain.get_segment_count(chain))
+ * ```
  */
 
 /*# Destroy a chain.

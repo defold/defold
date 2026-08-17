@@ -400,21 +400,80 @@ namespace dmRender
     };
 
     /*# Constant buffer
+     *
+     * A mutable collection of shader constants created with
+     * [ref:render.constant_buffer]. Assign constants by name using [type:vector4]
+     * or [type:matrix4] values, or arrays of those values, then pass the buffer in
+     * the `constants` option to [ref:render.draw]. Constant buffers are Lua
+     * userdata and cannot be iterated with `pairs()` or `ipairs()`.
+     *
      * @typedef
      * @name constant_buffer
-     * @param value [type:userdata]
+     * @param value [type:userdata] shader constant buffer
+     * @examples
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 0.5, 0.5, 1)
+     * render.draw(self.model_predicate, { constants = constants })
+     * ```
      */
 
     /*# Render target
+     *
+     * An opaque graphics handle identifying an off-screen render target. Create
+     * one with [ref:render.render_target], draw into it with
+     * [ref:render.set_render_target], and release dynamically created targets with
+     * [ref:render.delete_render_target]. A render-target resource handle can also
+     * be obtained from [ref:resource.get_render_target_info].
+     *
      * @typedef
      * @name render_target
-     * @param value [type:number]
+     * @param value [type:number] opaque render-target handle
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     local color_params = {
+     *         format = graphics.TEXTURE_FORMAT_RGBA,
+     *         width = 320,
+     *         height = 180,
+     *     }
+     *     self.target = render.render_target({
+     *         [graphics.BUFFER_TYPE_COLOR0_BIT] = color_params,
+     *     })
+     * end
+     *
+     * function update(self)
+     *     render.set_render_target(self.target)
+     *     -- Draw off-screen content here.
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
+     * end
+     *
+     * function final(self)
+     *     render.delete_render_target(self.target)
+     * end
+     * ```
      */
 
     /*# Texture handle
+     *
+     * An opaque graphics handle identifying a texture. Texture handles are
+     * returned by APIs such as [ref:resource.get_texture_info],
+     * [ref:material.get_textures], and [ref:compute.get_textures]. Pass a handle
+     * to [ref:render.enable_texture] to bind the texture in a render script. The
+     * resource or render target that owns the texture controls its lifetime.
+     *
      * @typedef
      * @name texture
-     * @param value [type:number]
+     * @param value [type:number] opaque texture handle
+     * @examples
+     *
+     * ```lua
+     * local texture_info = resource.get_texture_info("/assets/logo.texturec")
+     * local texture_handle = texture_info.handle
+     * render.enable_texture("texture_sampler", texture_handle)
+     * ```
      */
 
     /*# Material-tag render filter

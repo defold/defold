@@ -1061,9 +1061,23 @@ namespace dmGameSystem
  */
 
 /*# Box2D shape
+ *
+ * An opaque handle to one collision shape attached to a [type:b2Body]. Obtain
+ * shape handles from [ref:b2d.body.get_shapes] or when creating shapes, then use
+ * the functions in `b2d.shape` to inspect or modify them. A shape is owned by its
+ * body and its handle becomes invalid when the shape or body is destroyed.
+ *
  * @typedef
  * @name b2Shape
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D shape handle
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * local shapes = b2d.body.get_shapes(body)
+ * local shape = shapes[1].shape_id
+ * pprint(b2d.shape.get_shape(shape))
+ * ```
  */
 
 /*# Get a shape's geometry.
