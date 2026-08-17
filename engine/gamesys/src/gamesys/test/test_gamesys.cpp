@@ -7107,6 +7107,11 @@ INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_p
 #define F2T3 2.0f/3.0f
 const CursorTestParams cursor_properties[] = {
 
+    // Playback none should apply the initial cursor and keep it unchanged,
+    // regardless of the animation frame rate.
+    {"anim_none_0",     0.5f, 1.0f, {0.5f, 0.5f}, 2},
+    {"anim_none_60",    0.5f, 1.0f, {0.5f, 0.5f}, 2},
+
     // Forward & backward
     {"anim_once",       0.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5},
     {"anim_once",      -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5}, // Same as above, but cursor should be clamped
@@ -7125,6 +7130,7 @@ const CursorTestParams cursor_properties[] = {
 
     // Cursor start
     {"anim_once",          0.5f, 1.0f, {0.5f, 0.75f, 1.0f, 1.0f}, 4},
+    {"anim_once_back",    0.25f, 1.0f, {0.75f, 0.5f, 0.25f, 0.0f, 0.0f}, 5},
     {"anim_once_back",     0.5f, 1.0f, {0.5f, 0.25f, 0.0f, 0.0f}, 4},
     {"anim_loop",          0.5f, 1.0f, {0.5f, 0.75f, 0.0f, 0.25f, 0.5f, 0.75f, 0.0f}, 7},
     {"anim_loop_back",     0.5f, 1.0f, {0.5f, 0.25f, 1.0f, 0.75f, 0.5f, 0.25f, 1.0f}, 7},

@@ -15,6 +15,24 @@ animations {
   flip_vertical: 0
 }
 animations {
+  id: "anim_none_0"
+  start_tile: 1
+  end_tile: 4
+  playback: PLAYBACK_NONE
+  fps: 0
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "anim_none_60"
+  start_tile: 1
+  end_tile: 4
+  playback: PLAYBACK_NONE
+  fps: 60
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
   id: "anim_once"
   start_tile: 1
   end_tile: 4
