@@ -3072,11 +3072,11 @@ namespace dmRender
     * invalid but can be reloaded.
     *
     * @name render.set_listener
-    * @param callback [type:fun(self:any, event_type:render.CONTEXT_EVENT)|nil] A callback that receives all render related events.
+    * @param callback [type:fun(self:script_instance, event_type:render.CONTEXT_EVENT)|nil] A callback that receives all render related events.
     * Pass `nil` if want to remove listener.
     *
     * `self`
-    * : [type:object] The render script
+    * : [type:script_instance] The current render script instance
     *
     * `event_type`
     * : [type:render.CONTEXT_EVENT] Rendering event. Possible values: `render.CONTEXT_EVENT_CONTEXT_LOST`, `render.CONTEXT_EVENT_CONTEXT_RESTORED`

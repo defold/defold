@@ -1581,7 +1581,7 @@ namespace dmGui
      *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.
      * @param duration [type:number] duration of the animation in seconds.
      * @param [delay] [type:number] delay before the animation starts in seconds.
-     * @param [complete_function] [type:fun(self:any, node:node)] function to call when the
+     * @param [complete_function] [type:fun(self:script_instance, node:node)] function to call when the
      *      animation has completed
      * @param [playback] [type:gui.PLAYBACK] playback mode
      *
@@ -2131,10 +2131,10 @@ namespace dmGui
      * @name gui.play_flipbook
      * @param node [type:node] node to set animation for
      * @param animation [type:string|hash] animation id
-     * @param [complete_function] [type:fun(self:any, node:node)] optional function to call when the animation has completed
+     * @param [complete_function] [type:fun(self:script_instance, node:node)] optional function to call when the animation has completed
      *
      * `self`
-     * :        [type:object] The current object.
+     * :        [type:script_instance] The current script instance.
      *
      * `node`
      * :        [type:node] The node that is animated.
@@ -4860,10 +4860,10 @@ namespace dmGui
      *
      * @name gui.play_particlefx
      * @param node [type:node] node to play particle fx for
-     * @param [emitter_state_function] [type:fun(self:any, node:node, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
+     * @param [emitter_state_function] [type:fun(self:script_instance, node:node, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
      *
      * `self`
-     * : [type:object] The current object
+     * : [type:script_instance] The current script instance
      *
      * `node`
      * : [type:hash] The particle fx node, or `nil` if the node was deleted
@@ -5804,7 +5804,7 @@ namespace dmGui
      * to set the initial state of the script and gui scene.
      *
      * @name init
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @examples
      *
      * ```lua
@@ -5822,7 +5822,7 @@ namespace dmGui
      * from this function since the gui component is about to be destroyed.
      *
      * @name final
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @examples
      *
      * ```lua
@@ -5838,7 +5838,7 @@ namespace dmGui
      * It can be used to perform any kind of gui related tasks, e.g. animating nodes.
      *
      * @name update
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -5891,7 +5891,7 @@ namespace dmGui
      * See the [ref:update] function for examples on how to use this callback-function.
      *
      * @name on_message
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param message_id [type:hash] id of the received message
      * @param message [type:table<any, any>] a table containing the message data
      * @param sender [type:url] address of the sender
@@ -5971,7 +5971,7 @@ namespace dmGui
      * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
      * @param action [type:on_input.action] input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -5997,7 +5997,7 @@ namespace dmGui
      * </p>
      *
      * @name on_reload
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @examples
      *
      * ```lua

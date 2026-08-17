@@ -79,6 +79,35 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Script instance
+     *
+     * An engine-created state container passed as `self` to script lifecycle
+     * functions and callbacks. Each script component, GUI script, and render
+     * script has its own instance. Values assigned to the instance remain
+     * available for that instance's lifetime.
+     *
+     * Script instances cannot be created directly. Store state by assigning
+     * fields to the `self` value supplied by the engine.
+     *
+     * @typedef
+     * @name script_instance
+     * @param value [type:userdata] script instance state
+     * @examples
+     *
+     * Initialize state and access it from an engine callback:
+     *
+     * ```lua
+     * function init(self)
+     *     self.health = 100
+     *
+     *     timer.delay(1, false, function(self, handle, time_elapsed)
+     *         self.health = self.health - 10
+     *         print(self.health)
+     *     end)
+     * end
+     * ```
+     */
+
     static const char INSTANCE_NAME[] = "__dm_script_instance__";
     static const uint32_t INSTANCE_NAME_HASH = dmHashBuffer32(INSTANCE_NAME, sizeof(INSTANCE_NAME) - 1);
 
@@ -602,7 +631,7 @@ namespace dmScript
      * Resulting in the following output (note that the key order in non array
      * Lua tables is undefined):
      *
-     * ```
+     * ```text
      * {
      *   key3 = {
      *     1 = 1,

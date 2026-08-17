@@ -1605,10 +1605,10 @@ namespace dmGameSystem
      *
      * @name physics.set_event_listener
      *
-     * @param callback [type:fun(self:any, events:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[])|nil] A callback that receives information about all physics interactions in this physics world. Pass `nil` to remove the listener.
+     * @param callback [type:fun(self:script_instance, events:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[])|nil] A callback that receives information about all physics interactions in this physics world. Pass `nil` to remove the listener.
      *
      * `self`
-     * : [type:object] The calling script
+     * : [type:script_instance] The calling script instance
      *
      * `events`
      * : [type:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[]] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:

@@ -122,7 +122,7 @@ def _normalize_migration_type(expression, metadata):
             expression)
     expression = re.sub(
         r"fun\(self(?=\s*[,\)])",
-        "fun(self:any",
+        "fun(self:script_instance",
         expression)
     # The source manifest used "any ..." to describe variadic returns. LuaLS
     # represents that return as `any`.

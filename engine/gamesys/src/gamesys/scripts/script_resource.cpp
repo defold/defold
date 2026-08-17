@@ -1164,7 +1164,7 @@ static int CreateTexture(lua_State* L)
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
  * @param [buffer] [type:buffer_data] optional buffer of precreated pixel data
- * @param [callback] [type:fun(self:any, request_id:integer, result:{ path:hash })] callback function when the texture is created. The result table contains the texture resource path.
+ * @param [callback] [type:fun(self:script_instance, request_id:integer, result:{ path:hash })] callback function when the texture is created. The result table contains the texture resource path.
  *
  * @return path [type:hash] The path to the texture resource.
  * @return request_id [type:integer] The request id for the async request.

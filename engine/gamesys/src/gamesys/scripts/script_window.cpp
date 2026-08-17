@@ -117,10 +117,10 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:fun(self:any, event:window.WINDOW_EVENT, data:{ width?:integer, height?:integer })|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
+ * @param callback [type:fun(self:script_instance, event:window.WINDOW_EVENT, data:{ width?:integer, height?:integer })|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
  *
  * `self`
- * : [type:object] The calling script
+ * : [type:script_instance] The calling script instance
  *
  * `event`
  * : [type:window.WINDOW_EVENT] The type of event. Can be one of these:

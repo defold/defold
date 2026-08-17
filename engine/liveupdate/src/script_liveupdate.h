@@ -92,7 +92,7 @@ namespace dmLiveUpdate
  * @param name [type:string|hash] Unique name of the mount
  * @param uri [type:string] The uri of the mount, including the scheme. Currently supported schemes are 'zip' and 'archive'.
  * @param priority [type:integer] Priority of mount. Larger priority takes prescedence
- * @param callback [type:fun(self:any, name:hash, uri:string, result:liveupdate.LIVEUPDATE)] Callback after the asynchronous request completed
+ * @param callback [type:fun(self:script_instance, name:hash, uri:string, result:liveupdate.LIVEUPDATE)] Callback after the asynchronous request completed
  * - `name` [type:hash] Unique name of the mount
  * - `uri` [type:string] The uri of the mount
  * - `result` [type:liveupdate.LIVEUPDATE] The result of the request

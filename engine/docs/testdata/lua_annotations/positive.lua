@@ -13,7 +13,7 @@ go.animate(
     1.0,
     0.0,
     function(self, url, property)
-        local _ = self
+        self.animation_completed = true
         ---@type url
         local completed_url = url
         ---@type hash

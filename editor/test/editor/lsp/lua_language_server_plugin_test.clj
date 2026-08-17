@@ -59,17 +59,17 @@
                     "end\n\n"
                     "function on_input(context, id, data)\n"
                     "end\n")]
-    (is (= (str "---@param self userdata\n"
+    (is (= (str "---@param self script_instance\n"
                 "---@param params userdata\n"
                 "function init(self, params)\n"
                 "end\n\n"
-                "---@param self userdata\n"
+                "---@param self script_instance\n"
                 "---@param message_id hash\n"
                 "---@param message table<any, any>\n"
                 "---@param sender url\n"
                 "function on_message(self, message_id, message, sender)\n"
                 "end\n\n"
-                "---@param context userdata\n"
+                "---@param context script_instance\n"
                 "---@param id hash|nil\n"
                 "---@param data on_input.action\n"
                 "---@return boolean|nil\n"
@@ -87,7 +87,7 @@
   (is (= "function update(self, dt) end"
          (apply-plugin "file:///project/module.lua"
                        "function update(self, dt) end")))
-  (is (= (str "---@param self userdata\n"
+  (is (= (str "---@param self script_instance\n"
               "---@param dt number\n"
               "function update(self, dt) end")
          (apply-plugin "file:///project/main.render_script"
@@ -117,14 +117,31 @@
     (is (= 4 (count (plugin-diffs "file:///project/main.render_script" render-source))))))
 
 (deftest preserves-source-line-endings-test
-  (is (= (str "---@param self userdata\r\n"
+  (is (= (str "---@param self script_instance\r\n"
               "---@param dt number\r\n"
               "function update(self, dt) end\r\n")
          (apply-plugin "file:///project/main.script"
                        "function update(self, dt) end\r\n"))))
 
+(deftest annotates-assigned-global-lifecycle-functions-test
+  (let [source (str "init = function(self) end\n\n"
+                    "_G.update = function(context, delta) end\n\n"
+                    "function _G.on_reload(self) end\n\n"
+                    "local final = function(self) end\n"
+                    "callbacks.on_message = function(self, message_id, message, sender) end\n")]
+    (is (= (str "---@param self script_instance\n"
+                "init = function(self) end\n\n"
+                "---@param context script_instance\n"
+                "---@param delta number\n"
+                "_G.update = function(context, delta) end\n\n"
+                "---@param self script_instance\n"
+                "function _G.on_reload(self) end\n\n"
+                "local final = function(self) end\n"
+                "callbacks.on_message = function(self, message_id, message, sender) end\n")
+           (apply-plugin "file:///project/main.script" source)))))
+
 (deftest annotates-multiline-lifecycle-definitions-test
-  (is (= (str "---@param context userdata\n"
+  (is (= (str "---@param context script_instance\n"
               "---@param delta number\n"
               "function\n"
               "update(\n"
@@ -151,7 +168,7 @@
                 "---@diagnostic disable-next-line: lowercase-global\n"
                 "function update(context, delta)\n"
                 "end\n\n"
-                "---@param self userdata\n"
+                "---@param self script_instance\n"
                 "---@param action_id hash|nil\n"
                 "---@param action on_input.action\n"
                 "---@return true\n"
@@ -180,7 +197,7 @@
                 "]]\n"
                 "local function update(self, dt) end\n\n"
                 "if true then\n"
-                "    ---@param context userdata\n"
+                "    ---@param context script_instance\n"
                 "    ---@param delta number\n"
                 "    function update(context, delta) end\n"
                 "end\n")

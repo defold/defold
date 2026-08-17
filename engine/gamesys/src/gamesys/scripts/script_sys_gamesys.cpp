@@ -292,7 +292,7 @@ namespace dmGameSystem
      *
      * @name sys.load_buffer_async
      * @param path [type:string] the path to load the buffer from
-     * @param status_callback [type:fun(self:any, request_id:integer, result:{ status:sys.REQUEST_STATUS, buffer?:buffer_data })] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
+     * @param status_callback [type:fun(self:script_instance, request_id:integer, result:{ status:sys.REQUEST_STATUS, buffer?:buffer_data })] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
      *
      * `status`
      * : [type:sys.REQUEST_STATUS] The status of the request, supported values are:

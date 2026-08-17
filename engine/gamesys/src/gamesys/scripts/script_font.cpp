@@ -183,10 +183,10 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
  * @name font.prewarm_text
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @param text [type:string] The text to layout
- * @param [callback] [type:fun(self:any, request_id:integer, result:boolean, errstring?:string)] (optional) A callback function that is called after the request is finished
+ * @param [callback] [type:fun(self:script_instance, request_id:integer, result:boolean, errstring?:string)] (optional) A callback function that is called after the request is finished
  *
  * `self`
- * : [type:object] The current object.
+ * : [type:script_instance] The current script instance.
  *
  * `request_id`
  * : [type:integer] The request id

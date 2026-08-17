@@ -268,10 +268,10 @@ namespace dmGameSystem
      * @name http.request
      * @param url [type:string] target url
      * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
-     * @param callback [type:fun(self:any, id:hash, response:{ status:integer, response?:string, headers?:table<string, string>, path?:string, error?:string, bytes_received?:integer, bytes_total?:integer, range_start?:integer, range_end?:integer, document_size?:integer })] response callback function
+     * @param callback [type:fun(self:script_instance, id:hash, response:{ status:integer, response?:string, headers?:table<string, string>, path?:string, error?:string, bytes_received?:integer, bytes_total?:integer, range_start?:integer, range_end?:integer, document_size?:integer })] response callback function
      *
      * `self`
-     * : [type:object] The script instance
+     * : [type:script_instance] The current script instance
      *
      * `id`
      * : [type:hash] Internal message identifier. Do not use!

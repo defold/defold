@@ -447,10 +447,10 @@ namespace dmGameSystem
      * `start_frame`
      * : [type:number] start playback offset (frames/samples). Optional, mutually exclusive with `start_time`. If both are provided, `start_frame` is used.
      *
-     * @param [complete_function] [type:fun(self:any, message_id:hash, message:message.sound.sound_done|message.sound.sound_stopped, sender:url)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
+     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.sound.sound_done|message.sound.sound_stopped, sender:url)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `message_id`
      * : [type:hash] The name of the completion message, which can be either `"sound_done"` if the sound has finished playing, or `"sound_stopped"` if it was stopped manually.

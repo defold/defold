@@ -119,6 +119,11 @@ classes:
       headers: "table<string, string|string[]>"
       query?: string
       body?: any
+  # Script instances are userdata at runtime, but their metatables allow scripts
+  # to store arbitrary per-instance fields through `self`.
+  script_instance:
+    fields:
+      "[string]": any
   # Keep hashes nominal in LuaLS. A plain alias is expanded to userdata in
   # hovers, hiding the useful API type.
   hash: {}

@@ -402,10 +402,10 @@ namespace dmGameSystem
      * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id [type:string|hash] hashed id of the animation to play
-     * @param [complete_function] [type:fun(self:any, message_id:hash, message:message.sprite.animation_done, sender:url)] function to call when the animation has completed.
+     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.sprite.animation_done, sender:url)] function to call when the animation has completed.
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `message_id`
      * : [type:hash] The name of the completion message, `"animation_done"`.

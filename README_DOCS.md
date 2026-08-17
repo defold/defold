@@ -52,7 +52,7 @@ Type information
 : Type denotations for parameters and return values are written with special syntax to allow them to be rendered clearly. The type text is arbitrary, but for consistency, use the following forms:
 
 ```
-[type:object]
+[type:script_instance]
 [type:vector3]
 [type:vector4]
 [type:vector]
@@ -71,7 +71,7 @@ Type information
 [type:string|hash|url]
 
 // Function signature
-[type:fun(self:any, transaction:any, error:any)]
+[type:fun(self:script_instance, transaction:any, error:any)]
 ```
 
 Icons
@@ -279,10 +279,10 @@ Also by convention definition lists are used to lay out the details of function 
  * Set the callback function to receive transaction events.
  *
  * @name iap.set_listener
- * @param listener [type:fun(self:any, transaction:any, error:any)] listener callback function
+ * @param listener [type:fun(self:script_instance, transaction:any, error:any)] listener callback function
  *
  * `self`
- * : [type:object] The current object.
+ * : [type:script_instance] The current script instance.
  *
  * `transaction`
  * : [type:{ ident:string, state:number, date:string, original_trans?:any, trans_ident?:string, request_id?:string, receipt?:string }] a table describing the transaction. The table contains the following fields:

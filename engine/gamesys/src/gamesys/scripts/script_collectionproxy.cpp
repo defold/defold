@@ -229,7 +229,7 @@ namespace dmGameSystem
      * @name collectionproxy.load
      * @param url [type:string|hash|url] the collection proxy component
      * @param options [type:{}|nil] options table, currently unused
-     * @param callback [type:fun(self:any, message_id:hash, message:{ progress?:number, code?:integer }, sender:url)] callback
+     * @param callback [type:fun(self:script_instance, message_id:hash, message:{ progress?:number, code?:integer }, sender:url)] callback
      * @examples
      *
      * ```lua

@@ -143,10 +143,10 @@ namespace dmGameSystem
      *
      * @name factory.load
      * @param [url] [type:string|hash|url] the factory component to load
-     * @param [complete_function] [type:fun(self:any, url:url, result:boolean)] function to call when resources are loaded.
+     * @param [complete_function] [type:fun(self:script_instance, url:url, result:boolean)] function to call when resources are loaded.
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `url`
      * : [type:url] url of the factory component

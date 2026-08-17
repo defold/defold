@@ -228,6 +228,9 @@ class TestLuaAnnotations(unittest.TestCase):
         self.assertNotIn("known_types", metadata)
         self.assertEqual({}, metadata["classes"]["hash"])
         self.assertEqual(
+            {"fields": {"[string]": "any"}},
+            metadata["classes"]["script_instance"])
+        self.assertEqual(
             {
                 "editor.command_location",
                 "editor.resource_definition",
@@ -301,6 +304,13 @@ class TestLuaAnnotations(unittest.TestCase):
                     [("go.cpp.apidoc", go_doc)],
                     Path(directory) / "output",
                     metadata)
+
+    def test_migration_normalizes_callback_self_as_script_instance(self):
+        self.assertEqual(
+            "fun(self:script_instance, result:boolean)",
+            lua_annotations._normalize_migration_type(
+                "fun(self, result:boolean)",
+                {}))
 
     def test_generate_accepts_document_iterators(self):
         go_doc = document("go", [function("go.play", "string")])

@@ -656,10 +656,10 @@ namespace dmScript
      * @name timer.delay
      * @param delay [type:number] time interval in seconds
      * @param repeating [type:boolean] true = repeat timer until cancel, false = one-shot timer
-     * @param callback [type:fun(self:any, handle:timer_handle, time_elapsed:number)] timer callback function
+     * @param callback [type:fun(self:script_instance, handle:timer_handle, time_elapsed:number)] timer callback function
      *
      * `self`
-     * : [type:object] The current object
+     * : [type:script_instance] The current script instance
      *
      * `handle`
      * : [type:number] The handle of the timer

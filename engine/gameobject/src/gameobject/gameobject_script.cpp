@@ -1657,10 +1657,10 @@ namespace dmGameObject
      * @param easing [type:vector|go.EASING] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
-     * @param [complete_function] [type:fun(self:any, url:url, property:hash)] optional function to call when the animation has completed
+     * @param [complete_function] [type:fun(self:script_instance, url:url, property:hash)] optional function to call when the animation has completed
      *
      * `self`
-     * :        [type:object] The current object.
+     * :        [type:script_instance] The current script instance.
      *
      * `url`
      * :        [type:url] The game object or component instance for which the property is animated.
@@ -2809,7 +2809,7 @@ bail:
      * to set the initial state of the script.
      *
      * @name init
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @examples
      *
      * ```lua
@@ -2826,7 +2826,7 @@ bail:
      * or release user input focus (see [ref:release_input_focus]).
      *
      * @name final
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @examples
      *
      * ```lua
@@ -2842,7 +2842,7 @@ bail:
      * It can be used to perform any kind of game related tasks, e.g. moving the game object instance.
      *
      * @name update
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -2869,7 +2869,7 @@ bail:
      * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
      *
      * @name fixed_update
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param dt [type:number] the time-step of the frame update
      * @examples
      */
@@ -2880,7 +2880,7 @@ bail:
      * component. Use it to make final adjustments to the game object instance.
      *
      * @name late_update
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param dt [type:number] the time-step of the frame update
      * @examples
      */
@@ -2894,7 +2894,7 @@ bail:
      * documentation of the message specifies which data is supplied.
      *
      * @name on_message
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param message_id [type:hash] id of the received message
      * @param message [type:table<any, any>] a table containing the message data
      * @param sender [type:url] address of the sender
@@ -3018,7 +3018,7 @@ bail:
      * `version` | The device or firmware version
      *
      * @name on_input
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
      * @param action [type:on_input.action] input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -3060,7 +3060,7 @@ bail:
      * It can be used for live development, e.g. to tweak constants or set up the state properly for the instance.
      *
      * @name on_reload
-     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param self [type:script_instance] script instance used for storing state
      * @examples
      *
      * This example demonstrates how to tweak the speed of a game object instance that is moved on user input.

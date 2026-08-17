@@ -14,29 +14,36 @@
 
 local lifecycle_signatures = {
     script = {
-        init = {parameters = {'userdata', 'userdata'}},
-        final = {parameters = {'userdata'}},
-        update = {parameters = {'userdata', 'number'}},
-        late_update = {parameters = {'userdata', 'number'}},
-        fixed_update = {parameters = {'userdata', 'number'}},
-        on_message = {parameters = {'userdata', 'hash', 'table<any, any>', 'url'}},
-        on_input = {parameters = {'userdata', 'hash|nil', 'on_input.action'}, returns = {'boolean|nil'}},
-        on_reload = {parameters = {'userdata'}},
+        init = {parameters = {'script_instance', 'userdata'}},
+        final = {parameters = {'script_instance'}},
+        update = {parameters = {'script_instance', 'number'}},
+        late_update = {parameters = {'script_instance', 'number'}},
+        fixed_update = {parameters = {'script_instance', 'number'}},
+        on_message = {parameters = {'script_instance', 'hash', 'table<any, any>', 'url'}},
+        on_input = {parameters = {'script_instance', 'hash|nil', 'on_input.action'}, returns = {'boolean|nil'}},
+        on_reload = {parameters = {'script_instance'}},
     },
     gui_script = {
-        init = {parameters = {'userdata'}},
-        final = {parameters = {'userdata'}},
-        update = {parameters = {'userdata', 'number'}},
-        on_message = {parameters = {'userdata', 'hash', 'table<any, any>', 'url'}},
-        on_input = {parameters = {'userdata', 'hash|nil', 'on_input.action'}, returns = {'boolean|nil'}},
-        on_reload = {parameters = {'userdata'}},
+        init = {parameters = {'script_instance'}},
+        final = {parameters = {'script_instance'}},
+        update = {parameters = {'script_instance', 'number'}},
+        on_message = {parameters = {'script_instance', 'hash', 'table<any, any>', 'url'}},
+        on_input = {parameters = {'script_instance', 'hash|nil', 'on_input.action'}, returns = {'boolean|nil'}},
+        on_reload = {parameters = {'script_instance'}},
     },
     render_script = {
-        init = {parameters = {'userdata'}},
-        update = {parameters = {'userdata', 'number'}},
-        on_message = {parameters = {'userdata', 'hash', 'table<any, any>', 'url'}},
-        on_reload = {parameters = {'userdata'}},
+        init = {parameters = {'script_instance'}},
+        update = {parameters = {'script_instance', 'number'}},
+        on_message = {parameters = {'script_instance', 'hash', 'table<any, any>', 'url'}},
+        on_reload = {parameters = {'script_instance'}},
     },
+}
+
+local lifecycle_patterns = {
+    '()function[ \t\r\n]+([%a_][%w_]*)[ \t\r\n]*%(([^)]*)%)',
+    '()function[ \t\r\n]+_G%.([%a_][%w_]*)[ \t\r\n]*%(([^)]*)%)',
+    '()([%a_][%w_]*)[ \t\r\n]*=[ \t\r\n]*function[ \t\r\n]*%(([^)]*)%)',
+    '()_G%.([%a_][%w_]*)[ \t\r\n]*=[ \t\r\n]*function[ \t\r\n]*%(([^)]*)%)',
 }
 
 local function resource_type(uri)
@@ -169,26 +176,31 @@ end
 
 local function lifecycle_candidates(text, signatures)
     local candidates = {}
-    for start, name, parameter_text in text:gmatch('()function[ \t\r\n]+([%a_][%w_]*)[ \t\r\n]*%(([^)]*)%)') do
-        local line_start = start
-        while line_start > 1 and text:byte(line_start - 1) ~= 10 do
-            line_start = line_start - 1
-        end
-        local indentation = text:sub(line_start, start - 1)
-        local signature = indentation:match('^[ \t]*$') and signatures[name]
-        if signature then
-            local annotation_start, existing_parameters, has_return = preceding_annotations(text, line_start, indentation)
-            candidates[#candidates + 1] = {
-                start = start,
-                insertion_start = annotation_start or start,
-                signature = signature,
-                parameter_text = parameter_text,
-                indentation = indentation,
-                existing_parameters = existing_parameters,
-                has_return = has_return,
-            }
+    for _, pattern in ipairs(lifecycle_patterns) do
+        for start, name, parameter_text in text:gmatch(pattern) do
+            local line_start = start
+            while line_start > 1 and text:byte(line_start - 1) ~= 10 do
+                line_start = line_start - 1
+            end
+            local indentation = text:sub(line_start, start - 1)
+            local signature = indentation:match('^[ \t]*$') and signatures[name]
+            if signature then
+                local annotation_start, existing_parameters, has_return = preceding_annotations(text, line_start, indentation)
+                candidates[#candidates + 1] = {
+                    start = start,
+                    insertion_start = annotation_start or start,
+                    signature = signature,
+                    parameter_text = parameter_text,
+                    indentation = indentation,
+                    existing_parameters = existing_parameters,
+                    has_return = has_return,
+                }
+            end
         end
     end
+    table.sort(candidates, function(a, b)
+        return a.start < b.start
+    end)
     mark_code_candidates(text, candidates)
     return candidates
 end
