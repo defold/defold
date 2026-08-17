@@ -702,6 +702,7 @@ namespace dmGameObject
      * ```lua
      * -- Note: There is currently no component that supports this, but a custom component could.
      * go.get("#my_component", "some_property", { keys = { "root", "child_node" } })
+     * ```
      */
     int Script_Get(lua_State* L)
     {
@@ -850,6 +851,7 @@ namespace dmGameObject
      * ```lua
      * -- Note: There is currently no component that supports this, but a custom component could.
      * go.set("#my_component", "some_property", some_value, { keys = { "root", "child_node" } })
+     * ```
      */
     int Script_Set(lua_State* L)
     {

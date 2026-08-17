@@ -234,6 +234,113 @@ def _markdownify(t):
     return _strip_paragraph(t)
 
 
+_FENCED_CODE_LINE = re.compile(r'^[ ]{0,3}(?P<fence>`{3,}|~{3,})(?P<suffix>.*)$')
+
+
+def _validate_fenced_code_blocks(text, context):
+    """Return validation errors for malformed Markdown fenced code blocks."""
+    errors = []
+    opening_fence = None
+    opening_line = None
+
+    for line_number, line in enumerate(text.splitlines(), 1):
+        match = _FENCED_CODE_LINE.match(line)
+        if not match:
+            continue
+
+        fence = match.group("fence")
+        suffix = match.group("suffix")
+        if opening_fence is None:
+            opening_fence = fence
+            opening_line = line_number
+            continue
+
+        if fence[0] != opening_fence[0] or len(fence) < len(opening_fence):
+            continue
+
+        if suffix.strip():
+            errors.append(
+                "%s has text after a closing '%s' fence on documentation line %d" %
+                (context, fence, line_number))
+            continue
+
+        opening_fence = None
+        opening_line = None
+
+    if opening_fence is not None:
+        errors.append(
+            "%s has an unclosed '%s' fence opened on documentation line %d" %
+            (context, opening_fence, opening_line))
+
+    return errors
+
+
+def _validate_document_markdown(doc, file):
+    source = file if file else "<string>"
+    errors = []
+
+    def validate(text, context):
+        for error in _validate_fenced_code_blocks(text, context):
+            errors.append("%s in file %s" % (error, source))
+
+    validate(doc.info.description, "document description")
+    for element in doc.elements:
+        validate(element.description, "'%s' description" % element.name)
+        validate(element.examples, "'%s' examples" % element.name)
+        validate(element.replaces, "'%s' replacement documentation" % element.name)
+        for note in element.notes:
+            validate(note, "'%s' note" % element.name)
+        for parameter in element.parameters:
+            validate(parameter.doc, "'%s' parameter '%s'" % (element.name, parameter.name))
+        for returnvalue in element.returnvalues:
+            validate(returnvalue.doc, "'%s' return value '%s'" % (element.name, returnvalue.name))
+        for member in element.members:
+            validate(member.doc, "'%s' member '%s'" % (element.name, member.name))
+
+    return errors
+
+
+def _parse_tags(text):
+    """Parse documentation tags without treating fenced code as tags."""
+    parsed_tags = []
+    current_tag = None
+    current_value_lines = []
+    opening_fence = None
+
+    def finish_tag():
+        if current_tag is not None:
+            parsed_tags.append((current_tag, "\n".join(current_value_lines).strip()))
+
+    for line in text.splitlines():
+        tag_match = None
+        if opening_fence is None:
+            tag_match = re.match(r'^\s*@(\S+)(?:\s+(.*))?$', line)
+
+        if tag_match:
+            finish_tag()
+            current_tag = tag_match.group(1)
+            inline_value = tag_match.group(2)
+            current_value_lines = [] if inline_value is None else [inline_value]
+        elif current_tag is not None:
+            current_value_lines.append(line)
+
+        fence_match = _FENCED_CODE_LINE.match(line)
+        if not fence_match:
+            continue
+
+        fence = fence_match.group("fence")
+        suffix = fence_match.group("suffix")
+        if opening_fence is None:
+            opening_fence = fence
+        elif (fence[0] == opening_fence[0]
+              and len(fence) >= len(opening_fence)
+              and not suffix.strip()):
+            opening_fence = None
+
+    finish_tag()
+    return parsed_tags
+
+
 def tags_to_proto_type(tags):
     # we sometimes annotate with "@type typedef" or "@type class" instead
     # of "@typedef" and "@class"
@@ -357,7 +464,7 @@ def _create_doc_element(tags):
         member.type = '|'.join(member_types) if isinstance(member_types, list) else member_types
 
     if 'examples' in tags:
-        element.examples = "".join(tags["examples"])
+        element.examples = "\n\n".join(tags["examples"])
 
     if 'replaces' in tags:
         element.replaces = tags["replaces"]
@@ -366,12 +473,7 @@ def _create_doc_element(tags):
 
 def _parse_comment(text):
     text = _strip_comment_stars(text)
-    # The regexp means match all strings that:
-    # * begins with line start, possible whitespace and an @
-    # * followed by non-white-space (the tag)
-    # * followed by possible spaces
-    # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-    lst = re.findall(r'^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', text, re.MULTILINE)
+    lst = _parse_tags(text)
     tags = {
         "path": "",
         "language": "",
@@ -572,7 +674,14 @@ def parse_document(doc_str, file=None):
     lst = re.findall(r'/\*[\*#](.*?)\*/', doc_str, re.DOTALL)
     element_list = []
     doc_info = None
-    for comment_str in lst:
+    markdown_errors = []
+    source = file if file else "<string>"
+    for comment_index, comment_str in enumerate(lst, 1):
+        comment_text = _strip_comment_stars(comment_str)
+        for error in _validate_fenced_code_blocks(
+                comment_text, "documentation comment %d" % comment_index):
+            markdown_errors.append("%s in file %s" % (error, source))
+
         element = _parse_comment(comment_str)
         if type(element) is script_doc_ddf_pb2.Element:
             element_list.append(element)
@@ -590,6 +699,12 @@ def parse_document(doc_str, file=None):
             doc.info.language = "C++"
         else:
             doc.info.language = "Lua"
+
+    markdown_errors.extend(_validate_document_markdown(doc, file))
+    for err in markdown_errors:
+        print("  ERROR", err)
+    if markdown_errors:
+        raise ValueError("Malformed Markdown fenced code block")
 
     if doc.info.name != "Editor":
         print("Validating %s types in %s (%s) %s" % (doc.info.language, doc.info.name, doc.info.path, file))

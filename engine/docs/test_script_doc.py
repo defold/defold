@@ -306,7 +306,7 @@ foobar
  * @name MY_MESSAGE
  * @examples example:
  *
- * ```language
+ * ```text
  * MY_EXAMPLE
  * ```
  */
@@ -316,6 +316,58 @@ foobar
         elements = doc_dict["elements"]
         self.assertEqual(1, len(elements))
         self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span><code>MY_EXAMPLE\n</code></pre></div>', elements[0].get("examples"))
+
+    def test_repeated_examples_are_separated(self):
+        doc= """
+/*#
+ * @name MY_MESSAGE
+ * @examples First example:
+ *
+ * ```lua
+ * print("first")
+ * ```
+ * @examples Second example:
+ *
+ * ```lua
+ * print("second")
+ * ```
+ */
+"""
+        doc_msg = script_doc.parse_document(doc)
+        element = doc_msg.elements[0]
+        self.assertIn("```\n\nSecond example:", element.examples)
+
+        examples = script_doc.message_to_json_dict(doc_msg)["elements"][0]["examples"]
+        self.assertIn("First example:\n<div class=\"codehilite\">", examples)
+        self.assertIn("</div>\n\nSecond example:\n<div class=\"codehilite\">", examples)
+        self.assertNotIn("```", examples)
+
+    def test_unclosed_examples_fence_fails_validation(self):
+        doc= """
+/*#
+ * @name MY_MESSAGE
+ * @examples Broken example:
+ *
+ * ```lua
+ * print("missing closing fence")
+ */
+"""
+        with self.assertRaisesRegex(ValueError, "Malformed Markdown fenced code block"):
+            script_doc.parse_document(doc)
+
+    def test_text_after_closing_fence_fails_validation(self):
+        doc= """
+/*#
+ * @name MY_MESSAGE
+ * @examples Broken example:
+ *
+ * ```lua
+ * print("broken closing fence")
+ * ```Next example
+ */
+"""
+        with self.assertRaisesRegex(ValueError, "Malformed Markdown fenced code block"):
+            script_doc.parse_document(doc)
 
     def test_examples2(self):
         doc= """
@@ -377,6 +429,45 @@ foobar
         self.assertEqual(u'MY_DESC @test', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'example:\nMY_EXAMPLE @test', elements[0].examples)
+
+    def test_at_tag_syntax_inside_fenced_example(self):
+        doc= r'''
+/*#
+ * @name MY_MESSAGE
+ * @examples Objective-C example:
+ *
+ * ```objective-c
+ * @interface MyDelegate : NSObject
+ * @end
+ *
+ * @implementation MyDelegate
+ * @end
+ * ```
+ */
+'''
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertIn("@interface MyDelegate : NSObject", element.examples)
+        self.assertIn("@implementation MyDelegate", element.examples)
+        self.assertTrue(element.examples.endswith("```"))
+
+        examples = script_doc.message_to_json_dict(
+            script_doc.parse_document(doc))["elements"][0]["examples"]
+        self.assertIn("@interface", examples)
+        self.assertIn("MyDelegate", examples)
+        self.assertNotIn("```", examples)
+
+    def test_unclosed_description_fence_fails_validation(self):
+        doc= '''
+/*#
+ * Broken description:
+ *
+ * ```lua
+ * print("missing closing fence")
+ * @name MY_MESSAGE
+ */
+'''
+        with self.assertRaisesRegex(ValueError, "Malformed Markdown fenced code block"):
+            script_doc.parse_document(doc)
 
     def test_detection(self):
         doc1= """
