@@ -286,29 +286,6 @@ namespace dmGraphics
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
 
-    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
-
-    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
-    {
-        switch(language)
-        {
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
-            default:break;
-        }
-        return "<unknown ShaderDesc::Language>";
-    }
-
-    #undef SHADERDESC_ENUM_TO_STR_CASE
-
-
-
     AttachmentToBufferType::AttachmentToBufferType()
     {
         memset(m_AttachmentToBufferType, 0x0, sizeof(m_AttachmentToBufferType));
@@ -2199,10 +2176,10 @@ namespace dmGraphics
     {
         g_functions.m_DisableProgram(context);
     }
-    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
+    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         DestroyProgram((Program*) program);
-        return g_functions.m_ReloadProgram(context, program, ddf);
+        return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
     uint32_t GetAttributeCount(HProgram prog)
     {

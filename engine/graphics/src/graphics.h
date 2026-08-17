@@ -440,7 +440,7 @@ namespace dmGraphics
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 
-    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
+    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
