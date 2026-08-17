@@ -300,6 +300,37 @@ def _validate_document_markdown(doc, file):
     return errors
 
 
+def _validate_structured_documentation(doc, file):
+    """Reject code blocks that would be rendered inside API field tables."""
+    if doc.info.language != "Lua":
+        return []
+
+    source = file if file else "<string>"
+    errors = []
+
+    def validate(text, context):
+        if re.search(r'<pre(?:\s|>)', _markdownify(text)):
+            errors.append(
+                "%s contains a Markdown code block in file %s; "
+                "move executable examples to @examples" % (context, source))
+
+    for element in doc.elements:
+        for parameter in element.parameters:
+            validate(
+                parameter.doc,
+                "'%s' parameter '%s'" % (element.name, parameter.name))
+        for returnvalue in element.returnvalues:
+            validate(
+                returnvalue.doc,
+                "'%s' return value '%s'" % (element.name, returnvalue.name))
+        for member in element.members:
+            validate(
+                member.doc,
+                "'%s' member '%s'" % (element.name, member.name))
+
+    return errors
+
+
 _BOOLEAN_LITERAL_NAMES = frozenset(("true", "false"))
 
 
@@ -733,6 +764,12 @@ def parse_document(doc_str, file=None):
         print("  ERROR", err)
     if markdown_errors:
         raise ValueError("Malformed Markdown fenced code block")
+
+    structured_documentation_errors = _validate_structured_documentation(doc, file)
+    for err in structured_documentation_errors:
+        print("  ERROR", err)
+    if structured_documentation_errors:
+        raise ValueError("Code blocks are not allowed in structured documentation")
 
     value_name_errors = _validate_document_names(doc, file)
     for err in value_name_errors:

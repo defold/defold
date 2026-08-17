@@ -65,6 +65,16 @@ namespace dmGameSystem
      * @name physics.SHAPE_TYPE
      */
 
+    /*# Physics world event
+     *
+     * An event delivered to a physics world listener. Inspect its `type` field to
+     * determine which event-specific fields are available.
+     *
+     * @typedef
+     * @name physics.event
+     * @param value [type:message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed] physics event data
+     */
+
     /*# spring joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:
@@ -1221,6 +1231,8 @@ namespace dmGameSystem
      *
      * @name physics.wakeup
      * @param url [type:string|hash|url] the collision object to wake.
+     * @examples
+     *
      * ```lua
      * function on_input(self, action_id, action)
      *     if action_id == hash("test") and action.pressed then
@@ -1252,6 +1264,8 @@ namespace dmGameSystem
      * @name physics.set_group
      * @param url [type:string|hash|url] the collision object affected.
      * @param group [type:string] the new group name to be assigned.
+     * @examples
+     *
      * ```lua
      * local function change_collision_group()
      *      physics.set_group("#collisionobject", "enemy")
@@ -1282,6 +1296,8 @@ namespace dmGameSystem
      * @name physics.get_group
      * @param url [type:string|hash|url] the collision object to return the group of.
      * @return group [type:hash] hash value of the group.
+     * @examples
+     *
      * ```lua
      * local function check_is_enemy()
      *     local group = physics.get_group("#collisionobject")
@@ -1312,6 +1328,8 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collision object to change the mask of.
      * @param group [type:string] the name of the group (maskbit) to modify in the mask.
      * @param maskbit [type:boolean] boolean value of the new maskbit. 'true' to enable, 'false' to disable.
+     * @examples
+     *
      * ```lua
      * local function make_invincible()
      *     -- no longer collide with the "bullet" group
@@ -1347,6 +1365,8 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collision object to check the mask of.
      * @param group [type:string] the name of the group to check for.
      * @return maskbit [type:boolean] boolean value of the maskbit. 'true' if present, 'false' otherwise.
+     * @examples
+     *
      * ```lua
      * local function is_invincible()
      *     -- check if the collisionobject would collide with the "bullet" group
@@ -1429,6 +1449,8 @@ namespace dmGameSystem
      * `height`
      * : [type:number] the height of the capsule
      *
+     * @examples
+     *
      * ```lua
      * local function get_shape_meta()
      *     local sphere = physics.get_shape("#collisionobject", "my_sphere_shape")
@@ -1500,6 +1522,8 @@ namespace dmGameSystem
      * @param table [type:{ type:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] the shape data to update the shape with.
      *
      * See [ref:physics.get_shape] for a detailed description of each field in the data table.
+     *
+     * @examples
      *
      * ```lua
      * local function set_shape_data()
@@ -1605,13 +1629,13 @@ namespace dmGameSystem
      *
      * @name physics.set_event_listener
      *
-     * @param callback [type:fun(self:script_instance, events:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[])|nil] A callback that receives information about all physics interactions in this physics world. Pass `nil` to remove the listener.
+     * @param callback [type:fun(self:script_instance, events:physics.event[])|nil] A callback that receives information about all physics interactions in this physics world. Pass `nil` to remove the listener.
      *
      * `self`
      * : [type:script_instance] The calling script instance
      *
      * `events`
-     * : [type:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[]] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:
+     * : [type:physics.event[]] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:
      *
      * - [ref:contact_point_event]
      * - [ref:collision_event]

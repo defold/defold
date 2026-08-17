@@ -359,6 +359,36 @@ foobar
         self.assertEqual(1, len(elements))
         self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span><code>MY_EXAMPLE\n</code></pre></div>', elements[0].get("examples"))
 
+    def test_fenced_code_in_parameter_doc_fails_validation(self):
+        doc = """
+/*#
+ * @name MY_FUNCTION
+ * @param value [type:string] Description.
+ *
+ * ```lua
+ * print(value)
+ * ```
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                "Code blocks are not allowed in structured documentation"):
+            script_doc.parse_document(doc, "example.cpp")
+
+    def test_indented_code_in_return_doc_fails_validation(self):
+        doc = """
+/*#
+ * @name MY_FUNCTION
+ * @return result [type:table] Description.
+ *
+ *     accidental code block
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                "Code blocks are not allowed in structured documentation"):
+            script_doc.parse_document(doc, "example.cpp")
+
     def test_repeated_examples_are_separated(self):
         doc= """
 /*#

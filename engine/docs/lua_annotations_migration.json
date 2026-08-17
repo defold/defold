@@ -620,7 +620,7 @@
         "path_pattern": "elements.physics.raycast.returnvalues.result.types.table"
       },
       {
-        "current": "fun(self, events:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[])|nil",
+        "current": "fun(self, events:physics.event[])|nil",
         "expected": "fun(self, events:[message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed])",
         "path_pattern": "elements.physics.set_event_listener.parameters.callback.types.function(self, events)"
       },
@@ -701,6 +701,7 @@
         "path_pattern": "elements.sound.get_groups.returnvalues.groups.types.table"
       },
       {
+        "current": "fun(self, message_id:hash, message:sound.play_completion, sender:url)",
         "expected": "fun(self, message_id:hash, message:message.sound.sound_done|message.sound.sound_stopped, sender:url)",
         "path_pattern": "elements.sound.play.parameters.complete_function.types.function(self, message_id, message, sender)"
       },

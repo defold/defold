@@ -47,6 +47,16 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Sound playback completion data
+     *
+     * Data passed to the completion callback of [ref:sound.play]. The callback's
+     * `message_id` indicates whether playback finished or was stopped manually.
+     *
+     * @struct
+     * @name sound.play_completion
+     * @member play_id [type:number] The sequential play identifier for the playback.
+     */
+
 
     /*# [type:number] sound gain
      *
@@ -447,7 +457,7 @@ namespace dmGameSystem
      * `start_frame`
      * : [type:number] start playback offset (frames/samples). Optional, mutually exclusive with `start_time`. If both are provided, `start_frame` is used.
      *
-     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.sound.sound_done|message.sound.sound_stopped, sender:url)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
+     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:sound.play_completion, sender:url)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
      * `self`
      * : [type:script_instance] The current script instance.
@@ -456,9 +466,7 @@ namespace dmGameSystem
      * : [type:hash] The name of the completion message, which can be either `"sound_done"` if the sound has finished playing, or `"sound_stopped"` if it was stopped manually.
      *
      * `message`
-     * : [type:message.sound.sound_done|message.sound.sound_stopped] Information about the completion:
-     *
-     * - [type:number] `play_id` - the sequential play identifier that was given by the sound.play function.
+     * : [type:sound.play_completion] Information about the completed or stopped playback.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the sound component.

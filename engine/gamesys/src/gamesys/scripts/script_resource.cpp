@@ -927,13 +927,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `graphics.TEXTURE_FORMAT_R32F`
  * - `graphics.TEXTURE_FORMAT_RG32F`
  *
- * You can test if the device supports these values by checking if a specific enum is nil or not:
- *
- * ```lua
- * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
- *     -- it is safe to use this format
- * end
- * ```
+ * Unsupported constants evaluate to `nil`.
  *
  * `flags`
  * : [type:graphics.TEXTURE_USAGE_FLAG] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:graphics.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
@@ -957,11 +951,21 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *
  * @return path [type:hash] The path to the resource.
  *
- * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ * @examples
+ * Check whether a texture format is supported by the device:
+ *
+ * ```lua
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
+ *     -- It is safe to use this format.
+ * end
+ * ```
+ *
+ * @examples
+ * [icon:attention] 3D textures are currently only supported on OpenGL and Vulkan adapters. Check whether the device supports 3D textures before using them:
  *
  * ```lua
  * if graphics.TEXTURE_TYPE_3D ~= nil then
- *     -- Device and graphics adapter support 3D textures
+ *     -- The device and graphics adapter support 3D textures.
  * end
  * ```
  *
@@ -1139,13 +1143,7 @@ static int CreateTexture(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_R32F`
  * - `graphics.TEXTURE_FORMAT_RG32F`
  *
- * You can test if the device supports these values by checking if a specific enum is nil or not:
- *
- * ```lua
- * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
- *     -- it is safe to use this format
- * end
- * ```
+ * Unsupported constants evaluate to `nil`.
  *
  * `flags`
  * : [type:graphics.TEXTURE_USAGE_FLAG] Texture creation flags that can be used to dictate how the texture is created. Supported values:
@@ -1170,11 +1168,21 @@ static int CreateTexture(lua_State* L)
  * @return path [type:hash] The path to the texture resource.
  * @return request_id [type:integer] The request id for the async request.
  *
- * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ * @examples
+ * Check whether a texture format is supported by the device:
+ *
+ * ```lua
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
+ *     -- It is safe to use this format.
+ * end
+ * ```
+ *
+ * @examples
+ * [icon:attention] 3D textures are currently only supported on OpenGL and Vulkan adapters. Check whether the device supports 3D textures before using them:
  *
  * ```lua
  * if graphics.TEXTURE_TYPE_3D ~= nil then
- *     -- Device and graphics adapter support 3D textures
+ *     -- The device and graphics adapter support 3D textures.
  * end
  * ```
  *
@@ -1466,13 +1474,7 @@ static int ReleaseResource(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_R32F`
  * - `graphics.TEXTURE_FORMAT_RG32F`
  *
- * You can test if the device supports these values by checking if a specific enum is nil or not:
- *
- * ```lua
- * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
- *     -- it is safe to use this format
- * end
- * ```
+ * Unsupported constants evaluate to `nil`.
  *
  * `x`
  * : [type:integer] optional x offset of the texture (in pixels)
@@ -1499,11 +1501,23 @@ static int ReleaseResource(lua_State* L)
  *
  * [icon:attention] To update a cube map texture you need to pass in six times the amount of data via the buffer, since a cube map has six sides!
  * 
- * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ * [icon:attention] 3D textures are currently only supported on OpenGL and Vulkan adapters.
+ *
+ * @examples
+ * Check whether a texture format is supported by the device:
+ *
+ * ```lua
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
+ *     -- It is safe to use this format.
+ * end
+ * ```
+ *
+ * @examples
+ * Check whether the device supports 3D textures before using them:
  *
  * ```lua
  * if graphics.TEXTURE_TYPE_3D ~= nil then
- *     -- Device and graphics adapter support 3D textures
+ *     -- The device and graphics adapter support 3D textures.
  * end
  * ```
  *

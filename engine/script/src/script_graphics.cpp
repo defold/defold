@@ -990,46 +990,7 @@ namespace dmScript
      * optional context features supported by the backend.
      *
      * @name graphics.get_adapter_info
-     * @return info [type:graphics.adapter_info] table with the following fields:
-     *
-     *   `family`         [type:string]   adapter family name (e.g. "opengl", "vulkan")
-     *   `version_major`  [type:integer]  adapter API major version (e.g. 1 for Vulkan 1.4)
-     *   `version_minor`  [type:integer]  adapter API minor version (e.g. 4 for Vulkan 1.4)
-     *
-     *   `limits`         [type:graphics.adapter_limits] hardware/driver limits:
-     *
-     *     `max_texture_size_2d`              [type:integer]  max 2D texture dimension in texels
-     *     `max_texture_size_3d`              [type:integer]  max 3D (volume) texture dimension in texels
-     *     `max_texture_size_cube`            [type:integer]  max cube map face dimension in texels
-     *     `max_texture_array_layers`         [type:integer]  max layers in an array texture
-     *     `max_framebuffer_width`            [type:integer]  max framebuffer width in pixels
-     *     `max_framebuffer_height`           [type:integer]  max framebuffer height in pixels
-     *     `max_color_attachments`            [type:integer]  max simultaneous color attachments
-     *     `max_samplers_per_stage`           [type:integer]  max texture samplers per shader stage
-     *     `max_textures_per_stage`           [type:integer]  max sampled textures per shader stage
-     *     `max_vertex_attributes`            [type:integer]  max vertex attributes
-     *     `max_vertex_buffers`               [type:integer]  max vertex buffer bindings
-     *     `max_compute_workgroup_size_x`     [type:integer]  max compute workgroup size (X)
-     *     `max_compute_workgroup_size_y`     [type:integer]  max compute workgroup size (Y)
-     *     `max_compute_workgroup_size_z`     [type:integer]  max compute workgroup size (Z)
-     *     `max_compute_workgroup_invocations` [type:integer] max invocations per compute workgroup
-     *     `max_compute_shared_memory_size`   [type:integer]  max shared memory per compute workgroup (bytes)
-     *     `max_uniform_buffer_range`         [type:integer]  max bindable uniform buffer range (bytes)
-     *     `max_storage_buffer_range`         [type:integer]  max bindable storage buffer range (bytes)
-     *
-     *   `extensions`     [type:string[]] array of driver-reported extension name strings
-     *
-     *   `features`       [type:graphics.CONTEXT_FEATURE[]] array of supported context feature ids:
-     *
-     *     `graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING`  multi-target rendering
-     *     `graphics.CONTEXT_FEATURE_TEXTURE_ARRAY`           texture arrays
-     *     `graphics.CONTEXT_FEATURE_COMPUTE_SHADER`          compute shaders
-     *     `graphics.CONTEXT_FEATURE_STORAGE_BUFFER`          storage buffers
-     *     `graphics.CONTEXT_FEATURE_VSYNC`                   vertical sync
-     *     `graphics.CONTEXT_FEATURE_INSTANCING`              hardware instancing
-     *     `graphics.CONTEXT_FEATURE_3D_TEXTURES`             3D (volume) textures
-     *     `graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES`     ASTC compressed 2D array textures
-     *     `graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX`  min/max blend equations
+     * @return info [type:graphics.adapter_info] information about the active graphics adapter and context
      */
     static int Graphics_GetAdapterInfo(lua_State* L)
     {
