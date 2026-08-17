@@ -58,6 +58,32 @@ without linking the parser or style/effect implementation.
 Markup can be applied through both the legacy and full layout paths. The parser
 itself is independent and may be used without enabling `font_layout`.
 
+#### Underline and strikethrough
+
+The markup resolver records `<ul>` and `<strike>` as decoration flags and a
+solid or dashed pattern on each affected text span. The selected layout backend
+then creates a `TextDecoration` for every part of the span on a physical line.
+At this point underline and strikethrough use the same representation: the
+backend has resolved their difference into a baseline-relative Y position and
+thickness. The full backend gets these metrics from Skribidi; the legacy backend
+derives them from the configured font size.
+
+Vertex generation normally emits one six-vertex quad for a complete decoration
+segment. It splits the segment at glyph boundaries only when this is necessary
+to preserve different styles, markup spans, or glyph-fitted gradients. The
+decoration colors are resolved from the geometrically outermost glyphs so that
+gradients also follow the visual direction of right-to-left text. Glyph-position
+effects such as shake and wave are deliberately not applied to decorations;
+they remain attached to the line baseline.
+
+Decoration quads sample a single opaque texel in the font atlas and render only
+in the face layer. A solid line needs no additional shader work. For a dashed
+line, normalized pattern position and duty are packed into otherwise unused
+decoration `layer_mask` components and interpolated across the quad. The built-in
+font shaders decode these values into the repeating dash mask. Custom font
+materials must apply the same decoding to render dashed decorations; otherwise
+the line appears solid.
+
 ### Runtime generation
 
 For `.ttf` and `.otf` fonts, we can generate distance fields at runtime. This helps keep the game bundle size to a minimum.
@@ -81,8 +107,6 @@ The main text render loop is in `engine/render/src/render/font/font_renderer.cpp
 The render library also manages the texture cache, via its `HFontMap`
 
 Final vertex data generation is coordinated by `dmRender::CreateFontVertexData` in `engine/render/src/render/font/font_renderer.cpp`. The `font` library handles fonts, glyph generation, and text layout without depending on graphics. The `font_render` library in `engine/font/src/render` owns the fixed `FontGlyphVertex` layout, packs glyph vertices, and creates the matching graphics vertex declaration. The `fontc_shared` C/FFM boundary lives separately in `engine/font/src/fontc` and links the full-text-shaping font implementation with `font_render`.
-
-Dashed underline and strikethrough decorations use one quad per compatible layout segment. Their normalized pattern position and duty are packed into the otherwise unused decoration `layer_mask` components and decoded by the built-in font shaders. Custom font materials that need dashed rich-text decorations must apply the same decoding as the built-in shaders; otherwise the decoration falls back visually to a solid line.
 
 For distance-field fonts, SDF smoothing is computed in screen space. The renderer derives a pixels-per-local-unit scale from the current view-projection matrix and viewport and uses it to keep edge thickness stable under camera zoom and perspective. If the projection is invalid for a text entry (e.g. clip `w` near zero or a zero-sized viewport), it falls back to the local/world scale.
 

@@ -502,6 +502,10 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
         }
     }
 
+    // Both layout backends resolve underline and strikethrough into the same
+    // baseline-relative geometry. Emit one face-layer quad per decoration when
+    // possible, and split at glyph boundaries only to preserve per-glyph
+    // styling. Position effects remain on glyphs and do not move decorations.
     const TextDecoration* decorations = TextLayoutGetDecorations(config.m_Layout);
     const uint32_t        decoration_vertex_index = face_vertex_index;
     uint32_t              emitted_decorations = 0;
