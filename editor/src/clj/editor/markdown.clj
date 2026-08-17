@@ -423,7 +423,7 @@
               (let [width (decode-width resource)]
                 (with-open [is (io/input-stream resource)]
                   (if width
-                    (Image. is width 0.0 #_preserve-ratio true #_smooth true)
+                    (Image. is (double width) 0.0 #_preserve-ratio true #_smooth true)
                     (Image. is)))))))))))
 
 (def ^:private prop-image-width-cap
