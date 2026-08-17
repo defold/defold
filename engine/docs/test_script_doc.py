@@ -107,6 +107,15 @@ foobar
         self.assertEqual(1, len(elements))
         self.assertEqual(u'<em>EMPHASIS</em>\n<ul>\n<li>MY_DESC</li>\n<li>MY_DESC</li>\n</ul>', elements[0].get("description"))
 
+    def test_json_format_version(self):
+        doc_msg = script_doc.parse_document("""
+/*#
+ * @name MY_NAME
+ */
+""")
+        doc_dict = script_doc.message_to_json_dict(doc_msg)
+        self.assertEqual(2, doc_dict["format_version"])
+
     def test_multiple(self):
         doc= """
 /*#

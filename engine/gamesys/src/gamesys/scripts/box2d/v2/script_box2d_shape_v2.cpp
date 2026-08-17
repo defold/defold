@@ -257,11 +257,41 @@ namespace dmGameSystem
  */
 
 /*# Box2D shape definition.
- * Shape fields depend on the value of `type`. The union covers both supported
- * Box2D runtime versions.
+ *
+ * A reusable table describing Box2D shape geometry. It is accepted by shape
+ * creation, query, cast, and update functions, and is returned by
+ * [ref:b2d.shape.get_shape] or [ref:b2d.fixture.get_shape]. Available fields
+ * depend on `type`:
+ *
+ * - Circle: `radius` and optional `center`.
+ * - Capsule: `radius`, `center1`, and `center2`.
+ * - Edge or segment: `v1`, `v2`, and optional ghost vertices `v0` and `v3`.
+ * - Box: half-extents `hx` and `hy`, with optional `center` and `angle` in radians.
+ * - Polygon: `vertices`.
+ * - Chain: `vertices`, with optional loop and ghost-vertex fields.
+ *
+ * The union covers both supported Box2D runtime versions; some shape types are
+ * only available with one version.
+ *
  * @typedef
  * @name b2d.shape.definition
  * @param value [type:{ type:b2d.shape.SHAPE_TYPE, radius:number, center?:vector3 }|{ type:b2d.shape.SHAPE_TYPE, radius:number, center1:vector3, center2:vector3 }|{ type:b2d.shape.SHAPE_TYPE, v1:vector3, v2:vector3, v0?:vector3, v3?:vector3 }|{ type:b2d.shape.SHAPE_TYPE, hx:number, hy:number, center?:vector3, angle?:number }|{ type:b2d.shape.SHAPE_TYPE, vertices:vector3[], loop?:boolean, prev_vertex?:vector3, next_vertex?:vector3 }]
+ * @examples
+ *
+ * ```lua
+ * local circle = {
+ *     type = b2d.shape.SHAPE_TYPE_CIRCLE,
+ *     radius = 16,
+ *     center = vmath.vector3(0, 8, 0),
+ * }
+ *
+ * local box = {
+ *     type = b2d.shape.SHAPE_TYPE_BOX,
+ *     hx = 32,
+ *     hy = 8,
+ *     angle = math.rad(15),
+ * }
+ * ```
  */
 
 /*# Circle shape type.

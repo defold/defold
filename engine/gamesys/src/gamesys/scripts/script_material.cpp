@@ -140,21 +140,63 @@ namespace dmGameSystem
      */
 
     /*# Material constant value
+     *
+     * A value accepted by [ref:material.set_constants] when updating a shader
+     * constant. Use a number or vector for user vector constants, a [type:matrix4]
+     * for matrix constants, and an array to update a shader constant array.
+     *
      * @typedef
      * @name material.constant_value
      * @param value [type:number|vector3|vector4|matrix4|(number|vector3|vector4|matrix4)[]]
+     * @examples
+     *
+     * ```lua
+     * material.set_constants(self.material, {
+     *     tint = { value = vmath.vector4(1, 0.5, 0.5, 1) },
+     *     weights = { value = { 0.25, 0.5, 0.75, 1 } }
+     * })
+     * ```
      */
 
     /*# Material constant result value
+     *
+     * The value of a user constant returned in a [type:material.constant_info]
+     * entry by [ref:material.get_constants]. A scalar constant is returned as a
+     * [type:vector4] or [type:matrix4]; a shader constant array is returned as an
+     * array of those values. Non-user constants do not include a `value` field.
+     *
      * @typedef
      * @name material.constant_info_value
      * @param value [type:vector4|matrix4|vector4[]|matrix4[]]
+     * @examples
+     *
+     * ```lua
+     * for _, constant in ipairs(material.get_constants(self.material)) do
+     *     if constant.value then
+     *         pprint(constant.name, constant.value)
+     *     end
+     * end
+     * ```
      */
 
     /*# Material vertex attribute value
+     *
+     * A vertex attribute value accepted by [ref:material.set_vertex_attributes]
+     * and returned by [ref:material.get_vertex_attributes]. Use a number or vector
+     * for scalar and vector attributes, [type:matrix4] for a 4x4 matrix, and a flat
+     * array of numbers for matrix shapes that do not map to [type:matrix4].
+     *
      * @typedef
      * @name material.vertex_attribute_value
      * @param value [type:number|vector3|vector4|matrix4|number[]]
+     * @examples
+     *
+     * ```lua
+     * material.set_vertex_attributes(self.material, {
+     *     tint = { value = vmath.vector4(1, 0, 0, 1) },
+     *     transform_2d = { value = { 1, 0, 0, 0, 1, 0, 0, 0, 1 } }
+     * })
+     * ```
      */
 
     /*# Texture sampler information

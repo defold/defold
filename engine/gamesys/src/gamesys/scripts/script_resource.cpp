@@ -56,11 +56,28 @@ namespace dmGameSystem
  * @language Lua
  */
 
-/*# Resource data
+/*# Script property resource reference
+ *
+ * An opaque declaration-time reference to a Defold resource. Resource references
+ * are created by functions such as [ref:resource.atlas], [ref:resource.font], and
+ * [ref:resource.material]. They can only be used as default values passed to
+ * [ref:go.property].
+ *
+ * The referenced resource is loaded together with the script. At runtime, the
+ * property contains the hashed path of the compiled resource.
  *
  * @typedef
  * @name resource_data
- * @param value [type:userdata] resource data value
+ * @param value [type:userdata] script property resource reference
+ * @examples
+ *
+ * ```lua
+ * go.property("player_atlas", resource.atlas("/main/player.atlas"))
+ *
+ * function init(self)
+ *     go.set("#sprite", "image", self.player_atlas)
+ * end
+ * ```
  */
 
 /*# Atlas creation data
@@ -193,13 +210,13 @@ namespace dmGameSystem
  * Constructor-like function with two purposes:
  *
  * - Load the specified resource as part of loading the script
- * - Return a hash to the run-time version of the resource
+ * - Create a resource reference that resolves to the hashed path of the run-time resource
  *
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.material
  * @param [path] [type:string] optional resource path string to the resource
- * @return path [type:hash] a path hash to the binary version of the resource
+ * @return resource [type:resource_data] a reference to the binary version of the resource
  * @examples
  *
  * Load a material and set it to a sprite:
@@ -226,13 +243,13 @@ namespace dmGameSystem
  * Constructor-like function with two purposes:
  *
  * - Load the specified resource as part of loading the script
- * - Return a hash to the run-time version of the resource
+ * - Create a resource reference that resolves to the hashed path of the run-time resource
  *
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.font
  * @param [path] [type:string] optional resource path string to the resource
- * @return path [type:hash] a path hash to the binary version of the resource
+ * @return resource [type:resource_data] a reference to the binary version of the resource
  * @examples
  *
  * Load a font and set it to a label:
@@ -259,13 +276,13 @@ namespace dmGameSystem
  * Constructor-like function with two purposes:
  *
  * - Load the specified resource as part of loading the script
- * - Return a hash to the run-time version of the resource
+ * - Create a resource reference that resolves to the hashed path of the run-time resource
  *
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.texture
  * @param [path] [type:string] optional resource path string to the resource
- * @return path [type:hash] a path hash to the binary version of the resource
+ * @return resource [type:resource_data] a reference to the binary version of the resource
  * @examples
  *
  * Load a texture and set it to a model:
@@ -283,13 +300,13 @@ namespace dmGameSystem
  * Constructor-like function with two purposes:
  *
  * - Load the specified resource as part of loading the script
- * - Return a hash to the run-time version of the resource
+ * - Create a resource reference that resolves to the hashed path of the run-time resource
  *
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.atlas
  * @param [path] [type:string] optional resource path string to the resource
- * @return path [type:hash] a path hash to the binary version of the resource
+ * @return resource [type:resource_data] a reference to the binary version of the resource
  * @examples
  *
  * Load an atlas and set it to a sprite:
@@ -316,13 +333,13 @@ namespace dmGameSystem
  * Constructor-like function with two purposes:
  *
  * - Load the specified resource as part of loading the script
- * - Return a hash to the run-time version of the resource
+ * - Create a resource reference that resolves to the hashed path of the run-time resource
  *
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.buffer
  * @param [path] [type:string] optional resource path string to the resource
- * @return path [type:hash] a path hash to the binary version of the resource
+ * @return resource [type:resource_data] a reference to the binary version of the resource
  * @examples
  *
  * Set a unique buffer it to a sprite:
@@ -340,13 +357,13 @@ namespace dmGameSystem
  * Constructor-like function with two purposes:
  *
  * - Load the specified resource as part of loading the script
- * - Return a hash to the run-time version of the resource
+ * - Create a resource reference that resolves to the hashed path of the run-time resource
  *
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.tile_source
  * @param [path] [type:string] optional resource path string to the resource
- * @return path [type:hash] a path hash to the binary version of the resource
+ * @return resource [type:resource_data] a reference to the binary version of the resource
  * @examples
  *
  * Load tile source and set it to a tile map:
@@ -364,13 +381,13 @@ namespace dmGameSystem
  * Constructor-like function with two purposes:
  *
  * - Load the specified resource as part of loading the script
- * - Return a hash to the run-time version of the resource
+ * - Create a resource reference that resolves to the hashed path of the run-time resource
  *
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.render_target
  * @param [path] [type:string] optional resource path string to the resource
- * @return path [type:hash] a path hash to the binary version of the resource
+ * @return resource [type:resource_data] a reference to the binary version of the resource
  * @examples
  *
  * Set a render target color attachment as a model texture:

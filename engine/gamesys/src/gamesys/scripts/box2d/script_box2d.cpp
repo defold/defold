@@ -166,10 +166,24 @@ namespace dmGameSystem
  * @param value [type:userdata]
  */
 
-/*# Box2D contact edge
+/*# Box2D body contact entry
+ *
+ * An opaque entry in the contact list of a Box2D body. Obtain the first entry
+ * with [ref:b2d.body.get_contact_list]. Contact entries are owned by the physics
+ * world and must not be created directly.
+ *
  * @typedef
  * @name b2ContactEdge
- * @param value [type:userdata]
+ * @param value [type:userdata] body contact-list entry
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * local first_contact = b2d.body.get_contact_list(body)
+ * if first_contact then
+ *     pprint(first_contact)
+ * end
+ * ```
  */
 
 /*# Box2D mass data
@@ -282,10 +296,28 @@ namespace dmGameSystem
  */
 
 /*# Box2D 3.x shape creation definition
- * The shape can be supplied in `shape`, or its fields can be supplied directly.
+ *
+ * Geometry and material properties accepted by [ref:b2d.body.create_shape]. The
+ * geometry can be supplied in the `shape` field as a [type:b2d.shape.definition],
+ * or its fields can be placed directly in this table. Material properties such
+ * as `density`, `friction`, `restitution`, and `filter` are optional.
+ *
  * @typedef
  * @name b2d.shape_create_definition
  * @param value [type:{ shape:b2d.shape.definition, density?:number, friction?:number, restitution?:number, material?:integer, sensor?:boolean, is_sensor?:boolean, filter?:b2d.filter }|{ type:b2d.shape.SHAPE_TYPE, radius?:number, center?:vector3, center1?:vector3, center2?:vector3, v0?:vector3, v1?:vector3, v2?:vector3, v3?:vector3, hx?:number, hy?:number, angle?:number, vertices?:vector3[], density?:number, friction?:number, restitution?:number, material?:integer, sensor?:boolean, is_sensor?:boolean, filter?:b2d.filter }]
+ * @examples
+ *
+ * Create a circular shape using an inline geometry definition:
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * local shape = b2d.body.create_shape(body, {
+ *     type = b2d.shape.SHAPE_TYPE_CIRCLE,
+ *     radius = 16,
+ *     density = 1,
+ *     friction = 0.4,
+ * })
+ * ```
  */
 
 /*# Box2D 3.x chain definition
@@ -601,9 +633,21 @@ namespace dmGameSystem
  */
 
 /*# Box2D filter-joint definition
+ *
+ * The optional definition passed to [ref:b2d.joint.create_filter]. Filter joints
+ * currently have no configurable fields, so omit the argument or pass an empty
+ * table. The type is reserved for future options.
+ *
  * @typedef
  * @name b2d.joint.filter_definition
- * @param value [type:{}]
+ * @param value [type:{}] empty filter-joint options
+ * @examples
+ *
+ * ```lua
+ * local body_a = b2d.get_body("#collisionobject_a")
+ * local body_b = b2d.get_body("#collisionobject_b")
+ * local joint = b2d.joint.create_filter(body_a, body_b, {})
+ * ```
  */
 
 /*# Get the Box2D world from the current collection

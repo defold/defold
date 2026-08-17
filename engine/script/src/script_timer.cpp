@@ -42,10 +42,26 @@ namespace dmScript
      * @language Lua
      */
 
-    /*# Timer handle.
+    /*# Timer handle
+     *
+     * An opaque numeric identifier returned by [ref:timer.delay]. Pass it to
+     * [ref:timer.cancel], [ref:timer.trigger], or [ref:timer.get_info] to control
+     * the timer. Timers are owned by the script that created them and are removed
+     * automatically when the script is deleted. A failed creation returns
+     * `timer.INVALID_TIMER_HANDLE`.
+     *
      * @typedef
      * @name timer_handle
-     * @param value [type:number]
+     * @param value [type:number] timer identifier
+     * @examples
+     *
+     * ```lua
+     * local handle = timer.delay(1, true, function()
+     *     print("tick")
+     * end)
+     *
+     * timer.cancel(handle)
+     * ```
      */
 
     /*

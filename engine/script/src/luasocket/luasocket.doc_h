@@ -33,6 +33,17 @@
  * @typedef
  * @name socket_selectable
  * @param value [type:socket_master|socket_client|socket_server|socket_connected|socket_unconnected|{ getfd:fun(self:any):integer, dirty:fun(self:any):boolean }]
+ * @examples
+ *
+ * Test whether a client can be read without blocking:
+ *
+ * ```lua
+ * local client = assert(socket.connect("127.0.0.1", 8000))
+ * local readable = socket.select({ client }, {}, 0)
+ * if #readable > 0 then
+ *     local data = client:receive()
+ * end
+ * ```
  */
 
 /*# waits for a number of sockets to change status
@@ -74,33 +85,95 @@
  */
 
 /*# TCP master object
+ *
+ * A newly created TCP socket that is not yet connected or listening. Obtain one
+ * from [ref:socket.tcp] or [ref:socket.tcp6]. Calling `connect` transforms it into
+ * a [type:socket_client]; calling `bind` followed by `listen` transforms it into a
+ * [type:socket_server].
+ *
  * @typedef
  * @name socket_master
- * @param value [type:userdata]
+ * @param value [type:userdata] unconfigured TCP socket
+ * @examples
+ *
+ * ```lua
+ * local tcp = assert(socket.tcp())
+ * assert(tcp:bind("*", 8000))
+ * assert(tcp:listen(32))
+ * ```
  */
 
 /*# TCP client object
+ *
+ * A TCP socket connected to a remote endpoint. Create one with
+ * [ref:socket.connect], or by calling `connect` on a [type:socket_master]. Use
+ * `send` and `receive` to exchange stream data, and `close` when finished.
+ *
  * @typedef
  * @name socket_client
- * @param value [type:userdata]
+ * @param value [type:userdata] connected TCP socket
+ * @examples
+ *
+ * ```lua
+ * local client = assert(socket.connect("127.0.0.1", 8000))
+ * assert(client:send("ping\n"))
+ * client:close()
+ * ```
  */
 
 /*# TCP server object
+ *
+ * A TCP socket listening for incoming connections. Create one by binding a
+ * [type:socket_master] and calling its `listen` method. Calling `accept` returns a
+ * [type:socket_client] for an incoming connection.
+ *
  * @typedef
  * @name socket_server
- * @param value [type:userdata]
+ * @param value [type:userdata] listening TCP socket
+ * @examples
+ *
+ * ```lua
+ * local server = assert(socket.tcp())
+ * assert(server:bind("*", 8000))
+ * assert(server:listen(32))
+ * local client = assert(server:accept())
+ * ```
  */
 
-/*# connected UDP object
+/*# Connected UDP object
+ *
+ * A UDP socket associated with one remote peer. Start with a
+ * [type:socket_unconnected] from [ref:socket.udp] or [ref:socket.udp6], then call
+ * `setpeername`. Connected UDP sockets use `send` and `receive` instead of
+ * `sendto` and `receivefrom`.
+ *
  * @typedef
  * @name socket_connected
- * @param value [type:userdata]
+ * @param value [type:userdata] connected UDP socket
+ * @examples
+ *
+ * ```lua
+ * local udp = assert(socket.udp())
+ * assert(udp:setpeername("127.0.0.1", 8000))
+ * assert(udp:send("ping"))
+ * ```
  */
 
-/*# unconnected UDP object
+/*# Unconnected UDP object
+ *
+ * A UDP socket without a fixed remote peer, created by [ref:socket.udp] or
+ * [ref:socket.udp6]. Use `sendto` and `receivefrom` with explicit addresses, or
+ * call `setpeername` to transform it into a [type:socket_connected].
+ *
  * @typedef
  * @name socket_unconnected
- * @param value [type:userdata]
+ * @param value [type:userdata] unconnected UDP socket
+ * @examples
+ *
+ * ```lua
+ * local udp = assert(socket.udp())
+ * assert(udp:sendto("ping", "127.0.0.1", 8000))
+ * ```
  */
 
 /*# creates a new IPv6 TCP master object

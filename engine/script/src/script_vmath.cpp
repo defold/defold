@@ -114,18 +114,40 @@ namespace dmScript
      * @member c3 [type:vector4] column 3
      */
 
-    /*# Vector of unspecified length
+    /*# Dynamically sized numeric vector
+     *
+     * A vector containing an arbitrary number of floating-point values, created
+     * with [ref:vmath.vector]. Unlike [type:vector3] and [type:vector4], its length
+     * is determined by the table supplied to the constructor. Dynamically sized
+     * vectors are primarily used to define custom animation easing curves.
      *
      * @typedef
      * @name vector
-     * @param value [type:userdata] vector value
+     * @param value [type:userdata] dynamically sized vector
+     * @examples
+     *
+     * ```lua
+     * local easing = vmath.vector({ 0, 0.1, 0.8, 1 })
+     * go.animate(".", "position.x", go.PLAYBACK_ONCE_FORWARD, 100, easing, 1)
+     * ```
      */
 
-    /*# Quaternion value
+    /*# Quaternion rotation
+     *
+     * A four-component value representing a 3D rotation. Create one with
+     * [ref:vmath.quat] or a specialized constructor such as
+     * [ref:vmath.quat_rotation_z]. Quaternion components are available as `x`,
+     * `y`, `z`, and `w`.
      *
      * @typedef
      * @name quaternion
      * @param value [type:vector4] quaternion components
+     * @examples
+     *
+     * ```lua
+     * local rotation = vmath.quat_rotation_z(math.rad(90))
+     * go.set_rotation(rotation)
+     * ```
      */
 
 #define SCRIPT_LIB_NAME "vmath"

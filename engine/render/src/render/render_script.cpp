@@ -417,10 +417,22 @@ namespace dmRender
      * @param value [type:number]
      */
 
-    /*# Render predicate
+    /*# Material-tag render filter
+     *
+     * An opaque filter that selects renderable objects by material tag. Create a
+     * predicate with [ref:render.predicate] and pass it to [ref:render.draw]. When
+     * multiple tags are supplied, an object's material must contain all of them.
+     * Predicates are intended for use in render scripts.
+     *
      * @typedef
      * @name render_predicate
-     * @param value [type:userdata]
+     * @param value [type:userdata] material-tag render filter
+     * @examples
+     *
+     * ```lua
+     * local opaque = render.predicate({ "opaque" })
+     * render.draw(opaque)
+     * ```
      */
 
     /*# create a new constant buffer.
@@ -2709,7 +2721,7 @@ namespace dmRender
      * Create a new render predicate containing all visual objects that
      * have a material with material tags "opaque" AND "smoke".
      *
-     * ```
+     * ```lua
      * local p = render.predicate({hash("opaque"), hash("smoke")})
      * ```
      */

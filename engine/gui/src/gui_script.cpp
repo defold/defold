@@ -122,11 +122,23 @@ namespace dmGui
      * @name gui.TYPE
      */
 
-    /*# GUI node
+    /*# GUI node handle
+     *
+     * An opaque handle to a node in the current GUI scene. Obtain a node with
+     * [ref:gui.get_node], create one with a `gui.new_*_node` function, or clone an
+     * existing node. A handle becomes invalid when its node is deleted.
      *
      * @typedef
      * @name node
-     * @param value [type:userdata] GUI node value
+     * @param value [type:userdata] GUI node handle
+     * @examples
+     *
+     * ```lua
+     * local health_bar = gui.get_node("health_bar")
+     * gui.set_color(health_bar, vmath.vector4(1, 0, 0, 1))
+     *
+     * local marker = gui.new_box_node(vmath.vector3(100, 100, 0), vmath.vector3(16, 16, 0))
+     * ```
      */
 
     /*# [type:hash] gui material

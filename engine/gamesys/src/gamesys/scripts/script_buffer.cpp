@@ -59,18 +59,45 @@ namespace dmGameSystem
      * @name buffer.VALUE_TYPE
      */
 
-    /*# Buffer data
+    /*# Typed data buffer
+     *
+     * A buffer stores one or more named streams of typed values. Create a buffer
+     * with [ref:buffer.create], or obtain one from APIs such as
+     * [ref:resource.get_buffer], [ref:sys.load_buffer], or [ref:image.load]. Use
+     * [ref:buffer.get_stream] to access the values in an individual stream.
      *
      * @typedef
      * @name buffer_data
-     * @param value [type:userdata] buffer value
+     * @param value [type:userdata] typed data buffer
+     * @examples
+     *
+     * ```lua
+     * local vertices = buffer.create(3, {
+     *     { name = hash("position"), type = buffer.VALUE_TYPE_FLOAT32, count = 3 }
+     * })
+     * ```
      */
 
-    /*# Buffer stream
+    /*# Named stream in a data buffer
+     *
+     * An indexable view of one named stream in a [type:buffer_data]. Obtain a
+     * stream with [ref:buffer.get_stream]. Reading or writing the stream accesses
+     * the values in its underlying buffer.
      *
      * @typedef
      * @name buffer_stream
-     * @param value [type:userdata] buffer stream value
+     * @param value [type:userdata] named buffer stream
+     * @examples
+     *
+     * ```lua
+     * local vertices = buffer.create(1, {
+     *     { name = hash("position"), type = buffer.VALUE_TYPE_FLOAT32, count = 3 }
+     * })
+     * local positions = buffer.get_stream(vertices, "position")
+     * positions[1] = 10
+     * positions[2] = 20
+     * positions[3] = 0
+     * ```
      */
 
     /*# uint8

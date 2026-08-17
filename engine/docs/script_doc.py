@@ -37,6 +37,12 @@ import yaml
 import script_doc_ddf_pb2
 
 
+# Version of the JSON interchange format consumed by defold.github.io.
+# Keep this separate from the Defold release/version: alpha, beta and stable
+# documentation archives can contain different format versions during rollout.
+JSON_FORMAT_VERSION = 2
+
+
 LUA_MTL = """
 --[[
 Generated using Defold build pipeline
@@ -640,6 +646,7 @@ def message_to_dict(message):
 
 def message_to_json_dict(message):
     d = message_to_dict(message)
+    d["format_version"] = JSON_FORMAT_VERSION
     for e in d["elements"]:
         e["description"] = _markdownify(e["description"])
         e["brief"] = _markdownify(e["brief"])

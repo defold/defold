@@ -2,6 +2,12 @@
 
 The Defold API documentation is generated from source file comments, similar to Doxygen but uses a proprietary python tool to generate json and sdoc files that the Editor and website uses for rendering documentation and provide completion.
 
+Generated JSON documents contain a top-level numeric `format_version`. This is
+the reference-document schema version, not the Defold release version. Consumers
+must treat a missing value as version 1 for backwards compatibility and reject
+newer unsupported versions instead of inferring the format from the stable,
+beta, or alpha channel.
+
 ## Markdown support
 
 The documentation formatter accepts Markdown with a few extensions:

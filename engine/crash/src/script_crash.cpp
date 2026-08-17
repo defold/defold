@@ -58,9 +58,20 @@ namespace dmCrash
      */
 
     /*# User crash-field slot index
+     *
+     * An integer index identifying one of the 32 user-defined fields stored in a
+     * crash dump. Valid indices are 0 through 31. Each field stores a string of at
+     * most `crash.USERFIELD_SIZE` bytes; longer strings are truncated.
+     *
      * @typedef
      * @name crash.USERFIELD
-     * @param value [type:integer]
+     * @param value [type:integer] zero-based user-field index
+     * @examples
+     *
+     * ```lua
+     * crash.set_user_field(0, "level=forest")
+     * crash.set_user_field(1, "checkpoint=3")
+     * ```
      */
 
     static HDump CheckHandle(lua_State* L, int index)
