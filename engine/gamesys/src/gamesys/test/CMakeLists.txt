@@ -347,12 +347,16 @@ set(_COMMON_EXPORTED
   ComponentTypeScript
   ComponentTypeSound
   ComponentTypeLight
+  ComponentTypeParticleFX
+  ComponentTypeTileMap
   ResourceProviderFile
   ResourceTypeAnim
   ResourceTypeAnimationSet
   ResourceTypeCollection
   ResourceTypeData
   ResourceTypeLight
+  ResourceTypeParticleFX
+  ResourceTypeTileMap
   ResourceTypeGameObject
   ResourceTypeGui
   ResourceTypeGuiScript
@@ -367,7 +371,9 @@ set(_COMMON_EXPORTED
   ScriptImageExt
   ScriptMaterialExt
   ScriptFont
-  ScriptHttp)
+  ScriptHttp
+  ScriptLibParticleFX
+  ScriptLibTileMap)
 
 defold_get_physics_libraries(_GAMESYS_TEST_PHYSICS_LIBS)
 defold_get_font_libraries(_GAMESYS_TEST_FONT_LIBS)
@@ -380,7 +386,7 @@ endif()
 set(_DEFOLD_TEST_LIBS
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate profile_null platform_null hid_null
-  render render_font_default sound_null
+  render sound_null
   ${_GAMESYS_TEST_PHYSICS_LIBS}
   ${_GAMESYS_TEST_FONT_LIBS})
 
@@ -440,6 +446,60 @@ defold_add_executable(test_gamesys ${TEST_GS_SOURCES} ${_TEST1_EXPORTED_CPP} ${_
 gamesys_configure_common_test(test_gamesys)
 
 # ---------------------------------------------------------------------------
+# test_app_shader_program
+# ---------------------------------------------------------------------------
+if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
+  if(DEFINED WITH_OPENGL)
+    set(_shader_program_had_with_opengl ON)
+    set(_shader_program_saved_with_opengl "${WITH_OPENGL}")
+  endif()
+  set(WITH_OPENGL ON)
+  defold_get_graphics_symbols(_shader_program_graphics_symbols "${TARGET_PLATFORM}")
+  if("GraphicsAdapterOpenGL" IN_LIST _shader_program_graphics_symbols OR
+     "GraphicsAdapterOpenGLES" IN_LIST _shader_program_graphics_symbols)
+    list(APPEND _shader_program_graphics_symbols ResourceProviderFile)
+    defold_create_exported_symbols_file(
+      "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_test_app_shader_program.cpp"
+      "${_shader_program_graphics_symbols}")
+
+    defold_add_executable(test_app_shader_program
+      "${GS_TEST_ROOT}/test_app_shader_program.cpp"
+      "${GS_TEST_ROOT}/../resources/res_shader_program.cpp"
+      "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_test_app_shader_program.cpp")
+    target_include_directories(test_app_shader_program PRIVATE
+      "${GS_SRC_ROOT}"
+      "${GS_PROTO_DIR}")
+    defold_target_link_libraries(test_app_shader_program "${TARGET_PLATFORM}"
+      testmain
+      ddf
+      dlib
+      profile_null
+      resource)
+    defold_target_link_graphics(test_app_shader_program "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_platform(test_app_shader_program "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_socket(test_app_shader_program "${TARGET_PLATFORM}" PRIVATE)
+    if("GraphicsAdapterOpenGLES" IN_LIST _shader_program_graphics_symbols AND
+       NOT "GraphicsAdapterOpenGL" IN_LIST _shader_program_graphics_symbols)
+      target_compile_definitions(test_app_shader_program PRIVATE DM_TEST_APP_SHADER_PROGRAM_DEFAULT_OPENGLES=1)
+    endif()
+    if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos)$")
+      target_link_libraries(test_app_shader_program PRIVATE "-framework IOKit")
+    endif()
+    if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+      find_package(Threads REQUIRED)
+      target_link_libraries(test_app_shader_program PRIVATE Threads::Threads dl)
+    endif()
+    defold_target_link_libraries_web(test_app_shader_program "${TARGET_PLATFORM}" library_sys.js library_glfw.js)
+    defold_register_test_target(test_app_shader_program OFF)
+  endif()
+  if(_shader_program_had_with_opengl)
+    set(WITH_OPENGL "${_shader_program_saved_with_opengl}")
+  else()
+    unset(WITH_OPENGL)
+  endif()
+endif()
+
+# ---------------------------------------------------------------------------
 # test_gamesys_physics
 # ---------------------------------------------------------------------------
 set(TEST_GS_PHYS_SOURCES
@@ -466,7 +526,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   add_dependencies(test_gamesys_http gamesys_http_test_content)
   target_include_directories(test_gamesys_http PRIVATE "${GS_SRC_ROOT}" "${GS_PROTO_DIR}" "${GS_GENERATED_INCLUDE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(test_gamesys_http PRIVATE ${_GS_TEST_DEFINES})
-  target_link_libraries(test_gamesys_http PRIVATE gamesys gamesys_rig_null gamesys_model_null)
+  target_link_libraries(test_gamesys_http PRIVATE gamesys gamesys_gui gamesys_particle gamesys_rig_null gamesys_model_null)
   defold_target_link_libraries(test_gamesys_http ${TARGET_PLATFORM} ${_DEFOLD_TEST_LIBS})
   defold_target_link_libraries(test_gamesys_http ${TARGET_PLATFORM} ${_GS_TEST_GRAPHICS_LIBS})
   defold_target_link_bullet3d(test_gamesys_http ${TARGET_PLATFORM})

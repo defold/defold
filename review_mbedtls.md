@@ -1,0 +1,10 @@
+# MbedTLS Review Notes
+
+- [P1] Avoid creating a circular dependency between DLIB and MBEDTLS — `/Users/mathiaswesterdahl/work/defold/engine/dlib/src/wscript:182-182`
+  Adding `dlib/mbedtls.cpp` to the `mbedtls` archive makes `mbedtls` depend on `dlib` symbols such as `dmTime::GetMonotonicTime`, `dmSocket::*`, `dmFileDescriptor::*` and `dmMutex::*`, while `dlib` still depends on `dmMbedTls::*` via `crypt.cpp` and `sslsocket.cpp`. That gives the two static archives a cycle, and the link lines in this patch are still one-pass (`... DLIB MBEDTLS ...` in waf targets, `... mbedtls ... dlib ...` in extender), so one side or the other stays unresolved on Unix-like linkers. Unless these objects stay in a single archive or the two libraries are grouped/repeated, updated engine/test builds will fail at link time.
+
+- [P1] Keep MBEDTLS linked for existing DLIB consumers — `/Users/mathiaswesterdahl/work/defold/build_tools/waf_dynamo.py:1980-1982`
+  Removing `mbedtls` from `STLIB_DLIB` means every binary that reaches `dmCrypt`/HTTP/SSL through `DLIB` now needs an explicit `MBEDTLS` dependency, but several existing targets were not updated. For example, `engine/resource/src/test/wscript` still builds `test_provider_archive`, `test_provider_http`, `test_resource_archive`, `test_resource`, etc. with `... DLIB ...` only even though those tests pull in `<dlib/crypt.h>` or provider/resource code that now resolves to `dmMbedTls::*`; the same pattern exists in script tests such as `test_script_hash`. Those targets will start failing to link with undefined `dmMbedTls` symbols.
+
+- [P3] Rename the new localization keys to `use-full-mbedtls` — `/Users/mathiaswesterdahl/work/defold/editor/resources/localization/en.editor_localization:1106-1107`
+  The new property is registered as `:use-full-mbedtls` in `editor/app_manifest.clj`, but the added English strings are `property.appmanifest.use-fat-mbedtls` and `...tooltip`. Because the keys do not match, the new checkbox will show a missing/blank label and tooltip in the editor, so users cannot tell what the setting does.

@@ -42,7 +42,7 @@
                        (let [[target-node connections] resource-connections]
                          ;; connect extra resource node outputs directly to target-node (GameProjectNode for instance)
                          (apply project/resource-setter evaluation-context target-node old-value new-value
-                           connections)))))))
+                                connections)))))))
   (input resource resource/Resource)
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
   (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
@@ -260,20 +260,20 @@
 
   (output merged-raw-settings g/Any :cached
           (g/fnk [raw-settings meta-info resource-settings]
-                 (let [meta-settings-map (settings-core/make-meta-settings-map (:settings meta-info))
-                       raw-resource-settings (mapv (fn [setting]
-                                                    (update setting :value
-                                                            #(when %
-                                                               (settings-core/render-raw-setting-value
-                                                                 (meta-settings-map (:path setting))
-                                                                 (resource/resource->proj-path %)))))
-                                                  resource-settings)]
-                   (reduce (fn [raw {:keys [path value]}]
-                             (if (settings-core/get-setting raw path)
-                               (settings-core/set-setting raw path value)
-                               raw))
-                           raw-settings
-                           raw-resource-settings))))
+            (let [meta-settings-map (settings-core/make-meta-settings-map (:settings meta-info))
+                  raw-resource-settings (mapv (fn [setting]
+                                                (update setting :value
+                                                        #(when %
+                                                           (settings-core/render-raw-setting-value
+                                                             (meta-settings-map (:path setting))
+                                                             (resource/resource->proj-path %)))))
+                                              resource-settings)]
+              (reduce (fn [raw {:keys [path value]}]
+                        (if (settings-core/get-setting raw path)
+                          (settings-core/set-setting raw path value)
+                          raw))
+                      raw-settings
+                      raw-resource-settings))))
 
   (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
@@ -287,8 +287,8 @@
             (let [{:keys [ext-meta-info game-project-proj-path->additional-meta-info]} meta-infos
                   project-meta-info (game-project-proj-path->additional-meta-info (resource/proj-path owner-resource))]
               (cond-> raw-meta-info
-                      project-meta-info (settings-core/merge-meta-infos project-meta-info)
-                      (and ext-meta-info (= "project" (resource/type-ext owner-resource))) (settings-core/merge-meta-infos ext-meta-info))))))
+                project-meta-info (settings-core/merge-meta-infos project-meta-info)
+                (and ext-meta-info (= "project" (resource/type-ext owner-resource))) (settings-core/merge-meta-infos ext-meta-info))))))
 
 (defn load-settings-node [project owner-resource-node self resource raw-settings initial-meta-info resource-setting-connections]
   (let [basis (g/now)
@@ -346,4 +346,4 @@
     :node-type SimpleSettingsResourceNode
     :load-fn (partial load-simple-settings-resource-node meta-info)
     :meta-settings (:settings meta-info)
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

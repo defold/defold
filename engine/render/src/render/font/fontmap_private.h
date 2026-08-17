@@ -55,7 +55,6 @@ namespace dmRender
         HFontCollection         m_FontCollection;
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
-        HFontRenderBackend      m_FontRenderBackend;
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;

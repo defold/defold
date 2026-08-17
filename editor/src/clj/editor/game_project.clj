@@ -182,7 +182,8 @@
                          [:pb :gamepads-pb]]
    ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
                                  [:lines :gamepad-database-lines]]
-   ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
+   ["input" "game_binding"] [[:build-targets :dep-build-targets]]
+   ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
@@ -223,7 +224,7 @@
         (conj (bt/with-content-hash
                 {:node-id _node-id
                  :resource (workspace/make-build-resource
-                              (->DependencyMetadataResource (resource/workspace resource)))
+                             (->DependencyMetadataResource (resource/workspace resource)))
                  :build-fn build-dependency-metadata
                  :user-data {:digest-ignored/dependencies dependencies
                              :dependency-content-hash-data (dependency-content-hash-data dependencies)}}))))))
@@ -236,6 +237,9 @@
 
   (input texture-profiles-data g/Any)
   (output texture-profiles-data g/Any (gu/passthrough texture-profiles-data))
+
+  (input use-font-layout g/Any)
+  (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
 
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
@@ -296,7 +300,7 @@
 
                   directory-resources
                   (cond-> custom-resources-directory-resources
-                          ssl-certificates-directory-resource (conj ssl-certificates-directory-resource))
+                    ssl-certificates-directory-resource (conj ssl-certificates-directory-resource))
 
                   custom-resources
                   (coll/into-> directory-resources []
@@ -377,6 +381,6 @@
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
     :icon-class :property
-    :view-types [:cljfx-form-view :text]
+    :view-types [:form :text]
     :language "ini"
     :view-opts {:text {:grammar ini/grammar}}))

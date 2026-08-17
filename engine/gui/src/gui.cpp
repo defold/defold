@@ -335,6 +335,18 @@ namespace dmGui
         return context;
     }
 
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback)
+    {
+        context->m_GetURLCallback = get_url_callback;
+        context->m_GetUserDataCallback = get_user_data_callback;
+        context->m_ResolvePathCallback = resolve_path_callback;
+        context->m_GetTextMetricsCallback = get_text_metrics_callback;
+    }
+
     void DeleteContext(HContext context, dmScript::HContext script_context)
     {
         FinalizeScript(context->m_LuaState, script_context);
@@ -4317,6 +4329,7 @@ namespace dmGui
         uint64_t anim_frames = (anim_desc.m_State.m_End - anim_desc.m_State.m_Start);
         dmGui::Playback playback = (dmGui::Playback)anim_desc.m_State.m_Playback;
         bool pingpong = playback == dmGui::PLAYBACK_ONCE_PINGPONG || playback == dmGui::PLAYBACK_LOOP_PINGPONG;
+        bool backwards = playback == dmGui::PLAYBACK_ONCE_BACKWARD || playback == dmGui::PLAYBACK_LOOP_BACKWARD;
 
         // Ping pong for flipbook animations should result in double the
         // animation duration.
@@ -4355,7 +4368,8 @@ namespace dmGui
         anim->m_From = 0.0f,
         anim->m_FirstUpdate = 0.0f;
         anim->m_Elapsed = elapsed;
-        n->m_Node.m_FlipbookAnimPosition = offset;
+        // As for sprites, offset is playback progress while the cursor is the visible position.
+        n->m_Node.m_FlipbookAnimPosition = backwards ? 1.0f - offset : offset;
     }
 
     static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)
@@ -4444,6 +4458,8 @@ namespace dmGui
         if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
         {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            // As for sprites, PLAYBACK_NONE still uses the offset to select a static frame.
+            n->m_Node.m_FlipbookAnimPosition = dmMath::Clamp(offset, 0.0f, 1.0f);
             if (anim_complete_callback != 0x0)
             {
                 anim_complete_callback(scene, node, true, callback_userdata1, callback_userdata2);
@@ -4871,8 +4887,32 @@ namespace dmGui
         if (n->m_Node.m_FlipbookAnimHash != 0)
         {
             float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
+            // The visible cursor is ambiguous at a loop wrap, so preserve the active animation phase separately.
+            Animation* source_animation = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            bool copy_animation_phase = source_animation != 0 && source_animation->m_Cancelled == 0;
+            float animation_elapsed = copy_animation_phase ? source_animation->m_Elapsed : 0.0f;
+            uint16_t animation_backwards = copy_animation_phase ? source_animation->m_Backwards : 0;
+
+            // Convert the visible cursor back to playback progress before starting the clone.
             float cursor = GetNodeFlipbookCursor(scene, node);
-            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, cursor, playback_rate, 0, 0, 0);
+            float offset = cursor;
+            Playback playback = (Playback)n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback;
+            if (playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD)
+            {
+                offset = 1.0f - offset;
+            }
+            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, offset, playback_rate, 0, 0, 0);
+
+            if (copy_animation_phase)
+            {
+                Animation* clone_animation = GetComponentAnimation(scene, *out_node, &out_n->m_Node.m_FlipbookAnimPosition);
+                if (clone_animation != 0)
+                {
+                    clone_animation->m_Elapsed = animation_elapsed;
+                    clone_animation->m_Backwards = animation_backwards;
+                    out_n->m_Node.m_FlipbookAnimPosition = cursor;
+                }
+            }
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)

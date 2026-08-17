@@ -11,6 +11,7 @@ set(ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(ENGINE_SRC_DIR "${ENGINE_ROOT}/src")
 set(ENGINE_PROTO_DIR "${ENGINE_ROOT}/proto")
 set(ENGINE_CONTENT_DIR "${ENGINE_ROOT}/content")
+set(ENGINE_FONT_CONTENT_DIR "${DEFOLD_HOME}/engine/font/content")
 set(ENGINE_DDF_GENERATED_DEPENDENCIES gameobject)
 set(ENGINE_SERVICE_DEPENDENCIES gameobject gamesys gui)
 set(ENGINE_DEPENDENCIES
@@ -29,7 +30,6 @@ set(ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES
   resource)
 set(ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES
   render
-  render_font_default
   script
   extension
   input
@@ -118,6 +118,8 @@ file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/builtins/*"
   "${ENGINE_CONTENT_DIR}/materials/*"
   "${ENGINE_CONTENT_DIR}/profiler.html")
+file(GLOB_RECURSE ENGINE_FONT_CONTENT_SOURCES CONFIGURE_DEPENDS
+  "${ENGINE_FONT_CONTENT_DIR}/builtins/*")
 
 set(ENGINE_BUILTINS_WORK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/content-work")
 set(ENGINE_BUILTINS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/content")
@@ -125,16 +127,16 @@ set(ENGINE_BUILTINS_COMPILED_DIR "${ENGINE_BUILTINS_WORK_ROOT}/build/default/bui
 set(ENGINE_BUILTINS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/content/builtins.stamp")
 defold_get_graphics_symbols(ENGINE_GRAPHICS_SYMBOLS "${TARGET_PLATFORM}")
 set(ENGINE_SHADER_OUTPUT_ARGS)
-# App manifests can relink Apple engines to GL/GLES even when the default
-# CMake graphics symbols only include Vulkan/Metal-capable adapters.
+# Builtin content is embedded into engine.lib before extender/app-manifest
+# relinking happens, so include shader languages for adapters that a platform
+# can select later even if they are not in the default engine symbol set.
 if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
-# App manifests can also relink Apple engines to Vulkan/MoltenVK.
 if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
-    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios|x86_64-win32|x86-win32|x86_64-linux|arm64-linux|armv7-android|arm64-android)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
 # App manifests can relink web engines to WebGPU even when the default
@@ -143,7 +145,8 @@ if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output wgsl)
 endif()
-if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-win32)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
 endif()
 if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS
@@ -159,6 +162,7 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
     "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
+    --font-content-root "${ENGINE_FONT_CONTENT_DIR}"
     --work-root "${ENGINE_BUILTINS_WORK_ROOT}"
     --output-root "${ENGINE_BUILTINS_OUTPUT_DIR}"
     --stamp "${ENGINE_BUILTINS_STAMP}"
@@ -167,7 +171,7 @@ add_custom_command(
     --platform "${TARGET_PLATFORM}"
     ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
-  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES}
+  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
   VERBATIM)
 add_custom_target(engine_builtins
@@ -370,14 +374,16 @@ endif()
 
 set(ENGINE_RESOURCE_SYMBOLS
   ResourceTypeGameObject ResourceTypeCollection ResourceTypeScript ResourceTypeLua
-  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript
+  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript ResourceTypeParticleFX ResourceTypeTileMap
   ResourceTypeOgg ResourceTypeOpus ResourceTypeWav ResourceTypeFont ResourceTypeTTF
   ResourceProviderFile ResourceProviderArchive ResourceProviderZip ResourceTypeLight)
 set(ENGINE_COMPONENT_SYMBOLS
-  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight)
+  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight
+  ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont)
+  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptLibParticleFX ScriptLibTileMap)
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -507,6 +513,8 @@ defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
   ScriptTypesExt
+  ScriptLibParticleFX
+  ScriptLibTileMap
   GraphicsAdapterNull
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
@@ -640,6 +648,8 @@ install(FILES
 install(DIRECTORY "${ENGINE_CONTENT_DIR}/builtins/"
   DESTINATION content/builtins
   PATTERN "connect" EXCLUDE)
+install(DIRECTORY "${ENGINE_FONT_CONTENT_DIR}/builtins/"
+  DESTINATION content/builtins)
 
 if(BUILD_TESTS)
   set(ENGINE_BOB_ENGINE_JAR "${CMAKE_CURRENT_BINARY_DIR}/content/bob-engine.jar")
@@ -647,9 +657,11 @@ if(BUILD_TESTS)
     OUTPUT "${ENGINE_BOB_ENGINE_JAR}"
     COMMAND "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" package-bob
       --source-root "${ENGINE_CONTENT_DIR}"
+      --font-content-root "${ENGINE_FONT_CONTENT_DIR}"
+      --work-root "${CMAKE_CURRENT_BINARY_DIR}/bob-engine-work"
       --output "${ENGINE_BOB_ENGINE_JAR}"
       --bob-light "${ENGINE_BOB_LIGHT}"
-    DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_CONTENT_SOURCES}
+    DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
     COMMENT "Packaging bob-engine.jar"
     VERBATIM)
   add_custom_target(engine_bob_engine_jar ALL DEPENDS "${ENGINE_BOB_ENGINE_JAR}")

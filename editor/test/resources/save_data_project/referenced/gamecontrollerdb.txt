@@ -1,0 +1,1 @@
+030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,

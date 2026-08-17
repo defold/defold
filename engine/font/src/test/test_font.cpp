@@ -28,6 +28,10 @@
 
 #include "font.h"
 #include "fontcollection.h"
+#include "font_outline.h"
+#include "font_sdf.h"
+#include "glyph_gen.h"
+#include "glyph_vertex.h"
 #include "text_layout.h"
 
 //static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
@@ -77,7 +81,390 @@ protected:
 
 TEST_F(FontTest, LoadTTF)
 {
-    // Empty. Just loading/unloading a font
+    ASSERT_EQ(FONT_TYPE_TTF, FontGetType(m_Font));
+}
+
+TEST_F(FontTest, LoadOTFAndGenerateGlyph)
+{
+    HFont font;
+    LoadFont("src/test/data/SourceCodePro-Regular.otf", &font);
+    ASSERT_EQ(FONT_TYPE_OTF, FontGetType(font));
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(font, 32.0f);
+    params.m_SdfPadding = 6.0f;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
+    ASSERT_NE(0u, glyph_index);
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, glyph_index, &params, &glyph));
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    ASSERT_GT(glyph.m_Bitmap.m_Width, 0u);
+    ASSERT_GT(glyph.m_Bitmap.m_Height, 0u);
+    ASSERT_GT(glyph.m_Advance, 0.0f);
+    FontFreeGlyph(font, &glyph);
+    FontDestroy(font);
+}
+
+TEST_F(FontTest, WorkSansOverlappingKGlyphHasNoBuriedEdges)
+{
+    // Work Sans keeps overlapping contours in K. Those overlaps are valid
+    // TrueType outlines, but their buried edges must not contribute to the
+    // distance field or they create dark seams through the filled glyph.
+    HFont font;
+    LoadFont("src/test/data/WorkSans.ttf", &font);
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(font, 64.0f);
+    params.m_SdfPadding = 8.0f;
+    params.m_SdfEdgeValue = 190;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(font, 'K');
+    ASSERT_NE(0u, glyph_index);
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, glyph_index, &params, &glyph));
+    ASSERT_EQ(51u, glyph.m_Bitmap.m_Width);
+    ASSERT_EQ(59u, glyph.m_Bitmap.m_Height);
+
+    // These pixels lie inside the two overlapping joins. Measuring distance
+    // to a buried edge makes the first value too dark, while omitting the
+    // exposed intersection point makes it saturate. Both are regressions.
+    ASSERT_GE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], 205u);
+    ASSERT_LE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], 215u);
+    ASSERT_GE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], 197u);
+    ASSERT_LE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], 207u);
+    ASSERT_GE(glyph.m_Bitmap.m_Data[35 * glyph.m_Bitmap.m_Width + 11], 250u);
+
+    FontFreeGlyph(font, &glyph);
+    FontDestroy(font);
+}
+
+TEST(FontSDF, Rectangle)
+{
+    FontOutlineCommand commands[5] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.0f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 8.0f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 8.0f, 8.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.0f, 8.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_EQ(16u, bitmap.m_Width);
+    ASSERT_EQ(16u, bitmap.m_Height);
+    ASSERT_EQ(-4, offset_x);
+    ASSERT_EQ(-12, offset_y);
+    ASSERT_GT(bitmap.m_Data[8 * bitmap.m_Width + 8], 128u);
+    ASSERT_LT(bitmap.m_Data[0], 128u);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontSDF, PreservesSubpixelEdgeDistance)
+{
+    FontOutlineCommand commands[5] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.25f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 4.25f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 4.25f, 4.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.25f, 4.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_EQ(-4, offset_x);
+    ASSERT_EQ(-8, offset_y);
+    ASSERT_EQ(104u, bitmap.m_Data[6 * bitmap.m_Width + 3]);
+    ASSERT_EQ(136u, bitmap.m_Data[6 * bitmap.m_Width + 4]);
+    ASSERT_EQ(112u, bitmap.m_Data[8 * bitmap.m_Width + 6]);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontSDF, OverlappingContoursMatchBooleanUnion)
+{
+    // These same-winding rectangles overlap from x=4 through x=8. The two
+    // contours must produce the same field as their rectangular union; their
+    // buried vertical edges are not boundaries of the non-zero fill.
+    FontOutlineCommand overlapping_commands[10] = {};
+    overlapping_commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    overlapping_commands[0].m_Points[0] = { 0.0f, 0.0f };
+    overlapping_commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[1].m_Points[0] = { 8.0f, 0.0f };
+    overlapping_commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[2].m_Points[0] = { 8.0f, 8.0f };
+    overlapping_commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[3].m_Points[0] = { 0.0f, 8.0f };
+    overlapping_commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    overlapping_commands[5].m_Type = FONT_OUTLINE_MOVE_TO;
+    overlapping_commands[5].m_Points[0] = { 4.0f, 0.0f };
+    overlapping_commands[6].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[6].m_Points[0] = { 12.0f, 0.0f };
+    overlapping_commands[7].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[7].m_Points[0] = { 12.0f, 8.0f };
+    overlapping_commands[8].m_Type = FONT_OUTLINE_LINE_TO;
+    overlapping_commands[8].m_Points[0] = { 4.0f, 8.0f };
+    overlapping_commands[9].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline overlapping = { overlapping_commands, 10 };
+
+    FontOutlineCommand union_commands[5] = {};
+    union_commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    union_commands[0].m_Points[0] = { 0.0f, 0.0f };
+    union_commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    union_commands[1].m_Points[0] = { 12.0f, 0.0f };
+    union_commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    union_commands[2].m_Points[0] = { 12.0f, 8.0f };
+    union_commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    union_commands[3].m_Points[0] = { 0.0f, 8.0f };
+    union_commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline expected_union = { union_commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap overlapping_bitmap;
+    FontGlyphBitmap union_bitmap;
+    int32_t overlapping_x;
+    int32_t overlapping_y;
+    int32_t union_x;
+    int32_t union_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&overlapping, &params, &overlapping_bitmap, &overlapping_x, &overlapping_y));
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&expected_union, &params, &union_bitmap, &union_x, &union_y));
+    ASSERT_EQ(union_x, overlapping_x);
+    ASSERT_EQ(union_y, overlapping_y);
+    ASSERT_EQ(union_bitmap.m_Width, overlapping_bitmap.m_Width);
+    ASSERT_EQ(union_bitmap.m_Height, overlapping_bitmap.m_Height);
+    ASSERT_EQ(union_bitmap.m_DataSize, overlapping_bitmap.m_DataSize);
+    ASSERT_EQ(0, memcmp(union_bitmap.m_Data, overlapping_bitmap.m_Data, union_bitmap.m_DataSize));
+    FontSDFFree(&union_bitmap);
+    FontSDFFree(&overlapping_bitmap);
+}
+
+TEST(FontSDF, OppositeWindingContourRemainsHole)
+{
+    FontOutlineCommand commands[10] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.0f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 12.0f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 12.0f, 12.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.0f, 12.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    commands[5].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[5].m_Points[0] = { 4.0f, 4.0f };
+    commands[6].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[6].m_Points[0] = { 4.0f, 8.0f };
+    commands[7].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[7].m_Points[0] = { 8.0f, 8.0f };
+    commands[8].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[8].m_Points[0] = { 8.0f, 4.0f };
+    commands[9].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 10 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_LT(bitmap.m_Data[9 * bitmap.m_Width + 9], 128u);
+    ASSERT_GT(bitmap.m_Data[9 * bitmap.m_Width + 5], 128u);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontOutline, BezierBounds)
+{
+    FontOutlineCommand commands[2] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[1].m_Type = FONT_OUTLINE_CUBIC_TO;
+    commands[1].m_Points[0] = { 0.0f, 100.0f };
+    commands[1].m_Points[1] = { 100.0f, 100.0f };
+    commands[1].m_Points[2] = { 100.0f, 0.0f };
+    FontOutline outline = { commands, 2 };
+    float x0, y0, x1, y1;
+    ASSERT_TRUE(FontGetOutlineBounds(&outline, &x0, &y0, &x1, &y1));
+    ASSERT_EQ(0.0f, x0);
+    ASSERT_EQ(0.0f, y0);
+    ASSERT_EQ(100.0f, x1);
+    ASSERT_EQ(75.0f, y1);
+}
+
+TEST(FontOutline, MakeYMonotonic)
+{
+    FontOutline outline = {};
+    outline.m_CommandCount = 3;
+    outline.m_Commands = (FontOutlineCommand*)calloc(outline.m_CommandCount, sizeof(FontOutlineCommand));
+    outline.m_Commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    outline.m_Commands[0].m_Points[0] = { 0.0f, 0.0f };
+    outline.m_Commands[1].m_Type = FONT_OUTLINE_QUADRATIC_TO;
+    outline.m_Commands[1].m_Points[0] = { 5.0f, 10.0f };
+    outline.m_Commands[1].m_Points[1] = { 10.0f, 0.0f };
+    outline.m_Commands[2].m_Type = FONT_OUTLINE_CUBIC_TO;
+    outline.m_Commands[2].m_Points[0] = { 12.0f, 10.0f };
+    outline.m_Commands[2].m_Points[1] = { 18.0f, -10.0f };
+    outline.m_Commands[2].m_Points[2] = { 20.0f, 0.0f };
+
+    ASSERT_EQ(FONT_RESULT_OK, FontOutlineMakeYMonotonic(&outline));
+    ASSERT_EQ(6u, outline.m_CommandCount);
+    ASSERT_EQ(FONT_OUTLINE_MOVE_TO, outline.m_Commands[0].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_QUADRATIC_TO, outline.m_Commands[1].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_QUADRATIC_TO, outline.m_Commands[2].m_Type);
+    ASSERT_EQ(5.0f, outline.m_Commands[1].m_Points[1].m_X);
+    ASSERT_EQ(5.0f, outline.m_Commands[1].m_Points[1].m_Y);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[3].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[4].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[5].m_Type);
+
+    ASSERT_EQ(FONT_RESULT_OK, FontOutlineMakeYMonotonic(&outline));
+    ASSERT_EQ(6u, outline.m_CommandCount);
+
+    FontFreeGlyphOutline(&outline);
+}
+
+TEST_F(FontTest, GenerateSdfGlyphWithShadowChannels)
+{
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    params.m_SdfPadding = 6.0f;
+    params.m_OutlineWidth = 1.0f;
+    params.m_ShadowBlur = 2.0f;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
+    ASSERT_EQ(3u, glyph.m_Bitmap.m_Channels);
+    ASSERT_EQ((uint32_t)(glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * 3), glyph.m_Bitmap.m_DataSize);
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    FontFreeGlyph(m_Font, &glyph);
+}
+
+TEST_F(FontTest, GenerateBitmapGlyphWithBlurredOutlineShadow)
+{
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    params.m_SdfPadding = 8.0f;
+    params.m_OutlineWidth = 2.0f;
+    params.m_OutputBitmap = true;
+    params.m_HasOutline = true;
+    params.m_HasShadow = true;
+
+    const uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    FontGlyph source_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &source_glyph));
+
+    params.m_ShadowBlur = 2.0f;
+    FontGlyph blurred_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &blurred_glyph));
+    ASSERT_EQ(source_glyph.m_Bitmap.m_Width, blurred_glyph.m_Bitmap.m_Width);
+    ASSERT_EQ(source_glyph.m_Bitmap.m_Height, blurred_glyph.m_Bitmap.m_Height);
+    ASSERT_EQ(3u, source_glyph.m_Bitmap.m_Channels);
+    ASSERT_EQ(3u, blurred_glyph.m_Bitmap.m_Channels);
+
+    const uint32_t width = source_glyph.m_Bitmap.m_Width;
+    const uint32_t height = source_glyph.m_Bitmap.m_Height;
+    const uint32_t pixel_count = width * height;
+    dmArray<uint8_t> expected;
+    dmArray<uint8_t> target;
+    expected.SetCapacity(pixel_count);
+    expected.SetSize(pixel_count);
+    target.SetCapacity(pixel_count);
+    target.SetSize(pixel_count);
+
+    for (uint32_t i = 0; i < pixel_count; ++i)
+    {
+        const uint32_t offset = i * 3;
+        // Before blur, the shadow source is the complete face-plus-outline silhouette.
+        ASSERT_EQ(source_glyph.m_Bitmap.m_Data[offset + 1], source_glyph.m_Bitmap.m_Data[offset + 2]);
+        expected[i] = source_glyph.m_Bitmap.m_Data[offset + 2];
+    }
+
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                const uint32_t offset = y * width + x;
+                if (x == 0 || y == 0 || x + 1 == width || y + 1 == height)
+                {
+                    target[offset] = expected[offset];
+                    continue;
+                }
+                const uint32_t sum =
+                    expected[offset - width - 1] + 2 * expected[offset - width] + expected[offset - width + 1] +
+                    2 * expected[offset - 1] + 4 * expected[offset] + 2 * expected[offset + 1] +
+                    expected[offset + width - 1] + 2 * expected[offset + width] + expected[offset + width + 1];
+                target[offset] = (uint8_t)(sum / 16);
+            }
+        }
+        memcpy(expected.Begin(), target.Begin(), pixel_count);
+    }
+
+    uint32_t graduated_shadow_pixels = 0;
+    for (uint32_t i = 0; i < pixel_count; ++i)
+    {
+        const uint32_t offset = i * 3;
+        ASSERT_EQ(source_glyph.m_Bitmap.m_Data[offset + 0], blurred_glyph.m_Bitmap.m_Data[offset + 0]);
+        ASSERT_EQ(source_glyph.m_Bitmap.m_Data[offset + 1], blurred_glyph.m_Bitmap.m_Data[offset + 1]);
+        ASSERT_EQ(expected[i], blurred_glyph.m_Bitmap.m_Data[offset + 2]);
+        if (expected[i] > 0 && expected[i] < 255)
+            ++graduated_shadow_pixels;
+    }
+    ASSERT_GT(graduated_shadow_pixels, 0u);
+
+    FontFreeGlyph(m_Font, &source_glyph);
+    FontFreeGlyph(m_Font, &blurred_glyph);
+}
+
+TEST_F(FontTest, GlyphChannelCountMatchesOutputMode)
+{
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(false, false, false, 0.0f));
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(false, true, true, 0.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(false, false, false, 1.0f));
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(true, false, false, 1.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(true, true, false, 0.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(true, false, true, 0.0f));
+}
+
+TEST_F(FontTest, PackLayeredGlyphVertices)
+{
+    ASSERT_EQ(96u, sizeof(FontGlyphVertex));
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
+
+    FontGlyphVertex vertices[18];
+    memset(vertices, 0, sizeof(vertices));
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    dmVMath::Vector4 white(1.0f, 1.0f, 1.0f, 1.0f);
+    dmVMath::Vector4 black(0.0f, 0.0f, 0.0f, 1.0f);
+    FontPackGlyphVertices(&glyph, 1.0f / 256.0f, 1.0f / 256.0f,
+                          0, 0, (uint32_t)glyph.m_Ascent, 1,
+                          3, FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW,
+                          0, 6, transform, 0.0f, 0.0f,
+                          white, black, black, 0.75f, 0.5f, 0.1f, 0.25f,
+                          2.0f, -2.0f, true, vertices);
+
+    ASSERT_EQ(1.0f, vertices[12].m_LayerMasks[0]);
+    ASSERT_EQ(1.0f, vertices[6].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
+    ASSERT_NE(vertices[12].m_Position[0], vertices[0].m_Position[0]);
+    FontFreeGlyph(m_Font, &glyph);
 }
 
 static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints,

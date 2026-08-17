@@ -34,6 +34,7 @@
             [editor.code.resource :as r]
             [editor.defold-project :as project]
             [editor.fxui :as fxui]
+            [editor.image-util :as image-util]
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -364,8 +365,10 @@
                          (keep-indexed
                            (fn [col th]
                              (when-let [view (children-section-view th (style ctx "strong"))]
-                               (assoc view :grid-pane/column col
-                                           :grid-pane/row 0))))
+                               (assoc view
+                                 :style-class ["md-table-cell" "md-table-header-cell"]
+                                 :grid-pane/column col
+                                 :grid-pane/row 0))))
                          (.select node "table>thead>tr>th"))
         content-row-offset (if (pos? (count head-views)) 1 0)
         rows-views (into []
@@ -375,23 +378,39 @@
                                                          (keep-indexed
                                                            (fn [col td]
                                                              (some-> (children-section-view td ctx)
-                                                                     (assoc :grid-pane/column col))))
+                                                                     (assoc :style-class ["md-table-cell"]
+                                                                            :grid-pane/column col))))
                                                          (.select tr "tr>td"))]
                                      (when (pos? (count row-views))
                                        row-views))))
                            (map-indexed
                              (fn [^long row views]
-                               (mapv #(assoc % :grid-pane/row (+ content-row-offset row)) views))))
+                               (let [row-class (if (even? row) "md-table-row-even" "md-table-row-odd")]
+                                 (mapv #(-> %
+                                            (update :style-class conj row-class)
+                                            (assoc :grid-pane/row (+ content-row-offset row)))
+                                       views)))))
                          (.select node "table>tbody>tr"))]
     (when (pos? (count rows-views))
       (let [views (into head-views cat rows-views)
             cols (transduce (map count) max (count head-views) rows-views)]
         {:fx/type fx.grid-pane/lifecycle
+         :style-class "md-table"
          :column-constraints (vec (repeat cols
                                           {:fx/type fx.column-constraints/lifecycle
-                                           :min-width 75}))
-         :hgap 4
+                                           :min-width 100
+                                           :max-width 1000}))
          :children views}))))
+
+(def ^:private max-image-decode-width 2048)
+
+(defn- decode-width [resource]
+  (let [size (try
+               (image-util/read-size resource)
+               (catch Exception _
+                 nil))]
+    (when (and size (> (long (:width size)) (long max-image-decode-width)))
+      (double max-image-decode-width))))
 
 (defn- construct-image [src base-resource]
   (when-not (coll/empty? src)
@@ -401,8 +420,11 @@
         (when-let [base-resource base-resource]
           (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
             (when (resource/exists? resource)
-              (with-open [is (io/input-stream resource)]
-                (Image. is)))))))))
+              (let [width (decode-width resource)]
+                (with-open [is (io/input-stream resource)]
+                  (if width
+                    (Image. is width 0.0 #_preserve-ratio true #_smooth true)
+                    (Image. is)))))))))))
 
 (def ^:private prop-image-width-cap
   (fx/make-binding-prop

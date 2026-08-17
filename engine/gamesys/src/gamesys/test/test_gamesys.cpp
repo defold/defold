@@ -3607,6 +3607,45 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(FontTest, OpenTypeResource)
+{
+    const char* otf_path = "/font/SourceCodePro-Regular.otf";
+    uint32_t data_size = 0;
+    uint8_t* data = dmTestUtil::ReadHostFile("src/gamesys/test/font/SourceCodePro-Regular.otf", &data_size);
+    ASSERT_NE((uint8_t*)0, data);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, otf_path, data_size, data));
+
+    dmGameSystem::TTFResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, otf_path, (void**)&resource));
+    ASSERT_NE((dmGameSystem::TTFResource*)0, resource);
+
+    HFont font = dmGameSystem::GetFont(resource);
+    uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
+    ASSERT_NE(0u, glyph_index);
+    FontGlyphOptions options;
+    options.m_Scale = FontGetScaleFromSize(font, 32);
+    options.m_GenerateImage = true;
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, glyph_index, &options, &glyph));
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    ASSERT_EQ(FONT_RESULT_OK, FontFreeGlyph(font, &glyph));
+
+    dmGameSystem::FontResource* font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font_resource));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font_resource);
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    uint32_t font_count = FontCollectionGetFontCount(font_collection);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontAddFontByPath(m_Factory, font_resource, otf_path));
+    ASSERT_EQ(font_count + 1, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontRemoveFont(m_Factory, font_resource, dmHashString64(otf_path)));
+    ASSERT_EQ(font_count, FontCollectionGetFontCount(font_collection));
+    dmResource::Release(m_Factory, font_resource);
+
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, otf_path));
+    dmMemory::AlignedFree(data);
+}
+
 TEST_F(WindowTest, MouseLock)
 {
     WindowCreateParams window_params;
@@ -7068,6 +7107,11 @@ INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_p
 #define F2T3 2.0f/3.0f
 const CursorTestParams cursor_properties[] = {
 
+    // Playback none should apply the initial cursor and keep it unchanged,
+    // regardless of the animation frame rate.
+    {"anim_none_0",     0.5f, 1.0f, {0.5f, 0.5f}, 2},
+    {"anim_none_60",    0.5f, 1.0f, {0.5f, 0.5f}, 2},
+
     // Forward & backward
     {"anim_once",       0.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5},
     {"anim_once",      -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5}, // Same as above, but cursor should be clamped
@@ -7086,6 +7130,7 @@ const CursorTestParams cursor_properties[] = {
 
     // Cursor start
     {"anim_once",          0.5f, 1.0f, {0.5f, 0.75f, 1.0f, 1.0f}, 4},
+    {"anim_once_back",    0.25f, 1.0f, {0.75f, 0.5f, 0.25f, 0.0f, 0.0f}, 5},
     {"anim_once_back",     0.5f, 1.0f, {0.5f, 0.25f, 0.0f, 0.0f}, 4},
     {"anim_loop",          0.5f, 1.0f, {0.5f, 0.75f, 0.0f, 0.25f, 0.5f, 0.75f, 0.0f}, 7},
     {"anim_loop_back",     0.5f, 1.0f, {0.5f, 0.25f, 1.0f, 0.75f, 0.5f, 0.25f, 1.0f}, 7},

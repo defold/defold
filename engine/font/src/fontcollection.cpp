@@ -20,6 +20,7 @@
 #if defined(FONT_USE_SKRIBIDI)
     #include <dmsdk/dlib/hashtable.h>
     #include <skribidi/skb_font_collection.h>
+    #include "harfbuzz/font_harfbuzz.h"
 #endif
 
 struct FontCollection

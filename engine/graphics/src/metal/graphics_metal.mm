@@ -2582,6 +2582,38 @@ namespace dmGraphics
         return dmMath::Max((uint32_t) program->m_BaseProgram.m_MaxBinding, (uint32_t) program->m_BaseProgram.m_MaxSet);
     }
 
+    static const ShaderResourceBinding* GetVertexShaderInputForStream(const MetalProgram* program, const VertexDeclaration::Stream& stream)
+    {
+        const dmArray<ShaderResourceBinding>& inputs = program->m_BaseProgram.m_ShaderMeta.m_Inputs;
+
+        for (uint32_t i = 0; i < inputs.Size(); ++i)
+        {
+            const ShaderResourceBinding& input = inputs[i];
+            if ((input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX) != 0 && input.m_NameHash == stream.m_NameHash)
+            {
+                return &input;
+            }
+        }
+
+        return 0;
+    }
+
+    static uint32_t GetMatrixVertexInputColumnCount(const ShaderResourceBinding* input)
+    {
+        if (!input || input->m_Type.m_UseTypeIndex)
+        {
+            return 0;
+        }
+
+        switch (input->m_Type.m_ShaderType)
+        {
+            case ShaderDesc::SHADER_TYPE_MAT2: return 2;
+            case ShaderDesc::SHADER_TYPE_MAT3: return 3;
+            case ShaderDesc::SHADER_TYPE_MAT4: return 4;
+            default:                           return 0;
+        }
+    }
+
     static bool CreatePipeline(MetalContext* context, MetalRenderTarget* rt, const PipelineState pipeline_state,  MetalProgram* program, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount, MetalPipeline* pipeline)
     {
         MTL::VertexDescriptor* vertex_desc = MTL::VertexDescriptor::alloc()->init();
@@ -2596,14 +2628,29 @@ namespace dmGraphics
             for (uint32_t s = 0; s < vd->m_StreamCount; ++s)
             {
                 const VertexDeclaration::Stream& stream = vd->m_Streams[s];
+                const ShaderResourceBinding* vertex_input = GetVertexShaderInputForStream(program, stream);
+                const uint32_t matrix_column_count = GetMatrixVertexInputColumnCount(vertex_input);
+                const uint32_t column_count = matrix_column_count > 0 ? matrix_column_count : 1;
+                const uint32_t column_size = matrix_column_count > 0 ? matrix_column_count : stream.m_Size;
 
-                // Use the shader location (stream.m_Location) as the attribute index
-                uint32_t attrIndex = stream.m_Location;
-                MTL::VertexAttributeDescriptor* attr = vertex_desc->attributes()->object(attrIndex);
+                if (matrix_column_count > 0 && stream.m_Size != matrix_column_count * matrix_column_count)
+                {
+                    dmLogError("Invalid vertex stream size %u for matrix attribute '%s'", stream.m_Size, dmHashReverseSafe64(stream.m_NameHash));
+                    continue;
+                }
 
-                attr->setFormat(ConvertVertexFormat(stream.m_Type, stream.m_Size, stream.m_Normalize));
-                attr->setOffset(stream.m_Offset);
-                attr->setBufferIndex(buffer_index + vx_buffer_start_ix);
+                // Metal represents a matrix stage input as one vector attribute per
+                // column at consecutive locations. The vertex data is column-major,
+                // so advance by one column for both the location and byte offset.
+                for (uint32_t column = 0; column < column_count; ++column)
+                {
+                    uint32_t attr_index = stream.m_Location + column;
+                    MTL::VertexAttributeDescriptor* attr = vertex_desc->attributes()->object(attr_index);
+
+                    attr->setFormat(ConvertVertexFormat(stream.m_Type, column_size, stream.m_Normalize));
+                    attr->setOffset(stream.m_Offset + column * column_size * GetTypeSize(stream.m_Type));
+                    attr->setBufferIndex(buffer_index + vx_buffer_start_ix);
+                }
             }
 
             // One layout per vertex buffer
@@ -3593,7 +3640,7 @@ namespace dmGraphics
         context->m_CurrentProgram = 0;
     }
 
-    static bool MetalReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf)
+    static bool MetalReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         MetalContext* context = (MetalContext*) _context;
         MetalProgram* metal_program = (MetalProgram*) program;
