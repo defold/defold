@@ -53,7 +53,7 @@ iap_provider = Amazon
 gcm_sender_id = com.defold.save-data-project
 fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
-proguard = /builtins/manifests/android/dmengine.pro
+r8_keep_rules = /builtins/manifests/android/dmengine.keep
 extract_native_libs = 1
 
 [project]

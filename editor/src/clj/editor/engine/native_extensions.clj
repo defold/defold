@@ -209,8 +209,6 @@
         (resource-node-last-modified app-manifest-resource-node evaluation-context)
         0))))
 
-;; Note: When we do bundling for Android via the editor, we need add
-;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
   (let [project-settings (g/node-value project :settings evaluation-context)]
     (into {}

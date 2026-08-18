@@ -1638,7 +1638,6 @@ form.label.project.android.input_method = Método de Entrada
 form.label.project.android.immersive_mode = Modo Imersivo
 form.label.project.android.display_cutout = Exibir recorte da tela
 form.label.project.android.debuggable = Depurável
-form.label.project.android.proguard = Configuração ProGuard
 form.label.project.android.extract_native_libs = Extrair Bibliotecas Nativas
 
 form.label.project.html5 = HTML5

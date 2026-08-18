@@ -1963,8 +1963,8 @@ form.label.project.android.display_cutout = Display Cutout
 form.help.project.android.display_cutout = Allows fullscreen content to extend into display-cutout areas such as notches and camera holes. Android 15/API 35 and later may enforce this behavior. Use `window.get_safe_area()` to keep important UI inside safe-area insets.
 form.label.project.android.debuggable = Debuggable
 form.help.project.android.debuggable = Sets `android:debuggable` in the manifest, allowing tools such as Android Studio profilers and debuggers to inspect the application and its files. Leave disabled for release builds unless explicitly needed.
-form.label.project.android.proguard = ProGuard Config
-form.help.project.android.proguard = Custom `.pro` rules used when shrinking and obfuscating Java code in the Android build. Add keep rules for code accessed through reflection or JNI so it is not removed or renamed. Leave empty when no project-specific rules are needed.
+form.label.project.android.r8_keep_rules = R8 Keep Rules
+form.help.project.android.r8_keep_rules = A `.keep` file that enables R8 shrinking, optimization, and obfuscation for the Android build. The selected file is the complete project rule set; copy the built-in `dmengine.keep` before customizing it. Leave empty to use D8 without shrinking.
 form.label.project.android.extract_native_libs = Extract Native Libs
 form.help.project.android.extract_native_libs = Controls whether Android extracts native libraries from the package at installation. When disabled, libraries remain uncompressed and load directly from the package; this is required for compatibility with devices using 16 KB memory pages.
 

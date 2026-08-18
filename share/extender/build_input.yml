@@ -397,7 +397,8 @@ platforms:
 
   android:
     env:
-        PROGUARD:                 "{{env.ANDROID_PROGUARD}}"
+        R8:                       "{{env.ANDROID_R8}}"
+        R8_VERSION:               "{{env.ANDROID_R8_VERSION}}"
         LIBRARYJAR:               "{{env.ANDROID_LIBRARYJAR}}"
         NDK_PATH:                 "{{env.ANDROID_NDK_PATH}}"
         SYSROOT:                  "{{env.ANDROID_NDK_SYSROOT}}"
@@ -434,10 +435,11 @@ platforms:
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     # mainDexList is automatically created by listing all classes inside the engine jars
     dxCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/d8 --min-api {{minAndroidSdkVersion}} --main-dex-rules {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
-    proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
-    proGuardSourceRe: '(?i).+(\.pro)$'
+    r8Cmd: 'java -cp "{{{env.R8}}}" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib "{{{env.LIBRARYJAR}}}" {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules "{{{.}}}" {{/mainDexRules}}{{/useMainDexRules}}--pg-map-output "{{{mapping}}}" --no-data-resources --output "{{{classes_dex_dir}}}" {{#rules}}--pg-conf "{{{.}}}" {{/rules}} {{#jars}}"{{{.}}}" {{/jars}}'
+    r8Version: '{{env.R8_VERSION}}'
+    r8RuleSourceRe: '(?i).+(\.keep)$'
     aapt2compileCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
-    aapt2linkCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{env.LIBRARYJAR}} --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
+    aapt2linkCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{env.LIBRARYJAR}} --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} {{#useR8}}--proguard "{{{aaptKeepRules}}}" {{/useR8}}{{#useR8MainDexRules}}--proguard-main-dex "{{{aaptMainDexRules}}}" {{/useR8MainDexRules}}-R @{{resourceListFile}}'
     manifestName:     'AndroidManifest.xml'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 

@@ -270,7 +270,7 @@ public class AndroidBundler implements IBundler {
     */
     private ArrayList<File> getClassesDex(Project project) throws IOException {
         ArrayList<File> classesDex = new ArrayList<>();
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project));
 
         final String extenderExeDir = project.getBinaryOutputDirectory();
         for (Platform architecture : getArchitectures(project)) {
@@ -598,7 +598,7 @@ public class AndroidBundler implements IBundler {
             }
 
             // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)
-            if (ExtenderUtil.hasNativeExtensions(project)) {
+            if (ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project))) {
                 final Platform platform = getFirstPlatform(project);
                 File jniDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/jni");
                 if (jniDir.exists()) {
@@ -734,6 +734,14 @@ public class AndroidBundler implements IBundler {
     /**
     * Copy debug symbols
     */
+    static void copyR8Mapping(File extenderExeDir, Platform architecture, File symbolsDir) throws IOException {
+        File r8Mapping = new File(new File(extenderExeDir, architecture.getExtenderPair()), "mapping.txt");
+        if (r8Mapping.exists()) {
+            File symbolMapping = new File(symbolsDir, r8Mapping.getName());
+            FileUtils.copyFile(r8Mapping, symbolMapping);
+        }
+    }
+
     private void copySymbols(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         final boolean hasSymbols = project.hasOption("with-symbols");
         if (!hasSymbols) {
@@ -758,11 +766,7 @@ public class AndroidBundler implements IBundler {
             }
         }
 
-        File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
-        if (proguardMapping.exists()) {
-            File symbolMapping = new File(symbolsDir, proguardMapping.getName());
-            FileUtils.copyFile(proguardMapping, symbolMapping);
-        }
+        copyR8Mapping(new File(extenderExeDir), architectures.get(0), symbolsDir);
     }
 
     /**
@@ -787,7 +791,7 @@ public class AndroidBundler implements IBundler {
         final Platform platform = getFirstPlatform(project);
 
         File apk;
-        if (ExtenderUtil.hasNativeExtensions(project)) {
+        if (ExtenderUtil.hasNativeExtensions(project, platform)) {
             apk = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/compiledresources.apk");
         }
         else {
