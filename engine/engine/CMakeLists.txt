@@ -110,9 +110,17 @@ endif()
 
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-file(GLOB ENGINE_BOB_PLUGIN_JARS CONFIGURE_DEPENDS "${DEFOLD_SDK_ROOT}/share/java/plugins/*.jar")
+set(ENGINE_BOB_PLUGIN_JARS)
+if(COMMAND defold_append_platform_bob_plugin_jars)
+  defold_append_platform_bob_plugin_jars(ENGINE_BOB_PLUGIN_JARS)
+endif()
 set(ENGINE_BOB_CLASSPATH_LIST "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS})
 cmake_path(CONVERT "${ENGINE_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST ENGINE_BOB_CLASSPATH)
+
+set(ENGINE_SHADER_ENV)
+if(COMMAND defold_get_platform_shader_env)
+  defold_get_platform_shader_env(ENGINE_SHADER_ENV)
+endif()
 
 file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/builtins/*"
@@ -153,7 +161,7 @@ add_custom_command(
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
     "${ENGINE_BUILTINS_STAMP}"
-  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}" ${ENGINE_SHADER_ENV}
     "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
     --work-root "${ENGINE_BUILTINS_WORK_ROOT}"
@@ -175,12 +183,16 @@ add_custom_target(engine_builtins
 if(TARGET bob_light)
   add_dependencies(engine_builtins bob_light)
 endif()
+if(COMMAND defold_add_platform_bob_plugin_dependencies)
+  defold_add_platform_bob_plugin_dependencies(engine_builtins)
+endif()
 
 set(ENGINE_DEBUG_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/materials/debug.spc")
 add_custom_command(
   OUTPUT "${ENGINE_DEBUG_SPC}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/content/materials"
-  COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
+  COMMAND "${CMAKE_COMMAND}" -E env ${ENGINE_SHADER_ENV}
+    "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
     com.dynamo.bob.pipeline.ShaderProgramBuilder
     "${ENGINE_CONTENT_DIR}/materials/debug.fp"
     "${ENGINE_CONTENT_DIR}/materials/debug.vp"

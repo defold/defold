@@ -51,9 +51,28 @@ repositories {
     }
 }
 
+def bobLightDependencyJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
+def bobClasspathManifest = file("${project.bobDir}/lib/bob-classpath.txt")
+def bobClasspathEntries = bobClasspathManifest.readLines('UTF-8')
+        .collect { it.trim() }
+        .findAll { it && !it.startsWith('#') }
+def invalidBobClasspathEntries = bobClasspathEntries.findAll {
+    it.contains('\\') || it.startsWith('/') || it.split('/').contains('..')
+}
+if (!invalidBobClasspathEntries.isEmpty()) {
+    throw new GradleException("Invalid paths in ${bobClasspathManifest}: ${invalidBobClasspathEntries.sort().join(', ')}")
+}
+def duplicateBobClasspathEntries = bobClasspathEntries.countBy { it }.findAll { _, count -> count > 1 }.keySet()
+if (!duplicateBobClasspathEntries.isEmpty()) {
+    throw new GradleException("Duplicate entries in ${bobClasspathManifest}: ${duplicateBobClasspathEntries.sort().join(', ')}")
+}
+def bobClasspathJarFiles = bobClasspathEntries.collect { file("${project.bobDir}/lib/${it}") }
+def bobLightClasspathJarFiles = bobClasspathEntries
+        .findAll { !it.contains('/') }
+        .collect { file("${project.bobDir}/lib/${it}") }
+
 dependencies {
-    implementation fileTree(dir: "${project.bobDir}/lib", include: '*.jar')
-    implementation fileTree(dir: "${project.bobDir}/lib/aws", include: '*.jar')
+    implementation files(bobClasspathJarFiles)
 }
 
 task cleanDirs(type: Delete) {
@@ -134,10 +153,10 @@ sourceSets {
     }
 }
 
-def bobLightDependencyJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
 def bobGitRevision = "git -C ${project.bobDir} log --pretty=%H -n1".execute().text.trim()
 def privateBobPluginModules = []
 def targetPlatform = (project.findProperty('target-platform') ?: '').toString()
+def privatePlatformRoot = ''
 def platformsConfigFile = file("${project.bobDir}/../../.defold-platforms")
 if (targetPlatform && platformsConfigFile.exists()) {
     def platformsConfig = new JsonSlurper().parse(platformsConfigFile)
@@ -145,6 +164,7 @@ if (targetPlatform && platformsConfigFile.exists()) {
     if (platformConfig instanceof Map) {
         if (platformConfig.root) {
             def root = platformConfig.root.toString()
+            privatePlatformRoot = file(root).canonicalPath
             def crDir = file("${root}/com.dynamo.cr")
             if (crDir.isDirectory()) {
                 crDir.eachDirMatch(~/com\.dynamo\.cr\..+/) { moduleDir ->
@@ -171,7 +191,60 @@ if (targetPlatform && platformsConfigFile.exists()) {
 def privateBobPluginClassPath = privateBobPluginModules.collect { "plugins/${it.jarName}" }.join(' ')
 def privateBobPluginJarTasks = []
 
+def readGitRevision = { String repositoryRoot ->
+    if (!repositoryRoot) {
+        return ''
+    }
+    try {
+        def stdout = new ByteArrayOutputStream()
+        def result = services.get(org.gradle.process.ExecOperations).exec {
+            commandLine 'git', '-C', repositoryRoot, 'rev-parse', 'HEAD'
+            standardOutput = stdout
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        return result.exitValue == 0 ? stdout.toString('UTF-8').trim() : 'unversioned'
+    } catch (Exception ignored) {
+        return 'unversioned'
+    }
+}
+
+def bobBuildContext = [
+        "bobRevision=${bobGitRevision}",
+        "targetPlatform=${targetPlatform}",
+        "dynamoHome=${file(project.dynamoHome).canonicalPath}",
+        "privateRoot=${privatePlatformRoot}",
+        "privateRevision=${readGitRevision(privatePlatformRoot)}",
+        "privatePlugins=${privateBobPluginModules.collect { "${it.name}:${it.jarName}" }.sort().join(',')}",
+        "classpath=${bobClasspathEntries.join(',')}"
+].join('\n') + '\n'
+def bobBuildContextFile = file("${project.bobDir}/build/bob-build-context.txt")
+
+task prepareBobBuildContext {
+    inputs.property('buildContext', bobBuildContext)
+    outputs.file(bobBuildContextFile)
+
+    doLast {
+        def previousContext = bobBuildContextFile.exists() ? bobBuildContextFile.getText('UTF-8') : ''
+        if (previousContext != bobBuildContext) {
+            logger.lifecycle("Bob build context changed; invalidating shared generated output")
+            delete project.classesDir,
+                    file("${project.bobDir}/generated"),
+                    file("${project.bobDir}/dist"),
+                    file("${project.bobDir}/tmp"),
+                    file("${project.bobDir}/target"),
+                    file("${project.bobDir}/build/private_plugins"),
+                    file("${project.bobDir}/lib/luajit-share.zip")
+        }
+        bobBuildContextFile.parentFile.mkdirs()
+        bobBuildContextFile.setText(bobBuildContext, 'UTF-8')
+    }
+}
+
+execProtoTasks.dependsOn prepareBobBuildContext
+
 task copyDependencies {
+    dependsOn prepareBobBuildContext
     inputs.file("${project.bobDir}/engine_version_generator.py")
     inputs.file("../../VERSION")
     inputs.property("gitRevision", bobGitRevision)
@@ -194,6 +267,10 @@ task copyDependencies {
             if (!file("${project.bobDir}/lib/$jar").exists()) {
                 throw new RuntimeException("$jar is missing")
             }
+        }
+        def missingClasspathJars = bobClasspathJarFiles.findAll { !it.exists() }
+        if (!missingClasspathJars.isEmpty()) {
+            throw new RuntimeException("Bob classpath jars are missing: ${missingClasspathJars.join(', ')}")
         }
     }
 }
@@ -419,10 +496,11 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     from {
-        fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').collect { zipTree(it) }
+        bobLightClasspathJarFiles.collect { zipTree(it) }
     }
 
-    inputs.files(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files)
+    inputs.file(bobClasspathManifest)
+    inputs.files(bobLightClasspathJarFiles)
     outputs.file("${project.bobDir}/tmp/external-libs-light.jar")
 
     doLast {
@@ -486,16 +564,13 @@ task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGen
     destinationDirectory = file("${project.bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-    Set<File> jarFiles = new HashSet<>()
-
-    jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib/aws", include: '*.jar').files as Set<File>)
-
-    jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files as Set<File>)
+    Set<File> jarFiles = new LinkedHashSet<>(bobClasspathJarFiles)
 
     from {
         jarFiles.collect { zipTree(it) }
     }
 
+    inputs.file(bobClasspathManifest)
     inputs.files(jarFiles)
     outputs.file("${project.bobDir}/tmp/external-libs-builtins.jar")
 

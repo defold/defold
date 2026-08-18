@@ -88,13 +88,20 @@ if(NOT EXISTS "${_GS_BOB_LIGHT}")
   endif()
 endif()
 
-file(GLOB _GS_BOB_PLUGIN_JARS CONFIGURE_DEPENDS "${DEFOLD_SDK_ROOT}/share/java/plugins/*.jar")
+set(_GS_BOB_PLUGIN_JARS)
+if(COMMAND defold_append_platform_bob_plugin_jars)
+  defold_append_platform_bob_plugin_jars(_GS_BOB_PLUGIN_JARS)
+endif()
 set(_GS_BOB_CLASSPATH_LIST "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS})
 set(_GS_BUILTINS_ZIP "${DEFOLD_SDK_ROOT}/share/builtins.zip")
 if(EXISTS "${_GS_BUILTINS_ZIP}")
   list(APPEND _GS_BOB_CLASSPATH_LIST "${_GS_BUILTINS_ZIP}")
 endif()
 cmake_path(CONVERT "${_GS_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST _GS_BOB_CLASSPATH)
+set(_GS_SHADER_ENV)
+if(COMMAND defold_get_platform_shader_env)
+  defold_get_platform_shader_env(_GS_SHADER_ENV)
+endif()
 
 set(_GS_TEST_DATA_FOLDERS_FILE "${GS_TEST_ROOT}/test_data_folders.txt")
 gamesys_read_manifest(_GS_TEST_DATA_FOLDERS "${_GS_TEST_DATA_FOLDERS_FILE}")
@@ -189,6 +196,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     COMMAND "${CMAKE_COMMAND}" -E env
       "DM_BOB_ROOTFOLDER=${_bob_root}"
       "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+      ${_GS_SHADER_ENV}
       "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST}
       -cp "${_GS_BOB_CLASSPATH}"
       com.dynamo.bob.Bob
@@ -208,6 +216,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
     DEPENDS "${_GS_BOB_STAGE_STAMP}" ${_GS_PREVIOUS_CONTENT_STAMP} "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
+    WORKING_DIRECTORY "${_GS_BOB_STAGE_ROOT}"
     WORKING_DIRECTORY "${_GS_BOB_STAGE_ROOT}"
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)
