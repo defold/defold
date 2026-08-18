@@ -284,8 +284,8 @@ set(_DEFOLD_ENGINE_LIBS
   shaderc
   ddf
   platform
-  font
   graphics
+  font
   particle
   lua
   hid

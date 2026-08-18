@@ -19,6 +19,7 @@
 #include <gameobject/script.h>
 #include <gameobject/gameobject.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/gameobject/script.h>
 #include <resource/resource_util.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
@@ -214,10 +215,64 @@ namespace dmGameSystem
         return 2;
     }
 
+    /*# load a collection proxy
+     *
+     * Loads the collection referenced by a collection proxy. The proxy is also
+     * initialized and the callback receives `proxy_loading`, `proxy_ready`, or
+     * `proxy_error` messages.
+     *
+     * @name collectionproxy.load
+     * @param url [type:string|hash|url] the collection proxy component
+     * @param options [type:table|nil] options table, currently unused
+     * @param callback [type:function(self, message_id, message, sender)] callback
+     * @examples
+     *
+     * ```lua
+     * collectionproxy.load("#proxy", nil, function(self, message_id, message, sender)
+     *     if message_id == hash("proxy_ready") then
+     *         print("proxy is ready")
+     *     elseif message_id == hash("proxy_loading") then
+     *         print("progress", message.progress)
+     *     elseif message_id == hash("proxy_error") then
+     *         print("error", message.code)
+     *     end
+     * end)
+     * ```
+     */
+    static int CollectionProxy_Load(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0)
+
+        (void)CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        // index 2 is the options table, ignored for now
+
+        luaL_checktype(L, 3, LUA_TFUNCTION);
+
+        lua_pushvalue(L, 3);
+        // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
+        int functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+
+        dmhash_t message_id = dmHashString64("async_load_and_init");
+        dmMessage::Result r = dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)functionref, 0, 0, 0, 0);
+        if (r != dmMessage::RESULT_OK)
+        {
+            dmGameObject::PostScriptUnrefMessage(&sender, &sender, (uintptr_t)functionref);
+            return luaL_error(L, "collectionproxy.load could not post load message");
+        }
+
+        return 0;
+    }
+
     static const luaL_reg Module_methods[] =
     {
         {"get_resources", CollectionProxy_GetResources},
         {"set_collection", CollectionProxy_SetCollection},
+        {"load", CollectionProxy_Load},
         {0, 0}
     };
 

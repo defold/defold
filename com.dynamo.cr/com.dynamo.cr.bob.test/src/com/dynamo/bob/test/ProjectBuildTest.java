@@ -249,8 +249,8 @@ public class ProjectBuildTest {
         assertEquals("SDL Project Pad", maps.getMappings(0).getDevice());
         assertEquals("Manual Project Pad", maps.getMappings(1).getDevice());
         assertFalse(maps.getMappings(0).hasDeadZone());
-        assertTrue(maps.getMappings(0).hasGuid());
-        assertFalse(maps.getMappings(1).hasGuid());
+        assertTrue(maps.getMappings(0).hasRawMapping());
+        assertFalse(maps.getMappings(1).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(1).getDeadZone(), 0.0f);
     }
 
@@ -290,8 +290,8 @@ public class ProjectBuildTest {
         assertEquals("Xbox 360 Controller", maps.getMappings(0).getDevice());
         assertEquals("Default Manual Pad", maps.getMappings(1).getDevice());
         assertFalse(maps.getMappings(0).hasDeadZone());
-        assertTrue(maps.getMappings(0).hasGuid());
-        assertFalse(maps.getMappings(1).hasGuid());
+        assertTrue(maps.getMappings(0).hasRawMapping());
+        assertFalse(maps.getMappings(1).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(1).getDeadZone(), 0.0f);
     }
 
@@ -335,7 +335,7 @@ public class ProjectBuildTest {
         GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
         assertEquals(1, maps.getMappingsCount());
         assertEquals("Default Manual Pad", maps.getMappings(0).getDevice());
-        assertFalse(maps.getMappings(0).hasGuid());
+        assertFalse(maps.getMappings(0).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 

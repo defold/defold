@@ -287,9 +287,16 @@
                                 (succeeding-selection [_this _evaluation-context])
                                 (alt-selection [_this _evaluation-context]))))
           view-graph (g/node-id->graph-id app-view)
-          console (g/make-node! view-graph console/ConsoleNode)
-          console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]
-      (g/connect! console :_node-id console-view :resource-node)
+
+          [_console console-view]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes view-graph
+                [console console/ConsoleNode
+                 console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
+                (g/connect console :_node-id console-view :resource-node))))]
+
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
@@ -324,7 +331,16 @@
                 (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
                   (is (= "Execute an editor command" (get post-command "summary")))
                   (is (string/includes? (get post-command "description") "`build-html5`"))
-                  (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
+                  (let [commands (get-in post-command ["parameters" 0 "schema" "enum"])]
+                    (is (coll/any? #{"compile"} commands))
+                    (is (coll/any? #{"run"} commands))
+                    (is (coll/not-any? #{"build"} commands)))
+                  (let [focus-parameter (coll/first-where #(= "focus" (get % "name")) (get post-command "parameters"))]
+                    (is (= "query" (get focus-parameter "in")))
+                    (is (string/includes? (get focus-parameter "description") "`run`"))
+                    (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
+            (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
+              (is (= 400 status)))
             (let [{:keys [status headers body]} @(http/request
                                                     (str url "/preview/collection/components/test.gui?width=32&height=32")
                                                     :as :byte-array)]

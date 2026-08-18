@@ -1,0 +1,6 @@
+local unrequired = require("modules.unrequired")
+local path = "/pla"
+
+function init(self)
+    unrequired.init(self)
+end

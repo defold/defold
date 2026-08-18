@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -53,13 +53,13 @@ jobs:
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout repo
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -92,13 +92,13 @@ jobs:
     runs-on: macOS-14 # Apple Silicon (M1)
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -131,13 +131,13 @@ jobs:
     runs-on: macos-15-intel # Last Intel runner on GitHub Actions
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -170,13 +170,13 @@ jobs:
     runs-on: windows-2025-vs2026
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: 2.19.6  # last stable before Dart 3
 

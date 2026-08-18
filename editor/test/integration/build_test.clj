@@ -35,7 +35,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
+           [com.dynamo.gamesys.proto DataProto$Data CollectionProxy$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
@@ -58,7 +58,7 @@
                         "animationsetc" Rig$AnimationSet
                         "meshsetc" Rig$MeshSet
                         "texturesetc" TextureSetProto$TextureSet
-                        "collectionproxyc" GameSystem$CollectionProxyDesc
+                        "collectionproxyc" CollectionProxy$CollectionProxyDesc
                         "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
@@ -183,7 +183,7 @@
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
-                 :pb-class GameSystem$CollectionProxyDesc
+                 :pb-class CollectionProxy$CollectionProxyDesc
                  :resource-fields [:collection]}]
                "/model/book_of_defold_no_tex.model"
                [{:label "Model with empty texture"
@@ -441,7 +441,7 @@
                                               build-artifacts))]
           (is (= 2 (count-exts (keys content-by-target) "goc")))
           (is (= 1 (count-exts (keys content-by-target) "spritec")))))
-      (g/undo! (g/node-id->graph-id project))
+      (g/undo! :undo/global)
       (testing "Verify equivalent sprites are not merged after being changed in memory"
         (test-util/prop! comp-node :blend-mode :blend-mode-add)
         (let [build-artifacts (project-build-artifacts! project resource-node)
@@ -549,7 +549,7 @@
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
             glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
-        (is (= 256 (:cache-height glyph-bank))))))
+        (is (= 512 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
     (with-build-results "/fonts/gradient.font"
       (let [content (get content-by-source "/fonts/gradient.font")
@@ -799,6 +799,8 @@
 (deftest build-game-project-properties
   (with-loaded-project "test/resources/game_project_properties"
                        (let [game-project (test-util/resource-node project "/game.project")]
+                         (game-project/set-setting! game-project ["display" "height"] 1234)
+                         (game-project/set-setting! game-project ["project" "dependencies"] [(URI/create "http://test.com/not-responding.zip")])
                          (let [br (project-build! project game-project)]
                            (is (not (contains? br :error)))
                            (with-open [r (io/reader (build-path workspace "game.projectc"))]
@@ -815,6 +817,9 @@
 
                                ;; Default number value
                                (check-project-setting built-properties ["display" "width"] "960")
+
+                               ;; In-memory setting change
+                               (check-project-setting built-properties ["display" "height"] "1234")
 
                                ;; Custom property
                                (check-project-setting built-properties ["custom" "love"] "defold")

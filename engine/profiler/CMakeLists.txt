@@ -26,7 +26,6 @@ set(PROFILER_DEPENDENCIES
   script
   ${PROFILER_GRAPHICS_DEPENDENCIES}
   render
-  render_font_default
   font
   lua)
 set(PROFILER_BASIC_DEPENDENCIES dlib)

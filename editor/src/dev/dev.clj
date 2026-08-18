@@ -1639,7 +1639,6 @@
 (defn clear-enable-all! []
   (g/forget-logged-evaluation-context-scope-violations!)
   (clear-caches!)
-  (handler/enable-disabled-handlers!)
-  (ui/enable-stopped-timers!)
+  (ui/enable-disabled-functionality!)
   (println "Re-enabled all disabled handlers and timers")
   nil)

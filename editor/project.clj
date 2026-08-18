@@ -35,8 +35,11 @@
 
   :local-repo       ~(pathname (local-maven-repository-directory))
 
-  :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
+  :plugins          [[dev.weavejester/lein-cljfmt "0.16.4"]
+                     [lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
+
+  :cljfmt           {:load-config-file? true}
 
   :dependencies     [[org.clojure/clojure                         "1.12.0"]
                      [org.clojure/core.cache                      "0.7.1"]
@@ -88,7 +91,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.9"
+                     [cljfx "1.10.10"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -232,6 +235,9 @@
                                                       [commons-io/commons-io "2.4"]
                                                       [prismatic/schema "1.1.9"]
                                                       [org.luaj/luaj-jse "3.0.1"]
+                                                      ;; editor.code.data reaches util.diff,
+                                                      ;; which needs jgit
+                                                      [org.eclipse.jgit/org.eclipse.jgit "7.6.0.202603022253-r"]
                                                       ;; normally, we get this from bob,
                                                       ;; but docs are built before bob
                                                       [org.antlr/antlr4-runtime "4.9.1"]]}
@@ -345,7 +351,7 @@
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.0.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.7.0.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.7.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"

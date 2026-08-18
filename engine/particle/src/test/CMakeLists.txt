@@ -55,3 +55,15 @@ endif()
 if(TARGET run_test_particle)
   add_dependencies(run_test_particle particle_test_data)
 endif()
+
+defold_add_executable(test_particle_null "${PARTICLE_TEST_ROOT}/test_particle_null.cpp")
+target_include_directories(test_particle_null PRIVATE
+  "${PARTICLE_TEST_ROOT}"
+  "${PARTICLE_ROOT}/src"
+  "${PARTICLE_ROOT}/proto"
+  "${CMAKE_CURRENT_BINARY_DIR}/../..")
+defold_target_link_libraries(test_particle_null "${TARGET_PLATFORM}"
+  ddf
+  dlib
+  particle_null)
+defold_register_test_target(test_particle_null ON "${PARTICLE_ROOT}")

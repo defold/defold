@@ -536,6 +536,7 @@
 
 (defn- setup-view! [console-node view-node]
   (g/transact
+    {:undoable false}
     (concat
       (g/connect console-node :_node-id view-node :resource-node)
       (g/connect console-node :indent-type view-node :indent-type)
@@ -731,17 +732,24 @@
 (defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
-        view-node (setup-view! (g/make-node! graph ConsoleNode)
-                               (g/make-node! graph view/CodeEditorView
-                                             :canvas canvas
-                                             :canvas-width (.getWidth canvas)
-                                             :canvas-height (.getHeight canvas)
-                                             :color-scheme console-color-scheme
-                                             :grammar console-grammar
-                                             :gutter-view (ConsoleGutterView.)
-                                             :highlighted-find-term (.getValue find-term-property)
-                                             :line-height-factor 1.2
-                                             :resize-reference :bottom))
+
+        [console-node view-node]
+        (g/tx-nodes-added
+          (g/transact
+            {:undoable false}
+            [(g/make-node graph ConsoleNode)
+             (g/make-node graph view/CodeEditorView
+                          :canvas canvas
+                          :canvas-width (.getWidth canvas)
+                          :canvas-height (.getHeight canvas)
+                          :color-scheme console-color-scheme
+                          :grammar console-grammar
+                          :gutter-view (ConsoleGutterView.)
+                          :highlighted-find-term (.getValue find-term-property)
+                          :line-height-factor 1.2
+                          :resize-reference :bottom)]))
+
+        view-node (setup-view! console-node view-node)
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs localization)
         on-region-click! (fn on-region-click! [region ^MouseEvent event]
                            (when (= :resource-reference (:type region))
@@ -769,8 +777,16 @@
     (ui/add-child! canvas-pane canvas)
     (.bind (.widthProperty canvas) (.widthProperty canvas-pane))
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
-    (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
-    (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+    (ui/observe (.widthProperty canvas)
+                (fn [_observable _old width]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-width width))))
+    (ui/observe (.heightProperty canvas)
+                (fn [_observable _old height]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-height height))))
 
     ;; Configure canvas.
     (doto canvas

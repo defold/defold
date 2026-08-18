@@ -256,6 +256,9 @@ TEST_F(PropsTest, PropsSpawn)
     dmScript::PushQuat(L, Quat(1, 2, 3, 4));
     lua_setfield(L, -2, "quat");
 
+    lua_pushliteral(L, "spawned text");
+    lua_setfield(L, -2, "text");
+
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
     lua_pop(L, 1);
 
@@ -273,6 +276,27 @@ TEST_F(PropsTest, PropsSpawnNoProperties)
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
+}
+
+TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+
+    lua_pushlstring(L, "embedded\0null", 13);
+    dmGameObject::PropertyVar var;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, dmGameObject::LuaToVar(L, -1, var));
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    lua_pushlstring(L, "embedded\0null", 13);
+    lua_setfield(L, -2, "text");
+
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ((dmGameObject::HPropertyContainer)0, properties);
 }
 
 TEST_F(PropsTest, PropsRelativeURL)
@@ -679,6 +703,26 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::SetPropertyFromURL(instance, 0, hash("position"), seturl);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
+    const char* gettext;
+    char settext[] = "runtime text with a longer value";
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_STREQ("override text", gettext);
+    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("text"), settext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    settext[0] = 'X';
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_STREQ("runtime text with a longer value", gettext);
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("number"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("number"), "invalid");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromFloat(instance, hash("script"), hash("text"), 1.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromText(instance, 0, hash("position"), "invalid");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+
     dmGameObject::Delete(m_Collection, instance, false);
 }
 
@@ -747,6 +791,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     dmhash_t hashFirst = dmHashString64("hash_first");
     const char urlStringFirst[] = "url_string_first";
     const char urlStringSecond[] = "url_string_second";
+    const char textFirst[] = "hello text";
     const char urlFirst[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
@@ -762,6 +807,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     params.m_NumberCount = 2;
     params.m_HashCount = 1;
     params.m_URLStringCount = 2;
+    params.m_TextCount = 1;
     params.m_URLCount = 1;
     params.m_Vector3Count = 2;
     params.m_Vector4Count = 1;
@@ -769,6 +815,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     params.m_BoolCount = 2;
     params.m_URLStringSize += strlen("url_string_first") + 1;
     params.m_URLStringSize += strlen("url_string_second") + 1;
+    params.m_TextSize += strlen(textFirst) + 1;
     dmGameObject::HPropertyContainerBuilder builder = dmGameObject::PropertyContainerCreateBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
     dmGameObject::PropertyContainerPushFloat(builder, dmHashString64("NumberFirst"), numberFirst);
@@ -776,6 +823,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     dmGameObject::PropertyContainerPushHash(builder, dmHashString64("HashFirst"), hashFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
+    dmGameObject::PropertyContainerPushText(builder, dmHashString64("TextFirst"), textFirst, (uint32_t) strlen(textFirst));
     dmGameObject::PropertyContainerPushURL(builder, dmHashString64("URLFirst"), urlFirst);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3First"), vector3First);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3Second"), vector3Second);
@@ -828,6 +876,9 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("BoolSecond"), var));
     ASSERT_EQ(dmGameObject::PROPERTY_TYPE_BOOLEAN, var.m_Type);
     ASSERT_EQ(boolSecond, var.m_Bool);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("TextFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_TEXT, var.m_Type);
+    ASSERT_STREQ(textFirst, var.m_Text);
     dmGameObject::PropertyContainerDestroy(c);
 }
 

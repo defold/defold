@@ -277,11 +277,15 @@ endif()
 
 defold_add_library(image STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 
 defold_add_library(image_noasan STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image_noasan PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image_noasan PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image_noasan
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(image_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(image_null STATIC "${DLIB_CORE_DIR}/image_null.cpp")
@@ -305,11 +309,15 @@ set_target_properties(profile_null_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET d
 
 defold_add_library(profile STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
-target_compile_definitions(profile PUBLIC ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(profile
+  PUBLIC ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 
 defold_add_library(profile_noasan STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile_noasan PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
-target_compile_definitions(profile_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(profile_noasan
+  PUBLIC ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(profile_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")

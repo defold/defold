@@ -495,6 +495,15 @@ namespace dmGameObject
         }
     }
 
+    HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash) {
+        uintptr_t user_data;
+        if (dmScript::GetUserData(L, &user_data, script_instance_type_hash)) {
+            return (HInstance)user_data;
+        } else {
+            return 0;
+        }
+    }
+
     Result PostScriptMessage(const dmDDF::Descriptor* payload_descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
     {
         dmArray<uint8_t> msg_buffer;
@@ -553,7 +562,7 @@ namespace dmGameObject
      * - index [type:number] index into array property (1 based)
      * - key [type:hash] name of internal property
      * - keys [type:table] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
-     * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value of the specified property
+     * @return value [type:number|boolean|hash|string|url|vector3|vector4|quaternion|resource] the value of the specified property
      *
      * @examples
      * Get a property "speed" from a script "player", the property must be declared in the player-script:
@@ -696,7 +705,7 @@ namespace dmGameObject
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
-     * @param value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value to set
+     * @param value [type:number|boolean|hash|string|url|vector3|vector4|quaternion|resource] the value to set
      * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
@@ -1986,7 +1995,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name [type:string] the id of the property
-     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource|boolean] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
+     * @param value [type:number|hash|string|url|vector3|vector4|quaternion|resource|boolean] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected. Strings are stored as null-terminated UTF-8 and cannot contain embedded null bytes.
      * @examples
      *
      * This example demonstrates how to define a property called "health" in a script.
@@ -2006,6 +2015,13 @@ namespace dmGameObject
      *         print("Ouch! My health is now: " .. self.health)
      *     end
      * end
+     * ```
+     *
+     * Text properties can contain UTF-8 and newline characters:
+     *
+     * ```lua
+     * go.property("player_name", "Player One")
+     * go.property("dialogue", "First line\nSecond line")
      * ```
      */
     int Script_Property(lua_State* L)
@@ -2516,6 +2532,17 @@ bail:
                 return PROPERTY_RESULT_OK;
             }
         }
+        n = defs->m_TextEntries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const PropertyDeclarationEntry& entry = defs->m_TextEntries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_TEXT;
+                out_var.m_Text = defs->m_StringValues[entry.m_Index];
+                return PROPERTY_RESULT_OK;
+            }
+        }
         return PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -2690,6 +2717,16 @@ bail:
             CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_BOOLEAN, result)
             lua_pushstring(L, entry.m_Key);
             lua_pushboolean(L, var.m_Bool);
+            lua_settable(L, index - 2);
+        }
+        count = declarations->m_TextEntries.m_Count;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const PropertyDeclarationEntry& entry = declarations->m_TextEntries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_TEXT, result)
+            lua_pushstring(L, entry.m_Key);
+            lua_pushstring(L, var.m_Text);
             lua_settable(L, index - 2);
         }
         return PROPERTY_RESULT_OK;

@@ -194,12 +194,13 @@ typedef enum WindowState
  * @member m_Samples [type:uint32_t] Requested multisample anti-aliasing sample count (default: 1)
  * @member m_BackgroundColor [type:uint32_t] Initial window background color value
  * @member m_ContextAlphabits [type:uint8_t] Requested alpha bits for the graphics context
- * @member m_OpenGLVersionHint [type:uint8_t:7] OpenGL version hint encoded as major*10 + minor (for example 33 means OpenGL 3.3)
+ * @member m_GraphicsApiVersionHint [type:uint8_t:7] Graphics API version hint
  * @member m_OpenGLUseCoreProfileHint [type:uint8_t:1] Request OpenGL core profile when opening the window
  * @member m_Hidden [type:uint8_t:1] Start window hidden
  * @member m_Fullscreen [type:uint8_t:1] Start window in fullscreen mode
  * @member m_PrintDeviceInfo [type:uint8_t:1] Print graphics device information when opening the window
  * @member m_HighDPI [type:uint8_t:1] Request high-DPI framebuffer support where available
+ * @member m_FocusOnShow [type:uint8_t:1] Focus the window when shown on desktop platforms (default: 1)
  */
 typedef struct WindowCreateParams
 {
@@ -219,20 +220,21 @@ typedef struct WindowCreateParams
     uint32_t                m_Samples;
     uint32_t                m_BackgroundColor;
     uint8_t                 m_ContextAlphabits;
-    uint8_t                 m_OpenGLVersionHint         : 7;
+    uint8_t                 m_GraphicsApiVersionHint    : 7;
     uint8_t                 m_OpenGLUseCoreProfileHint  : 1;
     uint8_t                 m_Hidden                    : 1;
     uint8_t                 m_Fullscreen                : 1;
     uint8_t                 m_PrintDeviceInfo           : 1;
     uint8_t                 m_HighDPI                   : 1;
-    uint8_t                                             : 4;
+    uint8_t                 m_FocusOnShow               : 1;
+    uint8_t                                             : 3;
 } WindowCreateParams;
 
 /*# initialize window parameters
  * Initializes a WindowCreateParams struct with default values.
  * The struct is first cleared to zero, then `m_Width` is set to 640,
- * `m_Height` is set to 480, `m_Samples` is set to 1, and
- * `m_Title` is set to "Defold Application".
+ * `m_Height` is set to 480, `m_Samples` is set to 1,
+ * `m_Title` is set to "Defold Application", and `m_FocusOnShow` is set to 1.
  * @name WindowCreateParamsInitialize
  * @param params [type:WindowCreateParams*] the params struct
  */

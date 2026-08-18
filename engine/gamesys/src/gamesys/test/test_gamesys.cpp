@@ -60,6 +60,7 @@
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
 #include "../components/comp_model.h"
+#include "../components/comp_private.h"
 #include "../components/comp_collection_proxy.h"
 #include "../scripts/script_sys_gamesys.h"
 #include "../scripts/script_resource.h"
@@ -123,6 +124,7 @@ namespace dmGameSystem
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
     extern void GetModelWorldInstanceRenderBuffer(void* model_world, dmRender::HBufferedRenderBuffer* instance_buffer);
     extern void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count);
+    extern void GetModelWorldScratchConstantBuffers(void* model_world, dmGameSystem::HComponentRenderConstants** constant_buffers, uint32_t* count);
     extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
     extern void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
@@ -916,6 +918,34 @@ TEST_F(ResourceFolderTest, TestCreateTextureFromScript)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+// Verify that resource.create_texture_async() keeps its callback and upload buffer alive after
+// the coroutine that created the request has finished and has been garbage collected.
+TEST_F(ResourceFolderTest, TestCreateTextureAsyncFromCoroutine)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad   = 1;
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture_async_from_coroutine.goc", dmHashString64("/create_texture_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(ResourceFolderTest, TestCreateSoundDataFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -1408,6 +1438,120 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     lua_getglobal(L, "cp_single_target_finalized");
     ASSERT_TRUE(lua_toboolean(L, -1) != 0);
     lua_pop(L, 1);
+}
+
+TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* go_path = "/collection_proxy/script_load_api.goc";
+    dmhash_t go_hash = dmHashString64("/go");
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool callback1_ready = false;
+    bool callback2_error = false;
+    for (uint32_t i = 0; i < 64; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+
+        lua_getglobal(L, "cp_script_load1_ready");
+        callback1_ready = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        
+        lua_getglobal(L, "cp_script_load2_error");
+        callback2_error = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(callback1_ready);
+    ASSERT_TRUE(callback2_error);
+
+    lua_getglobal(L, "cp_script_load_legacy_posted");
+    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_error");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_loading_count");
+    ASSERT_GE((int)lua_tointeger(L, -1), 1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_last_progress");
+    ASSERT_NEAR(1.0f, (float)lua_tonumber(L, -1), 0.01f);
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+}
+
+// Uses script_load_cancel_requester.script
+TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadDeleteProxyWhileLoading)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_proxy.goc", dmHashString64("/proxy"));
+    ASSERT_NE((void*)0, proxy_go);
+
+    dmGameObject::HInstance requester_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_requester.goc", dmHashString64("/requester"));
+    ASSERT_NE((void*)0, requester_go);
+
+    // Let the requester script start collectionproxy.load() against the proxy object.
+    // The requester must stay alive after the proxy is deleted, otherwise script instance
+    // cleanup would hide a leaked callback reference owned by the requester.
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    // assert that the init function of script_load_cancel_requester.script
+    // has run successfully
+    lua_getglobal(L, "cp_script_load_cancel_started");
+    ASSERT_TRUE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // assert that the proxy started loading
+    lua_getglobal(L, "cp_script_load_cancel_loading");
+    ASSERT_TRUE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, proxy_go, true);
+    // Flush the delete before another update can complete the preloader normally.
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+    }
+
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    // The script stores a weak reference to the callback. If the engine still
+    // holds m_AsyncLoadAndInitCallbackRef, the callback value remain reachable
+    // after GC.
+    lua_getglobal(L, "cp_script_load_cancel_refs");
+    ASSERT_TRUE(lua_istable(L, -1));
+    lua_getfield(L, -1, "callback");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    // assert that the proxy did not finish loading
+    lua_getglobal(L, "cp_script_load_cancel_ready");
+    ASSERT_FALSE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // assert that no error occurred
+    lua_getglobal(L, "cp_script_load_cancel_error");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, requester_go, true);
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
 }
 
 TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadInitialize)
@@ -2500,6 +2644,26 @@ TEST_F(ParticleFxTest, PlayAnim)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verify that particlefx.play() can capture and invoke an emitter callback when called from a coroutine.
+// The callback must be read from the coroutine's Lua stack; reading it from the main thread's stack
+// causes coroutine.resume() to fail with an unrelated value as its error object.
+TEST_F(ParticleFxTest, PlayAnimFromCoroutine)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play_from_coroutine.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool tests_done = false;
+    WaitForTestsDone(100, true, &tests_done);
+
+    if (!tests_done)
+    {
+        dmLogError("The playback didn't finish");
+    }
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ParticleFxTest, GetSetProperties)
 {
     dmGameSystem::MaterialResource *material;
@@ -3443,6 +3607,45 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     free(ttf_data);
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(FontTest, OpenTypeResource)
+{
+    const char* otf_path = "/font/SourceCodePro-Regular.otf";
+    uint32_t data_size = 0;
+    uint8_t* data = dmTestUtil::ReadHostFile("src/gamesys/test/font/SourceCodePro-Regular.otf", &data_size);
+    ASSERT_NE((uint8_t*)0, data);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, otf_path, data_size, data));
+
+    dmGameSystem::TTFResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, otf_path, (void**)&resource));
+    ASSERT_NE((dmGameSystem::TTFResource*)0, resource);
+
+    HFont font = dmGameSystem::GetFont(resource);
+    uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
+    ASSERT_NE(0u, glyph_index);
+    FontGlyphOptions options;
+    options.m_Scale = FontGetScaleFromSize(font, 32);
+    options.m_GenerateImage = true;
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, glyph_index, &options, &glyph));
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    ASSERT_EQ(FONT_RESULT_OK, FontFreeGlyph(font, &glyph));
+
+    dmGameSystem::FontResource* font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font_resource));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font_resource);
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    uint32_t font_count = FontCollectionGetFontCount(font_collection);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontAddFontByPath(m_Factory, font_resource, otf_path));
+    ASSERT_EQ(font_count + 1, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontRemoveFont(m_Factory, font_resource, dmHashString64(otf_path)));
+    ASSERT_EQ(font_count, FontCollectionGetFontCount(font_collection));
+    dmResource::Release(m_Factory, font_resource);
+
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, otf_path));
+    dmMemory::AlignedFree(data);
 }
 
 TEST_F(WindowTest, MouseLock)
@@ -4976,6 +5179,39 @@ TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(LabelComponentTest, LabelTextProperty)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+    const dmhash_t text_id = dmHashString64("text");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc desc;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_TEXT, desc.m_Variant.m_Type);
+    ASSERT_STREQ("Label", desc.m_Variant.m_Text);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar("Runtime label text")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_STREQ("Runtime label text", desc.m_Variant.m_Text);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar(1.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_STREQ("Runtime label text", desc.m_Variant.m_Text);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar("")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_STREQ("", desc.m_Variant.m_Text);
+}
+
 TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
 {
     const dmhash_t go_id = dmHashString64("/go");
@@ -4997,16 +5233,14 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
     ASSERT_GT(initial_metrics.m_Width, 0.0f);
     ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
 
-    PostLabelSetText(m_Collection, go_id, label_id, "Label Label Label", (uintptr_t)go);
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar("Label Label Label")));
 
     dmRender::TextMetrics text_metrics = {};
     dmGameSystem::CompLabelGetTextMetrics(label_component, text_metrics);
     ASSERT_GT(text_metrics.m_Width, initial_metrics.m_Width);
     ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
 
-    dmGameObject::PropertyOptions options;
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("tracking"), options, dmGameObject::PropertyVar(1.0f)));
 
     dmRender::TextMetrics tracking_metrics = {};
@@ -6906,6 +7140,11 @@ INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_p
 #define F2T3 2.0f/3.0f
 const CursorTestParams cursor_properties[] = {
 
+    // Playback none should apply the initial cursor and keep it unchanged,
+    // regardless of the animation frame rate.
+    {"anim_none_0",     0.5f, 1.0f, {0.5f, 0.5f}, 2},
+    {"anim_none_60",    0.5f, 1.0f, {0.5f, 0.5f}, 2},
+
     // Forward & backward
     {"anim_once",       0.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5},
     {"anim_once",      -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5}, // Same as above, but cursor should be clamped
@@ -6924,6 +7163,7 @@ const CursorTestParams cursor_properties[] = {
 
     // Cursor start
     {"anim_once",          0.5f, 1.0f, {0.5f, 0.75f, 1.0f, 1.0f}, 4},
+    {"anim_once_back",    0.25f, 1.0f, {0.75f, 0.5f, 0.25f, 0.0f, 0.0f}, 5},
     {"anim_once_back",     0.5f, 1.0f, {0.5f, 0.25f, 0.0f, 0.0f}, 4},
     {"anim_loop",          0.5f, 1.0f, {0.5f, 0.75f, 0.0f, 0.25f, 0.5f, 0.75f, 0.0f}, 7},
     {"anim_loop_back",     0.5f, 1.0f, {0.5f, 0.25f, 1.0f, 0.75f, 0.5f, 0.25f, 1.0f}, 7},
@@ -9145,6 +9385,20 @@ TEST_F(SysTest, LoadBufferASync)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verify that sys.load_buffer_async() keeps its callback alive after the coroutine that created
+// the request has finished and has been garbage collected.
+TEST_F(SysTest, LoadBufferAsyncFromCoroutine)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async_from_coroutine.goc", dmHashString64("/load_buffer_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done", 3));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
 
 TEST_F(ShaderTest, Compute)
@@ -9534,6 +9788,130 @@ TEST_F(ModelTest, MorphTargetUniformWeightsSplitInstancedBatches)
     ASSERT_EQ(0, world_batch_count);
     ASSERT_EQ(0, local_batch_count);
     ASSERT_EQ(2, local_instanced_batch_count);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// One model component can hold meshes with different morph target counts, but the blend weights are
+// stored once per component. Each mesh must only apply as many of them as it has morph targets, the
+// rest are ignored (model.set_blend_weights). Without the per mesh clamp the mesh with fewer targets
+// keeps the extra weights and samples morph texture layers outside its own range, which corrupts it.
+// morph_mixed_targets.gltf has one mesh with two targets and one with a single target.
+TEST_F(ModelTest, MorphTargetInstancedWeightsClampedPerMesh)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_mixed_targets_attr.goc", dmHashString64("/morph"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    const float weights[] = { 0.25f, 0.75f };
+    dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*) component, weights, DM_ARRAY_SIZE(weights));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void*    model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    struct MorphInstanceData
+    {
+        float mtx_world[16];
+        float mtx_normal[16];
+        float morph_targets_weights[16];
+    };
+
+    dmRender::BufferedRenderBuffer* instance_buffer = 0;
+    dmGameSystem::GetModelWorldInstanceRenderBuffer(model_world, &instance_buffer);
+    ASSERT_NE((dmRender::BufferedRenderBuffer*)0, instance_buffer);
+    ASSERT_EQ(1u, instance_buffer->m_Buffers.Size());
+
+    // The meshes are rendered in separate batches, but both write into the same instance buffer.
+    dmGraphics::HVertexBuffer vx_buffer_handle = instance_buffer->m_Buffers[0];
+    dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer_handle;
+    ASSERT_EQ(2u * sizeof(MorphInstanceData), dmGraphics::GetVertexBufferSize(vx_buffer_handle));
+
+    const MorphInstanceData* instances = (const MorphInstanceData*) gfx_vx_buffer->m_Buffer;
+    bool found_two_targets = false;
+    bool found_one_target = false;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        const float* w = instances[i].morph_targets_weights;
+        found_two_targets |= dmMath::Abs(w[0] - 0.25f) < EPSILON && dmMath::Abs(w[1] - 0.75f) < EPSILON;
+        found_one_target  |= dmMath::Abs(w[0] - 0.25f) < EPSILON && dmMath::Abs(w[1]) < EPSILON;
+        ASSERT_NEAR(0.0f, w[2], EPSILON);
+        ASSERT_NEAR(0.0f, w[3], EPSILON);
+    }
+    ASSERT_TRUE(found_two_targets);
+    ASSERT_TRUE(found_one_target);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Same per mesh clamp as above, but for materials that take the weights as a uniform instead of an
+// instance attribute. The weights are written to a scratch constant buffer per render object.
+TEST_F(ModelTest, MorphTargetUniformWeightsClampedPerMesh)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_mixed_targets_legacy.goc", dmHashString64("/morph"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    const float weights[] = { 0.25f, 0.75f };
+    dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*) component, weights, DM_ARRAY_SIZE(weights));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void*    model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    dmGameSystem::HComponentRenderConstants* constant_buffers = 0;
+    uint32_t constant_buffer_count = 0;
+    dmGameSystem::GetModelWorldScratchConstantBuffers(model_world, &constant_buffers, &constant_buffer_count);
+    ASSERT_EQ(2u, constant_buffer_count);
+
+    bool found_two_targets = false;
+    bool found_one_target = false;
+    for (uint32_t i = 0; i < constant_buffer_count; ++i)
+    {
+        dmRender::HNamedConstantBuffer buffer = dmGameSystem::GetRenderConstantsNamedBuffer(constant_buffers[i]);
+
+        dmVMath::Vector4* values = 0;
+        uint32_t num_values = 0;
+        ASSERT_TRUE(dmRender::GetNamedConstant(buffer, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, &values, &num_values));
+        ASSERT_EQ(1u, num_values);
+
+        found_two_targets |= dmMath::Abs(values[0].getX() - 0.25f) < EPSILON && dmMath::Abs(values[0].getY() - 0.75f) < EPSILON;
+        found_one_target  |= dmMath::Abs(values[0].getX() - 0.25f) < EPSILON && dmMath::Abs(values[0].getY()) < EPSILON;
+        ASSERT_NEAR(0.0f, values[0].getZ(), EPSILON);
+        ASSERT_NEAR(0.0f, values[0].getW(), EPSILON);
+    }
+    ASSERT_TRUE(found_two_targets);
+    ASSERT_TRUE(found_one_target);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

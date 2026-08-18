@@ -29,11 +29,12 @@
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type ui/ext-value :value parent}
    :props {:children [{:fx/type markdown/html-view
-                       :root-props {:style-class "md-page-root"}
                        :anchor-pane/top 0
                        :anchor-pane/right 0
                        :anchor-pane/bottom 0
                        :anchor-pane/left 0
+                       :root-props {:style-class "md-page-root"}
+                       :style-class "md-page-scroll-pane"
                        :html html
                        :project project
                        :base-resource resource}]}})
@@ -55,6 +56,7 @@
   (let [view-node (first
                     (g/tx-nodes-added
                       (g/transact
+                        {:undoable false}
                         (g/make-nodes graph [view [HtmlViewNode :parent parent]]
                           (g/connect html-node :html view :html)
                           (g/connect html-node :resource view :resource)

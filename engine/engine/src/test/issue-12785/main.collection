@@ -1,0 +1,17 @@
+name: "issue-12785"
+scale_along_z: 0
+instances {
+  id: "loader"
+  prototype: "/issue-12785/loader.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

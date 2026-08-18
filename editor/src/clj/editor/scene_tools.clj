@@ -556,7 +556,6 @@
         start-pos (action->manip-pos start-action lead-transform active-manip manip-rotation project-fn)
         manipulations-fn (make-drag-manipulations-fn manip-opts active-manip manip-origin original-values initial-evaluation-context)]
     {:active-manip active-manip
-     :initial-evaluation-context initial-evaluation-context
      :lead-transform lead-transform
      :manip-origin manip-origin
      :manip-rotation manip-rotation
@@ -594,6 +593,7 @@
                                viewport (g/node-value self :viewport initial-evaluation-context)
                                drag-start-state (make-drag-start-state manip-opts original-values manip manip-space action camera viewport initial-evaluation-context)]
                            (g/transact
+                             {:undoable false}
                              (concat
                                (g/set-property self :drag-start-state drag-start-state)
                                (g/set-property self :preview-overrides {})
@@ -613,6 +613,7 @@
                                 (g/operation-sequence op-seq)
                                 commit-tx-data)))
                           (g/transact
+                            {:undoable false}
                             (concat
                               (g/set-property self :drag-start-state nil)
                               (g/set-property self :preview-overrides nil)
@@ -626,15 +627,23 @@
                          preview-overrides (:node-id->prop-kw->override-value combined-manipulations)]
                      (when (or (not (coll/empty? preview-tx-data))
                                (not (coll/empty? preview-overrides)))
-                       (g/transact
-                         (concat
-                           (g/operation-sequence op-seq)
-                           (g/set-property self :preview-overrides preview-overrides)
-                           preview-tx-data)))
+                       (when (not (coll/empty? preview-overrides))
+                         (g/transact
+                           {:undoable false}
+                           (concat
+                             (g/operation-sequence op-seq)
+                             (g/set-property self :preview-overrides preview-overrides))))
+                       (when (not (coll/empty? preview-tx-data))
+                         (g/transact
+                           (concat
+                             (g/operation-sequence op-seq)
+                             preview-tx-data))))
                      nil)
                    (let [manip (first (get selection-data self))]
                      (when (not= manip (g/node-value self :hot-manip))
-                       (g/transact (g/set-property self :hot-manip manip)))
+                       (g/transact
+                         {:undoable false}
+                         (g/set-property self :hot-manip manip)))
                      action))
     action))
 

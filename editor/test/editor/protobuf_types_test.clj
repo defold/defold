@@ -156,7 +156,7 @@
 (deftest load-order-sanity
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world project-path)
-          proj-graph (g/make-graph! :history true :volatility 1)
+          proj-graph (g/make-graph! :volatility 1)
           extensions (extensions/make proj-graph)
           project (project/make-project proj-graph workspace extensions)]
       (let [node-id+resource-pairs

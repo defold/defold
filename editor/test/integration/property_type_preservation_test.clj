@@ -118,22 +118,20 @@
                                   (properties-view/edit-type->type (:edit-type (coalesced-property node-id prop-kw)))))
 
 (defmethod test-property-widget! g/Num [node-id prop-kw]
-  (let [graph-id (g/node-id->graph-id node-id)
-        original-value (g/node-value node-id prop-kw)
+  (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         [num-field] (test-util/editable-controls widget)]
-    (with-open [_ (test-util/make-graph-reverter graph-id)]
+    (with-open [_ (test-util/make-system-reverter)]
       (test-util/set-control-value! num-field 0.11)
       (let [modified-value (g/node-value node-id prop-kw)]
         (is (not= original-value modified-value))
         (test-util/ensure-number-type-preserving! original-value modified-value)))))
 
 (defn- test-vector-property-widget! [node-id prop-kw]
-  (let [graph-id (g/node-id->graph-id node-id)
-        original-value (g/node-value node-id prop-kw)
+  (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         check! (fn check! [num-field num-value]
-                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (test-util/set-control-value! num-field num-value)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
@@ -154,11 +152,10 @@
   (test-vector-property-widget! node-id prop-kw))
 
 (defmethod test-property-widget! t/Color [node-id prop-kw]
-  (let [graph-id (g/node-id->graph-id node-id)
-        original-value (g/node-value node-id prop-kw)
+  (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         [color-input] (test-util/editable-controls widget)]
-    (with-open [_ (test-util/make-graph-reverter graph-id)]
+    (with-open [_ (test-util/make-system-reverter)]
       (test-util/set-control-value! color-input "#fff")
       (let [modified-value (g/node-value node-id prop-kw)]
         (is (not= original-value modified-value))
@@ -166,12 +163,11 @@
         (test-util/ensure-number-type-preserving! original-value modified-value)))))
 
 (defmethod test-property-widget! :slider [node-id prop-kw]
-  (let [graph-id (g/node-id->graph-id node-id)
-        original-value (g/node-value node-id prop-kw)
+  (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         [value-field slider] (test-util/editable-controls widget)
         check! (fn check! [perform-edit!]
-                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
@@ -180,12 +176,11 @@
     (check! #(test-util/set-control-value! slider 0.22))))
 
 (defmethod test-property-widget! Curve [node-id prop-kw]
-  (let [graph-id (g/node-id->graph-id node-id)
-        original-value (g/node-value node-id prop-kw)
+  (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         [edit-curve-button value-field] (test-util/editable-controls widget)
         check! (fn check! [perform-edit!]
-                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
@@ -194,12 +189,11 @@
     (check! #(test-util/set-control-value! value-field 0.11))))
 
 (defmethod test-property-widget! CurveSpread [node-id prop-kw]
-  (let [graph-id (g/node-id->graph-id node-id)
-        original-value (g/node-value node-id prop-kw)
+  (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         [edit-curve-button value-field spread-field] (test-util/editable-controls widget)
         check! (fn check! [perform-edit!]
-                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
@@ -222,7 +216,7 @@
                            [prop-kw decorated-value])))
                   original-property-values)
 
-            graph-id (g/make-graph! :history true)
+            graph-id (g/make-graph!)
             node-id (apply g/make-node! graph-id NumericPropertiesNode (mapcat identity property-values))]
         (doseq [prop-kw (sort (keys (:properties (g/node-value node-id :_properties))))]
           (testing (format "Types preserved after editing (property %s)" (name prop-kw))

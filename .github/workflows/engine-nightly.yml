@@ -32,11 +32,11 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'macos' }}
     runs-on: macos-26-intel
     steps: [
-      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.2
+      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -58,20 +58,20 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
          if: failure(),
-         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+         with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                 payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-linux-x64:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'linux-x64' }}
     runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.2
+      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -97,20 +97,20 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
          if: failure(),
-         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+         with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                 payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-linux-arm64:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'linux-arm64' }}
     runs-on: ubuntu-22.04-arm
     steps: [
-      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.2
+      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -136,10 +136,10 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
          if: failure(),
-         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+         with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                 payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-web:
@@ -153,7 +153,7 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Setup Node', uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f, with: { node-version: '22', package-manager-cache: false } }, # v6.3.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.2
+      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -173,20 +173,20 @@ jobs:
       },
       {
        name: 'Notify if build status changed',
-       uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+       uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
        if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+       with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+               payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-win:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'windows' }}
     runs-on: windows-2025-vs2026
     steps: [
-      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.2
+      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -200,8 +200,8 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
          if: failure(),
-         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+         with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                 payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]

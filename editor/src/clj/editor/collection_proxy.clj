@@ -26,7 +26,7 @@
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]))
+  (:import [com.dynamo.gamesys.proto CollectionProxy$CollectionProxyDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -52,7 +52,7 @@
 
 (g/defnk produce-save-value
   [collection-resource exclude]
-  (protobuf/make-map-without-defaults GameSystem$CollectionProxyDesc
+  (protobuf/make-map-without-defaults CollectionProxy$CollectionProxyDesc
     :collection (resource/resource->proj-path collection-resource)
     :exclude exclude))
 
@@ -62,7 +62,7 @@
                        (:pb-msg user-data)
                        (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource
-     :content (protobuf/map->bytes GameSystem$CollectionProxyDesc pb-msg)}))
+     :content (protobuf/map->bytes CollectionProxy$CollectionProxyDesc pb-msg)}))
 
 (g/defnk produce-build-targets
   [_node-id resource save-value dep-build-targets collection]
@@ -79,10 +79,10 @@
             :deps dep-build-targets})])))
 
 (defn load-collection-proxy [_project self resource collection-proxy-desc]
-  {:pre [(map? collection-proxy-desc)]} ; GameSystem$CollectionProxyDesc in map format.
+  {:pre [(map? collection-proxy-desc)]} ; CollectionProxy$CollectionProxyDesc in map format.
   (let [basis (g/now)
         resolve-resource #(workspace/resolve-resource basis resource %)]
-    (gu/set-properties-from-pb-map self GameSystem$CollectionProxyDesc collection-proxy-desc
+    (gu/set-properties-from-pb-map self CollectionProxy$CollectionProxyDesc collection-proxy-desc
       collection (resolve-resource :collection)
       exclude :exclude)))
 
@@ -107,7 +107,7 @@
             (dynamic tooltip (properties/tooltip-dynamic :collection-proxy :collection)))
 
   (property exclude g/Bool
-            (default (protobuf/default GameSystem$CollectionProxyDesc :exclude))
+            (default (protobuf/default CollectionProxy$CollectionProxyDesc :exclude))
             (dynamic label (properties/label-dynamic :collection-proxy :exclude))
             (dynamic tooltip (properties/tooltip-dynamic :collection-proxy :exclude)))
 
@@ -119,8 +119,8 @@
                                                               :label (localization/message "outline.collection-proxy")
                                                               :icon collection-proxy-icon}
 
-                                                             (resource/resource? collection)
-                                                             (assoc :link collection :outline-reference? false))))
+                                                       (resource/resource? collection)
+                                                       (assoc :link collection :outline-reference? false))))
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
@@ -130,12 +130,12 @@
   (resource-node/register-ddf-resource-type workspace
     :ext "collectionproxy"
     :node-type CollectionProxyNode
-    :ddf-type GameSystem$CollectionProxyDesc
+    :ddf-type CollectionProxy$CollectionProxyDesc
     :load-fn load-collection-proxy
     :icon collection-proxy-icon
     :icon-class :property
     :category (localization/message "resource.category.components")
-    :view-types [:cljfx-form-view :text]
+    :view-types [:form :text]
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}

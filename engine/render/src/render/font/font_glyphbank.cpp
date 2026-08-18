@@ -159,7 +159,13 @@ static FontResult GBGetGlyph(HFont hfont, uint32_t glyph_index, const FontGlyphO
             uint8_t* data = (uint8_t*)bank->m_GlyphData.m_Data;
             uint8_t* glyph_data = GetPointer(data, g->m_GlyphDataOffset);
 
-            out->m_Bitmap.m_DataSize = (uint32_t)g->m_GlyphDataSize;
+            // The glyph blob is laid out as [1 byte compression flag][payload], and
+            // m_GlyphDataSize covers both (see Fontc.java: cache_entry_size = 1 + bytes.length).
+            // Skip the flag byte for the data pointer, and drop it from the size as well,
+            // otherwise the reported buffer reaches one byte past the payload. For the last
+            // glyph in the bank that byte is outside the glyph data allocation entirely,
+            // which faults when the allocation happens to end on a page boundary.
+            out->m_Bitmap.m_DataSize = (uint32_t)g->m_GlyphDataSize - 1;
             out->m_Bitmap.m_Data = glyph_data + 1;
             out->m_Bitmap.m_Flags = glyph_data[0] | FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED;
             out->m_Bitmap.m_Width = out->m_Width + cell_padding_2;

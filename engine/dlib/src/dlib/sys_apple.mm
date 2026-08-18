@@ -325,8 +325,14 @@ namespace dmSys
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
 
-        NSString *device_language = [[NSLocale preferredLanguages]objectAtIndex:0];
-        dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));
+        NSArray* preferred_languages = [NSLocale preferredLanguages];
+        if ([preferred_languages count] > 0)
+        {
+            SystemInfo preferred_info;
+            NSString* preferred_language = [preferred_languages objectAtIndex:0];
+            FillLanguageTerritory([preferred_language UTF8String], &preferred_info);
+            dmStrlCpy(info->m_DeviceLanguage, preferred_info.m_DeviceLanguage, sizeof(info->m_DeviceLanguage));
+        }
     }
 
     void GetSecureInfo(SystemInfo* info)
@@ -390,6 +396,15 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+
+        NSArray* preferred_languages = [NSLocale preferredLanguages];
+        if ([preferred_languages count] > 0)
+        {
+            SystemInfo preferred_info;
+            NSString* preferred_language = [preferred_languages objectAtIndex:0];
+            FillLanguageTerritory([preferred_language UTF8String], &preferred_info);
+            dmStrlCpy(info->m_DeviceLanguage, preferred_info.m_DeviceLanguage, sizeof(info->m_DeviceLanguage));
+        }
     }
 
     void GetSecureInfo(SystemInfo* info)

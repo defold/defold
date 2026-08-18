@@ -206,6 +206,12 @@ namespace dmGraphics
         // allows us to disable ASTC only for array textures without disabling
         // ASTC entirely.
         uint32_t                m_ASTCArrayTextureSupport          : 1;
+        // ETC1 payloads are bit-exact subsets of ETC2 (RGB8). When set, ETC1
+        // textures are uploaded as GL_COMPRESSED_RGB8_ETC2, which is required
+        // on WebGL2 contexts that expose WEBGL_compressed_texture_etc but not
+        // WEBGL_compressed_texture_etc1 (Safari), and is the only legal
+        // internalformat for ETC1 data in array textures.
+        uint32_t                m_RGB8ETC2Support                  : 1;
         uint32_t                m_3DTextureSupport                 : 1;
         uint32_t                m_BlendEquationMinMaxSupport       : 1;
     };

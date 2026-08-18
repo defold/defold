@@ -286,25 +286,18 @@ namespace dmSys
 
         jclass    locale_class = env->FindClass("java/util/Locale");
         jmethodID get_default_method = env->GetStaticMethodID(locale_class, "getDefault", "()Ljava/util/Locale;");
-        jmethodID get_country_method = env->GetMethodID(locale_class, "getCountry", "()Ljava/lang/String;");
-        jmethodID get_language_method = env->GetMethodID(locale_class, "getLanguage", "()Ljava/lang/String;");
+        // Preserve the Locale's explicit BCP 47 script subtag, if present.
+        // https://developer.android.com/reference/java/util/Locale#toLanguageTag()
+        jmethodID to_language_tag_method = env->GetMethodID(locale_class, "toLanguageTag", "()Ljava/lang/String;");
         jobject   locale = (jobject)env->CallStaticObjectMethod(locale_class, get_default_method);
-        jstring   countryObj = (jstring)env->CallObjectMethod(locale, get_country_method);
-        jstring   languageObj = (jstring)env->CallObjectMethod(locale, get_language_method);
+        jstring   language_tag_obj = (jstring)env->CallObjectMethod(locale, to_language_tag_method);
 
         char      lang[32] = { 0 };
-        if (languageObj)
+        if (language_tag_obj)
         {
-            const char* language = env->GetStringUTFChars(languageObj, NULL);
-            dmStrlCpy(lang, language, sizeof(lang));
-            env->ReleaseStringUTFChars(languageObj, language);
-        }
-        if (countryObj)
-        {
-            dmStrlCat(lang, "_", sizeof(lang));
-            const char* country = env->GetStringUTFChars(countryObj, NULL);
-            dmStrlCat(lang, country, sizeof(lang));
-            env->ReleaseStringUTFChars(countryObj, country);
+            const char* language_tag = env->GetStringUTFChars(language_tag_obj, NULL);
+            dmStrlCpy(lang, language_tag, sizeof(lang));
+            env->ReleaseStringUTFChars(language_tag_obj, language_tag);
         }
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);

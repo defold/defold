@@ -54,6 +54,7 @@
     :script-property-type-vector4  :property-type-vector4
     :script-property-type-quat     :property-type-quat
     :script-property-type-boolean  :property-type-boolean
+    :script-property-type-text     :property-type-text
     :script-property-type-resource :property-type-hash))
 
 (defn script-property-type->property-type
@@ -67,6 +68,7 @@
     :script-property-type-vector4 t/Vec4
     :script-property-type-quat t/Vec3
     :script-property-type-boolean g/Bool
+    :script-property-type-text g/Str
     :script-property-type-resource resource/Resource))
 
 (def resource-kind->workspace->extensions

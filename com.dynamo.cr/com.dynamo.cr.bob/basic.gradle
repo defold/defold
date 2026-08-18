@@ -16,6 +16,7 @@ ext {
             [dir: "../../engine/gameobject/proto", file: "gameobject/lua_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/atlas_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/camera_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/collectionproxy_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/gamesys_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/gui_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/label_ddf.proto"],

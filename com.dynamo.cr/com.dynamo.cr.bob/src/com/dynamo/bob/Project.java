@@ -414,6 +414,8 @@ public class Project implements AutoCloseable {
                         !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
                         !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        !className.startsWith("com.dynamo.bob.font.FontRenderer") &&
+                        !className.startsWith("com.dynamo.bob.font.generated.") &&
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
@@ -428,7 +430,7 @@ public class Project implements AutoCloseable {
                 BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                 if (builderParams != null) {
                     for (String inExt : builderParams.inExts()) {
-                        extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                        extToBuilder.put(StringUtil.toLowerCase(inExt), (Class<? extends Builder>) klass);
                         ResourceUtil.registerMapping(inExt, builderParams.outExt());
                     }
                     Builder.addParamsDigest(klass, this.getOptions(), builderParams);
@@ -499,7 +501,7 @@ public class Project implements AutoCloseable {
     }
 
     private Class<? extends Builder> getBuilderFromExtension(String input) {
-        String ext = "." + FilenameUtils.getExtension(input);
+        String ext = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(input));
         Class<? extends Builder> builderClass = extToBuilder.get(ext);
         return builderClass;
     }
@@ -1426,6 +1428,10 @@ public class Project implements AutoCloseable {
             Map<String, String> appmanifestOptions = new HashMap<>();
             appmanifestOptions.put("baseVariant", variant);
             appmanifestOptions.put("withSymbols", Boolean.toString(withSymbols));
+            // Used as d8 --min-api. Below API 24 d8 desugars static/default interface methods and
+            // emits synthetic $desugar$clinit fields that Google Play Automatic Protection rejects.
+            appmanifestOptions.put("minAndroidSdkVersion", Integer.toString(
+                    projectProperties.getIntValue("android", "minimum_sdk_version", 21)));
 
             if (hasOption("build-artifacts")) {
                 String s = option("build-artifacts", "");

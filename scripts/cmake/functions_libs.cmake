@@ -26,9 +26,12 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   engine_service_null
   extension
   font
+  font_render
   font_skribidi
   gameobject
   gamesys
+  gamesys_gui
+  gamesys_particle
   gamesys_model
   gamesys_model_null
   gamesys_rig
@@ -64,6 +67,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   mbedtls_noasan
   model
   particle
+  particle_null
   physics
   physics_2d
   physics_2d_defold
@@ -83,7 +87,6 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   record
   record_null
   render
-  render_font_default
   resource
   rig
   rig_null
@@ -386,9 +389,9 @@ endfunction()
 function(defold_get_gamesys_libraries out_var)
   defold_feature_enabled(box2dv3 _with_box2dv3)
   if(_with_box2dv3)
-    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d)
+    set(_gamesys_libs gamesys gamesys_gui gamesys_particle gamesys_model gamesys_rig script_box2d)
   else()
-    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d_defold)
+    set(_gamesys_libs gamesys gamesys_gui gamesys_particle gamesys_model gamesys_rig script_box2d_defold)
   endif()
   set(${out_var} ${_gamesys_libs} PARENT_SCOPE)
 endfunction()

@@ -199,6 +199,11 @@ namespace dmGameObject
         m_Type = PROPERTY_TYPE_BOOLEAN;
         m_Bool = v;
     }
+    PropertyVar::PropertyVar(const char* v)
+    {
+        m_Type = PROPERTY_TYPE_TEXT;
+        m_Text = v;
+    }
 
     PropertyVar::PropertyVar(Matrix4 v)
     {
@@ -874,17 +879,17 @@ namespace dmGameObject
         UndoNewInstance(hcollection->m_Collection, instance);
     }
 
-    bool CreateComponents(Collection* collection, HInstance instance) {
+    CreateResult CreateComponents(Collection* collection, HInstance instance) {
         DM_PROFILE("CreateComponents");
 
         Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
-        bool ok = true;
         if (proto->m_ComponentCount > 0xFFFF ) {
             dmLogWarning("Too many components in game object: %u (max is 65536)", proto->m_ComponentCount);
-            return false;
+            return CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
+        CreateResult r = CREATE_RESULT_OK;
         for (uint32_t i = 0; i < proto->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
@@ -919,12 +924,12 @@ namespace dmGameObject
             }
             else
             {
-                ok = false;
+                r = create_result;
                 break;
             }
         }
 
-        if (!ok)
+        if (CREATE_RESULT_OK != r)
         {
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < components_created; ++i)
@@ -949,10 +954,10 @@ namespace dmGameObject
             }
         }
 
-        return ok;
+        return r;
     }
 
-    bool CreateComponents(HCollection hcollection, HInstance instance) {
+    CreateResult CreateComponents(HCollection hcollection, HInstance instance) {
         return CreateComponents(hcollection->m_Collection, instance);
     }
 
@@ -1008,8 +1013,8 @@ namespace dmGameObject
         }
         HInstance instance = NewInstance(hcollection, proto, prototype_name);
         if (instance != 0) {
-            bool result = CreateComponents(hcollection, instance);
-            if (!result) {
+            CreateResult result = CreateComponents(hcollection, instance);
+            if (result != CREATE_RESULT_OK) {
                 // We can not call Delete here. Delete call DestroyFunction for every component
                 ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
@@ -1266,7 +1271,7 @@ namespace dmGameObject
             }
         }
 
-        bool success = CreateComponents(collection, instance);
+        bool success = CreateComponents(collection, instance) == CREATE_RESULT_OK;
         if (!success) {
             ReleaseIdentifier(collection, instance);
             UndoNewInstance(collection, instance);
@@ -1581,7 +1586,7 @@ namespace dmGameObject
             assert(instance_id);
 
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, *instance_id);
-            bool success = dmGameObject::CreateComponents(collection, instance);
+            bool success = dmGameObject::CreateComponents(collection, instance) == CREATE_RESULT_OK;
             if (success) {
                 created.Push(instance);
                 // Set properties
@@ -2839,16 +2844,21 @@ namespace dmGameObject
         // 1. for each fixed step, call component's fixed update
         //      - Lua fixed_update() (comp_script.cpp)
         //      - CompCollisionObjectFixedUpdate() (comp_collision_object.cpp)
+        // Keep running subsequent update phases after a component error. The engine
+        // still renders the collection, and late update prepares component render data.
         for (uint32_t step = 0; step < num_fixed_steps; ++step)
         {
-            ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params);
+            if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params))
+                ret = false;
         }
 
         // 2. call component's regular update
-        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params);
+        if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params))
+            ret = false;
 
         // 3. call component's late update
-        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params);
+        if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params))
+            ret = false;
 
         collection->m_InUpdate = 0;
         if (collection->m_DirtyTransforms)
@@ -3805,6 +3815,25 @@ namespace dmGameObject
         return result;
     }
 
+    PropertyResult GetPropertyAsText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char** out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_TEXT == out_prop.m_Variant.m_Type)
+            {
+                *out_value = out_prop.m_Variant.m_Text;
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+
     PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value)
     {
         PropertyOptions options;
@@ -4190,6 +4219,14 @@ namespace dmGameObject
         return r;
     }
 
+    PropertyResult SetPropertyFromText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char* value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+
     PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value)
     {
         PropertyOptions options;
@@ -4233,8 +4270,8 @@ namespace dmGameObject
         dmHashClone64(&new_instance->m_CollectionPathHashState, &instance->m_CollectionPathHashState, true);
         new_instance->m_Generated = instance->m_Generated;
         HCollection hcollection = collection->m_HCollection;
-        bool res = CreateComponents(hcollection, new_instance);
-        if (!res) {
+        CreateResult res = CreateComponents(hcollection, new_instance);
+        if (res != CREATE_RESULT_OK) {
             dmHashRelease64(&new_instance->m_CollectionPathHashState);
             DeallocInstance(new_instance);
             return;

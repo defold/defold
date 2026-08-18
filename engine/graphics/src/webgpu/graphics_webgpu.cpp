@@ -301,7 +301,9 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
         case TEXTURE_FORMAT_RGBA_ASTC_12X12:
             return WGPUTextureFormat_ASTC12x12Unorm;
         case TEXTURE_FORMAT_RGB_BC1:
-            return WGPUTextureFormat_Undefined;
+            // WebGPU has no RGB-only BC1 format. DXT1 blocks are bit-identical either way,
+            // and opaque blocks decode with alpha = 1.0, so the RGBA variant is used here.
+            return WGPUTextureFormat_BC1RGBAUnorm;
         case TEXTURE_FORMAT_RGBA_BC3:
             return WGPUTextureFormat_BC3RGBAUnorm;
         case TEXTURE_FORMAT_RGBA_BC7:
@@ -1336,6 +1338,18 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
+    }
+    if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionETC2))
+    {
+        // ETC1 payloads decode identically under ETC2, so an ETC2 capable adapter can consume
+        // them as-is (uploaded with the ETC2RGB8Unorm format, see WebGPUFormatFromTextureFormat).
+        // The OpenGL/Vulkan/Metal adapters key ETC1 support off ETC2 capability in the same way.
+        // Without this, adapters without BC support (typically mobile) have no compressed option
+        // at all for RGB content and fall back to uncompressed RGB.
+        // R_ETC2/RG_ETC2 are deliberately left out: they have neither a format mapping here nor
+        // an entry in GetTextureFormatCompressedBlockSize().
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ETC2;
     }
 
     context->m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
@@ -2985,7 +2999,7 @@ static void WebGPUDisableProgram(HContext _context)
     context->m_CurrentProgram = NULL;
 }
 
-static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
+static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
 {
     TRACE_CALL;
 

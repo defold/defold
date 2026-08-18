@@ -20,6 +20,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
+#include <extension/extension.hpp>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -250,7 +251,7 @@ namespace dmGameSystem
 
         if (top > 1 && !lua_isnil(L, 2))
         {
-            data.m_CallbackInfo = dmScript::CreateCallback(dmScript::GetMainThread(L), -1);
+            data.m_CallbackInfo = dmScript::CreateCallback(L, 2);
             if (data.m_CallbackInfo == 0x0)
             {
                 return DM_LUA_ERROR("particlefx.play failed to create callback");
@@ -486,4 +487,14 @@ namespace dmGameSystem
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
     }
+
+    static dmExtension::Result ScriptParticleFXInitialize(dmExtension::Params* params)
+    {
+        ScriptLibContext context;
+        context.m_LuaState = params->m_L;
+        ScriptParticleFXRegister(context);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibParticleFX, "ScriptParticleFX", 0, 0, ScriptParticleFXInitialize, 0, 0, 0)
 }

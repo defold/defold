@@ -15,6 +15,9 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
             [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
             [editor.code.script :as script])
   (:import (java.io IOException)
@@ -1732,6 +1735,221 @@
         (is (= {:lines ["''''"]
                 :cursor-ranges [#code/range [[0 4] [0 4]]]}
                (key-typed ["''''"] [(c 0 3)] "'")))))))
+
+(defn- apply-lines
+  "The lines that result from applying edits, or the lines as they were if there are none"
+  [lines edits]
+  (if (seq edits)
+    (:lines (data/apply-edits lines [] [] edits))
+    lines))
+
+(deftest format-document-edits-test
+  (letfn [(format-lines [lines replacement-lines]
+            (apply-lines lines (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]])))]
+    (testing "preserves additions and removals of the final newline"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a"] ["a" ""]
+        ["a" ""] ["a"]
+        [""] ["" ""]
+        ["" ""] [""]))
+    (testing "preserves final-newline changes alongside line changes"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a"] ["b" ""]
+        ["a" ""] ["b"]))
+    (testing "adds the final newline once when the last row is stripped of whitespace"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a" "   "] ["a" ""]
+        ["a" "\t"] ["a" ""]
+        ["a" "b" "   "] ["a" "b" ""]
+        ["a" "   " "   "] ["a" "" ""]))
+    (testing "deleting a blank row is preserved"
+      (are [lines edits]
+        (= (apply-lines lines edits)
+           (apply-lines lines (data/format-document-edits lines edits)))
+        ["" "b" "c"] [[(cr [0 0] [1 0]) [""]]]
+        ["a" "" "b"] [[(cr [1 0] [2 0]) [""]]]
+        ["a" "" ""] [[(cr [1 0] [2 0]) [""]]]))
+    (testing "an edit without a trailing newline joins rows rather than replacing them"
+      (are [lines edits]
+        (= (apply-lines lines edits)
+           (apply-lines lines (data/format-document-edits lines edits)))
+        ["a" "" "b"] [[(cr [0 0] [1 0]) ["a"]]]
+        ["a" "" ""] [[(cr [0 0] [1 0]) ["a"]]]
+        ;; The join must not claim the blank row the next edit deletes.
+        ["a" "" ""] [[(cr [0 0] [1 0]) ["a"]]
+                     [(cr [1 0] [2 0]) [""]]]))))
+
+(def ^:private format-line-gen
+  (gen/elements ["" " " "  " "\t" "a" "b" "a b" "  a" "a  "]))
+
+(defn- whole-row-edit [lines begin-row end-row replacement-rows join?]
+  (let [replacement-rows (if (seq replacement-rows) replacement-rows [""])]
+    (if (< end-row (count lines))
+      [(cr [begin-row 0] [end-row 0])
+       (if join? replacement-rows (conj replacement-rows ""))]
+      (let [last-row (dec end-row)]
+        [(cr [begin-row 0] [last-row (count (lines last-row))])
+         replacement-rows]))))
+
+(defn- whole-row-edits
+  [lines runs]
+  (let [row-count (count lines)]
+    (loop [row 0
+           [[gap span-rows replacement-rows join?] & more] runs
+           edits []]
+      (if (nil? gap)
+        edits
+        (let [begin-row (+ row (long gap))
+              end-row (+ begin-row (long span-rows))]
+          (if (< row-count end-row)
+            edits
+            ;; The next edit may start where this one ends, but not before.
+            (recur end-row
+                   more
+                   (conj edits (whole-row-edit lines begin-row end-row replacement-rows join?)))))))))
+
+(defspec format-document-edits-preserves-applied-lines 300
+  ;; format-document-edits splits edits into finer-grained ones so cursors stay
+  ;; put, which must never change the lines the edits produce.
+  (prop/for-all
+    [[lines edits] (gen/let [lines (gen/vector format-line-gen 1 10)
+                             runs (gen/vector (gen/tuple (gen/choose 0 2)
+                                                         (gen/choose 1 3)
+                                                         (gen/vector format-line-gen 0 4)
+                                                         gen/boolean)
+                                              1 3)]
+                     [lines (whole-row-edits lines runs)])]
+    (= (apply-lines lines edits)
+       (apply-lines lines (data/format-document-edits lines edits)))))
+
+(deftest format-document-edits-minimality-test
+  (letfn [(document-edits [lines replacement-lines]
+            (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]]))]
+    (testing "only rewrites the part of a row that changed"
+      (is (= [[(cr [1 0] [1 8]) ["    "]]]
+             (document-edits ["local function f()" "        return 1" "end" ""]
+                             ["local function f()" "    return 1" "end" ""])))
+      (testing "respacing edits the gaps, leaving the words between them alone"
+        (is (= [[(cr [0 7] [0 7]) [" "]]
+                [(cr [0 8] [0 8]) [" "]]]
+               (document-edits ["local x=1" ""]
+                               ["local x = 1" ""]))))
+      (testing "rewrites the whole row when it changed in more than spacing"
+        (is (= [[(cr [0 0] [0 11]) ["local y = 1"]]]
+               (document-edits ["local x = 1" ""]
+                               ["local y = 1" ""])))))
+    (testing "rewrites a hunk in one go when it changes the row count"
+      (is (= [[(cr [1 0] [1 5]) ["  b1()" "  b2()"]]]
+             (document-edits ["a()" "  b()" "c()" ""]
+                             ["a()" "  b1()" "  b2()" "c()" ""]))))
+    (testing "an already formatted document yields no edits"
+      (is (= [] (document-edits ["local function f()" "    return 1" "end" ""]
+                                ["local function f()" "    return 1" "end" ""]))))
+    (testing "edits that do not span the whole document pass through untouched"
+      (are [lines edits]
+        (= edits (data/format-document-edits lines edits))
+        ;; more than one edit, so the server already sent minimal edits
+        ["ab" "cd" ""] [[(cr [0 0] [0 1]) ["x"]] [(cr [1 0] [1 1]) ["y"]]]
+        ;; a single edit that stops short of the document end
+        ["ab" "cd" ""] [[(cr [0 0] [0 1]) ["x"]]]
+        ;; a single edit that does not start at the document start
+        ["ab" "cd" ""] [[(cr [0 1] [2 0]) ["x"]]]))))
+
+(deftest format-document-edits-preservation-test
+  (letfn [(format-document [lines regions cursor-ranges replacement-lines]
+            (data/apply-edits
+              lines
+              regions
+              cursor-ranges
+              (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]])))]
+    (let [lines ["local function f()" "        return 1" "end" ""]
+          replacement-lines ["local function f()" "    return 1" "end" ""]]
+      (testing "cursors outside the reindented row keep their position"
+        (is (= [(c 0 5) (c 2 1)]
+               (:cursor-ranges (format-document lines [] [(c 0 5) (c 2 1)] replacement-lines)))))
+      (testing "a cursor on the reindented row stays on the same character"
+        ;; col 10 and col 6 are both two characters into "return"
+        (is (= [(c 1 6)]
+               (:cursor-ranges (format-document lines [] [(c 1 10)] replacement-lines)))))
+      (testing "a selection on the reindented row still covers the same text"
+        (is (= [(cr [1 4] [1 10])]
+               (:cursor-ranges (format-document lines [] [(cr [1 8] [1 14])] replacement-lines))))))
+    (let [lines ["    self.rotation=0" ""]
+          replacement-lines ["    self.rotation = 0" ""]]
+      (testing "a cursor beside a respaced operator stays beside it"
+        (is (= [(c 0 18)]
+               (:cursor-ranges (format-document lines [] [(c 0 17)] replacement-lines))))))
+    (let [lines ["local function f()" "        return 1" "end" ""]
+          replacement-lines ["local function f()" "    return 1" "end" ""]]
+      (testing "breakpoints outside the reindented row survive"
+        (is (= [#code/range [[2 0] [2 3] :type :breakpoint]]
+               (:regions (format-document lines
+                                          [#code/range [[2 0] [2 3] :type :breakpoint]]
+                                          []
+                                          replacement-lines))))))
+    (testing "cursors after an inserted row move down with it"
+      (is (= [(c 2 1)]
+             (:cursor-ranges (format-document ["a()" "c()" ""] [] [(c 1 1)]
+                                              ["a()" "b()" "c()" ""])))))
+    (testing "cursors after a removed row move up with it"
+      (is (= [(c 1 1)]
+             (:cursor-ranges (format-document ["a()" "b()" "c()" ""] [] [(c 2 1)]
+                                              ["a()" "c()" ""])))))))
+
+(deftest format-row-spans-test
+  (let [lines ["local a=1" "" "local b=2" "" "local c=3" ""]]
+    (testing "expands a selection to whole rows"
+      (is (= [(cr [0 0] [0 9])]
+             (data/format-row-spans lines [(cr [0 3] [0 6])]))))
+    (testing "trims the blank rows a selection drags in"
+      (are [cursor-range]
+        (= [(cr [2 0] [2 9])] (data/format-row-spans lines [cursor-range]))
+        (cr [2 0] [2 9]) ; no blank rows to trim
+        (cr [3 0] [2 0]) ; dragged up from the blank row below
+        (cr [1 0] [3 0]))) ; blank rows at both ends
+    (testing "merges runs less than two rows apart"
+      (is (= [(cr [0 0] [2 9])]
+             (data/format-row-spans lines [(cr [0 0] [0 9]) (cr [2 0] [2 9])]))))
+    (testing "keeps runs further apart separate"
+      (is (= [(cr [0 0] [0 9]) (cr [4 0] [4 9])]
+             (data/format-row-spans lines [(cr [0 0] [0 9]) (cr [4 0] [4 9])]))))
+    (testing "a selection of only blank rows has nothing to format"
+      (is (= [] (data/format-row-spans lines [(cr [3 0] [3 0])]))))))
+
+(deftest format-range-edits-test
+  (let [lines ["local a=1" "" "local b=2" "" "local c=3" ""]
+        ;; servers answer a row range with an edit ending where the next row starts
+        edits [[(cr [2 0] [3 0]) ["local b = 2" ""]]]]
+    (testing "an edit covering rows in the middle is diffed like a whole document"
+      (is (= [[(cr [2 7] [2 7]) [" "]]
+              [(cr [2 8] [2 8]) [" "]]]
+             (data/format-document-edits lines edits))))
+    (testing "an edit ending where its own row ends means the same thing"
+      (is (= (data/format-document-edits lines edits)
+             (data/format-document-edits lines [[(cr [2 0] [2 9]) ["local b = 2"]]]))))
+    (testing "the rows outside the edit are left alone"
+      (is (= ["local a=1" "" "local b = 2" "" "local c=3" ""]
+             (:lines (data/apply-edits lines [] [] (data/format-document-edits lines edits))))))
+    (testing "a cursor in the formatted rows keeps its place"
+      (is (= [(c 2 8)]
+             (:cursor-ranges (data/apply-edits lines [] [(c 2 7)]
+                                               (data/format-document-edits lines edits))))))
+    (testing "a range that runs past the document end is clamped to it"
+      (is (= ["local a=1" "" "local b=2" "" "local c = 3"]
+             (:lines (data/apply-edits
+                       lines [] []
+                       (data/format-document-edits
+                         lines [[(cr [4 0] [9 0]) ["local c = 3"]]]))))))
+    (testing "edits that do not cover whole rows pass through untouched"
+      (are [edits]
+        (= edits (data/format-document-edits lines edits))
+        ;; an insertion in the middle of a row
+        [[(cr [2 0] [2 0]) ["x"]]]
+        ;; a range starting past the last row, which a server should never send
+        [[(cr [6 0] [6 0]) ["x"]]]))))
 
 (deftest apply-edits-test
   (is (= {:lines ["ab=1"]
