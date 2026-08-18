@@ -395,15 +395,7 @@ namespace dmGraphics
             extra_msg = "Reason: Compute shaders are not supported.";
         }
 
-        dmLogError("Unable to get a valid shader from a ShaderDesc for this context (shader count: %u). %s",
-            shader_desc->m_Shaders.m_Count, extra_msg);
-        for (uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
-        {
-            ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
-            dmLogError("  Shader %u: type=%d language=%d variant_texture_array=%d supported=%d",
-                i, shader->m_ShaderType, shader->m_Language, shader->m_VariantTextureArray,
-                IsShaderLanguageSupported(context, shader->m_Language, shader->m_ShaderType));
-        }
+        dmLogError("Unable to get a valid shader from a ShaderDesc for this context. %s", extra_msg);
         return 0;
     }
 
