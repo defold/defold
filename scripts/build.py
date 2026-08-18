@@ -176,10 +176,6 @@ PACKAGES_HOST=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
-HOST_TARGET_ONLY_PACKAGE_PREFIXES=(
-    "protobuf-",
-)
-
 PACKAGES_IOS_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
@@ -1131,11 +1127,6 @@ class Configuration(object):
         target_platform = self.target_platform
         other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
-        def packages_for_platform(platform, packages):
-            if platform in (self.host, target_platform):
-                return packages
-            return [package for package in packages if not package.startswith(HOST_TARGET_ONLY_PACKAGE_PREFIXES)]
-
         if target_platform in ['wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
             for package in PACKAGES_NODE_MODULES:
@@ -1146,7 +1137,7 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = packages_for_platform(platform, PLATFORM_PACKAGES.get(platform, []))
+            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if package not in PACKAGES_HOST]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -1156,7 +1147,7 @@ class Configuration(object):
         for base_platform in base_platforms:
             packages = list(PACKAGES_HOST)
             packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
-            packages = list(dict.fromkeys(packages_for_platform(base_platform, packages)))
+            packages = list(dict.fromkeys(packages))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths.extend(make_private_package_paths(base_platform, build_private.get_install_host_packages(base_platform)))
             package_paths = [path for path in package_paths if path not in installed_packages]
@@ -1166,7 +1157,7 @@ class Configuration(object):
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
 
-        target_packages = packages_for_platform(self.target_platform, PLATFORM_PACKAGES.get(self.target_platform, []))
+        target_packages = PLATFORM_PACKAGES.get(self.target_platform, [])
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
