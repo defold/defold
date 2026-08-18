@@ -451,6 +451,7 @@ task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLib
                     'lib/**/*modelc_shared*',
                     'lib/**/*shaderc_shared*',
                     'lib/**/*fontc_shared*'
+            exclude '**/*dSYM.zip'
         }
     }
     from project.classesDir
@@ -489,15 +490,24 @@ task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLib
     }
 
     doLast {
-        def hostFontcPrefix = "lib/${project.hostPlatform}/"
+        def hostFontcLibraryNames = [
+                'x86_64-macos': 'libfontc_shared.dylib',
+                'arm64-macos': 'libfontc_shared.dylib',
+                'x86_64-linux': 'libfontc_shared.so',
+                'arm64-linux': 'libfontc_shared.so',
+                'x86_64-win32': 'fontc_shared.dll'
+        ]
+        def hostFontcLibraryName = hostFontcLibraryNames[project.hostPlatform]
+        if (!hostFontcLibraryName) {
+            throw new GradleException("Unsupported host platform: ${project.hostPlatform}")
+        }
+        def hostFontcPath = "lib/${project.hostPlatform}/${hostFontcLibraryName}"
         def hasHostFontc = false
         new ZipFile(archiveFile.get().asFile).withCloseable { zipFile ->
-            hasHostFontc = zipFile.entries().find { entry ->
-                entry.name.startsWith(hostFontcPrefix) && entry.name.contains('fontc_shared')
-            } != null
+            hasHostFontc = zipFile.getEntry(hostFontcPath) != null
         }
         if (!hasHostFontc) {
-            throw new GradleException("bob-light.jar is missing the host font compiler library under ${hostFontcPrefix}")
+            throw new GradleException("bob-light.jar is missing the host font compiler library: ${hostFontcPath}")
         }
     }
 }
