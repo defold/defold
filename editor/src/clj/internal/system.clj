@@ -429,8 +429,7 @@
         (let [system-basis (basis system)
               evaluation-context-hits @(:hits evaluation-context)
               evaluation-context-misses @(:local evaluation-context)]
-          (if (and (identical? invalidate-counters initial-invalidate-counters)
-                   (basis-graphs-identical? system-basis (:basis evaluation-context))) ; nice case
+          (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
             (cond-> system
               (coll/not-empty evaluation-context-hits)
               (update :cache c/cache-hit evaluation-context-hits)
