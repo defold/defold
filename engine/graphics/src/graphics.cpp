@@ -1343,8 +1343,10 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while((next = it.Next()))
         {
-            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE ||
-                next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
+            // Storage buffers are reflected resources, not settable uniforms.
+            // They are bound through the storage-buffer binding path and must
+            // not appear in the legacy uniform/sampler enumeration.
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE)
             {
                 CreateUniformLeafMembersCallbackParams params = {};
                 params.m_CanonicalName = next->m_Res->m_Name;
