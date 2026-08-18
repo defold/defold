@@ -2263,6 +2263,9 @@ bail:
         ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+        ubo->m_ShadowData.SetCapacity(size);
+        ubo->m_ShadowData.SetSize(size);
+        memset(ubo->m_ShadowData.Begin(), 0, size);
 
         VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
             size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
@@ -2276,7 +2279,31 @@ bail:
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
         assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
-        DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
+        memcpy(ubo->m_ShadowData.Begin() + offset, data, size);
+
+        DeviceBuffer* buffer = &ubo->m_DeviceBuffer;
+        const uint8_t frame_index = (uint8_t) context->m_CurrentFrameInFlight;
+        const bool used_by_another_in_flight_frame = context->m_FrameBegun
+            && !buffer->m_Destroyed
+            && buffer->m_Handle.m_Buffer != VK_NULL_HANDLE
+            && buffer->m_Handle.m_LastUsedFrame != frame_index;
+
+        if (used_by_another_in_flight_frame)
+        {
+            // Keep one reusable backing allocation per frame-in-flight. CPU
+            // light updates must never overwrite storage referenced by an
+            // earlier frame's command buffer. The full shadow copy also makes
+            // partial UBO updates coherent when rotating between allocations.
+            DeviceBuffer previous = *buffer;
+            *buffer = ubo->m_RetiredDeviceBuffers[frame_index];
+            ubo->m_RetiredDeviceBuffers[frame_index] = previous;
+            buffer->m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+            DeviceBufferUploadHelper(context, ubo->m_ShadowData.Begin(), ubo->m_BaseUniformBuffer.m_Size, 0, buffer);
+        }
+        else
+        {
+            DeviceBufferUploadHelper(context, data, size, offset, buffer);
+        }
     }
 
     static void VulkanDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
@@ -2353,6 +2380,15 @@ bail:
         if (!ubo->m_DeviceBuffer.m_Destroyed)
         {
             DestroyResourceDeferred(context, &ubo->m_DeviceBuffer);
+        }
+
+        for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+        {
+            DeviceBuffer* retired = &ubo->m_RetiredDeviceBuffers[i];
+            if (!retired->m_Destroyed && retired->m_Handle.m_Buffer != VK_NULL_HANDLE)
+            {
+                DestroyResourceDeferred(context, retired);
+            }
         }
 
         delete ubo;

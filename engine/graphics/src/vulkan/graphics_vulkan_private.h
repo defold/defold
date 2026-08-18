@@ -86,6 +86,8 @@ namespace dmGraphics
     {
         UniformBuffer m_BaseUniformBuffer;
         DeviceBuffer  m_DeviceBuffer;
+        DeviceBuffer  m_RetiredDeviceBuffers[DM_MAX_FRAMES_IN_FLIGHT];
+        dmArray<uint8_t> m_ShadowData;
     };
 
     struct VulkanTexture
