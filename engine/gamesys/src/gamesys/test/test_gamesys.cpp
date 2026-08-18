@@ -1770,6 +1770,23 @@ static void PostSpritePlayAnimation(dmGameObject::HCollection collection, dmhash
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&msg, &msg_url, &msg_url, (uintptr_t)go_id, 0, 0));
 }
 
+static void PostSpriteFlip(dmGameObject::HCollection collection, dmhash_t go_id, dmhash_t component_id, bool horizontal, bool vertical)
+{
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(&msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = component_id;
+
+    dmGameSystemDDF::SetFlipHorizontal horizontal_msg;
+    horizontal_msg.m_Flip = horizontal;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&horizontal_msg, &msg_url, &msg_url, 0, 0, 0));
+
+    dmGameSystemDDF::SetFlipVertical vertical_msg;
+    vertical_msg.m_Flip = vertical;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&vertical_msg, &msg_url, &msg_url, 0, 0, 0));
+}
+
 static void RenderCollection(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
 {
     dmRender::RenderListBegin(render_context);
@@ -2393,6 +2410,63 @@ TEST_F(SpriteTest, GetSetSliceProperty)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, Slice9FlipGeometry)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t sprite_id = dmHashString64("sprite");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Run script init before replacing the slice value used by its property test.
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyVar slice(Vector4(10.0f, 20.0f, 30.0f, 40.0f));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("slice"), options, slice));
+    PostSpriteFlip(m_Collection, go_id, sprite_id, true, true);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+
+    dmGameSystem::MaterialResource* material_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/sprite.materialc", (void**)&material_resource));
+    dmGraphics::HVertexDeclaration vertex_declaration = dmRender::GetVertexDeclaration(material_resource->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    const uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vertex_declaration);
+    const uint32_t position_offset = dmGraphics::GetVertexStreamOffset(vertex_declaration, dmHashString64("position"));
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, position_offset);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*)0, sprite_world);
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    ASSERT_NE((void*)0, vertex_buffer);
+    ASSERT_EQ(1u, vertex_buffer->m_Buffers.Size());
+
+    const uint32_t vertex_count = 16;
+    dmGraphics::HVertexBuffer vertex_buffer_handle = vertex_buffer->m_Buffers[0];
+    ASSERT_EQ(vertex_count * vertex_stride, dmGraphics::GetVertexBufferSize(vertex_buffer_handle));
+    const char* vertex_data = ((dmGraphics::VertexBuffer*)vertex_buffer_handle)->m_Buffer;
+
+    // Original margins are left=10, top=20, right=30, bottom=40. Both
+    // flips move the right/bottom margins to the left/top respectively.
+    const float expected_x[4] = {-128.0f, -98.0f, 118.0f, 128.0f};
+    const float expected_y[4] = {-128.0f, -108.0f, 88.0f, 128.0f};
+    for (uint32_t i = 0; i < vertex_count; ++i)
+    {
+        const char* position = vertex_data + i * vertex_stride + position_offset;
+        ASSERT_NEAR(expected_x[i % 4], ReadUnalignedFloat(position), EPSILON);
+        ASSERT_NEAR(expected_y[i / 4], ReadUnalignedFloat(position + sizeof(float)), EPSILON);
+    }
+
+    dmResource::Release(m_Factory, material_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
