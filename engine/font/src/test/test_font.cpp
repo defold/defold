@@ -466,7 +466,35 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
     dmVMath::Vector4 white(1.0f, 1.0f, 1.0f, 1.0f);
     dmVMath::Vector4 black(0.0f, 0.0f, 0.0f, 1.0f);
-    FontPackGlyphVertices(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 3, FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW, 0, 6, transform, 0.0f, 0.0f, 1.0f, white, black, black, 0.75f, 0.5f, 0.1f, 0.25f, 2.0f, -2.0f, true, vertices);
+    const uint32_t packed_white = FontPackColor(white);
+    const uint32_t packed_black = FontPackColor(black);
+    uint32_t       face_colors[4] = { packed_white, packed_white, packed_white, packed_white };
+
+    FontGlyphVertexParams glyph_params = {};
+    glyph_params.m_Glyph = &glyph;
+    glyph_params.m_RecipAtlasWidth = 1.0f / 256.0f;
+    glyph_params.m_RecipAtlasHeight = 1.0f / 256.0f;
+    glyph_params.m_RenderScale = 1.0f;
+    glyph_params.m_CacheCellMaxAscent = (uint32_t)glyph.m_Ascent;
+    glyph_params.m_CacheCellPadding = 1;
+    glyph_params.m_MetricsFromTtf = true;
+
+    FontVertexLayerParams layers = {};
+    layers.m_Transform = &transform;
+    layers.m_FaceColors = face_colors;
+    layers.m_FaceVertices = vertices + 12;
+    layers.m_OutlineVertices = vertices + 6;
+    layers.m_ShadowVertices = vertices;
+    layers.m_OutlineColor = packed_black;
+    layers.m_ShadowColor = packed_black;
+    layers.m_SdfEdge = 0.75f;
+    layers.m_SdfOutline = 0.5f;
+    layers.m_SdfSmoothing = 0.1f;
+    layers.m_SdfShadow = 0.25f;
+    layers.m_ShadowX = 2.0f;
+    layers.m_ShadowY = -2.0f;
+    layers.m_LayerCount = 3;
+    FontPackGlyphVertices(glyph_params, layers);
 
     ASSERT_EQ(1.0f, vertices[12].m_LayerMasks[0]);
     ASSERT_EQ(1.0f, vertices[6].m_LayerMasks[1]);
@@ -484,7 +512,14 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     gradient_colors.m_TopRight[1] = 0.5f;
     gradient_colors.m_TopRight[2] = 1.0f;
     gradient_colors.m_TopRight[3] = 1.0f;
-    FontPackGlyphVertices4Colors(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 1, FONT_RENDER_LAYER_FACE, 0, 6, transform, 0.0f, 0.0f, 1.0f, gradient_colors, black, black, 0.75f, 0.5f, 0.1f, 0.25f, 0.0f, 0.0f, true, vertices);
+    FontPackGlyphFaceColors(gradient_colors, face_colors);
+    layers.m_FaceVertices = vertices;
+    layers.m_OutlineVertices = 0;
+    layers.m_ShadowVertices = 0;
+    layers.m_ShadowX = 0.0f;
+    layers.m_ShadowY = 0.0f;
+    layers.m_LayerCount = 1;
+    FontPackGlyphVertices(glyph_params, layers);
     ASSERT_EQ(255u, vertices[0].m_FaceColor[0]);
     ASSERT_EQ(255u, vertices[1].m_FaceColor[1]);
     ASSERT_EQ(255u, vertices[2].m_FaceColor[2]);
@@ -495,7 +530,9 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     ASSERT_EQ(255u, vertices[5].m_FaceColor[2]);
     const float base_vertex_width = vertices[1].m_Position[0] - vertices[0].m_Position[0];
     const float base_u_width = FontUnpackGlyphUV(vertices[1].m_UV[0]) - FontUnpackGlyphUV(vertices[0].m_UV[0]);
-    FontPackGlyphVertices4Colors(&glyph, 1.0f / 256.0f, 1.0f / 256.0f, 0, 0, (uint32_t)glyph.m_Ascent, 1, 1, FONT_RENDER_LAYER_FACE, 0, 6, transform, 0.0f, 0.0f, 2.0f, gradient_colors, black, black, 0.75f, 0.5f, 0.05f, 0.25f, 0.0f, 0.0f, true, vertices);
+    glyph_params.m_RenderScale = 2.0f;
+    layers.m_SdfSmoothing = 0.05f;
+    FontPackGlyphVertices(glyph_params, layers);
     ASSERT_NEAR(base_vertex_width * 2.0f, vertices[1].m_Position[0] - vertices[0].m_Position[0], 0.0001f);
     ASSERT_NEAR(base_u_width, FontUnpackGlyphUV(vertices[1].m_UV[0]) - FontUnpackGlyphUV(vertices[0].m_UV[0]), 0.0001f);
     FontFreeGlyph(m_Font, &glyph);
@@ -2177,15 +2214,87 @@ TEST_F(FontTest, DashedDecorationUsesOneQuadWithStablePatternCoordinates)
 
     TextGlyphFaceColors colors = {};
     FontGlyphVertex     vertices[6] = {};
-    FontPackDecorationVertices(0.0f, 0.0f, 1, 0, 6, dmVMath::Matrix4::identity(),
-                               0.0f, 0.0f, 10.0f, 0.0f, decoration.m_Thickness,
-                               first.m_Start, first.m_End, first.m_Duty, colors, vertices);
+    uint32_t            packed_colors[4];
+    FontPackGlyphFaceColors(colors, packed_colors);
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    FontDecorationVertexParams decoration_params = {};
+    decoration_params.m_X1 = 10.0f;
+    decoration_params.m_Thickness = decoration.m_Thickness;
+    decoration_params.m_PatternStart = first.m_Start;
+    decoration_params.m_PatternEnd = first.m_End;
+    decoration_params.m_PatternDuty = first.m_Duty;
+    FontVertexLayerParams layers = {};
+    layers.m_Transform = &transform;
+    layers.m_FaceColors = packed_colors;
+    layers.m_FaceVertices = vertices;
+    layers.m_SdfEdge = 0.75f;
+    layers.m_SdfOutline = 0.75f;
+    layers.m_SdfSmoothing = 0.01f;
+    layers.m_SdfShadow = 0.75f;
+    layers.m_LayerCount = 1;
+    FontPackDecorationVertices(decoration_params, layers);
     ASSERT_NEAR(1.0f, vertices[0].m_LayerMasks[0], 0.0001f);
     ASSERT_NEAR(first.m_Start, vertices[0].m_LayerMasks[1], 0.0001f);
     ASSERT_NEAR(-first.m_Duty, vertices[0].m_LayerMasks[2], 0.0001f);
     ASSERT_NEAR(first.m_End, vertices[1].m_LayerMasks[1], 0.0001f);
     ASSERT_NEAR(first.m_Start, vertices[2].m_LayerMasks[1], 0.0001f);
     ASSERT_NEAR(first.m_End, vertices[5].m_LayerMasks[1], 0.0001f);
+}
+
+TEST_F(FontTest, DashedDecorationPreservesTargetRenderLayers)
+{
+    const uint32_t face_colors[4] = {
+        FontPackColor(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f)),
+        FontPackColor(dmVMath::Vector4(0.0f, 1.0f, 0.0f, 1.0f)),
+        FontPackColor(dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
+        FontPackColor(dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f)),
+    };
+    const uint32_t      outline_color = FontPackColor(dmVMath::Vector4(1.0f, 0.5f, 0.0f, 1.0f));
+    const uint32_t      shadow_color = FontPackColor(dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.5f));
+    FontGlyphVertex     face[6] = {};
+    FontGlyphVertex     outline[6] = {};
+    FontGlyphVertex     shadow[6] = {};
+    const float         pattern_start = 0.25f;
+    const float         pattern_end = 1.25f;
+    const float         pattern_duty = 0.6f;
+
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    FontDecorationVertexParams decoration = {};
+    decoration.m_X1 = 10.0f;
+    decoration.m_Thickness = 2.0f;
+    decoration.m_PatternStart = pattern_start;
+    decoration.m_PatternEnd = pattern_end;
+    decoration.m_PatternDuty = pattern_duty;
+    decoration.m_OutlineWidth = 2.0f;
+    FontVertexLayerParams layers = {};
+    layers.m_Transform = &transform;
+    layers.m_FaceColors = face_colors;
+    layers.m_FaceVertices = face;
+    layers.m_OutlineVertices = outline;
+    layers.m_ShadowVertices = shadow;
+    layers.m_OutlineColor = outline_color;
+    layers.m_ShadowColor = shadow_color;
+    layers.m_SdfEdge = 0.75f;
+    layers.m_SdfOutline = 0.5f;
+    layers.m_SdfSmoothing = 0.01f;
+    layers.m_SdfShadow = 0.25f;
+    layers.m_ShadowX = 2.0f;
+    layers.m_ShadowY = -3.0f;
+    layers.m_LayerCount = 3;
+    FontPackDecorationVertices(decoration, layers);
+
+    ASSERT_EQ(1.0f, face[0].m_LayerMasks[0]);
+    ASSERT_EQ(2.0f, outline[0].m_LayerMasks[0]);
+    ASSERT_EQ(3.0f, shadow[0].m_LayerMasks[0]);
+    ASSERT_NEAR(pattern_start - 0.2f, outline[0].m_LayerMasks[1], 0.0001f);
+    ASSERT_NEAR(pattern_end + 0.2f, outline[1].m_LayerMasks[1], 0.0001f);
+    ASSERT_EQ(-pattern_duty, shadow[0].m_LayerMasks[2]);
+    ASSERT_NEAR(face[0].m_Position[0] + 2.0f, shadow[0].m_Position[0], 0.0001f);
+    ASSERT_NEAR(face[0].m_Position[1] - 3.0f, shadow[0].m_Position[1], 0.0001f);
+    ASSERT_NEAR(face[0].m_Position[0] - 2.0f, outline[0].m_Position[0], 0.0001f);
+    ASSERT_NEAR(face[0].m_Position[1] - 2.0f, outline[0].m_Position[1], 0.0001f);
+    ASSERT_EQ(255u, outline[0].m_OutlineColor[3]);
+    ASSERT_EQ(127u, shadow[0].m_ShadowColor[3]);
 }
 
 TEST_F(FontTest, DecorationGeometryPreservesPerGlyphGradient)

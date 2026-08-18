@@ -1317,7 +1317,38 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             const float glyph_shadow_x = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X ? glyph_render_data.m_ShadowX : viewer->m_Properties.m_ShadowX;
             const float glyph_shadow_y = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y ? glyph_render_data.m_ShadowY : viewer->m_Properties.m_ShadowY;
             const uint32_t layer_mask = apply_properties ? FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW : FONT_RENDER_LAYER_FACE;
-            FontPackGlyphVertices4Colors(&glyph->m_Glyph, 1.0f / ATLAS_WIDTH, 1.0f / ATLAS_HEIGHT, glyph->m_X, glyph->m_Y, viewer->m_CellMaxAscent, CELL_PADDING, layer_count, layer_mask, *vertex_index, layer_stride, transform, line_x + text_glyph.m_X - first_x + glyph_render_data.m_OffsetX, line_y + text_glyph.m_Y - first_y + glyph_render_data.m_OffsetY, text_glyph.m_RenderScale, glyph_render_data.m_FaceColors, glyph_outline_color, glyph_shadow_color, sdf_face, glyph_sdf_outline, sdf_smoothing / text_glyph.m_RenderScale, glyph_sdf_shadow, glyph_shadow_x, glyph_shadow_y, true, viewer->m_Vertices.Begin());
+            uint32_t face_colors[4];
+            FontPackGlyphFaceColors(glyph_render_data.m_FaceColors, face_colors);
+
+            FontGlyphVertexParams glyph_params;
+            glyph_params.m_Glyph = &glyph->m_Glyph;
+            glyph_params.m_RecipAtlasWidth = 1.0f / ATLAS_WIDTH;
+            glyph_params.m_RecipAtlasHeight = 1.0f / ATLAS_HEIGHT;
+            glyph_params.m_X = line_x + text_glyph.m_X - first_x + glyph_render_data.m_OffsetX;
+            glyph_params.m_Y = line_y + text_glyph.m_Y - first_y + glyph_render_data.m_OffsetY;
+            glyph_params.m_RenderScale = text_glyph.m_RenderScale;
+            glyph_params.m_CellX = glyph->m_X;
+            glyph_params.m_CellY = glyph->m_Y;
+            glyph_params.m_CacheCellMaxAscent = viewer->m_CellMaxAscent;
+            glyph_params.m_CacheCellPadding = CELL_PADDING;
+            glyph_params.m_MetricsFromTtf = true;
+
+            FontVertexLayerParams layers;
+            layers.m_Transform = &transform;
+            layers.m_FaceColors = face_colors;
+            layers.m_FaceVertices = viewer->m_Vertices.Begin() + *vertex_index + layer_stride * (layer_count - 1);
+            layers.m_OutlineVertices = (layer_mask & FONT_RENDER_LAYER_OUTLINE) ? viewer->m_Vertices.Begin() + *vertex_index + layer_stride * (layer_count - 2) : 0;
+            layers.m_ShadowVertices = (layer_mask & FONT_RENDER_LAYER_SHADOW) ? viewer->m_Vertices.Begin() + *vertex_index : 0;
+            layers.m_OutlineColor = FontPackColor(glyph_outline_color);
+            layers.m_ShadowColor = FontPackColor(glyph_shadow_color);
+            layers.m_SdfEdge = sdf_face;
+            layers.m_SdfOutline = glyph_sdf_outline;
+            layers.m_SdfSmoothing = sdf_smoothing / text_glyph.m_RenderScale;
+            layers.m_SdfShadow = glyph_sdf_shadow;
+            layers.m_ShadowX = glyph_shadow_x;
+            layers.m_ShadowY = glyph_shadow_y;
+            layers.m_LayerCount = layer_count;
+            FontPackGlyphVertices(glyph_params, layers);
             for (uint32_t layer = 0; layer < layer_count; ++layer)
                 ClipPackedQuad(viewer, *vertex_index + layer * layer_stride, clip_box);
             *vertex_index += 6;

@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <dlib/endian.h>
 #include <dlib/vmath.h>
 #include <dmsdk/font/font.h>
 #include <dmsdk/font/text_layout.h>
@@ -63,108 +64,84 @@ struct FontDecorationPattern
     float m_Duty;
 };
 
-// Packs a glyph with a single face color into a layer-major vertex buffer.
-void FontPackGlyphVertices(FontGlyph*              glyph,
-                           float                   recip_w,
-                           float                   recip_h,
-                           uint32_t                cell_x,
-                           uint32_t                cell_y,
-                           uint32_t                cache_cell_max_ascent,
-                           uint32_t                cache_cell_padding,
-                           uint32_t                layer_count,
-                           uint32_t                layer_mask,
-                           uint32_t                vertex_index,
-                           uint32_t                vertex_layer_stride,
-                           const dmVMath::Matrix4& transform,
-                           float                   x,
-                           float                   y,
-                           float                   render_scale,
-                           const dmVMath::Vector4& face_color,
-                           const dmVMath::Vector4& outline_color,
-                           const dmVMath::Vector4& shadow_color,
-                           float                   sdf_edge_value,
-                           float                   sdf_outline,
-                           float                   sdf_smoothing,
-                           float                   sdf_shadow,
-                           float                   shadow_x,
-                           float                   shadow_y,
-                           bool                    metrics_from_ttf,
-                           FontGlyphVertex*        vertices);
+// Converts a final unit RGBA color to the normalized byte format used by font
+// vertices. Call this after applying all styles and animated effects.
+static inline uint32_t FontPackColor(const dmVMath::Vector4& color)
+{
+    const uint8_t r = (uint8_t)(color[0] * 255.0f);
+    const uint8_t g = (uint8_t)(color[1] * 255.0f);
+    const uint8_t b = (uint8_t)(color[2] * 255.0f);
+    const uint8_t a = (uint8_t)(color[3] * 255.0f);
 
-// Packs a glyph with independent corner colors into a layer-major vertex buffer.
-void FontPackGlyphVertices4Colors(FontGlyph*                 glyph,
-                                  float                      recip_w,
-                                  float                      recip_h,
-                                  uint32_t                   cell_x,
-                                  uint32_t                   cell_y,
-                                  uint32_t                   cache_cell_max_ascent,
-                                  uint32_t                   cache_cell_padding,
-                                  uint32_t                   layer_count,
-                                  uint32_t                   layer_mask,
-                                  uint32_t                   vertex_index,
-                                  uint32_t                   vertex_layer_stride,
-                                  const dmVMath::Matrix4&    transform,
-                                  float                      x,
-                                  float                      y,
-                                  float                      render_scale,
-                                  const TextGlyphFaceColors& face_colors,
-                                  const dmVMath::Vector4&    outline_color,
-                                  const dmVMath::Vector4&    shadow_color,
-                                  float                      sdf_edge_value,
-                                  float                      sdf_outline,
-                                  float                      sdf_smoothing,
-                                  float                      sdf_shadow,
-                                  float                      shadow_x,
-                                  float                      shadow_y,
-                                  bool                       metrics_from_ttf,
-                                  FontGlyphVertex*           vertices);
+#if DM_ENDIAN == DM_ENDIAN_LITTLE
+    return (uint32_t)a << 24 | (uint32_t)b << 16 | (uint32_t)g << 8 | r;
+#else
+    return (uint32_t)r << 24 | (uint32_t)g << 16 | (uint32_t)b << 8 | a;
+#endif
+}
 
-// Packs one six-vertex glyph quad into each requested output layer. The face
-// output is required; outline and shadow outputs may be null.
-void FontPackGlyphVertices4ColorsToLayers(FontGlyph*                 glyph,
-                                          float                      recip_w,
-                                          float                      recip_h,
-                                          uint32_t                   cell_x,
-                                          uint32_t                   cell_y,
-                                          uint32_t                   cache_cell_max_ascent,
-                                          uint32_t                   cache_cell_padding,
-                                          uint32_t                   layer_count,
-                                          const dmVMath::Matrix4&    transform,
-                                          float                      x,
-                                          float                      y,
-                                          float                      render_scale,
-                                          const TextGlyphFaceColors& face_colors,
-                                          const dmVMath::Vector4&    outline_color,
-                                          const dmVMath::Vector4&    shadow_color,
-                                          float                      sdf_edge_value,
-                                          float                      sdf_outline,
-                                          float                      sdf_smoothing,
-                                          float                      sdf_shadow,
-                                          float                      shadow_x,
-                                          float                      shadow_y,
-                                          bool                       metrics_from_ttf,
-                                          FontGlyphVertex*           face_vertices,
-                                          FontGlyphVertex*           outline_vertices,
-                                          FontGlyphVertex*           shadow_vertices);
+// Converts final glyph-corner colors to normalized bytes in bottom-left,
+// bottom-right, top-left, top-right order.
+void FontPackGlyphFaceColors(const TextGlyphFaceColors& face_colors, uint32_t packed_colors[4]);
 
-// Packs a face-only line-decoration quad around the supplied center line.
-// Pattern positions are in cycles; a zero duty produces a solid line.
-void FontPackDecorationVertices(float                      texture_u,
-                                float                      texture_v,
-                                uint32_t                   layer_count,
-                                uint32_t                   vertex_index,
-                                uint32_t                   vertex_layer_stride,
-                                const dmVMath::Matrix4&    transform,
-                                float                      x0,
-                                float                      y0,
-                                float                      x1,
-                                float                      y1,
-                                float                      thickness,
-                                float                      pattern_start,
-                                float                      pattern_end,
-                                float                      pattern_duty,
-                                const TextGlyphFaceColors& face_colors,
-                                FontGlyphVertex*           vertices);
+// Final render values and output ranges shared by glyph and decoration quads.
+// The transform, face colors, and face output are required. Outline and shadow
+// outputs may be null.
+struct FontVertexLayerParams
+{
+    const dmVMath::Matrix4* m_Transform;
+    const uint32_t*         m_FaceColors;
+    FontGlyphVertex*        m_FaceVertices;
+    FontGlyphVertex*        m_OutlineVertices;
+    FontGlyphVertex*        m_ShadowVertices;
+    uint32_t                m_OutlineColor;
+    uint32_t                m_ShadowColor;
+    float                   m_SdfEdge;
+    float                   m_SdfOutline;
+    float                   m_SdfSmoothing;
+    float                   m_SdfShadow;
+    float                   m_ShadowX;
+    float                   m_ShadowY;
+    uint32_t                m_LayerCount;
+};
+
+// Atlas placement and local-space geometry for one glyph quad.
+struct FontGlyphVertexParams
+{
+    FontGlyph* m_Glyph;
+    float      m_RecipAtlasWidth;
+    float      m_RecipAtlasHeight;
+    float      m_X;
+    float      m_Y;
+    float      m_RenderScale;
+    uint32_t   m_CellX;
+    uint32_t   m_CellY;
+    uint32_t   m_CacheCellMaxAscent;
+    uint32_t   m_CacheCellPadding;
+    bool       m_MetricsFromTtf;
+};
+
+// Atlas placement, local-space geometry, and pattern for one decoration quad.
+struct FontDecorationVertexParams
+{
+    float m_TextureU;
+    float m_TextureV;
+    float m_X0;
+    float m_Y0;
+    float m_X1;
+    float m_Y1;
+    float m_Thickness;
+    float m_PatternStart;
+    float m_PatternEnd;
+    float m_PatternDuty;
+    float m_OutlineWidth;
+};
+
+// Packs one glyph quad into the requested output layers.
+void FontPackGlyphVertices(const FontGlyphVertexParams& glyph, const FontVertexLayerParams& layers);
+
+// Packs one line-decoration quad into the requested output layers.
+void FontPackDecorationVertices(const FontDecorationVertexParams& decoration, const FontVertexLayerParams& layers);
 
 // Returns whether the decoration must be split to preserve per-glyph styling.
 bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration);
