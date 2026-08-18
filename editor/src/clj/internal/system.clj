@@ -31,6 +31,7 @@
 (def ^:private maximum-cached-items 20000)
 (def ^:private maximum-undo-steps 60)
 (def ^:private global-undo-key :undo/global)
+(def ^:private full-invalidation-endpoint (gt/endpoint Long/MAX_VALUE ::full-invalidation))
 
 (prefer-method print-method java.util.Map clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
@@ -333,12 +334,15 @@
       (set-undo system undo-key undo))))
 
 (defn merge-graphs
-  [system modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes]
+  [system modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes full-invalidation]
   (ensure-no-concurrent-modifications! system modified-post-tx-graphs)
   (-> system
       (register-undoable-changes undo-key label sequence-label undoable-changes)
       (commit-graph-states modified-post-tx-graphs)
-      (commit-transaction-effects outputs-modified nodes-deleted)))
+      (commit-transaction-effects outputs-modified nodes-deleted)
+      (cond-> full-invalidation
+        (-> (update :cache c/cache-clear)
+            (update :invalidate-counters update full-invalidation-endpoint util/safe-inc)))))
 
 (defn basis-graphs-identical?
   [basis1 basis2]
@@ -393,6 +397,11 @@
     invalidate-counters
     (throw (IllegalArgumentException. "The argument is not a valid system."))))
 
+(defn full-invalidation-since?
+  [snapshot-invalidate-counters system-invalidate-counters]
+  (not= (long (get snapshot-invalidate-counters full-invalidation-endpoint 0))
+        (long (get system-invalidate-counters full-invalidation-endpoint 0))))
+
 (definline endpoint-invalidated-since? [endpoint snapshot-invalidate-counters system-invalidate-counters]
   `(not= (long (get ~snapshot-invalidate-counters ~endpoint 0))
          (long (get ~system-invalidate-counters ~endpoint 0))))
@@ -412,32 +421,35 @@
   ;; that differed from the system basis at the time, there is no
   ;; initial-invalidate-counters to compare with, and we dont even try to
   ;; update the cache.
-  (if-some [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
-    (let [system-basis (basis system)
-          invalidate-counters (:invalidate-counters system)
-          evaluation-context-hits @(:hits evaluation-context)
-          evaluation-context-misses @(:local evaluation-context)]
-      (if (and (identical? invalidate-counters initial-invalidate-counters)
-               (basis-graphs-identical? system-basis (:basis evaluation-context))) ; nice case
-        (cond-> system
-          (coll/not-empty evaluation-context-hits)
-          (update :cache c/cache-hit evaluation-context-hits)
+  (if-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
+    (let [invalidate-counters (:invalidate-counters system)]
+      (if (and (not (identical? initial-invalidate-counters invalidate-counters))
+               (full-invalidation-since? initial-invalidate-counters invalidate-counters))
+        system
+        (let [system-basis (basis system)
+              evaluation-context-hits @(:hits evaluation-context)
+              evaluation-context-misses @(:local evaluation-context)]
+          (if (and (identical? invalidate-counters initial-invalidate-counters)
+                   (basis-graphs-identical? system-basis (:basis evaluation-context))) ; nice case
+            (cond-> system
+              (coll/not-empty evaluation-context-hits)
+              (update :cache c/cache-hit evaluation-context-hits)
 
-          (coll/not-empty evaluation-context-misses)
-          (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
-        (let [unsafe-cache-entry? (fn [endpoint]
-                                    (or (nil? (gt/node-by-id-at system-basis (gt/endpoint-node-id endpoint)))
-                                        (endpoint-invalidated-since? endpoint initial-invalidate-counters invalidate-counters)))
-              safe-cache-hits (coll/into-> evaluation-context-hits []
-                                (remove unsafe-cache-entry?))
-              safe-cache-misses (coll/into-> evaluation-context-misses []
-                                  (remove (comp unsafe-cache-entry? first)))]
-          (cond-> system
-            (coll/not-empty safe-cache-hits)
-            (update :cache c/cache-hit safe-cache-hits)
+              (coll/not-empty evaluation-context-misses)
+              (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
+            (let [unsafe-cache-entry? (fn [endpoint]
+                                        (or (nil? (gt/node-by-id-at system-basis (gt/endpoint-node-id endpoint)))
+                                            (endpoint-invalidated-since? endpoint initial-invalidate-counters invalidate-counters)))
+                  safe-cache-hits (coll/into-> evaluation-context-hits []
+                                    (remove unsafe-cache-entry?))
+                  safe-cache-misses (coll/into-> evaluation-context-misses []
+                                      (remove (comp unsafe-cache-entry? first)))]
+              (cond-> system
+                (coll/not-empty safe-cache-hits)
+                (update :cache c/cache-hit safe-cache-hits)
 
-            (coll/not-empty safe-cache-misses)
-            (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
+                (coll/not-empty safe-cache-misses)
+                (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))))
     system))
 
 (defn user-data [system node-id key]

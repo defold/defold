@@ -25,6 +25,7 @@
             [schema.core :as s]
             [support.test-support :as test-support :refer [tx-nodes with-clean-system]]
             [util.coll :as coll]
+            [util.fn :as fn]
             [util.macro :as macro]))
 
 (defn occurrences [coll]
@@ -191,6 +192,18 @@
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
+  (testing "Updating cache adds entries unaffected by ordinary transactions"
+    (with-clean-system
+      (let [[n other] (tx-nodes (g/make-nodes world [_n (TestNode :val "initial")
+                                                    _other (TestNode :val "other")]))
+            init-ec (g/make-evaluation-context)]
+        (g/node-value n :val-val init-ec)
+
+        (g/transact (g/set-property other :val "changed"))
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss))))))
+
   (testing "Update cache does not add entries for deleted nodes"
     (with-clean-system
       (let [[_n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
@@ -219,7 +232,48 @@
 
         (g/update-cache-from-evaluation-context! init-ec)
 
-        (is (= ::miss (cc/lookup (g/cache) endpoint ::miss)))))))
+        (is (= ::miss (cc/lookup (g/cache) endpoint ::miss))))))
+
+  (testing "Update cache ignores evaluation contexts invalidated in full"
+    (with-clean-system
+      (let [n (g/make-node! world TestNode :val "initial")
+            init-ec (g/make-evaluation-context)
+            published-systems (atom [])
+            watch-key (Object.)]
+        (is (= "initialinitial" (g/node-value n :val-val init-ec)))
+
+        (add-watch g/*the-system* watch-key
+          (fn [_ _ _ system]
+            (swap! published-systems conj system)))
+        (try
+          (g/transact {:full-invalidation true}
+            (g/set-property n :val "changed"))
+          (finally
+            (remove-watch g/*the-system* watch-key)))
+
+        (is (= 1 (count @published-systems)))
+        (is (identical? fn/constantly-true
+                        (g/endpoint-invalidated-pred
+                          (g/evaluation-context-invalidate-counters init-ec))))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
+        (is (= "changedchanged" (g/node-value n :val-val))))))
+
+  (testing "No-op full invalidation does not invalidate evaluation contexts"
+    (with-clean-system
+      (let [n (g/make-node! world TestNode :val "initial")
+            init-ec (g/make-evaluation-context)
+            system-before @g/*the-system*]
+        (g/node-value n :val-val init-ec)
+
+        (is (= :empty (:status (g/transact {:full-invalidation true} []))))
+        (is (identical? system-before @g/*the-system*))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))))
 
 (deftest tracer
   (with-clean-system
