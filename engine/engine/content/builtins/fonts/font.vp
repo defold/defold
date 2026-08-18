@@ -28,7 +28,10 @@ void main()
     var_outline_color = outline_color;
     bool dashed_decoration = layer_mask.z < 0.0;
     var_decoration = dashed_decoration ? vec2(layer_mask.y, -layer_mask.z) : vec2(0.0);
-    var_layer_mask.rgb = dashed_decoration ? vec3(1.0, 0.0, 0.0) : layer_mask;
+    vec3 decoration_layer_mask = vec3(1.0 - step(1.5, layer_mask.x),
+                                      step(1.5, layer_mask.x) * (1.0 - step(2.5, layer_mask.x)),
+                                      step(2.5, layer_mask.x));
+    var_layer_mask.rgb = dashed_decoration ? decoration_layer_mask : layer_mask;
     var_layer_mask.a = var_layer_mask.x * var_layer_mask.y * var_layer_mask.z;
     var_shadow_color = shadow_color;
     gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);

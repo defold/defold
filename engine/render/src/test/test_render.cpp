@@ -2381,6 +2381,59 @@ TEST_F(dmRenderTest, MarkupDashedDecorationsGenerateOneProceduralQuadEach)
     MarkupDestroy(markup);
 }
 
+TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
+{
+    const char source[] = "<ul pattern=dashed><outline size=2 color=#00FF00><shadow x=2 y=-3 color=#FF0000>A</shadow></outline></ul>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Width = 128.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_OutlineColor = COLOR_WHITE_RGBA;
+    te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_Width = settings.m_Width;
+    te.m_Leading = settings.m_Leading;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    te.m_TextLayout = layout;
+
+    const uint8_t old_layer_mask = m_SystemFontMap->m_LayerMask;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    FontGlyphVertex vertices[36];
+    memset(vertices, 0, sizeof(vertices));
+    const uint32_t vertex_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f,
+                                                                 vertices, DM_ARRAY_SIZE(vertices));
+    m_SystemFontMap->m_LayerMask = old_layer_mask;
+
+    ASSERT_EQ(DM_ARRAY_SIZE(vertices), vertex_count);
+    const FontGlyphVertex& shadow = vertices[6];
+    const FontGlyphVertex& outline = vertices[18];
+    const FontGlyphVertex& face = vertices[30];
+    ASSERT_EQ(3.0f, shadow.m_LayerMasks[0]);
+    ASSERT_LT(shadow.m_LayerMasks[2], 0.0f);
+    ASSERT_EQ(2.0f, outline.m_LayerMasks[0]);
+    ASSERT_LT(outline.m_LayerMasks[2], 0.0f);
+    ASSERT_EQ(1.0f, face.m_LayerMasks[0]);
+    ASSERT_LT(face.m_LayerMasks[2], 0.0f);
+    ASSERT_NEAR(face.m_Position[0] + 2.0f, shadow.m_Position[0], 0.0001f);
+    ASSERT_NEAR(face.m_Position[1] - 3.0f, shadow.m_Position[1], 0.0001f);
+    ASSERT_NEAR(face.m_Position[0] - 2.0f, outline.m_Position[0], 0.0001f);
+    ASSERT_NEAR(face.m_Position[1] - 2.0f, outline.m_Position[1], 0.0001f);
+    ASSERT_EQ(255u, outline.m_OutlineColor[1]);
+    ASSERT_EQ(255u, shadow.m_ShadowColor[0]);
+
+    TextLayoutRelease(layout);
+    MarkupDestroy(markup);
+}
+
 TEST_F(dmRenderTest, MarkupAnimatedGlyphGradientReachesFinalVertices)
 {
     const char source[] = "<gradient hz=0.25 left=#FF5555 right=#5555FF fit=glyph>Flowing Glyph Colors</gradient>";
