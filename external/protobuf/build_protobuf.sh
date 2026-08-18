@@ -161,7 +161,7 @@ function merge_protobuf_dependencies() {
 
     while IFS= read -r archive; do
         archives+=("${archive}")
-    done < <(find "${libdir}" -maxdepth 1 -type f \( -name 'libabsl_*.a' -o -name 'libabsl_*.lib' \) -print | sort)
+    done < <(find "${libdir}" -maxdepth 1 -type f \( -name 'libabsl_*.a' -o -name 'absl_*.lib' \) -print | sort)
     if [ "${PLATFORM}" = "win32" ] || [ "${PLATFORM}" = "x86_64-win32" ]; then
         output="${libdir}/libprotobuf_deps.lib"
         local response="${SOURCE_TARGET_PROTOBUF}/_build/protobuf_deps.rsp"
