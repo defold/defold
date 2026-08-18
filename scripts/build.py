@@ -600,7 +600,6 @@ class Configuration(object):
                  archive_domain = None,
                  package_path = None,
                  external_package = None,
-                 excluded_packages = None,
                  set_version = None,
                  channel = None,
                  engine_artifacts = None,
@@ -660,7 +659,6 @@ class Configuration(object):
         self.archive_domain = archive_domain
         self.package_path = package_path
         self.external_package = external_package
-        self.excluded_packages = set(excluded_packages or [])
         self.set_version = set_version
         self.channel = channel
         self.engine_artifacts = engine_artifacts
@@ -1120,14 +1118,11 @@ class Configuration(object):
         if self._build_engine_with_waf():
             self.install_waf()
 
-        def packages_for_install(packages):
-            return [package for package in packages if package not in self.excluded_packages]
-
         print("Installing common packages")
-        for p in packages_for_install(PACKAGES_ALL):
+        for p in PACKAGES_ALL:
             self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.ext)
 
-        for p in packages_for_install(DMSDK_PACKAGES_ALL):
+        for p in DMSDK_PACKAGES_ALL:
             self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.dmsdk)
 
         # TODO: Make sure the order of install does not affect the outcome!
@@ -1137,14 +1132,13 @@ class Configuration(object):
         other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
         def packages_for_platform(platform, packages):
-            packages = packages_for_install(packages)
             if platform in (self.host, target_platform):
                 return packages
             return [package for package in packages if not package.startswith(HOST_TARGET_ONLY_PACKAGE_PREFIXES)]
 
         if target_platform in ['wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
-            for package in packages_for_install(PACKAGES_NODE_MODULES):
+            for package in PACKAGES_NODE_MODULES:
                 path = join(self.defold_root, 'packages', package + '.tar.gz')
                 name = package.split('-')[0]
                 self._extract_tgz(path, join(node_modules_dir, name))
@@ -1164,8 +1158,7 @@ class Configuration(object):
             packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
             packages = list(dict.fromkeys(packages_for_platform(base_platform, packages)))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
-            private_packages = packages_for_install(build_private.get_install_host_packages(base_platform))
-            package_paths.extend(make_private_package_paths(base_platform, private_packages))
+            package_paths.extend(make_private_package_paths(base_platform, build_private.get_install_host_packages(base_platform)))
             package_paths = [path for path in package_paths if path not in installed_packages]
             if len(package_paths) != 0:
                 print("Installing %s packages" % base_platform)
@@ -1175,8 +1168,7 @@ class Configuration(object):
 
         target_packages = packages_for_platform(self.target_platform, PLATFORM_PACKAGES.get(self.target_platform, []))
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
-        private_target_packages = packages_for_install(build_private.get_install_target_packages(self.target_platform))
-        target_package_paths.extend(make_private_package_paths(self.target_platform, private_target_packages))
+        target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
         if len(target_package_paths) != 0:
@@ -4077,11 +4069,6 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = None,
                       help = 'External package to build with build_external. Valid packages: %s' % ', '.join(EXTERNAL_LIBS))
 
-    parser.add_option('--exclude-package', dest='excluded_packages',
-                      action = 'append',
-                      default = [],
-                      help = 'Package to skip when running install_ext. May be specified multiple times.')
-
     parser.add_option('--set-version', dest='set_version',
                       default = None,
                       help = 'Set version explicitily when bumping version')
@@ -4226,7 +4213,6 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       archive_domain = options.archive_domain,
                       package_path = options.package_path,
                       external_package = options.external_package,
-                      excluded_packages = options.excluded_packages,
                       set_version = options.set_version,
                       channel = options.channel,
                       engine_artifacts = options.engine_artifacts,

@@ -14,4 +14,5 @@ The build writes `protobuf-35.1-<platform>.tar.gz` and
 
 Supported targets are `arm64-macos`, `x86_64-macos`, `arm64-linux`,
 `x86_64-linux`, `win32`, and `x86_64-win32`. The Defold build environment must
-be initialized so `DYNAMO_HOME` and the packaged SDK paths are available.
+be initialized so `DYNAMO_HOME` is set. The package is built from the source
+archives in this directory and does not require `install_ext`.
