@@ -45,3 +45,26 @@ endif()
 
 defold_target_link_libraries_web(test_ddf "${TARGET_PLATFORM}" library_sys.js)
 defold_register_test_target(test_ddf ON "${DDF_TEST_SRC_DIR}")
+
+# Calibrated performance benchmark. It is intentionally not part of the default
+# build or test suite; build it explicitly with --target bench_ddf.
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+  defold_add_executable(bench_ddf
+    "${DDF_TEST_SRC_DIR}/bench_ddf.cpp"
+    ${DDF_TEST_PROTO_CC})
+  set_target_properties(bench_ddf PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  target_include_directories(bench_ddf PRIVATE
+    "${DDF_TEST_SRC_DIR}"
+    "${DDF_SRC_DIR}"
+    "${DDF_PROTO_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/../..")
+  defold_target_link_libraries(bench_ddf "${TARGET_PLATFORM}"
+    dlib
+    profile_null
+    ddf)
+  defold_target_link_socket(bench_ddf "${TARGET_PLATFORM}" PRIVATE)
+  if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+    target_link_libraries(bench_ddf PRIVATE Threads::Threads dl)
+  endif()
+endif()

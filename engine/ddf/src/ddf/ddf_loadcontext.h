@@ -39,6 +39,7 @@ namespace dmDDF
         int         GetMemoryUsage();
 
         uint32_t    IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
+        uint32_t    AddArrayCount(uint32_t buffer_pos, uint32_t field_number, uint32_t count);
         uint32_t    GetArrayCount(uint32_t buffer_pos, uint32_t field_number);
 
         uint32_t    AddDynamicMessageSize(uint32_t message_size);

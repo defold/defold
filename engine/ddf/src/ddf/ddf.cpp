@@ -183,12 +183,30 @@ namespace dmDDF
         return RESULT_OK;
     }
 
+    static bool HasFixedLayout(const Descriptor* desc)
+    {
+        if (desc->m_ContainsDynamicFields)
+            return false;
+
+        for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
+        {
+            const FieldDescriptor* field = &desc->m_Fields[i];
+            if (field->m_Label == LABEL_REPEATED || field->m_Type == TYPE_STRING || field->m_Type == TYPE_BYTES)
+                return false;
+            if (field->m_Type == TYPE_MESSAGE && !HasFixedLayout(field->m_MessageDescriptor))
+                return false;
+        }
+        return true;
+    }
+
     static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* array_info_hash, bool is_dynamic_type)
     {
         assert(desc);
 
         // Calculate number of entries in arrays, ie memory requirements for the entire message
         uint32_t start = ib->Tell();
+        uint32_t pending_field_number = 0;
+        uint32_t pending_count = 0;
         while (!ib->Eof())
         {
             uint32_t tag;
@@ -212,7 +230,17 @@ namespace dmDDF
                 {
                     if (field->m_Label == LABEL_REPEATED)
                     {
-                        *array_info_hash = load_context->IncreaseArrayCount(start, field->m_Number);
+                        // Encoders normally emit a repeated field as one contiguous run.
+                        // Accumulate that run locally instead of hashing every element.
+                        if (pending_field_number != field->m_Number)
+                        {
+                            if (pending_count != 0)
+                                load_context->AddArrayCount(start, pending_field_number, pending_count);
+                            pending_field_number = field->m_Number;
+                            pending_count = 0;
+                        }
+                        ++pending_count;
+                        *array_info_hash = 1;
                         is_dynamic_type = false;
                     }
 
@@ -262,6 +290,10 @@ namespace dmDDF
                 return RESULT_WIRE_FORMAT_ERROR;
             }
         }
+
+        if (pending_count != 0)
+            load_context->AddArrayCount(start, pending_field_number, pending_count);
+
         return RESULT_OK;
     }
 
@@ -277,14 +309,39 @@ namespace dmDDF
         assert(desc);
         assert(out_message);
 
+        *out_message = 0;
         if (size)
             *size = 0;
 
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
 
-        LoadContext load_context(0, 0, true, options);
         InputBuffer input_buffer((const char*) buffer, buffer_size);
+
+        if (HasFixedLayout(desc))
+        {
+            char* message_buffer = 0;
+            uint32_t allocation_size = desc->m_Size > 0 ? desc->m_Size : 1;
+            if (dmMemory::AlignedMalloc((void**) &message_buffer, 16, allocation_size) != dmMemory::RESULT_OK)
+                return RESULT_INTERNAL_ERROR;
+
+            LoadContext load_context(message_buffer, allocation_size, false, options);
+            Message message = load_context.AllocMessage(desc);
+            Result e = DoLoadMessage(&load_context, &input_buffer, desc, &message);
+            if (e != RESULT_OK)
+            {
+                dmMemory::AlignedFree(message_buffer);
+                *out_message = 0;
+                return e;
+            }
+
+            if (size)
+                *size = desc->m_Size;
+            *out_message = message_buffer;
+            return RESULT_OK;
+        }
+
+        LoadContext load_context(0, 0, true, options);
 
         // --- About DDF loading and message layout ---
         //
@@ -320,6 +377,7 @@ namespace dmDDF
 
         Message dry_message(0, 0, 0, true);
         Result e = CreateMessage(&load_context, &input_buffer, desc, &dry_message);
+        DDF_CHECK_RESULT(e);
 
         uint32_t array_info_hash = 0;
         input_buffer.Seek(0);
@@ -328,6 +386,7 @@ namespace dmDDF
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
+        DDF_CHECK_RESULT(e);
 
         // Once the dry run is done, we can calculate the actual size of the message including
         // the memory for the dynamic messages.
@@ -430,26 +489,11 @@ namespace dmDDF
         return ret;
     }
 
-    static bool SaveMessageSizeFunction(void* context, const void* buffer, uint32_t buffer_size)
-    {
-        uint32_t* count = (uint32_t*) context;
-        *count = *count + buffer_size;
-        return true;
-    }
-
     Result SaveMessageSize(const void* message, const Descriptor* desc, uint32_t* size)
     {
-        uint32_t calc_size = 0;
-        Result e = SaveMessage(message, desc, &calc_size, &SaveMessageSizeFunction);
-        if (e == RESULT_OK)
-        {
-            *size = calc_size;
-        }
-        else
-        {
+        Result e = CalculateMessageSize(message, desc, size);
+        if (e != RESULT_OK)
             *size = 0;
-        }
-
         return e;
     }
 
@@ -458,7 +502,15 @@ namespace dmDDF
         dmArray<uint8_t>* array = (dmArray<uint8_t>*) context;
         if (array->Remaining() < buffer_size)
         {
-            array->OffsetCapacity(buffer_size + 1024);
+            uint64_t required = (uint64_t) array->Size() + buffer_size;
+            if (required > UINT32_MAX)
+                return false;
+
+            uint32_t capacity = array->Capacity();
+            uint32_t new_capacity = capacity < 1024 ? 1024 : capacity + capacity / 2;
+            if (new_capacity < required || new_capacity < capacity)
+                new_capacity = (uint32_t) required;
+            array->SetCapacity(new_capacity);
         }
 
         array->PushArray((uint8_t*) buffer, buffer_size);

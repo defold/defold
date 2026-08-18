@@ -19,6 +19,7 @@
 
 namespace dmDDF
 {
+    Result CalculateMessageSize(const void* message, const Descriptor* desc, uint32_t* size);
     Result DoSaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function);
 }
 
