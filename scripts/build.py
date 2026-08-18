@@ -2666,7 +2666,13 @@ class Configuration(object):
             reuse_builddir = host == target_platform
             target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir, use_existing_bob_light = True)
+            self._build_engine_libs_cmake(
+                'engine_libs',
+                target_lib_set,
+                target_platform,
+                skip_tests = self.skip_tests,
+                reuse_builddir = reuse_builddir,
+                use_existing_bob_light = True)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
