@@ -7110,23 +7110,23 @@ BoxRenderParams box_render_params[] =
         6,
         {0, 2, 1, 0, 3, 2}
     },
-    // 9-slice params: on | Use geometries: 8 | Flip uv: uv | Texture: tilesource animation
+    // 9-slice params: asymmetric | Use geometries: 8 | Flip uv: uv | Texture: tilesource animation
     {
         "/gui/render_box_test6.goc",
         {
             dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, -16.000000, 0.0, 0.0), 0.437500, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, -13.000000, 0.0, 0.0), 0.437500, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -13.000000, 0.0, 0.0), 0.500000, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -13.000000, 0.0, 0.0), 0.031250, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -13.000000, 0.0, 0.0), 0.000000, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, 11.000000, 0.0, 0.0), 0.437500, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 11.000000, 0.0, 0.0), 0.500000, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 11.000000, 0.0, 0.0), 0.031250, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 11.000000, 0.0, 0.0), 0.000000, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, 16.000000, 0.0, 0.0), 0.437500, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
