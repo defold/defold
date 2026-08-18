@@ -48,6 +48,8 @@ DM_PROPERTY_U32(rmtp_TilemapVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size o
 
 namespace dmGameSystem
 {
+    static const char* TILEMAP_MAX_COUNT_KEY = "tilemap.max_count";
+
     const uint32_t TILEGRID_REGION_SIZE = 32;
 
     using namespace dmVMath;
@@ -416,8 +418,8 @@ namespace dmGameSystem
         TileGridWorld* world = (TileGridWorld*) params.m_World;
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Tilemap", "tilemap.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Tilemap", TILEMAP_MAX_COUNT_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         if (world->m_VertexDeclaration == 0) {
@@ -1025,7 +1027,7 @@ namespace dmGameSystem
         TilemapContext* tilemap_context = new TilemapContext;
         HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
         tilemap_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
-        tilemap_context->m_MaxTilemapCount = dmConfigFile::GetInt(ctx->m_Config, "tilemap.max_count", 16);
+        tilemap_context->m_MaxTilemapCount = dmConfigFile::GetInt(ctx->m_Config, TILEMAP_MAX_COUNT_KEY, 16);
         tilemap_context->m_MaxTileCount = dmConfigFile::GetInt(ctx->m_Config, "tilemap.max_tile_count", 2048);
 
         dmGameObject::ComponentTypeSetPrio(type, 1200);

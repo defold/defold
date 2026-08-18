@@ -5179,6 +5179,39 @@ TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(LabelComponentTest, LabelTextProperty)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+    const dmhash_t text_id = dmHashString64("text");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc desc;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_TEXT, desc.m_Variant.m_Type);
+    ASSERT_STREQ("Label", desc.m_Variant.m_Text);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar("Runtime label text")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_STREQ("Runtime label text", desc.m_Variant.m_Text);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar(1.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_STREQ("Runtime label text", desc.m_Variant.m_Text);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar("")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
+    ASSERT_STREQ("", desc.m_Variant.m_Text);
+}
+
 TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
 {
     const dmhash_t go_id = dmHashString64("/go");
@@ -5200,16 +5233,14 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
     ASSERT_GT(initial_metrics.m_Width, 0.0f);
     ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
 
-    PostLabelSetText(m_Collection, go_id, label_id, "Label Label Label", (uintptr_t)go);
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar("Label Label Label")));
 
     dmRender::TextMetrics text_metrics = {};
     dmGameSystem::CompLabelGetTextMetrics(label_component, text_metrics);
     ASSERT_GT(text_metrics.m_Width, initial_metrics.m_Width);
     ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
 
-    dmGameObject::PropertyOptions options;
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("tracking"), options, dmGameObject::PropertyVar(1.0f)));
 
     dmRender::TextMetrics tracking_metrics = {};
