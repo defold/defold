@@ -402,11 +402,13 @@ def distclean():
     call('"%s" scripts/build.py distclean' % sys.executable)
 
 
-def install_ext(platform = None):
+def install_ext(platform = None, excluded_packages = None):
     cmd_args = ('"%s" scripts/build.py install_ext' % sys.executable).split()
     cmd_opts = []
     if platform:
         cmd_opts.append('--platform=%s' % platform)
+    for package in excluded_packages or []:
+        cmd_opts.append('--exclude-package=%s' % package)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -566,6 +568,7 @@ def main(argv):
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
+    parser.add_argument("--exclude-package", dest="excluded_packages", action='append', default=[], help="Package to skip when running install_ext")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -646,7 +649,7 @@ def main(argv):
         elif command == "install":
             install(args)
         elif command == "install_ext":
-            install_ext(platform = platform)
+            install_ext(platform = platform, excluded_packages = args.excluded_packages)
         elif command == "distclean":
             distclean()
         elif command == "release":

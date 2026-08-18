@@ -131,7 +131,7 @@ jobs:
 
       - name: Install externals
         shell: bash
-        run: ci/ci.sh install_ext
+        run: ci/ci.sh install_ext --exclude-package="${{ inputs.result_folder_name }}-${{ inputs.package_version }}"
 
       - name: Build ${{ inputs.package_name }}
         if: "${{ matrix.platforms.target != 'windows' || inputs.windows_build_command == '' }}"
