@@ -147,7 +147,7 @@ def get_default_target_platforms():
     return BASE_PLATFORMS
 
 PACKAGES_ALL=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "junit-4.6",
     "jsign-4.2",
     "bundletool-all",
@@ -171,12 +171,16 @@ PACKAGES_ALL=[
     "SkriBidi-1e8038"]
 
 PACKAGES_HOST=[
+    "protobuf-35.1",
     "vpx-1.7.0",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
+HOST_TARGET_ONLY_PACKAGE_PREFIXES=(
+    "protobuf-",
+)
+
 PACKAGES_IOS_X86_64=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -190,7 +194,6 @@ PACKAGES_IOS_X86_64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_IOS_64=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -205,7 +208,7 @@ PACKAGES_IOS_64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_X86_64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -235,7 +238,7 @@ PACKAGES_MACOS_X86_64=[
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -264,7 +267,7 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "bullet-2.77",
@@ -279,7 +282,7 @@ PACKAGES_WIN32=[
     "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
@@ -308,7 +311,7 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-ba5c010c",
@@ -338,7 +341,7 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-2fed4fc0",
@@ -361,7 +364,6 @@ PACKAGES_LINUX_ARM64=[
     "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -377,7 +379,6 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -393,7 +394,6 @@ PACKAGES_ANDROID_64=[
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
-    "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
     "wagyu-69",
@@ -1131,6 +1131,11 @@ class Configuration(object):
         target_platform = self.target_platform
         other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
+        def packages_for_platform(platform, packages):
+            if platform in (self.host, target_platform):
+                return packages
+            return [package for package in packages if not package.startswith(HOST_TARGET_ONLY_PACKAGE_PREFIXES)]
+
         if target_platform in ['wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
             for package in PACKAGES_NODE_MODULES:
@@ -1141,7 +1146,7 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = PLATFORM_PACKAGES.get(platform, [])
+            packages = packages_for_platform(platform, PLATFORM_PACKAGES.get(platform, []))
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -1151,6 +1156,7 @@ class Configuration(object):
         for base_platform in base_platforms:
             packages = list(PACKAGES_HOST)
             packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
+            packages = list(dict.fromkeys(packages_for_platform(base_platform, packages)))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths.extend(make_private_package_paths(base_platform, build_private.get_install_host_packages(base_platform)))
             package_paths = [path for path in package_paths if path not in installed_packages]
@@ -1159,15 +1165,6 @@ class Configuration(object):
                 for path in package_paths:
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
-
-        # For easier usage with the extender server, we want the linux protoc tool available
-        if target_platform in ('x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux'):
-            protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
-            package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
-            print("Installing %s protobuf packages " % 'x86_64-linux')
-            for path in package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(package_paths)
 
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, PLATFORM_PACKAGES.get(self.target_platform, []))
         target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
@@ -1184,7 +1181,7 @@ class Configuration(object):
             'Markdown==3.3.7',
             'Pygments==2.12.0',
             'boto3==1.36.3',
-            'protobuf==3.20.1',
+            'protobuf==7.35.1',
             'PyYAML==6.0.3',
             'pystache==0.6.8',
             'rangehttpserver==1.4.0',

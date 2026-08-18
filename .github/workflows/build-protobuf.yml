@@ -1,0 +1,37 @@
+name: Build Protobuf
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_changes:
+        type: boolean
+        description: Commit rebuilt packages to the selected branch
+        default: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: protobuf
+      result_folder_name: protobuf
+      result_lib_name: libprotobuf
+      package_version: "35.1"
+      package_root: external/protobuf
+      artifact_dir: external/protobuf/package
+      platforms: >
+        [
+          { "name": "x86_64-linux", "runner": "ubuntu-22.04", "target": "linux" },
+          { "name": "arm64-linux", "runner": "ubuntu-22.04-arm", "target": "linux" },
+          { "name": "arm64-macos", "runner": "macOS-26", "target": "macos" },
+          { "name": "x86_64-macos", "runner": "macOS-26", "target": "macos" },
+          { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
+          { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" }
+        ]
+      setup_msvc: true
+      push_changes: ${{ inputs.push_changes }}
+      build_command: >
+        cmake -S "$GITHUB_WORKSPACE/external/protobuf"
+        -B "$GITHUB_WORKSPACE/external/protobuf/build/$BUILD_PLATFORM_NAME"
+        -DTARGET_PLATFORM="$BUILD_PLATFORM_NAME" &&
+        cmake --build "$GITHUB_WORKSPACE/external/protobuf/build/$BUILD_PLATFORM_NAME"
+    secrets: inherit

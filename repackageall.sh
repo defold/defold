@@ -21,6 +21,6 @@
 # ./packages/repack.sh protobuf-2.3.0-arm64-ios.tar.gz
 # ./packages/repack.sh tremolo-0.0.8-arm64-ios.tar.gz
 
-# ./packages/repack.sh protobuf-3.20.1-x86_64-macos.tar.gz
-# ./packages/repack.sh protobuf-3.20.1-arm64-ios.tar.gz
+# ./packages/repack.sh protobuf-35.1-x86_64-macos.tar.gz
+# ./packages/repack.sh protobuf-35.1-arm64-macos.tar.gz
 ./packages/repack.sh luac-32-5.1.5-x86_64-macos.tar.gz
