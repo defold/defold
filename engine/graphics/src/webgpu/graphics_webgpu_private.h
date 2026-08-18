@@ -160,6 +160,7 @@ namespace dmGraphics
     {
         WGPUBindGroup         m_BindGroups[MAX_SET_COUNT];
         WGPUBuffer            m_VertexBuffers[MAX_VERTEX_BUFFERS];
+        uint64_t              m_VertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPURenderTarget*   m_Target;
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
@@ -187,11 +188,14 @@ namespace dmGraphics
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_VertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
+        uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         WebGPUTexture*                     m_DefaultTexture2D;
