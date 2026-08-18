@@ -55,6 +55,8 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static const char* LABEL_MAX_COUNT_KEY = "label.max_count";
+
     struct LabelComponent
     {
         dmGameObject::HInstance     m_Instance;
@@ -311,8 +313,8 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Label", "label.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Label", LABEL_MAX_COUNT_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         LabelResource* resource = (LabelResource*)params.m_Resource;

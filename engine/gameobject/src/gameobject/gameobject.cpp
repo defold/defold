@@ -879,17 +879,17 @@ namespace dmGameObject
         UndoNewInstance(hcollection->m_Collection, instance);
     }
 
-    bool CreateComponents(Collection* collection, HInstance instance) {
+    CreateResult CreateComponents(Collection* collection, HInstance instance) {
         DM_PROFILE("CreateComponents");
 
         Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
-        bool ok = true;
         if (proto->m_ComponentCount > 0xFFFF ) {
             dmLogWarning("Too many components in game object: %u (max is 65536)", proto->m_ComponentCount);
-            return false;
+            return CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
+        CreateResult r = CREATE_RESULT_OK;
         for (uint32_t i = 0; i < proto->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
@@ -924,12 +924,12 @@ namespace dmGameObject
             }
             else
             {
-                ok = false;
+                r = create_result;
                 break;
             }
         }
 
-        if (!ok)
+        if (CREATE_RESULT_OK != r)
         {
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < components_created; ++i)
@@ -954,10 +954,10 @@ namespace dmGameObject
             }
         }
 
-        return ok;
+        return r;
     }
 
-    bool CreateComponents(HCollection hcollection, HInstance instance) {
+    CreateResult CreateComponents(HCollection hcollection, HInstance instance) {
         return CreateComponents(hcollection->m_Collection, instance);
     }
 
@@ -1013,8 +1013,8 @@ namespace dmGameObject
         }
         HInstance instance = NewInstance(hcollection, proto, prototype_name);
         if (instance != 0) {
-            bool result = CreateComponents(hcollection, instance);
-            if (!result) {
+            CreateResult result = CreateComponents(hcollection, instance);
+            if (result != CREATE_RESULT_OK) {
                 // We can not call Delete here. Delete call DestroyFunction for every component
                 ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
@@ -1271,7 +1271,7 @@ namespace dmGameObject
             }
         }
 
-        bool success = CreateComponents(collection, instance);
+        bool success = CreateComponents(collection, instance) == CREATE_RESULT_OK;
         if (!success) {
             ReleaseIdentifier(collection, instance);
             UndoNewInstance(collection, instance);
@@ -1586,7 +1586,7 @@ namespace dmGameObject
             assert(instance_id);
 
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, *instance_id);
-            bool success = dmGameObject::CreateComponents(collection, instance);
+            bool success = dmGameObject::CreateComponents(collection, instance) == CREATE_RESULT_OK;
             if (success) {
                 created.Push(instance);
                 // Set properties
@@ -4243,8 +4243,8 @@ namespace dmGameObject
         dmHashClone64(&new_instance->m_CollectionPathHashState, &instance->m_CollectionPathHashState, true);
         new_instance->m_Generated = instance->m_Generated;
         HCollection hcollection = collection->m_HCollection;
-        bool res = CreateComponents(hcollection, new_instance);
-        if (!res) {
+        CreateResult res = CreateComponents(hcollection, new_instance);
+        if (res != CREATE_RESULT_OK) {
             dmHashRelease64(&new_instance->m_CollectionPathHashState);
             DeallocInstance(new_instance);
             return;

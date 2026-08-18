@@ -200,7 +200,7 @@ namespace dmGameSystem
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
             ShowFullBufferError("ParticleFx", dmParticle::MAX_INSTANCE_COUNT_KEY, world->m_PrototypeIndices.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = world->m_PrototypeIndices.Pop();
         ParticleFXComponentPrototype* prototype = &world->m_Prototypes[index];

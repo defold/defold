@@ -303,11 +303,13 @@ namespace dmGameObject
      * @enum
      * @name CreateResult
      * @member dmGameObject::CREATE_RESULT_OK
+     * @member dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS
      * @member dmGameObject::CREATE_RESULT_UNKNOWN_ERROR
      */
     enum CreateResult
     {
         CREATE_RESULT_OK = 0,
+        CREATE_RESULT_TOO_MANY_COMPONENTS = -1,
         CREATE_RESULT_UNKNOWN_ERROR = -1000,
     };
 
