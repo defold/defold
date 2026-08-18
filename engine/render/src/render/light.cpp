@@ -548,6 +548,7 @@ namespace dmRender
     {
         RenderContext* m_Context;
         bool           m_HasLightBuffer;
+        dmGraphics::ShaderResourceBindingFamily m_Family;
         uint16_t       m_Set;
         uint16_t       m_Binding;
         uint16_t       m_Capacity;
@@ -577,25 +578,26 @@ namespace dmRender
             return;
         }
 
-        uint32_t ubo_light_count = 0;
+        uint32_t shader_light_count = 0;
         uint32_t lights_member_index = UINT32_MAX;
         for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
         {
             if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
             {
-                ubo_light_count = root_type->m_Members[i].m_ElementCount;
+                shader_light_count = root_type->m_Members[i].m_ElementCount;
                 lights_member_index = i;
                 break;
             }
         }
 
-        if (ubo_light_count == 0)
+        const bool storage_buffer = cb_ctx->m_Family == dmGraphics::BINDING_FAMILY_STORAGE_BUFFER;
+        if (!storage_buffer && shader_light_count == 0)
         {
             dmLogOnceWarning("The light buffer must declare a lights array with at least one element.");
             return;
         }
 
-        if (ubo_light_count > cb_ctx->m_Context->m_MaxLightCount)
+        if (!storage_buffer && shader_light_count > cb_ctx->m_Context->m_MaxLightCount)
         {
             dmLogOnceWarning("The light buffer lights array is larger than the max light count in the project configuration.");
             return;
@@ -608,26 +610,39 @@ namespace dmRender
             return;
         }
 
-        *layout = light_buffer_layout;
+        if (layout)
+        {
+            *layout = light_buffer_layout;
+        }
 
         cb_ctx->m_HasLightBuffer = true;
         cb_ctx->m_Set            = set;
         cb_ctx->m_Binding        = binding;
-        cb_ctx->m_Capacity       = (uint16_t) ubo_light_count;
+        cb_ctx->m_Capacity       = storage_buffer ? cb_ctx->m_Context->m_MaxLightCount : (uint16_t) shader_light_count;
     }
 
-    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity)
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, dmGraphics::ShaderResourceBindingFamily* out_family, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity)
     {
         LightBufferBindingCallbackContext cb_ctx;
         cb_ctx.m_Context         = render_context;
         cb_ctx.m_HasLightBuffer  = false;
+        cb_ctx.m_Family          = dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER;
         cb_ctx.m_Set             = 0;
         cb_ctx.m_Binding         = 0;
         cb_ctx.m_Capacity        = 0;
 
         dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferBindingCallback, &cb_ctx);
 
+        dmGraphics::AdapterFamily adapter_family = dmGraphics::GetInstalledAdapterFamily();
+        bool storage_light_buffer_supported = adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN || adapter_family == dmGraphics::ADAPTER_FAMILY_NULL;
+        if (!cb_ctx.m_HasLightBuffer && storage_light_buffer_supported && dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER))
+        {
+            cb_ctx.m_Family = dmGraphics::BINDING_FAMILY_STORAGE_BUFFER;
+            dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_STORAGE_BUFFER, LightBufferBindingCallback, &cb_ctx);
+        }
+
         *out_has_light_buffer = cb_ctx.m_HasLightBuffer;
+        *out_family           = cb_ctx.m_Family;
         *out_capacity         = cb_ctx.m_Capacity;
         if (cb_ctx.m_HasLightBuffer)
         {
@@ -636,7 +651,7 @@ namespace dmRender
         }
     }
 
-    static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding)
+    static void ApplyLightBufferForBinding(HRenderContext render_context, dmGraphics::ShaderResourceBindingFamily family, uint16_t light_buffer_set, uint16_t light_buffer_binding)
     {
         if (!EnsureLightUniformBuffer(render_context))
         {
@@ -648,10 +663,20 @@ namespace dmRender
             WriteLightInstanceData(render_context);
         }
 
-        dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
-                                        render_context->m_LightUniformBuffer,
-                                        light_buffer_set,
-                                        light_buffer_binding);
+        if (family == dmGraphics::BINDING_FAMILY_STORAGE_BUFFER)
+        {
+            dmGraphics::EnableUniformBufferAsStorage(render_context->m_GraphicsContext,
+                                                     render_context->m_LightUniformBuffer,
+                                                     light_buffer_set,
+                                                     light_buffer_binding);
+        }
+        else
+        {
+            dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
+                                            render_context->m_LightUniformBuffer,
+                                            light_buffer_set,
+                                            light_buffer_binding);
+        }
     }
 
     static inline void UnbindLightBuffer(HRenderContext render_context)
@@ -659,6 +684,7 @@ namespace dmRender
         if (render_context->m_LightUniformBuffer)
         {
             dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+            dmGraphics::DisableUniformBufferAsStorage(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
         }
     }
 
@@ -669,7 +695,7 @@ namespace dmRender
             UnbindLightBuffer(render_context);
             return;
         }
-        ApplyLightBufferForBinding(render_context, material->m_LightBufferSet, material->m_LightBufferBinding);
+        ApplyLightBufferForBinding(render_context, material->m_LightBufferBindingFamily, material->m_LightBufferSet, material->m_LightBufferBinding);
     }
 
     void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program)
@@ -679,6 +705,6 @@ namespace dmRender
             UnbindLightBuffer(render_context);
             return;
         }
-        ApplyLightBufferForBinding(render_context, compute_program->m_LightBufferSet, compute_program->m_LightBufferBinding);
+        ApplyLightBufferForBinding(render_context, compute_program->m_LightBufferBindingFamily, compute_program->m_LightBufferSet, compute_program->m_LightBufferBinding);
     }
 }

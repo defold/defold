@@ -2043,6 +2043,15 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
     ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 }
 
+static void WebGPUEnableUniformBufferAsStorage(HContext, HUniformBuffer, uint32_t, uint32_t)
+{
+    // Vulkan-only for now.
+}
+
+static void WebGPUDisableUniformBufferAsStorage(HContext, HUniformBuffer)
+{
+}
+
 static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
 {
     WebGPUContext* context = (WebGPUContext*)_context;
@@ -2780,7 +2789,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 {
     TRACE_CALL;
     program->m_BaseProgram.m_UniformBufferLayouts.SetSize(0);
-    program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity());
+    program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity() + program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Capacity());
 
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);

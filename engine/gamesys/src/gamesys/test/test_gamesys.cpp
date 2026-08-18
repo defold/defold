@@ -9555,6 +9555,27 @@ TEST_F(ShaderTest, ComputeLightBufferAbsent)
     dmResource::Release(m_Factory, (void*) compute_res);
 }
 
+TEST_F(ShaderTest, ComputeStorageLightBuffer)
+{
+    dmGameSystem::ComputeResource* compute_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/light_buffer_storage.computec", (void**) &compute_res);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, compute_res);
+
+    dmRender::HComputeProgram compute_program = compute_res->m_Program;
+    ASSERT_NE((void*)0, compute_program);
+    ASSERT_TRUE(compute_program->m_HasLightBuffer);
+    ASSERT_EQ(dmGraphics::BINDING_FAMILY_STORAGE_BUFFER, compute_program->m_LightBufferBindingFamily);
+    ASSERT_EQ(32u, compute_program->m_LightBufferCapacity);
+
+    dmRender::ApplyComputeProgramLightBuffers(m_RenderContext, compute_program);
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) m_RenderContext->m_LightUniformBuffer,
+              null_context->m_StorageBuffers[compute_program->m_LightBufferSet][compute_program->m_LightBufferBinding]);
+
+    dmResource::Release(m_Factory, (void*) compute_res);
+}
+
 #endif
 
 TEST_F(ModelTest, GetAABB)

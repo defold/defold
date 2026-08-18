@@ -1898,6 +1898,15 @@ namespace dmGraphics
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
+    static void DX12EnableUniformBufferAsStorage(HContext, HUniformBuffer, uint32_t, uint32_t)
+    {
+        // Vulkan-only for now.
+    }
+
+    static void DX12DisableUniformBufferAsStorage(HContext, HUniformBuffer)
+    {
+    }
+
     static void DX12EnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
         DX12Context* context = (DX12Context*) _context;

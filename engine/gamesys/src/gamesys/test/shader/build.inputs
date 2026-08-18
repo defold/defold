@@ -1,3 +1,4 @@
 /shader/inputs.compute
 /shader/light_buffer.compute
+/shader/light_buffer_storage.compute
 /shader/valid.compute

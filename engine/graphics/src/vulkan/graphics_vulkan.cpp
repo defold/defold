@@ -2255,7 +2255,10 @@ bail:
     {
         VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
-        ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        // A uniform buffer may also be exposed as a read-only storage buffer.
+        // This lets engine-owned data, such as LightBuffer, use one allocation
+        // for legacy UBO shaders and modern SSBO shaders.
+        ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
         ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2296,6 +2299,38 @@ bail:
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
+    static void VulkanEnableUniformBufferAsStorage(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+        assert(set < MAX_SET_COUNT);
+        assert(binding < MAX_BINDINGS_PER_SET_COUNT);
+
+        StorageBufferBinding& storage_binding = context->m_CurrentStorageBuffers[set][binding];
+        storage_binding.m_Buffer = (HStorageBuffer) &ubo->m_DeviceBuffer;
+        storage_binding.m_BufferOffset = 0;
+    }
+
+    static void VulkanDisableUniformBufferAsStorage(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+        HStorageBuffer device_buffer = (HStorageBuffer) &ubo->m_DeviceBuffer;
+
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                StorageBufferBinding& storage_binding = context->m_CurrentStorageBuffers[set][binding];
+                if (storage_binding.m_Buffer == device_buffer)
+                {
+                    storage_binding.m_Buffer = 0;
+                    storage_binding.m_BufferOffset = 0;
+                }
+            }
+        }
+    }
+
     static void VulkanEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
         VulkanContext* context = (VulkanContext*)_context;
@@ -2313,6 +2348,7 @@ bail:
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
 
         VulkanDisableUniformBuffer(_context, uniform_buffer);
+        VulkanDisableUniformBufferAsStorage(_context, uniform_buffer);
 
         if (!ubo->m_DeviceBuffer.m_Destroyed)
         {
@@ -2788,7 +2824,7 @@ bail:
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
 
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
                     TouchResource(context, ssbo_buffer);
@@ -2832,7 +2868,7 @@ bail:
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
                             0,
-                            bound_ubo->m_BaseUniformBuffer.m_Size);
+                            res->m_BindingInfo.m_BlockSize);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
 
                         dynamic_offsets[dynamic_offset_index] = 0;
@@ -2921,7 +2957,7 @@ bail:
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
                     VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
                     dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
@@ -3439,6 +3475,10 @@ bail:
                     case BINDING_FAMILY_STORAGE_BUFFER:
                         binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
+                        if (res.m_Type.m_UseTypeIndex)
+                        {
+                            program_resource_binding.m_BindingUserData = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
+                        }
                         info.m_StorageBufferCount++;
                     #if 0
                         dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
@@ -3481,7 +3521,7 @@ bail:
     {
         // TODO: We should do this as a two-pass function, one that does the "base" program setup,
         //       and then one pass that does all the vulkan specific setup. So we can keep the two code paths aligned.
-        program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity());
+        program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity() + program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Capacity());
 
         VulkanFillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
         VulkanFillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);

@@ -2309,6 +2309,15 @@ static void LogFrameBufferError(GLenum status)
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
+    static void OpenGLEnableUniformBufferAsStorage(HContext, HUniformBuffer, uint32_t, uint32_t)
+    {
+        // Vulkan-only for now.
+    }
+
+    static void OpenGLDisableUniformBufferAsStorage(HContext, HUniformBuffer)
+    {
+    }
+
     static void OpenGLEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
         OpenGLContext* context = (OpenGLContext*)_context;

@@ -2126,6 +2126,15 @@ namespace dmGraphics
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
+    static void MetalEnableUniformBufferAsStorage(HContext, HUniformBuffer, uint32_t, uint32_t)
+    {
+        // Vulkan-only for now.
+    }
+
+    static void MetalDisableUniformBufferAsStorage(HContext, HUniformBuffer)
+    {
+    }
+
     static void MetalEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
         MetalContext* context       = (MetalContext*) _context;

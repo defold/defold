@@ -129,6 +129,7 @@ namespace dmGraphics
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];
         HVertexBuffer                      m_VertexBuffers[MAX_VERTEX_BUFFERS];
         NullUniformBuffer*                 m_UniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        NullUniformBuffer*                 m_StorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         FrameBuffer                        m_MainFrameBuffer;
         FrameBuffer*                       m_CurrentFrameBuffer;
         NullProgram*                       m_Program;

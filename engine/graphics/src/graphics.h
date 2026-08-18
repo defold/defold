@@ -467,6 +467,8 @@ namespace dmGraphics
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
     void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
+    void                EnableUniformBufferAsStorage(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding);
+    void                DisableUniformBufferAsStorage(HContext context, HUniformBuffer uniform_buffer);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

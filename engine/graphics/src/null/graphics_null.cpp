@@ -201,6 +201,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -436,6 +437,28 @@ namespace dmGraphics
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
+    static void NullEnableUniformBufferAsStorage(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        NullContext* context = (NullContext*) _context;
+        context->m_StorageBuffers[set][binding] = (NullUniformBuffer*) uniform_buffer;
+    }
+
+    static void NullDisableUniformBufferAsStorage(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        NullContext* context = (NullContext*) _context;
+        NullUniformBuffer* buffer = (NullUniformBuffer*) uniform_buffer;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_StorageBuffers[set][binding] == buffer)
+                {
+                    context->m_StorageBuffers[set][binding] = 0;
+                }
+            }
+        }
+    }
+
     static void NullEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
         NullContext* context = (NullContext*)_context;
@@ -452,6 +475,7 @@ namespace dmGraphics
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
         NullDisableUniformBuffer(_context, uniform_buffer);
+        NullDisableUniformBufferAsStorage(_context, uniform_buffer);
         delete[] ubo->m_Buffer;
         delete ubo;
     }

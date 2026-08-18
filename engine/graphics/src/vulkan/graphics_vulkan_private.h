@@ -501,7 +501,7 @@ namespace dmGraphics
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
-        StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        StorageBufferBinding            m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         VulkanUniformBuffer*            m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         VulkanProgram*                  m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;

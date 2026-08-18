@@ -1491,6 +1491,10 @@ namespace dmGraphics
                         break;
                     case BINDING_FAMILY_STORAGE_BUFFER:
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
+                        if (res.m_Type.m_UseTypeIndex)
+                        {
+                            program_resource_binding.m_BindingUserData = AddUniformBufferLayout(program, &res, stage_type_infos.Begin(), stage_type_infos.Size());
+                        }
                         info.m_StorageBufferCount++;
 
                     #if 0
@@ -1532,7 +1536,7 @@ namespace dmGraphics
     {
         if (program)
         {
-            program->m_UniformBufferLayouts.SetCapacity(program->m_ShaderMeta.m_UniformBuffers.Capacity());
+            program->m_UniformBufferLayouts.SetCapacity(program->m_ShaderMeta.m_UniformBuffers.Capacity() + program->m_ShaderMeta.m_StorageBuffers.Capacity());
 
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_UniformBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_StorageBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
@@ -2450,6 +2454,16 @@ namespace dmGraphics
     void DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
     {
         g_functions.m_DisableUniformBuffer(context, uniform_buffer);
+    }
+
+    void EnableUniformBufferAsStorage(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding)
+    {
+        g_functions.m_EnableUniformBufferAsStorage(context, uniform_buffer, binding, set);
+    }
+
+    void DisableUniformBufferAsStorage(HContext context, HUniformBuffer uniform_buffer)
+    {
+        g_functions.m_DisableUniformBufferAsStorage(context, uniform_buffer);
     }
 
 // TODO: Make graphics.cpp backend agnostic

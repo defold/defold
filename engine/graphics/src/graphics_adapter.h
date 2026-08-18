@@ -137,6 +137,8 @@ namespace dmGraphics
     typedef void (*SetUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     typedef void (*EnableUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
     typedef void (*DisableUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer);
+    typedef void (*EnableUniformBufferAsStorageFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    typedef void (*DisableUniformBufferAsStorageFn)(HContext context, HUniformBuffer uniform_buffer);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -227,6 +229,8 @@ namespace dmGraphics
         SetUniformBufferFn m_SetUniformBuffer;
         EnableUniformBufferFn m_EnableUniformBuffer;
         DisableUniformBufferFn m_DisableUniformBuffer;
+        EnableUniformBufferAsStorageFn m_EnableUniformBufferAsStorage;
+        DisableUniformBufferAsStorageFn m_DisableUniformBufferAsStorage;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -318,7 +322,9 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteUniformBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetUniformBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableUniformBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableUniformBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableUniformBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableUniformBufferAsStorage); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableUniformBufferAsStorage);
 }
 
 #endif
