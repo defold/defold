@@ -62,6 +62,19 @@ static void initThreads( void )
     _glfwThrd.First.Next     = NULL;
 }
 
+static void terminateThreads( void )
+{
+    // Match x11_init.c: destroy mutex so a later glfwInit → initThreads can
+    // re-initialize. Re-init of a live pthread_mutex_t is undefined and can hang
+    // (seen on embed Destroy → Create on iOS main thread).
+    pthread_mutex_destroy( &_glfwThrd.CriticalSection );
+    memset( &_glfwThrd, 0, sizeof( _glfwThrd ) );
+}
+
+extern int _glfwIosIsEmbedHost( void );
+extern void _glfwIosClearEmbedHost( void );
+GLFWAPI void* glfwIosGetExternalView( void );
+
 //************************************************************************
 //****               Platform implementation functions                ****
 //************************************************************************
@@ -72,9 +85,22 @@ static void initThreads( void )
 
 int _glfwPlatformInit( void )
 {
-    _glfwLibrary.AutoreleasePool = [[NSAutoreleasePool alloc] init];
+    // Standalone iOS games: keep the historical process-lifetime pool.
+    // Embed hosts: UIKit already pools per runloop turn; a long-lived GLFW pool
+    // deadlocks when drained on Destroy→Create (dmPlatform::DeleteWindow).
+    if( _glfwIosIsEmbedHost() || glfwIosGetExternalView() )
+        _glfwLibrary.AutoreleasePool = nil;
+    else
+        _glfwLibrary.AutoreleasePool = [[NSAutoreleasePool alloc] init];
 
-    atexit( glfw_atexit );
+    // Install atexit once — re-registering on every embed Create/Destroy cycle
+    // (or standalone reboot → glfwInit) would stack handlers.
+    static int s_atexit_installed = 0;
+    if (!s_atexit_installed)
+    {
+        atexit( glfw_atexit );
+        s_atexit_installed = 1;
+    }
 
     _glfwLibrary.OpenGLFramework =
         CFBundleGetBundleWithIdentifier( CFSTR( "com.apple.opengles" ) );
@@ -98,6 +124,16 @@ int _glfwPlatformInit( void )
 int _glfwPlatformTerminate( void )
 {
     glfwCloseWindow();
+
+    terminateThreads();
+
+    if( _glfwLibrary.AutoreleasePool )
+    {
+        [_glfwLibrary.AutoreleasePool release];
+        _glfwLibrary.AutoreleasePool = nil;
+    }
+
+    _glfwIosClearEmbedHost();
 
     return GL_TRUE;
 }

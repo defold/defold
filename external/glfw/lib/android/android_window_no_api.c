@@ -10,7 +10,9 @@ static int g_PendingResizeBecauseOfInsets = 0;
 
 static void UpdateNoApiWindowSize(void)
 {
-    ANativeWindow* window = _glfwWinAndroid.app ? _glfwWinAndroid.app->window : 0;
+    ANativeWindow* window = _glfwWinAndroid.external_window
+        ? _glfwWinAndroid.external_window
+        : (_glfwWinAndroid.app ? _glfwWinAndroid.app->window : 0);
     if (window)
     {
         int w = ANativeWindow_getWidth(window);

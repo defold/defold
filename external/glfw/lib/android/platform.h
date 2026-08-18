@@ -142,6 +142,9 @@ struct _GLFWwin_android_struct {
     EGLSurface aux_surface;
     struct android_app* app;
     ANativeWindow* native_window;
+    // Host-provided window for embed mode. When set, preferred over app->window
+    // for EGL / Vulkan surface creation. Refcount owned by glfwAndroidSetExternalWindow.
+    ANativeWindow* external_window;
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];
     uint32_t m_RenderLock; // Set if we are between "frame begin" and "swap buffers"

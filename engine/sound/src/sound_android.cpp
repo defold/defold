@@ -19,7 +19,7 @@
 
 #include <android_native_app_glue.h>
 #include <jni.h>
-#include <assert.h>
+#include <string.h>
 
 struct SoundManager
 {
@@ -40,13 +40,19 @@ namespace
 {
     bool CallZ(jmethodID method, bool _default)
     {
-        assert(method != 0);
+        if (method == 0 || g_SoundManager.m_SoundManager == 0)
+            return _default;
         bool result = _default;
         dmAndroid::ThreadAttacher thread;
         JNIEnv* environment = thread.GetEnv();
         if (environment != NULL)
         {
             result = environment->CallBooleanMethod(g_SoundManager.m_SoundManager, method);
+            if (environment->ExceptionCheck())
+            {
+                environment->ExceptionClear();
+                result = _default;
+            }
         }
         return thread.Detach() ? result : _default;
     }
@@ -71,34 +77,56 @@ namespace dmSound
 {
     Result PlatformInitialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
-        g_SoundManager.m_IsPhoneCallActive = false; // It will get updated by the call to the construct
+        (void)config;
+        (void)params;
+        g_SoundManager.m_IsPhoneCallActive = false;
 
         dmAndroid::ThreadAttacher thread;
         JNIEnv* environment = thread.GetEnv();
-        if (environment != NULL)
+        if (environment == NULL)
+            return thread.Detach() ? RESULT_OK : RESULT_INIT_ERROR;
+
+        // Optional for embed hosts — missing SoundManager is not fatal.
+        jclass jni_class_SoundManager = dmAndroid::LoadClass(environment, "com.defold.sound.SoundManager");
+        if (!jni_class_SoundManager)
         {
-            struct android_app* app = dmAndroid::GetAndroidApp();
-            assert(app);
-
-            jclass      jni_class_NativeActivity     = environment->FindClass("android/app/NativeActivity");
-            jmethodID   jni_method_getClassLoader    = environment->GetMethodID(jni_class_NativeActivity, "getClassLoader", "()Ljava/lang/ClassLoader;");
-            jobject     jni_object_getClassLoader    = environment->CallObjectMethod(app->activity->clazz, jni_method_getClassLoader);
-            jclass      jni_class_ClassLoader        = environment->FindClass("java/lang/ClassLoader");
-            jmethodID   jni_method_loadClass         = environment->GetMethodID(jni_class_ClassLoader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-
-            jstring     jni_string_SoundManager      = environment->NewStringUTF("com.defold.sound.SoundManager");
-            jclass      jni_class_SoundManager       = (jclass) environment->CallObjectMethod(jni_object_getClassLoader, jni_method_loadClass, jni_string_SoundManager);
-            jmethodID   jni_constructor_SoundManager = environment->GetMethodID(jni_class_SoundManager, "<init>", "(Landroid/app/Activity;)V");
-
-            g_SoundManager.m_SoundManager            = environment->NewGlobalRef(environment->NewObject(jni_class_SoundManager, jni_constructor_SoundManager, app->activity->clazz));
-            g_SoundManager.m_IsMusicPlaying          = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
-
-            environment->DeleteLocalRef(jni_string_SoundManager);
-            environment->DeleteLocalRef(jni_class_SoundManager);
-            environment->DeleteLocalRef(jni_class_ClassLoader);
-            environment->DeleteLocalRef(jni_object_getClassLoader);
-            environment->DeleteLocalRef(jni_class_NativeActivity);
+            dmLogWarning("com.defold.sound.SoundManager not found; phone-call / music-playing hooks disabled.");
+            return thread.Detach() ? RESULT_OK : RESULT_INIT_ERROR;
         }
+
+        jmethodID jni_constructor_SoundManager = environment->GetMethodID(jni_class_SoundManager, "<init>", "(Landroid/app/Activity;)V");
+        if (environment->ExceptionCheck() || !jni_constructor_SoundManager)
+        {
+            environment->ExceptionClear();
+            environment->DeleteLocalRef(jni_class_SoundManager);
+            return thread.Detach() ? RESULT_OK : RESULT_INIT_ERROR;
+        }
+
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        if (!app || !app->activity)
+        {
+            environment->DeleteLocalRef(jni_class_SoundManager);
+            return thread.Detach() ? RESULT_OK : RESULT_INIT_ERROR;
+        }
+
+        jobject instance = environment->NewObject(jni_class_SoundManager, jni_constructor_SoundManager, app->activity->clazz);
+        if (environment->ExceptionCheck() || !instance)
+        {
+            environment->ExceptionClear();
+            environment->DeleteLocalRef(jni_class_SoundManager);
+            return thread.Detach() ? RESULT_OK : RESULT_INIT_ERROR;
+        }
+
+        g_SoundManager.m_SoundManager   = environment->NewGlobalRef(instance);
+        g_SoundManager.m_IsMusicPlaying = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
+        if (environment->ExceptionCheck())
+        {
+            environment->ExceptionClear();
+            g_SoundManager.m_IsMusicPlaying = 0;
+        }
+
+        environment->DeleteLocalRef(instance);
+        environment->DeleteLocalRef(jni_class_SoundManager);
         return thread.Detach() ? RESULT_OK : RESULT_INIT_ERROR;
     }
 
@@ -106,9 +134,11 @@ namespace dmSound
     {
         dmAndroid::ThreadAttacher thread;
         JNIEnv* environment = thread.GetEnv();
-        if (environment != NULL)
+        if (environment != NULL && g_SoundManager.m_SoundManager != 0)
         {
             environment->DeleteGlobalRef(g_SoundManager.m_SoundManager);
+            g_SoundManager.m_SoundManager = 0;
+            g_SoundManager.m_IsMusicPlaying = 0;
         }
         return thread.Detach() ? RESULT_OK : RESULT_FINI_ERROR;
     }

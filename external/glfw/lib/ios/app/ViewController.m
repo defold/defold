@@ -20,6 +20,8 @@
 #import "EAGLView.h"
 
 extern int g_IsReboot;
+extern int _glfwIosIsEmbedHost(void);
+GLFWAPI void* glfwIosGetExternalView(void);
 static int g_view_type = GLFW_NO_API;
 
 @implementation ViewController
@@ -202,6 +204,13 @@ static BOOL ViewTypeMatchesBaseView(int view_type, BaseView* view)
 
 void _glfwPlatformSetViewType(int view_type)
 {
+    // Embed hosts inject their own UIView; never create MetalView/EAGLView.
+    if (_glfwIosIsEmbedHost() || glfwIosGetExternalView())
+    {
+        g_view_type = view_type;
+        return;
+    }
+
     ViewController* viewController = (ViewController*) _glfwWin.viewController;
     if (g_view_type == view_type &&
         (!viewController || ![viewController isViewLoaded] || ViewTypeMatchesBaseView(view_type, viewController.baseView)))

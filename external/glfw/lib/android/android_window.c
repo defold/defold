@@ -184,6 +184,18 @@ void _glfwPlatformSetWindowPos( int x, int y )
 
 void _glfwPlatformIconifyWindow( void )
 {
+    // Embed hosts own the Activity; finishing it would tear down the whole app.
+    // Sticky user-iconify until Restore / EmbedResume (computeIconifiedState alone
+    // must not clear it while the surface is still alive).
+    if (_glfwAndroidIsEmbedHost())
+    {
+        _glfwAndroidSetEmbedUserIconified(1);
+        _glfwWin.iconified = GL_TRUE;
+        if (_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(0);
+        return;
+    }
+
     // Call finish and let Android life cycle take care of the iconification
     ANativeActivity_finish(g_AndroidApp->activity);
 }
@@ -194,6 +206,13 @@ void _glfwPlatformIconifyWindow( void )
 
 void _glfwPlatformRestoreWindow( void )
 {
+    if (_glfwAndroidIsEmbedHost())
+    {
+        _glfwAndroidSetEmbedUserIconified(0);
+        computeIconifiedState();
+        if (!_glfwWin.iconified && _glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(1);
+    }
 }
 
 void _glfwPlatformSwapBuffers( void )
@@ -335,13 +354,9 @@ void glfwAndroidFlushEvents()
     _glfwAndroidPlatformAfterFlushEvents();
 
     JNIEnv* env = 0;
-    JavaVM* vm = 0;
+    int did_attach = 0;
     if (num_input_events > 0)
-    {
-        env = g_AndroidApp->activity->env;
-        vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
-    }
+        env = JNIBeginActivity(&did_attach);
 
     for (int i = 0; i < num_input_events; ++i)
     {
@@ -349,10 +364,7 @@ void glfwAndroidFlushEvents()
         _glfwAndroidHandleInput(_glfwWinAndroid.app, env, event);
     }
 
-    if (vm != 0)
-    {
-        (*vm)->DetachCurrentThread(vm);
-    }
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 void androidDestroyWindow( void )
@@ -449,159 +461,128 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     g_KeyboardActive = show;
     g_autoCloseKeyboard = auto_close;
 
-    jint result;
-
-    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
-    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR) {
+    int did_attach = 0;
+    JNIEnv* env = JNIBeginActivity(&did_attach);
+    if (!env)
         return;
+
+    jobject activity = g_AndroidApp->activity->clazz;
+    if (show)
+    {
+        jmethodID mid = JNIGetMethodID(env, activity, "showSoftInput", "(I)V");
+        if (mid)
+            (*env)->CallVoidMethod(env, activity, mid, type);
     }
-
-    jobject native_activity = g_AndroidApp->activity->clazz;
-    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
-
-    if (show) {
-        jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "showSoftInput", "(I)V");
-        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, show_soft_input_method, type);
-    } else {
-        jmethodID hide_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "hideSoftInput", "()V");
-        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, hide_soft_input_method);
+    else
+    {
+        jmethodID mid = JNIGetMethodID(env, activity, "hideSoftInput", "()V");
+        if (mid)
+            (*env)->CallVoidMethod(env, activity, mid);
     }
+    if ((*env)->ExceptionCheck(env))
+        (*env)->ExceptionClear(env);
 
-    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 void _glfwResetKeyboard( void )
 {
-    jint result;
-
-    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
-    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR) {
+    int did_attach = 0;
+    JNIEnv* env = JNIBeginActivity(&did_attach);
+    if (!env)
         return;
+
+    jobject activity = g_AndroidApp->activity->clazz;
+    jmethodID mid = JNIGetMethodID(env, activity, "resetSoftInput", "()V");
+    if (mid)
+    {
+        (*env)->CallVoidMethod(env, activity, mid);
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
     }
 
-    jobject native_activity = g_AndroidApp->activity->clazz;
-    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
-
-    jmethodID reset_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "resetSoftInput", "()V");
-    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, reset_soft_input_method);
-
-    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 
 void _glfwAndroidSetInputMethod(int use_hidden_input)
 {
-    jint result;
-
-    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
-    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR) {
+    int did_attach = 0;
+    JNIEnv* env = JNIBeginActivity(&did_attach);
+    if (!env)
         return;
+
+    jobject activity = g_AndroidApp->activity->clazz;
+    jmethodID mid = JNIGetMethodID(env, activity, "setUseHiddenInputField", "(Z)V");
+    if (mid)
+    {
+        (*env)->CallVoidMethod(env, activity, mid, use_hidden_input);
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
     }
 
-    jobject native_activity = g_AndroidApp->activity->clazz;
-    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
-
-    jmethodID reset_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "setUseHiddenInputField", "(Z)V");
-    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, reset_soft_input_method, use_hidden_input);
-
-    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 void _glfwAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
 {
-    jint result;
-
-    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
-    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR) {
+    int did_attach = 0;
+    JNIEnv* env = JNIBeginActivity(&did_attach);
+    if (!env)
         return;
+
+    jobject activity = g_AndroidApp->activity->clazz;
+    jmethodID mid = JNIGetMethodID(env, activity, "setFullscreenParameters", "(ZZ)V");
+    if (mid)
+    {
+        (*env)->CallVoidMethod(env, activity, mid, immersive_mode, display_cutout);
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
     }
 
-    jobject native_activity = g_AndroidApp->activity->clazz;
-    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
-
-    jmethodID set_immersive_mode = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "setFullscreenParameters", "(ZZ)V");
-    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, set_immersive_mode, immersive_mode, display_cutout);
-
-    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
 {
-    jint result;
-
-    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
-    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR) {
+    int did_attach = 0;
+    JNIEnv* env = JNIBeginActivity(&did_attach);
+    if (!env)
         return 0;
-    }
 
-    jobject native_activity = g_AndroidApp->activity->clazz;
-    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
-
-    jmethodID get_safe_area_insets = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getSafeAreaInsets", "()[I");
-    if (!get_safe_area_insets)
+    jobject activity = g_AndroidApp->activity->clazz;
+    jmethodID mid = JNIGetMethodID(env, activity, "getSafeAreaInsets", "()[I");
+    if (!mid)
     {
-        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
         return 0;
     }
 
-    jintArray array = (jintArray)(*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_safe_area_insets);
+    jintArray array = (jintArray)(*env)->CallObjectMethod(env, activity, mid);
+    if ((*env)->ExceptionCheck(env))
+    {
+        (*env)->ExceptionClear(env);
+        array = 0;
+    }
     if (!array)
     {
-        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
         return 0;
     }
 
-    jsize len = (*lJNIEnv)->GetArrayLength(lJNIEnv, array);
+    jsize len = (*env)->GetArrayLength(env, array);
     if (len < 4)
     {
-        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        (*env)->DeleteLocalRef(env, array);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
         return 0;
     }
 
-    jint* values = (*lJNIEnv)->GetIntArrayElements(lJNIEnv, array, NULL);
+    jint* values = (*env)->GetIntArrayElements(env, array, NULL);
     if (!values)
     {
-        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        (*env)->DeleteLocalRef(env, array);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
         return 0;
     }
 
@@ -610,8 +591,9 @@ int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
     *right = values[2];
     *bottom = values[3];
 
-    (*lJNIEnv)->ReleaseIntArrayElements(lJNIEnv, array, values, JNI_ABORT);
-    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    (*env)->ReleaseIntArrayElements(env, array, values, JNI_ABORT);
+    (*env)->DeleteLocalRef(env, array);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
     return 1;
 }
 

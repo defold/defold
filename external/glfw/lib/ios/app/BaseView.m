@@ -576,7 +576,10 @@ NSString *const FAKE_STRING = @"Abcd";
 
 void _glfwResetKeyboard( void )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    id raw = _glfwWin.view;
+    if (![raw isKindOfClass:[BaseView class]])
+        return;
+    BaseView* view = (BaseView*) raw;
     [view clearMarkedText];
 }
 
@@ -605,11 +608,21 @@ GLFWAPI void glfwAccelerometerEnable()
     if (!g_MotionManager)
         g_MotionManager = [[CMMotionManager alloc] init];
 
+    if (!g_MotionManager)
+    {
+        NSLog(@"glfwAccelerometerEnable: CMMotionManager unavailable (soft-fail)");
+        g_AccelerometerEnabled = 0;
+        return;
+    }
+
     if (g_MotionManager.accelerometerAvailable) {
         g_MotionManager.accelerometerUpdateInterval = g_AccelerometerFrequency;
         [g_MotionManager startAccelerometerUpdates];
+        g_AccelerometerEnabled = 1;
+    } else {
+        NSLog(@"glfwAccelerometerEnable: accelerometer unavailable (soft-fail)");
+        g_AccelerometerEnabled = 0;
     }
-    g_AccelerometerEnabled = 1;
 }
 
 //========================================================================
@@ -618,7 +631,11 @@ GLFWAPI void glfwAccelerometerEnable()
 
 void _glfwShowKeyboard( int show, int type, int auto_close )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    id raw = _glfwWin.view;
+    if (![raw isKindOfClass:[BaseView class]])
+        return;
+
+    BaseView* view = (BaseView*) raw;
     view.secureTextEntry = NO;
     switch (type) {
         case GLFW_KEYBOARD_DEFAULT:
@@ -640,10 +657,10 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     view.autoCloseKeyboard = auto_close;
     if (show) {
         view.keyboardActive = YES;
-        [_glfwWin.view becomeFirstResponder];
+        [view becomeFirstResponder];
     } else {
         view.keyboardActive = NO;
-        [_glfwWin.view resignFirstResponder];
+        [view resignFirstResponder];
     }
     // check if there are any active special keys and immediately release
     // them when the keyboard is manipulated
@@ -661,7 +678,11 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 
 void _glfwPlatformPollEvents( void )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    id raw = _glfwWin.view;
+    if (![raw isKindOfClass:[BaseView class]])
+        return;
+
+    BaseView* view = (BaseView*) raw;
     if (view.keyboardActive > 0) {
         view.textkeyActive--;
         if (view.textkeyActive == 0) {
@@ -673,8 +694,14 @@ void _glfwPlatformPollEvents( void )
 
 int _glfwPlatformGetWindowRefreshRate( void )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    id raw = _glfwWin.view;
+    if (![raw isKindOfClass:[BaseView class]])
+        return 60;
+
+    BaseView* view = (BaseView*) raw;
     CADisplayLink* displayLink = view->displayLink;
+    if (!displayLink)
+        return 60;
 
     @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher, default to 0 for older versions.
         return displayLink.preferredFramesPerSecond;

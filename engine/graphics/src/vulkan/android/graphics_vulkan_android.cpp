@@ -290,12 +290,15 @@ namespace dmGraphics
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
-        struct android_app* app = dmAndroid::GetAndroidApp();
-        assert(app);
+        ANativeWindow* native_window = dmPlatform::GetAndroidNativeWindow();
+        if (!native_window)
+        {
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
 
         VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
         vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-        vk_surface_create_info.window = app->window;
+        vk_surface_create_info.window = native_window;
 
         return vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
     }
@@ -332,8 +335,7 @@ namespace dmGraphics
         VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
         if (res == VK_SUCCESS)
         {
-            android_app* app = dmAndroid::GetAndroidApp();
-            context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
+            context->m_AndroidVulkanWindow = (void*) dmPlatform::GetAndroidNativeWindow();
             context->m_SwapChain->m_Surface = context->m_WindowSurface;
         }
         return res;
@@ -346,8 +348,7 @@ namespace dmGraphics
 
     bool AndroidVulkanHandleWindowSurfaceChange(VulkanContext* context, uint32_t window_width, uint32_t window_height)
     {
-        android_app* app = dmAndroid::GetAndroidApp();
-        ANativeWindow* native_window = app ? app->window : 0;
+        ANativeWindow* native_window = dmPlatform::GetAndroidNativeWindow();
         ANativeWindow* context_native_window = (ANativeWindow*) context->m_AndroidVulkanWindow;
         uint32_t target_window_width = window_width;
         uint32_t target_window_height = window_height;
@@ -388,8 +389,7 @@ namespace dmGraphics
 
     void AndroidVulkanInitializeContext(VulkanContext* context)
     {
-        android_app* app = dmAndroid::GetAndroidApp();
-        context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
+        context->m_AndroidVulkanWindow = (void*) dmPlatform::GetAndroidNativeWindow();
         SyncAndroidVulkanWindowSize(context);
     }
 

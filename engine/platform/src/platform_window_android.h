@@ -32,6 +32,8 @@ namespace dmPlatform
     JavaVM*      GetAndroidJavaVM();
     jobject      GetAndroidActivity();
     android_app* GetAndroidApp();
+    /** Prefer host-injected external window; fall back to android_app->window. */
+    ANativeWindow* GetAndroidNativeWindow();
     bool         GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
 
     void         SetAndroidInputMethod(bool use_hidden_inputfield);

@@ -199,10 +199,27 @@ namespace dmDeviceOpenSL
         }
 
         jclass sound_class = dmAndroid::LoadClass(env, "com.defold.sound.Sound");
+        if (!sound_class)
+        {
+            // Embed hosts may omit Sound.java; fall back to a safe default.
+            return 44100;
+        }
 
         jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;I)I");
-        assert(get_sample_rate);
+        if (!get_sample_rate || env->ExceptionCheck())
+        {
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+            env->DeleteLocalRef(sound_class);
+            return 44100;
+        }
         jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz, 44100);
+        if (env->ExceptionCheck())
+        {
+            env->ExceptionClear();
+            env->DeleteLocalRef(sound_class);
+            return 44100;
+        }
 
         env->DeleteLocalRef(sound_class);
 

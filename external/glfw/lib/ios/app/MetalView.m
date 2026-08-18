@@ -24,6 +24,11 @@ extern _GLFWwin         g_Savewin;
 extern UIWindow*        g_ApplicationWindow;
 extern AppDelegate*     g_ApplicationDelegate;
 
+// ios_window.m
+GLFWAPI void* glfwIosGetExternalView(void);
+extern UIView* _glfwIosGetActiveView(void);
+extern int _glfwIosIsEmbedHost(void);
+
 static MetalView*        g_MetalView = 0;
 
 static CGSize GetDrawableSize(MetalView* view)
@@ -122,10 +127,62 @@ int _glfwPlatformQueryAuxContextVulkan()
     return 0;
 }
 
+// Declared in ios_window.m
+extern UIView* _glfwIosGetActiveView(void);
+extern int _glfwIosIsEmbedHost(void);
+GLFWAPI void* glfwIosGetExternalView(void);
+
+static void UpdateExternalViewSize(UIView* view, BOOL notify)
+{
+    if (!view)
+        return;
+
+    CGRect bounds = view.bounds;
+    CGFloat scale = view.contentScaleFactor > 0.0 ? view.contentScaleFactor : [[UIScreen mainScreen] scale];
+    if (bounds.size.width <= 0.0f || bounds.size.height <= 0.0f)
+    {
+        bounds = [[UIScreen mainScreen] bounds];
+        scale = [[UIScreen mainScreen] scale];
+    }
+
+    const int width = (int)(bounds.size.width * scale + 0.5f);
+    const int height = (int)(bounds.size.height * scale + 0.5f);
+    if (width <= 0 || height <= 0)
+        return;
+
+    const BOOL changed = _glfwWin.width != width || _glfwWin.height != height;
+    _glfwWin.width = width;
+    _glfwWin.height = height;
+
+    if (notify && changed && _glfwWin.windowSizeCallback)
+        _glfwWin.windowSizeCallback(width, height);
+}
+
 int  _glfwPlatformOpenWindowVulkan( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+    UIView* external = (UIView*)glfwIosGetExternalView();
+    if (external || _glfwIosIsEmbedHost())
+    {
+        // Host-driven embed: use injected UIView; do not create MetalView /
+        // UIWindow / CADisplayLink (host owns the frame clock).
+        UIView* view = external ? external : _glfwIosGetActiveView();
+        UpdateExternalViewSize(view, NO);
+
+        _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;
+        g_Savewin.portrait = _glfwWin.portrait;
+
+        _glfwWin.pixelFormat = nil;
+        _glfwWin.delegate = nil;
+        _glfwWin.view = view;
+        _glfwWin.window = view.window;
+        _glfwWin.context = nil;
+        _glfwWin.aux_context = nil;
+        _glfwWin.clientAPI = GLFW_NO_API;
+        return GL_TRUE;
+    }
+
     UpdateWindowSize(g_MetalView, NO);
 
     _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;

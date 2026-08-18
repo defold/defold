@@ -58,6 +58,9 @@ typedef enum GlfwAndroidEglResult
     GLFW_ANDROID_EGL_RESULT_RETRY_ALLOC   = 2,
 } GlfwAndroidEglResult;
 
+/* Prefer host-injected external_window; fall back to NativeActivity window. */
+ANativeWindow* _glfwAndroidGetActiveNativeWindow(_GLFWwin_android* win);
+
 int init_gl(_GLFWwin_android* win);
 
 void final_gl(_GLFWwin_android* win);
@@ -79,6 +82,14 @@ GlfwAndroidEglResult limit_egl_failure_retries(_GLFWwin_android* win, GlfwAndroi
 void reset_egl_failure_retries(_GLFWwin_android* win);
 
 int _glfwAndroidIsAppResumed(void);
+
+/** Non-zero when host injected an external ANativeWindow (embed mode). */
+int _glfwAndroidIsEmbedHost(void);
+/** Clears embed-host flag after terminate. */
+void _glfwAndroidClearEmbedHost(void);
+/** Embed hide_app sticky iconify; survives computeIconifiedState until cleared. */
+void _glfwAndroidSetEmbedUserIconified(int iconified);
+int _glfwAndroidIsEmbedUserIconified(void);
 
 int query_gl_aux_context(_GLFWwin_android* win);
 

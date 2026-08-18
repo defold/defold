@@ -75,20 +75,10 @@ int _glfwAndroidPlatformGetWindowRefreshRate(void)
     }
 
     float refresh_rate = 0.0f;
-    jint result;
-
-    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
-    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR) {
-         return 0;
-    }
+    int did_attach = 0;
+    JNIEnv* lJNIEnv = JNIBeginActivity(&did_attach);
+    if (!lJNIEnv)
+        return 0;
 
     jobject native_activity = g_AndroidApp->activity->clazz;
     jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
@@ -115,7 +105,9 @@ int _glfwAndroidPlatformGetWindowRefreshRate(void)
             }
         }
     }
-    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    if (native_activity_class)
+        (*lJNIEnv)->DeleteLocalRef(lJNIEnv, native_activity_class);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 
     return (int)(refresh_rate + 0.5f);
 }

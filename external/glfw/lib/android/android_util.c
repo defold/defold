@@ -24,6 +24,75 @@
 #define EGL_RETRY_MAX_DELAY_US     (800 * 1000)
 #define EGL_BAD_ALLOC_MAX_RETRIES  (8)
 
+// Set when a host injects an ANativeWindow (embed). Terminate must not call
+// DetachCurrentThread on the ART UI thread or ANativeActivity_finish — the
+// host owns the Activity.
+static int g_AndroidEmbedHost = 0;
+// hide_app / Iconify on embed: sticky until Restore or EmbedResume. Must not be
+// cleared by computeIconifiedState when the surface is still present.
+static int g_AndroidEmbedUserIconified = 0;
+
+int _glfwAndroidIsEmbedHost(void)
+{
+    return g_AndroidEmbedHost;
+}
+
+void _glfwAndroidClearEmbedHost(void)
+{
+    g_AndroidEmbedHost = 0;
+    g_AndroidEmbedUserIconified = 0;
+}
+
+void _glfwAndroidSetEmbedUserIconified(int iconified)
+{
+    g_AndroidEmbedUserIconified = iconified ? 1 : 0;
+}
+
+int _glfwAndroidIsEmbedUserIconified(void)
+{
+    return g_AndroidEmbedUserIconified;
+}
+
+ANativeWindow* _glfwAndroidGetActiveNativeWindow(_GLFWwin_android* win)
+{
+    if (!win)
+        return 0;
+    if (win->external_window)
+        return win->external_window;
+    if (win->app)
+        return win->app->window;
+    return 0;
+}
+
+// Default visibility: hosts dlsym these from libdmengine.so (-fvisibility=hidden).
+__attribute__((visibility("default")))
+GLFWAPI void glfwAndroidSetExternalWindow(ANativeWindow* window)
+{
+    ANativeWindow* prev = _glfwWinAndroid.external_window;
+    if (window == prev)
+        return;
+
+    if (window)
+    {
+        ANativeWindow_acquire(window);
+        g_AndroidEmbedHost = 1;
+    }
+
+    _glfwWinAndroid.external_window = window;
+
+    if (prev)
+        ANativeWindow_release(prev);
+
+    LOGV("glfwAndroidSetExternalWindow: %p (was %p) embed=%d",
+         (void*)window, (void*)prev, g_AndroidEmbedHost);
+}
+
+__attribute__((visibility("default")))
+GLFWAPI ANativeWindow* glfwAndroidGetExternalWindow(void)
+{
+    return _glfwWinAndroid.external_window;
+}
+
 
 static bool is_alpha_transparency_enabled()
 {
@@ -163,7 +232,17 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
 
 static ANativeWindow* AcquireAppWindow(_GLFWwin_android* win)
 {
-    if (win == 0 || win->app == 0)
+    if (win == 0)
+        return 0;
+
+    // Embed: host-injected window is authoritative; skip NativeActivity mutex.
+    if (win->external_window)
+    {
+        ANativeWindow_acquire(win->external_window);
+        return win->external_window;
+    }
+
+    if (win->app == 0)
         return 0;
 
     int did_attach = 0;
@@ -182,7 +261,14 @@ static ANativeWindow* AcquireAppWindow(_GLFWwin_android* win)
 
 static int IsAppWindowCurrent(_GLFWwin_android* win, ANativeWindow* window)
 {
-    if (win == 0 || win->app == 0 || window == 0 || !_glfwAndroidIsAppResumed())
+    if (win == 0 || window == 0)
+        return 0;
+
+    // Embed: the injected window is always "current" while set.
+    if (win->external_window)
+        return win->external_window == window;
+
+    if (win->app == 0 || !_glfwAndroidIsAppResumed())
         return 0;
 
     pthread_mutex_lock(&win->app->mutex);
@@ -195,9 +281,21 @@ static ANativeWindow* WaitForAppAndWindow(_GLFWwin_android* win)
 {
     const useconds_t wait_period = 50*1000;
     int logged_wait = 0;
+
+    // Embed hosts may inject the window before NativeActivity resume.
+    if (win != 0 && win->external_window)
+    {
+        ANativeWindow* window = AcquireAppWindow(win);
+        if (window)
+        {
+            LOGI("ENGINE THREAD: Window ready!");
+            return window;
+        }
+    }
+
     while (win != 0 && win->app != 0 && !win->app->destroyRequested)
     {
-        if (_glfwAndroidIsAppResumed())
+        if (_glfwAndroidIsAppResumed() || win->external_window)
         {
             ANativeWindow* window = AcquireAppWindow(win);
             if (window)
@@ -302,6 +400,7 @@ static void ReleaseWindow(ANativeWindow* window)
 
 static void ReleaseNativeWindow(_GLFWwin_android* win)
 {
+    // external_window refcount is owned solely by glfwAndroidSetExternalWindow.
     if (win->native_window)
     {
         ReleaseWindow(win->native_window);

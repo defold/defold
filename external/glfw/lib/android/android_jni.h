@@ -27,7 +27,9 @@ JNIEnv* JNIAttachCurrentThread();
 void JNIDetachCurrentThread();
 void JNIAttachCurrentThreadIfNeeded(int* did_attach);
 void JNIDetachCurrentThreadIfNeeded(int did_attach);
-jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature);
+/** Attach if needed and return JNIEnv, or NULL. Caller must Detach with *did_attach. */
+JNIEnv* JNIBeginActivity(int* did_attach);
+jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature);
 int JNIAndroidSetCommandLine(ANativeActivity* activity);
 
 #endif // DM_GLFW_ANDROID_JNI_H

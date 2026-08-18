@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <dmsdk/dlib/android.h>
+#include <dmsdk/dlib/log.h>
 
 namespace dmAndroid
 {
@@ -42,10 +43,20 @@ ThreadAttacher::ThreadAttacher()
     {
         m_Activity = app->activity;
 
-        if (m_Activity->vm->GetEnv((void **)&m_Env, JNI_VERSION_1_6) != JNI_OK)
+        // Only Attach (and later Detach) when this native thread is not already
+        // owned by ART — e.g. Compose/UI calling into the engine. Detaching an
+        // ART-attached thread aborts: "attempting to detach while still running code".
+        jint status = m_Activity->vm->GetEnv((void **)&m_Env, JNI_VERSION_1_6);
+        if (status == JNI_EDETACHED)
         {
-            m_Activity->vm->AttachCurrentThread(&m_Env, 0);
-            m_IsAttached = true;
+            if (m_Activity->vm->AttachCurrentThread(&m_Env, 0) == JNI_OK)
+                m_IsAttached = true;
+            else
+                m_Env = NULL;
+        }
+        else if (status != JNI_OK)
+        {
+            m_Env = NULL;
         }
     }
 }
@@ -69,15 +80,37 @@ bool ThreadAttacher::Detach()
 
 jclass LoadClass(JNIEnv* env, jobject activity, const char* class_name)
 {
-    jclass activity_class = env->FindClass("android/app/NativeActivity");
-    jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
-    jobject cls = env->CallObjectMethod(activity, get_class_loader);
-    jclass class_loader = env->FindClass("java/lang/ClassLoader");
-    jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-    jstring str_class_name = env->NewStringUTF(class_name);
-    jclass klass = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
-    assert(klass);
-    env->DeleteLocalRef(str_class_name);
+    // Use the runtime Activity/Context class — embed hosts are not NativeActivity.
+    jclass activity_class = env->GetObjectClass(activity);
+    jmethodID get_class_loader = env->GetMethodID(activity_class, "getClassLoader", "()Ljava/lang/ClassLoader;");
+    jobject cls = get_class_loader ? env->CallObjectMethod(activity, get_class_loader) : 0;
+    env->DeleteLocalRef(activity_class);
+
+    jclass klass = 0;
+    if (cls)
+    {
+        jclass class_loader = env->FindClass("java/lang/ClassLoader");
+        jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+        jstring str_class_name = env->NewStringUTF(class_name);
+        klass = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
+        if (env->ExceptionCheck())
+        {
+            // Missing optional helpers (Sound, VkQuality, …) are expected on
+            // embed hosts — clear without dumping a stack to logcat.
+            env->ExceptionClear();
+            klass = 0;
+        }
+        env->DeleteLocalRef(str_class_name);
+        env->DeleteLocalRef(class_loader);
+        env->DeleteLocalRef(cls);
+    }
+
+    if (!klass)
+    {
+        // Callers must handle null (optional classes). Do not abort.
+        dmLogWarning("dmAndroid::LoadClass: '%s' not found", class_name ? class_name : "(null)");
+        return 0;
+    }
     return klass;
 }
 
