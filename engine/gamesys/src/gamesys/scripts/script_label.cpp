@@ -256,9 +256,28 @@ namespace dmGameSystem
 // As seen in gamesys_private.h (which makes it a _lot_ harder to search for)
 static const char* LABEL_EXT = "labelc";
 
+/*# [type:string] label text
+ *
+ * The text of the label.
+ *
+ * @name text
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *     go.set("#label", "text", "Hello World!")
+ *     local text = go.get("#label", "text")
+ * end
+ * ```
+ */
+
 /*# set the text for a label
  *
  * Sets the text of a label component
+ *
+ * [icon:attention] This function is deprecated. Use `go.set("#label", "text", value)` instead.
  *
  * [icon:attention] This method uses the message passing that means the value will be set after `dispatch messages` step.
  * More information is available in the <a href="/manuals/application-lifecycle">Application Lifecycle manual</a>.
@@ -270,13 +289,15 @@ static const char* LABEL_EXT = "labelc";
  *
  * ```lua
  * function init(self)
- *     label.set_text("#label", "Hello World!")
+ *     go.set("#label", "text", "Hello World!")
  * end
  * ```
  */
 static int SetText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
+
+    dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "label", "set_text", "go", "set");
 
     (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
@@ -314,15 +335,17 @@ static int SetText(lua_State* L)
  *
  * Gets the text from a label component
  *
+ * [icon:attention] This function is deprecated. Use `go.get("#label", "text")` instead.
+ *
  * @name label.get_text
  * @param url [type:string|hash|url] the label to get the text from
- * @return metrics [type:string] the label text
+ * @return text [type:string] the label text
  *
  * @examples
  *
  * ```lua
  * function init(self)
- *     local text = label.get_text("#label")
+ *     local text = go.get("#label", "text")
  *     print(text)
  * end
  * ```
@@ -330,6 +353,8 @@ static int SetText(lua_State* L)
 static int GetText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
+
+    dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "label", "get_text", "go", "get");
 
     CheckGoInstance(L);
 

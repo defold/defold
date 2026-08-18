@@ -109,9 +109,22 @@ namespace dmGameSystem
     static const dmhash_t LABEL_PROP_LEADING = dmHashString64("leading");
     static const dmhash_t LABEL_PROP_TRACKING = dmHashString64("tracking");
     static const dmhash_t LABEL_PROP_LINE_BREAK = dmHashString64("line_break");
+    static const dmhash_t LABEL_PROP_TEXT = dmHashString64("text");
 
     static void InvalidateTextLayout(LabelComponent* component);
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component);
+
+    static void SetLabelText(LabelComponent* component, const char* text)
+    {
+        char* text_copy = strdup(text);
+        if (component->m_UserAllocatedText)
+        {
+            free((void*)component->m_Text);
+        }
+        component->m_Text = text_copy;
+        component->m_UserAllocatedText = 1;
+        InvalidateTextLayout(component);
+    }
 
     dmGameObject::CreateResult CompLabelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -294,6 +307,11 @@ namespace dmGameSystem
 
     void InitParametersFromDescription(LabelComponent* label_component, dmGameSystemDDF::LabelDesc* label_desc)
     {
+        if (label_component->m_UserAllocatedText)
+        {
+            free((void*)label_component->m_Text);
+            label_component->m_UserAllocatedText = 0;
+        }
         label_component->m_Size     = Vector3(label_desc->m_Size[0], label_desc->m_Size[1], label_desc->m_Size[2]);
         label_component->m_Color    = Vector4(label_desc->m_Color[0], label_desc->m_Color[1], label_desc->m_Color[2], label_desc->m_Color[3]);
         label_component->m_Outline  = Vector4(label_desc->m_Outline[0], label_desc->m_Outline[1], label_desc->m_Outline[2], label_desc->m_Outline[3]);
@@ -613,13 +631,7 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*)params.m_Message->m_Data;
-            if (component->m_UserAllocatedText)
-            {
-                free((void*)component->m_Text);
-            }
-            component->m_Text = strdup(textmsg->m_Text);
-            component->m_UserAllocatedText = 1;
-            InvalidateTextLayout(component);
+            SetLabelText(component, textmsg->m_Text);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -707,6 +719,11 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_LineBreak != 0);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (get_property == LABEL_PROP_TEXT)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Text);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         int32_t value_index = 0;
         GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, value_index, out_value, false, CompLabelGetConstantCallback, component);
@@ -783,6 +800,15 @@ namespace dmGameSystem
             }
             component->m_LineBreak = params.m_Value.m_Bool;
             InvalidateTextLayout(component);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (set_property == LABEL_PROP_TEXT)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_TEXT)
+            {
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+            SetLabelText(component, params.m_Value.m_Text);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 
