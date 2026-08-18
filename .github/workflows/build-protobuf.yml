@@ -8,6 +8,9 @@ on:
         description: Commit rebuilt packages to the selected branch
         default: false
 
+permissions:
+  contents: write
+
 jobs:
   build:
     uses: ./.github/workflows/build-external-template.yml
