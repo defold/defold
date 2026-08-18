@@ -189,6 +189,7 @@ namespace dmGraphics
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
         dmArray<VertexDeclaration::Stream> m_VertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
