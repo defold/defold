@@ -182,6 +182,19 @@ function merge_protobuf_dependencies() {
     fi
 }
 
+function create_archive() {
+    local archive=$1
+    shift
+
+    if [ "${PLATFORM}" = "win32" ] || [ "${PLATFORM}" = "x86_64-win32" ]; then
+        # GNU tar treats the drive-letter colon in paths such as D:/... as a
+        # remote archive separator unless explicitly told that the path is local.
+        tar --force-local -czvf "${archive}" "$@"
+    else
+        tar -czvf "${archive}" "$@"
+    fi
+}
+
 rm -rf "${TMP_HOST}" "${TMP_TARGET}" "${INSTALL_HOST}" "${INSTALL_TARGET}" "${PACKAGE_STAGE}"
 mkdir -p "${BUILD_ROOT}" "${PACKAGE_DIR}"
 unpack_sources "${TMP_HOST}"
@@ -250,8 +263,8 @@ if [ -n "${IS_DESKTOP:-}" ]; then
     cp "${SOURCE_TARGET_PROTOBUF}/_protoc_build/protoc${SUFFIX:-}" "bin/${PLATFORM}/"
 fi
 
-tar cfvz "${PACKAGE_DIR}/${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz" lib bin
-tar cfvz "${PACKAGE_DIR}/${PRODUCT}-${VERSION}-common.tar.gz" -C "${INSTALL_TARGET}" include
+create_archive "${PACKAGE_DIR}/${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz" lib bin
+create_archive "${PACKAGE_DIR}/${PRODUCT}-${VERSION}-common.tar.gz" -C "${INSTALL_TARGET}" include
 
 rm -rf lib bin
 popd >/dev/null
