@@ -232,7 +232,16 @@ def read_input_list(path):
     return inputs
 
 
-def generate_lua_annotations(docs_dir, inputs, output_dir, manifest, metadata, pythonpath, stamp):
+def generate_lua_annotations(
+        docs_dir,
+        inputs,
+        output_dir,
+        manifest,
+        manifest_prefix,
+        metadata,
+        pythonpath,
+        context,
+        stamp):
     add_python_paths([docs_dir] + pythonpath)
     import lua_annotations
     import script_doc
@@ -249,14 +258,19 @@ def generate_lua_annotations(docs_dir, inputs, output_dir, manifest, metadata, p
         documents,
         os.path.abspath(output_dir),
         os.path.abspath(metadata),
-        strict=True)
+        strict=True,
+        context=context)
     manifest_lines = [
-        "%s|%s" % (os.path.join(os.path.abspath(output_dir), name), name)
+        "%s|%s" % (
+            os.path.join(os.path.abspath(output_dir), name),
+            os.path.join(manifest_prefix, name))
         for name in output_names
     ]
     write_if_changed(manifest, "\n".join(manifest_lines) + "\n")
     write_stamp(stamp)
-    log("Generated %d aggregate Lua annotation files" % len(output_names))
+    log(
+        "Generated %d aggregate Lua annotation files for %s context"
+        % (len(output_names), context))
 
 
 def run_lua_language_server(executable, input_dir):
@@ -321,16 +335,35 @@ def validate_lua_archive(executable, archive, metadata, stamp):
     with tempfile.TemporaryDirectory(prefix="defold-ref-doc.") as temp_dir:
         with zipfile.ZipFile(archive) as ref_doc:
             ref_doc.extractall(temp_dir)
-        validate_lua_annotations(executable, temp_dir, metadata, stamp)
+        annotation_root = Path(temp_dir) / "doc" / "lua-annotations"
+        for context in ("runtime", "editor"):
+            validate_lua_annotations(
+                executable,
+                annotation_root / context,
+                metadata,
+                Path(temp_dir) / ("validate-%s.stamp" % context))
+        write_stamp(stamp)
     log("Clean ref-doc.zip extraction passed LuaLS validation")
 
 
-def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
+def validate_lua_behavior(
+        executable,
+        annotations_dir,
+        fixture_dir,
+        context,
+        stamp):
     fixture_dir = Path(fixture_dir)
-    expected_negative = {
-        "assign-type-mismatch": 5,
-        "param-type-mismatch": 6,
+    expected_negative_by_context = {
+        "runtime": {
+            "assign-type-mismatch": 5,
+            "param-type-mismatch": 5,
+        },
+        "editor": {
+            "assign-type-mismatch": 1,
+        },
     }
+    expected_negative = expected_negative_by_context[context]
+    fixture_prefix = "editor_" if context == "editor" else ""
     with tempfile.TemporaryDirectory(prefix="defold-lua-behavior.") as temp_dir:
         temp_dir = Path(temp_dir)
         results = {}
@@ -340,7 +373,7 @@ def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
             for annotation in Path(annotations_dir).glob("*.lua"):
                 shutil.copy2(annotation, workspace / annotation.name)
             shutil.copy2(
-                fixture_dir / ("%s.lua" % fixture_name),
+                fixture_dir / ("%s%s.lua" % (fixture_prefix, fixture_name)),
                 workspace / "main.lua")
             results[fixture_name] = run_lua_language_server(
                 executable,
@@ -356,7 +389,7 @@ def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
             "Negative LuaLS behavior fixture expected %s, got %s"
             % (expected_negative, negative_counts))
     write_stamp(stamp)
-    log("LuaLS positive and negative behavior fixtures passed")
+    log("LuaLS %s positive and negative behavior fixtures passed" % context)
 
 
 def lua_language_server_version(project_clj):
@@ -430,7 +463,10 @@ def sync_outputs(manifests, output_dir, all_formats, stamp):
     entries = []
     for manifest in manifests:
         entries.extend(read_manifest(manifest))
-    expected_names = {target_name for _, target_name in entries}
+    expected_names = {
+        Path(target_name)
+        for _, target_name in entries
+    }
     installed_count = 0
 
     for source, target_name in entries:
@@ -446,10 +482,10 @@ def sync_outputs(manifests, output_dir, all_formats, stamp):
 
     for target in output_dir.glob("*_doc.*"):
         suffix = target.name.rsplit(".", 1)[-1]
-        if suffix in all_formats and target.name not in expected_names:
+        if suffix in all_formats and Path(target.name) not in expected_names:
             target.unlink()
-    for target in output_dir.glob("*.lua"):
-        if target.name not in expected_names:
+    for target in output_dir.rglob("*.lua"):
+        if target.relative_to(output_dir) not in expected_names:
             target.unlink()
 
     write_stamp(stamp)
@@ -522,8 +558,13 @@ def main():
     lua_inputs.add_argument("--input-list")
     lua.add_argument("--output-dir", required=True)
     lua.add_argument("--manifest", required=True)
+    lua.add_argument("--manifest-prefix", required=True)
     lua.add_argument("--metadata", required=True)
     lua.add_argument("--pythonpath", action="append", default=[])
+    lua.add_argument(
+        "--context",
+        choices=["all", "editor", "runtime"],
+        default="all")
     lua.add_argument("--stamp", required=True)
 
     validate_lua = subparsers.add_parser("validate-lua")
@@ -542,6 +583,10 @@ def main():
     validate_lua_behavior_parser.add_argument("--executable", required=True)
     validate_lua_behavior_parser.add_argument("--annotations-dir", required=True)
     validate_lua_behavior_parser.add_argument("--fixture-dir", required=True)
+    validate_lua_behavior_parser.add_argument(
+        "--context",
+        choices=["editor", "runtime"],
+        required=True)
     validate_lua_behavior_parser.add_argument("--stamp", required=True)
 
     install_lua_ls = subparsers.add_parser("install-lua-language-server")
@@ -581,8 +626,10 @@ def main():
             [os.path.abspath(path) for path in inputs],
             os.path.abspath(args.output_dir),
             os.path.abspath(args.manifest),
+            args.manifest_prefix,
             os.path.abspath(args.metadata),
             [os.path.abspath(path) for path in args.pythonpath],
+            args.context,
             os.path.abspath(args.stamp)))
     elif args.command == "validate-lua":
         timed("Validating Lua annotations", lambda: validate_lua_annotations(
@@ -601,6 +648,7 @@ def main():
             os.path.abspath(args.executable),
             os.path.abspath(args.annotations_dir),
             os.path.abspath(args.fixture_dir),
+            args.context,
             os.path.abspath(args.stamp)))
     elif args.command == "install-lua-language-server":
         timed("Installing pinned Lua language server", lambda: install_lua_language_server(

@@ -419,6 +419,19 @@
     (filter data/breakpoint-region?)
     (map (partial region->breakpoint resource))))
 
+(g/defnk produce-required-module-info [_node-id resource lines]
+  [_node-id
+   (resource/proj-path resource)
+   (with-open [reader (data/lines-reader lines)]
+     (coll/into-> (lua-parser/modules reader) []
+       (remove lua/preinstalled-modules)
+       (map lua/lua-module->path)))
+   (case (resource/language resource)
+     "lua-editor" :editor
+     "lua" (when (not= "lua" (resource/type-ext resource))
+             :runtime)
+     nil)])
+
 (g/defnode LuaCodeNode
   (inherits r/CodeEditorResourceNode)
 
@@ -432,14 +445,7 @@
   (output breakpoints project/Breakpoints produce-breakpoints)
 
   (output completions g/Any :cached (gu/passthrough script-intelligence-completions))
-  (output required-module-info script-intelligence/RequiredModuleInfo :cached
-          (g/fnk [_node-id resource lines]
-            [_node-id
-             (resource/proj-path resource)
-             (with-open [reader (data/lines-reader lines)]
-               (coll/into-> (lua-parser/modules reader) []
-                 (remove lua/preinstalled-modules)
-                 (map lua/lua-module->path)))]))
+  (output required-module-info script-intelligence/RequiredModuleInfo :cached produce-required-module-info)
   (output resource-with-lines script-annotations/ResourceWithLines (g/fnk [resource lines :as ret] ret)))
 
 (g/defnode LuaNode
@@ -499,7 +505,6 @@
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :category (localization/message "resource.category.scripts")
-                   :reference-completions true
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
@@ -523,32 +528,31 @@
                    :icon-class :script
                    :category (localization/message "resource.category.scripts")
                    :annotations true
-                   :reference-completions true
                    :tags #{:debuggable}}])
 
 (defn- additional-load-fn
-  [annotations reference-completions project self resource]
+  [annotations project self resource]
   (g/with-auto-evaluation-context evaluation-context
     (let [code-preprocessors (project/code-preprocessors project evaluation-context)
           script-intelligence (project/script-intelligence project evaluation-context)
           script-annotations (project/script-annotations project evaluation-context)]
-      (concat
-        (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
-        (g/connect script-intelligence :lua-completions self :script-intelligence-completions)
-        (when reference-completions
-          (g/connect self :required-module-info script-intelligence :required-module-infos))
-        (when (and annotations (resource/zip-resource? resource))
-          (g/connect self :resource-with-lines script-annotations :script-annotations))))))
+      (into []
+            cat
+            [(g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
+             (g/connect script-intelligence :lua-completions self :script-intelligence-completions)
+             (g/connect self :required-module-info script-intelligence :required-module-infos)
+             (when (and annotations (resource/zip-resource? resource))
+               (g/connect self :resource-with-lines script-annotations :script-annotations))]))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
         :let [args (-> def
-                       (dissoc :annotations :reference-completions)
+                       (dissoc :annotations)
                        (assoc
                          :built-pb-class script-compilation/built-pb-class
                          :language "lua"
                          :lazy-loaded false
-                         :additional-load-fn (partial additional-load-fn (:annotations def) (:reference-completions def))
+                         :additional-load-fn (partial additional-load-fn (:annotations def))
                          :view-types [:code :default]
                          :view-opts lua-code-opts))]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

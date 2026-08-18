@@ -50,6 +50,19 @@ LUA_LITERAL_TYPES = frozenset({
     "true",
 })
 
+ANNOTATION_CONTEXTS = frozenset({
+    "all",
+    "editor",
+    "runtime",
+})
+
+CONTEXTUAL_METADATA_SECTIONS = frozenset({
+    "aliases",
+    "classes",
+    "function_overloads",
+    "generics",
+})
+
 
 def load_metadata(path):
     with open(path, encoding="utf-8") as metadata_file:
@@ -98,6 +111,62 @@ def _load_migration_manifest(metadata, metadata_path):
 def _migration_document_key(source_path):
     name = Path(source_path).name
     return name[:-len(".apidoc")] if name.endswith(".apidoc") else name
+
+
+def _is_editor_document(source_path):
+    return Path(source_path).name in {
+        "editor.apidoc",
+        "editor.apidoc.apidoc",
+    }
+
+
+def _documents_for_context(documents, context):
+    if context not in ANNOTATION_CONTEXTS:
+        raise ValueError("Unknown Lua annotation context: %s" % context)
+    if context == "all":
+        return documents
+    include_editor = context == "editor"
+    return [
+        document
+        for document in documents
+        if _is_editor_document(document[0]) == include_editor
+    ]
+
+
+def _metadata_for_context(metadata, context):
+    editor_only = metadata.get("editor_only_metadata", {})
+    unknown_sections = set(editor_only) - CONTEXTUAL_METADATA_SECTIONS
+    if unknown_sections:
+        raise ValueError(
+            "Unknown editor-only metadata section(s): %s"
+            % ", ".join(sorted(unknown_sections)))
+    for section, names in editor_only.items():
+        unknown_names = set(names) - set(metadata.get(section, {}))
+        if unknown_names:
+            raise ValueError(
+                "Unknown editor-only %s entries: %s"
+                % (section, ", ".join(sorted(unknown_names))))
+
+    if context == "all":
+        return metadata
+
+    result = dict(metadata)
+    for section in CONTEXTUAL_METADATA_SECTIONS:
+        values = metadata.get(section, {})
+        editor_names = set(editor_only.get(section, []))
+        if context == "editor":
+            result[section] = {
+                name: value
+                for name, value in values.items()
+                if name in editor_names
+            }
+        else:
+            result[section] = {
+                name: value
+                for name, value in values.items()
+                if name not in editor_names
+            }
+    return result
 
 
 def _migration_patch_key(name):
@@ -643,10 +712,14 @@ def _contains_bare_table_type(expression):
         expression))
 
 
-def _canonical_name(document, element):
+def _canonical_name(document, element, metadata=None):
     name = element.name.strip()
     namespace = document.info.namespace.strip()
-    if namespace == "builtins" or "." in name or ":" in name:
+    if (
+            namespace == "builtins"
+            or "." in name
+            or ":" in name
+            or (metadata and name in metadata.get("global_symbols", ()))):
         return name
     return "%s.%s" % (namespace, name) if namespace else name
 
@@ -856,7 +929,7 @@ def _collect(documents, metadata):
                 document.info.description)
 
         for element in document.elements:
-            name = _canonical_name(document, element)
+            name = _canonical_name(document, element, metadata)
             root = _root_namespace(name)
             if element.type == script_doc_ddf_pb2.FUNCTION:
                 method_target = _method_target(name, metadata)
@@ -1461,7 +1534,7 @@ def _validate_types(
         raise ValueError("Lua annotation validation failed:\n" + "\n".join("  " + error for error in errors))
 
 
-def generate(documents, output_dir, metadata_path, strict=True):
+def generate(documents, output_dir, metadata_path, strict=True, context="all"):
     documents = list(documents)
     metadata = load_metadata(metadata_path)
     if strict:
@@ -1469,6 +1542,43 @@ def generate(documents, output_dir, metadata_path, strict=True):
             documents,
             metadata,
             str(metadata_path))
+
+    all_collected = _collect(documents, metadata)
+    (
+        all_functions,
+        all_values,
+        all_messages,
+        all_documented_classes,
+        all_documented_aliases,
+        all_documented_enums,
+        all_class_methods,
+        _,
+        all_constants,
+    ) = all_collected
+    all_enum_members = _collect_enum_members(
+        all_constants,
+        metadata,
+        all_documented_enums)
+
+    if strict:
+        _validate_types(
+            all_functions,
+            all_values,
+            all_messages,
+            all_documented_classes,
+            all_documented_aliases,
+            all_class_methods,
+            metadata,
+            all_enum_members,
+            all_constants,
+            str(metadata_path))
+
+    context_documents = _documents_for_context(documents, context)
+    context_metadata = _metadata_for_context(metadata, context)
+    collected = (
+        all_collected
+        if context_documents is documents
+        else _collect(context_documents, context_metadata))
     (
         functions,
         values,
@@ -1479,29 +1589,16 @@ def generate(documents, output_dir, metadata_path, strict=True):
         class_methods,
         descriptions,
         constants,
-    ) = _collect(documents, metadata)
+    ) = collected
     enum_members = _collect_enum_members(
         constants,
-        metadata,
+        context_metadata,
         documented_enums)
     namespaces = _namespace_sets(functions, values)
 
-    if strict:
-        _validate_types(
-            functions,
-            values,
-            messages,
-            documented_classes,
-            documented_aliases,
-            class_methods,
-            metadata,
-            enum_members,
-            constants,
-            str(metadata_path))
-
     outputs = {
         "meta.lua": _render_meta(
-            metadata,
+            context_metadata,
             messages,
             documented_classes,
             documented_aliases,
@@ -1519,7 +1616,7 @@ def generate(documents, output_dir, metadata_path, strict=True):
             root_namespaces,
             descriptions,
             enum_members,
-            metadata)
+            context_metadata)
         if content.strip():
             outputs["%s.lua" % root] = content
 

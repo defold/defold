@@ -17,6 +17,7 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script :as script]
+            [editor.code.script-intelligence :as script-intelligence]
             [editor.editor-extensions.runtime :as rt]
             [editor.localization :as localization]
             [editor.lua :as lua]
@@ -45,26 +46,30 @@
   (input globals g/Any)
   (output completions g/Any (g/constantly completions))
   (output prototype g/Any :cached produce-prototype)
+  (output required-module-info script-intelligence/RequiredModuleInfo :cached script/produce-required-module-info)
   (output reload-signature g/Int :cached produce-reload-signature))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
-                                 :ext "editor_script"
-                                 :language "lua"
-                                 :label (localization/message "resource.type.editor-script")
-                                 :icon "icons/32/Icons_29-AT-Unknown.png"
-                                 :category (localization/message "resource.category.editor")
-                                 :view-types [:code :default]
-                                 :view-opts script/lua-code-opts
-                                 :node-type EditorScript
-                                 :lazy-loaded false
-                                 :additional-load-fn
-                                 (fn [project self resource]
-                                   (let [extensions (g/node-value project :editor-extensions)]
-                                     (if (resource/file-resource? resource)
-                                       (concat
-                                         (g/connect self :prototype extensions :project-prototypes)
-                                         (g/connect self :reload-signature extensions :project-reload-signatures))
-                                       (concat
-                                         (g/connect self :prototype extensions :library-prototypes)
-                                         (g/connect self :reload-signature extensions :library-reload-signatures)))))))
+    :ext "editor_script"
+    :language "lua-editor"
+    :label (localization/message "resource.type.editor-script")
+    :icon "icons/32/Icons_29-AT-Unknown.png"
+    :category (localization/message "resource.category.editor")
+    :view-types [:code :default]
+    :view-opts script/lua-code-opts
+    :node-type EditorScript
+    :lazy-loaded false
+    :additional-load-fn
+    (fn [project self resource]
+      (let [extensions (g/node-value project :editor-extensions)
+            script-intelligence (g/node-value project :script-intelligence)
+            [prototypes-input reload-signatures-input]
+            (if (resource/file-resource? resource)
+              [:project-prototypes :project-reload-signatures]
+              [:library-prototypes :library-reload-signatures])]
+        (into []
+              cat
+              [(g/connect self :required-module-info script-intelligence :required-module-infos)
+               (g/connect self :prototype extensions prototypes-input)
+               (g/connect self :reload-signature extensions reload-signatures-input)])))))

@@ -31,6 +31,30 @@
 
 (def ^:private ^:const completion-item-kind-reference 18)
 
+(defn- lua-resource-api-context [project resource evaluation-context]
+  (case (resource/language resource)
+    "lua-editor" :editor
+    "lua" (if-not (= "lua" (resource/type-ext resource))
+            :runtime
+            (get (g/node-value
+                   (defold-project/script-intelligence project evaluation-context)
+                   :lua-api-context-by-module-proj-path
+                   evaluation-context)
+                 (resource/proj-path resource)
+                 :runtime))
+    nil))
+
+(defonce/record LuaApiContextResourceFilter [project lua-api-context]
+  clojure.lang.IFn
+  (invoke [_ resource]
+    (lsp.async/with-auto-evaluation-context evaluation-context
+      (= lua-api-context
+         (lua-resource-api-context project resource evaluation-context)))))
+
+(defn lua-api-context-resource-filter [project lua-api-context]
+  {:pre [(contains? #{:editor :runtime} lua-api-context)]}
+  (->LuaApiContextResourceFilter project lua-api-context))
+
 (defn- uri->resource [project uri evaluation-context]
   (let [basis (:basis evaluation-context)
         workspace (g/node-value project :workspace evaluation-context)]
@@ -218,5 +242,5 @@
        "textDocument/completion" (partial completion project)})))
 
 (defn language-server [project]
-  {:languages #{"lua"}
+  {:languages #{"lua" "lua-editor"}
    :launcher (->ProjectLauncher project)})

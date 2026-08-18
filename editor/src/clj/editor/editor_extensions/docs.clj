@@ -657,10 +657,10 @@ end
                         :doc "any Lua value that may be represented as JSON"}]}
          {:name "pprint"
           :type :function
-          :description "Pretty-print a Lua value"
-          :parameters [{:name "value"
+          :description "Pretty-print Lua values"
+          :parameters [{:name "..."
                         :types ["any"]
-                        :doc "any Lua value to pretty-print"}]}]
+                        :doc "Lua values to pretty-print"}]}]
         (let [message-pattern-ret {:name "message"
                                    :types ["editor.message"]
                                    :doc "a userdata value that, when stringified with <code>tostring()</code>, will produce a localized text according to the currently selected language in the editor"}

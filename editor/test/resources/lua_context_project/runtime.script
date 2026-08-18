@@ -1,0 +1,7 @@
+local runtime_module = require("modules.runtime")
+local shared_module = require("modules.shared")
+
+function init(self)
+    runtime_module.init(self)
+    shared_module.init(self)
+end

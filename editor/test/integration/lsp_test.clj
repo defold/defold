@@ -21,6 +21,8 @@
             [editor.asset-browser :as asset-browser]
             [editor.code.data :as data]
             [editor.defold-project :as project]
+            [editor.editor-extensions :as editor-extensions]
+            [editor.editor-extensions.runtime :as ext.runtime]
             [editor.lsp :as lsp]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
@@ -203,25 +205,129 @@
 
 (deftest lua-configuration-includes-official-annotations-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [official-annotations-path (str (path/of "/defold"
+    (let [combined-annotations-path (str (path/of "/defold"
                                                   "shared"
                                                   "lua-annotations"))
+          runtime-annotations-path (str (path/of "/defold"
+                                                 "shared"
+                                                 "lua-annotations"
+                                                 "runtime"))
+          editor-annotations-path (str (path/of "/defold"
+                                                "shared"
+                                                "lua-annotations"
+                                                "editor"))
           lua-language-server-plugin-path (str (path/of "/defold"
                                                         "shared"
                                                         "lua-language-server"
                                                         "plugin.lua"))
-          configuration-handler (#'lsp.server/configuration-handler project)
-          [configuration] (with-redefs [system/defold-unpack-path (constantly "/defold")]
-                            (configuration-handler {:items [{:section "Lua"}]}))
-          libraries (get-in configuration [:workspace :library])]
-      (is (= lua-language-server-plugin-path (get-in configuration [:runtime :plugin])))
-      (is (= official-annotations-path (first libraries)))
-      (is (= 2 (count libraries)))
-      (is (string/ends-with? (second libraries)
+          combined-handler (#'lsp.server/configuration-handler project nil)
+          runtime-handler (#'lsp.server/configuration-handler project :runtime)
+          editor-handler (#'lsp.server/configuration-handler project :editor)
+          [combined-configuration combined-associations
+           runtime-configuration runtime-associations
+           editor-configuration editor-associations]
+          (with-redefs [system/defold-unpack-path (constantly "/defold")]
+            [(first (combined-handler {:items [{:section "Lua"}]}))
+             (first (combined-handler {:items [{:section "files.associations"}]}))
+             (first (runtime-handler {:items [{:section "Lua"}]}))
+             (first (runtime-handler {:items [{:section "files.associations"}]}))
+             (first (editor-handler {:items [{:section "Lua"}]}))
+             (first (editor-handler {:items [{:section "files.associations"}]}))])
+          combined-libraries (get-in combined-configuration [:workspace :library])
+          runtime-libraries (get-in runtime-configuration [:workspace :library])
+          editor-libraries (get-in editor-configuration [:workspace :library])]
+      (is (= lua-language-server-plugin-path (get-in combined-configuration [:runtime :plugin])))
+      (is (= "Lua 5.1" (get-in combined-configuration [:runtime :version])))
+      (is (= combined-annotations-path (first combined-libraries)))
+      (is (contains? (get-in combined-configuration [:diagnostics :globals]) "go"))
+      (is (contains? (get-in combined-configuration [:diagnostics :globals]) "editor"))
+      (is (= "lua" (combined-associations "*.script")))
+      (is (= "lua" (combined-associations "*.editor_script")))
+
+      (is (= lua-language-server-plugin-path (get-in runtime-configuration [:runtime :plugin])))
+      (is (= "Lua 5.1" (get-in runtime-configuration [:runtime :version])))
+      (is (= runtime-annotations-path (first runtime-libraries)))
+      (is (= 2 (count runtime-libraries)))
+      (is (string/ends-with? (second runtime-libraries)
                              (str java.io.File/separator
                                   ".internal"
                                   java.io.File/separator
-                                  "lua-annotations"))))))
+                                  "lua-annotations")))
+      (is (contains? (get-in runtime-configuration [:diagnostics :globals]) "go"))
+      (is (not (contains? (get-in runtime-configuration [:diagnostics :globals]) "editor")))
+      (is (= "lua" (runtime-associations "*.script")))
+      (is (nil? (runtime-associations "*.editor_script")))
+
+      (is (nil? (get-in editor-configuration [:runtime :plugin])))
+      (is (= "Lua 5.2" (get-in editor-configuration [:runtime :version])))
+      (is (= editor-annotations-path (first editor-libraries)))
+      (is (= 2 (count editor-libraries)))
+      (is (string/ends-with? (second editor-libraries)
+                             (str java.io.File/separator
+                                  ".internal"
+                                  java.io.File/separator
+                                  "lua-annotations")))
+      (is (contains? (get-in editor-configuration [:diagnostics :globals]) "editor"))
+      (is (not (contains? (get-in editor-configuration [:diagnostics :globals]) "go")))
+      (is (= "lua" (editor-associations "*.editor_script")))
+      (is (nil? (editor-associations "*.script"))))))
+
+(deftest extension-lua-language-server-editor-script-compatibility-test
+  (let [language-servers
+        (with-redefs-fn
+          {#'editor-extensions/execute-all-top-level-functions
+           (fn [_state _fn-keyword _opts _evaluation-context]
+             [["/extension.editor_script" ::lua-language-servers]])
+           #'ext.runtime/->clj
+           (fn [_rt _coercer _lua-value]
+             [{:languages ["lua"]
+               :command ["lua-lsp"]}])}
+          (fn []
+            (#'editor-extensions/ext-language-servers {:rt ::runtime} nil)))]
+    (is (= #{{:languages #{"lua" "lua-editor"}
+              :launcher {:command ["lua-lsp"]}}}
+           language-servers)))
+
+  (with-scratch-project "test/resources/lua_context_project"
+    (let [resource (test-util/resource workspace "/editor.editor_script")
+          notification (lsp.server/open-text-document resource ["return {}"])]
+      (is (= "lua" (get-in notification [:params :textDocument :languageId]))))))
+
+(deftest lua-module-api-context-test
+  (with-scratch-project "test/resources/lua_context_project"
+    (let [editor-filter (lsp.project/lua-api-context-resource-filter project :editor)
+          runtime-filter (lsp.project/lua-api-context-resource-filter project :runtime)
+          project-resource #(test-util/resource workspace %)]
+      (doseq [proj-path ["/editor.editor_script"
+                         "/modules/editor.lua"
+                         "/modules/editor_transitive.lua"]]
+        (let [resource (project-resource proj-path)]
+          (is (true? (editor-filter resource)) proj-path)
+          (is (false? (runtime-filter resource)) proj-path)))
+
+      (doseq [proj-path ["/runtime.script"
+                         "/modules/runtime.lua"
+                         "/modules/runtime_transitive.lua"
+                         "/modules/shared.lua"
+                         "/modules/unrequired.lua"]]
+        (let [resource (project-resource proj-path)]
+          (is (false? (editor-filter resource)) proj-path)
+          (is (true? (runtime-filter resource)) proj-path)))
+
+      (let [lsp (lsp/get-node-lsp project)
+            unrequired-resource (project-resource "/modules/unrequired.lua")]
+        (edit-file! lsp
+                    (project/get-resource-node project "/editor.editor_script")
+                    ["require(\"modules.unrequired\")"
+                     "return {}"])
+        (is (true? (editor-filter unrequired-resource)))
+        (is (false? (runtime-filter unrequired-resource)))
+
+        (edit-file! lsp
+                    (project/get-resource-node project "/runtime.script")
+                    ["require(\"modules.unrequired\")"])
+        (is (false? (editor-filter unrequired-resource)))
+        (is (true? (runtime-filter unrequired-resource)))))))
 
 (deftest lua-language-server-only-trusts-bundled-plugin-test
   (let [trust-action {:title "Trust and load this plugin\n"}
@@ -469,6 +575,60 @@
         {:undoable false}
         (g/make-node (g/node-id->graph-id app-view) LSPViewNode)))))
 
+(deftest lua-module-api-context-refresh-test
+  (with-scratch-project "test/resources/lua_context_project"
+    (let [diagnostic-range {:start {:line 0 :character 0}
+                            :end {:line 0 :character 1}}
+          make-handlers (fn [lua-api-context]
+                          {"initialize" (constantly {:capabilities {:documentSymbolProvider true
+                                                                    :textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
+                           "initialized" (constantly nil)
+                           "textDocument/didOpen" (fn [{{:keys [uri]} :textDocument} notify!]
+                                                    (notify! "textDocument/publishDiagnostics"
+                                                             {:uri uri
+                                                              :diagnostics [{:range diagnostic-range
+                                                                             :message (name lua-api-context)
+                                                                             :severity 1}]}))
+                           "textDocument/documentSymbol" (fn [_params _notify!]
+                                                           [{:name (name lua-api-context)
+                                                             :kind 13
+                                                             :range diagnostic-range
+                                                             :selectionRange diagnostic-range}])
+                           "shutdown" (constantly nil)
+                           "exit" (constantly nil)})
+          lsp (lsp/get-node-lsp project)
+          editor-filter (lsp.project/lua-api-context-resource-filter project :editor)
+          runtime-filter (lsp.project/lua-api-context-resource-filter project :runtime)
+          module-resource (test-util/resource workspace "/modules/unrequired.lua")
+          module-view-node (make-lsp-view-node! app-view)
+          _ (set-servers!
+              lsp
+              #{{:languages #{"lua" "lua-editor"}
+                 ::lsp/resource-filter editor-filter
+                 :launcher (make-test-server-launcher (make-handlers :editor))}
+                {:languages #{"lua"}
+                 ::lsp/resource-filter runtime-filter
+                 :launcher (make-test-server-launcher (make-handlers :runtime))}})
+          _ (open-view! lsp
+                        module-view-node
+                        module-resource
+                        (g/node-value (project/get-resource-node project module-resource) :lines))]
+      (is (await= ["runtime"]
+                  (into [] (mapcat :messages) (g/node-value module-view-node :diagnostics))))
+      (is (await= ["runtime"]
+                  (into [] (map :name) (g/node-value module-view-node :document-symbols))))
+
+      (edit-file! lsp
+                  (project/get-resource-node project "/editor.editor_script")
+                  ["require(\"modules.unrequired\")"
+                   "return {}"])
+
+      (is (await= ["editor"]
+                  (into [] (mapcat :messages) (g/node-value module-view-node :diagnostics))))
+      (is (await= ["editor"]
+                  (into [] (map :name) (g/node-value module-view-node :document-symbols))))
+      (close-view! lsp module-view-node))))
+
 (deftest project-completion-trigger-characters-test
   (with-scratch-project "test/resources/project_lsp_completion_project"
     (let [lsp (lsp/get-node-lsp project)
@@ -504,6 +664,46 @@
                          :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
                       (g/node-value view-node :diagnostics)))
           (close-view! lsp view-node))))))
+
+(deftest resource-filter-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [hover-requests (atom #{})
+          opened-by (atom #{})
+          make-handlers (fn [server-id]
+                          {"initialize" (constantly {:capabilities {:hoverProvider true
+                                                                    :textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
+                           "initialized" (constantly nil)
+                           "textDocument/didOpen" (fn [{{:keys [uri]} :textDocument} notify!]
+                                                    (swap! opened-by conj server-id)
+                                                    (notify! "textDocument/publishDiagnostics"
+                                                             {:uri uri
+                                                              :diagnostics [{:range {:start {:line 0 :character 0}
+                                                                                     :end {:line 0 :character 1}}
+                                                                             :message (name server-id)
+                                                                             :severity 1}]}))
+                           "textDocument/hover" (fn [_ _]
+                                                  (swap! hover-requests conj server-id)
+                                                  {:contents {:kind :markdown :value (name server-id)}})
+                           "shutdown" (constantly nil)
+                           "exit" (constantly nil)})
+          lsp (lsp/get-node-lsp project)
+          resource (test-util/resource workspace "/foo.json")
+          view-node (make-lsp-view-node! app-view)
+          _ (set-servers!
+              lsp
+              #{{:languages #{"json"}
+                 ::lsp/resource-filter (constantly true)
+                 :launcher (make-test-server-launcher (make-handlers :selected))}
+                {:languages #{"json"}
+                 ::lsp/resource-filter (constantly false)
+                 :launcher (make-test-server-launcher (make-handlers :ignored))}})
+          _ (open-view! lsp view-node resource foo-json-lines)]
+      (is (await= #{:ignored :selected} @opened-by))
+      (is (await= ["selected"]
+                  (into [] (mapcat :messages) (g/node-value view-node :diagnostics))))
+      (hover! lsp resource (data/->Cursor 0 0))
+      (is (await= #{:selected} @hover-requests))
+      (close-view! lsp view-node))))
 
 (deftest text-sync-kind-test
   (testing "Respect language server text sync kind capabilities"

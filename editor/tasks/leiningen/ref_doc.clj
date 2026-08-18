@@ -36,16 +36,19 @@
         (when (.hasMoreElements entries)
           (let [entry (.nextElement entries)
                 entryname (.getName entry)
-                filename (.getName (io/file entryname))]
+                filename (.getName (io/file entryname))
+                annotation-match (re-matches #"doc/lua-annotations/(runtime|editor)/([^/]+\.lua)" entryname)]
             (cond
               (and (str/ends-with? filename ".sdoc")
                    (not= filename "editor_doc.sdoc"))
               (io/copy (.getInputStream zip entry)
                        (io/file sdoc-target-dir filename))
 
-              (str/ends-with? filename ".lua")
-              (io/copy (.getInputStream zip entry)
-                       (io/file lua-target-dir filename)))
+              annotation-match
+              (let [[_ context annotation-name] annotation-match
+                    dest (io/file lua-target-dir context annotation-name)]
+                (.mkdirs (.getParentFile dest))
+                (io/copy (.getInputStream zip entry) dest)))
             (recur)))))))
 
 (defn- ref-doc-zip

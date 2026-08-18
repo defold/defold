@@ -1,0 +1,4 @@
+local editor_module = require("modules.editor")
+local shared_module = require("modules.shared")
+
+return {}

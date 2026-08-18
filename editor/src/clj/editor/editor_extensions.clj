@@ -48,6 +48,7 @@
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
             [editor.lsp.project :as lsp.project]
+            [editor.lsp.server :as lsp.server]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -702,16 +703,20 @@
 
 ;; region language servers
 
-(defn- built-in-lua-language-server [annotations-sync-hash]
+(defn- built-in-lua-language-server [project annotations-sync-hash lua-api-context]
   (let [lua-lsp-root (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua")]
-    {:languages #{"lua"}
+    {:languages (cond-> #{"lua"}
+                  (= :editor lua-api-context)
+                  (conj "lua-editor"))
      :watched-files [{:pattern "**/.luacheckrc"}]
+     ::lsp/resource-filter (lsp.project/lua-api-context-resource-filter project lua-api-context)
      ;; We want to restart the language server every time annotations from
      ;; dependencies change because lua language server does not watch
      ;; `workspace.library` folder. Changing the map triggers the server restart
      ::sync-hash (if (g/error-value? annotations-sync-hash) 0 annotations-sync-hash)
      :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (os/is-win32?) ".exe"))
-                          (str "--configpath=" lua-lsp-root "/config.json")]}}))
+                          (str "--configpath=" lua-lsp-root "/config.json")]
+                ::lsp.server/lua-api-context lua-api-context}}))
 
 (def language-servers-coercer
   (coerce/vector-of
@@ -735,7 +740,14 @@
         (map (fn [language-server]
                (-> language-server
                    (set/rename-keys {:watched_files :watched-files})
-                   (update :languages set)
+                   (update :languages
+                           (fn [languages]
+                             (let [languages (set languages)]
+                               ;; Extension-provided Lua servers historically
+                               ;; included editor scripts.
+                               (cond-> languages
+                                 (contains? languages "lua")
+                                 (conj "lua-editor")))))
                    (dissoc :command)
                    (assoc :launcher (select-keys language-server [:command]))))))
       (execute-all-top-level-functions state :get_language_servers {} evaluation-context))))
@@ -749,7 +761,8 @@
         (lsp/set-servers!
           lsp
           (conj ext-language-servers
-                (built-in-lua-language-server sync-hash)
+                (built-in-lua-language-server project sync-hash :runtime)
+                (built-in-lua-language-server project sync-hash :editor)
                 (lsp.project/language-server project)))))))
 
 ;; endregion

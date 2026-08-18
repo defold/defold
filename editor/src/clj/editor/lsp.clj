@@ -29,7 +29,7 @@
             [editor.ui :as ui]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [editor.code.data CursorRange]
@@ -38,12 +38,29 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private lua-languages #{"lua" "lua-editor"})
+
+(defn- lua-resource? [resource]
+  (contains? lua-languages (resource/language resource)))
+
+;; Resource filters select which server contributes analysis. Text
+;; synchronization remains language-based so changing a resource's filter
+;; result does not require reopening the document in another server.
+(defn- server-supports-resource? [{:keys [languages] :as server} resource]
+  (and (contains? languages (resource/language resource))
+       (if-let [resource-filter (::resource-filter server)]
+         (resource-filter resource)
+         true)))
+
 (defn- sorted-resource-diagnostics [state resource]
   (into (sorted-set)
         (comp
-          (filter #(= :running (:status %)))
-          (mapcat #(get-in % [:diagnostics resource :items])))
-        (vals (:server->server-state state))))
+          (filter (fn [[server server-state]]
+                    (and (= :running (:status server-state))
+                         (server-supports-resource? server resource))))
+          (mapcat (fn [[_server server-state]]
+                    (get-in server-state [:diagnostics resource :items]))))
+        (:server->server-state state)))
 
 (defn- combined-resource-diagnostics [state resource]
   ;; Take resource diagnostics from all servers (meaning there might be
@@ -57,13 +74,16 @@
                                 key
                                 val
                                 (eduction
-                                  (filter #(= :running (:status %)))
-                                  (mapcat #(get-in % [:diagnostics resource :items]))
+                                  (filter (fn [[server server-state]]
+                                            (and (= :running (:status server-state))
+                                                 (server-supports-resource? server resource))))
+                                  (mapcat (fn [[_server server-state]]
+                                            (get-in server-state [:diagnostics resource :items])))
                                   (mapcat (fn [^CursorRange cursor-range]
                                             (pair
                                               (pair (.-from cursor-range) cursor-range)
                                               (pair (.-to cursor-range) cursor-range))))
-                                  (vals (:server->server-state state))))]
+                                  (:server->server-state state)))]
     ;; 2. Convert collected map by going through every cursor in order and:
     ;;    - add a non-empty batch of current cursors as a single merged cursor
     ;;    - prepare for next step:
@@ -73,18 +93,18 @@
       (reduce-kv (fn [{:keys [batch cursor] :as acc} new-cursor new-cursor-ranges]
                    (-> acc
                        (cond-> (pos? (count batch))
-                               (update
-                                 :results conj
-                                 ;; merge all intersecting ranges to a single range
-                                 (assoc (data/->CursorRange cursor new-cursor)
-                                   :type :diagnostic
-                                   :hoverable true
-                                   :severity (transduce
-                                               (map :severity)
-                                               (completing (partial max-key {:error 4 :warning 3 :information 2 :hint 1}))
-                                               :hint
-                                               batch)
-                                   :messages (into [] (map :message) batch))))
+                         (update
+                           :results conj
+                           ;; merge all intersecting ranges to a single range
+                           (assoc (data/->CursorRange cursor new-cursor)
+                             :type :diagnostic
+                             :hoverable true
+                             :severity (transduce
+                                         (map :severity)
+                                         (completing (partial max-key {:error 4 :warning 3 :information 2 :hint 1}))
+                                         :hint
+                                         batch)
+                             :messages (into [] (map :message) batch))))
                        (assoc :cursor new-cursor
                               :batch (into
                                        ;; remove all regions that end at current step
@@ -100,12 +120,13 @@
   {:pre [(= view-node (get-in state [:resource->view-node resource]))]}
   (g/set-property view-node :diagnostics (combined-resource-diagnostics state resource)))
 
-(defn- combined-completion-trigger-characters [state resource-language]
+(defn- combined-completion-trigger-characters [state resource]
   (into #{}
         (comp
           (filter
-            (fn [[{:keys [languages]} {:keys [status]}]]
-              (and (= :running status) (contains? languages resource-language))))
+            (fn [[server {:keys [status]}]]
+              (and (= :running status)
+                   (server-supports-resource? server resource))))
           (mapcat #(-> % val :capabilities :completion :trigger-characters)))
         (:server->server-state state)))
 
@@ -114,15 +135,17 @@
   (g/set-property
     view-node
     :completion-trigger-characters
-    (combined-completion-trigger-characters state (resource/language resource))))
+    (combined-completion-trigger-characters state resource)))
 
 (s/def ::language string?)
 (s/def ::languages (s/coll-of ::language :kind set? :min-count 1))
 (s/def ::launcher #(satisfies? lsp.server/Launcher %))
 (s/def ::pattern string?)
+(s/def ::resource-filter ifn?)
 (s/def ::watched-file (s/keys :req-un [::pattern]))
 (s/def ::watched-files (s/coll-of ::watched-file :distinct true :min-count 1))
 (s/def ::server (s/keys :req-un [::languages ::launcher]
+                        :opt [::resource-filter]
                         :opt-un [::watched-files]))
 (s/def ::resource resource/resource?)
 
@@ -155,7 +178,13 @@
                                 {:items [] :result-id result-id}))))))
 
 (defn- apply-full-or-unchanged-workspace-diagnostics [state server result]
-  (reduce #(apply-full-or-unchanged-resource-diagnostics %1 server %2) state result))
+  (let [languages (:languages server)]
+    (reduce (fn [state [resource :as resource+result]]
+              (if-not (contains? languages (resource/language resource))
+                state
+                (apply-full-or-unchanged-resource-diagnostics state server resource+result)))
+            state
+            result)))
 
 (defn- capability-open-close? [capabilities]
   (-> capabilities :text-document-sync :open-close))
@@ -305,9 +334,10 @@
     :capabilities-pred    predicate of capabilities used to filter servers
                           (defaults to any?)
     :language             LSP language string used to filter servers
+    :resource             optional resource used with a server's resource filter
     :retries              request retry count (defaults to 3); retries run
                           within the same :timeout-ms budget"
-  [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms retries]
+  [state responses-ch & {:keys [requests requests-fn capabilities-pred language resource timeout-ms retries]
                          :or {capabilities-pred any?
                               retries 3}}]
   {:pre [(not= (some? requests) (some? requests-fn))
@@ -326,7 +356,8 @@
                                 (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
                                   (when (and (= :running status)
                                              (capabilities-pred capabilities)
-                                             (or (nil? language) (contains? languages language)))
+                                             (or (nil? language) (contains? languages language))
+                                             (or (nil? resource) (server-supports-resource? server resource)))
                                     (e/map
                                       #(pair server %)
                                       (requests-fn server server-state)))))
@@ -472,6 +503,7 @@
       state responses-ch
       :capabilities-pred :document-symbol
       :language (resource/language resource)
+      :resource resource
       :requests [(lsp.server/document-symbols resource)]
       :timeout-ms 5000)))
 
@@ -489,6 +521,41 @@
                     (state-fn (update state :debounce dissoc id))
                     state))))))
       (assoc state :debounce (assoc debounce id cancel-ch)))))
+
+(defn- refresh-filtered-resource-views [state]
+  (let [resource+view-nodes
+        (into []
+              (filter
+                (fn [[resource _view-node]]
+                  (coll/any?
+                    (fn [[server _server-state]]
+                      (and (::resource-filter server)
+                           (contains? (:languages server)
+                                      (resource/language resource))))
+                    (:server->server-state state))))
+              (:resource->view-node state))]
+    (when (pos? (count resource+view-nodes))
+      (ui/run-later
+        (g/transact
+          {:undoable false}
+          (reduce
+            (fn [tx-data [resource view-node]]
+              (-> tx-data
+                  (into (set-view-node-diagnostics-tx state resource view-node))
+                  (into (set-view-node-completion-trigger-characters-tx state resource view-node))))
+            []
+            resource+view-nodes))))
+    (reduce (fn [state [resource _view-node]]
+              (request-document-symbols state resource))
+            state
+            resource+view-nodes)))
+
+(defn- schedule-filtered-resource-view-refresh [state]
+  (schedule-debounce
+    state
+    ::refresh-filtered-resource-views
+    300
+    refresh-filtered-resource-views))
 
 (defn- notify-interested-servers!
   [state resource & {:keys [message-fn message capabilities-pred]
@@ -528,11 +595,11 @@
                           :incremental @incremental-change-delay
                           :full @full-text-change-delay)))
         (cond-> (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})
-                (resource-viewed? state resource)
-                (schedule-debounce
-                  (document-symbol-refresh-debounce-id resource)
-                  300
-                  #(request-document-symbols % resource)))))))
+          (resource-viewed? state resource)
+          (schedule-debounce
+            (document-symbol-refresh-debounce-id resource)
+            300
+            #(request-document-symbols % resource)))))))
 
 (defn- close-resource! [state resource]
   {:pre [(resource-open? state resource)]}
@@ -584,11 +651,11 @@
                        (update :polled-resources disj resource)
                        (remove-resource-diagnostics resource))]
          (cond-> state
-                 ;; Deleted but still viewed? Keep it until the view closes,
-                 ;; since the view controls open-view/close-view, and we want
-                 ;; to preserve the "viewed implies open" invariant
-                 (and (resource-open? state resource) (not (resource-viewed? state resource)))
-                 (close-resource! resource)))
+           ;; Deleted but still viewed? Keep it until the view closes,
+           ;; since the view controls open-view/close-view, and we want
+           ;; to preserve the "viewed implies open" invariant
+           (and (resource-open? state resource) (not (resource-viewed? state resource)))
+           (close-resource! resource)))
        ;; exists, check if clean or dirty
        (let [source-value (g/node-value resource-node :source-value evaluation-context)
              lines (g/node-value resource-node :lines evaluation-context)]
@@ -607,8 +674,8 @@
           to-remove (set/difference old-servers new-servers)
           to-add (set/difference new-servers old-servers)]
       (as-> state $
-            (reduce (partial add-server! project) $ to-add)
-            (reduce remove-server! $ to-remove)))))
+        (reduce (partial add-server! project) $ to-add)
+        (reduce remove-server! $ to-remove)))))
 
 (def ^:private dev (system/defold-dev?))
 (defonce ^:private running-lsps (when dev (atom {} :meta {:type ::running-lsps})))
@@ -760,9 +827,12 @@
   "Notify the LSP manager about new lines of a resource node"
   [lsp resource old-source-value new-lines]
   (lsp (bound-fn notify-lines-modified [state]
-         (cond-> state
-                 (resource/file-resource? resource)
-                 (sync-modified-lines-of-existing-node! resource old-source-value new-lines)))))
+         (let [state (cond-> state
+                       (resource/file-resource? resource)
+                       (sync-modified-lines-of-existing-node! resource old-source-value new-lines))]
+           (cond-> state
+             (lua-resource? resource)
+             (schedule-filtered-resource-view-refresh))))))
 
 (defn check-if-polled-resources-are-modified!
   "Notify the LSP manager that some previously modified resources might change
@@ -825,19 +895,29 @@
                                        moved)
                interesting-removed (filterv #(interesting-resource? state %) removed)
                interesting-changed (filterv #(interesting-resource? state %) changed)
-               viewed-moved (filterv #(resource-viewed? state (first %)) moved)]
-           (lsp.async/with-auto-evaluation-context evaluation-context
-             (as-> state $
-                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
-                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
-                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-changed)
-                   (reduce (fn [acc [from to]]
-                             (let [view-node (get-in acc [:resource->view-node from])
-                                   resource-node (get-resource-node project to evaluation-context)]
-                               (-> acc
-                                   (do-close-view view-node)
-                                   (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
-                           $ viewed-moved)))))))
+               viewed-moved (filterv #(resource-viewed? state (first %)) moved)
+               refresh-after-resource-changes
+               (or (coll/any? lua-resource? added)
+                   (coll/any? lua-resource? removed)
+                   (coll/any? lua-resource? changed)
+                   (coll/any? (fn [[from to]]
+                                (or (lua-resource? from)
+                                    (lua-resource? to)))
+                              moved))]
+           (cond-> (lsp.async/with-auto-evaluation-context evaluation-context
+                     (as-> state $
+                       (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
+                       (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
+                       (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-changed)
+                       (reduce (fn [acc [from to]]
+                                 (let [view-node (get-in acc [:resource->view-node from])
+                                       resource-node (get-resource-node project to evaluation-context)]
+                                   (-> acc
+                                       (do-close-view view-node)
+                                       (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
+                               $ viewed-moved)))
+             refresh-after-resource-changes
+             (schedule-filtered-resource-view-refresh))))))
 
 (defn get-graph-lsp
   "Given a project's graph id, return the LSP manager"
@@ -897,6 +977,7 @@
                                               apply-full-or-unchanged-workspace-diagnostics))]
                               :text-document (eduction
                                                (mapcat @language->resources)
+                                               (filter #(server-supports-resource? server %))
                                                (map (fn [resource]
                                                       (lsp.server/pull-document-diagnostics
                                                         resource
@@ -918,6 +999,7 @@
                            :requests [(lsp.server/goto-definition resource cursor)]
                            :capabilities-pred :goto-definition
                            :language (resource/language resource)
+                           :resource resource
                            :timeout-ms timeout-ms)))))
 
 (defn find-references! [lsp resource cursor result-callback & {:keys [timeout-ms]
@@ -930,6 +1012,7 @@
                            :requests [(lsp.server/find-references resource cursor)]
                            :capabilities-pred :find-references
                            :language (resource/language resource)
+                           :resource resource
                            :timeout-ms timeout-ms)))))
 
 (defn has-language-servers-running-for-language? [lsp language]
@@ -983,6 +1066,7 @@
                state ch
                :capabilities-pred :completion
                :language (resource/language resource)
+               :resource resource
                :timeout-ms timeout-ms
                :requests-fn (fn [_ {:keys [out]}]
                               [(lsp.server/completion
@@ -1023,6 +1107,7 @@
                state ch
                :capabilities-pred :hover
                :language (resource/language resource)
+               :resource resource
                :timeout-ms timeout-ms
                :requests [(lsp.server/hover resource cursor)]))))
     (do (result-callback []) nil)))
@@ -1038,6 +1123,7 @@
                state ch
                :capabilities-pred :rename
                :language (resource/language resource)
+               :resource resource
                :timeout-ms timeout-ms
                :requests-fn (fn [_ {:keys [out]}]
                               [(lsp.server/prepare-rename

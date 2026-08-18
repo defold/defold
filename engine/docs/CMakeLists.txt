@@ -12,6 +12,8 @@ set(DOCS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(DOCS_APIDOC_DIR "${DOCS_BUILD_DIR}/apidoc")
 set(DOCS_CONVERTED_DIR "${DOCS_BUILD_DIR}/converted")
 set(DOCS_LUA_DIR "${DOCS_CONVERTED_DIR}/lua")
+set(DOCS_LUA_RUNTIME_DIR "${DOCS_LUA_DIR}/runtime")
+set(DOCS_LUA_EDITOR_DIR "${DOCS_LUA_DIR}/editor")
 set(DOCS_STAMP_DIR "${DOCS_BUILD_DIR}/stamps")
 set(DOCS_PROTO_PY_DIR "${DOCS_BUILD_DIR}/python")
 set(DOCS_PROTO_PY "${DOCS_PROTO_PY_DIR}/script_doc_ddf_pb2.py")
@@ -20,7 +22,10 @@ set(DOCS_OUTPUT_DIR "${DOCS_SHARE_DIR}/doc")
 set(DOCS_ARCHIVE "${DOCS_SHARE_DIR}/ref-doc.zip")
 set(DOCS_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/docs_outputs.txt")
 set(DOCS_LUA_INPUT_LIST "${DOCS_BUILD_DIR}/lua_inputs.txt")
-set(DOCS_LUA_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/lua_outputs.txt")
+set(DOCS_LUA_RUNTIME_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/lua_runtime_outputs.txt")
+set(DOCS_LUA_EDITOR_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/lua_editor_outputs.txt")
+set(DOCS_LUA_RUNTIME_STAMP "${DOCS_STAMP_DIR}/lua_runtime.stamp")
+set(DOCS_LUA_EDITOR_STAMP "${DOCS_STAMP_DIR}/lua_editor.stamp")
 set(DOCS_LUA_METADATA "${DOCS_ROOT}/lua_annotations.yaml")
 set(DOCS_LUA_MIGRATION_MANIFEST "${DOCS_ROOT}/lua_annotations_migration.json")
 set(DOCS_LUA_FIXTURE_DIR "${DOCS_ROOT}/testdata/lua_annotations")
@@ -206,35 +211,44 @@ foreach(_docs_index RANGE 0 ${_DOCS_APIDOC_LAST})
 endforeach()
 
 set(_DOCS_LUA_DEPS)
+set(_DOCS_LUA_OUTPUT_MANIFESTS)
 if(_DOCS_GENERATE_LUA)
-  set(DOCS_LUA_STAMP "${DOCS_STAMP_DIR}/lua.stamp")
   list(JOIN _DOCS_APIDOC_OUTPUTS "\n" _DOCS_LUA_INPUT_LIST_CONTENT)
   file(GENERATE
     OUTPUT "${DOCS_LUA_INPUT_LIST}"
     CONTENT "${_DOCS_LUA_INPUT_LIST_CONTENT}\n")
-  add_custom_command(
-    OUTPUT "${DOCS_LUA_STAMP}" "${DOCS_LUA_OUTPUT_MANIFEST}"
-    COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
-      lua
-      --docs-dir "${DOCS_ROOT}"
-      --input-list "${DOCS_LUA_INPUT_LIST}"
-      --output-dir "${DOCS_LUA_DIR}"
-      --manifest "${DOCS_LUA_OUTPUT_MANIFEST}"
-      --metadata "${DOCS_LUA_METADATA}"
-      --pythonpath "${DOCS_PROTO_PY_DIR}"
-      --stamp "${DOCS_LUA_STAMP}"
-    DEPENDS
-      ${_DOCS_APIDOC_OUTPUTS}
-      "${DOCS_LUA_INPUT_LIST}"
-      "${DOCS_PROTO_PY}"
-      "${DOCS_ROOT}/build_docs.py"
-      "${DOCS_ROOT}/script_doc.py"
-      "${DOCS_ROOT}/lua_annotations.py"
-      "${DOCS_LUA_METADATA}"
-      "${DOCS_LUA_MIGRATION_MANIFEST}"
-    COMMENT "Generating aggregate Lua API annotations"
-    VERBATIM)
-  list(APPEND _DOCS_LUA_DEPS "${DOCS_LUA_STAMP}" "${DOCS_LUA_OUTPUT_MANIFEST}")
+  foreach(_docs_lua_context IN ITEMS runtime editor)
+    string(TOUPPER "${_docs_lua_context}" _docs_lua_context_upper)
+    set(_docs_lua_dir "${DOCS_LUA_${_docs_lua_context_upper}_DIR}")
+    set(_docs_lua_manifest "${DOCS_LUA_${_docs_lua_context_upper}_OUTPUT_MANIFEST}")
+    set(_docs_lua_stamp "${DOCS_LUA_${_docs_lua_context_upper}_STAMP}")
+    add_custom_command(
+      OUTPUT "${_docs_lua_stamp}" "${_docs_lua_manifest}"
+      COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
+        lua
+        --docs-dir "${DOCS_ROOT}"
+        --input-list "${DOCS_LUA_INPUT_LIST}"
+        --output-dir "${_docs_lua_dir}"
+        --manifest "${_docs_lua_manifest}"
+        --manifest-prefix "lua-annotations/${_docs_lua_context}"
+        --metadata "${DOCS_LUA_METADATA}"
+        --pythonpath "${DOCS_PROTO_PY_DIR}"
+        --context "${_docs_lua_context}"
+        --stamp "${_docs_lua_stamp}"
+      DEPENDS
+        ${_DOCS_APIDOC_OUTPUTS}
+        "${DOCS_LUA_INPUT_LIST}"
+        "${DOCS_PROTO_PY}"
+        "${DOCS_ROOT}/build_docs.py"
+        "${DOCS_ROOT}/script_doc.py"
+        "${DOCS_ROOT}/lua_annotations.py"
+        "${DOCS_LUA_METADATA}"
+        "${DOCS_LUA_MIGRATION_MANIFEST}"
+      COMMENT "Generating ${_docs_lua_context} Lua API annotations"
+      VERBATIM)
+    list(APPEND _DOCS_LUA_DEPS "${_docs_lua_stamp}" "${_docs_lua_manifest}")
+    list(APPEND _DOCS_LUA_OUTPUT_MANIFESTS "${_docs_lua_manifest}")
+  endforeach()
 endif()
 
 file(WRITE "${DOCS_OUTPUT_MANIFEST}" "")
@@ -246,7 +260,9 @@ endforeach()
 set(DOCS_SYNC_STAMP "${DOCS_STAMP_DIR}/sync.stamp")
 set(_DOCS_SYNC_MANIFEST_ARGS --manifest "${DOCS_OUTPUT_MANIFEST}")
 if(_DOCS_GENERATE_LUA)
-  list(APPEND _DOCS_SYNC_MANIFEST_ARGS --manifest "${DOCS_LUA_OUTPUT_MANIFEST}")
+  foreach(_docs_lua_manifest IN LISTS _DOCS_LUA_OUTPUT_MANIFESTS)
+    list(APPEND _DOCS_SYNC_MANIFEST_ARGS --manifest "${_docs_lua_manifest}")
+  endforeach()
 endif()
 add_custom_command(
   OUTPUT "${DOCS_SYNC_STAMP}"
@@ -266,22 +282,25 @@ add_custom_command(
 
 set(_DOCS_ARCHIVE_DEP "${DOCS_SYNC_STAMP}")
 if(_DOCS_GENERATE_LUA AND DEFOLD_DOCS_LUALS_EXECUTABLE)
-  set(DOCS_LUA_VALIDATE_STAMP "${DOCS_STAMP_DIR}/validate_lua.stamp")
-  add_custom_command(
-    OUTPUT "${DOCS_LUA_VALIDATE_STAMP}"
-    COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
-      validate-lua
-      --executable "${DEFOLD_DOCS_LUALS_EXECUTABLE}"
-      --input-dir "${DOCS_OUTPUT_DIR}"
-      --metadata "${DOCS_LUA_METADATA}"
-      --stamp "${DOCS_LUA_VALIDATE_STAMP}"
-    DEPENDS
-      "${DOCS_SYNC_STAMP}"
-      "${DOCS_ROOT}/build_docs.py"
-      "${DOCS_LUA_METADATA}"
-    COMMENT "Validating Lua API annotations with LuaLS"
-    VERBATIM)
-  set(_DOCS_ARCHIVE_DEP "${DOCS_LUA_VALIDATE_STAMP}")
+  set(_DOCS_ARCHIVE_DEP)
+  foreach(_docs_lua_context IN ITEMS runtime editor)
+    set(_docs_lua_validate_stamp "${DOCS_STAMP_DIR}/validate_lua_${_docs_lua_context}.stamp")
+    add_custom_command(
+      OUTPUT "${_docs_lua_validate_stamp}"
+      COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
+        validate-lua
+        --executable "${DEFOLD_DOCS_LUALS_EXECUTABLE}"
+        --input-dir "${DOCS_OUTPUT_DIR}/lua-annotations/${_docs_lua_context}"
+        --metadata "${DOCS_LUA_METADATA}"
+        --stamp "${_docs_lua_validate_stamp}"
+      DEPENDS
+        "${DOCS_SYNC_STAMP}"
+        "${DOCS_ROOT}/build_docs.py"
+        "${DOCS_LUA_METADATA}"
+      COMMENT "Validating ${_docs_lua_context} Lua API annotations with LuaLS"
+      VERBATIM)
+    list(APPEND _DOCS_ARCHIVE_DEP "${_docs_lua_validate_stamp}")
+  endforeach()
 endif()
 
 add_custom_command(
@@ -292,7 +311,7 @@ add_custom_command(
     --archive "${DOCS_ARCHIVE}"
     --archive-root "${DOCS_SHARE_DIR}"
   DEPENDS
-    "${_DOCS_ARCHIVE_DEP}"
+    ${_DOCS_ARCHIVE_DEP}
     "${DOCS_ROOT}/build_docs.py"
   COMMENT "Packaging API docs"
   VERBATIM)
@@ -316,23 +335,29 @@ if(_DOCS_GENERATE_LUA AND DEFOLD_DOCS_LUALS_EXECUTABLE)
     VERBATIM)
   list(APPEND _DOCS_BUILD_DEPS "${DOCS_LUA_ARCHIVE_VALIDATE_STAMP}")
 
-  set(DOCS_LUA_BEHAVIOR_VALIDATE_STAMP "${DOCS_STAMP_DIR}/validate_lua_behavior.stamp")
-  add_custom_command(
-    OUTPUT "${DOCS_LUA_BEHAVIOR_VALIDATE_STAMP}"
-    COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
-      validate-lua-behavior
-      --executable "${DEFOLD_DOCS_LUALS_EXECUTABLE}"
-      --annotations-dir "${DOCS_LUA_DIR}"
-      --fixture-dir "${DOCS_LUA_FIXTURE_DIR}"
-      --stamp "${DOCS_LUA_BEHAVIOR_VALIDATE_STAMP}"
-    DEPENDS
-      "${DOCS_LUA_STAMP}"
-      "${DOCS_ROOT}/build_docs.py"
-      "${DOCS_LUA_FIXTURE_DIR}/positive.lua"
-      "${DOCS_LUA_FIXTURE_DIR}/negative.lua"
-    COMMENT "Validating Lua annotation behavior fixtures"
-    VERBATIM)
-  list(APPEND _DOCS_BUILD_DEPS "${DOCS_LUA_BEHAVIOR_VALIDATE_STAMP}")
+  foreach(_docs_lua_context IN ITEMS runtime editor)
+    string(TOUPPER "${_docs_lua_context}" _docs_lua_context_upper)
+    set(_docs_lua_behavior_stamp "${DOCS_STAMP_DIR}/validate_lua_behavior_${_docs_lua_context}.stamp")
+    add_custom_command(
+      OUTPUT "${_docs_lua_behavior_stamp}"
+      COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
+        validate-lua-behavior
+        --executable "${DEFOLD_DOCS_LUALS_EXECUTABLE}"
+        --annotations-dir "${DOCS_LUA_${_docs_lua_context_upper}_DIR}"
+        --fixture-dir "${DOCS_LUA_FIXTURE_DIR}"
+        --context "${_docs_lua_context}"
+        --stamp "${_docs_lua_behavior_stamp}"
+      DEPENDS
+        "${DOCS_LUA_${_docs_lua_context_upper}_STAMP}"
+        "${DOCS_ROOT}/build_docs.py"
+        "${DOCS_LUA_FIXTURE_DIR}/positive.lua"
+        "${DOCS_LUA_FIXTURE_DIR}/negative.lua"
+        "${DOCS_LUA_FIXTURE_DIR}/editor_positive.lua"
+        "${DOCS_LUA_FIXTURE_DIR}/editor_negative.lua"
+      COMMENT "Validating ${_docs_lua_context} Lua annotation behavior fixtures"
+      VERBATIM)
+    list(APPEND _DOCS_BUILD_DEPS "${_docs_lua_behavior_stamp}")
+  endforeach()
 endif()
 
 if(DEFOLD_DOCS_RUN_TESTS)

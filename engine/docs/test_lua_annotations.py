@@ -118,7 +118,13 @@ def enum(name, members=(), value_type=None):
 
 class TestLuaAnnotations(unittest.TestCase):
 
-    def metadata(self, directory, enums=None, generics=None, method_classes=None):
+    def metadata(
+            self,
+            directory,
+            enums=None,
+            generics=None,
+            global_symbols=None,
+            method_classes=None):
         data = {
             "migration": {
                 "source_commit": "test",
@@ -128,6 +134,7 @@ class TestLuaAnnotations(unittest.TestCase):
             "standard_namespaces": ["math"],
             "excluded_functions": ["init"],
             "excluded_function_patterns": ["client:*"],
+            "global_symbols": global_symbols or [],
             "method_classes": method_classes or {},
             "allowed_diagnostics": ["lowercase-global", "missing-return", "args-after-dots"],
             "aliases": {"hash": "userdata"},
@@ -205,6 +212,80 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@return hash result", editor_lua)
             self.assertNotIn("<code>", editor_lua)
 
+    def test_runtime_and_editor_contexts_do_not_merge_overloads(self):
+        runtime_doc = document(
+            "http",
+            [function("http.request", "string", "number")])
+        editor_doc = document(
+            "editor",
+            [function("http.request", "table<string, any>", "string")])
+        documents = [
+            ("http.cpp", runtime_doc),
+            ("editor.apidoc", editor_doc),
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            runtime_output = Path(directory) / "runtime"
+            editor_output = Path(directory) / "editor"
+
+            runtime_names = lua_annotations.generate(
+                documents,
+                runtime_output,
+                metadata,
+                context="runtime")
+            editor_names = lua_annotations.generate(
+                documents,
+                editor_output,
+                metadata,
+                context="editor")
+
+            self.assertEqual(["http.lua", "meta.lua"], runtime_names)
+            runtime_lua = (
+                runtime_output / "http.lua").read_text(encoding="utf-8")
+            self.assertIn("---@param value string", runtime_lua)
+            self.assertIn("---@return number result", runtime_lua)
+            self.assertNotIn("---@overload", runtime_lua)
+
+            self.assertEqual(["http.lua", "meta.lua"], editor_names)
+            editor_lua = (
+                editor_output / "http.lua").read_text(encoding="utf-8")
+            self.assertIn("---@param value table<string, any>", editor_lua)
+            self.assertIn("---@return string result", editor_lua)
+            self.assertNotIn("---@overload", editor_lua)
+
+    def test_global_symbol_is_not_qualified_by_document_namespace(self):
+        pprint_function = function("pprint", "any")
+        pprint_function.parameters[0].name = "..."
+        editor_doc = document("editor", [pprint_function])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory, global_symbols=["pprint"])
+            output = Path(directory) / "editor"
+
+            names = lua_annotations.generate(
+                [("editor.apidoc", editor_doc)],
+                output,
+                metadata,
+                context="editor")
+
+            self.assertEqual(["builtins.lua", "meta.lua"], names)
+            builtins_lua = (
+                output / "builtins.lua").read_text(encoding="utf-8")
+            self.assertIn("---@param ... any", builtins_lua)
+            self.assertIn("function pprint(...) end", builtins_lua)
+            self.assertNotIn("editor.pprint", builtins_lua)
+
+    def test_unknown_annotation_context_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(ValueError, "Unknown Lua annotation context"):
+                lua_annotations.generate(
+                    [],
+                    Path(directory) / "output",
+                    metadata,
+                    context="unknown")
+
     def test_metadata_tracks_pinned_migration_source(self):
         metadata = lua_annotations.load_metadata(
             Path(__file__).with_name("lua_annotations.yaml"))
@@ -249,6 +330,18 @@ class TestLuaAnnotations(unittest.TestCase):
                 "zip.unpack_options",
             },
             set(metadata["aliases"]))
+        self.assertEqual(
+            set(metadata["aliases"]),
+            set(metadata["editor_only_metadata"]["aliases"]))
+        self.assertEqual(
+            {"editor.command_context", "http.server.request"},
+            set(metadata["editor_only_metadata"]["classes"]))
+        self.assertEqual(
+            {"editor.ui.component"},
+            set(metadata["editor_only_metadata"]["generics"]))
+        self.assertEqual(
+            {"http.server.route", "zip.pack", "zip.unpack"},
+            set(metadata["editor_only_metadata"]["function_overloads"]))
         self.assertEqual(
             {
                 "b2BodyType",

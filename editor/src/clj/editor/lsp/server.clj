@@ -307,40 +307,65 @@
                               plugin-path
                               "\n\nNote that malicious plugin may harm your computer\n")]
     (when (= expected-message message)
-      (some #(when (= "Trust and load this plugin\n" (:title %)) %)
-            actions))))
+      (coll/first-where #(= "Trust and load this plugin\n" (:title %)) actions))))
 
-(defn- configuration-handler [project]
+;; A nil context preserves the combined configuration used by extension-provided servers.
+(defn- configuration-handler
+  [project lua-api-context]
   (fn [{:keys [items]}]
     (lsp.async/with-auto-evaluation-context evaluation-context
       (mapv
         (fn [{:keys [section]}]
           (case section
             "Lua"
-            (let [script-intelligence (g/node-value project :script-intelligence evaluation-context)
+            (let [editor-context (= :editor lua-api-context)
+                  script-intelligence (g/node-value project :script-intelligence evaluation-context)
                   completions (g/node-value script-intelligence :lua-completions evaluation-context)
                   workspace (g/node-value project :workspace evaluation-context)
-                  root (g/raw-property-value (:basis evaluation-context) workspace :root)]
-              {:runtime {:version "Lua 5.1"
-                         :pathStrict true
-                         :plugin (lua-language-server-plugin-path)}
+                  root (g/raw-property-value (:basis evaluation-context) workspace :root)
+                  editor-globals (lua/extract-globals-from-completions lua/editor-completions)
+                  runtime-globals (into lua/defined-globals
+                                        (lua/extract-globals-from-completions completions))
+                  globals (case lua-api-context
+                            :editor editor-globals
+                            :runtime (reduce disj runtime-globals editor-globals)
+                            nil (into runtime-globals editor-globals))
+                  official-annotations-root (path/of (system/defold-unpack-path)
+                                                     "shared"
+                                                     "lua-annotations")
+                  official-annotations (str (if (nil? lua-api-context)
+                                              official-annotations-root
+                                              (path/of official-annotations-root
+                                                       (name lua-api-context))))
+                  dependency-annotations (str (path/of root ".internal" "lua-annotations"))]
+              {:runtime (cond-> {:version (if editor-context
+                                            "Lua 5.2"
+                                            "Lua 5.1")
+                                 :pathStrict true}
+                          (not editor-context)
+                          (assoc :plugin (lua-language-server-plugin-path)))
                :completion {:workspaceWord false
                             :callSnippet "Replace"}
-               :diagnostics {:globals (-> lua/defined-globals
-                                          (into (lua/extract-globals-from-completions completions))
-                                          (into (lua/extract-globals-from-completions lua/editor-completions)))}
-               :workspace {:library [(str (path/of (system/defold-unpack-path)
-                                                   "shared"
-                                                   "lua-annotations"))
-                                     (str (path/of root ".internal" "lua-annotations"))]}})
+               :diagnostics {:globals globals}
+               :workspace {:library [official-annotations
+                                     dependency-annotations]}})
 
             "files.associations"
             (let [workspace (g/node-value project :workspace evaluation-context)
                   resource-types (g/node-value workspace :resource-types evaluation-context)]
               (into {}
                     (keep (fn [[ext {:keys [textual? language]}]]
-                            (when (and textual? (not= "plaintext" language))
-                              [(str "*." ext) language])))
+                            (when (and textual?
+                                       (case lua-api-context
+                                         :editor (= "lua-editor" language)
+                                         :runtime (= "lua" language)
+                                         nil (not= "plaintext" language)))
+                              [(str "*." ext)
+                               (if lua-api-context
+                                 "lua"
+                                 (case language
+                                   "lua-editor" "lua"
+                                   language))])))
                     resource-types))
 
             "files.exclude"
@@ -520,7 +545,9 @@
                   jsonrpc (lsp.jsonrpc/make
                             {"textDocument/publishDiagnostics" (diagnostics-handler project out on-publish-diagnostics)
                              "workspace/diagnostic/refresh" (constantly nil)
-                             "workspace/configuration" (configuration-handler project)
+                             "workspace/configuration" (configuration-handler
+                                                         project
+                                                         (::lua-api-context launcher))
                              "window/showMessageRequest" lua-language-server-show-message-request-handler
                              "window/workDoneProgress/create" (constantly nil)}
                             base-source
@@ -787,12 +814,15 @@
   "See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen"
   [resource lines]
-  (lsp.jsonrpc/notification
-    "textDocument/didOpen"
-    {:textDocument {:uri (resource-uri resource)
-                    :languageId (resource/language resource)
-                    :version 0
-                    :text (slurp (data/lines-reader lines))}}))
+  (let [language (resource/language resource)]
+    (lsp.jsonrpc/notification
+      "textDocument/didOpen"
+      {:textDocument {:uri (resource-uri resource)
+                      :languageId (case language
+                                    "lua-editor" "lua"
+                                    language)
+                      :version 0
+                      :text (slurp (data/lines-reader lines))}})))
 
 (defn close-text-document
   "See also:
