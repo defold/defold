@@ -9576,6 +9576,34 @@ TEST_F(ShaderTest, ComputeStorageLightBuffer)
     dmResource::Release(m_Factory, (void*) compute_res);
 }
 
+TEST_F(ShaderTest, ClusteredLightingResources)
+{
+    ASSERT_TRUE(dmRender::SetClusteredLightingGrid(m_RenderContext, 16, 9, 24, 64));
+    ASSERT_EQ(3456u, dmRender::GetClusteredLightingClusterCount(m_RenderContext));
+    ASSERT_EQ(3456u * 32u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_BOUNDS]);
+    ASSERT_EQ(3456u * 8u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_METADATA]);
+    ASSERT_EQ(3456u * 64u * 4u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_LIGHT_INDICES]);
+    ASSERT_EQ(16u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_COUNTERS]);
+    ASSERT_EQ(3456u * 4u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_OVERFLOW]);
+
+    dmGameSystem::ComputeResource* compute_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/shader/cluster_assign.computec", (void**) &compute_res));
+    dmRender::HComputeProgram program = compute_res->m_Program;
+    ASSERT_TRUE(program->m_HasLightBuffer);
+    for (uint32_t i = 0; i < dmRender::CLUSTER_BUFFER_COUNT; ++i)
+        ASSERT_TRUE(program->m_ClusterBufferBindings[i].m_Present);
+
+    dmRender::ApplyComputeProgramClusterBuffers(m_RenderContext, program);
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    for (uint32_t i = 0; i < dmRender::CLUSTER_BUFFER_COUNT; ++i)
+    {
+        dmRender::ClusterBufferBinding& binding = program->m_ClusterBufferBindings[i];
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) m_RenderContext->m_ClusterBuffers[i],
+                  null_context->m_StorageBuffers[binding.m_Set][binding.m_Binding]);
+    }
+    dmResource::Release(m_Factory, (void*) compute_res);
+}
+
 #endif
 
 TEST_F(ModelTest, GetAABB)

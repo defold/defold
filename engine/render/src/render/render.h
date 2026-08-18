@@ -503,6 +503,15 @@ namespace dmRender
     void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
+    /** Configure the engine-owned clustered-lighting storage buffers.
+     * Buffers are resized lazily and retain stable shader contracts named
+     * ClusterBoundsBuffer, ClusterMetadataBuffer, ClusterLightIndicesBuffer,
+     * ClusterCountersBuffer and ClusterOverflowBuffer.
+     */
+    bool            SetClusteredLightingGrid(HRenderContext render_context, uint32_t x, uint32_t y, uint32_t z, uint32_t max_lights_per_cluster);
+    void            ResetClusteredLightingBuffers(HRenderContext render_context);
+    uint32_t        GetClusteredLightingClusterCount(HRenderContext render_context);
+
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {
         switch(wrap_mode)

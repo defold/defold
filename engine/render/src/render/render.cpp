@@ -195,6 +195,10 @@ namespace dmRender
 
         context->m_LightUniformBuffer = 0;
         SetLightBufferCount(context, 0);
+        memset(context->m_ClusterBuffers, 0, sizeof(context->m_ClusterBuffers));
+        memset(context->m_ClusterBufferSizes, 0, sizeof(context->m_ClusterBufferSizes));
+        memset(context->m_ClusterDimensions, 0, sizeof(context->m_ClusterDimensions));
+        context->m_MaxLightsPerCluster = 0;
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
@@ -216,6 +220,7 @@ namespace dmRender
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         FinalizeLightData(render_context);
+        FinalizeClusteredLighting(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);
         delete render_context;
 
@@ -1143,6 +1148,7 @@ namespace dmRender
         }
 
         ApplyComputeProgramLightBuffers(render_context, compute_program);
+        ApplyComputeProgramClusterBuffers(render_context, compute_program);
 
         dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
 
@@ -1251,6 +1257,7 @@ namespace dmRender
             }
 
             ApplyMaterialProgramLightBuffers(render_context, material);
+            ApplyMaterialClusterBuffers(render_context, material);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
 

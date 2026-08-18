@@ -41,6 +41,23 @@ namespace dmRender
 
 #define DEBUG_3D_NAME "_debug3d"
 
+    enum ClusterBufferType
+    {
+        CLUSTER_BUFFER_BOUNDS,
+        CLUSTER_BUFFER_METADATA,
+        CLUSTER_BUFFER_LIGHT_INDICES,
+        CLUSTER_BUFFER_COUNTERS,
+        CLUSTER_BUFFER_OVERFLOW,
+        CLUSTER_BUFFER_COUNT
+    };
+
+    struct ClusterBufferBinding
+    {
+        uint16_t m_Set;
+        uint16_t m_Binding;
+        uint8_t  m_Present;
+    };
+
     struct Sampler
     {
         dmhash_t                     m_NameHash;
@@ -102,6 +119,7 @@ namespace dmRender
         uint16_t                                    m_LightBufferBinding;
         uint16_t                                    m_LightBufferCapacity;
         dmGraphics::ShaderResourceBindingFamily     m_LightBufferBindingFamily;
+        ClusterBufferBinding                        m_ClusterBufferBindings[CLUSTER_BUFFER_COUNT];
         uint8_t                                     m_HasLightBuffer : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
@@ -121,6 +139,7 @@ namespace dmRender
         uint16_t                                    m_LightBufferBinding;
         uint16_t                                    m_LightBufferCapacity;
         dmGraphics::ShaderResourceBindingFamily     m_LightBufferBindingFamily;
+        ClusterBufferBinding                        m_ClusterBufferBindings[CLUSTER_BUFFER_COUNT];
         uint8_t                                     m_HasLightBuffer : 1;
     };
 
@@ -335,6 +354,10 @@ namespace dmRender
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
+        dmGraphics::HUniformBuffer             m_ClusterBuffers[CLUSTER_BUFFER_COUNT];
+        uint32_t                               m_ClusterBufferSizes[CLUSTER_BUFFER_COUNT];
+        uint32_t                               m_ClusterDimensions[3];
+        uint32_t                               m_MaxLightsPerCluster;
         dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
@@ -420,6 +443,12 @@ namespace dmRender
     void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, dmGraphics::ShaderResourceBindingFamily* out_family, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
     void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);
+
+    // Clustered lighting
+    void FinalizeClusteredLighting(HRenderContext render_context);
+    void GetProgramClusterBufferBindings(dmGraphics::HProgram program, ClusterBufferBinding out_bindings[CLUSTER_BUFFER_COUNT]);
+    void ApplyMaterialClusterBuffers(HRenderContext render_context, HMaterial material);
+    void ApplyComputeProgramClusterBuffers(HRenderContext render_context, HComputeProgram compute_program);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

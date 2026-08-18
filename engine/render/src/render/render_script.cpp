@@ -2916,6 +2916,45 @@ namespace dmRender
         return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*# configures clustered-lighting GPU resources
+     * Allocates the engine-owned cluster bounds, metadata, compact light-index,
+     * counter and overflow storage buffers. Vulkan is currently required.
+     * `max_lights_per_cluster` is capped to 256 by the assignment shader.
+     *
+     * @name render.set_clustered_lighting_grid
+     * @param x [type:number] horizontal cluster count
+     * @param y [type:number] vertical cluster count
+     * @param z [type:number] logarithmic depth slice count
+     * @param max_lights_per_cluster [type:number] maximum retained lights per cluster
+     */
+    static int RenderScript_SetClusteredLightingGrid(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t x = (uint32_t) luaL_checkinteger(L, 1);
+        uint32_t y = (uint32_t) luaL_checkinteger(L, 2);
+        uint32_t z = (uint32_t) luaL_checkinteger(L, 3);
+        uint32_t max_lights = (uint32_t) luaL_checkinteger(L, 4);
+        if (max_lights > 256u)
+            return DM_LUA_ERROR("max_lights_per_cluster must be between 1 and 256");
+        if (!SetClusteredLightingGrid(i->m_RenderContext, x, y, z, max_lights))
+            return DM_LUA_ERROR("Unable to allocate clustered-lighting buffers");
+        return 0;
+    }
+
+    /*# clears clustered-lighting counters and overflow data
+     * Call once before dispatching the light-assignment compute program.
+     *
+     * @name render.reset_clustered_lighting_buffers
+     */
+    static int RenderScript_ResetClusteredLightingBuffers(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        ResetClusteredLightingBuffers(i->m_RenderContext);
+        return 0;
+    }
+
     /*# dispatches the currently enabled compute program
      * Dispatches the currently enabled compute program. The dispatch call takes three arguments x,y,z which constitutes
      * the 'global working group' of the compute dispatch. Together with the 'local working group' specified in the compute shader
@@ -3113,6 +3152,8 @@ namespace dmRender
         {"disable_material",                RenderScript_DisableMaterial},
         {"set_compute",                     RenderScript_SetCompute},
         {"dispatch_compute",                RenderScript_Dispatch},
+        {"set_clustered_lighting_grid",     RenderScript_SetClusteredLightingGrid},
+        {"reset_clustered_lighting_buffers",RenderScript_ResetClusteredLightingBuffers},
         {"set_camera",                      RenderScript_SetCamera},
         {"set_listener",                    RenderScript_SetListener},
         {0, 0}

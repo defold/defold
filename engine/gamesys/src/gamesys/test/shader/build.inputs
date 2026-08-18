@@ -1,4 +1,7 @@
 /shader/inputs.compute
 /shader/light_buffer.compute
 /shader/light_buffer_storage.compute
+/shader/cluster_build.compute
+/shader/cluster_assign.compute
+/shader/cluster_debug.compute
 /shader/valid.compute

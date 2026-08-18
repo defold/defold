@@ -66,6 +66,7 @@ namespace dmRender
         program->m_LightBufferBinding   = light_buffer_binding;
         program->m_LightBufferCapacity  = light_buffer_capacity;
         program->m_LightBufferBindingFamily = light_buffer_family;
+        GetProgramClusterBufferBindings(program->m_Program, program->m_ClusterBufferBindings);
 
         return (HComputeProgram) program;
     }
