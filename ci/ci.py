@@ -277,7 +277,8 @@ def build_engine(channel, platform, args):
                     'arm64-linux',
                     'x86_64-linux',
                     'armv7-android',
-                    'arm64-android'):
+                    'arm64-android',
+                    'x86_64-android'):
         install_sdk = ''
 
     cmd_args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()

@@ -324,7 +324,7 @@ def get_android_bintools_path(ndk, platform):
     return f'{ndk}/toolchains/llvm/prebuilt/{ndk_os}-x86_64/bin'
 
 def get_android_api_version(platform):
-    if platform == 'arm64-android':
+    if platform in ('arm64-android', 'x86_64-android'):
         return ANDROID_64_NDK_API_VERSION
     else:
         return ANDROID_NDK_API_VERSION
@@ -332,6 +332,8 @@ def get_android_api_version(platform):
 def get_android_clang_name(platform, api_version):
     if platform == 'arm64-android':
         return f'aarch64-linux-android{api_version}-clang'
+    elif platform == 'x86_64-android':
+        return f'x86_64-linux-android{api_version}-clang'
     else:
         return f'armv7a-linux-androideabi{api_version}-clang'
 
@@ -956,7 +958,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         folders.append(get_android_sdk_path(sdkfolder))
         folders.append(get_android_ndk_path(sdkfolder))
 
@@ -1001,7 +1003,7 @@ def check_local_sdk(platform, verbose=False):
         if info is None:
             raise SDKException(error)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         path = get_android_local_sdk_path()
         ndkpath = get_android_local_ndk_path(platform, verbose)
         return path is not None and ndkpath is not None
@@ -1038,7 +1040,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         info['version']     = ANDROID_BUILD_TOOLS_VERSION
         info['sdk']         = get_android_sdk_path(sdkfolder)
         info['ndk']         = get_android_ndk_path(sdkfolder)
@@ -1084,7 +1086,7 @@ def _get_local_sdk_info(platform, verbose=False):
         windowsinfo = get_windows_local_sdk_info(platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         ndk_os = 'linux'
         if sys.platform == 'darwin':
             ndk_os = 'darwin'
@@ -1272,7 +1274,7 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
             log.log(clang)
     cmd = [clang]
 
-    if platform in ['arm64-android', 'armv7-android']:
+    if platform in ['arm64-android', 'armv7-android', 'x86_64-android']:
         clang = os.path.join(info['bintools'], info['clangname'])
         cmd = [clang]
 
@@ -1318,7 +1320,7 @@ def test_sdk(platform, info, verbose=False):
     if platform in ['arm64-linux', 'x86_64-linux',
                     'arm64-macos', 'x86_64-macos',
                     'arm64-ios', 'x86_64-ios',
-                    'arm64-android', 'armv7-android']:
+                    'arm64-android', 'armv7-android', 'x86_64-android']:
         use_clang = True
 
     try:
@@ -1341,7 +1343,7 @@ def get_toolchain_root(sdkinfo, platform):
 
 
 def get_strip_executable(platform, sdkinfo):
-    if platform in ('armv7-android', 'arm64-android'):
+    if platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         return os.path.join(sdkinfo['bintools'], 'llvm-strip')
 
     if platform in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):
