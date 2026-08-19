@@ -35,7 +35,8 @@ import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 
 public class FontRendererTest {
-    private static final int VERTEX_STRIDE = 96;
+    private static final int VERTEX_STRIDE = 56;
+    private static final int VERTEX_FACE_COLOR_OFFSET = 16;
     private static final float[] IDENTITY = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
@@ -197,9 +198,9 @@ public class FontRendererTest {
             renderer.generateTexture(0);
             TestVertices vertices = getVertices(renderer, IDENTITY);
             assertEquals(18, vertices.vertexCount);
-            assertEquals(1.0f, vertices.vertices.getFloat(20), 0.001f);
-            assertEquals(0.0f, vertices.vertices.getFloat(24), 0.001f);
-            assertEquals(0.0f, vertices.vertices.getFloat(28), 0.001f);
+            assertEquals(255, Byte.toUnsignedInt(vertices.vertices.get(VERTEX_FACE_COLOR_OFFSET)));
+            assertEquals(0,   Byte.toUnsignedInt(vertices.vertices.get(VERTEX_FACE_COLOR_OFFSET + 1)));
+            assertEquals(0,   Byte.toUnsignedInt(vertices.vertices.get(VERTEX_FACE_COLOR_OFFSET + 2)));
 
             assertEquals(0.0f, renderer.measureMarkup("", false, 0.0f, 1.0f, 0.0f).width, 0.001f);
             renderer.setMarkup("");
