@@ -905,6 +905,11 @@ namespace dmGui
         return false;
     }
 
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
+    {
+        return false;
+    }
+
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive)
     {
         return false;

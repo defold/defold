@@ -54,15 +54,18 @@ dmResource::HFactory g_ResourceFactory = 0;
  * A `link` tag uses `link` by default. Callers may select another named style,
  * such as `link:hover` or `link:active`, in response to input.
  * Font collections initially define these named styles. Each default contains
- * only a normalized RGBA face-color multiplier and no effects:
+ * a normalized RGBA face-color multiplier and no effects. The default `link`
+ * style also uses a solid underline, which remains when hover or active colors
+ * are applied:
  *
- * - `link`: `(0.10, 0.45, 0.90, 1.0)`
+ * - `link`: `(0.10, 0.45, 0.90, 1.0)`, solid underline
  * - `link:hover`: `(0.30, 0.65, 1.00, 1.0)`
  * - `link:active`: `(0.05, 0.30, 0.70, 1.0)`
  *
  * The definition is an opening-only sequence of rich-text tags. Tags are
  * implicitly closed in reverse order. Calling this function replaces the
- * complete named style.
+ * named render properties and effects. Resource-defined decorations, such as
+ * the default `link` underline, remain unchanged.
  *
  * @name font.set_style
  * @param fontc [type:string|hash] The path to the `.fontc` resource.

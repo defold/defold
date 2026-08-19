@@ -38,11 +38,38 @@ namespace dmGameSystem
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_OTF = dmHashString64("otf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
+    const static dmhash_t STYLE_LINK = dmHashString64("link");
+    const static dmhash_t STYLE_LINK_HOVER = dmHashString64("link:hover");
+    const static dmhash_t STYLE_LINK_ACTIVE = dmHashString64("link:active");
 
     struct ImageDataHeader
     {
         uint8_t m_Compression; // FontGlyphCompression
     };
+
+    static TextRenderStyle MakeColorStyle(float r, float g, float b, float a)
+    {
+        TextRenderStyle style = {};
+        style.m_FaceColor[0] = r;
+        style.m_FaceColor[1] = g;
+        style.m_FaceColor[2] = b;
+        style.m_FaceColor[3] = a;
+        style.m_Flags = TEXT_RENDER_STYLE_FACE_COLOR;
+
+        return style;
+    }
+
+    static void SetDefaultNamedStyles(HFontCollection collection)
+    {
+        FontCollectionSetNamedStyle(collection, STYLE_LINK, MakeColorStyle(0.10f, 0.45f, 0.90f, 1.0f));
+        FontCollectionSetNamedStyle(collection, STYLE_LINK_HOVER, MakeColorStyle(0.30f, 0.65f, 1.00f, 1.0f));
+        FontCollectionSetNamedStyle(collection, STYLE_LINK_ACTIVE, MakeColorStyle(0.05f, 0.30f, 0.70f, 1.0f));
+
+        TextNamedStyleDecoration link_decoration = {};
+        link_decoration.m_Flags = TEXT_RESOLVED_DECORATION_UNDERLINE;
+        link_decoration.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
+        FontCollectionSetNamedStyleDecoration(collection, STYLE_LINK, link_decoration);
+    }
 
     template<typename T>
     static void SwapVar(T& a, T& b)
@@ -610,6 +637,7 @@ namespace dmGameSystem
         }
 
         HFontCollection font_collection = FontCollectionCreate();
+        SetDefaultNamedStyles(font_collection);
         FontCollectionAddFont(font_collection, hfont);
 
         params.m_FontCollection = font_collection;

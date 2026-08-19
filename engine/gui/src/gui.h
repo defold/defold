@@ -1169,6 +1169,16 @@ namespace dmGui
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
 
+    /** converts project-space input coordinates to the local transform used to render a node
+     * @param scene the scene the node exists in
+     * @param node node to convert coordinates for
+     * @param x project-space x-coordinate
+     * @param y project-space y-coordinate
+     * @param position local render position (out)
+     * @return true when the position could be projected onto the node plane
+     */
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, dmVMath::Point3* position);
+
     /** retrieves if a node is enabled or not
      * Only enabled nodes are animated and rendered.
      *

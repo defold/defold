@@ -61,26 +61,47 @@ message SetText
     required string text  = 1;
 }
 
-/*# Sent to the owning game object when the pointer enters a rich-text link. */
-message LabelLinkHovered
+/*# Sent to the owning game object when the pointer enters an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_hovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectHovered
 {
     required uint64 id = 1;
-    /*# Application-defined target from the link's `src` attribute. */
-    optional string src = 2;
+    required uint64 type = 2;
+    optional string src = 3;
 }
 
-/*# Sent to the owning game object when the pointer leaves a rich-text link. */
-message LabelLinkUnhovered
+/*# Sent to the owning game object when the pointer leaves an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_unhovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectUnhovered
 {
     required uint64 id = 1;
-    /*# Application-defined target from the link's `src` attribute. */
-    optional string src = 2;
+    required uint64 type = 2;
+    optional string src = 3;
 }
 
-/*# Sent to the owning game object when a rich-text link is clicked. */
-message LabelLinkClicked
+/*# Sent to the owning game object when an interactive rich-text object is clicked.
+ *
+ * @message
+ * @name text_object_clicked
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectClicked
 {
     required uint64 id = 1;
-    /*# Application-defined target from the link's `src` attribute. */
-    optional string src = 2;
+    required uint64 type = 2;
+    optional string src = 3;
 }

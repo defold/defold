@@ -90,8 +90,8 @@ namespace dmGameSystem
         const char*                 m_Text;
         HTextLayout                 m_TextLayout;
         uint32_t                    m_TextLayoutFontVersion;
-        uint32_t                    m_HoveredLinkObject;
-        uint32_t                    m_PressedLinkObject;
+        uint32_t                    m_HoveredLayoutObject;
+        uint32_t                    m_PressedLayoutObject;
         uint32_t                    m_Index;
 
         uint16_t                    m_ComponentIndex;
@@ -208,8 +208,8 @@ namespace dmGameSystem
         }
         component->m_TextLayoutFontVersion = 0;
         component->m_TextLayoutDirty = 1;
-        component->m_HoveredLinkObject = UINT32_MAX;
-        component->m_PressedLinkObject = UINT32_MAX;
+        component->m_HoveredLayoutObject = UINT32_MAX;
+        component->m_PressedLayoutObject = UINT32_MAX;
     }
 
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component)
@@ -400,8 +400,8 @@ namespace dmGameSystem
         component->m_Index = index;
         component->m_Enabled = 1;
         component->m_UserAllocatedText = 0;
-        component->m_HoveredLinkObject = UINT32_MAX;
-        component->m_PressedLinkObject = UINT32_MAX;
+        component->m_HoveredLayoutObject = UINT32_MAX;
+        component->m_PressedLayoutObject = UINT32_MAX;
 
         InitParametersFromDescription(component, ddf);
 
@@ -699,37 +699,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static float LabelOffsetX(uint32_t align, float width)
-    {
-        if (align == dmRender::TEXT_ALIGN_RIGHT)
-        {
-            return width;
-        }
-
-        if (align == dmRender::TEXT_ALIGN_CENTER)
-        {
-            return width * 0.5f;
-        }
-
-        return 0.0f;
-    }
-
-    static float LabelLayoutY(uint32_t valign, float height, float layout_height)
-    {
-        if (valign == dmRender::TEXT_VALIGN_MIDDLE)
-        {
-            return (height - layout_height) * 0.5f;
-        }
-
-        if (valign == dmRender::TEXT_VALIGN_BOTTOM)
-        {
-            return 0.0f;
-        }
-
-        return height - layout_height;
-    }
-
-    static uint32_t HitTestLabelLink(LabelComponent* component, float world_x, float world_y)
+    static uint32_t HitTestLabelLayoutObject(LabelComponent* component, float world_x, float world_y)
     {
         HTextLayout layout = GetOrCreateTextLayout(component);
 
@@ -741,94 +711,21 @@ namespace dmGameSystem
         const Vector4 local = inverse(component->m_World) * Vector4(world_x, world_y, 0.0f, 1.0f);
         dmRender::DrawTextParams params;
         CreateDrawTextParams(component, params);
-        float layout_width;
-        float layout_height;
-        TextLayoutGetBounds(layout, &layout_width, &layout_height);
-        (void)layout_width;
-
-        TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-        TextLine* lines = TextLayoutGetLines(layout);
-        TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
-        const TextLayoutObject* objects = TextLayoutGetObjects(layout);
-        const float layout_y = LabelLayoutY(params.m_VAlign, params.m_Height, layout_height);
-
-        for (uint32_t object_index = 0; object_index < TextLayoutGetObjectCount(layout); ++object_index)
-        {
-            const TextLayoutObject& object = objects[object_index];
-
-            if (object.m_Tag != TAG_LINK || object.m_TextLength == 0)
-            {
-                continue;
-            }
-
-            const uint32_t link_end = object.m_TextOffset + object.m_TextLength;
-
-            for (uint32_t line_index = 0; line_index < TextLayoutGetLineCount(layout); ++line_index)
-            {
-                const TextLine& line = lines[line_index];
-
-                if (line.m_Length == 0)
-                {
-                    continue;
-                }
-
-                float first_x = glyphs[line.m_Index].m_X;
-
-                for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
-                {
-                    first_x = dmMath::Min(first_x, glyphs[i].m_X);
-                }
-
-                uint32_t align = params.m_Align;
-
-                if (paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL)
-                {
-                    if (align == dmRender::TEXT_ALIGN_LEFT)
-                    {
-                        align = dmRender::TEXT_ALIGN_RIGHT;
-                    }
-                    else if (align == dmRender::TEXT_ALIGN_RIGHT)
-                    {
-                        align = dmRender::TEXT_ALIGN_LEFT;
-                    }
-                }
-
-                const float line_x = LabelOffsetX(align, params.m_Width) - LabelOffsetX(align, line.m_Width);
-                const float line_y = layout_y + line.m_Baseline;
-
-                for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
-                {
-                    const TextGlyph& glyph = glyphs[i];
-
-                    if (glyph.m_Cluster < object.m_TextOffset || glyph.m_Cluster >= link_end)
-                    {
-                        continue;
-                    }
-
-                    const float glyph_size = dmRender::GetFontMapSize(GetFontMap(component, component->m_Resource)) * glyph.m_RenderScale;
-                    const float scale = FontGetScaleFromSize(glyph.m_Font, glyph_size);
-                    const float ascent = FontGetAscent(glyph.m_Font, scale);
-                    const float descent = fabsf(FontGetDescent(glyph.m_Font, scale));
-                    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-                    TextGlyphRenderData render_data;
-                    TextLayoutGetGlyphRenderData(layout, glyph, white, &render_data);
-                    const float x = line_x + glyph.m_X - first_x + render_data.m_OffsetX;
-                    const float y = line_y + glyph.m_Y + render_data.m_OffsetY;
-                    const float width = dmMath::Max(glyph.m_Width, glyph_size * 0.35f);
-
-                    if (local.getX() >= x && local.getX() <= x + width &&
-                        local.getY() >= y - descent && local.getY() <= y + ascent)
-                    {
-                        return object_index;
-                    }
-                }
-            }
-        }
-
-        return UINT32_MAX;
+        dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+        TextLayoutHitTestParams hit_test = {};
+        hit_test.m_Tag = TAG_LINK;
+        hit_test.m_X = local.getX();
+        hit_test.m_Y = local.getY();
+        hit_test.m_Width = params.m_Width;
+        hit_test.m_Height = params.m_Height;
+        hit_test.m_FontSize = dmRender::GetFontMapSize(font_map);
+        hit_test.m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
+        hit_test.m_Align = params.m_Align;
+        hit_test.m_VAlign = params.m_VAlign;
+        return TextLayoutHitTestObject(layout, hit_test);
     }
 
-    static const TextLayoutObjectAttribute* FindLabelLinkAttribute(HTextLayout layout, const TextLayoutObject& object, const char* name)
+    static const TextLayoutObjectAttribute* FindLabelLayoutObjectAttribute(HTextLayout layout, const TextLayoutObject& object, const char* name)
     {
         const char* source = TextLayoutGetObjectSource(layout);
         const TextLayoutObjectAttribute* attributes = TextLayoutGetObjectAttributes(layout);
@@ -848,7 +745,7 @@ namespace dmGameSystem
     }
 
     template <class Message>
-    static void PostLabelLinkMessage(LabelComponent* component, uint32_t object_index)
+    static void PostLabelLayoutObjectMessage(LabelComponent* component, uint32_t object_index)
     {
         HTextLayout layout = component->m_TextLayout;
 
@@ -858,7 +755,7 @@ namespace dmGameSystem
         }
 
         const TextLayoutObject& object = TextLayoutGetObjects(layout)[object_index];
-        const TextLayoutObjectAttribute* src = FindLabelLinkAttribute(layout, object, "src");
+        const TextLayoutObjectAttribute* src = FindLabelLayoutObjectAttribute(layout, object, "src");
         const char* source = TextLayoutGetObjectSource(layout);
         dmArray<char> src_value;
         src_value.SetCapacity(src ? src->m_ValueLength + 1 : 1);
@@ -873,6 +770,7 @@ namespace dmGameSystem
 
         Message message = {};
         message.m_Id = object.m_Id;
+        message.m_Type = object.m_Tag;
         message.m_Src = src_value.Begin();
         dmMessage::URL receiver;
         dmMessage::ResetURL(&receiver);
@@ -886,7 +784,7 @@ namespace dmGameSystem
         }
     }
 
-    static void SetLabelLinkStyle(LabelComponent* component, uint32_t object_index, dmhash_t style)
+    static void SetLabelLayoutObjectStyle(LabelComponent* component, uint32_t object_index, dmhash_t style)
     {
         HTextLayout layout = component->m_TextLayout;
 
@@ -896,7 +794,10 @@ namespace dmGameSystem
         }
 
         const TextLayoutObject& object = TextLayoutGetObjects(layout)[object_index];
-        TextLayoutSetObjectStyle(layout, object.m_Id, style);
+        if (object.m_Tag == TAG_LINK)
+        {
+            TextLayoutSetObjectStyle(layout, object.m_Id, style);
+        }
     }
 
     dmGameObject::InputResult CompLabelOnInput(const dmGameObject::ComponentOnInputParams& params)
@@ -909,46 +810,46 @@ namespace dmGameSystem
             return dmGameObject::INPUT_RESULT_IGNORED;
         }
 
-        const uint32_t hovered = HitTestLabelLink(component, action.m_X, action.m_Y);
+        const uint32_t hovered = HitTestLabelLayoutObject(component, action.m_X, action.m_Y);
 
-        if (hovered != component->m_HoveredLinkObject)
+        if (hovered != component->m_HoveredLayoutObject)
         {
-            if (component->m_HoveredLinkObject != UINT32_MAX)
+            if (component->m_HoveredLayoutObject != UINT32_MAX)
             {
-                SetLabelLinkStyle(component, component->m_HoveredLinkObject, 0);
-                PostLabelLinkMessage<dmGameSystemDDF::LabelLinkUnhovered>(component, component->m_HoveredLinkObject);
+                SetLabelLayoutObjectStyle(component, component->m_HoveredLayoutObject, 0);
+                PostLabelLayoutObjectMessage<dmGameSystemDDF::TextObjectUnhovered>(component, component->m_HoveredLayoutObject);
             }
 
-            component->m_HoveredLinkObject = hovered;
+            component->m_HoveredLayoutObject = hovered;
 
             if (hovered != UINT32_MAX)
             {
-                SetLabelLinkStyle(component, hovered, STYLE_LINK_HOVER);
-                PostLabelLinkMessage<dmGameSystemDDF::LabelLinkHovered>(component, hovered);
+                SetLabelLayoutObjectStyle(component, hovered, STYLE_LINK_HOVER);
+                PostLabelLayoutObjectMessage<dmGameSystemDDF::TextObjectHovered>(component, hovered);
             }
         }
 
         if (action.m_Pressed && hovered != UINT32_MAX)
         {
-            component->m_PressedLinkObject = hovered;
-            SetLabelLinkStyle(component, hovered, STYLE_LINK_ACTIVE);
+            component->m_PressedLayoutObject = hovered;
+            SetLabelLayoutObjectStyle(component, hovered, STYLE_LINK_ACTIVE);
         }
 
-        if (component->m_PressedLinkObject != UINT32_MAX && hovered != component->m_PressedLinkObject && !action.m_Released)
+        if (component->m_PressedLayoutObject != UINT32_MAX && hovered != component->m_PressedLayoutObject && !action.m_Released)
         {
-            SetLabelLinkStyle(component, component->m_PressedLinkObject, 0);
-            component->m_PressedLinkObject = UINT32_MAX;
+            SetLabelLayoutObjectStyle(component, component->m_PressedLayoutObject, 0);
+            component->m_PressedLayoutObject = UINT32_MAX;
         }
 
-        if (component->m_PressedLinkObject != UINT32_MAX && action.m_Released)
+        if (component->m_PressedLayoutObject != UINT32_MAX && action.m_Released)
         {
-            const uint32_t pressed = component->m_PressedLinkObject;
-            SetLabelLinkStyle(component, pressed, hovered == pressed ? STYLE_LINK_HOVER : 0);
-            component->m_PressedLinkObject = UINT32_MAX;
+            const uint32_t pressed = component->m_PressedLayoutObject;
+            SetLabelLayoutObjectStyle(component, pressed, hovered == pressed ? STYLE_LINK_HOVER : 0);
+            component->m_PressedLayoutObject = UINT32_MAX;
 
             if (hovered == pressed)
             {
-                PostLabelLinkMessage<dmGameSystemDDF::LabelLinkClicked>(component, pressed);
+                PostLabelLayoutObjectMessage<dmGameSystemDDF::TextObjectClicked>(component, pressed);
             }
         }
 

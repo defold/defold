@@ -63,6 +63,10 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static const dmhash_t TAG_LINK          = dmHashString64("link");
+    static const dmhash_t STYLE_LINK_HOVER  = dmHashString64("link:hover");
+    static const dmhash_t STYLE_LINK_ACTIVE = dmHashString64("link:active");
+
     static const char* GUI_MAX_COUNT_KEY = "gui.max_count";
 
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
@@ -89,6 +93,136 @@ namespace dmGameSystem
     static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res);
+
+    static bool EqualGuiLayoutObjectTargets(const GuiLayoutObjectTarget& a, const GuiLayoutObjectTarget& b)
+    {
+        return a.m_Layout == b.m_Layout && a.m_ObjectId == b.m_ObjectId;
+    }
+
+    static void ResetGuiLayoutObjectTarget(GuiLayoutObjectTarget* target)
+    {
+        if (target->m_Layout)
+        {
+            TextLayoutRelease(target->m_Layout);
+        }
+        target->m_Layout = 0;
+        target->m_ObjectId = 0;
+    }
+
+    static void SetGuiLayoutObjectTarget(GuiLayoutObjectTarget* target, const GuiLayoutObjectTarget& value)
+    {
+        if (EqualGuiLayoutObjectTargets(*target, value))
+        {
+            return;
+        }
+
+        ResetGuiLayoutObjectTarget(target);
+        *target = value;
+        if (target->m_Layout)
+        {
+            TextLayoutAcquire(target->m_Layout);
+        }
+    }
+
+    static const TextLayoutObject* FindGuiLayoutObject(const GuiLayoutObjectTarget& target);
+
+    static void SetGuiLayoutObjectStyle(const GuiLayoutObjectTarget& target, dmhash_t style)
+    {
+        if (target.m_Layout && target.m_ObjectId)
+        {
+            const TextLayoutObject* object = FindGuiLayoutObject(target);
+            if (object && object->m_Tag == TAG_LINK)
+            {
+                TextLayoutSetObjectStyle(target.m_Layout, target.m_ObjectId, style);
+            }
+        }
+    }
+
+    static const TextLayoutObject* FindGuiLayoutObject(const GuiLayoutObjectTarget& target)
+    {
+        if (!target.m_Layout)
+        {
+            return 0;
+        }
+
+        const TextLayoutObject* objects = TextLayoutGetObjects(target.m_Layout);
+        const uint32_t object_count = TextLayoutGetObjectCount(target.m_Layout);
+
+        for (uint32_t i = 0; i < object_count; ++i)
+        {
+            if (objects[i].m_Id == target.m_ObjectId)
+            {
+                return &objects[i];
+            }
+        }
+
+        return 0;
+    }
+
+    static const TextLayoutObjectAttribute* FindGuiLayoutObjectAttribute(HTextLayout layout, const TextLayoutObject& object, const char* name)
+    {
+        const char* source = TextLayoutGetObjectSource(layout);
+        const TextLayoutObjectAttribute* attributes = TextLayoutGetObjectAttributes(layout);
+        const uint32_t name_length = (uint32_t)strlen(name);
+
+        for (uint32_t i = 0; i < object.m_AttributeCount; ++i)
+        {
+            const TextLayoutObjectAttribute& attribute = attributes[object.m_AttributeIndex + i];
+
+            if (attribute.m_NameLength == name_length && memcmp(source + attribute.m_NameOffset, name, name_length) == 0)
+            {
+                return &attribute;
+            }
+        }
+
+        return 0;
+    }
+
+    template <class Message>
+    static void SendGuiLayoutObjectMessage(GuiComponent* component, const GuiLayoutObjectTarget& target)
+    {
+        const TextLayoutObject* object = FindGuiLayoutObject(target);
+
+        if (!object)
+        {
+            return;
+        }
+
+        const TextLayoutObjectAttribute* src = FindGuiLayoutObjectAttribute(target.m_Layout, *object, "src");
+        const char* source = TextLayoutGetObjectSource(target.m_Layout);
+        const uint32_t src_length = src ? src->m_ValueLength : 0;
+        const uint32_t data_size = sizeof(Message) + src_length + 1;
+        dmArray<uint8_t> buffer;
+        buffer.SetCapacity(sizeof(dmMessage::Message) + data_size);
+        buffer.SetSize(sizeof(dmMessage::Message) + data_size);
+
+        dmMessage::Message* message = (dmMessage::Message*)buffer.Begin();
+        memset(message, 0, sizeof(dmMessage::Message));
+        message->m_Id = Message::m_DDFDescriptor->m_NameHash;
+        message->m_Descriptor = (uintptr_t)Message::m_DDFDescriptor;
+        message->m_DataSize = data_size;
+        Message* message_data = (Message*)message->m_Data;
+        char* src_value = (char*)message->m_Data + sizeof(Message);
+
+        if (src)
+        {
+            memcpy(src_value, source + src->m_ValueOffset, src_length);
+        }
+
+        src_value[src_length] = 0;
+        message_data->m_Id = object->m_Id;
+        message_data->m_Type = object->m_Tag;
+        message_data->m_Src = (const char*)((uintptr_t)src_value - (uintptr_t)message->m_Data);
+        dmGui::DispatchMessage(component->m_Scene, message);
+    }
+
+    static void ClearGuiLayoutObjectInteraction(GuiComponent* component)
+    {
+        SetGuiLayoutObjectStyle(component->m_HoveredLayoutObject, 0);
+        SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, 0);
+        ResetGuiLayoutObjectTarget(&component->m_HoveredLayoutObject);
+        ResetGuiLayoutObjectTarget(&component->m_PressedLayoutObject);
+    }
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -1225,6 +1359,8 @@ namespace dmGameSystem
         gui_component->m_Resource = scene_resource;
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_Material = 0;
+        gui_component->m_HoveredLayoutObject = {};
+        gui_component->m_PressedLayoutObject = {};
         gui_component->m_ComponentIndex = params.m_ComponentIndex;
         gui_component->m_Enabled = 1;
         gui_component->m_AddedToUpdate = 0;
@@ -1291,6 +1427,7 @@ namespace dmGameSystem
             if (gui_world->m_Components[i] == gui_component)
             {
                 dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+                ClearGuiLayoutObjectInteraction(gui_component);
                 dmGui::DeleteScene(gui_component->m_Scene);
                 if (gui_component->m_Material) {
                     dmResource::Release(factory, gui_component->m_Material);
@@ -1325,6 +1462,7 @@ namespace dmGameSystem
     static dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        ClearGuiLayoutObjectInteraction(gui_component);
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
@@ -1481,6 +1619,49 @@ namespace dmGameSystem
         return 1;
     }
 
+    static void GetGuiTextAlignment(dmGui::HScene scene, dmGui::HNode node, dmRender::TextAlign* align, dmRender::TextVAlign* valign)
+    {
+        switch (dmGui::GetNodePivot(scene, node))
+        {
+            case dmGui::PIVOT_NW:
+                *align = dmRender::TEXT_ALIGN_LEFT;
+                *valign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_N:
+                *align = dmRender::TEXT_ALIGN_CENTER;
+                *valign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_NE:
+                *align = dmRender::TEXT_ALIGN_RIGHT;
+                *valign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_W:
+                *align = dmRender::TEXT_ALIGN_LEFT;
+                *valign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_CENTER:
+                *align = dmRender::TEXT_ALIGN_CENTER;
+                *valign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_E:
+                *align = dmRender::TEXT_ALIGN_RIGHT;
+                *valign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_SW:
+                *align = dmRender::TEXT_ALIGN_LEFT;
+                *valign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+            case dmGui::PIVOT_S:
+                *align = dmRender::TEXT_ALIGN_CENTER;
+                *valign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+            case dmGui::PIVOT_SE:
+                *align = dmRender::TEXT_ALIGN_RIGHT;
+                *valign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+        }
+    }
+
     static HTextLayout GetOrCreateNodeTextLayout(dmGui::HScene scene, dmGui::HNode node, FontResource* font_resource, dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmArray<uint32_t>& codepoints)
     {
         const char* safe_text = text ? text : "";
@@ -1623,46 +1804,7 @@ namespace dmGameSystem
             if (!params.m_TextLayout && safe_text[0] == '\0')
                 continue;
             ApplyStencilClipping(gui_context, stencil_scopes[i], params);
-            dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
-            switch (pivot)
-            {
-            case dmGui::PIVOT_NW:
-                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
-                break;
-            case dmGui::PIVOT_N:
-                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
-                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
-                break;
-            case dmGui::PIVOT_NE:
-                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
-                break;
-            case dmGui::PIVOT_W:
-                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
-                break;
-            case dmGui::PIVOT_CENTER:
-                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
-                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
-                break;
-            case dmGui::PIVOT_E:
-                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
-                break;
-            case dmGui::PIVOT_SW:
-                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
-                break;
-            case dmGui::PIVOT_S:
-                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
-                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
-                break;
-            case dmGui::PIVOT_SE:
-                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
-                break;
-            }
+            GetGuiTextAlignment(scene, node, &params.m_Align, &params.m_VAlign);
 
             dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
@@ -3124,6 +3266,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
+            ClearGuiLayoutObjectInteraction(gui_component);
             gui_component->m_Enabled = 0;
         }
         dmGui::Result result = dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
@@ -3134,12 +3277,119 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void HitTestGuiLayoutObjects(dmGui::HScene scene, dmGui::HNode parent, float x, float y, dmArray<uint32_t>& codepoints, GuiLayoutObjectTarget* target)
+    {
+        for (dmGui::HNode node = dmGui::GetFirstChildNode(scene, parent); node; node = dmGui::GetNextNode(scene, node))
+        {
+            if (!dmGui::IsNodeEnabled(scene, node, false))
+            {
+                continue;
+            }
+
+            if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT && dmGui::GetNodeVisible(scene, node))
+            {
+                FontResource*      font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
+                dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
+                Point3             local_position;
+
+                if (font_map && dmGui::ScreenToNodeRenderPosition(scene, node, x, y, &local_position))
+                {
+                    const char* text = dmGui::GetNodeText(scene, node);
+                    const char* safe_text = text ? text : "";
+                    Vector4     size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+                    const bool  line_break = dmGui::GetNodeLineBreak(scene, node);
+                    const float leading = dmGui::GetNodeTextLeading(scene, node);
+                    const float tracking = dmGui::GetNodeTextTracking(scene, node);
+                    HTextLayout layout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, size.getX(), line_break, leading, tracking, codepoints);
+
+                    if (layout)
+                    {
+                        TextLayoutHitTestParams hit_test = {};
+                        hit_test.m_Tag = TAG_LINK;
+                        hit_test.m_X = local_position.getX();
+                        hit_test.m_Y = local_position.getY();
+                        hit_test.m_Width = size.getX();
+                        hit_test.m_Height = size.getY();
+                        hit_test.m_FontSize = dmRender::GetFontMapSize(font_map);
+                        hit_test.m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
+                        dmRender::TextAlign  align;
+                        dmRender::TextVAlign valign;
+                        GetGuiTextAlignment(scene, node, &align, &valign);
+                        hit_test.m_Align = align;
+                        hit_test.m_VAlign = valign;
+
+                        const uint32_t object_index = TextLayoutHitTestObject(layout, hit_test);
+                        if (object_index != UINT32_MAX)
+                        {
+                            target->m_Layout = layout;
+                            target->m_ObjectId = TextLayoutGetObjects(layout)[object_index].m_Id;
+                        }
+                    }
+                }
+            }
+
+            HitTestGuiLayoutObjects(scene, node, x, y, codepoints, target);
+        }
+    }
+
+    static void UpdateGuiLayoutObjectInteraction(GuiComponent* component, const dmGameObject::InputAction& action)
+    {
+        if (!action.m_PositionSet)
+        {
+            return;
+        }
+
+        GuiLayoutObjectTarget hovered = {};
+        dmArray<uint32_t>     codepoints;
+        HitTestGuiLayoutObjects(component->m_Scene, 0, action.m_X, action.m_Y, codepoints, &hovered);
+
+        if (!EqualGuiLayoutObjectTargets(hovered, component->m_HoveredLayoutObject))
+        {
+            GuiLayoutObjectTarget previous = {};
+            SetGuiLayoutObjectTarget(&previous, component->m_HoveredLayoutObject);
+            SetGuiLayoutObjectStyle(component->m_HoveredLayoutObject, 0);
+            SetGuiLayoutObjectTarget(&component->m_HoveredLayoutObject, hovered);
+            SetGuiLayoutObjectStyle(component->m_HoveredLayoutObject, STYLE_LINK_HOVER);
+            SendGuiLayoutObjectMessage<dmGuiDDF::TextObjectUnhovered>(component, previous);
+            SendGuiLayoutObjectMessage<dmGuiDDF::TextObjectHovered>(component, component->m_HoveredLayoutObject);
+            ResetGuiLayoutObjectTarget(&previous);
+        }
+
+        if (action.m_Pressed && hovered.m_Layout)
+        {
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, 0);
+            SetGuiLayoutObjectTarget(&component->m_PressedLayoutObject, hovered);
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, STYLE_LINK_ACTIVE);
+        }
+
+        if (component->m_PressedLayoutObject.m_Layout && !EqualGuiLayoutObjectTargets(hovered, component->m_PressedLayoutObject) && !action.m_Released)
+        {
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, 0);
+            ResetGuiLayoutObjectTarget(&component->m_PressedLayoutObject);
+        }
+
+        if (component->m_PressedLayoutObject.m_Layout && action.m_Released)
+        {
+            const bool released_over_pressed = EqualGuiLayoutObjectTargets(hovered, component->m_PressedLayoutObject);
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, released_over_pressed ? STYLE_LINK_HOVER : 0);
+
+            if (released_over_pressed)
+            {
+                SendGuiLayoutObjectMessage<dmGuiDDF::TextObjectClicked>(component, component->m_PressedLayoutObject);
+            }
+
+            ResetGuiLayoutObjectTarget(&component->m_PressedLayoutObject);
+        }
+    }
+
     static dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
 
         if (gui_component->m_Enabled)
         {
+            UpdateGuiLayoutObjectInteraction(gui_component, *params.m_InputAction);
+
             dmGui::HScene scene = gui_component->m_Scene;
             dmGui::InputAction gui_input_action;
             gui_input_action.m_ActionId = params.m_InputAction->m_ActionId;
@@ -3218,6 +3468,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        ClearGuiLayoutObjectInteraction(gui_component);
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {

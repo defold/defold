@@ -3624,10 +3624,18 @@ TEST_F(FontTest, ScriptSetNamedFontStyle)
     dmGameSystem::FontResource* font = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font));
 
+    HFontCollection collection = dmGameSystem::ResFontGetFontCollection(font);
+    const TextNamedStyleDecoration* link_decoration = FontCollectionGetNamedStyleDecoration(collection, dmHashString64("link"));
+    ASSERT_NE((const TextNamedStyleDecoration*)0, link_decoration);
+    ASSERT_EQ((uint8_t)TEXT_RESOLVED_DECORATION_UNDERLINE, link_decoration->m_Flags);
+
     lua_State* L = scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'link', '<color=#336699CC>')"));
+    link_decoration = FontCollectionGetNamedStyleDecoration(collection, dmHashString64("link"));
+    ASSERT_NE((const TextNamedStyleDecoration*)0, link_decoration);
+    ASSERT_EQ((uint8_t)TEXT_RESOLVED_DECORATION_UNDERLINE, link_decoration->m_Flags);
     ASSERT_TRUE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'link:hover', '<color=#336699CC><outline size=2><shadow x=-1 blur=3>')"));
 
-    HFontCollection collection = dmGameSystem::ResFontGetFontCollection(font);
     const TextRenderStyle* style = FontCollectionGetNamedStyle(collection, dmHashString64("link:hover"));
     ASSERT_NE((const TextRenderStyle*)0, style);
     ASSERT_EQ(TEXT_RENDER_STYLE_FACE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_BLUR, style->m_Flags);
@@ -5209,6 +5217,86 @@ TEST_F(GuiTest, GuiPreparedRichTextLayout)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiRichTextLinkInteraction)
+{
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+    dmGui::SetNodeText(gui_component->m_Scene, node, "<link id=docs src=https://www.defold.com>Link</link>");
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(initial.m_TextLayout));
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(initial.m_TextLayout));
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData hovered = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &hovered);
+    ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+    ASSERT_NEAR(0.25f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData unhovered = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &unhovered);
+    ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
+    ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_STREQ("clicked", dmGui::GetNodeText(gui_component->m_Scene, node));
+
+    const char sprite_markup[] = "<sprite id=icon src=/icon.png width=32px height=32px/>";
+    dmGui::SetNodeText(gui_component->m_Scene, node, sprite_markup);
+    GuiTextSubmitResult sprite = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, sprite.m_TextLayout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(sprite.m_TextLayout));
+    ASSERT_EQ(dmHashString64("sprite"), TextLayoutGetObjects(sprite.m_TextLayout)[0].m_Tag);
+
+    input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 320.0f;
+    input_action.m_Y = 240.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_STREQ(sprite_markup, dmGui::GetNodeText(gui_component->m_Scene, node));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiRichTextAnimationAdvances)
 {
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -5460,6 +5548,109 @@ TEST_F(LabelComponentTest, LabelRichTextAnimationAdvances)
     TextGlyphRenderData after = {};
     TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &after);
     ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
+
+    DeleteInstance(m_Collection, go);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(LabelComponentTest, LabelRichTextLinkHover)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+    const float    white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    PostLabelSetText(m_Collection, go_id, label_id, "<link id=docs>Link</link>", (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* label_component = GetLabelComponent(go, label_id);
+    ASSERT_NE((void*)0, label_component);
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = -13.0f;
+    input_action.m_Y = 82.96361f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData hovered = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData unhovered = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &unhovered);
+    ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
+
+    DeleteInstance(m_Collection, go);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(LabelComponentTest, LegacyRichTextLinkWrappedSpriteInteraction)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/link_hover.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    PostLabelSetText(m_Collection, go_id, label_id, "<link id=icon src=/icon.png><sprite width=32px height=32px/></link>", (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* label_component = GetLabelComponent(go, label_id);
+    ASSERT_NE((void*)0, label_component);
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(TEXT_LAYOUT_TYPE_LEGACY, FontCollectionGetLayoutType(layout->m_FontCollection));
+    ASSERT_EQ(2u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(dmHashString64("link"), TextLayoutGetObjects(layout)[0].m_Tag);
+    ASSERT_EQ(dmHashString64("sprite"), TextLayoutGetObjects(layout)[1].m_Tag);
+
+    float layout_width;
+    float layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    const TextLine& line = TextLayoutGetLines(layout)[0];
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    const TextLayoutObject& sprite = TextLayoutGetObjects(layout)[1];
+    input_action.m_X = 0.5f - line.m_Width * 0.5f + sprite.m_Width * 0.5f;
+    input_action.m_Y = (1.0f - layout_height) * 0.5f + line.m_Baseline + sprite.m_Height * 0.3f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    input_action.m_Released = 0;
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_NEAR(123.0f, dmGameObject::GetPosition(go).getX(), 0.0001f);
 
     DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));

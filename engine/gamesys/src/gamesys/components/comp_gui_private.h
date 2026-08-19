@@ -33,6 +33,12 @@ namespace dmGameSystem
 
     typedef const dmGuiDDF::NodeDesc* HNodeDDF;
 
+    struct GuiLayoutObjectTarget
+    {
+        HTextLayout m_Layout;
+        uint64_t    m_ObjectId;
+    };
+
     struct GuiComponent
     {
         struct GuiWorld*        m_World;
@@ -40,6 +46,8 @@ namespace dmGameSystem
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
         MaterialResource*       m_Material;
+        GuiLayoutObjectTarget   m_HoveredLayoutObject;
+        GuiLayoutObjectTarget   m_PressedLayoutObject;
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled       : 1;
         uint8_t                 m_AddedToUpdate : 1;
