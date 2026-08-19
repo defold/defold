@@ -2103,6 +2103,16 @@ namespace dmGameSystem
         lua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
 
+        // SetupCallback, the cached field keys, the largest event table, and
+        // transient values from creating uncached hashes can exceed Lua's
+        // guaranteed LUA_MINSTACK slots.
+        const int required_stack_slots = 32;
+        if (!lua_checkstack(L, required_stack_slots))
+        {
+            dmLogError("Failed to grow Lua stack for physics.set_event_listener() callback");
+            return;
+        }
+
         if (!dmScript::SetupCallback(cbk))
         {
             dmLogError("Failed to setup physics.set_event_listener() callback");
