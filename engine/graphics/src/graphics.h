@@ -318,6 +318,12 @@ namespace dmGraphics
     uint32_t GetRegisteredAdaptersCount();
 
     /**
+     * Get the number of linked graphics adapters.
+     * @return The number of linked graphics adapters.
+     */
+    uint32_t GetLinkedGraphicsAdapterCount();
+
+    /**
      * Gets a graphics adapter at a specific index.
      * The list of adapters is sorted by priority, getting the adapter at index 0 will return the adapter with the highest priority.
      * @param index The graphics adapter to get.
@@ -434,7 +440,7 @@ namespace dmGraphics
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 
-    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
+    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);

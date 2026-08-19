@@ -43,6 +43,9 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -79,7 +82,7 @@
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
-           [java.util Collection]
+           [java.util BitSet Collection]
            [java.util.regex Pattern]
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
@@ -865,6 +868,12 @@
 (g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
   cursor-repaint-info)
 
+(g/defnk produce-tick-info [cursor-opacity elapsed-time-at-last-action gesture-start layout lines :as tick-info]
+  tick-info)
+
+(g/defnk produce-repaint-info [canvas-repaint-info completions-showing cursor-repaint-info hover-showing-regions rename-cursor-range resource-node :as repaint-info]
+  repaint-info)
+
 (defn- make-cursor-rectangle
   ^Rectangle [^Paint fill opacity ^Rect cursor-rect]
   (doto (Rectangle. (.x cursor-rect) (.y cursor-rect) (.w cursor-rect) (.h cursor-rect))
@@ -1058,12 +1067,14 @@
         (and (contains? #{:navigation :selection} undo-grouping)
              (contains? #{:navigation :selection} prev-undo-grouping))
         [(g/operation-sequence prev-opseq)
-         (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq])]
+         (g/non-undoable
+           (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq]))]
 
         :else
         (let [opseq (gensym)]
           [(g/operation-sequence opseq)
-           (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
+           (g/non-undoable
+             (g/set-property view-node :undo-grouping-info [undo-grouping opseq]))])))))
 
 (defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
@@ -1072,7 +1083,8 @@
   (into (operation-sequence-tx-data view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
+          (g/non-undoable
+            (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0))))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1115,16 +1127,18 @@
                       :cursor-ranges
                       (if (g/has-property? resource-node-type :cursor-ranges)
                         (g/set-property resource-node :cursor-ranges value)
-                        (g/set-property view-node :fallback-cursor-ranges value))
+                        (g/non-undoable
+                          (g/set-property view-node :fallback-cursor-ranges value)))
 
                       :regions
                       (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
                             (group-by region->prop-kw value)]
                         (concat
-                          (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
-                          (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
-                          (g/set-property view-node :diagnostics (or diagnostics []))
-                          (g/set-property resource-node prop-kw (or regions []))))
+                          (g/set-property resource-node prop-kw (or regions []))
+                          (g/non-undoable
+                            (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
+                            (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
+                            (g/set-property view-node :diagnostics (or diagnostics [])))))
 
                       ;; Several actions might have invalidated rows since
                       ;; we last produced syntax-info. We keep an ever-
@@ -1150,7 +1164,8 @@
                       (g/set-property resource-node :modified-lines value)
 
                       ;; All other properties are set on the view node.
-                      (g/set-property view-node prop-kw value))))
+                      (g/non-undoable
+                        (g/set-property view-node prop-kw value)))))
           values-by-prop-kw)))
 
 (defn- set-resource-properties
@@ -1183,51 +1198,48 @@
 (defn- handle-rename-key-pressed [view-node text rename-cursor-range swap-state ^KeyEvent e]
   (when (= KeyCode/ENTER (.getCode e))
     (.consume e)
-    (g/with-auto-evaluation-context evaluation-context
-      (let [resource-node (g/node-value view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
-        (swap-state assoc :done true)
-        (lsp/rename
-          lsp
-          rename-cursor-range
-          text
-          (fn on-rename-response [resource->ascending-cursor-ranges-and-replacements]
-            (ui/run-later
-              (some->
-                (g/with-auto-evaluation-context evaluation-context
-                  (when (identical? rename-cursor-range (get-property view-node :rename-cursor-range evaluation-context))
-                    (let [resource->view (->> (get-property view-node :open-views evaluation-context)
-                                              (e/keep
-                                                (fn [[view {:keys [resource]}]]
-                                                  (when (g/node-kw-instance? (:basis evaluation-context) ::CodeEditorView view)
-                                                    [resource view])))
-                                              (into {}))
-                          project (get-property view-node :project evaluation-context)]
-                      (into (set-properties view-node nil {:rename-cursor-range nil})
-                            (mapcat
-                              (fn [[resource ascending-cursor-ranges-and-replacements]]
-                                (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
-                                  (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
-                                    (if-let [view (resource->view resource)]
-                                      (set-properties
-                                        view nil
-                                        (data/apply-edits
-                                          (get-property view :lines evaluation-context)
-                                          (get-property view :regions evaluation-context)
-                                          (get-property view :cursor-ranges evaluation-context)
-                                          ascending-cursor-ranges-and-replacements
-                                          (get-property view :layout evaluation-context)))
-                                      (set-resource-properties
-                                        resource-node
-                                        (data/apply-edits
-                                          (g/node-value resource-node :lines evaluation-context)
-                                          (g/node-value resource-node :regions evaluation-context)
-                                          (g/node-value resource-node :cursor-ranges evaluation-context)
-                                          ascending-cursor-ranges-and-replacements)))))))
-                            resource->ascending-cursor-ranges-and-replacements))))
-                g/transact))))))))
+    (g/let-ec [resource-node (g/node-value view-node :resource-node evaluation-context)
+               lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+      (swap-state assoc :done true)
+      (lsp/rename
+        lsp
+        rename-cursor-range
+        text
+        (fn on-rename-response [resource->ascending-cursor-ranges-and-replacements]
+          (ui/run-later
+            (some->
+              (g/with-auto-evaluation-context evaluation-context
+                (when (identical? rename-cursor-range (get-property view-node :rename-cursor-range evaluation-context))
+                  (let [resource->view (coll/into-> (get-property view-node :open-views evaluation-context) {}
+                                         (keep (fn [[view {:keys [resource]}]]
+                                                 (when (g/node-kw-instance? (:basis evaluation-context) ::CodeEditorView view)
+                                                   (pair resource view)))))
+                        project (get-property view-node :project evaluation-context)]
+                    (into (set-properties view-node nil {:rename-cursor-range nil})
+                          (mapcat
+                            (fn [[resource ascending-cursor-ranges-and-replacements]]
+                              (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
+                                (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
+                                  (if-let [view-node (resource->view resource)]
+                                    (set-properties
+                                      view-node nil
+                                      (data/apply-edits
+                                        (get-property view-node :lines evaluation-context)
+                                        (get-property view-node :regions evaluation-context)
+                                        (get-property view-node :cursor-ranges evaluation-context)
+                                        ascending-cursor-ranges-and-replacements
+                                        (get-property view-node :layout evaluation-context)))
+                                    (set-resource-properties
+                                      resource-node
+                                      (data/apply-edits
+                                        (g/node-value resource-node :lines evaluation-context)
+                                        (g/node-value resource-node :regions evaluation-context)
+                                        (g/node-value resource-node :cursor-ranges evaluation-context)
+                                        ascending-cursor-ranges-and-replacements)))))))
+                          resource->ascending-cursor-ranges-and-replacements))))
+              g/transact)))))))
 
-(fxui/defc rename-popup-view
+(ui/defc rename-popup-view
   {:compose [{:fx/type fx/ext-state
               :initial-state {:text (data/cursor-range-text
                                       (:lines (:canvas-repaint-info props))
@@ -1249,7 +1261,7 @@
                   ;; border width
                   1.0)]
     {:fx/type fxui/with-popup-window
-     :desc {:fx/type fxui/ext-value :value canvas}
+     :desc {:fx/type ui/ext-value :value canvas}
      :popup {:fx/type fx.popup/lifecycle
              :on-hidden (fn [_] (set-properties! _node-id nil {:rename-cursor-range nil}))
              :showing true
@@ -1378,24 +1390,28 @@
                  :spacing :small
                  :children (cond-> [{:fx/type code-type-icon :type kind}
                                     {:fx/type fxui/label :text name}]
-                                   (not (coll/empty? detail))
-                                   (conj {:fx/type fxui/label
-                                          :text (summarize-document-symbol-detail detail)
-                                          :color :hint}))}})))
+                             (not (coll/empty? detail))
+                             (conj {:fx/type fxui/label
+                                    :text (summarize-document-symbol-detail detail)
+                                    :color :hint}))}})))
 
-(defn- navigate-to-document-symbol! [view-node ^TreeItem maybe-item]
-  (when maybe-item
+(defn- navigate-to-document-symbol! [view-node document-symbol]
+  (when document-symbol
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
-                                            (:selection-range (.getValue maybe-item))))))
+                                            (:selection-range document-symbol)))))
+
+(defn- navigate-to-document-symbol-tree-item! [view-node ^TreeItem maybe-item]
+  (when maybe-item
+    (navigate-to-document-symbol! view-node (.getValue maybe-item))))
 
 (defn- focus-code-editor! [view-node]
   (.requestFocus ^Canvas (get-property view-node :canvas)))
 
 (defn- handle-structure-pane-key-pressed! [view-node ^KeyEvent event]
   (when (= KeyCode/ENTER (.getCode event))
-    (navigate-to-document-symbol! view-node (-> event ^TreeView (.getSource) .getSelectionModel .getSelectedItem))
+    (navigate-to-document-symbol-tree-item! view-node (-> event ^TreeView (.getSource) .getSelectionModel .getSelectedItem))
     (focus-code-editor! view-node)
     (.consume event)))
 
@@ -1406,13 +1422,13 @@
 
 (def ^:private structure-pane-message (localization/message "pane.structure"))
 
-(fxui/defc structure-pane
+(ui/defc structure-pane
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [document-symbols localization-state view-node]}]
   {:fx/type fxui/titled-pane
    :title (localization-state structure-pane-message)
    :content {:fx/type fx.ext.tree-view/with-selection-props
-             :props {:on-selected-item-changed #(navigate-to-document-symbol! view-node %)}
+             :props {:on-selected-item-changed #(navigate-to-document-symbol-tree-item! view-node %)}
              :desc {:fx/type fxui/tree-view
                     :show-root false
                     :on-key-pressed #(handle-structure-pane-key-pressed! view-node %)
@@ -1516,8 +1532,8 @@
                              :document-symbols document-symbols
                              :localization localization
                              :view-node _node-id}}]
-                    (has-visible-properties? resource-properties)
-                    (conj :properties-pane))))
+              (has-visible-properties? resource-properties)
+              (conj :properties-pane))))
 
   ;; the cursor position for which we show the hover.
   (property hover-showing-cursor g/Any (dynamic visible (g/constantly false)))
@@ -1629,7 +1645,9 @@
   (output minimap-cursor-range-draw-infos CursorRangeDrawInfos :cached produce-minimap-cursor-range-draw-infos)
   (output execution-markers r/Regions :cached produce-execution-markers)
   (output canvas-repaint-info g/Any :cached produce-canvas-repaint-info)
-  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info))
+  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info)
+  (output tick-info g/Any :cached produce-tick-info)
+  (output repaint-info g/Any :cached produce-repaint-info))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
@@ -1639,7 +1657,6 @@
     MouseButton/MIDDLE :middle
     MouseButton/BACK :back
     MouseButton/FORWARD :forward))
-
 
 ;; -----------------------------------------------------------------------------
 ;; Code completion
@@ -1972,8 +1989,8 @@
       (set-properties! view-node :selection
                        (cond-> {:cursor-ranges new-cursor-ranges}
 
-                               (not= (count regions) (count new-regions))
-                               (assoc :regions new-regions))))))
+                         (not= (count regions) (count new-regions))
+                         (assoc :regions new-regions))))))
 
 (def ^:private prev-tab-trigger! #(select-closest-tab-trigger-region! :prev %))
 (def ^:private next-tab-trigger! #(select-closest-tab-trigger-region! :next %))
@@ -2145,7 +2162,7 @@
 
 (def ^:private ^:const completion-icon-text-spacing 4.0)
 
-(defn- completion-list-cell-view [completion]
+(defn- completion-list-cell-view [view-node completion]
   (if completion
     (let [text (:display-string completion)
           matching-indices (fuzzy-choices/matching-indices completion)]
@@ -2162,17 +2179,18 @@
                             (fuzzy-choices/make-matched-text-flow-cljfx
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
-       :on-mouse-clicked {:event :accept :completion completion}})
+       :on-mouse-clicked (fn [_]
+                           (accept-suggestion! view-node (code-completion/insertion completion)))})
     {}))
 
 (defn- completion-popup-view
   [{:keys [canvas-repaint-info font font-name font-size
            visible-completion-ranges query screen-bounds completions-showing
            completions-doc project completions-combined completions-selected-index
-           completions-shortcut-text]}]
+           completions-shortcut-text view-node]}]
   (let [item-count (count completions-combined)]
     (if (or (not completions-showing) (zero? item-count))
-      {:fx/type fxui/ext-value :value nil}
+      {:fx/type ui/ext-value :value nil}
       (let [{:keys [^Canvas canvas ^LayoutInfo layout lines]} canvas-repaint-info
             ^Point2D cursor-bottom (or (and (pos? (count visible-completion-ranges))
                                             (cursor-bottom layout lines (data/cursor-range-start (first visible-completion-ranges))))
@@ -2244,14 +2262,26 @@
                   :props {:items [refresh-key completions-combined]}
                   :desc
                   {:fx/type fx.ext.list-view/with-selection-props
-                   :props {:on-selected-index-changed {:event :select}}
+                   :props {:on-selected-index-changed (fn [index]
+                                                        (set-properties! view-node nil {:completions-selected-index index})
+                                                        (resolve-selected-completion! view-node))}
                    :desc
                    {:fx/type fx.list-view/lifecycle
                     :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
                     :id "fuzzy-choices-list-view"
                     :style-class ["flat-list-view" "completion-popup-list-view"]
                     :fixed-cell-size cell-height
-                    :event-filter {:event :completion-list-view-event-filter}
+                    :event-filter (fn [e]
+                                    (when (instance? KeyEvent e)
+                                      (let [^KeyEvent e e
+                                            code (.getCode e)]
+                                        ;; redirect everything except arrows to canvas
+                                        (when-not (or (= KeyCode/UP code)
+                                                      (= KeyCode/DOWN code)
+                                                      (= KeyCode/PAGE_UP code)
+                                                      (= KeyCode/PAGE_DOWN code))
+                                          (ui/send-event! (get-property view-node :canvas) e)
+                                          (.consume e)))))
                     :min-width completions-width
                     :pref-width completions-width
                     :max-width completions-width
@@ -2259,7 +2289,7 @@
                     :pref-height (* cell-height item-count)
                     :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
                     :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                   :describe completion-list-cell-view}}}}}]
+                                   :describe (fn/partial completion-list-cell-view view-node)}}}}}]
                completions-shortcut-text
                (conj {:fx/type fx.label/lifecycle
                       :style-class "completion-popup-hint"
@@ -2275,7 +2305,7 @@
           :desc
           (cond->
             [{:fx/type fxui/with-popup-window
-              :desc {:fx/type fxui/ext-value :value canvas}
+              :desc {:fx/type ui/ext-value :value canvas}
               :popup
               {:fx/type fx.popup/lifecycle
                :anchor-x (- (.getX anchor) 12.0)
@@ -2284,7 +2314,7 @@
                :showing completions-showing
                :auto-fix false
                :auto-hide true
-               :on-auto-hide {:event :auto-hide}
+               :on-auto-hide (fn [_] (hide-suggestions! view-node))
                :hide-on-escape false
                :content [{:fx/type fx/ext-get-ref :ref :content}]}}]
             completions-doc
@@ -2334,7 +2364,14 @@
                                         (cond->
                                           {:fx/type markdown/view
                                            :base-url (:base-url doc)
-                                           :event-filter {:event :doc-event-filter}
+                                           :event-filter (fn [e]
+                                                           (when (instance? KeyEvent e)
+                                                             (let [^KeyEvent e e
+                                                                   ^Node source (.getSource e)
+                                                                   ^PopupWindow window (.getWindow (.getScene source))
+                                                                   target (.getFocusOwner (.getScene (.getOwnerWindow window)))]
+                                                               (ui/send-event! target e)
+                                                               (.consume e))))
                                            :max-width doc-width
                                            :max-height doc-max-height
                                            :project project
@@ -2346,40 +2383,7 @@
                                           (not align-right)
                                           (assoc :min-width doc-width))]}]}})))}}))))
 
-(defn- handle-completion-popup-event [view-node e]
-  (case (:event e)
-    :doc-event-filter
-    (let [e (:fx/event e)]
-      (when (instance? KeyEvent e)
-        (let [^KeyEvent e e
-              ^Node source (.getSource e)
-              ^PopupWindow window (.getWindow (.getScene source))
-              target (.getFocusOwner (.getScene (.getOwnerWindow window)))]
-          (ui/send-event! target e)
-          (.consume e))))
-
-    :auto-hide
-    (hide-suggestions! view-node)
-
-    :completion-list-view-event-filter
-    (let [e (:fx/event e)]
-      (when (instance? KeyEvent e)
-        (let [^KeyEvent e e
-              code (.getCode e)]
-          ;; redirect everything except arrows to canvas
-          (when-not (or (= KeyCode/UP code)
-                        (= KeyCode/DOWN code)
-                        (= KeyCode/PAGE_UP code)
-                        (= KeyCode/PAGE_DOWN code))
-            (ui/send-event! (get-property view-node :canvas) e)
-            (.consume e)))))
-
-    :select
-    (do
-      (set-properties! view-node nil {:completions-selected-index (:fx/event e)})
-      (resolve-selected-completion! view-node))
-    :accept
-    (accept-suggestion! view-node (code-completion/insertion (:completion e)))))
+(node-types/register-node-type-name! CodeEditorView "code")
 
 ;; -----------------------------------------------------------------------------
 
@@ -2604,8 +2608,12 @@
   (.consume event)
   (let [character (.getCharacter event)]
     (when (and (keymap/typable? event)
-               ;; Ignore Alt+Space on macOS
-               (not (and (os/is-mac-os?) (= " " character) (.isAltDown event)))
+               ;; Ignore characters that macOS produces for shortcuts we bind as
+               ;; commands: a non-breaking space for Alt+Space, and Ï for
+               ;; Shift+Alt+F (:code.format).
+               (not (and (os/is-mac-os?)
+                         (.isAltDown event)
+                         (#{"\u00a0" "Ï"} character)))
                ;; Ignore characters in the control range and the ASCII delete
                ;; as it is done by JavaFX in `TextInputControlBehavior`'s
                ;; `defaultKeyTyped` method.
@@ -2758,8 +2766,8 @@
                               y)
             (cond->
               (and lsp
-                (prefs/get prefs hover-pref-path)
-                (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
+                   (prefs/get prefs hover-pref-path)
+                   (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
               (merge
                 (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
                   (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context))))))))
@@ -2873,13 +2881,13 @@
 (handler/defhandler :edit.cut :code-view
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
-            (has-selection? view-node evaluation-context))
+    (has-selection? view-node evaluation-context))
   (run [view-node clipboard] (cut! view-node clipboard)))
 
 (handler/defhandler :edit.paste :code-view
   (active? [editable] editable)
   (enabled? [view-node clipboard evaluation-context]
-            (can-paste? view-node clipboard evaluation-context))
+    (can-paste? view-node clipboard evaluation-context))
   (run [view-node clipboard] (paste! view-node clipboard)))
 
 (handler/defhandler :code.duplicate-selection :code-view
@@ -2892,8 +2900,8 @@
 
 (handler/defhandler :code.toggle-comment :code-view
   (active? [editable view-node evaluation-context]
-           (and editable
-                (contains? (get-property view-node :grammar evaluation-context) :line-comment)))
+    (and editable
+         (contains? (get-property view-node :grammar evaluation-context) :line-comment)))
   (run [view-node] (toggle-comment! view-node)))
 
 (handler/defhandler :code.delete-previous-char :code-view
@@ -2955,17 +2963,17 @@
 (handler/defhandler :code.reindent :code-view
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
-            (not-every? data/cursor-range-empty?
-                        (get-property view-node :cursor-ranges evaluation-context)))
+    (not-every? data/cursor-range-empty?
+                (get-property view-node :cursor-ranges evaluation-context)))
   (run [view-node]
-       (set-properties! view-node nil
-                        (data/reindent (get-property view-node :indent-level-pattern)
-                                       (get-property view-node :indent-string)
-                                       (get-property view-node :grammar)
-                                       (get-property view-node :lines)
-                                       (get-property view-node :cursor-ranges)
-                                       (get-property view-node :regions)
-                                       (get-property view-node :layout)))))
+    (set-properties! view-node nil
+                     (data/reindent (get-property view-node :indent-level-pattern)
+                                    (get-property view-node :indent-string)
+                                    (get-property view-node :grammar)
+                                    (get-property view-node :lines)
+                                    (get-property view-node :cursor-ranges)
+                                    (get-property view-node :regions)
+                                    (get-property view-node :layout)))))
 
 (handler/defhandler :code.convert-indentation :code-view
   (label [user-data]
@@ -2987,12 +2995,12 @@
         :user-data :four-spaces}]))
   (active? [editable] editable)
   (run [view-node user-data]
-       (set-properties! view-node nil
-                        (data/convert-indentation (get-property view-node :indent-type)
-                                                  user-data
-                                                  (get-property view-node :lines)
-                                                  (get-property view-node :cursor-ranges)
-                                                  (get-property view-node :regions)))))
+    (set-properties! view-node nil
+                     (data/convert-indentation (get-property view-node :indent-type)
+                                               user-data
+                                               (get-property view-node :lines)
+                                               (get-property view-node :cursor-ranges)
+                                               (get-property view-node :regions)))))
 
 (defn- show-goto-popup! [view-node open-resource-fn results]
   (g/with-auto-evaluation-context evaluation-context
@@ -3048,6 +3056,72 @@
        :actions [{:message (localization/message "notification.lsp.language-server-missing.action.about")
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
+(defn- show-formatting-failed-notification! [resource]
+  (let [proj-path (resource/proj-path resource)]
+    (notifications/show!
+      (workspace/notifications (resource/workspace resource))
+      {:type :warning
+       :id [::formatting-failed proj-path]
+       :message (localization/message "notification.lsp.formatting-failed.prompt" {"path" proj-path})})))
+
+(defn- apply-formatting-edits! [view-node lines edits]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [current (get-property view-node :lines evaluation-context)]
+      ;; The edits describe the lines we sent, so drop the response if the
+      ;; document moved on while we waited.
+      (when (= current lines)
+        (let [line-edits (data/format-document-edits current edits)]
+          (when (coll/not-empty line-edits)
+            (set-properties! view-node nil
+                             (data/apply-edits
+                               current
+                               (get-property view-node :regions evaluation-context)
+                               (get-property view-node :cursor-ranges evaluation-context)
+                               line-edits
+                               (get-property view-node :layout evaluation-context)))))))))
+
+(defn- format-whole-document! [view-node lsp resource indent-type lines]
+  (lsp/format-document!
+    lsp resource indent-type
+    (fn [response]
+      (ui/run-later
+        (if response
+          (apply-formatting-edits! view-node lines (:edits response))
+          (show-formatting-failed-notification! resource))))))
+
+(defn- format-selected-rows! [view-node lsp resource indent-type lines cursor-ranges]
+  (when-let [row-spans (coll/not-empty (data/format-row-spans lines cursor-ranges))]
+    (lsp/format-ranges!
+      lsp resource row-spans indent-type
+      (fn [responses]
+        (ui/run-later
+          (if (coll/empty? responses)
+            (show-formatting-failed-notification! resource)
+            (apply-formatting-edits!
+              view-node lines
+              (vec (sort-by key (into [] (mapcat :edits) responses))))))))))
+
+(defn- formatting-selected-rows? [cursor-ranges]
+  (coll/not-every? data/cursor-range-empty? cursor-ranges))
+
+(handler/defhandler :code.format :code-view
+  (active? [editable] editable)
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)]
+      (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
+  (run [view-node]
+    (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
+               lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+               resource (g/node-value resource-node :resource evaluation-context)
+               indent-type (get-property view-node :indent-type evaluation-context)
+               lines (get-property view-node :lines evaluation-context)
+               cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+      (if-not (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+        (show-no-language-server-for-resource-language-notification! resource)
+        (if (formatting-selected-rows? cursor-ranges)
+          (format-selected-rows! view-node lsp resource indent-type lines cursor-ranges)
+          (format-whole-document! view-node lsp resource indent-type lines))))))
+
 (handler/defhandler :code.goto-definition :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -3091,6 +3165,96 @@
               (fx/on-fx-thread
                 (show-goto-popup! view-node open-resource-fn results)))))
         (show-no-language-server-for-resource-language-notification! resource)))))
+
+(defn- flatten-document-symbols [document-symbols]
+  (coll/into-> document-symbols []
+    (coll/tree-xf
+      (fn [{:keys [kind children]}]
+        (and (coll/not-empty children)
+             (contains? #{:object :class :enum :struct :namespace} kind)))
+      :children)
+    (map #(dissoc % :children))))
+
+(handler/defhandler :code.jump-to-symbol :code-view
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)
+          resource (g/node-value resource-node :resource evaluation-context)]
+      (resource/file-resource? resource)))
+  (run [view-node]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [resource-node (get-property view-node :resource-node evaluation-context)
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            resource (g/node-value resource-node :resource evaluation-context)
+            localization (get-property view-node :localization evaluation-context)]
+        (if (not (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+          (show-no-language-server-for-resource-language-notification! resource)
+          (let [document-symbols (get-property view-node :document-symbols evaluation-context)
+                items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
+                            (flatten-document-symbols document-symbols))
+                ;; Previewing moves the cursor as the selection changes, so remember
+                ;; where we started to put it back if the dialog is cancelled.
+                original-view {:cursor-ranges (get-property view-node :cursor-ranges evaluation-context)
+                               :scroll-x (get-property view-node :scroll-x evaluation-context)
+                               :scroll-y (get-property view-node :scroll-y evaluation-context)}
+                selection
+                (dialogs/make-select-list-dialog
+                  items
+                  localization
+                  {:title (localization/message "dialog.jump-to-symbol.title")
+                   :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
+                   :prompt (localization/message "dialog.jump-to-symbol.prompt")
+                   :filter-fn (partial fuzzy-choices/filter-options :name :name)
+                   ;; Follow the highlighted symbol as you move through or filter
+                   ;; the list, but ignore empty-filter item changes so the cursor
+                   ;; only moves once you've started looking.
+                   :preview-item-fn (fn [item source]
+                                      (when (not= source :opened)
+                                        (navigate-to-document-symbol! view-node item)))
+                   :cell-fn (fn [{:keys [name kind detail tags] :as item} _localization]
+                              ;; The dialog is a fixed width, so a row must never grow wider than
+                              ;; it and cause a horizontal scrollbar. A very long name gets cut
+                              ;; short with a "…"; the signature (further down) trims the same way.
+                              (let [max-name-length 56
+                                    indices (:matching-indices (meta item))
+                                    elide (> (count name) max-name-length)
+                                    display-name (if elide
+                                                   (str (subs name 0 max-name-length) "…")
+                                                   name)
+                                    ;; Once the name is cut, forget any highlighted spots that
+                                    ;; landed on characters we just removed — otherwise the
+                                    ;; highlighter reaches past the end of the shortened text.
+                                    indices (if (and elide indices)
+                                              (doto ^BitSet (.clone ^BitSet indices)
+                                                (.clear (int max-name-length) (count name)))
+                                              indices)]
+                                {:style-class ["list-cell"]
+                                 :graphic {:fx/type fx.h-box/lifecycle
+                                           :alignment :center-left
+                                           :spacing 6
+                                           :pref-width 1.0
+                                           :max-width Double/MAX_VALUE
+                                           :children
+                                           (cond-> [{:fx/type code-type-icon :type kind}
+                                                    (assoc (fuzzy-choices/make-matched-text-flow-cljfx
+                                                             display-name
+                                                             indices
+                                                             :deprecated (contains? tags :deprecated))
+                                                      :min-width :use-pref-size)]
+                                             (coll/not-empty detail)
+                                             (conj {:fx/type fx.region/lifecycle
+                                                    :h-box/hgrow :always
+                                                    :min-width 10.0}
+                                                   {:fx/type fx.label/lifecycle
+                                                    :h-box/hgrow :never
+                                                    :min-width 0
+                                                    :style {:-fx-text-fill :-df-text-dark}
+                                                    :text (if (= kind :function)
+                                                            (string/replace-first detail #"^function\b" "ƒ")
+                                                            detail)}))}}))})]
+            (if selection
+              (navigate-to-document-symbol! view-node (first selection))
+              (set-properties! view-node :navigation original-view))
+            (focus-code-editor! view-node)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
@@ -3266,26 +3430,26 @@
 
 (handler/defhandler :code.goto-line :code-view-tools
   (run [goto-line-bar]
-       (set-bar-ui-type! :goto-line)
-       (ui/with-controls goto-line-bar [^TextField line-field]
-         (.requestFocus line-field)
-         (.selectAll line-field))))
+    (set-bar-ui-type! :goto-line)
+    (ui/with-controls goto-line-bar [^TextField line-field]
+      (.requestFocus line-field)
+      (.selectAll line-field))))
 
 (handler/defhandler :private/goto-entered-line :goto-line-bar
   (enabled? [goto-line-bar view-node evaluation-context]
-            (some? (try-parse-goto-line-bar-row view-node goto-line-bar evaluation-context)))
+    (some? (try-parse-goto-line-bar-row view-node goto-line-bar evaluation-context)))
   (run [goto-line-bar view-node]
-       (when-some [line-number (try-parse-goto-line-bar-row view-node goto-line-bar)]
-         (let [cursor-range (data/Cursor->CursorRange (data/->Cursor line-number 0))]
-           (set-properties! view-node :navigation
-                            (data/select-and-frame (get-property view-node :lines)
-                                                   (get-property view-node :layout)
-                                                   cursor-range)))
-         (set-bar-ui-type! :hidden)
-         ;; Close bar on next tick so the code view will not insert a newline
-         ;; if the bar was dismissed by pressing the Enter key.
-         (ui/run-later
-           (focus-code-editor! view-node)))))
+    (when-some [line-number (try-parse-goto-line-bar-row view-node goto-line-bar)]
+      (let [cursor-range (data/Cursor->CursorRange (data/->Cursor line-number 0))]
+        (set-properties! view-node :navigation
+                         (data/select-and-frame (get-property view-node :lines)
+                                                (get-property view-node :layout)
+                                                cursor-range)))
+      (set-bar-ui-type! :hidden)
+      ;; Close bar on next tick so the code view will not insert a newline
+      ;; if the bar was dismissed by pressing the Enter key.
+      (ui/run-later
+        (focus-code-editor! view-node)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Find & Replace
@@ -3421,49 +3585,49 @@
 
 (handler/defhandler :edit.find :code-view
   (run [find-bar view-node]
-       (when-some [selected-text (non-empty-single-selection-text view-node)]
-         (set-find-term! selected-text))
-       (set-bar-ui-type! :find)
-       (focus-term-field! find-bar)))
+    (when-some [selected-text (non-empty-single-selection-text view-node)]
+      (set-find-term! selected-text))
+    (set-bar-ui-type! :find)
+    (focus-term-field! find-bar)))
 
 (handler/defhandler :code.replace-text :code-view
   (active? [editable] editable)
   (run [replace-bar view-node]
-       (when-some [selected-text (non-empty-single-selection-text view-node)]
-         (set-find-term! selected-text))
-       (set-bar-ui-type! :replace)
-       (focus-term-field! replace-bar)))
+    (when-some [selected-text (non-empty-single-selection-text view-node)]
+      (set-find-term! selected-text))
+    (set-bar-ui-type! :replace)
+    (focus-term-field! replace-bar)))
 
 (handler/defhandler :edit.find :code-view-tools ;; In practice, from find / replace and go to line bars.
   (run [find-bar]
-       (set-bar-ui-type! :find)
-       (focus-term-field! find-bar)))
+    (set-bar-ui-type! :find)
+    (focus-term-field! find-bar)))
 
 (handler/defhandler :code.replace-text :code-view-tools
   (active? [editable] editable)
   (run [replace-bar]
-       (set-bar-ui-type! :replace)
-       (focus-term-field! replace-bar)))
+    (set-bar-ui-type! :replace)
+    (focus-term-field! replace-bar)))
 
 (handler/defhandler :code.escape :code-view-tools
   (run [find-bar replace-bar view-node]
-       (cond
-         (in-tab-trigger? view-node)
-         (exit-tab-trigger! view-node)
+    (cond
+      (in-tab-trigger? view-node)
+      (exit-tab-trigger! view-node)
 
-         (hover-visible? view-node)
-         (hide-hover! view-node)
+      (hover-visible? view-node)
+      (hide-hover! view-node)
 
-         (suggestions-visible? view-node)
-         (hide-suggestions! view-node)
+      (suggestions-visible? view-node)
+      (hide-suggestions! view-node)
 
-         (bar-ui-visible?)
-         (do (set-bar-ui-type! :hidden)
-             (focus-code-editor! view-node))
+      (bar-ui-visible?)
+      (do (set-bar-ui-type! :hidden)
+          (focus-code-editor! view-node))
 
-         :else
-         (set-properties! view-node :selection
-                          (data/escape (get-property view-node :cursor-ranges))))))
+      :else
+      (set-properties! view-node :selection
+                       (data/escape (get-property view-node :cursor-ranges))))))
 
 (handler/defhandler :code.find-next :code-view-find-bar
   (run [view-node] (find-next! view-node)))
@@ -3508,6 +3672,7 @@
    {:command :code.toggle-comment :label (localization/message "command.code.toggle-comment")}
    {:command :code.reindent :label (localization/message "command.code.reindent-lines")}
    {:command :code.convert-indentation :expand true}
+   {:command :code.format :label (localization/message "command.code.format")}
    {:label :separator}
    {:command :code.sort-lines :user-data :case-insensitive}
    {:command :code.sort-lines :user-data :case-sensitive}
@@ -3533,7 +3698,8 @@
    {:command :code.zoom.decrease :label (localization/message "command.code.zoom.decrease")}
    {:command :code.zoom.reset :label (localization/message "command.code.zoom.reset")}
    {:label :separator}
-   {:command :code.goto-line :label (localization/message "command.code.goto-line")}])
+   {:command :code.goto-line :label (localization/message "command.code.goto-line")}
+   {:command :code.jump-to-symbol :label (localization/message "command.code.jump-to-symbol")}])
 
 ;; -----------------------------------------------------------------------------
 
@@ -3552,6 +3718,7 @@
       (g/with-auto-evaluation-context evaluation-context
         (r/ensure-loaded! resource-node evaluation-context)))
     (g/transact
+      {:undoable false}
       (concat
         (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
         (gu/connect-existing-outputs resource-node-type resource-node view-node
@@ -3563,6 +3730,7 @@
            [:_properties :resource-properties]
            [:regions :regions]])))
     (g/transact
+      {:undoable false}
       (g/with-auto-evaluation-context evaluation-context
         (update-document-width evaluation-context view-node)))
     (when (and is-code-resource-type
@@ -3621,7 +3789,7 @@
                                             screen-bounds)
         max-popup-height (- (.getY anchor) (.getMinY screen-rect))]
     {:fx/type fxui/with-popup-window
-     :desc {:fx/type fxui/ext-value :value canvas}
+     :desc {:fx/type ui/ext-value :value canvas}
      :popup
      {:fx/type fx.popup/lifecycle
       :showing true
@@ -3668,89 +3836,76 @@
   (g/user-data! view-node :elapsed-time elapsed-time)
 
   ;; Perform necessary property updates in preparation for repaint.
-  (g/let-ec [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
-                                   (g/node-value view-node :layout evaluation-context)
-                                   (g/node-value view-node :gesture-start evaluation-context))
+  (g/let-ec [{:keys [elapsed-time-at-last-action gesture-start layout lines]
+              old-cursor-opacity :cursor-opacity}
+             (g/node-value view-node :tick-info evaluation-context)
+             tick-props (data/tick lines layout gesture-start)
              props (if-not cursor-visible
                      tick-props
-                     (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
-                           old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
-                           new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+                     (let [new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
                        (cond-> tick-props
-                               (not= old-cursor-opacity new-cursor-opacity)
-                               (assoc :cursor-opacity new-cursor-opacity))))]
+                         (not= old-cursor-opacity new-cursor-opacity)
+                         (assoc :cursor-opacity new-cursor-opacity))))]
     (set-properties! view-node nil props))
 
   ;; Repaint the view.
   (g/let-ec [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
              prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
-             resource-node (g/node-value view-node :resource-node evaluation-context)
-             canvas-repaint-info (g/node-value view-node :canvas-repaint-info evaluation-context)
-             cursor-repaint-info (g/node-value view-node :cursor-repaint-info evaluation-context)]
+             {:keys [canvas-repaint-info completions-showing cursor-repaint-info hover-showing-regions rename-cursor-range resource-node]}
+             (g/node-value view-node :repaint-info evaluation-context)]
 
     ;; Repaint canvas if needed.
-    (when (not= prev-canvas-repaint-info canvas-repaint-info)
+    (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
       (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
       (let [row (data/last-visible-row (:minimap-layout canvas-repaint-info))]
         (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info row))))
 
     (when editable
-      (g/with-auto-evaluation-context evaluation-context
-        ;; Show rename popup if appropriate
-        (fxui/advance-graph-user-data-component!
-          view-node :rename-popup
-          (when (g/node-value view-node :rename-cursor-range evaluation-context)
-            (g/node-value view-node :rename-view evaluation-context)))
-        ;; Show completion suggestions if appropriate.
-        (let [renderer (or (g/user-data view-node :completion-popup-renderer)
-                           (g/user-data!
-                             view-node
-                             :completion-popup-renderer
-                             (fx/create-renderer
-                               :error-handler error-reporting/report-exception!
-                               :middleware (comp
-                                             fxui/wrap-dedupe-desc
-                                             (fx/wrap-map-desc #'completion-popup-view))
-                               :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
-              ^Canvas canvas (:canvas canvas-repaint-info)]
-          (renderer {:completions-combined (g/node-value view-node :completions-combined evaluation-context)
-                     :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
-                     :completions-showing (g/node-value view-node :completions-showing evaluation-context)
-                     :completions-doc (g/node-value view-node :completions-doc evaluation-context)
-                     :completions-shortcut-text (g/node-value view-node :completions-shortcut-text evaluation-context)
-                     :project (g/node-value view-node :project evaluation-context)
-                     :canvas-repaint-info canvas-repaint-info
-                     :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
-                     :query (:query (g/node-value view-node :completion-context evaluation-context))
-                     :font (g/node-value view-node :font evaluation-context)
-                     :font-name (g/node-value view-node :font-name evaluation-context)
-                     :font-size (g/node-value view-node :font-size evaluation-context)
-                     :window-x (some-> (.getScene canvas) .getWindow .getX)
-                     :window-y (some-> (.getScene canvas) .getWindow .getY)
-                     :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))}))))
+      ;; Show rename popup if appropriate
+      (ui/advance-graph-user-data-component!
+        view-node :rename-popup
+        (when rename-cursor-range
+          (g/with-auto-evaluation-context evaluation-context
+            (g/node-value view-node :rename-view evaluation-context))))
+      ;; Show completion suggestions if appropriate.
+      (ui/advance-graph-user-data-component!
+        view-node :completion-popup
+        (when completions-showing
+          (g/with-auto-evaluation-context evaluation-context
+            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
+              {:fx/type completion-popup-view
+               :completions-combined (g/node-value view-node :completions-combined evaluation-context)
+               :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
+               :completions-showing completions-showing
+               :completions-doc (g/node-value view-node :completions-doc evaluation-context)
+               :completions-shortcut-text (g/node-value view-node :completions-shortcut-text evaluation-context)
+               :project (g/node-value view-node :project evaluation-context)
+               :canvas-repaint-info canvas-repaint-info
+               :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
+               :query (:query (g/node-value view-node :completion-context evaluation-context))
+               :font (g/node-value view-node :font evaluation-context)
+               :font-name (g/node-value view-node :font-name evaluation-context)
+               :font-size (g/node-value view-node :font-size evaluation-context)
+               :view-node view-node
+               :window-x (some-> scene .getWindow .getX)
+               :window-y (some-> scene .getWindow .getY)
+               :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))})))))
 
     ;; Repaint hovered regions
-    (g/with-auto-evaluation-context evaluation-context
-      (let [hover-renderer (or (g/user-data view-node :hover-popup-renderer)
-                               (g/user-data!
-                                 view-node
-                                 :hover-popup-renderer
-                                 (fx/create-renderer
-                                   :error-handler error-reporting/report-exception!
-                                   :middleware (comp fxui/wrap-dedupe-desc
-                                                     (fx/wrap-map-desc #'hover-popup-view)))))
-            hover-showing-regions (g/node-value view-node :hover-showing-regions evaluation-context)]
-        (hover-renderer
-          (when hover-showing-regions
-            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
-              {:hover-showing-regions hover-showing-regions
-               :hover-showing-region (g/node-value view-node :hover-showing-region evaluation-context)
-               :canvas-repaint-info canvas-repaint-info
-               :project (g/node-value view-node :project evaluation-context)
-               :view-node view-node
-               :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))
-               :window-x (some-> scene .getWindow .getX)
-               :window-y (some-> scene .getWindow .getY)})))))
+    (ui/advance-graph-user-data-component!
+      view-node :hover-popup
+      (when hover-showing-regions
+        (g/with-auto-evaluation-context evaluation-context
+          (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
+            {:fx/type hover-popup-view
+             :hover-showing-regions hover-showing-regions
+             :hover-showing-region (g/node-value view-node :hover-showing-region evaluation-context)
+             :canvas-repaint-info canvas-repaint-info
+             :project (g/node-value view-node :project evaluation-context)
+             :view-node view-node
+             :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))
+             :window-x (some-> scene .getWindow .getX)
+             :window-y (some-> scene .getWindow .getY)}))))
 
     ;; Repaint cursors if needed.
     (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
@@ -3760,7 +3915,9 @@
     ;; Draw average fps indicator if enabled.
     (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
       (let [{:keys [^Canvas canvas ^long repaint-trigger]} canvas-repaint-info]
-        (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
+        (g/transact
+          {:undoable false}
+          (g/set-property view-node :repaint-trigger (unchecked-inc repaint-trigger)))
         (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
         (when (= 0 (mod repaint-trigger 10))
           (.resetAverageFPS performance-tracker))))))
@@ -3807,8 +3964,8 @@
           gutter-shadow-color (color-lookup color-scheme "editor.gutter.shadow")
           gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
           gutter-cursor-line-background-color (color-lookup color-scheme (if (= :input-focused focus-state)
-                                                                            "editor.gutter.cursor.line.background"
-                                                                            "editor.gutter.cursor.line.background.inactive"))
+                                                                           "editor.gutter.cursor.line.background"
+                                                                           "editor.gutter.cursor.line.background.inactive"))
           gutter-execution-marker-current-color (color-lookup color-scheme "editor.gutter.execution-marker.current")
           gutter-execution-marker-frame-color (color-lookup color-scheme "editor.gutter.execution-marker.frame")]
 
@@ -3932,7 +4089,9 @@
    (assert (keyword? prop-kw))
    (reify ChangeListener
      (changed [_this _observable _old new]
-       (g/set-property! node-id prop-kw (observable-value->node-value new))))))
+       (g/transact
+         {:undoable false}
+         (g/set-property node-id prop-kw (observable-value->node-value new)))))))
 
 (defn make-focus-change-listener
   ^ChangeListener [view-node parent canvas]
@@ -3941,16 +4100,19 @@
   (assert (instance? Canvas canvas))
   (reify ChangeListener
     (changed [_ _ _ focus-owner]
-      (g/set-property! view-node :focus-state
-                       (cond
-                         (= canvas focus-owner)
-                         :input-focused
+      (g/transact
+        {:undoable false}
+        (g/set-property
+          view-node :focus-state
+          (cond
+            (= canvas focus-owner)
+            :input-focused
 
-                         (some? (ui/closest-node-where (partial = parent) focus-owner))
-                         :semi-focused
+            (some? (ui/closest-node-where (partial = parent) focus-owner))
+            :semi-focused
 
-                         :else
-                         :not-focused)))))
+            :else
+            :not-focused))))))
 
 ;; JavaFX generally reports wrong key-typed events when typing tilde on Swedish
 ;; keyboard layout, which is a problem when writing Lua because it uses ~ for negation,
@@ -4005,7 +4167,7 @@
                                (+ (* ^double (data/line-height (:glyph layout)) 0.5)
                                   (data/row->y layout (data/breakpoint-row edited-breakpoint))))]
     {:fx/type fxui/with-popup-window
-     :desc {:fx/type fxui/ext-value :value (.getWindow (.getScene canvas))}
+     :desc {:fx/type ui/ext-value :value (.getWindow (.getScene canvas))}
      :popup
      {:fx/type fx.popup/lifecycle
       :showing true
@@ -4117,14 +4279,14 @@
                                     (g/node-value view-node :lines evaluation-context)
                                     (g/node-value view-node :regions evaluation-context)
                                     edited-breakpoint)
-                                  :edited-breakpoint edited-breakpoint))
+                             :edited-breakpoint edited-breakpoint))
 
                          :apply
                          (assoc (data/ensure-breakpoint-region
                                   (g/node-value view-node :lines evaluation-context)
                                   (g/node-value view-node :regions evaluation-context)
                                   edited-breakpoint)
-                                :edited-breakpoint nil)))
+                           :edited-breakpoint nil)))
                      (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))}
         :middleware (comp
                       fxui/wrap-dedupe-desc
@@ -4144,32 +4306,29 @@
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
         lsp (lsp/get-node-lsp basis resource-node)
-        view-node
-        (setup-view!
-          resource-node
-          (-> (g/make-nodes graph
-                [view [CodeEditorView
-                       :canvas canvas
-                       :color-scheme code-color-scheme
-                       :font-size (.getValue font-size-property)
-                       :font-name (.getValue font-name-property)
-                       :grammar grammar
-                       :gutter-view (->CodeEditorGutterView)
-                       :highlighted-find-term (.getValue highlighted-find-term-property)
-                       :line-height-factor 1.2
-                       :localization localization
-                       :undo-grouping-info undo-grouping-info
-                       :visible-indentation-guides? (.getValue visible-indentation-guides-property)
-                       :visible-minimap? (.getValue visible-minimap-property)
-                       :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
-                (g/connect project :_node-id view :project)
-                (g/connect app-view :keymap view :keymap)
-                (g/connect app-view :open-views view :open-views))
-              g/transact
-              g/tx-nodes-added
-              first)
-          app-view
-          lsp)
+        view-node (first
+                    (g/tx-nodes-added
+                      (g/transact
+                        {:undoable false}
+                        (g/make-nodes graph
+                          [view [CodeEditorView
+                                 :canvas canvas
+                                 :color-scheme code-color-scheme
+                                 :font-size (.getValue font-size-property)
+                                 :font-name (.getValue font-name-property)
+                                 :grammar grammar
+                                 :gutter-view (->CodeEditorGutterView)
+                                 :highlighted-find-term (.getValue highlighted-find-term-property)
+                                 :line-height-factor 1.2
+                                 :localization localization
+                                 :undo-grouping-info undo-grouping-info
+                                 :visible-indentation-guides? (.getValue visible-indentation-guides-property)
+                                 :visible-minimap? (.getValue visible-minimap-property)
+                                 :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
+                          (g/connect project :_node-id view :project)
+                          (g/connect app-view :keymap view :keymap)
+                          (g/connect app-view :open-views view :open-views)))))
+        view-node (setup-view! resource-node view-node app-view lsp)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node localization)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node localization)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable localization)
@@ -4180,6 +4339,7 @@
         dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :editable editable
+                     :app-view app-view
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
                      :replace-bar replace-bar
@@ -4190,8 +4350,16 @@
     ;; Canvas stretches to fit view, and updates properties in view node.
     (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
     (b/bind! (.heightProperty canvas) (.heightProperty canvas-pane))
-    (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
-    (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+    (ui/observe (.widthProperty canvas)
+                (fn [_ _ width]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-width width))))
+    (ui/observe (.heightProperty canvas)
+                (fn [_ _ height]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-height height))))
 
     ;; Configure canvas.
     (doto canvas
@@ -4417,6 +4585,27 @@
                                             cursor-range)))
   (done-fn))
 
+(def ^:private positive-integer-coercer
+  (coerce/wrap-with-pred coerce/integer pos? "is not positive"))
+
+(def ^:private cursor-coercer
+  (coerce/wrap-transform
+    (coerce/hash-map :req {:line positive-integer-coercer}
+                     :opt {:column positive-integer-coercer}
+                     :extra-keys false)
+    #(data/->Cursor (dec (long (:line %))) (dec (long (:column % 1))))))
+
+(def ^:private open-resource-args-coercer
+  (coerce/wrap-transform
+    (coerce/one-of
+      (coerce/wrap-transform cursor-coercer data/Cursor->CursorRange)
+      (coerce/wrap-transform
+        (coerce/hash-map :req {:from cursor-coercer
+                               :to cursor-coercer}
+                         :extra-keys false)
+        data/map->CursorRange))
+    #(hash-map :cursor-range %)))
+
 (defn register-view-types [workspace]
   (concat
     (workspace/register-view-type workspace
@@ -4424,12 +4613,14 @@
       :label (localization/message "resource.view.code")
       :make-view-fn make-view!
       :focus-fn focus-view!
+      :open-resource-args-coercer open-resource-args-coercer
       :text-selection-fn non-empty-single-selection-text)
     (workspace/register-view-type workspace
       :id :text
       :label (localization/message "resource.view.text")
       :make-view-fn make-view!
       :focus-fn focus-view!
+      :open-resource-args-coercer open-resource-args-coercer
       :text-selection-fn non-empty-single-selection-text)))
 
 (register-fundamental-read-only-handlers! *ns* :code-view :code-view-tools)

@@ -344,14 +344,85 @@ nodes {
   clipping_inverted: true
   alpha: 0.9
   size_mode: SIZE_MODE_AUTO
-  spine_scene: "first_spinescene"
-  spine_default_animation: "first_animation"
-  spine_skin: "first_skin"
-  custom_type: 405028931
+  custom_type_name: "Spine"
   enabled: false
   visible: false
   material: "first_material"
-  spine_create_bones: true
+  custom_properties {
+    id: "spine_create_bones"
+    type: TYPE_BOOLEAN
+    boolean: true
+  }
+  custom_properties {
+    id: "spine_default_animation"
+    type: TYPE_STRING
+    string: "first_animation"
+  }
+  custom_properties {
+    id: "spine_scene"
+    type: TYPE_STRING
+    string: "first_spinescene"
+  }
+  custom_properties {
+    id: "spine_skin"
+    type: TYPE_STRING
+    string: "first_skin"
+  }
+}
+nodes {
+  type: TYPE_CUSTOM
+  id: "save_data_custom"
+  parent: "parent"
+  custom_type_name: "SaveDataCustom"
+  custom_properties {
+    id: "test_boolean"
+    type: TYPE_BOOLEAN
+    boolean: true
+  }
+  custom_properties {
+    id: "test_hash"
+    type: TYPE_HASH
+    string: "first_hash"
+  }
+  custom_properties {
+    id: "test_number"
+    type: TYPE_NUMBER
+    number: 1.5
+  }
+  custom_properties {
+    id: "test_string"
+    type: TYPE_STRING
+    string: "first_string"
+  }
+  custom_properties {
+    id: "test_quat"
+    type: TYPE_QUAT
+    quat {
+      x: 0.5
+      y: 0.5
+      z: 0.707
+      w: 0.707
+    }
+  }
+  custom_properties {
+    id: "test_vector3"
+    type: TYPE_VECTOR3
+    vector3 {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+    }
+  }
+  custom_properties {
+    id: "test_vector4"
+    type: TYPE_VECTOR4
+    vector4 {
+      x: 4.0
+      y: 5.0
+      z: 6.0
+      w: 7.0
+    }
+  }
 }
 nodes {
   position {
@@ -711,20 +782,32 @@ nodes {
   overridden_fields: 28
   overridden_fields: 29
   overridden_fields: 30
-  overridden_fields: 39
-  overridden_fields: 40
-  overridden_fields: 41
   overridden_fields: 45
   overridden_fields: 46
   overridden_fields: 47
-  overridden_fields: 48
   template_node_child: true
-  spine_scene: "second_spinescene"
-  spine_default_animation: "second_animation"
-  spine_skin: "second_skin"
-  custom_type: 405028931
+  custom_type_name: "Spine"
   material: "second_material"
-  spine_create_bones: true
+  custom_properties {
+    id: "spine_create_bones"
+    type: TYPE_BOOLEAN
+    boolean: true
+  }
+  custom_properties {
+    id: "spine_default_animation"
+    type: TYPE_STRING
+    string: "second_animation"
+  }
+  custom_properties {
+    id: "spine_scene"
+    type: TYPE_STRING
+    string: "second_spinescene"
+  }
+  custom_properties {
+    id: "spine_skin"
+    type: TYPE_STRING
+    string: "second_skin"
+  }
 }
 nodes {
   position {
@@ -1086,18 +1169,86 @@ layouts {
     overridden_fields: 28
     overridden_fields: 29
     overridden_fields: 30
-    overridden_fields: 39
-    overridden_fields: 40
-    overridden_fields: 41
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
-    overridden_fields: 48
-    spine_scene: "second_spinescene"
-    spine_default_animation: "second_animation"
-    spine_skin: "second_skin"
-    custom_type: 405028931
+    custom_type_name: "Spine"
     material: "second_material"
+    custom_properties {
+      id: "spine_create_bones"
+      type: TYPE_BOOLEAN
+      boolean: true
+    }
+    custom_properties {
+      id: "spine_default_animation"
+      type: TYPE_STRING
+      string: "second_animation"
+    }
+    custom_properties {
+      id: "spine_scene"
+      type: TYPE_STRING
+      string: "second_spinescene"
+    }
+    custom_properties {
+      id: "spine_skin"
+      type: TYPE_STRING
+      string: "second_skin"
+    }
+  }
+  nodes {
+    type: TYPE_CUSTOM
+    id: "save_data_custom"
+    parent: "parent"
+    custom_type_name: "SaveDataCustom"
+    custom_properties {
+      id: "test_boolean"
+      type: TYPE_BOOLEAN
+      boolean: true
+    }
+    custom_properties {
+      id: "test_hash"
+      type: TYPE_HASH
+      string: "second_hash"
+    }
+    custom_properties {
+      id: "test_number"
+      type: TYPE_NUMBER
+      number: 2.5
+    }
+    custom_properties {
+      id: "test_string"
+      type: TYPE_STRING
+      string: "second_string"
+    }
+    custom_properties {
+      id: "test_quat"
+      type: TYPE_QUAT
+      quat {
+        x: 0.707
+        y: 0.707
+        z: 0.707
+        w: 0.707
+      }
+    }
+    custom_properties {
+      id: "test_vector3"
+      type: TYPE_VECTOR3
+      vector3 {
+        x: 3.0
+        y: 2.0
+        z: 1.0
+      }
+    }
+    custom_properties {
+      id: "test_vector4"
+      type: TYPE_VECTOR4
+      vector4 {
+        x: 7.0
+        y: 6.0
+        z: 5.0
+        w: 4.0
+      }
+    }
   }
   nodes {
     position {
@@ -1455,20 +1606,32 @@ layouts {
     overridden_fields: 28
     overridden_fields: 29
     overridden_fields: 30
-    overridden_fields: 39
-    overridden_fields: 40
-    overridden_fields: 41
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
-    overridden_fields: 48
     template_node_child: true
-    spine_scene: "second_spinescene"
-    spine_default_animation: "second_animation"
-    spine_skin: "second_skin"
-    custom_type: 405028931
+    custom_type_name: "Spine"
     material: "second_material"
-    spine_create_bones: true
+    custom_properties {
+      id: "spine_create_bones"
+      type: TYPE_BOOLEAN
+      boolean: true
+    }
+    custom_properties {
+      id: "spine_default_animation"
+      type: TYPE_STRING
+      string: "second_animation"
+    }
+    custom_properties {
+      id: "spine_scene"
+      type: TYPE_STRING
+      string: "second_spinescene"
+    }
+    custom_properties {
+      id: "spine_skin"
+      type: TYPE_STRING
+      string: "second_skin"
+    }
   }
   nodes {
     position {

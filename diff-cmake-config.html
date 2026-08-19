@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CMake Config Build Diff</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:28px;color:#182230;background:#f6f7f9}
+h1{margin:0 0 6px;font-size:24px}.meta{color:#667085;margin-bottom:18px}.cards{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+.card{background:#fff;border:1px solid #d9dee7;border-radius:8px;padding:12px 14px;min-width:176px}.label{font-size:12px;color:#667085;text-transform:uppercase;letter-spacing:.03em}
+.value{font-size:22px;font-weight:700;margin:3px 0}.hint{color:#667085;font-size:12px;margin-top:4px;max-width:330px}.grid{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}
+table{width:auto;border-collapse:collapse;background:#fff;border:1px solid #d9dee7;border-radius:8px;overflow:hidden}th,td{padding:7px 10px;border-bottom:1px solid #e6e9ef;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;min-width:220px}th{background:#eef1f5;color:#3b4656}.narrow th:first-child,.narrow td:first-child{min-width:250px}.narrow th,.narrow td{padding:7px 10px}
+.row-title{font-weight:650}.row-note{color:#667085;font-size:12px;margin-top:2px}.better{color:#147a3d;font-weight:650}.worse{color:#b42318;font-weight:650}.same{color:#637083}.section-title{font-size:15px;font-weight:700;margin:2px 0 8px}.foot{color:#667085;font-size:12px;margin-top:12px;max-width:980px}</style>
+</head>
+<body>
+<h1>CMake Config Build Diff</h1>
+<div class="meta">Generated 2026-05-16 23:36:52. Original: 2026-05-16T11:04:23.220108. CMake: 2026-05-16T23:36:00.007719.</div>
+<div class="cards">
+  <div class="card"><div class="label">Build Engine</div><div class="value better">-53.202s</div><div>88.870s -> 35.667s (-59.9%)</div><div class="hint">Whole-command comparison between the original Waf path and top-level CMake path.</div></div>
+  <div class="card"><div class="label">Comparable Rows</div><div class="value">1</div><div>Only build_engine has comparable overlap</div><div class="hint">host_libs, engine_libs, and extender are shown only as CMake breakdown data.</div></div>
+  <div class="card"><div class="label">CMake Breakdown</div><div class="value">34.648s</div><div>configure 4.338s, build 29.096s, install 1.214s</div></div>
+  <div class="card"><div class="label">Wins / Regressions</div><div class="value"><span class="better">1</span> / <span class="worse">0</span></div><div>Same: 0</div></div>
+</div>
+<div class="grid">
+  <div>
+    <div class="section-title">Comparable Timings</div>
+    <table>
+      <thead><tr><th>Stage</th><th>Original</th><th>Top-level CMake</th><th>Delta</th><th>Delta %</th></tr></thead>
+      <tbody>
+        <tr><td><div class="row-title">build_engine</div><div class="row-note">Whole build_engine command</div></td><td>88.870s</td><td>35.667s</td><td class="better">-53.202s</td><td class="better">-59.9%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="section-title">Top-level CMake Command Breakdown</div>
+    <table class="narrow">
+      <thead><tr><th>Command</th><th>Duration</th></tr></thead>
+      <tbody><tr><td>CMake configure host_libs</td><td>1.646s</td></tr><tr><td>CMake build host_libs</td><td>7.980s</td></tr><tr><td>CMake install host_libs</td><td>0.444s</td></tr><tr><td>CMake configure engine_libs</td><td>2.692s</td></tr><tr><td>CMake build engine_libs build_tests</td><td>21.116s</td></tr><tr><td>CMake install engine_libs</td><td>0.771s</td></tr></tbody>
+    </table>
+  </div>
+  <div>
+    <div class="section-title">Top-level CMake Components</div>
+    <table>
+      <thead><tr><th>Component</th><th>Platform</th><th>Duration</th></tr></thead>
+      <tbody><tr><td>cmake_engine_libs</td><td>arm64-macos</td><td>24.579s</td></tr><tr><td>cmake_host_libs</td><td>arm64-macos</td><td>10.070s</td></tr><tr><td>extender</td><td>arm64-macos</td><td>0.340s</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<div class="foot">Negative deltas are faster with top-level CMake. host_libs, engine_libs, and extender are not compared because their timing boundaries differ between the original per-library build and the top-level CMake build.</div>
+</body>
+</html>

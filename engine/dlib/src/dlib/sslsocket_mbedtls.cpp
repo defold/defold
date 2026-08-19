@@ -15,6 +15,7 @@
 #include "sslsocket.h"
 #include "log.h"
 #include "math.h"
+#include "socket_private.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -131,13 +132,8 @@ static int RecvTimeout(void* _ctx, unsigned char* buf, size_t len, uint32_t time
 
     if (ret < 0)
     {
-#if ( defined(_WIN32) || defined(_WIN32_WCE) ) && !defined(EFIX64) && !defined(EFI32)
-        if (WSAGetLastError() == WSAEINTR)
+        if (DM_SOCKET_ERRNO() == DM_SOCKET_EINTR())
             return MBEDTLS_ERR_SSL_WANT_READ;
-#else
-        if (errno == EINTR)
-            return MBEDTLS_ERR_SSL_WANT_READ;
-#endif
         return MBEDTLS_ERR_NET_RECV_FAILED;
     }
 

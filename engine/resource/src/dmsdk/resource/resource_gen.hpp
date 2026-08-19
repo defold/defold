@@ -46,28 +46,29 @@ namespace dmResource
      * @enum
      * @name Result
      * @language C++
-     * @member  RESOURCE_RESULT_OK
-     * @member  RESOURCE_RESULT_INVALID_DATA
-     * @member  RESOURCE_RESULT_DDF_ERROR
-     * @member  RESOURCE_RESULT_RESOURCE_NOT_FOUND
-     * @member  RESOURCE_RESULT_MISSING_FILE_EXTENSION
-     * @member  RESOURCE_RESULT_ALREADY_REGISTERED
-     * @member  RESOURCE_RESULT_INVAL
-     * @member  RESOURCE_RESULT_UNKNOWN_RESOURCE_TYPE
-     * @member  RESOURCE_RESULT_OUT_OF_MEMORY
-     * @member  RESOURCE_RESULT_IO_ERROR
-     * @member  RESOURCE_RESULT_NOT_LOADED
-     * @member  RESOURCE_RESULT_OUT_OF_RESOURCES
-     * @member  RESOURCE_RESULT_STREAMBUFFER_TOO_SMALL
-     * @member  RESOURCE_RESULT_FORMAT_ERROR
-     * @member  RESOURCE_RESULT_CONSTANT_ERROR
-     * @member  RESOURCE_RESULT_NOT_SUPPORTED
-     * @member  RESOURCE_RESULT_RESOURCE_LOOP_ERROR
-     * @member  RESOURCE_RESULT_PENDING
-     * @member  RESOURCE_RESULT_INVALID_FILE_EXTENSION
-     * @member  RESOURCE_RESULT_VERSION_MISMATCH
-     * @member  RESOURCE_RESULT_SIGNATURE_MISMATCH
-     * @member  RESOURCE_RESULT_UNKNOWN_ERROR
+     * @member  RESULT_OK
+     * @member  RESULT_INVALID_DATA
+     * @member  RESULT_DDF_ERROR
+     * @member  RESULT_RESOURCE_NOT_FOUND
+     * @member  RESULT_MISSING_FILE_EXTENSION
+     * @member  RESULT_ALREADY_REGISTERED
+     * @member  RESULT_INVAL
+     * @member  RESULT_UNKNOWN_RESOURCE_TYPE
+     * @member  RESULT_OUT_OF_MEMORY
+     * @member  RESULT_IO_ERROR
+     * @member  RESULT_NOT_LOADED
+     * @member  RESULT_OUT_OF_RESOURCES
+     * @member  RESULT_STREAMBUFFER_TOO_SMALL
+     * @member  RESULT_FORMAT_ERROR
+     * @member  RESULT_CONSTANT_ERROR
+     * @member  RESULT_NOT_SUPPORTED
+     * @member  RESULT_RESOURCE_LOOP_ERROR
+     * @member  RESULT_PENDING
+     * @member  RESULT_INVALID_FILE_EXTENSION
+     * @member  RESULT_VERSION_MISMATCH
+     * @member  RESULT_SIGNATURE_MISMATCH
+     * @member  RESULT_UNKNOWN_ERROR
+     * @member  RESULT_TOO_MANY_COMPONENTS
      */
     enum Result {
         RESULT_OK = 0,
@@ -92,6 +93,7 @@ namespace dmResource
         RESULT_VERSION_MISMATCH = -19,
         RESULT_SIGNATURE_MISMATCH = -20,
         RESULT_UNKNOWN_ERROR = -21,
+        RESULT_TOO_MANY_COMPONENTS = -22,
     };
 
     /*# 
@@ -341,6 +343,7 @@ namespace dmResource
  * @member  RESOURCE_RESULT_VERSION_MISMATCH
  * @member  RESOURCE_RESULT_SIGNATURE_MISMATCH
  * @member  RESOURCE_RESULT_UNKNOWN_ERROR
+ * @member  RESOURCE_RESULT_TOO_MANY_COMPONENTS
  */
 
 /*# 
@@ -557,5 +560,3 @@ namespace dmResource
  * DM_DECLARE_RESOURCE_TYPE(ResourceTypeBlob, "blobc", RegisterResourceTypeBlob, DeregisterResourceTypeBlob);
  * ```
  */
-
-

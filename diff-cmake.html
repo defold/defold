@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CMake Build Diff</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:28px;color:#182230;background:#f6f7f9}
+h1{margin:0 0 6px;font-size:24px}
+.meta{color:#667085;margin-bottom:18px}
+.cards{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+.card{background:white;border:1px solid #d9dee7;border-radius:8px;padding:12px 14px;min-width:170px}
+.label{font-size:12px;color:#667085;text-transform:uppercase;letter-spacing:.03em}
+.value{font-size:22px;font-weight:700;margin:3px 0}
+.hint{color:#667085;font-size:12px;margin-top:4px;max-width:270px}
+table{width:auto;border-collapse:collapse;background:white;border:1px solid #d9dee7;border-radius:8px;overflow:hidden}
+th,td{padding:7px 12px;border-bottom:1px solid #e6e9ef;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;min-width:135px}
+th{background:#eef1f5;color:#3b4656}
+.better{color:#147a3d;font-weight:650}
+.worse{color:#b42318;font-weight:650}
+.same{color:#637083}
+.foot{color:#667085;font-size:12px;margin-top:12px}
+</style>
+</head>
+<body>
+<h1>CMake Build Diff</h1>
+<div class="meta">Generated 2026-05-16 17:47:35. Original: 2026-05-16T11:04:23.220108. CMake: 2026-05-16T17:45:51.242017.</div>
+<div class="cards">
+  <div class="card"><div class="label">Build Engine</div><div class="value better">-12.770s</div><div>88.870s -> 76.100s (-14.4%)</div><div class="hint">Includes CMake configure/build/install orchestration plus any non-ported libraries.</div></div>
+  <div class="card"><div class="label">Libraries</div><div class="value">31 / 31</div><div>CMake supported libraries / total libraries</div></div>
+  <div class="card"><div class="label">Rows With Timings</div><div class="value">31</div><div>Missing: None</div></div>
+  <div class="card"><div class="label">Supported Subtotal</div><div class="value better">-12.418s</div><div>87.819s -> 75.402s (-14.1%)</div></div>
+  <div class="card"><div class="label">Wins / Regressions</div><div class="value"><span class="better">11</span> / <span class="worse">20</span></div><div>Same: 0</div></div>
+</div>
+<table>
+<thead><tr><th>Library</th><th>Original</th><th>CMake</th><th>Delta</th><th>Delta %</th></tr></thead>
+<tbody>
+<tr><td>engine</td><td>14.520s</td><td>4.113s</td><td class="better">-10.407s</td><td class="better">-71.7%</td></tr><tr><td>gamesys</td><td>16.436s</td><td>9.692s</td><td class="better">-6.744s</td><td class="better">-41.0%</td></tr><tr><td>dlib</td><td>10.198s</td><td>8.716s</td><td class="better">-1.482s</td><td class="better">-14.5%</td></tr><tr><td>gui</td><td>4.092s</td><td>2.791s</td><td class="better">-1.301s</td><td class="better">-31.8%</td></tr><tr><td>resource</td><td>2.578s</td><td>1.330s</td><td class="better">-1.248s</td><td class="better">-48.4%</td></tr><tr><td>graphics</td><td>2.940s</td><td>1.851s</td><td class="better">-1.089s</td><td class="better">-37.0%</td></tr><tr><td>sound</td><td>4.858s</td><td>4.547s</td><td class="better">-0.311s</td><td class="better">-6.4%</td></tr><tr><td>particle</td><td>1.886s</td><td>1.648s</td><td class="better">-0.237s</td><td class="better">-12.6%</td></tr><tr><td>hid</td><td>1.355s</td><td>1.291s</td><td class="better">-0.064s</td><td class="better">-4.7%</td></tr><tr><td>input</td><td>1.285s</td><td>1.244s</td><td class="better">-0.041s</td><td class="better">-3.2%</td></tr><tr><td>platform</td><td>1.420s</td><td>1.390s</td><td class="better">-0.030s</td><td class="better">-2.1%</td></tr><tr><td>rig</td><td>1.573s</td><td>1.593s</td><td class="worse">+0.020s</td><td class="worse">+1.3%</td></tr><tr><td>font</td><td>0.967s</td><td>1.186s</td><td class="worse">+0.218s</td><td class="worse">+22.6%</td></tr><tr><td>script</td><td>1.752s</td><td>1.975s</td><td class="worse">+0.223s</td><td class="worse">+12.7%</td></tr><tr><td>render</td><td>1.816s</td><td>2.044s</td><td class="worse">+0.229s</td><td class="worse">+12.6%</td></tr><tr><td>testmain</td><td>0.625s</td><td>0.960s</td><td class="worse">+0.335s</td><td class="worse">+53.6%</td></tr><tr><td>sdk</td><td>1.094s</td><td>1.437s</td><td class="worse">+0.343s</td><td class="worse">+31.3%</td></tr><tr><td>ddf</td><td>3.031s</td><td>3.396s</td><td class="worse">+0.365s</td><td class="worse">+12.0%</td></tr><tr><td>physics</td><td>1.593s</td><td>1.970s</td><td class="worse">+0.377s</td><td class="worse">+23.6%</td></tr><tr><td>modelc</td><td>2.484s</td><td>2.970s</td><td class="worse">+0.487s</td><td class="worse">+19.6%</td></tr><tr><td>profiler</td><td>0.827s</td><td>1.325s</td><td class="worse">+0.498s</td><td class="worse">+60.3%</td></tr><tr><td>record</td><td>0.656s</td><td>1.186s</td><td class="worse">+0.530s</td><td class="worse">+80.7%</td></tr><tr><td>crash</td><td>0.724s</td><td>1.266s</td><td class="worse">+0.542s</td><td class="worse">+74.8%</td></tr><tr><td>texc</td><td>1.707s</td><td>2.257s</td><td class="worse">+0.550s</td><td class="worse">+32.2%</td></tr><tr><td>liveupdate</td><td>0.581s</td><td>1.145s</td><td class="worse">+0.564s</td><td class="worse">+97.2%</td></tr><tr><td>tools</td><td>1.395s</td><td>1.964s</td><td class="worse">+0.569s</td><td class="worse">+40.8%</td></tr><tr><td>jni</td><td>0.907s</td><td>1.492s</td><td class="worse">+0.585s</td><td class="worse">+64.4%</td></tr><tr><td>extension</td><td>0.597s</td><td>1.188s</td><td class="worse">+0.592s</td><td class="worse">+99.2%</td></tr><tr><td>shaderc</td><td>0.872s</td><td>1.580s</td><td class="worse">+0.708s</td><td class="worse">+81.2%</td></tr><tr><td>lua</td><td>0.632s</td><td>1.373s</td><td class="worse">+0.741s</td><td class="worse">+117.2%</td></tr><tr><td>gameobject</td><td>2.419s</td><td>4.482s</td><td class="worse">+2.063s</td><td class="worse">+85.3%</td></tr>
+</tbody>
+</table>
+<div class="foot">Sorted by largest savings in seconds. Negative deltas are faster with CMake.</div>
+</body>
+</html>

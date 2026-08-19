@@ -17,12 +17,13 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [tx-nodes with-clean-system]]
+            [support.test-support :as test-support :refer [tx-nodes with-clean-system]]
             [util.macro :as macro]))
 
 (defn occurrences [coll]
@@ -37,16 +38,16 @@
     (is (= 1 (apply max (occurrences (ig/node-ids g)))))))
 
 (deftest removing-node
-  (let [v      "Any ig/node value"
-        g      (random-graph)
-        id     (inc (count (:nodes g)))
-        g      (ig/add-node g id v)
-        g      (ig/graph-remove-node g id nil)]
+  (let [g (random-graph)
+        id (inc (count (:nodes g)))
+        v (in/->NodeImpl id nil)
+        g (ig/add-node g id v)
+        g (test-support/graph-remove-node g id)]
     (is (nil? (ig/node-id->node g id)))
-    (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
+    (is (empty? (filter #(identical? v %) (ig/node-values g))))))
 
-(defn targets [g n l] (map gt/target (get-in g [:sarcs n l])))
-(defn sources [g n l] (map gt/source (get-in g [:tarcs n l])))
+(defn targets [g n l] (map gt/target (ig/arc-table-arcs (get-in g [:sarcs n l]))))
+(defn sources [g n l] (map gt/source (ig/arc-table-arcs (get-in g [:tarcs n l]))))
 
 (defn- source-arcs-without-targets
   [g]
@@ -242,33 +243,38 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id n1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
-                    :dependencies [],
-                    :state :end}
-                   {:node-id n1,
-                    :output-type :property,
-                    :label :str-prop,
+                    :output-type :output,
+                    :label :_declared-properties,
                     :dependencies
-                    [{:node-id tn,
-                      :output-type :output,
-                      :label :custom-val,
+                    [{:node-id n1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id n1,
+                      :output-type :property,
+                      :label :str-prop,
                       :dependencies
                       [{:node-id tn,
-                        :output-type :property,
+                        :output-type :output,
                         :label :custom-val,
                         :dependencies
                         [{:node-id tn,
-                          :output-type :raw-property,
-                          :label :val,
-                          :dependencies [],
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id tn,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
                           :state :end}],
                         :state :end}],
-                      :state :end}],
+                      :state :end}]
                     :state :end}],
                   :state :end}))
 
-          ;; Now, ec :local contains n :custom-val, so trace is slightly shorter.
+          ;; Now, ec :local contains n1 :_declared-properties, so trace is shorter.
           ;; Note that the tree tracer in the ec can be reused.
 
           (g/node-value n1 :_properties ec)
@@ -278,19 +284,9 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id n1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
+                    :output-type :cache,
+                    :label :_declared-properties,
                     :dependencies [],
-                    :state :end}
-                   {:node-id n1,
-                    :output-type :property,
-                    :label :str-prop,
-                    :dependencies
-                    [{:node-id tn,
-                      :output-type :cache,
-                      :label :custom-val
-                      :dependencies []
-                      :state :end}]
                     :state :end}]
                   :state :end})))
 
@@ -304,29 +300,34 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id n1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
-                    :dependencies [],
-                    :state :end}
-                   {:node-id n1,
-                    :output-type :property,
-                    :label :str-prop,
+                    :output-type :output,
+                    :label :_declared-properties,
                     :dependencies
-                    [{:node-id tn,
-                      :output-type :output,
-                      :label :custom-val,
+                    [{:node-id n1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id n1,
+                      :output-type :property,
+                      :label :str-prop,
                       :dependencies
                       [{:node-id tn,
-                        :output-type :property,
+                        :output-type :output,
                         :label :custom-val,
                         :dependencies
                         [{:node-id tn,
-                          :output-type :raw-property,
-                          :label :val,
-                          :dependencies [],
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id tn,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
                           :state :end}],
-                        :state :end}],
-                      :state :fail}],
+                        :state :fail}],
+                      :state :fail}]
                     :state :fail}],
                   :state :fail})))
 
@@ -345,31 +346,260 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id 1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
-                    :dependencies [],
-                    :state :end}
-                   {:node-id 1,
-                    :output-type :property,
-                    :label :str-prop,
+                    :output-type :output,
+                    :label :_declared-properties,
                     :dependencies
-                    [{:node-id 0,
-                      :output-type :output,
-                      :label :custom-val,
+                    [{:node-id 1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id 1,
+                      :output-type :property,
+                      :label :str-prop,
                       :dependencies
                       [{:node-id 0,
-                        :output-type :property,
+                        :output-type :output,
                         :label :custom-val,
                         :dependencies
                         [{:node-id 0,
-                          :output-type :raw-property,
-                          :label :val,
-                          :dependencies [],
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id 0,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
                           :state :end}],
-                        :state :end}],
-                      :state :fail}],
+                        :state :fail}],
+                      :state :fail}]
                     :state :fail}],
                   :state :fail})))))))
+
+(g/defnode TracerTestNode
+  (property property g/Any)
+  (input input g/Any)
+  (output output g/Any (g/fnk [] nil))
+
+  (property property<=property g/Any (value (g/fnk [property] property)))
+  (property property<=input g/Any (value (g/fnk [input] input)))
+  (property property<=output g/Any (value (g/fnk [output] output)))
+
+  (output output<=property g/Any (g/fnk [property] property))
+  (output output<=input g/Any (g/fnk [input] input))
+  (output output<=output g/Any (g/fnk [output] output)))
+
+(defn- trace [node-id label]
+  (let [result-atom (atom nil)
+        tracer (g/make-tree-tracer result-atom)
+        basis (g/now)
+        evaluation-context (g/make-evaluation-context
+                             {:basis basis
+                              :cache c/null-cache
+                              :no-local-temp true
+                              :tracer tracer})]
+    (g/node-value node-id label evaluation-context)
+    @result-atom))
+
+(defn- cache-trace [node-id label]
+  {:node-id node-id
+   :label label
+   :output-type :cache
+   :state :end
+   :dependencies []})
+
+(defn- with-first-dependency [trace-result dependency]
+  (assoc-in trace-result [:dependencies 0] dependency))
+
+(defn- check-general-tracer-results! [source target]
+  (testing "Isolated."
+    (is (= {:node-id target
+            :label :property
+            :output-type :raw-property
+            :state :end
+            :dependencies []}
+           (trace target :property)))
+    (is (= {:node-id source
+            :label :output
+            :output-type :output
+            :state :end
+            :dependencies []}
+           (trace target :input)))
+    (is (= {:node-id target
+            :label :output
+            :output-type :output
+            :state :end
+            :dependencies []}
+           (trace target :output))))
+
+  (testing "Property dependencies."
+    (is (= {:node-id target
+            :label :property<=property
+            :output-type :property
+            :state :end
+            :dependencies [(trace target :property)]}
+           (trace target :property<=property)))
+    (is (= {:node-id target
+            :label :property<=input
+            :output-type :property
+            :state :end
+            :dependencies [(trace target :input)]}
+           (trace target :property<=input)))
+    (is (= {:node-id target
+            :label :property<=output
+            :output-type :property
+            :state :end
+            :dependencies [(trace target :output)]}
+           (trace target :property<=output))))
+
+  (testing "Output dependencies."
+    (is (= {:node-id target
+            :label :output<=property
+            :output-type :output
+            :state :end
+            :dependencies [(trace target :property)]}
+           (trace target :output<=property)))
+    (is (= {:node-id target
+            :label :output<=input
+            :output-type :output
+            :state :end
+            :dependencies [(trace target :input)]}
+           (trace target :output<=input)))
+    (is (= {:node-id target
+            :label :output<=output
+            :output-type :output
+            :state :end
+            :dependencies [(trace target :output)]}
+           (trace target :output<=output))))
+
+  (testing "Basic intrinsics."
+    (is (= {:node-id target
+            :label :_node-id
+            :output-type :raw-property
+            :state :end
+            :dependencies []}
+           (trace target :_node-id)))
+    (is (= {:node-id target
+            :label :_output-jammers
+            :output-type :raw-property
+            :state :end
+            :dependencies []}
+           (trace target :_output-jammers)))
+    (is (= {:node-id target
+            :label :_overridden-properties
+            :output-type :output
+            :state :end
+            :dependencies []}
+           (trace target :_overridden-properties)))))
+
+(deftest tracer-results-for-regular-node
+  (with-clean-system
+    (let [[source
+           target]
+          (tx-nodes
+            (g/make-nodes world
+              [source TracerTestNode
+               target TracerTestNode]
+              (g/connect source :output target :input)))]
+
+      (check-general-tracer-results! source target)
+
+      (testing "Property-related intrinsics."
+        (is (= {:node-id target
+                :label :_declared-properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :property)
+                               (trace target :property<=property)
+                               (trace target :property<=input)
+                               (trace target :property<=output)]}
+               (trace target :_declared-properties)))
+        (is (= {:node-id target
+                :label :_properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :_declared-properties)]}
+               (trace target :_properties)))))))
+
+(deftest tracer-results-for-first-order-override-node
+  (with-clean-system
+    (let [[source
+           target
+           first-order-override-target]
+          (tx-nodes
+            (g/make-nodes world
+              [source TracerTestNode
+               target TracerTestNode]
+              (g/connect source :output target :input)
+              (g/override target)))]
+
+      (check-general-tracer-results! source first-order-override-target)
+
+      (testing "Property-related intrinsics."
+        (is (= {:node-id first-order-override-target
+                :label :_declared-properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :_declared-properties)
+                               (trace first-order-override-target :property)
+                               (trace first-order-override-target :property<=property)
+                               (trace first-order-override-target :property<=input)
+                               (trace first-order-override-target :property<=output)]}
+               (trace first-order-override-target :_declared-properties)))
+        (is (= {:node-id first-order-override-target
+                :label :_properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :_properties)
+                               (with-first-dependency
+                                 (trace first-order-override-target :_declared-properties)
+                                 (cache-trace target :_declared-properties))]}
+               (trace first-order-override-target :_properties)))))))
+
+(deftest tracer-results-for-second-order-override-node
+  (with-clean-system
+    (let [[source
+           target
+           first-order-override-target
+           second-order-override-target]
+          (tx-nodes
+            (g/make-nodes world
+              [source TracerTestNode
+               target TracerTestNode]
+              (g/connect source :output target :input)
+              (g/override target {}
+                (fn [_evaluation-context id-mapping]
+                  (let [first-order-override-target (get id-mapping target)]
+                    (g/override first-order-override-target))))))]
+
+      (check-general-tracer-results! source second-order-override-target)
+
+      (testing "Property-related intrinsics."
+        (is (= {:node-id second-order-override-target
+                :label :_declared-properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace first-order-override-target :_declared-properties)
+                               (trace second-order-override-target :property)
+                               (trace second-order-override-target :property<=property)
+                               (trace second-order-override-target :property<=input)
+                               (trace second-order-override-target :property<=output)]}
+               (trace second-order-override-target :_declared-properties)))
+        (is (= {:node-id second-order-override-target
+                :label :_properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace first-order-override-target :_properties)
+                               (with-first-dependency
+                                 (trace second-order-override-target :_declared-properties)
+                                 {:node-id first-order-override-target
+                                  :label :_declared-properties
+                                  :output-type :output
+                                  :state :end
+                                  :dependencies [(cache-trace target :_declared-properties)
+                                                 (cache-trace first-order-override-target :_declared-properties)]})]}
+               (trace second-order-override-target :_properties)))))))
 
 (deftest valid-node-value
   (with-clean-system

@@ -58,6 +58,14 @@ namespace dmGui
         return 0;
     }
 
+    void SetContextCallbacks(HContext,
+                             GetURLCallback,
+                             GetUserDataCallback,
+                             ResolvePathCallback,
+                             GetTextMetricsCallback)
+    {
+    }
+
     void DeleteContext(HContext context, dmScript::HContext script_context)
     {
     }
@@ -171,6 +179,11 @@ namespace dmGui
     }
 
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    {
+        return RESULT_OK;
+    }
+
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         return RESULT_OK;
     }
@@ -497,6 +510,21 @@ namespace dmGui
 
     void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value)
     {
+    }
+
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        return RESULT_OK;
+    }
+
+    Result GetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, CustomProperty* prop)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    Result SetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, const CustomProperty* prop)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
     }
 
     void SetNodeResetPoint(HScene scene, HNode node)

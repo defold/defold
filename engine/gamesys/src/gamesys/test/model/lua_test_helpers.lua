@@ -30,10 +30,11 @@ function assert_vec4(v_test,v_correct)
     assert_fn(v, e)
 end
 
-function assert_vec3(v_test,v_correct)
-    local v = v_test.x == v_correct.x and
-        v_test.y == v_correct.y and
-        v_test.z == v_correct.z
+function assert_vec3(v_test,v_correct,epsilon)
+    epsilon = epsilon or 0
+    local v = math.abs(v_test.x - v_correct.x) <= epsilon and
+        math.abs(v_test.y - v_correct.y) <= epsilon and
+        math.abs(v_test.z - v_correct.z) <= epsilon
     local e = v and nil or tostring(v_test) .. " and " .. tostring(v_correct) .. " are not the same!"
     assert_fn(v, e)
 end

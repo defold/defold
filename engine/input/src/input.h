@@ -31,9 +31,7 @@ namespace dmInput
             char                 m_Text[dmHID::MAX_CHAR_COUNT];
         };
         dmHID::GamepadPacket m_GamepadPacket;
-        union {
-            dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
-        };
+        dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
         float m_Value;
         float m_PrevValue;
         float m_RepeatTimer;
@@ -83,6 +81,7 @@ namespace dmInput
         dmHID::HContext m_HidContext;
         float m_RepeatDelay;
         float m_RepeatInterval;
+        float m_GamepadDeadZone;
     };
 
     HContext NewContext(const NewContextParams& params);
@@ -94,7 +93,7 @@ namespace dmInput
     void SetBinding(HBinding binding, dmInputDDF::InputBinding* ddf);
     void DeleteBinding(HBinding binding);
 
-    void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf);
+    void RegisterGamepads(HContext context, const dmInputDDF::GamepadMapsRuntime* ddf);
 
     void UpdateBinding(HBinding binding, float dt);
 

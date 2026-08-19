@@ -35,15 +35,11 @@ namespace dmGraphics
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
 
-#if defined(DM_PLATFORM_MACOS)
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2; // Keep two frames in flight on macOS for better CPU/GPU overlap
-#else
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1;
-#endif
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT       = 2; // Keep two frames in flight for better CPU/GPU overlap
     const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
     const static uint8_t  MAX_VERTEX_BUFFER_SLOTS    = MAX_BINDINGS_PER_SET_COUNT + MAX_VERTEX_BUFFERS;
-    const static uint32_t UNIFORM_BUFFER_ALIGNMENT = 256;
-    const static uint32_t STORAGE_BUFFER_ALIGNMENT = 16;
+    const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 256;
+    const static uint32_t STORAGE_BUFFER_ALIGNMENT   = 16;
 
     enum MetalResourceType
     {
@@ -81,9 +77,9 @@ namespace dmGraphics
 
     struct MetalDeviceBuffer
     {
+        Buffer           m_Base;
         MTL::Buffer*     m_Buffer;
         MTL::StorageMode m_StorageMode;
-        uint32_t         m_Size;
         uint8_t          m_Destroyed;
 
         const static MetalResourceType GetType()
@@ -105,7 +101,7 @@ namespace dmGraphics
 
         void EnsureSize(const MetalContext* context, uint32_t size);
 
-        inline bool CanAllocate(uint32_t size) { return size <= (m_DeviceBuffer.m_Size - m_MappedDataCursor); }
+        inline bool CanAllocate(uint32_t size) { return size <= (m_DeviceBuffer.m_Base.m_Size - m_MappedDataCursor); }
         inline void Rewind() { m_MappedDataCursor = 0; }
         inline void Advance(uint32_t size) { m_MappedDataCursor += size; }
     };
@@ -179,6 +175,7 @@ namespace dmGraphics
         , m_HasPendingClearDepth(0)
         , m_HasPendingClearStencil(0)
         , m_ColorAttachmentCount(0)
+        , m_SampleCount(1)
         {
             memset(&m_Base, 0, sizeof(m_Base));
             m_Base.m_Id = rtId;
@@ -188,6 +185,7 @@ namespace dmGraphics
             memset(m_ColorTextureParams, 0, sizeof(m_ColorTextureParams));
             memset(&m_DepthStencilTextureParams, 0, sizeof(m_DepthStencilTextureParams));
             memset(m_TextureColor, 0, sizeof(m_TextureColor));
+            memset(m_TextureColorResolve, 0, sizeof(m_TextureColorResolve));
             m_TextureDepthStencil = 0;
             memset(m_ColorFormat, 0, sizeof(m_ColorFormat));
             m_DepthStencilFormat = MTL::PixelFormatInvalid;
@@ -204,6 +202,7 @@ namespace dmGraphics
         MTL::ScissorRect      m_Scissor;
 
         HTexture              m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture              m_TextureColorResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture              m_TextureDepthStencil;
 
         MTL::PixelFormat      m_ColorFormat[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -216,6 +215,7 @@ namespace dmGraphics
         uint32_t       m_HasPendingClearDepth : 1;
         uint32_t       m_HasPendingClearStencil : 1;
         uint32_t       m_ColorAttachmentCount : 4;
+        uint32_t       m_SampleCount;
     };
 
     struct MetalStorageBufferBinding
@@ -313,7 +313,6 @@ namespace dmGraphics
         MetalClearData                     m_ClearData;
         dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
         uint32_t                           m_SwapInterval;
-        uint32_t                           m_ContextFeatures;
         float                              m_PolygonOffsetFactor;
         float                              m_PolygonOffsetUnits;
 

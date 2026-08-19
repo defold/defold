@@ -28,7 +28,6 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
-#include <gui/gui.h>
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>
@@ -313,14 +312,12 @@ namespace dmGameSystem
                                                   dmGameObject::HRegister regist,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
-                                                  ParticleFXContext* emitter_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
-                                                  LabelContext* label_context,
-                                                  TilemapContext* tilemap_context);
+                                                  LabelContext* label_context);
 
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);

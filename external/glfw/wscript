@@ -56,7 +56,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
         if not waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGLES'])
-    elif re.match('arm.*?android', platform):
+    elif re.match('.*?-android$', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform in ["x86_64-linux", "arm64-linux"]:
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']

@@ -33,14 +33,15 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.util TextureUtil]
+  (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
+           [com.dynamo.gamesys.proto DataProto$Data CollectionProxy$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
+           [java.net URI]
            [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -57,7 +58,7 @@
                         "animationsetc" Rig$AnimationSet
                         "meshsetc" Rig$MeshSet
                         "texturesetc" TextureSetProto$TextureSet
-                        "collectionproxyc" GameSystem$CollectionProxyDesc
+                        "collectionproxyc" CollectionProxy$CollectionProxyDesc
                         "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
@@ -182,7 +183,7 @@
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
-                 :pb-class GameSystem$CollectionProxyDesc
+                 :pb-class CollectionProxy$CollectionProxyDesc
                  :resource-fields [:collection]}]
                "/model/book_of_defold_no_tex.model"
                [{:label "Model with empty texture"
@@ -440,7 +441,7 @@
                                               build-artifacts))]
           (is (= 2 (count-exts (keys content-by-target) "goc")))
           (is (= 1 (count-exts (keys content-by-target) "spritec")))))
-      (g/undo! (g/node-id->graph-id project))
+      (g/undo! :undo/global)
       (testing "Verify equivalent sprites are not merged after being changed in memory"
         (test-util/prop! comp-node :blend-mode :blend-mode-add)
         (let [build-artifacts (project-build-artifacts! project resource-node)
@@ -548,7 +549,7 @@
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
             glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
-        (is (= 256 (:cache-height glyph-bank))))))
+        (is (= 512 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
     (with-build-results "/fonts/gradient.font"
       (let [content (get content-by-source "/fonts/gradient.font")
@@ -798,6 +799,8 @@
 (deftest build-game-project-properties
   (with-loaded-project "test/resources/game_project_properties"
                        (let [game-project (test-util/resource-node project "/game.project")]
+                         (game-project/set-setting! game-project ["display" "height"] 1234)
+                         (game-project/set-setting! game-project ["project" "dependencies"] [(URI/create "http://test.com/not-responding.zip")])
                          (let [br (project-build! project game-project)]
                            (is (not (contains? br :error)))
                            (with-open [r (io/reader (build-path workspace "game.projectc"))]
@@ -814,6 +817,9 @@
 
                                ;; Default number value
                                (check-project-setting built-properties ["display" "width"] "960")
+
+                               ;; In-memory setting change
+                               (check-project-setting built-properties ["display" "height"] "1234")
 
                                ;; Custom property
                                (check-project-setting built-properties ["custom" "love"] "defold")
@@ -832,6 +838,31 @@
 
                                ;; Check so empty custom properties are included as empty strings
                                (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))
+
+(deftest build-game-project-preserves-explicit-empty-resource-settings
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/game_project_properties")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (spit (io/file project-path "game.project")
+            (str "[project]\n"
+                 "title = Explicit Empty Resource Settings\n\n"
+                 "[bootstrap]\n"
+                 "main_collection = main.collectionc\n"
+                 "render = \n\n"
+                 "[display]\n"
+                 "display_profiles = \n\n"
+                 "[input]\n"
+                 "game_binding = game.input_bindingc\n"))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              game-project (test-util/resource-node project "/game.project")]
+          (is (nil? (game-project/get-setting game-project ["bootstrap" "render"])))
+          (is (nil? (game-project/get-setting game-project ["display" "display_profiles"])))
+          (with-open [_ (test-util/build! game-project)]
+            (with-open [r (io/reader (build-path workspace "game.projectc"))]
+              (let [built-properties (settings-core/parse-settings r)]
+                (check-project-setting built-properties ["bootstrap" "render"] "")
+                (check-project-setting built-properties ["display" "display_profiles"] "")))))))))
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
@@ -893,6 +924,26 @@
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
           (is (= "Custom resources directory not found: '/nonexistent_path'" error-message)))))))))
+
+(deftest build-with-dependencies-metadata
+  (with-loaded-project "test/resources/custom_resources_project"
+    (let [game-project (test-util/resource-node project "/game.project")
+          dependency-url "https://user:secret@example.com/library.zip?token=abc"
+          anonymized-dependency-url "https://example.com/library.zip"
+          expected-metadata-json (str "[{\"url\":\"" anonymized-dependency-url "\",\"commit-sha1\":\"\",\"problem\":\"missing\"}]")
+          build-metadata-file (build-path workspace DependencyMetadata/OUTPUT_PATH)]
+      (workspace/set-project-dependencies!
+        workspace
+        [(Library$Result.
+           (URI/create dependency-url)
+           nil
+           (Library$Problem$Missing.))])
+      (with-setting "project/dependencies_metadata" true
+        (is (nil? (:error (project-build! project game-project))))
+        (is (= expected-metadata-json (slurp build-metadata-file))))
+      (with-setting "project/dependencies_metadata" false
+        (is (nil? (:error (project-build! project game-project))))
+        (is (false? (.exists build-metadata-file)))))))
 
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"

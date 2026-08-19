@@ -62,7 +62,7 @@
           go-read-fn (:read-fn (resource/resource-type go-resource))]
       (doseq [resource-type resource-types]
         (testing (:ext resource-type)
-          (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+          (with-open [_ (test-util/make-system-reverter)]
             (test-util/add-embedded-component! go-id resource-type)
             (let [save-data (g/node-value go-id :save-data)
                   save-value (:save-value save-data)
@@ -81,8 +81,7 @@
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          game-object-path "/game_object/embedded_components.go"
+    (let [game-object-path "/game_object/embedded_components.go"
           game-object (project/get-resource-node project game-object-path)
           embedded-component (ffirst (g/sources-of game-object :child-scenes))]
       (doseq [original-scale
@@ -91,7 +90,7 @@
                      [(double 1.0) (double 1.0) (double 1.0)]
                      (vector-of :float 1.0 1.0 1.0)
                      (vector-of :double 1.0 1.0 1.0)])]
-        (with-open [_ (test-util/make-graph-reverter project-graph)]
+        (with-open [_ (test-util/make-system-reverter)]
           (g/set-property! embedded-component :scale original-scale)
           (test-util/manip-scale! embedded-component [2.0 2.0 2.0])
           (let [modified-scale (g/node-value embedded-component :scale)]

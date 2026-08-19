@@ -1548,23 +1548,19 @@ namespace dmGameSystem
      *
      * @name physics.set_event_listener
      *
-     * @param callback [type:function(self, events)|nil] A callback that receives an information about all the physics interactions in this physics world.
+     * @param callback [type:function(self, events)|nil] A callback that receives information about all physics interactions in this physics world. Pass `nil` to remove the listener.
      *
      * `self`
      * : [type:object] The calling script
      *
-     * `event`
-     * : [type:constant] The type of event. Can be one of these messages:
-     *
+     * `events`
+     * : [type:table] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:
      *
      * - [ref:contact_point_event]
      * - [ref:collision_event]
      * - [ref:trigger_event]
      * - [ref:ray_cast_response]
      * - [ref:ray_cast_missed]
-     *
-     * `data`
-     * : [type:table] The callback value data is a table that contains event-related data. See the documentation for details on the messages.
      *
      * @examples
      *

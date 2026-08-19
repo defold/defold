@@ -304,8 +304,6 @@ namespace dmCrash
         ::SetUnhandledExceptionFilter(ExceptionHandler);
 
         InstallOnSignal(SIGABRT);
-        InstallOnSignal(SIGINT);
-        InstallOnSignal(SIGTERM);
         InstallOnSignal(SIGSEGV);
     }
 

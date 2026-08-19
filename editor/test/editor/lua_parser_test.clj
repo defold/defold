@@ -193,6 +193,8 @@
               {:type :script-property-type-number :value 3.0e-10}
               {:type :script-property-type-number :value -4.0e10}
               {:type :script-property-type-number :value -4.0e-10}
+              {:type :script-property-type-text :value "foo"}
+              {:type :script-property-type-text :value "bar"}
               {:type :script-property-type-hash :value ""}
               {:type :script-property-type-hash :value "aBc3"}
               {:type :script-property-type-url :value ""}
@@ -240,6 +242,8 @@
                                        "go.property(\"test\", 3.0e-10)"
                                        "go.property(\"test\", -4.0e10)"
                                        "go.property(\"test\", -4.0e-10)"
+                                       "go.property(\"test\", 'foo')"
+                                       "go.property(\"test\", \"bar\")"
                                        "go.property(\"test\", hash(''))"
                                        "go.property(\"test\", hash('aBc3'))"
                                        "go.property(\"test\", msg.url())"
@@ -285,8 +289,10 @@
              (src->properties workspace "go.property(\"test\")")))
       (is (= [{:status :invalid-args}]
              (src->properties workspace "go.property(\"\", 0.0)")))
-      (is (= [{:status :invalid-value
-               :name "test"}]
+      (is (= [{:status :ok
+               :name "test"
+               :type :script-property-type-text
+               :value "foo"}]
              (src->properties workspace "go.property(\"test\", \"foo\")")))
       (is (= [{:status :invalid-location
                :name "nested"

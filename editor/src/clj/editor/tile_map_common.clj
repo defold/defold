@@ -24,3 +24,7 @@
   ^long [^long x ^long y]
   (bit-or (bit-shift-left y Integer/SIZE)
           (bit-and x 0xFFFFFFFF)))
+
+(defn cell-at
+  [cell-map [x y]]
+  (get cell-map (cell-index x y)))

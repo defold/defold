@@ -376,7 +376,6 @@ TEST_F(MetaDataTest, MultipleItems)
 TEST_F(MetaDataTest, Update)
 {
     float min_aabb[] = {-1.0f, -2.0f, -3.0f};
-    float max_aabb[] = {1.0f, 2.0f, 3.0f};
     float* verify_data;
     uint32_t verify_count;
     dmBuffer::ValueType verify_type;

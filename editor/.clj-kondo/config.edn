@@ -1,5 +1,22 @@
-{:hooks {:analyze-call {clojure.core/map hooks.clojure-core/map
+{:hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
+                        clojure.core/bounded-count hooks.clojure-core/bounded-count
+                        clojure.core/defn hooks.clojure-core/defn-call
+                        clojure.core/defn- hooks.clojure-core/defn-call
+                        clojure.core/definterface hooks.clojure-core/definterface
+                        clojure.core/defprotocol hooks.clojure-core/defprotocol
+                        clojure.core/defrecord hooks.clojure-core/defrecord
+                        clojure.core/deftype hooks.clojure-core/deftype
+                        clojure.core/empty? hooks.clojure-core/empty?
+                        clojure.core/every? hooks.clojure-core/every?
+                        clojure.core/fn hooks.clojure-core/fn-call
+                        clojure.core/fn* hooks.clojure-core/fn-call
+                        clojure.core/map hooks.clojure-core/map
                         clojure.core.cache/defcache hooks.clojure-core-cache/defcache
+                        clojure.core/not-any? hooks.clojure-core/not-any?
+                        clojure.core/not-empty hooks.clojure-core/not-empty
+                        clojure.core/not-every? hooks.clojure-core/not-every?
+                        clojure.core/some hooks.clojure-core/some
+                        clojure.string/join hooks.clojure-string/join
                         clojure.test.check.clojure-test/defspec hooks.clojure-test-check-clojure-test/defspec
                         dynamo.graph/deftype hooks.dynamo-graph/deftype
                         dynamo.graph/defnode hooks.dynamo-graph/defnode
@@ -27,13 +44,13 @@
                         editor.gl.vertex2/defvertex hooks.editor-gl-vertex2/defvertex
                         editor.git-test/with-git hooks.editor-git-test/with-git
                         editor.pipeline-test/with-clean-system hooks.editor-pipeline-test/with-clean-system
-                        editor.fxui/defc hooks.editor-fxui/defc
                         editor.gui/gen-outline-fnk hooks.editor-gui/gen-outline-fnk
                         editor.gui/wrap-layout-property-edit-type hooks.editor-gui/wrap-layout-property-edit-type
                         editor.handler/defhandler hooks.editor-handler/defhandler
                         editor.image-util/with-graphics hooks.editor-image-util/with-graphics
                         editor.lsp.async/with-auto-evaluation-context hooks.editor-lsp-async/with-auto-evaluation-context
                         editor.ui/change-listener hooks.editor-ui/change-listener
+                        editor.ui/defc hooks.editor-ui/defc
                         editor.ui/event-dispatcher hooks.editor-ui/event-dispatcher
                         editor.ui/event-handler hooks.editor-ui/event-handler
                         editor.ui/invalidation-listener hooks.editor-ui/invalidation-listener
@@ -56,5 +73,9 @@
                         util.defonce/record hooks.util-defonce/record
                         util.defonce/type hooks.util-defonce/type
                         util.fn/defamong hooks.util-fn/defamong}}
- :linters {:refer-all {:exclude [clojure.test]}}
+ :linters {:defold/defn-return-type-hint-placement {:level :warning}
+           :defold/prefer-coll-join-to-string {:level :warning}
+           :defold/prefer-defonce {:level :warning}
+           :defold/prefer-util-coll {:level :warning}
+           :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

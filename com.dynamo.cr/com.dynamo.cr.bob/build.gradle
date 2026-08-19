@@ -129,15 +129,16 @@ task proto(type: Exec) {
 sourceSets {
     main {
         java {
-            srcDirs = ["${project.bobDir}/src", "${project.bobDir}/generated"]
+            srcDirs = ["${project.bobDir}/src",
+                       "${project.bobDir}/generated"]
         }
     }
 }
 
-def bobLightDependencyJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
+def bobLightDependencyJars = ['dlib.jar', 'fontrenderer.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
 def bobGitRevision = "git -C ${project.bobDir} log --pretty=%H -n1".execute().text.trim()
 def privateBobPluginModules = []
-def targetPlatform = (project.findProperty('target-platform') ?: System.getenv('DYNAMO_TARGET_PLATFORM') ?: '').toString()
+def targetPlatform = (project.findProperty('target-platform') ?: '').toString()
 def platformsConfigFile = file("${project.bobDir}/../../.defold-platforms")
 if (targetPlatform && platformsConfigFile.exists()) {
     def platformsConfig = new JsonSlurper().parse(platformsConfigFile)
@@ -213,6 +214,8 @@ task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencie
     source = sourceSets.main.java
     destinationDirectory = project.classesDir
     include '**'
+    exclude '**/XBoxBundler.java'
+    exclude '**/XBoxShaderCompiler.java'
     classpath = sourceSets.main.compileClasspath
     options.encoding = 'UTF-8'
     options.compilerArgs << '-g'
@@ -277,6 +280,11 @@ def bobLightResourceRoot = file("${project.bobDir}/src")
 def bobLightResourceFiles = fileTree(bobLightResourceRoot) {
     exclude '**/*.java'
 }
+def vkQualityNativeLibraries = [
+        'armv7-android/libvkquality.so',
+        'arm64-android/libvkquality.so',
+        'x86_64-android/libvkquality.so'
+]
 
 task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
     inputs.files(bobLightResourceFiles)
@@ -288,10 +296,14 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
     inputs.files(fileTree("${project.dynamoHome}/lib") {
         include '**/*texc_shared*',
                 '**/*modelc_shared*',
-                '**/*shaderc_shared*'
+                '**/*shaderc_shared*',
+                '**/*fontc_shared*'
         exclude '**/*dSYM.zip'
     })
     inputs.file("${project.dynamoHome}/ext/share/java/bundletool-all.jar").optional()
+    inputs.files(fileTree("${project.dynamoHome}/ext/lib") {
+        include vkQualityNativeLibraries
+    })
     outputs.dirs(
             "${project.bobDir}/libexec",
             "${project.bobDir}/lib/x86_64-macos",
@@ -306,12 +318,33 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
     })
 
     doLast {
+        def missingVkQualityLibraries = vkQualityNativeLibraries.findAll { relativePath ->
+            !file("${project.dynamoHome}/ext/lib/${relativePath}").exists()
+        }
+        if (!missingVkQualityLibraries.isEmpty()) {
+            throw new RuntimeException("Required VkQuality native libraries are missing from DYNAMO_HOME: ${missingVkQualityLibraries.collect { "ext/lib/${it}" }.join(', ')}")
+        }
+
         def bundletoolJar = file("${project.dynamoHome}/ext/share/java/bundletool-all.jar")
         if (bundletoolJar.exists()) {
             copy {
                 from bundletoolJar
                 into "${project.bobDir}/libexec"
             }
+        }
+
+        copy {
+            from fileTree("${project.dynamoHome}/ext/lib") {
+                include vkQualityNativeLibraries
+            }
+            into "${project.bobDir}/libexec"
+        }
+
+        def missingPackagedVkQualityLibraries = vkQualityNativeLibraries.findAll { relativePath ->
+            !file("${project.bobDir}/libexec/${relativePath}").exists()
+        }
+        if (!missingPackagedVkQualityLibraries.isEmpty()) {
+            throw new RuntimeException("Required VkQuality native libraries were not copied into Bob: ${missingPackagedVkQualityLibraries.collect { "libexec/${it}" }.join(', ')}")
         }
 
         def platformFiles = [
@@ -357,12 +390,12 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
         }
 
         def sharedLibs = [
-                'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*', 'x86_64-macos/*shaderc_shared*'],
-                'arm64-macos': ['arm64-macos/*texc_shared*', 'arm64-macos/*modelc_shared*', 'arm64-macos/*shaderc_shared*'],
-                'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*', 'x86_64-linux/*shaderc_shared*'],
-                'arm64-linux': ['arm64-linux/*texc_shared*', 'arm64-linux/*modelc_shared*', 'arm64-linux/*shaderc_shared*'],
+                'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*', 'x86_64-macos/*shaderc_shared*', 'x86_64-macos/*fontc_shared*'],
+                'arm64-macos': ['arm64-macos/*texc_shared*', 'arm64-macos/*modelc_shared*', 'arm64-macos/*shaderc_shared*', 'arm64-macos/*fontc_shared*'],
+                'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*', 'x86_64-linux/*shaderc_shared*', 'x86_64-linux/*fontc_shared*'],
+                'arm64-linux': ['arm64-linux/*texc_shared*', 'arm64-linux/*modelc_shared*', 'arm64-linux/*shaderc_shared*', 'arm64-linux/*fontc_shared*'],
                 'win32': ['win32/*texc_shared*', 'win32/*modelc_shared*'],
-                'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*', 'x86_64-win32/*shaderc_shared*']
+                'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*', 'x86_64-win32/*shaderc_shared*', 'x86_64-win32/*fontc_shared*']
         ]
 
         sharedLibs.forEach { platform, includePatterns ->
@@ -411,11 +444,23 @@ task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLib
     destinationDirectory = file("${project.bobDir}/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
+    // Engine cross-builds install host compiler libraries into DYNAMO_HOME.
+    // Package those fresh artifacts before any potentially stale staged copies.
+    from {
+        fileTree(project.dynamoHome) {
+            include 'lib/**/*texc_shared*',
+                    'lib/**/*modelc_shared*',
+                    'lib/**/*shaderc_shared*',
+                    'lib/**/*fontc_shared*'
+            exclude '**/*dSYM.zip'
+        }
+    }
     from project.classesDir
     from fileTree(project.bobDir) {
         include 'lib/**/*texc_shared*',
                 'lib/**/*modelc_shared*',
                 'lib/**/*shaderc_shared*',
+                'lib/**/*fontc_shared*',
                 'lib/luajit-share.zip'
         exclude '**/*dSYM.zip',
                 'tmp/**'
@@ -443,6 +488,28 @@ task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLib
             attrs['Class-Path'] = privateBobPluginClassPath
         }
         attributes attrs
+    }
+
+    doLast {
+        def hostFontcLibraryNames = [
+                'x86_64-macos': 'libfontc_shared.dylib',
+                'arm64-macos': 'libfontc_shared.dylib',
+                'x86_64-linux': 'libfontc_shared.so',
+                'arm64-linux': 'libfontc_shared.so',
+                'x86_64-win32': 'fontc_shared.dll'
+        ]
+        def hostFontcLibraryName = hostFontcLibraryNames[project.hostPlatform]
+        if (!hostFontcLibraryName) {
+            throw new GradleException("Unsupported host platform: ${project.hostPlatform}")
+        }
+        def hostFontcPath = "lib/${project.hostPlatform}/${hostFontcLibraryName}"
+        def hasHostFontc = false
+        new ZipFile(archiveFile.get().asFile).withCloseable { zipFile ->
+            hasHostFontc = zipFile.getEntry(hostFontcPath) != null
+        }
+        if (!hasHostFontc) {
+            throw new GradleException("bob-light.jar is missing the host font compiler library: ${hostFontcPath}")
+        }
     }
 }
 
@@ -481,12 +548,14 @@ def bobJarFileTree = fileTree(project.bobDir) {
     include 'lib/**/*texc_shared*',
             'lib/**/*modelc_shared*',
             'lib/**/*shaderc_shared*',
+            'lib/**/*fontc_shared*',
             'lib/**/*libc++*',
             'libexec/**/*',
             'lib/report_template.html',
             'lib/time_report_template.html',
             'lib/android.jar',
             'lib/classes.dex',
+            'lib/vkquality/**/*',
             'lib/*.zip'
     exclude '**/*dSYM.zip',
             'tmp/**'
@@ -693,6 +762,11 @@ task installBobLight(dependsOn: 'distBobLight') {
         }
 
         destinationDir.mkdirs()
+        if (destinationFile.exists()
+                && java.nio.file.Files.mismatch(sourceFile.toPath(), destinationFile.toPath()) == -1L) {
+            return
+        }
+
         java.nio.file.Files.copy(sourceFile.toPath(), temporaryFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         try {
             java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),

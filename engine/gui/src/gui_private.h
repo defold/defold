@@ -133,12 +133,14 @@ namespace dmGui
         void*                   m_Material;
         void*                   m_RenderConstants;
         void*                   m_CustomData;
+        CustomPropertyDesc*     m_CustomProperties;
         void*                   m_ParticlefxPrototype;
         dmParticle::HInstance   m_ParticleInstance;
         dmVMath::Vector4*       m_ResetPointProperties;
         uint32_t                m_ResetPointState;
         uint32_t                m_RenderConstantsHash;
         uint32_t                m_CustomType; // Only valid if m_NodeType == NODE_TYPE_CUSTOM
+        uint8_t                 m_CustomPropertyCount;
 
         uint32_t                m_PerimeterVertices : 31;
         uint32_t                m_HasResetPoint : 1;

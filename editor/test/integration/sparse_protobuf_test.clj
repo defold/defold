@@ -265,10 +265,12 @@
                             :data embedded-component-data}}
 
      "gui"
-     {:nodes {:id (required "node_id")}
+     {:nodes {:id (required "node_id")
+              :custom-properties (exactly nil)}
       :layouts {:name "layout_name"
                 :nodes {:id (required "node_id")
                         :alpha (required 0.5)
+                        :custom-properties (exactly nil)
                         :overridden-fields (required Gui$NodeDesc/ALPHA_FIELD_NUMBER)}}
       :layers {:name "layer_name"}
       :fonts {:name "font_name"
@@ -738,7 +740,7 @@
                       openable-in-view-type? (into #{} (map :id) view-types)]
                   (testing proj-path
                     (is (not (g/error? (g/node-value resource-node :_properties))))
-                    (when (openable-in-view-type? :cljfx-form-view)
+                    (when (openable-in-view-type? :form)
                       (is (not (g/error? (g/node-value resource-node :form-data)))))
                     (when (openable-in-view-type? :scene)
                       (is (not (g/error? (g/node-value resource-node :scene)))))

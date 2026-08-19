@@ -2517,6 +2517,7 @@ namespace dmScript
                 y = x; z = x;
             }
             PushMatrix4(L, Matrix4::scale(Vector3(x, y, z)));
+            return 1;
         }
         else
         {

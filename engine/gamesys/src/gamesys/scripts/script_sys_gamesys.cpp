@@ -145,7 +145,7 @@ namespace dmGameSystem
             buffer->SetCapacity(file_size);
             buffer->SetSize(file_size);
 
-            size_t nread = fread(buffer->Begin(), 1, file_size, file);
+            fread(buffer->Begin(), 1, file_size, file);
             bool result = ferror(file) == 0;
             fclose(file);
 
@@ -339,7 +339,7 @@ namespace dmGameSystem
     {
         int top          = lua_gettop(L);
         const char* path = luaL_checkstring(L, 1);
-        dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 2);
+        dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(L, 2);
 
         if (callback_info == 0x0)
         {

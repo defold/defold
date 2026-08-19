@@ -226,7 +226,7 @@
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :both)
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
           (is (some #{"dmglfw"} (:libs context)))
@@ -239,7 +239,7 @@
           (is (some #{"GLESv2"} (:dynamicLibs context)))))))
   (testing "Vulkan-only Android excludes OpenGL ES link inputs"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-android :vulkan)]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
           (is (some #{"dmglfw_vulkan"} (:libs context)))
@@ -251,6 +251,120 @@
           (is (some #{"GLESv1_CM"} (:excludeDynamicLibs context)))
           (is (some #{"GLESv2"} (:excludeDynamicLibs context))))))))
 
+(def apple-graphics-selections
+  [:open-gl :metal :vulkan :open-gl-metal :open-gl-vulkan])
+
+(deftest osx-graphics-setting-test
+  (testing "OSX supports every OpenGL/Metal/Vulkan selection"
+    (doseq [selection apple-graphics-selections]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-osx :metal)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-osx selection))]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx))))))
+  (testing "Metal-only OSX includes Metal and excludes OpenGL/Vulkan"
+    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-osx :metal)]
+      (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
+      (doseq [platform [:arm64-osx :x86_64-osx]]
+        (let [context (get-in manifest [:platforms platform :context])]
+          (is (some #{"graphics_metal"} (:libs context)))
+          (is (some #{"platform"} (:engineLibs context)))
+          (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
+          (is (some #{"Metal"} (:frameworks context)))
+          (is (some #{"IOSurface"} (:frameworks context)))
+          (is (some #{"QuartzCore"} (:frameworks context)))
+          (is (some #{"graphics"} (:excludeLibs context)))
+          (is (not-any? #{"platform"} (:excludeLibs context)))
+          (is (some #{"graphics_vulkan"} (:excludeLibs context)))
+          (is (some #{"platform_vulkan"} (:excludeLibs context)))
+          (is (some #{"MoltenVK"} (:excludeLibs context)))
+          (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
+          (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context)))))))
+  (testing "Metal-only OSX removes stale explicit Vulkan link inputs"
+    (let [explicit-vulkan-manifest {:platforms {:arm64-osx {:context {:excludeLibs ["graphics" "platform"]
+                                                                      :excludeSymbols ["GraphicsAdapterOpenGL"]
+                                                                      :symbols ["GraphicsAdapterVulkan"]
+                                                                      :libs ["graphics_vulkan" "platform_vulkan" "MoltenVK"]
+                                                                      :frameworks ["Metal" "IOSurface" "QuartzCore"]}}
+                                                :x86_64-osx {:context {:excludeLibs ["graphics" "platform"]
+                                                                       :excludeSymbols ["GraphicsAdapterOpenGL"]
+                                                                       :symbols ["GraphicsAdapterVulkan"]
+                                                                       :libs ["graphics_vulkan" "platform_vulkan" "MoltenVK"]
+                                                                       :frameworks ["Metal" "IOSurface" "QuartzCore"]}}}}
+          manifest (app-manifest/set-setting-value explicit-vulkan-manifest app-manifest/graphics-setting-osx :metal)]
+      (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
+      (doseq [platform [:arm64-osx :x86_64-osx]]
+        (let [context (get-in manifest [:platforms platform :context])]
+          (is (some #{"graphics_metal"} (:libs context)))
+          (is (some #{"platform"} (:engineLibs context)))
+          (is (not-any? #{"graphics_vulkan"} (:libs context)))
+          (is (not-any? #{"platform_vulkan"} (:libs context)))
+          (is (not-any? #{"MoltenVK"} (:libs context)))
+          (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
+          (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols context)))))))
+  (testing "OSX selections without Metal do not keep Metal leftovers"
+    (doseq [selection [:open-gl :open-gl-vulkan :vulkan]]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-osx :metal)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-osx selection))]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
+        (doseq [platform [:arm64-osx :x86_64-osx]]
+          (let [context (get-in manifest [:platforms platform :context])]
+            (is (not-any? #{"graphics_metal"} (:libs context)))
+            (is (not-any? #{"GraphicsAdapterMetal"} (:symbols context)))))))))
+
+(deftest ios-graphics-setting-test
+  (testing "iOS supports every OpenGL/Metal/Vulkan selection"
+    (doseq [selection apple-graphics-selections]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-ios :metal)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-ios selection))]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios))))))
+  (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
+    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
+      (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
+      (doseq [platform [:arm64-ios :x86_64-ios]]
+        (let [context (get-in manifest [:platforms platform :context])]
+          (is (some #{"graphics_metal"} (:libs context)))
+          (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
+          (is (some #{"Metal"} (:frameworks context)))
+          (is (some #{"IOSurface"} (:frameworks context)))
+          (is (some #{"QuartzCore"} (:frameworks context)))))
+      (let [context (get-in manifest [:platforms :arm64-ios :context])]
+        (is (some #{"graphics"} (:excludeLibs context)))
+        (is (some #{"graphics_vulkan"} (:excludeLibs context)))
+        (is (some #{"MoltenVK"} (:excludeLibs context)))
+        (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
+        (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context))))))
+  (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
+    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
+          arm64-context (get-in manifest [:platforms :arm64-ios :context])
+          simulator-context (get-in manifest [:platforms :x86_64-ios :context])]
+      (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
+      (is (some #{"graphics_vulkan"} (:libs arm64-context)))
+      (is (some #{"MoltenVK"} (:libs arm64-context)))
+      (is (some #{"GraphicsAdapterVulkan"} (:symbols arm64-context)))
+      (is (some #{"graphics"} (:excludeLibs arm64-context)))
+      (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols arm64-context)))
+      (is (not-any? #{"graphics"} (:excludeLibs simulator-context)))
+      (is (not-any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols simulator-context)))
+      (is (not-any? #{"graphics_vulkan"} (:libs simulator-context)))
+      (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols simulator-context)))
+      (is (not-any? #{"graphics_metal"} (:libs simulator-context)))
+      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))))
+  (testing "Generic graphics changes do not clear iOS graphics"
+    (let [manifest (-> {}
+                       (app-manifest/set-setting-value app-manifest/graphics-setting-ios :metal)
+                       (app-manifest/set-setting-value app-manifest/graphics-setting :open-gl))]
+      (is (= :open-gl (app-manifest/get-setting-value manifest app-manifest/graphics-setting)))
+      (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))))
+  (testing "iOS graphics changes do not clear generic graphics"
+    (doseq [selection [:metal :vulkan :open-gl-metal :open-gl-vulkan]]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting :open-gl)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-ios selection))]
+        (is (= :open-gl (app-manifest/get-setting-value manifest app-manifest/graphics-setting)))
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))))))
+
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project
     (testing "/app_manifest/default.appmanifest"
@@ -260,12 +374,16 @@
         (is (= false (g/node-value manifest :exclude-record)))
         (is (= :debug-only (g/node-value manifest :profiler)))
         (is (= false (g/node-value manifest :exclude-sound)))
+        (is (= false (g/node-value manifest :exclude-gui)))
+        (is (= false (g/node-value manifest :exclude-particle-fx)))
+        (is (= false (g/node-value manifest :exclude-tilemap)))
         (is (= false (g/node-value manifest :exclude-input)))
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_physics_2d.appmanifest"
@@ -371,6 +489,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :vulkan (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-ios)))
         (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/vulkan_and_opengl.appmanifest"
@@ -385,7 +504,8 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :both (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (nil? (g/node-value manifest :graphics-osx)))
+        (is (nil? (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/opengl_osx.appmanifest"
@@ -415,9 +535,15 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :both (g/node-value manifest :graphics-osx)))
+        (is (= :open-gl-vulkan (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
+    (testing "/app_manifest/metal_osx.appmanifest"
+      (let [manifest (test-util/resource-node project "/app_manifest/metal_osx.appmanifest")]
+        (is (= :metal (g/node-value manifest :graphics-osx)))))
+    (testing "/app_manifest/metal_ios.appmanifest"
+      (let [manifest (test-util/resource-node project "/app_manifest/metal_ios.appmanifest")]
+        (is (= :metal (g/node-value manifest :graphics-ios)))))
     (testing "/app_manifest/webgpu.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/webgpu.appmanifest")]
         (is (= :legacy (g/node-value manifest :physics-2d)))
@@ -475,4 +601,21 @@
       (is (true? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record false)
       (is (false? (string/includes? (text) "record_null")))
-      (is (false? (g/node-value manifest :exclude-record))))))
+      (is (false? (g/node-value manifest :exclude-record)))
+
+      (g/set-property! manifest :exclude-gui true)
+      (g/set-property! manifest :exclude-particle-fx true)
+      (g/set-property! manifest :exclude-tilemap true)
+      (is (string/includes? (text) "gui_null"))
+      (is (string/includes? (text) "particle_null"))
+      (is (string/includes? (text) "ResourceTypeTileMap"))
+      (is (true? (g/node-value manifest :exclude-gui)))
+      (is (true? (g/node-value manifest :exclude-particle-fx)))
+      (is (true? (g/node-value manifest :exclude-tilemap)))
+
+      (g/set-property! manifest :exclude-gui false)
+      (g/set-property! manifest :exclude-particle-fx false)
+      (g/set-property! manifest :exclude-tilemap false)
+      (is (false? (string/includes? (text) "gui_null")))
+      (is (false? (string/includes? (text) "particle_null")))
+      (is (false? (string/includes? (text) "ResourceTypeTileMap"))))))

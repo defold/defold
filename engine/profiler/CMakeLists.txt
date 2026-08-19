@@ -21,7 +21,6 @@ set(PROFILER_DEPENDENCIES
   image
   graphics_proto
   render
-  render_font_default
   font
   lua)
 set(PROFILER_BASIC_DEPENDENCIES dlib)

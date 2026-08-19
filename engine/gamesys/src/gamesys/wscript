@@ -40,6 +40,7 @@ def build(bld):
 
     sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp'])
     sources = remove_from_node_list(sources, 'comp_model.cpp')
+    sources = remove_from_node_list(sources, 'comp_model_pbr.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
     sources = remove_from_node_list(sources, 'res_model.cpp')
     sources = remove_from_node_list(sources, 'res_model_null.cpp')
@@ -73,7 +74,7 @@ def build(bld):
         proto_gen_py = True,
         use = 'gamesys_proto',
         uselib = 'LUA',
-        source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp',
+        source = 'resources/res_model.cpp components/comp_model.cpp components/comp_model_pbr.cpp scripts/script_model.cpp',
         target = 'gamesys_model')
 
     bld.stlib(features = 'cxx',

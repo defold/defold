@@ -141,6 +141,7 @@ namespace dmShaderc
         SHADER_COMPILER_PLATFORM_DEFAULT,
         SHADER_COMPILER_PLATFORM_MACOS,
         SHADER_COMPILER_PLATFORM_IOS,
+        SHADER_COMPILER_PLATFORM_XBONE,
     };
 
     struct ShaderCompilerOptions
@@ -155,6 +156,9 @@ namespace dmShaderc
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
         , m_GlslEs(false)
+        , m_ExternalCompilerPath(0)
+        , m_ExternalCompilerArgs(0)
+        , m_RootSignatureOverride(0)
         {}
 
         uint32_t        m_Version;
@@ -166,6 +170,14 @@ namespace dmShaderc
         uint8_t         m_No420PackExtension         : 1;
         uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
         uint8_t         m_GlslEs                     : 1;
+
+        // Optional external compiler invocation driven from Java.
+        // If both fields are set, shaderc will invoke this tool for final blob generation.
+        const char* m_ExternalCompilerPath;
+        const char* m_ExternalCompilerArgs;
+
+        // Optional HLSL [RootSignature("...")] override injected by shaderc.
+        const char* m_RootSignatureOverride;
     };
 
     struct ResourceType

@@ -330,8 +330,7 @@ public class ShaderCompilePipelineTest {
         return null;
     }
 
-    @Test
-    public void testRemapInputOutputs() throws Exception {
+    private void assertRemapInputOutputs(ShaderCompilePipeline.Options options) throws Exception {
         String vsShader =
                  """
                 #version 140
@@ -366,7 +365,7 @@ public class ShaderCompilePipelineTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
 
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testRemapping");
-        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, options);
 
         SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
         SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
@@ -386,6 +385,18 @@ public class ShaderCompilePipelineTest {
         }
 
         ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+    }
+
+    @Test
+    public void testRemapInputOutputs() throws Exception {
+        assertRemapInputOutputs(new ShaderCompilePipeline.Options());
+    }
+
+    @Test
+    public void testRemapInputOutputsForHLSL() throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.remapVertexFragmentIOForHLSL = true;
+        assertRemapInputOutputs(options);
     }
 
     @Test

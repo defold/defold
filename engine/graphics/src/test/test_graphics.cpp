@@ -244,11 +244,11 @@ TEST_F(dmGraphicsTest, VertexBuffer)
 
     // Smaller size
     dmGraphics::SetVertexBufferData(vertex_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, vb->m_Size);
+    ASSERT_EQ(1u, vb->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetVertexBufferData(vertex_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, vb->m_Size);
+    ASSERT_EQ(4u, vb->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, 4));
 
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -284,11 +284,11 @@ TEST_F(dmGraphicsTest, IndexBuffer)
 
     // Smaller size
     dmGraphics::SetIndexBufferData(index_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, ib->m_Size);
+    ASSERT_EQ(1u, ib->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetIndexBufferData(index_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, ib->m_Size);
+    ASSERT_EQ(4u, ib->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, 4));
 
     dmGraphics::DeleteIndexBuffer(index_buffer);
@@ -558,6 +558,12 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
         dmGraphics::SetUniformBuffer(m_Context, ubo, 0, sizeof(ubo_data), &ubo_data);
         dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 1);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][1]);
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
         ASSERT_TRUE(null_ubo->m_UsedInDraw);
@@ -568,6 +574,10 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         ASSERT_NEAR(written_floats[3], 8.0f, EPSILON);
 
         dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][1]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
         dmGraphics::DisableProgram(m_Context);
         dmGraphics::DeleteUniformBuffer(m_Context, ubo);
     }
@@ -584,6 +594,9 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
         ASSERT_FALSE(null_ubo->m_UsedInDraw);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
 
         dmGraphics::DisableUniformBuffer(m_Context, ubo);
         dmGraphics::DisableProgram(m_Context);
@@ -783,7 +796,8 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::ShaderDescBuilder shader_desc_reload;
     shader_desc_reload.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, program_data_vs, 1024);
     shader_desc_reload.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, program_data_fs, 1024);
-    dmGraphics::ReloadProgram(m_Context, program, shader_desc_reload.Get());
+    char error_buffer[4096] = {};
+    dmGraphics::ReloadProgram(m_Context, program, shader_desc_reload.Get(), error_buffer, sizeof(error_buffer));
 
     delete [] program_data_vs;
     delete [] program_data_fs;
@@ -1978,6 +1992,31 @@ static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParam
     SET_PARAM_DIM(p.m_StencilBufferParams, p.m_StencilBufferCreationParams);
     #undef SET_PARAM_DIM
     return p;
+}
+
+TEST_F(dmGraphicsTest, TestRenderTargetSampleCountConformance)
+{
+    const uint32_t supported = 1 | 2 | 4 | 8;
+    ASSERT_EQ(1u, dmGraphics::GetClosestSupportedSampleCount(0, supported));
+    ASSERT_EQ(2u, dmGraphics::GetClosestSupportedSampleCount(3, supported));
+    ASSERT_EQ(4u, dmGraphics::GetClosestSupportedSampleCount(7, supported));
+    ASSERT_EQ(8u, dmGraphics::GetClosestSupportedSampleCount(64, supported));
+    ASSERT_EQ(4u, dmGraphics::GetClosestSupportedSampleCount(8, 1 | 4));
+
+    dmGraphics::RenderTargetCreationParams params = {};
+    params.m_ColorBufferSampleCounts[0] = 3;
+    params.m_DepthBufferSampleCount = 8;
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+
+    dmGraphics::ConformRenderTargetCreationSampleCounts(&params, flags, 1 | 2 | 4, false, "Test");
+    ASSERT_EQ(4u, params.m_ColorBufferSampleCounts[0]);
+    ASSERT_EQ(4u, params.m_DepthBufferSampleCount);
+
+    params.m_ColorBufferSampleCounts[0] = 3;
+    params.m_DepthBufferSampleCount = 8;
+    dmGraphics::ConformRenderTargetCreationSampleCounts(&params, flags, 1 | 2 | 4, true, "Test");
+    ASSERT_EQ(2u, params.m_ColorBufferSampleCounts[0]);
+    ASSERT_EQ(4u, params.m_DepthBufferSampleCount);
 }
 
 TEST_F(dmGraphicsTest, TestRenderTarget)

@@ -46,7 +46,7 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include "../hid.h"
+#include "../hid_private.h"
 
 #include <graphics/graphics.h>
 #include <platform/window.hpp>
@@ -156,7 +156,9 @@ struct EngineCtx
 
 static bool IsInteractiveStdout()
 {
-#if defined(DM_TEST_WIN32_DESKTOP)
+#if defined(DM_PLATFORM_VENDOR)
+    return false;
+#elif defined(DM_TEST_WIN32_DESKTOP)
     return _isatty(_fileno(stdout)) != 0;
 #elif defined(_WIN32)
     return false;

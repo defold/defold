@@ -54,7 +54,6 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
-#include <gamesys/components/comp_gui.h> // For the URL callbacks etc
 #include <gameobject/gameobject.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
@@ -65,7 +64,6 @@
 #include <render/render.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
-#include <particle/particle.h>
 #include <platform/window.hpp>
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
@@ -450,6 +448,8 @@ namespace dmEngine
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetMonotonicTime();
         m_HttpCache = 0;
+        m_DependenciesJsonResource = 0;
+        m_DependenciesJsonSize = 0;
         m_ContextRegistry = ContextRegistryCreate();
         dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
     }
@@ -620,6 +620,10 @@ namespace dmEngine
             dmConfigFile::Delete(engine->m_Config);
         }
 
+        free(engine->m_DependenciesJsonResource);
+        engine->m_DependenciesJsonResource = 0;
+        engine->m_DependenciesJsonSize = 0;
+
         delete engine;
     }
 
@@ -785,10 +789,40 @@ namespace dmEngine
         ctx->m_BufferSize -= nwritten;
     }
 
+    static void LoadDependencyJson(HEngine engine)
+    {
+        void* resource = 0;
+        uint32_t resource_size = 0;
+        dmResource::Result result = dmResource::GetRaw(engine->m_Factory, "/.internal/dependencies.json", &resource, &resource_size);
+        if (result == dmResource::RESULT_OK)
+        {
+            engine->m_DependenciesJsonResource = resource;
+            engine->m_DependenciesJsonSize = resource_size;
+        }
+    }
+
     static void CrashHandlerCallback(void* ctx, char* buffer, uint32_t buffersize)
     {
         HEngine engine = (HEngine)ctx;
-        if (engine->m_SharedScriptContext) {
+
+        if (engine->m_DependenciesJsonResource && buffersize > 0)
+        {
+            uint32_t dependencies_json_size = dmMath::Min(engine->m_DependenciesJsonSize, buffersize - 1);
+            memcpy(buffer, engine->m_DependenciesJsonResource, dependencies_json_size);
+            buffer += dependencies_json_size;
+            buffersize -= dependencies_json_size;
+            *buffer = 0;
+
+            if (buffersize > 1)
+            {
+                *buffer++ = '\n';
+                --buffersize;
+                *buffer = 0;
+            }
+        }
+
+        if (engine->m_SharedScriptContext)
+        {
             LuaCallstackCtx ctx;
             ctx.m_First = true;
             ctx.m_Buffer = buffer;
@@ -1193,6 +1227,7 @@ namespace dmEngine
         window_params.m_Title                   = instance_index ? window_title : project_title;
         window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_FocusOnShow             = (bool) dmConfigFile::GetInt(engine->m_Config, "display.focus_on_show", 1);
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)
@@ -1203,9 +1238,13 @@ namespace dmEngine
 
         if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
         {
-            window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
         }
+
+#if defined(__EMSCRIPTEN__)
+        window_params.m_GraphicsApiVersionHint = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.webgl_version_hint", 2);
+#endif
 
         engine->m_Window = dmPlatform::NewWindow();
 
@@ -1295,6 +1334,7 @@ namespace dmEngine
         {
             return false;
         }
+        LoadDependencyJson(engine);
 
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
 
@@ -1394,18 +1434,11 @@ namespace dmEngine
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
 
-        engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
-        engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
-        engine->m_ParticleFXContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
-        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
-        engine->m_ParticleFXContext.m_MaxParticleBufferCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
-        engine->m_ParticleFXContext.m_Debug = false;
-
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
+        input_params.m_GamepadDeadZone = dmConfigFile::GetFloat(engine->m_Config, "input.gamepad_deadzone", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
@@ -1440,10 +1473,6 @@ namespace dmEngine
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_HidContext = engine->m_HidContext;
-        gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
-        gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
-        gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
-        gui_params.m_GetTextMetricsCallback = (void (*)(const void *, const char *, float, bool, float, float, dmGui::TextMetrics *))dmGameSystem::GuiGetTextMetricsCallback;
 
         // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
@@ -1538,10 +1567,6 @@ namespace dmEngine
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
         engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
 
-        engine->m_TilemapContext.m_RenderContext    = engine->m_RenderContext;
-        engine->m_TilemapContext.m_MaxTilemapCount  = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_count", 16);
-        engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
-
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
 
@@ -1581,6 +1606,7 @@ namespace dmEngine
         }
         engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
         engine->m_ResourceTypeContexts.Put(dmHashString64("lightc"), engine->m_RenderContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("tilemapc"), &engine->m_PhysicsContextBox2D);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
@@ -1590,9 +1616,9 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -2517,9 +2543,9 @@ bail:
         }
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", 0);
-        if (gamepads)
+        if (gamepads && gamepads[0] != '\0')
         {
-            dmInputDDF::GamepadMaps* gamepad_maps_ddf;
+            dmInputDDF::GamepadMapsRuntime* gamepad_maps_ddf;
             fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
             if (fact_error != dmResource::RESULT_OK)
                 return false;
@@ -2585,7 +2611,11 @@ void dmEngineInitialize()
     dmEngineSetRenderEnabled(1);
 #endif
 
-    dmEngine::PlatformInitialize();
+    if (!dmEngine::PlatformInitialize())
+    {
+        dmLogError("Failed to initialize engine for target platform.");
+        return;
+    }
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 

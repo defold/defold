@@ -13,14 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.util-defonce
+  (:refer-clojure :exclude [type])
   (:require [clj-kondo.hooks-api :as api]))
+
+(defn- defonce-token-node [token]
+  (with-meta (api/token-node token)
+    {:defold/defonce true}))
 
 (defn protocol [{:keys [node]}]
   (let [[_ name-node & body] (:children node)]
     {:node
      (api/list-node
        (list*
-         (api/token-node 'defprotocol)
+         (defonce-token-node 'defprotocol)
          name-node
          body))}))
 
@@ -29,7 +34,7 @@
     {:node
      (api/list-node
        (list*
-         (api/token-node 'defrecord)
+         (defonce-token-node 'defrecord)
          name-node
          body))}))
 
@@ -38,7 +43,7 @@
     {:node
      (api/list-node
        (list*
-         (api/token-node 'deftype)
+         (defonce-token-node 'deftype)
          name-node
          body))}))
 
@@ -47,6 +52,6 @@
     {:node
      (api/list-node
        (list*
-         (api/token-node 'definterface)
+         (defonce-token-node 'definterface)
          name-node
          body))}))

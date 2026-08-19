@@ -20,8 +20,8 @@ namespace dmGameSystem
 {
     dmResource::Result ResGamepadMapCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmInputDDF::GamepadMaps* gamepad_maps;
-        dmDDF::Result e = dmDDF::LoadMessage<dmInputDDF::GamepadMaps>(params->m_Buffer, params->m_BufferSize, &gamepad_maps);
+        dmInputDDF::GamepadMapsRuntime* gamepad_maps;
+        dmDDF::Result e = dmDDF::LoadMessage<dmInputDDF::GamepadMapsRuntime>(params->m_Buffer, params->m_BufferSize, &gamepad_maps);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;

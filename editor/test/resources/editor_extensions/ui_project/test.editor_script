@@ -238,6 +238,11 @@ function M.get_commands()
                                                 issue = {severity = editor.ui.ISSUE_SEVERITY.ERROR, message = "error message"}
                                             }),
                                             editor.ui.check_box({
+                                                text = "Indeterminate check box",
+                                                indeterminate = true,
+                                                value = true
+                                            }),
+                                            editor.ui.check_box({
                                                 value = true
                                             })
                                         }
@@ -306,6 +311,7 @@ function M.get_commands()
                 expect_error("editor.ui.dialog({title = 'Dialog title', width = false})", editor.ui.dialog, {title = "Dialog title", width = false})
                 expect_error("editor.ui.dialog({title = 'Dialog title', height = -1})", editor.ui.dialog, {title = "Dialog title", height = -1})
                 expect_error("editor.ui.dialog({title = 'Dialog title', resizable = 1})", editor.ui.dialog, {title = "Dialog title", resizable = 1})
+                expect_error("editor.ui.check_box({indeterminate = 1})", editor.ui.check_box, {indeterminate = 1})
                 expect_error("editor.ui.tab({})", editor.ui.tab, {})
 
                 -- editor.ui.show_dialog(dialog)

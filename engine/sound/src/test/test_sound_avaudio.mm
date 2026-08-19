@@ -247,6 +247,23 @@ namespace
     }
 }
 
+#if TARGET_OS_IPHONE
+extern "C" int dmSoundTestConfigureIOSAudioSessionForPlayback()
+{
+    AVAudioSession* session = [AVAudioSession sharedInstance];
+    NSError* error = nil;
+    if (![session setCategory:AVAudioSessionCategoryPlayback error:&error])
+    {
+        return -1;
+    }
+    if (![session setActive:YES error:&error])
+    {
+        return -1;
+    }
+    return 0;
+}
+#endif
+
 extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart()
 {
     FakeAVAudioRuntimeScope fake_avaudio_runtime;

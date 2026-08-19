@@ -112,6 +112,14 @@ $ext-line-height: 26px;
             &:focused > .box { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
         }
     }
+    &-radio-button {
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-label-padding: 0 0 0 $ext-spacing-small;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+    }
     &-text-field {
         -fx-min-height: $ext-line-height;
         -fx-max-height: $ext-line-height;

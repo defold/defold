@@ -33,6 +33,9 @@ struct ShaderCompilerOptionsJNI {
     jfieldID no420PackExtension;
     jfieldID glslEmitUboAsPlainUniforms;
     jfieldID glslEs;
+    jfieldID externalCompilerPath;
+    jfieldID externalCompilerArgs;
+    jfieldID rootSignatureOverride;
 };
 struct ResourceTypeJNI {
     jclass cls;

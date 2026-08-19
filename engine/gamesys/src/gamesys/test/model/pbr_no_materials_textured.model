@@ -1,0 +1,15 @@
+name: "pbr_no_materials_textured"
+mesh: "/model/several_meshes.glb"
+material: "/model/pbr.material"
+materials {
+  name: "default"
+  material: "/model/pbr.material"
+  textures {
+    sampler: "PbrMetallicRoughness_baseColorTexture"
+    texture: "/model/texture_valid_png.png"
+  }
+  textures {
+    sampler: "PbrMetallicRoughness_metallicRoughnessTexture"
+    texture: "/model/texture_valid_png.png"
+  }
+}

@@ -63,7 +63,7 @@ function(sdk_apply_header_test_settings target)
       -mmacosx-version-min=${SDK_VERSION_MACOSX_MIN}
       -target ${_sdk_test_arch}-apple-darwin19)
   elseif(TARGET_PLATFORM MATCHES "ios")
-    target_compile_definitions(${target} PRIVATE DM_PLATFORM_IOS DM_HOSTFS=\"\")
+    target_compile_definitions(${target} PRIVATE DM_PLATFORM_IOS DM_NO_SYSTEM_FUNCTION DM_HOSTFS=\"\")
   elseif(TARGET_PLATFORM MATCHES "android")
     target_compile_definitions(${target} PRIVATE ANDROID DM_HOSTFS=\"\")
     set(_sdk_android_ndk "${ANDROID_NDK}")

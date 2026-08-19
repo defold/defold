@@ -214,7 +214,15 @@
   (if (g/error? build-targets)
     {:error build-targets}
     (let [build-dir (workspace/build-path workspace)]
-      (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 5 true) 5)))))
+      (pipeline/build!
+        build-targets
+        build-dir
+        old-artifact-map
+        evaluation-context
+        (progress/nest-render-progress
+          render-progress!
+          (progress/make localization/empty-message 10 5 true)
+          5)))))
 
 (defn build-project! [project node-id old-artifact-map opts evaluation-context]
   (let [workspace (project/workspace project evaluation-context)

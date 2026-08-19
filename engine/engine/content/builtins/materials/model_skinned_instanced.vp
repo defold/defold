@@ -15,7 +15,7 @@ in mediump vec4 bone_indices;
 // instanced rendering is automatically triggered.
 // To read more about instancing in Defold, navigate to
 // https://defold.com/manuals/material/#instancing
-in mediump mat4 mtx_world;
+in highp mat4 mtx_world;
 in mediump mat4 mtx_normal;
 in highp vec4 animation_data;
 
@@ -37,11 +37,12 @@ uniform vs_uniforms
 void main()
 {
     vec4 skinned_position = get_skinned_position(position);
+    vec3 skinned_normal = get_skinned_normal(normal);
     vec4 p = mtx_view * mtx_world * vec4(skinned_position.xyz, 1.0);
     var_light = mtx_view * vec4(light.xyz, 1.0);
     var_view = mtx_view;
     var_position = p;
     var_texcoord0 = texcoord0;
-    var_normal = normalize((mtx_normal * vec4(normal, 0.0)).xyz);
+    var_normal = normalize((mtx_normal * vec4(skinned_normal, 0.0)).xyz);
     gl_Position = mtx_proj * p;
 }

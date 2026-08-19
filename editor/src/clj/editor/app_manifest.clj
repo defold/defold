@@ -26,7 +26,7 @@
 
 (def windows #{:x86-win32 :x86_64-win32})
 
-(def android #{:armv7-android :arm64-android})
+(def android #{:armv7-android :arm64-android :x86_64-android})
 
 (def ios #{:armv7-ios :arm64-ios :x86_64-ios})
 
@@ -37,16 +37,20 @@
 (def vulkan
   #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     :arm64-ios})
 
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
+
+(def vulkan-ios #{:arm64-ios})
+
+(def metal-ios #{:arm64-ios :x86_64-ios})
 
 (def all-platforms
   #{;; ios
     :armv7-ios :arm64-ios :x86_64-ios
     ;; android
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     ;; osx
     :x86_64-osx :arm64-osx
     ;; linux
@@ -77,8 +81,10 @@
     "font"
     "font_skribidi"
     "gamesys"
+    "gamesys_gui"
     "gamesys_model"
     "gamesys_model_null"
+    "gamesys_particle"
     "gamesys_rig"
     "gamesys_rig_null"
     "graphics"
@@ -93,6 +99,8 @@
     "graphics_vulkan"
     "graphics_webgpu"
     "graphics_webgpu_wagyu"
+    "gui"
+    "gui_null"
     "hid"
     "hid_null"
     "image"
@@ -108,6 +116,7 @@
     "mbedtls_noasan"
     "model"
     "particle"
+    "particle_null"
     "physics"
     "physics_2d"
     "physics_2d_defold"
@@ -127,7 +136,6 @@
     "record"
     "record_null"
     "render"
-    "render_font_default"
     "resource"
     "rig"
     "rig_null"
@@ -494,6 +502,24 @@
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
 
+(def gui-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_gui" "gui"])
+      (libs-toggles all-platforms ["gui_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeGui" "ResourceTypeGuiScript" "ComponentTypeGui"]))))
+
+(def particle-fx-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_particle" "particle"])
+      (libs-toggles all-platforms ["particle_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeParticleFX" "ComponentTypeParticleFX" "ScriptLibParticleFX"]))))
+
+(def tilemap-setting
+  (make-check-box-setting
+    (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeTileMap" "ComponentTypeTileMap" "ScriptLibTileMap"])))
+
 (def sound-decoder-wav-setting
   (make-check-box-setting
     (concat
@@ -538,7 +564,8 @@
 (def use-android-support-lib-setting
   (make-check-box-setting
     [(boolean-toggle :armv7-android :jetifier false)
-     (boolean-toggle :arm64-android :jetifier false)]))
+     (boolean-toggle :arm64-android :jetifier false)
+     (boolean-toggle :x86_64-android :jetifier false)]))
 
 (def physics-setting
   ;; by default, legacy 2d and 3d are included in `physics` lib
@@ -591,37 +618,26 @@
     :model))
 
 
-(def vulkan-toggles
-  (concat
-    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
-    (libs-toggles android ["graphics_vulkan"])
-    (libs-toggles windows ["graphics_vulkan" "vulkan"])
-    (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
-    (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
+(def generic-vulkan
+  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
-(def vulkan-toggles-no-android
+(def generic-vulkan-toggles
   (concat
     (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
     (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles (disj vulkan :armv7-android :arm64-android) :symbols ["GraphicsAdapterVulkan"])))
+    (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
 
 (def graphics-setting
   (make-choice-setting
     :vulkan (concat
-              vulkan-toggles-no-android
-              (exclude-libs-toggles (disj vulkan :armv7-android :arm64-android) ["graphics"])
-              (generic-contains-toggles (disj vulkan :arm64-linux :armv7-android :arm64-android) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              generic-vulkan-toggles
+              (exclude-libs-toggles generic-vulkan ["graphics"])
+              (generic-contains-toggles (disj generic-vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
               [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
-    :both vulkan-toggles-no-android
+    :both generic-vulkan-toggles
     :open-gl))
 
 (def open-gl-android-toggles
@@ -660,20 +676,98 @@
     :vulkan vulkan-android-toggles
     :both))
 
+(def apple-graphics-choice-options
+  [[:open-gl "OpenGL"]
+   [:metal "Metal"]
+   [:vulkan "Vulkan"]
+   [:open-gl-metal "OpenGL & Metal"]
+   [:open-gl-vulkan "OpenGL & Vulkan"]])
+
 (def open-gl-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics" "platform"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
     (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
 
+(def explicit-vulkan-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"])
+    (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-vulkan-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"])))
+
+(def metal-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics_metal"])
+    (generic-contains-toggles vulkan-osx :engineLibs ["platform"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterMetal"])
+    (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-metal-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics_metal"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterMetal"])))
+
+(def exclude-open-gl-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
 (def graphics-setting-osx
   (make-choice-setting
-    :open-gl (concat
-               open-gl-osx-toggles
-               (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
-               (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"]))
-    :both open-gl-osx-toggles
+    :open-gl (concat open-gl-osx-toggles exclude-metal-osx-toggles exclude-vulkan-osx-toggles)
+    :metal (concat metal-osx-toggles exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles)
+    :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
+    :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
+    :open-gl-vulkan (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
     :vulkan))
+
+(def open-gl-ios-toggles [])
+
+(def explicit-vulkan-ios-toggles
+  (concat
+    (libs-toggles vulkan-ios ["graphics_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-ios :symbols ["GraphicsAdapterVulkan"])
+    (generic-contains-toggles vulkan-ios :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-vulkan-ios-toggles
+  (concat
+    (exclude-libs-toggles vulkan-ios ["graphics_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-ios :excludeSymbols ["GraphicsAdapterVulkan"])))
+
+(def metal-ios-toggles
+  (concat
+    (libs-toggles metal-ios ["graphics_metal"])
+    (generic-contains-toggles metal-ios :symbols ["GraphicsAdapterMetal"])
+    (generic-contains-toggles metal-ios :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-metal-ios-toggles
+  (concat
+    (exclude-libs-toggles metal-ios ["graphics_metal"])
+    (generic-contains-toggles metal-ios :excludeSymbols ["GraphicsAdapterMetal"])))
+
+(def exclude-open-gl-vulkan-ios-toggles
+  (concat
+    (exclude-libs-toggles vulkan-ios ["graphics"])
+    (generic-contains-toggles vulkan-ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
+(def exclude-open-gl-metal-ios-toggles
+  (concat
+    (exclude-libs-toggles metal-ios ["graphics"])
+    (generic-contains-toggles metal-ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
+(def graphics-setting-ios
+  (make-choice-setting
+    :open-gl (concat exclude-metal-ios-toggles exclude-vulkan-ios-toggles)
+    :metal (concat metal-ios-toggles exclude-open-gl-metal-ios-toggles exclude-vulkan-ios-toggles)
+    :vulkan (concat explicit-vulkan-ios-toggles exclude-open-gl-vulkan-ios-toggles exclude-metal-ios-toggles)
+    :open-gl-metal (concat open-gl-ios-toggles metal-ios-toggles exclude-vulkan-ios-toggles)
+    :open-gl-vulkan (concat open-gl-ios-toggles explicit-vulkan-ios-toggles exclude-metal-ios-toggles)
+    :open-gl))
 
 (def webgpu-toggles
   (concat
@@ -719,6 +813,7 @@
                   ;; android
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]
+                  [:x86_64-android platform-pattern]
                   ;; osx
                   [:arm64-osx platform-pattern]
                   [:x86_64-osx platform-pattern]
@@ -797,6 +892,24 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-gui g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-gui))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-gui))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter gui-setting))
+            (set (setting-property-setter gui-setting)))
+  (property exclude-particle-fx g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter particle-fx-setting))
+            (set (setting-property-setter particle-fx-setting)))
+  (property exclude-tilemap g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-tilemap))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-tilemap))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter tilemap-setting))
+            (set (setting-property-setter tilemap-setting)))
   (property exclude-sound-decoder-wav g/Any
             (dynamic label (properties/label-dynamic :appmanifest :exclude-sound-decoder-wav))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-sound-decoder-wav))
@@ -864,11 +977,16 @@
             (dynamic label (properties/label-dynamic :appmanifest :graphics-osx))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:vulkan "Vulkan"]
-                                                        [:open-gl "OpenGL"]
-                                                        [:both "OpenGL & Vulkan"]]}))
+                                              :options apple-graphics-choice-options}))
             (value (setting-property-getter graphics-setting-osx))
             (set (setting-property-setter graphics-setting-osx)))
+  (property graphics-ios g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-ios))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-ios))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options apple-graphics-choice-options}))
+            (value (setting-property-getter graphics-setting-ios))
+            (set (setting-property-setter graphics-setting-ios)))
   (property graphics-android g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics-android))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-android))
@@ -905,4 +1023,4 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
-    :lazy-loaded true))
+    :lazy-loaded false))

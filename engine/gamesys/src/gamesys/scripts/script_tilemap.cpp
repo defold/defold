@@ -16,6 +16,7 @@
 #include <dlib/configfile.h>
 #include <dlib/log.h>
 #include <ddf/ddf.h>
+#include <extension/extension.hpp>
 #include <gameobject/gameobject.h>
 #include <render/render.h>
 #include <script/script.h>
@@ -672,4 +673,14 @@ namespace dmGameSystem
 
         lua_pop(L, 1);
     }
+
+    static dmExtension::Result ScriptTileMapInitialize(dmExtension::Params* params)
+    {
+        ScriptLibContext context;
+        context.m_LuaState = params->m_L;
+        ScriptTileMapRegister(context);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibTileMap, "ScriptTileMap", 0, 0, ScriptTileMapInitialize, 0, 0, 0)
 }

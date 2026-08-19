@@ -113,6 +113,13 @@
                                                                  {:name "cardinality"
                                                                   :types ["string"]
                                                                   :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
+                                                   {:name "active_view"
+                                                    :types ["table"]
+                                                    :doc (str "current active editor view, a table with the following keys:"
+                                                              (lua-completion/args-doc-html
+                                                                [{:name "type"
+                                                                  :types ["string"]
+                                                                  :doc "either <code>\"code\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}]))}
                                                    {:name "argument"
                                                     :types ["table"]
                                                     :doc "the command argument"}]))}
@@ -369,8 +376,14 @@ editor.create_resources({
           :description "Module with functions for creating UI elements in the editor"}
          {:name "editor.ui.open_resource"
           :type :function
-          :description "Open a resource, either in the editor or in a third-party app"
-          :parameters [resource-path-param]}]
+          :description "Open a resource using its primary or selected view, either in the editor or in a third-party app. Code and Text views accept a one-based cursor or range in <code>args</code>: <code>{line = 42}</code>, <code>{line = 42, column = 12}</code>, or <code>{from = {line = 42, column = 12}, to = {line = 43, column = 4}}</code>"
+          :parameters [resource-path-param
+                       {:name "[view]"
+                        :types ["string"]
+                        :doc "View to open: <code>\"code\"</code>, <code>\"text\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}
+                       {:name "[args]"
+                        :types ["any"]
+                        :doc "View-specific open arguments; requires <code>view</code>. Currently supported by Code and Text views."}]}]
         (e/mapcat
           (fn [[enum-id enum-values]]
             (let [id (ui-docs/->screaming-snake-case enum-id)]
@@ -414,7 +427,10 @@ editor.create_resources({
                                       :doc "request body"}
                                      {:name "as"
                                       :types ["string"]
-                                      :doc "response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
+                                      :doc "response body converter, either <code>\"string\"</code> or <code>\"json\"</code>; mutually exclusive with <code>path</code>"}
+                                     {:name "path"
+                                      :types ["string"]
+                                      :doc "destination file path, resolved against project root if relative; mutually exclusive with <code>as</code>"}]))}]
           :returnvalues [{:name "response"
                           :types ["table"]
                           :doc (str "HTTP response, a table with the following keys:"
@@ -427,7 +443,10 @@ editor.create_resources({
                                         :doc "response headers, a table where each key is a lower-cased string, and each value is either a string or an array of strings if the header was repeated"}
                                        {:name "body"
                                         :types ["string" "any" "nil"]
-                                        :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}]))}]}
+                                        :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}
+                                       {:name "path"
+                                        :types ["string" "nil"]
+                                        :doc "resolved absolute destination path, present only after a successful response was written when the <code>path</code> option was provided"}]))}]}
          {:name "http.server"
           :type :module
           :description "Editor's HTTP server-related functionality"}

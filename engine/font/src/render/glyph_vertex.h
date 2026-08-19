@@ -1,0 +1,67 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#ifndef DM_FONT_GLYPH_VERTEX_H
+#define DM_FONT_GLYPH_VERTEX_H
+
+#include <stdint.h>
+
+#include <dlib/vmath.h>
+#include <dmsdk/font/font.h>
+
+enum FontRenderLayerMask
+{
+    FONT_RENDER_LAYER_FACE = 0x1,
+    FONT_RENDER_LAYER_OUTLINE = 0x2,
+    FONT_RENDER_LAYER_SHADOW = 0x4,
+};
+
+struct FontGlyphVertex
+{
+    float m_Position[3];
+    float m_UV[2];
+    float m_FaceColor[4];
+    float m_OutlineColor[4];
+    float m_ShadowColor[4];
+    float m_SdfParams[4];
+    float m_LayerMasks[3];
+};
+
+void FontPackGlyphVertices(FontGlyph*              glyph,
+                           float                   recip_w,
+                           float                   recip_h,
+                           uint32_t                cell_x,
+                           uint32_t                cell_y,
+                           uint32_t                cache_cell_max_ascent,
+                           uint32_t                cache_cell_padding,
+                           uint32_t                layer_count,
+                           uint32_t                layer_mask,
+                           uint32_t                vertex_index,
+                           uint32_t                vertex_layer_stride,
+                           const dmVMath::Matrix4& transform,
+                           float                   x,
+                           float                   y,
+                           const dmVMath::Vector4& face_color,
+                           const dmVMath::Vector4& outline_color,
+                           const dmVMath::Vector4& shadow_color,
+                           float                   sdf_edge_value,
+                           float                   sdf_outline,
+                           float                   sdf_smoothing,
+                           float                   sdf_shadow,
+                           float                   shadow_x,
+                           float                   shadow_y,
+                           bool                    metrics_from_ttf,
+                           FontGlyphVertex*        vertices);
+
+#endif // DM_FONT_GLYPH_VERTEX_H

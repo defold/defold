@@ -71,6 +71,22 @@ public class ShaderProgramBuilder extends Builder {
         public ArrayList<ShaderBuildResult> shaderBuildResults;
         public ArrayList<SPIRVReflector>    reflectors = new ArrayList<>();
         public byte[]                       hlslRootSignature;
+        public String                       vertexProgram;
+        public String                       fragmentProgram;
+        public String                       computeProgram;
+
+        public void setShaderSourcePaths(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules) {
+            for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
+                if (shaderModule.resourcePath == null || shaderModule.resourcePath.isEmpty()) {
+                    continue;
+                }
+                switch (shaderModule.type) {
+                    case SHADER_TYPE_VERTEX -> vertexProgram = shaderModule.resourcePath;
+                    case SHADER_TYPE_FRAGMENT -> fragmentProgram = shaderModule.resourcePath;
+                    case SHADER_TYPE_COMPUTE -> computeProgram = shaderModule.resourcePath;
+                }
+            }
+        }
     }
 
     ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modulesDescs = new ArrayList<>();
@@ -223,6 +239,15 @@ public class ShaderProgramBuilder extends Builder {
         shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflectors));
         if (shaderCompileresult.hlslRootSignature != null) {
             shaderDescBuilder.setHlslRootSignature(ByteString.copyFrom(shaderCompileresult.hlslRootSignature));
+        }
+        if (shaderCompileresult.vertexProgram != null) {
+            shaderDescBuilder.setVertexProgram(shaderCompileresult.vertexProgram);
+        }
+        if (shaderCompileresult.fragmentProgram != null) {
+            shaderDescBuilder.setFragmentProgram(shaderCompileresult.fragmentProgram);
+        }
+        if (shaderCompileresult.computeProgram != null) {
+            shaderDescBuilder.setComputeProgram(shaderCompileresult.computeProgram);
         }
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
@@ -533,6 +558,7 @@ public class ShaderProgramBuilder extends Builder {
                 ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
                 transformedDesc.type = old.type;
                 transformedDesc.source = transformResult.output;
+                transformedDesc.resourcePath = old.resourcePath;
                 newDescs.add(transformedDesc);
             }
             shaderDescs = newDescs;
@@ -646,6 +672,7 @@ public class ShaderProgramBuilder extends Builder {
             try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
 
                 IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+                compileOptions.platform = platform;
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
@@ -673,6 +700,7 @@ public class ShaderProgramBuilder extends Builder {
                     throw e;
                 }
             }
+
         }
     }
 }

@@ -41,9 +41,9 @@
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics])
 
-(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
+(namespaces/import-vars [internal.graph explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
@@ -280,7 +280,26 @@
   "Return a vector of flattened transaction steps from a sequence of possibly
   nested sequences of transaction steps."
   [txs]
-  (into [] coll/flatten-xf txs))
+  (letfn [(eager-tx-data-into [result txs]
+            (reduce
+              (fn [result tx]
+                (cond
+                  (nil? tx)
+                  result
+
+                  (it/non-undoable? tx)
+                  (conj result (it/non-undoable (eager-tx-data (it/non-undoable-tx-data tx))))
+
+                  (sequential? tx)
+                  (eager-tx-data-into result tx)
+
+                  :else
+                  (conj result tx)))
+              result
+              txs))]
+    (if (it/non-undoable? txs)
+      (it/non-undoable (eager-tx-data (it/non-undoable-tx-data txs)))
+      (eager-tx-data-into [] txs))))
 
 (defn make-transaction-context [opts]
   (let [system (deref *the-system*)
@@ -289,20 +308,36 @@
         override-id-generator (is/override-id-generator system)
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
-        full-invalidation (:full-invalidation opts)]
+        full-invalidation (:full-invalidation opts false)]
     (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
 
 (defn commit-tx-result!
-  [tx-result transact-opts]
+  [tx-result transact-opts pre-tx-graphs]
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
-    (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))
+    (let [post-tx-graphs (get-in tx-result [:basis :graphs])
+          modified-post-tx-graphs (is/modified-graph-states pre-tx-graphs post-tx-graphs)
+          undo-key (or (:undo-key transact-opts) :undo/global)
+          {:keys [label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
+      (swap! *the-system* is/merge-graphs modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes))
     (when (:full-invalidation transact-opts)
       (clear-system-cache!))
     nil))
 
 (defn transact
   "Runs a transaction against the graph system.
+
+  Regarding undo:
+  It is the users responsibility to ensure undoable changes that touch the same
+  subjects are put on the same undo stack. For example, if node creation is
+  undoable, actions that establish connections to the created nodes should go on
+  the same undo stack. Otherwise, the connections could linger after undoing the
+  creation of the nodes. The connections are owned by the target node, so making
+  connections *from* a node can be non-undoable or use a different undo stack
+  from the node creation. However, the source node must exist whenever the
+  connection stack is replayed. Property changes must share the stack used for
+  node creation if the creation can be undone, since redoing the creation
+  restores the property state captured when the node was created.
 
   Args:
     opts    optional map with transaction settings:
@@ -317,10 +352,15 @@
                 tracking and uses full invalidation instead of incremental
                 updates. The system cache is cleared automatically after
                 commit, but older evaluation contexts may still be stale and
-                must not be written back into the cache. Undo history is not
-                tracked accurately in this mode, so callers that need
-                consistent undo semantics must reset or otherwise manage
-                history explicitly.
+                must not be written back into the cache.
+
+              :undoable
+                Defaults to true. When false, commits graph changes without
+                appending the realized TransactionChanges to the undo stack.
+
+              :undo-key
+                Defaults to :undo/global. The undo stack where realized
+                TransactionChanges are appended.
 
               :tx-data-context-map
                 Initial transaction data context map. The final value is
@@ -337,14 +377,12 @@
     :status                :empty if no transaction steps completed, otherwise
                            :ok
     :basis                 transaction basis after applying the transaction
-    :graphs-modified       modified graph ids, most useful when full
-                           invalidation is disabled
     :nodes-added           added node ids
-    :nodes-modified        modified node ids when full invalidation is
-                           disabled
     :nodes-deleted         deleted nodes by node id
     :outputs-modified      modified endpoints when full invalidation is
                            disabled
+    :undoable-changes      realized TransactionChanges that can be replayed for
+                           undo and redo
     :label                 transaction label, if any
     :sequence-label        transaction sequence label, if any
     :tx-data-context-map   final transaction context map
@@ -366,27 +404,65 @@
    ;; when strict evaluation-context scope checks are enabled.
    (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
          transaction-context (make-transaction-context opts)
+         pre-tx-graphs (it/ctx-graphs transaction-context)
+         undoable-changes (when (:undoable opts true)
+                            (transient []))
          tx-result (do-strict-evaluation-context-scope-body
-                     (it/transact* transaction-context txs))]
-     (commit-tx-result! tx-result opts)
+                     (it/transact* transaction-context undoable-changes txs))]
+     (commit-tx-result! tx-result opts pre-tx-graphs)
      tx-result)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
 
+(defn non-undoable
+  "Marks a sequence of transaction steps so its effects are applied, but its
+  realized TransactionChanges are omitted from undo."
+  ([tx-data]
+   [(it/non-undoable tx-data)])
+  ([tx-data & more]
+   [(it/non-undoable (concat tx-data more))]))
+
+(defn- flattened-tx-data-into
+  [result txs]
+  (reduce
+    (fn [result tx]
+      (cond
+        (nil? tx)
+        result
+
+        (it/non-undoable? tx)
+        (flattened-tx-data-into result (it/non-undoable-tx-data tx))
+
+        (sequential? tx)
+        (flattened-tx-data-into result tx)
+
+        :else
+        (conj result tx)))
+    result
+    txs))
+
+(defn- flattened-tx-data
+  [txs]
+  (if (it/non-undoable? txs)
+    (flattened-tx-data (it/non-undoable-tx-data txs))
+    (flattened-tx-data-into [] txs)))
+
 (defn tx-data?
   "Returns true if the value is a (possibly nested) sequence of transaction
   steps."
   [value]
-  (and (seqable? value)
-       (coll/reduce-> value
-         false
-         coll/flatten-xf
-         (fn [_ item]
-           (if (it/tx-step? item)
-             true
-             (reduced false))))))
+  (if (it/non-undoable? value)
+    (tx-data? (it/non-undoable-tx-data value))
+    (and (seqable? value)
+         (reduce
+           (fn [_ item]
+             (if (it/tx-step? item)
+               true
+               (reduced false)))
+           false
+           (flattened-tx-data value)))))
 
 (defn tx-data-step-types
   "Given a sequence of possibly nested transaction steps, returns a sequence of
@@ -394,31 +470,28 @@
   tests."
   [txs]
   (sequence
-    (comp coll/flatten-xf
-          (map it/tx-step-type))
-    txs))
+    (map it/tx-step-type)
+    (flattened-tx-data txs)))
 
 (defn tx-data-added-arcs
   "Given a sequence of possibly nested transaction steps, returns a sequence of
   Arcs that will be added by any encountered :tx-step/connect steps."
   [txs]
   (sequence
-    (comp coll/flatten-xf
-          (keep it/tx-step-added-arc))
-    txs))
+    (keep it/tx-step-added-arc)
+    (flattened-tx-data txs)))
 
 (defn tx-data-added-nodes
   "Given a sequence of possibly nested transaction steps, returns a sequence of
-  Nodes that will be added by any encountered :tx-step/add-node steps."
+  Nodes that will be added by any encountered :tx-step/add-nodes steps."
   [txs]
   (sequence
-    (comp coll/flatten-xf
-          (keep it/tx-step-added-node))
-    txs))
+    (mapcat it/tx-step-added-nodes)
+    (flattened-tx-data txs)))
 
 (defn tx-data-added-node-ids
   "Given a sequence of possibly nested transaction steps, returns a sequence of
-  node-ids that will be added by any encountered :tx-step/add-node steps."
+  node-ids that will be added by any encountered :tx-step/add-nodes steps."
   [txs]
   (map gt/node-id
        (tx-data-added-nodes txs)))
@@ -430,11 +503,11 @@
   (and (map? x)
        (contains? x :status)
        (contains? x :basis)
-       (contains? x :graphs-modified)
+       (contains? x :undoable-changes)
        (contains? x :nodes-added)))
 
 (defn tx-nodes-added
- "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
+  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]
   (:nodes-added tx-result))
 
@@ -442,11 +515,6 @@
   "Returns the final basis from the result of a transaction given a tx-result"
   [tx-result]
   (:basis tx-result))
-
-(defn pre-transaction-basis
-  "Returns the original, starting basis from the result of a transaction given a tx-result"
-  [tx-result]
-  (:original-basis tx-result))
 
 (defn migrated-node-ids
   "Returns the set of node-ids that were flagged as migrated from the result of a transaction given a tx-result."
@@ -575,6 +643,9 @@
     (dynamic _label_ _evaluator_)
     Define a dynamic attribute of the property. The label is a symbol. The evaluator is an fnk like the getter.
 
+    (static _label_ _value_)
+    Define a static attribute of the property. The label is a symbol. Static attributes are stored in the node type definition and are available without constructing a node.
+
     (set (fn [evaluation-context self old-value new-value]))
     Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.
 
@@ -646,11 +717,12 @@
     `(do
        ~@type-regs
        ~@fn-defs
-       (defn ~runtime-definer [] ~node-type-def)
-       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-       ~@derivations)))
-
-
+       (let [~'node-type-def ~node-type-def]
+         (defn ~runtime-definer [] ~'node-type-def)
+         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+         ~@derivations
+         (in/verify-property-defaults ~'node-type-def)
+         ~symb))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
@@ -681,16 +753,16 @@
         ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~graph-id))]
     `(let [~@(interleave locals ids)]
        (concat
-        ~@(map
-           (fn [ctor id]
-             (list `it/new-node
-                   (if (sequential? ctor)
-                     (if (= 2 (count ctor))
-                       `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
-                       `(construct ~@ctor :_node-id ~id))
-                     `(construct  ~ctor :_node-id ~id))))
-           ctors locals)
-        ~@body-exprs))))
+         (it/add-nodes
+           [~@(map (fn [ctor id]
+                     (if (sequential? ctor)
+                       (if (= 2 (count ctor))
+                         `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
+                         `(construct ~@ctor :_node-id ~id))
+                       `(construct  ~ctor :_node-id ~id)))
+                   ctors
+                   locals)])
+         ~@body-exprs))))
 
 (defn operation-label
   "Set a human-readable label (MessagePattern or string) to describe the current transaction."
@@ -703,13 +775,6 @@
   [label]
   (it/sequence-label label))
 
-(defn prev-sequence-label [graph-id]
-  (let [sys @*the-system*]
-    (when-let [prev-step (some-> (is/graph-history sys graph-id)
-                                 (is/undo-stack)
-                                 (last))]
-      (:sequence-label prev-step))))
-
 (defn take-node-ids
   "Given a count, returns a realized sequence of claimed, unique node-ids in the
   specified graph."
@@ -717,14 +782,20 @@
   (when (pos? node-id-count)
     (is/take-node-ids @*the-system* graph-id node-id-count)))
 
-(def add-node
+(defn add-node
   "Returns the transaction step for adding a node to the graph. The node will
   typically have been constructed beforehand using the construct function.
 
   Example:
 
   `(transact (add-node (construct SimpleTestNode)))`"
-  it/new-node)
+  [node]
+  (it/add-nodes [node]))
+
+(def add-nodes
+  "Returns the transaction step for adding nodes to the graph. The nodes will
+  typically have been constructed beforehand using the construct function."
+  it/add-nodes)
 
 (defn- construct-node-with-id
   [graph-id node-type args]
@@ -744,7 +815,7 @@
                (if (= 1 (count args))
                  (first args)
                  (apply assoc {} args)))]
-    (it/new-node (construct-node-with-id graph-id node-type args))))
+    (it/add-nodes [(construct-node-with-id graph-id node-type args)])))
 
 (defn make-node!
   "Creates the transaction step and runs it in a transaction, returning the resulting node.
@@ -765,6 +836,12 @@
   [node-id]
   (assert node-id)
   (it/delete-node node-id))
+
+(defn delete-nodes
+ "Returns the transaction step for deleting nodes.
+  Needs to be executed within a transact to actually delete the nodes from a graph."
+  [node-ids]
+  (it/delete-nodes node-ids))
 
 (defn delete-node!
   "Creates the transaction step for deleting a node and runs it in a transaction.
@@ -940,7 +1017,7 @@
   (transact (clear-property node-id p)))
 
 (defn update-graph-value [graph-id k f & args]
-  (it/update-graph-value graph-id update (into [k f] args)))
+  (it/update-graph-value graph-id k f args))
 
 (defn set-graph-value
  "Create the transaction step to attach a named value to a graph. It will take effect when the transaction is
@@ -951,7 +1028,7 @@
   `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
   (assert graph-id)
-  (it/update-graph-value graph-id assoc [k v]))
+  (it/update-graph-value graph-id k (constantly v) []))
 
 (defn set-graph-value!
   "Create the transaction step to attach a named value to a graph and applies the transaction.
@@ -1562,47 +1639,52 @@
   (when-some [target-node (gt/node-by-id-at basis target-id)]
     (let [graph-id (gt/node-id->graph-id target-id)
           graph (ig/node-id->graph basis target-id)
+          graph-nodes (:nodes graph)
           graph-tarcs (:tarcs graph)]
       (loop [result []
              node-id target-id
              override-chain '()
              followed-inputs (in/cascade-deletes (gt/node-type target-node))]
-        (let [arcs-by-input-label (graph-tarcs node-id)
-              explicit-arcs (when arcs-by-input-label
-                              (into []
-                                    (comp
-                                      (mapcat arcs-by-input-label)
-                                      (filter (fn [^Arc arc]
-                                                (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
-                                                     (pred basis arc)))))
-                                    followed-inputs))
-              source-node-ids (into []
-                                    (comp
-                                      (map gt/source-id)
-                                      (distinct))
-                                    explicit-arcs)
-              result' (if (zero? (count source-node-ids))
-                        result
-                        (into result
-                              (reduce (fn [source-node-ids override-id]
-                                        (mapv (fn [source-node-id]
-                                                (or (ig/override-of graph source-node-id override-id)
-                                                    source-node-id))
-                                              source-node-ids))
-                                      source-node-ids
-                                      override-chain)))
-              node (ig/node-id->node graph node-id)
-              original-node-id (gt/original node)]
-          (if (nil? original-node-id)
-            result'
-            (recur result'
-                   (long original-node-id)
-                   (conj override-chain (gt/override-id node))
-                   (persistent!
-                     (transduce (map gt/target-label)
-                                disj!
-                                (transient followed-inputs)
-                                explicit-arcs)))))))))
+        (let [node (get graph-nodes node-id)]
+          (if-not node
+            result
+            (let [arc-tables-by-input-label (graph-tarcs node-id)
+                  explicit-arcs (when arc-tables-by-input-label
+                                  (into []
+                                        (comp
+                                          (mapcat (comp ig/arc-table-arcs arc-tables-by-input-label))
+                                          (filter (fn [arc]
+                                                    (let [source-id (gt/source-id arc)]
+                                                      (and (= graph-id (gt/node-id->graph-id source-id))
+                                                           (contains? graph-nodes source-id)
+                                                           (pred basis arc))))))
+                                        followed-inputs))
+                  source-node-ids (into []
+                                        (comp
+                                          (map gt/source-id)
+                                          (distinct))
+                                        explicit-arcs)
+                  result' (if (zero? (count source-node-ids))
+                            result
+                            (into result
+                                  (reduce (fn [source-node-ids override-id]
+                                            (mapv (fn [source-node-id]
+                                                    (or (ig/override-of graph source-node-id override-id)
+                                                        source-node-id))
+                                                  source-node-ids))
+                                          source-node-ids
+                                          override-chain)))
+                  original-node-id (gt/original node)]
+              (if (nil? original-node-id)
+                result'
+                (recur result'
+                       (long original-node-id)
+                       (conj override-chain (gt/override-id node))
+                       (persistent!
+                         (transduce (map gt/target-label)
+                                    disj!
+                                    (transient followed-inputs)
+                                    explicit-arcs)))))))))))
 
 (defn- input-traverse
   [basis pred root-ids]
@@ -1764,8 +1846,8 @@
                                   external-refs {}}}]
    (let [deserializer  (partial deserializer basis graph-id)
          nodes         (map deserializer (:nodes fragment))
-         new-nodes     (remove #(gt/node-by-id-at basis (gt/node-id %)) nodes)
-         node-txs      (vec (mapcat it/new-node new-nodes))
+         new-nodes     (into [] (remove #(gt/node-by-id-at basis (gt/node-id %))) nodes)
+         node-txs      (it/add-nodes new-nodes)
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
          deserialize-dictionary (into id-dictionary external-refs)
@@ -1988,15 +2070,15 @@
       (clear-system-cache!))))
 
 (defn make-graph!
-  "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
-  options are provided, the history ability is false and the volatility is 0
+  "Create a new graph in the system with an optional value of `:volatility`. If no
+  options are provided, the volatility is 0
 
   Example:
 
-  `(make-graph! :history true :volatility 1)`"
-  [& {:keys [history volatility] :or {history false volatility 0}}]
+  `(make-graph! :volatility 1)`"
+  [& {:keys [volatility] :or {volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+        s (swap! *the-system* is/attach-graph g)]
     (:last-graph s)))
 
 (defn last-graph-added
@@ -2010,70 +2092,83 @@
   (is/graph-time @*the-system* graph-id))
 
 (defn delete-graph!
-  "Given a `graph-id`, deletes it from the system
+  "Given a `graph-id`, deletes it from the system. It is assumed that there are
+  no changes on the undo stack that operate on the deleted graph. Otherwise,
+  calling g/undo! after g/delete-graph! will likely cause runtime errors.
 
   Example:
 
   ` (delete-graph! agraph-id)`"
   [graph-id]
   (when-let [graph (is/graph @*the-system* graph-id)]
-    (transact (mapv it/delete-node (ig/node-ids graph)))
+    (transact {:undoable false} (mapv it/delete-node (ig/node-ids graph)))
     (swap! *the-system* is/detach-graph graph-id)
     nil))
 
 (defn undo!
-  "Given a `graph-id` resets the graph back to the last _step_ in time.
+  "Reverts the changes from the top undo step and moves it to the redo stack.
 
   Example:
-
-  (undo gid)"
-  [graph-id]
-  (swap! *the-system* is/undo-history graph-id)
+  `(undo! undo-key)`"
+  [undo-key]
+  (swap! *the-system* is/undo-action undo-key)
   nil)
 
 (defn has-undo?
-  "Returns true/false if a `graph-id` has an undo available"
-  [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
-    (not (empty? undo-stack))))
+  "Returns true/false if an undo is available"
+  [undo-key]
+  (not (coll/empty? (is/undo-stack (is/maybe-undo @*the-system* undo-key)))))
 
 (defn undo-stack-count
-  "Returns the number of entries in the undo stack for `graph-id`"
-  [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
+  "Returns the number of entries in the undo stack"
+  [undo-key]
+  (let [undo-stack (is/undo-stack (is/maybe-undo @*the-system* undo-key))]
     (count undo-stack)))
 
-(defn redo!
-  "Given a `graph-id` reverts an undo of the graph
+(defn undo-stack-revision
+  "Returns a monotonically increasing revision that changes whenever the undo
+  or redo state for the undo-key changes."
+  [undo-key]
+  (is/undo-stack-revision @*the-system* undo-key))
 
-  Example: `(redo gid)`"
-  [graph-id]
-  (swap! *the-system* is/redo-history graph-id)
+(defn undo-stack-revisions
+  "Returns a map of undo-key -> undo-stack-revision that includes all undo
+  stacks. Useful when you need to know if there has been changes to any of the
+  undo stacks."
+  []
+  (is/undo-stack-revisions @*the-system*))
+
+(defn redo!
+  "Reapplies the changes from the top redo step and moves it to the undo stack.
+
+  Example:
+  `(redo! undo-key)`"
+  [undo-key]
+  (swap! *the-system* is/redo-action undo-key)
   nil)
 
 (defn has-redo?
-  "Returns true/false if a `graph-id` has an redo available"
-  [graph-id]
-  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph-id))]
-    (not (empty? redo-stack))))
+  "Returns true/false if a redo is available"
+  [undo-key]
+  (not (coll/empty? (is/redo-stack (is/maybe-undo @*the-system* undo-key)))))
 
 (defn reset-undo!
-  "Given a `graph-id`, clears all undo history for the graph
+  "Clears undo
 
   Example:
-  `(reset-undo! gid)`"
-  [graph-id]
-  (swap! *the-system* is/clear-history graph-id)
+  `(reset-undo! undo-key)`"
+  [undo-key]
+  (swap! *the-system* is/clear-undo undo-key)
   nil)
 
 (defn cancel!
-  "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
-  if they had never happened in the history.
+  "Given an `undo-key` and a `sequence-id` reverts all undoable changes that were
+  made using that `sequence-id`.
 
   Example:
-  `(cancel! gid :a)`"
-  [graph-id sequence-id]
-  (swap! *the-system* is/cancel graph-id sequence-id)
+  `(cancel! undo-key :a)`"
+  [undo-key sequence-id]
+  (swap! *the-system* is/cancel-undo undo-key sequence-id)
   nil)
 
 (defn evaluation-context?

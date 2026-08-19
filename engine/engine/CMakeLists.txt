@@ -11,6 +11,7 @@ set(ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(ENGINE_SRC_DIR "${ENGINE_ROOT}/src")
 set(ENGINE_PROTO_DIR "${ENGINE_ROOT}/proto")
 set(ENGINE_CONTENT_DIR "${ENGINE_ROOT}/content")
+set(ENGINE_FONT_CONTENT_DIR "${DEFOLD_HOME}/engine/font/content")
 set(ENGINE_DDF_GENERATED_DEPENDENCIES gameobject)
 set(ENGINE_SERVICE_DEPENDENCIES gameobject gamesys gui)
 set(ENGINE_DEPENDENCIES
@@ -29,7 +30,6 @@ set(ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES
   resource)
 set(ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES
   render
-  render_font_default
   script
   extension
   input
@@ -118,6 +118,8 @@ file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/builtins/*"
   "${ENGINE_CONTENT_DIR}/materials/*"
   "${ENGINE_CONTENT_DIR}/profiler.html")
+file(GLOB_RECURSE ENGINE_FONT_CONTENT_SOURCES CONFIGURE_DEPENDS
+  "${ENGINE_FONT_CONTENT_DIR}/builtins/*")
 
 set(ENGINE_BUILTINS_WORK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/content-work")
 set(ENGINE_BUILTINS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/content")
@@ -125,19 +127,30 @@ set(ENGINE_BUILTINS_COMPILED_DIR "${ENGINE_BUILTINS_WORK_ROOT}/build/default/bui
 set(ENGINE_BUILTINS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/content/builtins.stamp")
 defold_get_graphics_symbols(ENGINE_GRAPHICS_SYMBOLS "${TARGET_PLATFORM}")
 set(ENGINE_SHADER_OUTPUT_ARGS)
-if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+# Builtin content is embedded into engine.lib before extender/app-manifest
+# relinking happens, so include shader languages for adapters that a platform
+# can select later even if they are not in the default engine symbol set.
+if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
-if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios|x86_64-win32|x86-win32|x86_64-linux|arm64-linux|armv7-android|arm64-android|x86_64-android)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
-if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+# App manifests can relink web engines to WebGPU even when the default
+# CMake graphics symbols only include the WebGL adapter.
+if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output wgsl)
 endif()
-if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-win32)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
 endif()
-if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output msl)
 endif()
 add_custom_command(
@@ -149,6 +162,7 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
     "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
+    --font-content-root "${ENGINE_FONT_CONTENT_DIR}"
     --work-root "${ENGINE_BUILTINS_WORK_ROOT}"
     --output-root "${ENGINE_BUILTINS_OUTPUT_DIR}"
     --stamp "${ENGINE_BUILTINS_STAMP}"
@@ -157,7 +171,7 @@ add_custom_command(
     --platform "${TARGET_PLATFORM}"
     ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
-  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES}
+  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
   VERBATIM)
 add_custom_target(engine_builtins
@@ -360,14 +374,16 @@ endif()
 
 set(ENGINE_RESOURCE_SYMBOLS
   ResourceTypeGameObject ResourceTypeCollection ResourceTypeScript ResourceTypeLua
-  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript
+  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript ResourceTypeParticleFX ResourceTypeTileMap
   ResourceTypeOgg ResourceTypeOpus ResourceTypeWav ResourceTypeFont ResourceTypeTTF
   ResourceProviderFile ResourceProviderArchive ResourceProviderZip ResourceTypeLight)
 set(ENGINE_COMPONENT_SYMBOLS
-  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight)
+  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight
+  ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont)
+  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptLibParticleFX ScriptLibTileMap)
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -424,7 +440,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   if(graphics_mode STREQUAL "null")
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
       ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
-    if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+    if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
     endif()
   else()
@@ -454,12 +470,12 @@ function(engine_configure_executable target variant engine_lib engine_service_li
 endfunction()
 
 set(ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/main.cpp")
-if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
   list(APPEND ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/android_main.cpp")
 endif()
 
 function(engine_add_binary target)
-  if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+  if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
     # NativeActivity loads Android engines with dlopen/dlsym, so these must be
     # true shared libraries rather than PIE executables renamed to .so files.
     defold_add_library(${target} SHARED ${ARGN})
@@ -478,6 +494,10 @@ set(ENGINE_DMENGINE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_DMENGINE_EXPORTS}" "${ENGINE_DMENGINE_SYMBOLS}")
 engine_add_binary(dmengine ${ENGINE_MAIN_SOURCES} "${ENGINE_DMENGINE_EXPORTS}")
 engine_configure_executable(dmengine debug engine engine_service graphics "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+defold_xcode_configure_ios_app(dmengine
+  BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
+  VERSION "${ENGINE_VERSION}")
+defold_codesign_target(dmengine darwin/entitlements-macos-debug.plist)
 
 set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -488,10 +508,13 @@ set(ENGINE_RELEASE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmeng
 defold_create_exported_symbols_file("${ENGINE_RELEASE_EXPORTS}" "${ENGINE_RELEASE_SYMBOLS}")
 engine_add_binary(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
 engine_configure_executable(dmengine_release release engine_release engine_service_null graphics "profile_null;profilerext_null" "ProfilerExt")
+defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
   ScriptTypesExt
+  ScriptLibParticleFX
+  ScriptLibTileMap
   GraphicsAdapterNull
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
@@ -500,19 +523,27 @@ set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
 engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+defold_codesign_target(dmengine_headless darwin/entitlements-macos-debug.plist)
 
-if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
   set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES
     PREFIX "lib"
     SUFFIX ".so")
 
+  set(ENGINE_ANDROID_JARS_INSTALL_CODE "
+      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\"")
+  list(LENGTH ENGINE_GRAPHICS_SYMBOLS ENGINE_GRAPHICS_SYMBOLS_COUNT)
+  if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS AND ENGINE_GRAPHICS_SYMBOLS_COUNT GREATER 1)
+    string(APPEND ENGINE_ANDROID_JARS_INSTALL_CODE "
+      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/vkquality.jar\"")
+  endif()
+
   install(CODE "
     set(_dex_dir \"\${CMAKE_INSTALL_PREFIX}/share/java/classes-dex\")
     set(_classes_dex \"\${_dex_dir}/classes.dex\")
-    set(_android_jars
-      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
-      \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
-      \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\")
+    set(_android_jars ${ENGINE_ANDROID_JARS_INSTALL_CODE})
     foreach(_android_jar IN LISTS _android_jars)
       if(NOT EXISTS \"\${_android_jar}\")
         message(FATAL_ERROR \"Android dex input is missing: \${_android_jar}\")
@@ -539,7 +570,7 @@ defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
   LIBRARY DESTINATION bin/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
-if(TARGET_PLATFORM MATCHES "win32")
+if(TARGET_PLATFORM MATCHES "win32|x86_64-xbone")
   foreach(_engine_pdb_target IN ITEMS dmengine dmengine_release dmengine_headless)
     install(FILES "$<TARGET_PDB_FILE:${_engine_pdb_target}>"
       DESTINATION bin/${TARGET_PLATFORM}
@@ -615,6 +646,9 @@ install(FILES
   "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
   DESTINATION content)
 install(DIRECTORY "${ENGINE_CONTENT_DIR}/builtins/"
+  DESTINATION content/builtins
+  PATTERN "connect" EXCLUDE)
+install(DIRECTORY "${ENGINE_FONT_CONTENT_DIR}/builtins/"
   DESTINATION content/builtins)
 
 if(BUILD_TESTS)
@@ -623,9 +657,11 @@ if(BUILD_TESTS)
     OUTPUT "${ENGINE_BOB_ENGINE_JAR}"
     COMMAND "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" package-bob
       --source-root "${ENGINE_CONTENT_DIR}"
+      --font-content-root "${ENGINE_FONT_CONTENT_DIR}"
+      --work-root "${CMAKE_CURRENT_BINARY_DIR}/bob-engine-work"
       --output "${ENGINE_BOB_ENGINE_JAR}"
       --bob-light "${ENGINE_BOB_LIGHT}"
-    DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_CONTENT_SOURCES}
+    DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
     COMMENT "Packaging bob-engine.jar"
     VERBATIM)
   add_custom_target(engine_bob_engine_jar ALL DEPENDS "${ENGINE_BOB_ENGINE_JAR}")

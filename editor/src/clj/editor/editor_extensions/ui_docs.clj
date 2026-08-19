@@ -309,7 +309,8 @@
 
 (def ^:private check-box-specific-props
   [(make-prop :value :coerce coerce/boolean :doc "determines if the checkbox should appear checked")
-   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")])
+   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")
+   (make-prop :indeterminate :coerce coerce/boolean :doc "determines if the checkbox should appear in the mixed state")])
 
 (def ^:private check-box-props
   (into [] cat [check-box-specific-props label-without-color-specific-props input-with-issue-props]))

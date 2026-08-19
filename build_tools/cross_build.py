@@ -19,6 +19,7 @@ import subprocess
 
 
 DEFOLD_PLATFORMS_FILE = '.defold-platforms'
+PLATFORM_SDKS_FILE = os.path.join('share', 'platform.sdks.json')
 
 
 def get_repo_root():
@@ -57,6 +58,42 @@ def get_platform_root(platform):
     platforms = load_platforms_config()
     platform_config = platforms.get(platform, {})
     return platform_config.get('root', '')
+
+
+def get_platform_sdks_path(root):
+    return os.path.join(root, PLATFORM_SDKS_FILE)
+
+
+def load_platform_sdks(path):
+    with open(path, 'r') as f:
+        return json.load(f)
+
+
+def merge_platform_sdks(defold_root, platform):
+    """Merge public platform SDK mappings with the private mapping for platform.
+
+    Private repositories can contain SDK mappings for multiple platforms. A
+    cross build should only expose the mapping for the target platform being
+    built, while keeping all public mappings from the base repository.
+    """
+    platform_sdks = load_platform_sdks(get_platform_sdks_path(defold_root))
+
+    private_root = get_platform_root(platform) if platform else ''
+    if private_root:
+        private_platform_sdks_path = get_platform_sdks_path(private_root)
+        if os.path.exists(private_platform_sdks_path):
+            private_platform_sdks = load_platform_sdks(private_platform_sdks_path)
+            if platform in private_platform_sdks:
+                platform_sdks[platform] = private_platform_sdks[platform]
+
+    return platform_sdks
+
+
+def write_merged_platform_sdks(defold_root, platform, output_path):
+    platform_sdks = merge_platform_sdks(defold_root, platform)
+    with open(output_path, 'w') as f:
+        json.dump(platform_sdks, f, indent=4)
+        f.write('\n')
 
 
 def git_sha1(repo_root, ref = None):

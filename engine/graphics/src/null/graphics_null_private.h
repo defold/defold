@@ -68,16 +68,16 @@ namespace dmGraphics
 
     struct VertexBuffer
     {
+        Buffer   m_Base;
         char*    m_Buffer;
         char*    m_Copy;
-        uint32_t m_Size;
     };
 
     struct IndexBuffer
     {
+        Buffer   m_Base;
         char*    m_Buffer;
         char*    m_Copy;
-        uint32_t m_Size;
     };
 
     struct NullRenderTarget
@@ -141,7 +141,6 @@ namespace dmGraphics
         uint32_t                           m_AsyncProcessingSupport : 1;
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
-        uint32_t                           m_ContextFeatures        : 9;
     };
 }
 

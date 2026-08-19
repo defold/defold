@@ -42,21 +42,10 @@
                        (let [[target-node connections] resource-connections]
                          ;; connect extra resource node outputs directly to target-node (GameProjectNode for instance)
                          (apply project/resource-setter evaluation-context target-node old-value new-value
-                           connections)))))))
+                                connections)))))))
   (input resource resource/Resource)
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
   (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
-
-(defn- resolve-resource-settings [settings value-field resolve-resource-fn]
-  (mapv (fn [setting]
-          (cond-> setting
-                  ;; Resolve string resource values so the form gets typed values.
-                  ;; This covers raw settings without ResourceSettingNodes, and
-                  ;; defaults from metadata merged after load.
-                  (and (= :resource (:type setting))
-                       (string? (get setting value-field)))
-                  (update value-field resolve-resource-fn)))
-        settings))
 
 (defn- type-annotate-settings [settings meta-settings]
   (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
@@ -70,18 +59,17 @@
         (settings-core/settings-with-value)
         (->> (settings-core/sanitize-settings meta-settings))
         (type-annotate-settings meta-settings)
-        (resolve-resource-settings :value resolve-resource))))
+        (settings-core/resolve-resource-settings :value resolve-resource))))
 
 (g/defnk produce-settings-map [^:unsafe _evaluation-context owner-resource meta-info raw-settings resource-settings]
   ;; we use evaluation context to resolve a resource; we only need the resource
   ;; for its path, so it's safe to use it here
   (let [basis (:basis _evaluation-context)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)
-        meta-settings (resolve-resource-settings (:settings meta-info) :default resolve-resource)
-        sanitized-settings (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
-        all-settings (concat (settings-core/make-default-settings meta-settings) sanitized-settings resource-settings)
-        settings-map (settings-core/make-settings-map all-settings)]
-    settings-map))
+        meta-settings (:settings meta-info)]
+    (settings-core/make-settings-map
+      (concat (settings-core/make-default-settings meta-settings)
+              (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
+              resource-settings))))
 
 (defn- set-raw-setting [settings {:keys [path] :as meta-setting} value]
   (settings-core/set-setting settings path (settings-core/render-raw-setting-value meta-setting value)))
@@ -170,7 +158,7 @@
                              (section-title category-name (get-in meta-info [:categories category-name])))}))
 
 (defn get-setting-build-error [setting-value meta-setting label]
-  (if (and (some? setting-value))
+  (when (some? setting-value)
     (let [max-error (when (some? (:maximum meta-setting))
                       (validation/prop-maximum-check? (:maximum meta-setting) setting-value (string/join "." (:path meta-setting))))
           min-error (when (some? (:minimum meta-setting))
@@ -220,8 +208,6 @@
   ;; we use evaluation context to resolve a resource; we only need the resource
   ;; for its path, so it's safe to use it here
   (let [basis (:basis _evaluation-context)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)
-        meta-info (update meta-info :settings resolve-resource-settings :default resolve-resource)
         meta-settings (:settings meta-info)
         sanitized-settings (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
         non-defaulted-setting-paths (into #{}
@@ -274,20 +260,20 @@
 
   (output merged-raw-settings g/Any :cached
           (g/fnk [raw-settings meta-info resource-settings]
-                 (let [meta-settings-map (settings-core/make-meta-settings-map (:settings meta-info))
-                       raw-resource-settings (mapv (fn [setting]
-                                                    (update setting :value
-                                                            #(when %
-                                                               (settings-core/render-raw-setting-value
-                                                                 (meta-settings-map (:path setting))
-                                                                 (resource/resource->proj-path %)))))
-                                                  resource-settings)]
-                   (reduce (fn [raw {:keys [path value]}]
-                             (if (settings-core/get-setting raw path)
-                               (settings-core/set-setting raw path value)
-                               raw))
-                           raw-settings
-                           raw-resource-settings))))
+            (let [meta-settings-map (settings-core/make-meta-settings-map (:settings meta-info))
+                  raw-resource-settings (mapv (fn [setting]
+                                                (update setting :value
+                                                        #(when %
+                                                           (settings-core/render-raw-setting-value
+                                                             (meta-settings-map (:path setting))
+                                                             (resource/resource->proj-path %)))))
+                                              resource-settings)]
+              (reduce (fn [raw {:keys [path value]}]
+                        (if (settings-core/get-setting raw path)
+                          (settings-core/set-setting raw path value)
+                          raw))
+                      raw-settings
+                      raw-resource-settings))))
 
   (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
@@ -301,18 +287,18 @@
             (let [{:keys [ext-meta-info game-project-proj-path->additional-meta-info]} meta-infos
                   project-meta-info (game-project-proj-path->additional-meta-info (resource/proj-path owner-resource))]
               (cond-> raw-meta-info
-                      project-meta-info (settings-core/merge-meta-infos project-meta-info)
-                      (and ext-meta-info (= "project" (resource/type-ext owner-resource))) (settings-core/merge-meta-infos ext-meta-info))))))
+                project-meta-info (settings-core/merge-meta-infos project-meta-info)
+                (and ext-meta-info (= "project" (resource/type-ext owner-resource))) (settings-core/merge-meta-infos ext-meta-info))))))
 
 (defn load-settings-node [project owner-resource-node self resource raw-settings initial-meta-info resource-setting-connections]
   (let [basis (g/now)
         resolve-resource #(workspace/resolve-resource basis resource %)
         meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
-                      (update :settings resolve-resource-settings :default resolve-resource))
+                      (update :settings settings-core/resolve-resource-settings :default resolve-resource))
         meta-settings (:settings meta-info)
         settings (-> (settings-core/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
                      (type-annotate-settings meta-settings)
-                     (resolve-resource-settings :value resolve-resource))
+                     (settings-core/resolve-resource-settings :value resolve-resource))
         resource-setting-paths (set (map :path (filter #(= :resource (:type %)) meta-settings)))]
     (concat
       ;; We retain the actual raw string settings and update these when/if the user changes a setting,
@@ -360,4 +346,4 @@
     :node-type SimpleSettingsResourceNode
     :load-fn (partial load-simple-settings-resource-node meta-info)
     :meta-settings (:settings meta-info)
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

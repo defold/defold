@@ -13,27 +13,31 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-
-
 import sys, subprocess, os, platform
+import test_app_graphics_package_assets_shared
 
-HEADER_TEMPLATE = """
-#ifndef DM_TEST_APP_GRAPHICS_ASSETS
-#define DM_TEST_APP_GRAPHICS_ASSETS
-namespace graphics_assets
-{
-%s
-}
-#endif
-"""
+try:
+    import test_app_graphics_package_assets_vendor
+    sys.modules['test_app_graphics_package_assets_vendor'] = test_app_graphics_package_assets_vendor
+    print("Imported %s from %s" % ('test_app_graphics_package_assets_vendor', test_app_graphics_package_assets_vendor.__file__))
+except ModuleNotFoundError as e:
+    if "No module named 'test_app_graphics_package_assets_vendor'" in str(e):
+        print("Couldn't find test_app_graphics_package_assets_vendor.py. Skipping.")
+        pass
+    else:
+        raise e
+except Exception as e:
+    print("Failed to import test_app_graphics_package_assets_vendor.py:")
+    raise e
 
-def get_file_contents(file_path):
-    f = open(file_path, "rb")
-    src = f.read()
-    buf = []
-    for s in src:
-        buf.append(hex(s))
-    return buf
+if 'test_app_graphics_package_assets_vendor' not in sys.modules:
+    class test_app_graphics_package_assets_vendor(object):
+        @classmethod
+        def is_installed(cls):
+            return False
+        @classmethod
+        def to_vendor(cls):
+            return ""
 
 def to_spirv(buffer_name, file_path, profile):
 
@@ -68,25 +72,26 @@ def to_spirv(buffer_name, file_path, profile):
         file_path
         ])
 
-    buf = get_file_contents(out_path)
+    buf = test_app_graphics_package_assets_shared.get_file_contents(out_path)
     output = "const unsigned char %s[] = {%s};" % (buffer_name, ",".join(buf))
 
     return output
 
 def to_plaintext(buffer_name, file_path):
-	buf = get_file_contents(file_path)
-	output = "const unsigned char %s[] = {%s};" % (buffer_name, ",".join(buf))
-	return output
+    buf = test_app_graphics_package_assets_shared.get_file_contents(file_path)
+    output = "const unsigned char %s[] = {%s};" % (buffer_name, ",".join(buf))
+    return output
 
-def write_header(header_path, assets):
+def write_header(label, header_path, assets):
     asset_lines = "\n".join(assets)
-    header_str = HEADER_TEMPLATE % asset_lines
+    header_str = test_app_graphics_package_assets_shared.HEADER_TEMPLATE % (label, label, asset_lines)
     f = open(header_path, "w")
     f.write(header_str)
     f.close()
 
 if __name__ == '__main__':
     write_header(
+        "GRAPHICS_ASSETS",
         "test_app_graphics_assets.h",
         [to_plaintext("glsl_vertex_program", "test_app_graphics.vs"),
          to_plaintext("glsl_fragment_program", "test_app_graphics.fs"),
@@ -100,3 +105,10 @@ if __name__ == '__main__':
          to_spirv("spirv_compute_program", "test_app_graphics.cp", "comp"),
          to_spirv("spirv_fragment_program_ssbo", "test_app_graphics_ssbo.fs", "frag"),
          to_spirv("spirv_fragment_program_ubo", "test_app_graphics_ubo.fs", "frag")])
+
+    if test_app_graphics_package_assets_vendor.is_installed():
+        write_header(
+            "GRAPHICS_ASSETS_VENDOR",
+            "test_app_graphics_assets_vendor.h",
+            [test_app_graphics_package_assets_vendor.to_vendor("vendor_vertex_program", "test_app_graphics.vs.spv", "vert"),
+             test_app_graphics_package_assets_vendor.to_vendor("vendor_fragment_program", "test_app_graphics.fs.spv", "frag")])

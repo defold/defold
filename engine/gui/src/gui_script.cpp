@@ -37,6 +37,8 @@ extern "C"
 
 namespace dmGui
 {
+    static const dmhash_t GUI_PROP_TEXTURES = dmHashString64("textures");
+
     /*# GUI API documentation
      *
      * GUI core hooks, functions, messages, properties and constants for
@@ -254,6 +256,18 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptInstanceGetUserData(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        uintptr_t user_data = 0;
+        if (scene != 0 && scene->m_Context->m_GetUserDataCallback != 0)
+        {
+            user_data = scene->m_Context->m_GetUserDataCallback(scene);
+        }
+        lua_pushlightuserdata(L, (void*)user_data);
+        return 1;
+    }
+
     static int GuiScriptInstanceResolvePath(lua_State* L)
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
@@ -309,6 +323,7 @@ namespace dmGui
         {"__index",                                     GuiScriptInstance_index},
         {"__newindex",                                  GuiScriptInstance_newindex},
         {dmScript::META_TABLE_GET_URL,                  GuiScriptInstanceGetURL},
+        {dmScript::META_TABLE_GET_USER_DATA,            GuiScriptInstanceGetUserData},
         {dmScript::META_TABLE_RESOLVE_PATH,             GuiScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
@@ -822,7 +837,7 @@ namespace dmGui
      * @name gui.set
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|constant] the property to set
-     * @param value [type:number|vector4|vector3|quaternion] the property to set
+     * @param value [type:number|vector4|vector3|quaternion|nil] the property to set. `nil` is only supported for removing runtime texture mappings with `gui.set(msg.url(), "textures", nil, {key = ...})`.
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:number] index into array property (1 based)
      * - `key` [type:hash] name of internal property
@@ -883,6 +898,18 @@ namespace dmGui
      *    end
      * end
      * ```
+     *
+     * Remove a named runtime texture resource mapping:
+     *
+     * ```lua
+     * local atlas_id = resource.create_atlas("/runtime.texturesetc", atlas_params)
+     * gui.set(msg.url(), "textures", atlas_id, {key = "runtime_texture"})
+     * gui.set_texture(gui.get_node("box"), "runtime_texture")
+     *
+     * -- Later, remove the GUI mapping before releasing the atlas resource.
+     * gui.set(msg.url(), "textures", nil, {key = "runtime_texture"})
+     * resource.release(atlas_id)
+     * ```
      */
     static int LuaSet(lua_State* L)
     {
@@ -893,19 +920,55 @@ namespace dmGui
         dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
 
+        dmGameObject::LuaToPropertyOptionsResult options_result = {};
+
+        if (lua_gettop(L) > 3)
+        {
+            dmGameObject::LuaToPropertyOptions(L, 4, &options_result);
+        }
+
+        if (lua_isnil(L, 3))
+        {
+            if (!dmScript::IsURL(L, 1) || property_hash != GUI_PROP_TEXTURES)
+            {
+                return DM_LUA_ERROR("'gui.set()' only supports nil for gui.set(msg.url(), \"textures\", nil, {key = ...})");
+            }
+
+            dmMessage::URL sender;
+            dmScript::GetURL(L, &sender);
+            dmMessage::URL target;
+            dmScript::ResolveURL(L, 1, &target, &sender);
+            bool is_self = (sender.m_Socket == target.m_Socket) &&
+                           (sender.m_Path == target.m_Path) &&
+                           (sender.m_Fragment == target.m_Fragment);
+            if (!is_self)
+            {
+                return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
+            }
+
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+
+            dmhash_t key = 0;
+            if (dmGameObject::GetPropertyOptionsKey((dmGameObject::HPropertyOptions)&options_result.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
+            {
+                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, instance, target, options_result.m_Options);
+            }
+
+            Result r = DeleteDynamicTexture(scene, key);
+            if (r != RESULT_OK)
+            {
+                return DM_LUA_ERROR("failed to delete texture '%s' (result = %d)", dmHashReverseSafe64(key), r);
+            }
+
+            return 0;
+        }
+
         dmGameObject::PropertyVar property_var;
         dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
 
         if (result != dmGameObject::PROPERTY_RESULT_OK)
         {
             return DM_LUA_ERROR("Property '%s' has an unsupported type", dmHashReverseSafe64(property_hash));
-        }
-
-        dmGameObject::LuaToPropertyOptionsResult options_result = {};
-
-        if (lua_gettop(L) > 3)
-        {
-            dmGameObject::LuaToPropertyOptions(L, 4, &options_result);
         }
 
         if (dmScript::IsURL(L, 1))
@@ -2828,47 +2891,6 @@ namespace dmGui
         int inverted = lua_toboolean(L, 2);
         n->m_Node.m_ClippingInverted = inverted;
         return 0;
-    }
-
-    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break, float leading, float tracking)
-    {
-        dmGui::TextMetrics metrics;
-        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, leading, tracking, &metrics);
-        if (r != RESULT_OK) {
-            luaL_error(L, "Font '%s' is not specified in scene", dmHashReverseSafe64(font_id_hash));
-        }
-
-        lua_createtable(L, 0, 4);
-        lua_pushliteral(L, "width");
-        lua_pushnumber(L, metrics.m_Width);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "height");
-        lua_pushnumber(L, metrics.m_Height);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "max_ascent");
-        lua_pushnumber(L, metrics.m_MaxAscent);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "max_descent");
-        lua_pushnumber(L, metrics.m_MaxDescent);
-        lua_rawset(L, -3);
-    }
-
-    static inline float LuaUtilGetDefaultFloat(lua_State* L, int index, float defaultvalue)
-    {
-        if( lua_isnoneornil(L, index) )
-        {
-            return defaultvalue;
-        }
-        return (float) luaL_checknumber(L, index);
-    }
-
-    static inline bool LuaUtilGetDefaultBool(lua_State* L, int index, bool defaultvalue)
-    {
-        if( lua_isnoneornil(L, index) )
-        {
-            return defaultvalue;
-        }
-        return lua_toboolean(L, index);
     }
 
     /*# gets the x-anchor of a node

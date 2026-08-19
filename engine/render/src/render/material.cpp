@@ -371,7 +371,6 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
         const dmArray<RenderConstant>& constants = material->m_Constants;
-        dmGraphics::HProgram program             = material->m_Program;
 
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)

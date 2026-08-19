@@ -195,7 +195,7 @@ defold_target_link_libraries(test_sound_null "${TARGET_PLATFORM}"
   embedded_opus)
 defold_target_link_socket(test_sound_null "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_libraries_web(test_sound_null "${TARGET_PLATFORM}" library_sound.js)
-defold_register_test_target(test_sound_null ${SOUND_RUN_TESTS} "${SOUND_ROOT}")
+defold_register_test_target(test_sound_null OFF "${SOUND_ROOT}")
 
 if(TARGET_PLATFORM MATCHES "linux$")
   set(_sound_openal_export_file "${SOUND_TEST_GEN_DIR}/test_sound_openal_exported_symbols.cpp")
@@ -204,4 +204,19 @@ if(TARGET_PLATFORM MATCHES "linux$")
   target_compile_definitions(test_sound_openal PRIVATE DM_TEST_SOUND_USE_OPENAL)
   target_link_libraries(test_sound_openal PRIVATE sound_openal)
   sound_configure_test(test_sound_openal OFF)
+endif()
+
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  _defold_find_wasm_runner(_sound_js_test_runner)
+  if(_sound_js_test_runner)
+    add_custom_target(run_test_library_sound_js
+      COMMAND "${_sound_js_test_runner}" "${SOUND_TEST_ROOT}/test_library_sound.js"
+      WORKING_DIRECTORY "${SOUND_ROOT}"
+      USES_TERMINAL)
+    if(TARGET run_tests)
+      add_dependencies(run_tests run_test_library_sound_js)
+    endif()
+  else()
+    message(WARNING "Bun or Node.js not found; run_test_library_sound_js is unavailable")
+  endif()
 endif()

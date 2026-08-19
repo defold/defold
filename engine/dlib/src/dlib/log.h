@@ -73,6 +73,12 @@ uint16_t GetPort();
 bool SetLogFile(const char* path);
 
 /**
+ * Get the number of queued log messages that have not yet been dispatched by
+ * the log thread.
+ */
+uint32_t GetPendingLogCount();
+
+/**
  * iOS specific print function that wraps NSLog to be able to
  * output logging to the device/XCode log.
  *

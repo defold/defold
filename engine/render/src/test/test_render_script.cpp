@@ -829,6 +829,31 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetInvalidSampleCount)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetSampleCountNormalization)
+{
+    const char* script =
+    "function update(self)\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA, width = 1, height = 2, sample_count = 3\n"
+    "    }})\n"
+    "    render.set_render_target(self.rt)\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+    dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget) commands[0].m_Operands[0];
+    ASSERT_EQ(2u, dmGraphics::GetRenderTargetSampleCount(m_Context->m_GraphicsContext, rt, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
+
+    dmGraphics::DeleteRenderTarget(m_Context->m_GraphicsContext, rt);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
 {
     const char* script =

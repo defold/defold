@@ -6,5 +6,6 @@
 /particlefx/particlefx_get_set_properties.go
 /particlefx/particlefx_get_set_properties.material
 /particlefx/particlefx_play.go
+/particlefx/particlefx_play_from_coroutine.go
 /particlefx/test_comp.go
 /particlefx/valid_particlefx.go

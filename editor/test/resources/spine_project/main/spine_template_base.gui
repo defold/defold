@@ -1,0 +1,18 @@
+nodes {
+  type: TYPE_CUSTOM
+  id: "spine"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+  custom_type: 405028931
+  custom_properties {
+    id: "spine_scene"
+    type: TYPE_STRING
+    string: "spineboy"
+  }
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+resources {
+  name: "spineboy"
+  path: "/assets/spineboy/spineboy.spinescene"
+}

@@ -23,14 +23,17 @@
 #ifndef DMSDK_DALLOCA_H
 #define DMSDK_DALLOCA_H
 
+#include <stddef.h>
 #include <stdint.h>
 
-#if __has_include("alloca_vendor.h")
-    #include "alloca_vendor.h"
-#elif defined(_WIN32)
+#if defined(_MSC_VER)
     #include <malloc.h>
     #if !defined(alloca)
         #define alloca(_SIZE) _alloca(_SIZE) // done in malloc.h if _CRT_INTERNAL_NONSTDC_NAMES is non-zero
+    #endif
+#elif defined(__GNUC__) || defined(__clang__)
+    #if !defined(alloca)
+        #define alloca(_SIZE) __builtin_alloca(_SIZE)
     #endif
 #else
     #include <alloca.h>

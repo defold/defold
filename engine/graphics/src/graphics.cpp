@@ -39,9 +39,43 @@ DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch
 
 namespace dmGraphics
 {
-    void ConformRenderTargetCreationSampleCounts(RenderTargetCreationParams* params, uint32_t buffer_type_flags, uint32_t max_sample_count, bool mixed_sample_counts_supported, const char* adapter_name)
+    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts)
     {
-        max_sample_count = GetDefaultSampleCount(max_sample_count);
+        requested_sample_count = GetDefaultSampleCount(requested_sample_count);
+        supported_sample_counts |= 1;
+
+        uint32_t closest_sample_count = 1;
+        for (uint32_t sample_count = 1; sample_count != 0 && sample_count <= requested_sample_count; sample_count <<= 1)
+        {
+            if (supported_sample_counts & sample_count)
+            {
+                closest_sample_count = sample_count;
+            }
+        }
+        return closest_sample_count;
+    }
+
+    static uint32_t ConformAttachmentSampleCount(uint32_t requested, uint32_t supported_sample_counts, const char* adapter_name, const char* attachment_name, uint32_t attachment_index)
+    {
+        requested = GetDefaultSampleCount(requested);
+        uint32_t conformed = GetClosestSupportedSampleCount(requested, supported_sample_counts);
+        if (requested != conformed)
+        {
+            if (attachment_index == 0xffffffff)
+            {
+                dmLogWarning("%s render target %s attachment requested sample_count %u, using supported sample_count %u.", adapter_name, attachment_name, requested, conformed);
+            }
+            else
+            {
+                dmLogWarning("%s render target %s attachment %u requested sample_count %u, using supported sample_count %u.", adapter_name, attachment_name, attachment_index, requested, conformed);
+            }
+        }
+        return conformed;
+    }
+
+    void ConformRenderTargetCreationSampleCounts(RenderTargetCreationParams* params, uint32_t buffer_type_flags, uint32_t supported_sample_counts, bool mixed_sample_counts_supported, const char* adapter_name)
+    {
+        supported_sample_counts |= 1;
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -50,57 +84,42 @@ namespace dmGraphics
             BUFFER_TYPE_COLOR3_BIT,
         };
 
-        uint32_t highest_requested = 1;
-        uint32_t first_requested = 0;
-        bool mixed_requested = false;
+        uint32_t highest_conformed = 1;
+        uint32_t first_conformed = 0;
+        bool mixed_conformed = false;
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
             {
-                uint32_t requested = GetDefaultSampleCount(params->m_ColorBufferSampleCounts[i]);
-                highest_requested = dmMath::Max(highest_requested, requested);
-                mixed_requested |= first_requested != 0 && first_requested != requested;
-                first_requested = first_requested == 0 ? requested : first_requested;
-                if (requested > max_sample_count)
-                {
-                    dmLogWarning("%s render target color attachment %u requested sample_count %u, clamping to %u.", adapter_name, i, requested, max_sample_count);
-                    requested = max_sample_count;
-                }
-                params->m_ColorBufferSampleCounts[i] = requested;
+                uint32_t conformed = ConformAttachmentSampleCount(params->m_ColorBufferSampleCounts[i], supported_sample_counts, adapter_name, "color", i);
+                highest_conformed = dmMath::Max(highest_conformed, conformed);
+                mixed_conformed |= first_conformed != 0 && first_conformed != conformed;
+                first_conformed = first_conformed == 0 ? conformed : first_conformed;
+                params->m_ColorBufferSampleCounts[i] = conformed;
             }
         }
 
         if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
         {
-            uint32_t requested = GetDefaultSampleCount(params->m_DepthBufferSampleCount);
-            highest_requested = dmMath::Max(highest_requested, requested);
-            mixed_requested |= first_requested != 0 && first_requested != requested;
-            first_requested = first_requested == 0 ? requested : first_requested;
-            if (requested > max_sample_count)
-            {
-                dmLogWarning("%s render target depth attachment requested sample_count %u, clamping to %u.", adapter_name, requested, max_sample_count);
-                requested = max_sample_count;
-            }
-            params->m_DepthBufferSampleCount = requested;
+            uint32_t conformed = ConformAttachmentSampleCount(params->m_DepthBufferSampleCount, supported_sample_counts, adapter_name, "depth", 0xffffffff);
+            highest_conformed = dmMath::Max(highest_conformed, conformed);
+            mixed_conformed |= first_conformed != 0 && first_conformed != conformed;
+            first_conformed = first_conformed == 0 ? conformed : first_conformed;
+            params->m_DepthBufferSampleCount = conformed;
         }
 
         if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
         {
-            uint32_t requested = GetDefaultSampleCount(params->m_StencilBufferSampleCount);
-            highest_requested = dmMath::Max(highest_requested, requested);
-            mixed_requested |= first_requested != 0 && first_requested != requested;
-            if (requested > max_sample_count)
-            {
-                dmLogWarning("%s render target stencil attachment requested sample_count %u, clamping to %u.", adapter_name, requested, max_sample_count);
-                requested = max_sample_count;
-            }
-            params->m_StencilBufferSampleCount = requested;
+            uint32_t conformed = ConformAttachmentSampleCount(params->m_StencilBufferSampleCount, supported_sample_counts, adapter_name, "stencil", 0xffffffff);
+            highest_conformed = dmMath::Max(highest_conformed, conformed);
+            mixed_conformed |= first_conformed != 0 && first_conformed != conformed;
+            params->m_StencilBufferSampleCount = conformed;
         }
 
-        if (!mixed_sample_counts_supported && mixed_requested)
+        if (!mixed_sample_counts_supported && mixed_conformed)
         {
-            uint32_t conformed_sample_count = dmMath::Min(highest_requested, max_sample_count);
+            uint32_t conformed_sample_count = highest_conformed;
             dmLogWarning("%s render targets do not support mixed attachment sample counts. Conforming all attachments to sample_count %u.", adapter_name, conformed_sample_count);
 
             for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
@@ -176,17 +195,33 @@ namespace dmGraphics
 
             while(next)
             {
-                if (next->m_Family == family && next->m_IsSupportedCb())
+                if (next->m_Family == family)
                 {
-                    g_functions = next->m_RegisterCb();
-                    g_adapter   = next;
-                    return true;
+                    if (next->m_IsSupportedCb())
+                    {
+                        g_functions = next->m_RegisterCb();
+                        g_adapter   = next;
+                        return true;
+                    }
                 }
                 next = next->m_Next;
             }
         }
 
         return false;
+    }
+
+    uint32_t GetLinkedGraphicsAdapterCount()
+    {
+        uint32_t adapter_count = 0;
+        GraphicsAdapter* next = g_adapter_list;
+        while(next)
+        {
+            ++adapter_count;
+            next = next->m_Next;
+        }
+
+        return adapter_count;
     }
 
     static bool SelectAdapterByPriority()
@@ -377,29 +412,6 @@ namespace dmGraphics
     }
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
-
-    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
-
-    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
-    {
-        switch(language)
-        {
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
-            default:break;
-        }
-        return "<unknown ShaderDesc::Language>";
-    }
-
-    #undef SHADERDESC_ENUM_TO_STR_CASE
-
-
 
     AttachmentToBufferType::AttachmentToBufferType()
     {
@@ -2137,11 +2149,13 @@ namespace dmGraphics
     }
     uint32_t GetWidth(HContext context)
     {
-        return g_functions.m_GetWidth(context);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return gc->m_Width;
     }
     uint32_t GetHeight(HContext context)
     {
-        return g_functions.m_GetHeight(context);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return gc->m_Height;
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
@@ -2153,7 +2167,9 @@ namespace dmGraphics
     }
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
-        g_functions.m_GetDefaultTextureFilters(context, out_min_filter, out_mag_filter);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        out_min_filter = gc->m_DefaultTextureMinFilter;
+        out_mag_filter = gc->m_DefaultTextureMagFilter;
     }
     void BeginFrame(HContext context)
     {
@@ -2185,7 +2201,8 @@ namespace dmGraphics
     }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
     {
-        return g_functions.m_GetVertexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     uint32_t GetMaxElementsVertices(HContext context)
     {
@@ -2209,7 +2226,8 @@ namespace dmGraphics
     }
     uint32_t GetIndexBufferSize(HIndexBuffer buffer)
     {
-        return g_functions.m_GetIndexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
@@ -2280,10 +2298,10 @@ namespace dmGraphics
     {
         g_functions.m_DisableProgram(context);
     }
-    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
+    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         DestroyProgram((Program*) program);
-        return g_functions.m_ReloadProgram(context, program, ddf);
+        return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
     uint32_t GetAttributeCount(HProgram prog)
     {
@@ -2417,7 +2435,9 @@ namespace dmGraphics
     }
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return g_functions.m_IsTextureFormatSupported(context, format);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        uint32_t format_index = (uint32_t) format;
+        return format_index < TEXTURE_FORMAT_COUNT && (gc->m_TextureFormatSupport & (1ULL << format_index)) != 0;
     }
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
@@ -2441,7 +2461,10 @@ namespace dmGraphics
     }
     uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureResourceSize(context, texture);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_ResourceSize : 0;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -2486,7 +2509,8 @@ namespace dmGraphics
             AdapterFamily family = GetInstalledAdapterFamily();
             return !(family == ADAPTER_FAMILY_NULL || family == ADAPTER_FAMILY_NONE);
         }
-        return g_functions.m_IsContextFeatureSupported(context, feature);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return feature < MAX_CONTEXT_FEATURE_COUNT && (gc->m_ContextFeatureSupport & (1 << feature)) != 0;
     }
     PipelineState GetPipelineState(HContext context)
     {
@@ -2494,12 +2518,32 @@ namespace dmGraphics
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {
-        return g_functions.m_GetTexturePageCount(texture);
+        GraphicsContext* gc = (GraphicsContext*) GetInstalledContext();
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_PageCount : 0;
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
-        return g_functions.m_IsAssetHandleValid(context, asset_handle);
+        if (asset_handle == 0)
+        {
+            return false;
+        }
+
+        GraphicsContext* gc = (GraphicsContext*) context;
+        AssetType type = GetAssetType(asset_handle);
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        switch(type)
+        {
+            case ASSET_TYPE_TEXTURE:
+                return GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_RENDER_TARGET:
+                return GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, asset_handle) != 0;
+            default:
+                return false;
+        }
     }
     void InvalidateGraphicsHandles(HContext context)
     {

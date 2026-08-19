@@ -48,7 +48,7 @@ function(defold_target_link_glfw target platform)
         message(FATAL_ERROR "defold_target_link_glfw: target and platform are required")
     endif()
 
-    if(DEFINED DEFOLD_PLATFORM_HAS_GLFW AND NOT DEFOLD_PLATFORM_HAS_GLFW)
+    if("${platform}" STREQUAL "x86_64-xbone" OR (DEFINED DEFOLD_PLATFORM_HAS_GLFW AND NOT DEFOLD_PLATFORM_HAS_GLFW))
         return()
     endif()
 

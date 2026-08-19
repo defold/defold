@@ -23,11 +23,6 @@
 
 namespace dmPlatform
 {
-    void SetiOSViewTypeOpenGL(HWindow window)
-    {
-        glfwSetViewType(GLFW_OPENGL_API);
-    }
-
     id GetiOSUIWindow()
     {
         return glfwGetiOSUIWindow();

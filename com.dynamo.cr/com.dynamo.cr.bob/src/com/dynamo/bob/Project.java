@@ -44,6 +44,8 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.GuiCustomTypeRegistry;
+import com.dynamo.bob.pipeline.GamepadBuilder;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -52,6 +54,7 @@ import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
@@ -133,7 +136,7 @@ public class Project implements AutoCloseable {
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private HashMap<String, Task> tasks;
+    private HashMap<String, Task> tasks = new HashMap<String, Task>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
     private volatile BobTempDirectory tempDirectory;
@@ -151,6 +154,7 @@ public class Project implements AutoCloseable {
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
     private Set<Class<? extends IPlugin>> pluginClasses = new HashSet<>();
+    private final GuiCustomTypeRegistry guiCustomTypeRegistry = new GuiCustomTypeRegistry();
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
@@ -164,6 +168,10 @@ public class Project implements AutoCloseable {
 
     public ArchiveBuilder getArchiveBuilder() {
         return this.archiveBuilder;
+    }
+
+    public GuiCustomTypeRegistry getGuiCustomTypeRegistry() {
+        return guiCustomTypeRegistry;
     }
 
     public Project(IFileSystem fileSystem) {
@@ -406,6 +414,8 @@ public class Project implements AutoCloseable {
                         !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
                         !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        !className.startsWith("com.dynamo.bob.font.FontRenderer") &&
+                        !className.startsWith("com.dynamo.bob.font.generated.") &&
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
@@ -420,7 +430,7 @@ public class Project implements AutoCloseable {
                 BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                 if (builderParams != null) {
                     for (String inExt : builderParams.inExts()) {
-                        extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                        extToBuilder.put(StringUtil.toLowerCase(inExt), (Class<? extends Builder>) klass);
                         ResourceUtil.registerMapping(inExt, builderParams.outExt());
                     }
                     Builder.addParamsDigest(klass, this.getOptions(), builderParams);
@@ -460,6 +470,8 @@ public class Project implements AutoCloseable {
                         pluginClasses.add((Class<? extends IPlugin>) klass);
                     }
                 }
+
+                guiCustomTypeRegistry.register(klass);
                 TimeProfiler.stop();
             } catch (ClassNotFoundException e) {
                 TimeProfiler.stop();
@@ -489,7 +501,7 @@ public class Project implements AutoCloseable {
     }
 
     private Class<? extends Builder> getBuilderFromExtension(String input) {
-        String ext = "." + FilenameUtils.getExtension(input);
+        String ext = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(input));
         Class<? extends Builder> builderClass = extToBuilder.get(ext);
         return builderClass;
     }
@@ -556,6 +568,56 @@ public class Project implements AutoCloseable {
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
             throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            TimeProfiler.stop();
+        }
+    }
+
+    public Task createGamepadTask(IResource gamepadDbInput, IResource gamepadsInput) throws CompileExceptionError {
+        if (gamepadDbInput == null && gamepadsInput == null) {
+            throw new CompileExceptionError("Gamepad task requires a .gamepads file or a gamecontrollerdb.txt file.");
+        }
+
+        String gamepadDbPath = gamepadDbInput != null ? gamepadDbInput.getPath() : "";
+        String gamepadsPath = gamepadsInput != null ? gamepadsInput.getPath() : "";
+        String key = gamepadDbPath + " " + gamepadsPath + " " + GamepadBuilder.class;
+        if (!circularDependencyChecker.add(key)) {
+            throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
+        }
+
+        Task task = tasks.get(key);
+        if (task != null) {
+            circularDependencyChecker.remove(key);
+            return task;
+        }
+
+        TimeProfiler.start();
+        TimeProfiler.addData("type", "createGamepadTask");
+        GamepadBuilder builder;
+        try {
+            builder = new GamepadBuilder();
+            builder.setProject(this);
+            Task.TaskBuilder taskBuilder = Task.newBuilder(builder)
+                    .setName(builder.getParams().name());
+            if (gamepadDbInput != null) {
+                taskBuilder.addInput(gamepadDbInput);
+            }
+            if (gamepadsInput != null) {
+                taskBuilder.addInput(gamepadsInput);
+            }
+            IResource outputAnchor = gamepadsInput != null ? gamepadsInput : gamepadDbInput;
+            task = taskBuilder
+                    .addOutput(outputAnchor.changeExt(builder.getParams().outExt()))
+                    .build();
+            if (task != null) {
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+                TimeProfiler.addData("name", task.getName());
+                tasks.put(key, task);
+            }
+            circularDependencyChecker.remove(key);
+            return task;
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
@@ -801,20 +863,17 @@ public class Project implements AutoCloseable {
             }
         }
 
-        if (!libUrls.isEmpty() && !Files.isDirectory(Paths.get(getLibPath()))) {
+        Path libPath = Paths.get(getLibPath());
+        if (!libUrls.isEmpty() && !Files.isDirectory(libPath)) {
             throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
         }
-        Map<String, File> libFiles = new HashMap<>();
-
         for (var dependency : dependencies) {
             var archive = dependency.archive();
             var file = archive == null ? null : archive.path().toFile();
-            libFiles.put(dependency.uri().toString(), file);
             if (file != null && file.exists()) {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
             }
         }
-        BuildInputDataCollector.setDependencies(libFiles);
 
         var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
         if (!problematicResults.isEmpty()) {
@@ -930,7 +989,7 @@ public class Project implements AutoCloseable {
             bundleDir.mkdirs();
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
-            BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
+            BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
             if (ResourceUtil.isMinificationEnabled()) {
                 MinifyPathCollector.saveAsJson(bundleDir);
             }
@@ -998,12 +1057,7 @@ public class Project implements AutoCloseable {
         }
 
         // If not found, try to get a built-in shader compiler for this platform
-        IShaderCompiler commonShaderCompiler = ShaderCompilers.GetCommonShaderCompiler(platform);
-        if (commonShaderCompiler != null) {
-            return commonShaderCompiler;
-        }
-
-        throw new CompileExceptionError(null, -1, String.format("No shader compiler registered for platform %s", platform.getPair()));
+        return new ShaderCompilers.CommonShaderCompiler(platform);
     }
 
     private boolean anyFailing(Collection<TaskResult> results) {
@@ -1374,6 +1428,10 @@ public class Project implements AutoCloseable {
             Map<String, String> appmanifestOptions = new HashMap<>();
             appmanifestOptions.put("baseVariant", variant);
             appmanifestOptions.put("withSymbols", Boolean.toString(withSymbols));
+            // Used as d8 --min-api. Below API 24 d8 desugars static/default interface methods and
+            // emits synthetic $desugar$clinit fields that Google Play Automatic Protection rejects.
+            appmanifestOptions.put("minAndroidSdkVersion", Integer.toString(
+                    projectProperties.getIntValue("android", "minimum_sdk_version", 21)));
 
             if (hasOption("build-artifacts")) {
                 String s = option("build-artifacts", "");
@@ -1537,6 +1595,8 @@ public class Project implements AutoCloseable {
                 return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
                 return ShaderCompilers.SHADER_ADAPTER_VULKAN;
+            case "graphics_metal":
+                return ShaderCompilers.SHADER_ADAPTER_METAL;
             case "graphics_opengles":
             case "graphics_gles":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
@@ -1817,6 +1877,7 @@ public class Project implements AutoCloseable {
                 TimeProfiler.stop();
                 TimeProfiler.start("Create tasks");
                 BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+                syncDependencyMetadataToBuildDirectory();
                 createTasks();
                 validateBuildResourceMapping();
                 TimeProfiler.addData("TasksCount", tasks.size());
@@ -1886,6 +1947,25 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
             FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
         }
+    }
+
+    private void syncDependencyMetadataToBuildDirectory() throws IOException {
+        File buildMetadataFile = new File(FilenameUtils.concat(
+                FilenameUtils.concat(rootDirectory, buildDirectory),
+                DependencyMetadata.OUTPUT_PATH));
+
+        boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", false);
+        File sourceMetadataFile = new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        if (!includeDependenciesMetadata || !sourceMetadataFile.exists()) {
+            Files.deleteIfExists(buildMetadataFile.toPath());
+            return;
+        }
+
+        File buildMetadataParent = buildMetadataFile.getParentFile();
+        if (buildMetadataParent != null) {
+            Files.createDirectories(buildMetadataParent.toPath());
+        }
+        DependencyMetadata.minifyJson(sourceMetadataFile.toPath(), buildMetadataFile.toPath());
     }
 
     private List<TaskResult> doBuild(IProgress progress, String... commands) throws Throwable {

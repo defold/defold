@@ -9,6 +9,7 @@ project(defold_platform_tests LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 # test_platform (unit tests using null backend)
 defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp")
+target_compile_definitions(test_platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
 # Include the platform src directory for headers
 target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
@@ -30,16 +31,17 @@ defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 # ******************************************************************
 # test_platform_app (windowed test application)
 
-if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web"))
+if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web|x86_64-xbone"))
 
     defold_add_executable(test_platform_app
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_app.cpp")
+    target_compile_definitions(test_platform_app PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
     # Include the platform src directory for headers
     target_include_directories(test_platform_app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
 
     # Platform specific extras
-    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
     elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
         target_link_libraries(test_platform_app PRIVATE "-framework IOKit" "-framework QuartzCore")
     elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")

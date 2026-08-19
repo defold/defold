@@ -31,6 +31,7 @@
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
@@ -44,7 +45,8 @@
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
            [javafx.scene.layout Region]
-           [javafx.stage Stage]))
+           [javafx.stage Stage]
+           [javax.imageio ImageIO]))
 
 (set! *warn-on-reflection* true)
 
@@ -285,9 +287,16 @@
                                 (succeeding-selection [_this _evaluation-context])
                                 (alt-selection [_this _evaluation-context]))))
           view-graph (g/node-id->graph-id app-view)
-          console (g/make-node! view-graph console/ConsoleNode)
-          console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]
-      (g/connect! console :_node-id console-view :resource-node)
+
+          [_console console-view]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes view-graph
+                [console console/ConsoleNode
+                 console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
+                (g/connect console :_node-id console-view :resource-node))))]
+
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
@@ -296,6 +305,7 @@
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
+                                             (scene/routes project app-view)
                                              (command-requests/router root test-util/localization progress/null-render-progress!)
                                              (doc/routes)])))]
           (let [url (http-server/local-url server)]
@@ -313,6 +323,7 @@
                        (get-in json-body ["components" "securitySchemes" "token" "description"])))
                 (is (contains? (get json-body "paths") "/console"))
                 (is (contains? (get json-body "paths") "/console/stream"))
+                (is (contains? (get json-body "paths") "/preview/{path}"))
                 (let [get-ref (get-in json-body ["paths" "/ref" "get"])
                       param-names (into #{} (map #(get % "name")) (get get-ref "parameters"))]
                   (is get-ref)
@@ -320,7 +331,24 @@
                 (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
                   (is (= "Execute an editor command" (get post-command "summary")))
                   (is (string/includes? (get post-command "description") "`build-html5`"))
-                  (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
+                  (let [commands (get-in post-command ["parameters" 0 "schema" "enum"])]
+                    (is (coll/any? #{"compile"} commands))
+                    (is (coll/any? #{"run"} commands))
+                    (is (coll/not-any? #{"build"} commands)))
+                  (let [focus-parameter (coll/first-where #(= "focus" (get % "name")) (get post-command "parameters"))]
+                    (is (= "query" (get focus-parameter "in")))
+                    (is (string/includes? (get focus-parameter "description") "`run`"))
+                    (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
+            (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
+              (is (= 400 status)))
+            (let [{:keys [status headers body]} @(http/request
+                                                    (str url "/preview/collection/components/test.gui?width=32&height=32")
+                                                    :as :byte-array)]
+              (is (= 200 status))
+              (is (= "image/png" (get headers "content-type")))
+              (let [image (ImageIO/read (ByteArrayInputStream. body))]
+                (is (= 32 (.getWidth image)))
+                (is (= 32 (.getHeight image)))))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=runtime&language=Lua&q=go.property") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))
