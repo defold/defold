@@ -153,7 +153,7 @@
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
-                      :lua-language-server-version "v1.7795"}
+                      :lua-language-server-version "3.19.1"}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"

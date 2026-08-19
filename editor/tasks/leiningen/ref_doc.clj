@@ -43,7 +43,8 @@
               (io/copy (.getInputStream zip entry)
                        (io/file sdoc-target-dir filename))
 
-              (str/ends-with? filename ".lua")
+              (or (str/ends-with? filename ".lua")
+                  (str/ends-with? filename ".editor_script"))
               (io/copy (.getInputStream zip entry)
                        (io/file lua-target-dir filename)))
             (recur)))))))

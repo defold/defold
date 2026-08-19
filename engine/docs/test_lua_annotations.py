@@ -3,6 +3,7 @@
 
 import io
 import json
+import tarfile
 import tempfile
 import unittest
 import zipfile
@@ -118,7 +119,13 @@ def enum(name, members=(), value_type=None):
 
 class TestLuaAnnotations(unittest.TestCase):
 
-    def metadata(self, directory, enums=None, generics=None, method_classes=None):
+    def metadata(
+            self,
+            directory,
+            enums=None,
+            generics=None,
+            global_symbols=None,
+            method_classes=None):
         data = {
             "migration": {
                 "source_commit": "test",
@@ -128,6 +135,7 @@ class TestLuaAnnotations(unittest.TestCase):
             "standard_namespaces": ["math"],
             "excluded_functions": ["init"],
             "excluded_function_patterns": ["client:*"],
+            "global_symbols": global_symbols or [],
             "method_classes": method_classes or {},
             "allowed_diagnostics": ["lowercase-global", "missing-return", "args-after-dots"],
             "aliases": {"hash": "userdata"},
@@ -205,6 +213,86 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@return hash result", editor_lua)
             self.assertNotIn("<code>", editor_lua)
 
+    def test_runtime_and_editor_annotations_are_separate(self):
+        runtime_doc = document(
+            "http",
+            [function("http.request", "string", "number")])
+        editor_doc = document(
+            "editor",
+            [function("http.request", "table<string, any>", "string")])
+        documents = [
+            ("http.cpp", runtime_doc),
+            ("editor.apidoc", editor_doc),
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+
+            runtime_names = lua_annotations.generate(
+                documents,
+                output,
+                metadata,
+                context="runtime")
+            editor_names = lua_annotations.generate(
+                documents,
+                output,
+                metadata,
+                context="editor",
+                extension=".editor_script")
+
+            self.assertEqual(["http.lua", "meta.lua"], runtime_names)
+            runtime_lua = (output / "http.lua").read_text(encoding="utf-8")
+            self.assertIn("---@param value string", runtime_lua)
+            self.assertIn("---@return number result", runtime_lua)
+            self.assertNotIn("---@overload", runtime_lua)
+
+            self.assertEqual(
+                ["http.editor_script", "meta.editor_script"],
+                editor_names)
+            editor_lua = (output / "http.editor_script").read_text(
+                encoding="utf-8")
+            self.assertIn("---@param value table<string, any>", editor_lua)
+            self.assertIn("---@return string result", editor_lua)
+            self.assertNotIn("---@overload", editor_lua)
+
+    def test_global_symbol_is_not_qualified_by_document_namespace(self):
+        pprint_function = function("pprint", "any")
+        pprint_function.parameters[0].name = "..."
+        editor_doc = document("editor", [pprint_function])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory, global_symbols=["pprint"])
+            output = Path(directory) / "output"
+
+            names = lua_annotations.generate(
+                [("editor.apidoc", editor_doc)],
+                output,
+                metadata,
+                context="editor",
+                extension=".editor_script")
+
+            self.assertEqual(
+                ["builtins.editor_script", "meta.editor_script"],
+                names)
+            builtins_lua = (output / "builtins.editor_script").read_text(
+                encoding="utf-8")
+            self.assertIn("---@param ... any", builtins_lua)
+            self.assertIn("function pprint(...) end", builtins_lua)
+            self.assertNotIn("editor.pprint", builtins_lua)
+
+    def test_unknown_annotation_context_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    "Unknown Lua annotation context"):
+                lua_annotations.generate(
+                    [],
+                    Path(directory) / "output",
+                    metadata,
+                    context="unknown")
+
     def test_metadata_tracks_pinned_migration_source(self):
         metadata = lua_annotations.load_metadata(
             Path(__file__).with_name("lua_annotations.yaml"))
@@ -249,6 +337,18 @@ class TestLuaAnnotations(unittest.TestCase):
                 "zip.unpack_options",
             },
             set(metadata["aliases"]))
+        self.assertEqual(
+            set(metadata["aliases"]),
+            set(metadata["editor_only_metadata"]["aliases"]))
+        self.assertEqual(
+            {"editor.command_context", "http.server.request"},
+            set(metadata["editor_only_metadata"]["classes"]))
+        self.assertEqual(
+            {"editor.ui.component"},
+            set(metadata["editor_only_metadata"]["generics"]))
+        self.assertEqual(
+            {"http.server.route", "zip.pack", "zip.unpack"},
+            set(metadata["editor_only_metadata"]["function_overloads"]))
         self.assertEqual(
             {
                 "b2BodyType",
@@ -1029,23 +1129,20 @@ class TestLuaAnnotations(unittest.TestCase):
             directory = Path(directory)
             project_clj = directory / "project.clj"
             project_clj.write_text(
-                '{:packing {:lua-language-server-version "v1.7795"}}',
+                '{:packing {:lua-language-server-version "3.19.1"}}',
                 encoding="utf-8")
 
-            platform_zip = io.BytesIO()
-            with zipfile.ZipFile(platform_zip, "w") as archive:
-                archive.writestr(
-                    "bin/x86_64-linux/bin/lua-language-server",
-                    b"lua-language-server")
-            release_zip = io.BytesIO()
-            with zipfile.ZipFile(release_zip, "w") as archive:
-                archive.writestr(
-                    "lsp-lua-language-server/plugins/x86_64-linux.zip",
-                    platform_zip.getvalue())
+            release_archive = io.BytesIO()
+            with tarfile.open(fileobj=release_archive, mode="w:gz") as archive:
+                executable_info = tarfile.TarInfo("bin/lua-language-server")
+                executable_info.mode = 0o755
+                executable_info.size = len(b"lua-language-server")
+                archive.addfile(executable_info, io.BytesIO(b"lua-language-server"))
 
             def fake_download(url, destination):
-                self.assertIn("/v1.7795/release.zip", url)
-                Path(destination).write_bytes(release_zip.getvalue())
+                self.assertTrue(url.endswith(
+                    "/3.19.1/lua-language-server-3.19.1-linux-x64.tar.gz"))
+                Path(destination).write_bytes(release_archive.getvalue())
 
             env_file = directory / "github.env"
             with mock.patch.object(

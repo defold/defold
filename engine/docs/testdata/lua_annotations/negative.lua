@@ -14,13 +14,6 @@ go.animate(
     go.EASING_LINEAR,
     1.0)
 
----@param method zip.METHOD
-local function use_zip_method(method)
-    pprint(method)
-end
-
-use_zip_method("not-a-method")
-
 resource.create_texture(
     "/invalid.texturec",
     {

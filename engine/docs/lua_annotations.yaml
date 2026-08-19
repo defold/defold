@@ -54,6 +54,40 @@ allowed_diagnostics:
   - missing-return
   - args-after-dots
 
+# Symbols that are documented in a namespaced document but are installed as
+# globals in the corresponding Lua environment.
+global_symbols:
+  - pprint
+
+# The editor API runs in a separate Lua environment from game scripts. These
+# entries accompany editor.apidoc and must not be exposed by the runtime bundle.
+editor_only_metadata:
+  aliases:
+    - editor.command_location
+    - editor.resource_definition
+    - editor.schema
+    - editor.component
+    - editor.transaction_step
+    - editor.tiles
+    - editor.image
+    - editor.command
+    - editor.message
+    - http.response
+    - http.route
+    - http.server.handler
+    - zip.entries
+    - zip.entry
+    - zip.unpack_options
+  classes:
+    - editor.command_context
+    - http.server.request
+  generics:
+    - editor.ui.component
+  function_overloads:
+    - http.server.route
+    - zip.pack
+    - zip.unpack
+
 aliases:
   editor.command_location: '"Assets"|"Bundle"|"Code"|"Debug"|"Edit"|"Help"|"Outline"|"Project"|"Scene"|"View"'
   editor.resource_definition: "{[1]:string, [2]?:string}"

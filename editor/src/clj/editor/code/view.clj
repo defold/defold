@@ -3061,7 +3061,7 @@
     (let [resource-node (get-property view-node :resource-node)
           resource (g/node-value resource-node :resource)
           lsp (lsp/get-node-lsp resource-node)]
-      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/goto-definition!
           lsp
           resource
@@ -3085,7 +3085,7 @@
     (let [resource-node (get-property view-node :resource-node)
           lsp (lsp/get-node-lsp resource-node)
           resource (g/node-value resource-node :resource)]
-      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/find-references!
           lsp
           resource
@@ -3116,7 +3116,7 @@
             lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
             resource (g/node-value resource-node :resource evaluation-context)
             localization (get-property view-node :localization evaluation-context)]
-        (if (not (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+        (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
           (show-no-language-server-for-resource-language-notification! resource)
           (let [document-symbols (get-property view-node :document-symbols evaluation-context)
                 items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])

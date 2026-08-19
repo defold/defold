@@ -330,6 +330,8 @@ if(_DOCS_GENERATE_LUA AND DEFOLD_DOCS_LUALS_EXECUTABLE)
       "${DOCS_ROOT}/build_docs.py"
       "${DOCS_LUA_FIXTURE_DIR}/positive.lua"
       "${DOCS_LUA_FIXTURE_DIR}/negative.lua"
+      "${DOCS_LUA_FIXTURE_DIR}/editor_positive.lua"
+      "${DOCS_LUA_FIXTURE_DIR}/editor_negative.lua"
     COMMENT "Validating Lua annotation behavior fixtures"
     VERBATIM)
   list(APPEND _DOCS_BUILD_DEPS "${DOCS_LUA_BEHAVIOR_VALIDATE_STAMP}")

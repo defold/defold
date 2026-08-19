@@ -3,13 +3,13 @@
 # Licensed under the Defold License version 1.0
 
 import argparse
-import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.request
@@ -19,6 +19,12 @@ from pathlib import Path
 
 ALL_TARGET_FORMATS = ["sdoc", "json", "script_api", "lua"]
 SOURCE_EXTENSIONS = {".h", ".hpp", ".cpp", ".cs", ".c", ".doc_h", ".proto", ".apidoc"}
+LUA_LANGUAGE_SERVER_ASSETS = {
+    "x86_64-macos": ("darwin-x64", "tar.gz"),
+    "arm64-macos": ("darwin-arm64", "tar.gz"),
+    "x86_64-linux": ("linux-x64", "tar.gz"),
+    "x86_64-win32": ("win32-x64", "zip"),
+}
 
 
 def log(message):
@@ -245,11 +251,17 @@ def generate_lua_annotations(docs_dir, inputs, output_dir, manifest, metadata, p
             continue
         documents.append((input_path, script_doc.parse_document(doc_str, input_path)))
 
-    output_names = lua_annotations.generate(
-        documents,
-        os.path.abspath(output_dir),
-        os.path.abspath(metadata),
-        strict=True)
+    output_names = []
+    for context, extension in (
+            ("runtime", ".lua"),
+            ("editor", ".editor_script")):
+        output_names.extend(lua_annotations.generate(
+            documents,
+            os.path.abspath(output_dir),
+            os.path.abspath(metadata),
+            strict=True,
+            context=context,
+            extension=extension))
     manifest_lines = [
         "%s|%s" % (os.path.join(os.path.abspath(output_dir), name), name)
         for name in output_names
@@ -263,16 +275,22 @@ def run_lua_language_server(executable, input_dir):
     with tempfile.TemporaryDirectory(prefix="defold-lua-annotations.") as temp_dir:
         result_path = os.path.join(temp_dir, "diagnostics.json")
         log_path = os.path.join(temp_dir, "log")
-        run_command([
-            os.path.abspath(executable),
-            "--check=%s" % input_dir,
-            "--checklevel=Warning",
-            "--logpath=%s" % log_path,
-            "--check_out_path=%s" % result_path,
-        ])
+        try:
+            run_command([
+                os.path.abspath(executable),
+                "--check=%s" % input_dir,
+                "--checklevel=Warning",
+                "--logpath=%s" % log_path,
+                "--check_out_path=%s" % result_path,
+            ])
+        except subprocess.CalledProcessError as error:
+            if error.returncode != 1 or not os.path.exists(result_path):
+                raise
         diagnostics = {}
         if os.path.exists(result_path):
             diagnostics = json.loads(Path(result_path).read_text(encoding="utf-8") or "{}")
+        if isinstance(diagnostics, list):
+            return diagnostics
         return [
             problem
             for file_problems in diagnostics.values()
@@ -296,7 +314,10 @@ def validate_lua_annotations(executable, input_dir, metadata, stamp):
     allowed_diagnostics = set(metadata_data.get("allowed_diagnostics", []))
     unexpected_directives = []
     directive_pattern = re.compile(r"^---@diagnostic disable:\s*(\S+)\s*$")
-    for path in sorted(Path(input_dir).rglob("*.lua")):
+    annotation_paths = sorted(
+        list(Path(input_dir).rglob("*.lua"))
+        + list(Path(input_dir).rglob("*.editor_script")))
+    for path in annotation_paths:
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             match = directive_pattern.match(line)
             if match and match.group(1) not in allowed_diagnostics:
@@ -306,13 +327,25 @@ def validate_lua_annotations(executable, input_dir, metadata, stamp):
             "Generated Lua annotations contain non-allowlisted diagnostic directives:\n"
             + "\n".join(unexpected_directives))
 
-    problems = run_lua_language_server(executable, input_dir)
-    if problems:
-        counts = diagnostic_counts(problems)
-        raise RuntimeError(
-            "LuaLS reported %d problem(s): %s" % (
-                len(problems),
-                ", ".join("%s=%d" % item for item in sorted(counts.items()))))
+    for context, extension in (
+            ("runtime", ".lua"),
+            ("editor", ".editor_script")):
+        with tempfile.TemporaryDirectory(
+                prefix="defold-lua-%s-annotations." % context) as temp_dir:
+            matching_paths = [
+                path for path in annotation_paths if path.suffix == extension
+            ]
+            for path in matching_paths:
+                shutil.copy2(path, Path(temp_dir) / (path.stem + ".lua"))
+            problems = run_lua_language_server(executable, temp_dir)
+        if problems:
+            counts = diagnostic_counts(problems)
+            raise RuntimeError(
+                "LuaLS reported %d problem(s) in %s annotations: %s" % (
+                    len(problems),
+                    context,
+                    ", ".join(
+                        "%s=%d" % item for item in sorted(counts.items()))))
     write_stamp(stamp)
     log("LuaLS validation completed without diagnostics")
 
@@ -327,34 +360,48 @@ def validate_lua_archive(executable, archive, metadata, stamp):
 
 def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
     fixture_dir = Path(fixture_dir)
-    expected_negative = {
-        "assign-type-mismatch": 5,
-        "param-type-mismatch": 6,
+    expected_negative_by_context = {
+        "runtime": {
+            "assign-type-mismatch": 5,
+            "param-type-mismatch": 5,
+        },
+        "editor": {
+            "assign-type-mismatch": 1,
+        },
     }
     with tempfile.TemporaryDirectory(prefix="defold-lua-behavior.") as temp_dir:
         temp_dir = Path(temp_dir)
         results = {}
-        for fixture_name in ("positive", "negative"):
-            workspace = temp_dir / fixture_name
-            workspace.mkdir()
-            for annotation in Path(annotations_dir).glob("*.lua"):
-                shutil.copy2(annotation, workspace / annotation.name)
-            shutil.copy2(
-                fixture_dir / ("%s.lua" % fixture_name),
-                workspace / "main.lua")
-            results[fixture_name] = run_lua_language_server(
-                executable,
-                str(workspace))
+        for context, extension in (
+                ("runtime", ".lua"),
+                ("editor", ".editor_script")):
+            fixture_prefix = "editor_" if context == "editor" else ""
+            for fixture_name in ("positive", "negative"):
+                workspace = temp_dir / ("%s_%s" % (context, fixture_name))
+                workspace.mkdir()
+                for annotation in Path(annotations_dir).glob("*%s" % extension):
+                    shutil.copy2(
+                        annotation,
+                        workspace / (annotation.stem + ".lua"))
+                shutil.copy2(
+                    fixture_dir / ("%s%s.lua" % (fixture_prefix, fixture_name)),
+                    workspace / "main.lua")
+                results[(context, fixture_name)] = run_lua_language_server(
+                    executable,
+                    str(workspace))
 
-    if results["positive"]:
-        raise RuntimeError(
-            "Positive LuaLS behavior fixture reported diagnostics: %s"
-            % diagnostic_counts(results["positive"]))
-    negative_counts = diagnostic_counts(results["negative"])
-    if negative_counts != expected_negative:
-        raise RuntimeError(
-            "Negative LuaLS behavior fixture expected %s, got %s"
-            % (expected_negative, negative_counts))
+    for context in ("runtime", "editor"):
+        positive = results[(context, "positive")]
+        if positive:
+            raise RuntimeError(
+                "Positive LuaLS %s behavior fixture reported diagnostics: %s"
+                % (context, diagnostic_counts(positive)))
+        negative_counts = diagnostic_counts(results[(context, "negative")])
+        expected_negative = expected_negative_by_context[context]
+        if negative_counts != expected_negative:
+            raise RuntimeError(
+                "Negative LuaLS %s behavior fixture expected %s, got %s"
+                % (context, expected_negative, negative_counts))
     write_stamp(stamp)
     log("LuaLS positive and negative behavior fixtures passed")
 
@@ -370,37 +417,27 @@ def lua_language_server_version(project_clj):
 
 def install_lua_language_server(project_clj, platform, output_dir, github_env):
     version = lua_language_server_version(project_clj)
+    release_platform, extension = LUA_LANGUAGE_SERVER_ASSETS[platform]
+    asset_name = "lua-language-server-%s-%s.%s" % (
+        version,
+        release_platform,
+        extension)
     release_url = (
-        "https://github.com/defold/lua-language-server/releases/download/"
-        "%s/release.zip" % version)
-    inner_name = "lsp-lua-language-server/plugins/%s.zip" % platform
+        "https://github.com/LuaLS/lua-language-server/releases/download/"
+        "%s/%s" % (version, asset_name))
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    log("Downloading Defold LuaLS %s for %s" % (version, platform))
+    log("Downloading LuaLS %s for %s" % (version, platform))
     with tempfile.TemporaryDirectory(prefix="defold-lualls-download.") as temp_dir:
-        release_path = Path(temp_dir) / "release.zip"
+        release_path = Path(temp_dir) / asset_name
         urllib.request.urlretrieve(release_url, str(release_path))
-        with zipfile.ZipFile(str(release_path)) as release:
-            try:
-                inner_archive = release.read(inner_name)
-            except KeyError:
-                raise RuntimeError(
-                    "LuaLS release %s does not contain %s" % (version, inner_name))
-
-        prefix = ("bin", platform)
-        with zipfile.ZipFile(io.BytesIO(inner_archive)) as platform_archive:
-            for info in platform_archive.infolist():
-                parts = Path(info.filename).parts
-                if info.is_dir() or len(parts) <= 2:
-                    continue
-                if tuple(parts[:2]) != prefix:
-                    raise RuntimeError(
-                        "Unexpected path in LuaLS %s archive: %s" % (
-                            platform, info.filename))
-                target = output_dir.joinpath(*parts[2:])
-                target.parent.mkdir(parents=True, exist_ok=True)
-                write_if_changed(target, platform_archive.read(info), mode="wb")
+        if extension == "zip":
+            with zipfile.ZipFile(release_path) as archive:
+                archive.extractall(output_dir)
+        else:
+            with tarfile.open(release_path, "r:gz") as archive:
+                archive.extractall(output_dir, filter="data")
 
     executable_name = "lua-language-server.exe" if platform.endswith("win32") else "lua-language-server"
     executable = output_dir / "bin" / executable_name
@@ -409,7 +446,7 @@ def install_lua_language_server(project_clj, platform, output_dir, github_env):
     executable.chmod(executable.stat().st_mode | 0o111)
     with open(github_env, "a", encoding="utf-8") as env_file:
         env_file.write("DEFOLD_DOCS_LUALS_EXECUTABLE=%s\n" % executable)
-    log("Installed Defold LuaLS %s at %s" % (version, executable))
+    log("Installed LuaLS %s at %s" % (version, executable))
 
 
 def read_manifest(path):
@@ -448,9 +485,10 @@ def sync_outputs(manifests, output_dir, all_formats, stamp):
         suffix = target.name.rsplit(".", 1)[-1]
         if suffix in all_formats and target.name not in expected_names:
             target.unlink()
-    for target in output_dir.glob("*.lua"):
-        if target.name not in expected_names:
-            target.unlink()
+    for extension in ("lua", "editor_script"):
+        for target in output_dir.glob("*.%s" % extension):
+            if target.name not in expected_names:
+                target.unlink()
 
     write_stamp(stamp)
     log("Installed %d non-empty API docs into %s" % (installed_count, output_dir))

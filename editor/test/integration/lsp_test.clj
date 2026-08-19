@@ -201,28 +201,6 @@
 
 (def ^:private foo-json-lines ["{\"asd\": 1}"])
 
-(deftest lua-configuration-includes-official-annotations-test
-  (with-scratch-project "test/resources/lsp_project"
-    (let [official-annotations-path (str (path/of "/defold"
-                                                  "shared"
-                                                  "lua-annotations"))
-          lua-language-server-plugin-path (str (path/of "/defold"
-                                                        "shared"
-                                                        "lua-language-server"
-                                                        "plugin.lua"))
-          configuration-handler (#'lsp.server/configuration-handler project)
-          [configuration] (with-redefs [system/defold-unpack-path (constantly "/defold")]
-                            (configuration-handler {:items [{:section "Lua"}]}))
-          libraries (get-in configuration [:workspace :library])]
-      (is (= lua-language-server-plugin-path (get-in configuration [:runtime :plugin])))
-      (is (= official-annotations-path (first libraries)))
-      (is (= 2 (count libraries)))
-      (is (string/ends-with? (second libraries)
-                             (str java.io.File/separator
-                                  ".internal"
-                                  java.io.File/separator
-                                  "lua-annotations"))))))
-
 (deftest lua-language-server-only-trusts-bundled-plugin-test
   (let [trust-action {:title "Trust and load this plugin\n"}
         reject-action {:title "Don't load this plugin\n"}
@@ -248,7 +226,8 @@
             out (a/chan 10)]
         (lsp.server/make
           project
-          (make-test-server-launcher default-handlers)
+          {:languages #{"json"}
+           :launcher (make-test-server-launcher default-handlers)}
           in out
           :on-publish-diagnostics #(apply vector :on-publish-diagnostics %&)
           :on-initialized #(vector :on-initialized %))

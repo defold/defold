@@ -657,10 +657,10 @@ end
                         :doc "any Lua value that may be represented as JSON"}]}
          {:name "pprint"
           :type :function
-          :description "Pretty-print a Lua value"
-          :parameters [{:name "value"
+          :description "Pretty-print Lua values"
+          :parameters [{:name "..."
                         :types ["any"]
-                        :doc "any Lua value to pretty-print"}]}]
+                        :doc "Lua values to pretty-print"}]}]
         (let [message-pattern-ret {:name "message"
                                    :types ["editor.message"]
                                    :doc "a userdata value that, when stringified with <code>tostring()</code>, will produce a localized text according to the currently selected language in the editor"}
@@ -913,7 +913,7 @@ end
                                {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
                                {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]))
               tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}
-              info-param {:name "info" :types ["{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }"] :doc info-doc}]
+              info-param {:name "info" :types ["{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }?"] :doc info-doc}]
           [{:name "tilemap"
             :type :module
             :description "Module for manipulating tilemaps"}
@@ -962,7 +962,7 @@ end
                          x-param
                          y-param
                          {:name "tile_or_info"
-                          :types ["integer" "{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }"]
+                          :types ["integer" "{ index:integer, h_flip?:boolean, v_flip?:boolean, rotate_90?:boolean }"]
                           :doc (str "Either " tile-doc " or " info-doc)}]
             :returnvalues [tiles-param]}
            {:name "tilemap.tiles.remove"
