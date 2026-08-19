@@ -281,7 +281,8 @@ def bobLightResourceFiles = fileTree(bobLightResourceRoot) {
 }
 def vkQualityNativeLibraries = [
         'armv7-android/libvkquality.so',
-        'arm64-android/libvkquality.so'
+        'arm64-android/libvkquality.so',
+        'x86_64-android/libvkquality.so'
 ]
 
 task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {

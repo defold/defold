@@ -451,6 +451,17 @@ platforms:
     compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fdata-sections -fstack-protector -march=armv8-a -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--gc-sections -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,max-page-size=16384 -Wl,-z,now -shared'
 
+  x86_64-android:
+    env:
+        NDK_VERSION:            "{{env.ANDROID_64_NDK_API_VERSION}}"
+        NDK_CXX:                "{{env.ANDROID_NDK_BIN_PATH}}/x86_64-linux-android{{env.ANDROID_64_NDK_API_VERSION}}-clang++"
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-android", "{{dynamo_home}}/ext/lib/x86_64-android"]
+        defines:    ["DM_PLATFORM_ANDROID"]
+
+    compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fdata-sections -fstack-protector -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--gc-sections -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,max-page-size=16384 -Wl,-z,now -shared'
+
   web:
     # It's here to whitelist this as a platform, currently used for general settings
     env:

@@ -46,7 +46,8 @@ on:
             { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
-            { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
+            { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" },
+            { "name": "x86_64-android", "runner": "ubuntu-22.04", "target": "android" }
           ]
         description: 'JSON array of platforms to build'
         required: false
@@ -175,6 +176,9 @@ jobs:
             if [[ "$BUILD_PLATFORM_NAME" == "arm64-android" ]]; then
               export CC="aarch64-linux-android${{ inputs.android_abi_version }}-clang"
               export CXX="aarch64-linux-android${{ inputs.android_abi_version }}-clang++"
+            elif [[ "$BUILD_PLATFORM_NAME" == "x86_64-android" ]]; then
+              export CC="x86_64-linux-android${{ inputs.android_abi_version }}-clang"
+              export CXX="x86_64-linux-android${{ inputs.android_abi_version }}-clang++"
             else
               export CC="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang"
               export CXX="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang++"

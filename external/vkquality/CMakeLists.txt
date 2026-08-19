@@ -11,7 +11,7 @@ if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
   set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External package install prefix" FORCE)
 endif()
 
-if(NOT TARGET_PLATFORM MATCHES "^(armv7|arm64)-android$")
+if(NOT TARGET_PLATFORM MATCHES "^(armv7|arm64|x86_64)-android$")
   message(FATAL_ERROR "VkQuality is only supported on Android platforms, got: ${TARGET_PLATFORM}")
 endif()
 
