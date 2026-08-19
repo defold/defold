@@ -1136,6 +1136,7 @@ namespace dmGraphics
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
             res.m_StageFlags           = bindings[i].m_StageFlags;
+            res.m_StorageBufferReadOnly = bindings[i].m_StorageBufferReadOnly;
 
             if (bindings[i].m_InstanceName)
             {

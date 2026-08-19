@@ -256,6 +256,24 @@ namespace dmShaderc
                 resource.m_BlockSize           = (uint32_t) size;
                 resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, list[i].base_type_id, type);
                 resource.m_Type.m_UseTypeIndex = true;
+                bool read_only = spvc_compiler_has_decoration(compiler, list[i].id, SpvDecorationNonWritable);
+                if (!read_only)
+                {
+                    // glslang emits NonWritable on the storage block members rather
+                    // than on the resource variable for a `readonly buffer` block.
+                    // A block is read-only only when every top-level member carries
+                    // that decoration; a single writable member requires a writable
+                    // WebGPU storage binding for the entire block.
+                    uint32_t member_count = spvc_type_get_num_member_types(type);
+                    read_only = member_count > 0;
+                    for (uint32_t member_index = 0; member_index < member_count && read_only; ++member_index)
+                    {
+                        read_only = spvc_compiler_has_member_decoration(compiler, list[i].base_type_id, member_index, SpvDecorationNonWritable);
+                    }
+                }
+                resource.m_Type.m_ImageAccessQualifier = read_only
+                    ? IMAGE_ACCESS_QUALIFIER_READ_ONLY
+                    : IMAGE_ACCESS_QUALIFIER_READ_WRITE;
             }
             else
             {

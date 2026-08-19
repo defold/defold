@@ -194,6 +194,7 @@ namespace dmGraphics
         uint16_t                    m_Binding;
         uint16_t                    m_ElementCount;
         uint8_t                     m_StageFlags;
+        uint8_t                     m_StorageBufferReadOnly : 1;
     };
 
     struct ShaderMeta

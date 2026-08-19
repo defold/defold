@@ -1246,6 +1246,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+    SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
 
 #if defined (DM_GRAPHICS_WEBGPU2)
@@ -2038,7 +2039,9 @@ static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLay
 #endif
 
     desc.size  = size;
-    desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+    // Defold's light and cluster buffers deliberately share one backing
+    // allocation between uniform-buffer and storage-buffer bindings.
+    desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
 
     ubo->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
 
@@ -2080,13 +2083,40 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
     ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 }
 
-static void WebGPUEnableUniformBufferAsStorage(HContext, HUniformBuffer, uint32_t, uint32_t)
+static void WebGPUEnableUniformBufferAsStorage(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
 {
-    // Vulkan-only for now.
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+    assert(set < MAX_SET_COUNT);
+    assert(binding < MAX_BINDINGS_PER_SET_COUNT);
+
+    context->m_CurrentStorageBuffers[set][binding] = ubo;
+    if (context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
+    {
+        context->m_CurrentProgram->m_BindGroups[set] = NULL;
+    }
 }
 
-static void WebGPUDisableUniformBufferAsStorage(HContext, HUniformBuffer)
+static void WebGPUDisableUniformBufferAsStorage(HContext _context, HUniformBuffer uniform_buffer)
 {
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+    for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+    {
+        bool set_was_cleared = false;
+        for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+        {
+            if (context->m_CurrentStorageBuffers[set][binding] == ubo)
+            {
+                context->m_CurrentStorageBuffers[set][binding] = 0;
+                set_was_cleared = true;
+            }
+        }
+        if (set_was_cleared && context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
+        {
+            context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        }
+    }
 }
 
 static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -2110,6 +2140,7 @@ static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
     WebGPUDisableUniformBuffer(_context, uniform_buffer);
+    WebGPUDisableUniformBufferAsStorage(_context, uniform_buffer);
 
     wgpuBufferRelease(ubo->m_Buffer);
     delete ubo;
@@ -2475,8 +2506,11 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     break;
                 }
                 case BINDING_FAMILY_STORAGE_BUFFER: {
-                    // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
-                    assert(false);
+                    WebGPUUniformBuffer* bound_ubo = context->m_CurrentStorageBuffers[set][binding];
+                    assert(bound_ubo);
+                    entries[desc.entryCount].buffer = bound_ubo->m_Buffer;
+                    entries[desc.entryCount].offset = 0;
+                    entries[desc.entryCount].size   = bound_ubo->m_BaseUniformBuffer.m_Size;
                     break;
                 }
                 case BINDING_FAMILY_UNIFORM_BUFFER: {
@@ -2808,9 +2842,9 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     info.m_TextureCount++;
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER: {
-                    assert(false);
-                    // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
-                    binding.buffer.type = WGPUBufferBindingType_Storage;
+                    binding.buffer.type = res.m_StorageBufferReadOnly
+                        ? WGPUBufferBindingType_ReadOnlyStorage
+                        : WGPUBufferBindingType_Storage;
 
                     program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                     info.m_StorageBufferCount++;

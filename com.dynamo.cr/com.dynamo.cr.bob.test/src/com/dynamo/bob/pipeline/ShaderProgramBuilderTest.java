@@ -398,9 +398,23 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(1, r.getStorageBuffersCount());
             ShaderDesc.ResourceBinding binding_test = r.getStorageBuffers(0);
             assertEquals("Test", binding_test.getName());
+            assertFalse(binding_test.getStorageBufferReadOnly());
 
             ShaderDesc.ResourceTypeInfo binding_type = r.getTypes(binding_test.getType().getTypeIndex());
             assertEquals("Test", binding_type.getName());
+        }
+
+        {
+            String fs_src =
+                "#version 430\n" +
+                "layout(std430) readonly buffer ReadOnlyTest { vec4 value; };\n" +
+                "out vec4 color_out;\n" +
+                "void main() { color_out = value; }\n";
+
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_readonly_ssbo.fp", fs_src, "/reflection_readonly_ssbo.shbundle");
+            ShaderDesc.ResourceBinding binding = shaderDesc.getReflection().getStorageBuffers(0);
+            assertEquals("ReadOnlyTest", binding.getName());
+            assertTrue(binding.getStorageBufferReadOnly());
         }
 
         // Shared shader for split/non-split sampler tests:

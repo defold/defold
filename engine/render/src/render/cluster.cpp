@@ -4,6 +4,12 @@
 #include "render_private.h"
 
 #include <dlib/log.h>
+#include <dlib/profile.h>
+
+DM_PROPERTY_GROUP(rmtp_ClusteredLighting, "Clustered Lighting", 0);
+DM_PROPERTY_U32(rmtp_ClusterCount, 0, PROFILE_PROPERTY_NONE, "# clusters", &rmtp_ClusteredLighting);
+DM_PROPERTY_U32(rmtp_ClusterIndexCapacity, 0, PROFILE_PROPERTY_NONE, "cluster light-index capacity", &rmtp_ClusteredLighting);
+DM_PROPERTY_U32(rmtp_MaxLightsPerCluster, 0, PROFILE_PROPERTY_NONE, "maximum lights per cluster", &rmtp_ClusteredLighting);
 
 namespace dmRender
 {
@@ -91,10 +97,12 @@ namespace dmRender
 
     bool SetClusteredLightingGrid(HRenderContext context, uint32_t x, uint32_t y, uint32_t z, uint32_t max_lights_per_cluster)
     {
+        DM_PROFILE("ConfigureClusteredLighting");
         if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_VULKAN &&
+            dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_WEBGPU &&
             dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_NULL)
         {
-            dmLogError("Clustered lighting storage buffers currently require Vulkan.");
+            dmLogError("Clustered lighting storage buffers currently require Vulkan or WebGPU.");
             return false;
         }
         if (x == 0 || y == 0 || z == 0 || max_lights_per_cluster == 0)
@@ -131,6 +139,9 @@ namespace dmRender
         context->m_ClusterDimensions[1] = y;
         context->m_ClusterDimensions[2] = z;
         context->m_MaxLightsPerCluster = max_lights_per_cluster;
+        DM_PROPERTY_SET_U32(rmtp_ClusterCount, cluster_count);
+        DM_PROPERTY_SET_U32(rmtp_ClusterIndexCapacity, (uint32_t) index_count_64);
+        DM_PROPERTY_SET_U32(rmtp_MaxLightsPerCluster, max_lights_per_cluster);
         ResetClusteredLightingBuffers(context);
         return true;
     }

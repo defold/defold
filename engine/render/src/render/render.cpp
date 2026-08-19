@@ -33,6 +33,13 @@
 
 DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
 DM_PROPERTY_U32(rmtp_RenderDispatchCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch registrations", &rmtp_Render);
+DM_PROPERTY_GROUP(rmtp_ClusterPasses, "Cluster Passes", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_ClusterBuildDispatches, 0, PROFILE_PROPERTY_FRAME_RESET, "# cluster-build dispatches", &rmtp_ClusterPasses);
+DM_PROPERTY_U32(rmtp_ClusterAssignDispatches, 0, PROFILE_PROPERTY_FRAME_RESET, "# cluster-assignment dispatches", &rmtp_ClusterPasses);
+DM_PROPERTY_U32(rmtp_ClusterDebugDispatches, 0, PROFILE_PROPERTY_FRAME_RESET, "# cluster-debug dispatches", &rmtp_ClusterPasses);
+DM_PROPERTY_U32(rmtp_ClusterOpaqueDraws, 0, PROFILE_PROPERTY_FRAME_RESET, "# clustered opaque draws", &rmtp_ClusterPasses);
+DM_PROPERTY_U32(rmtp_ClusterMaskDraws, 0, PROFILE_PROPERTY_FRAME_RESET, "# clustered alpha-mask draws", &rmtp_ClusterPasses);
+DM_PROPERTY_U32(rmtp_ClusterTransparentDraws, 0, PROFILE_PROPERTY_FRAME_RESET, "# clustered transparent draws", &rmtp_ClusterPasses);
 
 namespace dmRender
 {
@@ -951,6 +958,36 @@ namespace dmRender
     {
         DM_PROFILE("DrawRenderList");
 
+        static const dmhash_t CLUSTER_OPAQUE_TAG = dmHashString64("cluster_opaque");
+        static const dmhash_t CLUSTER_MASK_TAG = dmHashString64("cluster_mask");
+        static const dmhash_t CLUSTER_TRANSPARENT_TAG = dmHashString64("cluster_transparent");
+        const char* clustered_draw_profile = "DrawRenderListOther";
+        if (predicate)
+        {
+            for (uint32_t i = 0; i < predicate->m_TagCount; ++i)
+            {
+                if (predicate->m_Tags[i] == CLUSTER_OPAQUE_TAG)
+                {
+                    clustered_draw_profile = "ClusterOpaqueSubmit";
+                    DM_PROPERTY_ADD_U32(rmtp_ClusterOpaqueDraws, 1);
+                    break;
+                }
+                if (predicate->m_Tags[i] == CLUSTER_MASK_TAG)
+                {
+                    clustered_draw_profile = "ClusterAlphaMaskSubmit";
+                    DM_PROPERTY_ADD_U32(rmtp_ClusterMaskDraws, 1);
+                    break;
+                }
+                if (predicate->m_Tags[i] == CLUSTER_TRANSPARENT_TAG)
+                {
+                    clustered_draw_profile = "ClusterTransparentSubmit";
+                    DM_PROPERTY_ADD_U32(rmtp_ClusterTransparentDraws, 1);
+                    break;
+                }
+            }
+        }
+        DM_PROFILE_DYN(clustered_draw_profile, 0);
+
         // This will add new entries for the most recent debug draw render objects.
         // The internal dispatch functions knows to only actually use the latest ones.
         // The sort order is also one below the Texts flush which is only also debug stuff.
@@ -1150,7 +1187,32 @@ namespace dmRender
         ApplyComputeProgramLightBuffers(render_context, compute_program);
         ApplyComputeProgramClusterBuffers(render_context, compute_program);
 
-        dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+        const bool has_bounds = compute_program->m_ClusterBufferBindings[CLUSTER_BUFFER_BOUNDS].m_Present != 0;
+        const bool has_metadata = compute_program->m_ClusterBufferBindings[CLUSTER_BUFFER_METADATA].m_Present != 0;
+        const bool has_overflow = compute_program->m_ClusterBufferBindings[CLUSTER_BUFFER_OVERFLOW].m_Present != 0;
+
+        if (compute_program->m_HasLightBuffer && has_bounds && has_metadata)
+        {
+            DM_PROFILE("ClusterLightAssignmentSubmit");
+            DM_PROPERTY_ADD_U32(rmtp_ClusterAssignDispatches, 1);
+            dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+        }
+        else if (has_bounds && !has_metadata)
+        {
+            DM_PROFILE("ClusterBoundsBuildSubmit");
+            DM_PROPERTY_ADD_U32(rmtp_ClusterBuildDispatches, 1);
+            dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+        }
+        else if (has_metadata && has_overflow)
+        {
+            DM_PROFILE("ClusterDebugSubmit");
+            DM_PROPERTY_ADD_U32(rmtp_ClusterDebugDispatches, 1);
+            dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+        }
+        else
+        {
+            dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+        }
 
         next_texture_unit = 0;
         for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)

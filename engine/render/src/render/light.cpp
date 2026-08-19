@@ -15,6 +15,13 @@
 #include "render.h"
 #include "render_private.h"
 
+#include <dlib/profile.h>
+
+DM_PROPERTY_GROUP(rmtp_Lighting, "Lighting", 0);
+DM_PROPERTY_U32(rmtp_ActiveLights, 0, PROFILE_PROPERTY_FRAME_RESET, "# active lights uploaded", &rmtp_Lighting);
+DM_PROPERTY_U32(rmtp_LightBufferUploadBytes, 0, PROFILE_PROPERTY_FRAME_RESET, "LightBuffer bytes uploaded", &rmtp_Lighting);
+DM_PROPERTY_U32(rmtp_LightBufferUploadCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# LightBuffer uploads", &rmtp_Lighting);
+
 namespace dmRender
 {
     static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
@@ -412,7 +419,9 @@ namespace dmRender
 
     static void WriteLightInstanceData(HRenderContext render_context)
     {
+        DM_PROFILE("LightBufferUpload");
         uint32_t active_light_count = CompactLightBufferScratch(render_context);
+        uint32_t uploaded_bytes = 0;
 
         if (render_context->m_LightBufferDirtyInfo)
         {
@@ -422,6 +431,7 @@ namespace dmRender
                                          render_context->m_LightBufferInfoWriteStart,
                                          sizeof(info),
                                          &info);
+            uploaded_bytes += sizeof(info);
         }
 
         // Write compacted light data from the scratch buffer. The shader loops
@@ -435,7 +445,12 @@ namespace dmRender
                                          render_context->m_LightBufferDataWriteStart,
                                          write_size,
                                          render_context->m_LightBufferUploadScratch.Begin());
+            uploaded_bytes += write_size;
         }
+
+        DM_PROPERTY_ADD_U32(rmtp_ActiveLights, active_light_count);
+        DM_PROPERTY_ADD_U32(rmtp_LightBufferUploadBytes, uploaded_bytes);
+        DM_PROPERTY_ADD_U32(rmtp_LightBufferUploadCount, 1);
 
         // Reset all dirty flags
         render_context->m_LightBufferDirtyStart = render_context->m_LightBufferScratch.Size();
@@ -634,7 +649,7 @@ namespace dmRender
         dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferBindingCallback, &cb_ctx);
 
         dmGraphics::AdapterFamily adapter_family = dmGraphics::GetInstalledAdapterFamily();
-        bool storage_light_buffer_supported = adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN || adapter_family == dmGraphics::ADAPTER_FAMILY_NULL;
+        bool storage_light_buffer_supported = adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN || adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU || adapter_family == dmGraphics::ADAPTER_FAMILY_NULL;
         if (!cb_ctx.m_HasLightBuffer && storage_light_buffer_supported && dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER))
         {
             cb_ctx.m_Family = dmGraphics::BINDING_FAMILY_STORAGE_BUFFER;

@@ -197,6 +197,7 @@ namespace dmGraphics
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        WebGPUUniformBuffer*               m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         WebGPUTexture*                     m_DefaultTexture2D;
         WebGPUTexture*                     m_DefaultTexture2DArray;
@@ -236,7 +237,6 @@ namespace dmGraphics
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;
 
-        // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };
 } // namespace dmGraphics
 
