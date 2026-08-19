@@ -951,7 +951,7 @@
                state ch
                :requests [(lsp.server/formatting resource indent-type)]
                :capabilities-pred :formatting
-               :language (resource/language resource)
+               :resource resource
                :timeout-ms timeout-ms))))))
 
 (defn- first-complete-server [^long n]
@@ -987,7 +987,7 @@
                               (mapv #(lsp.server/range-formatting resource % indent-type (partial pair server))
                                     cursor-ranges))
                :capabilities-pred :range-formatting
-               :language (resource/language resource)
+               :resource resource
                :timeout-ms timeout-ms))))))
 
 (defn find-references! [lsp resource cursor result-callback & {:keys [timeout-ms]
