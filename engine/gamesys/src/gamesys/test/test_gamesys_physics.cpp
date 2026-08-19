@@ -1,10 +1,22 @@
 #include <test_script.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <gamesys/physics_ddf.h>
 
 #include "test_gamesys.h"
 
 using namespace dmVMath;
+
+static void AssertLua(lua_State* L, const char* source)
+{
+    int result = luaL_dostring(L, source);
+    if (result != 0)
+    {
+        dmLogError("Lua assertion failed: %s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+    }
+    ASSERT_EQ(0, result);
+}
 
 static void RunPhysicsScriptTest(dmResource::HFactory factory, dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context,
                                  dmScript::HContext script_context, const char* prototype_path, const char* instance_path)
@@ -153,6 +165,105 @@ TEST_F(ComponentTest, PhysicsListenerTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
+}
+
+TEST_F(ComponentTest, PhysicsDDFDecoderTest)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmPhysicsDDF::CollisionResponse collision = {};
+    collision.m_OtherId = dmHashString64("other");
+    collision.m_Group = dmHashString64("group");
+    collision.m_OtherPosition = Point3(1.0f, 2.0f, 3.0f);
+    collision.m_OtherGroup = dmHashString64("other_group");
+    collision.m_OwnGroup = dmHashString64("own_group");
+    dmScript::PushDDF(L, dmPhysicsDDF::CollisionResponse::m_DDFDescriptor, (const char*)&collision, false);
+    lua_setglobal(L, "decoded_collision");
+
+    dmPhysicsDDF::ContactPointResponse contact = {};
+    contact.m_Position = Point3(4.0f, 5.0f, 6.0f);
+    contact.m_Normal = Vector3(0.0f, 1.0f, 0.0f);
+    contact.m_RelativeVelocity = Vector3(7.0f, 8.0f, 9.0f);
+    contact.m_Distance = 0.25f;
+    contact.m_AppliedImpulse = 2.0f;
+    contact.m_LifeTime = 3.0f;
+    contact.m_Mass = 4.0f;
+    contact.m_OtherMass = 5.0f;
+    contact.m_OtherId = dmHashString64("other");
+    contact.m_OtherPosition = Point3(10.0f, 11.0f, 12.0f);
+    contact.m_Group = dmHashString64("group");
+    contact.m_OtherGroup = dmHashString64("other_group");
+    contact.m_OwnGroup = dmHashString64("own_group");
+    dmScript::PushDDF(L, dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor, (const char*)&contact, false);
+    lua_setglobal(L, "decoded_contact");
+
+    dmPhysicsDDF::TriggerResponse trigger = {};
+    trigger.m_OtherId = dmHashString64("other");
+    trigger.m_Enter = true;
+    trigger.m_Group = dmHashString64("group");
+    trigger.m_OtherGroup = dmHashString64("other_group");
+    trigger.m_OwnGroup = dmHashString64("own_group");
+    dmScript::PushDDF(L, dmPhysicsDDF::TriggerResponse::m_DDFDescriptor, (const char*)&trigger, false);
+    lua_setglobal(L, "decoded_trigger");
+
+    dmPhysicsDDF::RayCastResponse ray = {};
+    ray.m_Fraction = 0.5f;
+    ray.m_Position = Point3(13.0f, 14.0f, 15.0f);
+    ray.m_Normal = Vector3(0.0f, 0.0f, 1.0f);
+    ray.m_Id = dmHashString64("other");
+    ray.m_Group = dmHashString64("group");
+    ray.m_RequestId = 17;
+    dmScript::PushDDF(L, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (const char*)&ray, false);
+    lua_setglobal(L, "decoded_ray");
+
+    dmPhysicsDDF::RayCastMissed missed = {};
+    missed.m_RequestId = 18;
+    dmScript::PushDDF(L, dmPhysicsDDF::RayCastMissed::m_DDFDescriptor, (const char*)&missed, false);
+    lua_setglobal(L, "decoded_missed");
+
+    dmPhysicsDDF::VelocityResponse velocity = {};
+    velocity.m_LinearVelocity = Vector3(1.0f, 2.0f, 3.0f);
+    velocity.m_AngularVelocity = Vector3(4.0f, 5.0f, 6.0f);
+    dmScript::PushDDF(L, dmPhysicsDDF::VelocityResponse::m_DDFDescriptor, (const char*)&velocity, false);
+    lua_setglobal(L, "decoded_velocity");
+
+    AssertLua(L,
+        "assert(decoded_collision.other_id == hash('other'))\n"
+        "assert(decoded_collision.group == hash('group'))\n"
+        "assert(decoded_collision.other_position == vmath.vector3(1, 2, 3))\n"
+        "assert(decoded_collision.other_group == hash('other_group'))\n"
+        "assert(decoded_collision.own_group == hash('own_group'))\n"
+        "assert(decoded_contact.position == vmath.vector3(4, 5, 6))\n"
+        "assert(decoded_contact.normal == vmath.vector3(0, 1, 0))\n"
+        "assert(decoded_contact.relative_velocity == vmath.vector3(7, 8, 9))\n"
+        "assert(decoded_contact.distance == 0.25)\n"
+        "assert(decoded_contact.applied_impulse == 2)\n"
+        "assert(decoded_contact.life_time == 3)\n"
+        "assert(decoded_contact.mass == 4)\n"
+        "assert(decoded_contact.other_mass == 5)\n"
+        "assert(decoded_contact.other_id == hash('other'))\n"
+        "assert(decoded_contact.other_position == vmath.vector3(10, 11, 12))\n"
+        "assert(decoded_contact.group == hash('group'))\n"
+        "assert(decoded_contact.other_group == hash('other_group'))\n"
+        "assert(decoded_contact.own_group == hash('own_group'))\n"
+        "assert(decoded_trigger.other_id == hash('other') and decoded_trigger.enter)\n"
+        "assert(decoded_trigger.group == hash('group'))\n"
+        "assert(decoded_trigger.other_group == hash('other_group'))\n"
+        "assert(decoded_trigger.own_group == hash('own_group'))\n"
+        "assert(decoded_ray.fraction == 0.5)\n"
+        "assert(decoded_ray.position == vmath.vector3(13, 14, 15))\n"
+        "assert(decoded_ray.normal == vmath.vector3(0, 0, 1))\n"
+        "assert(decoded_ray.id == hash('other') and decoded_ray.group == hash('group'))\n"
+        "assert(decoded_ray.request_id == 17 and decoded_missed.request_id == 18)\n"
+        "assert(decoded_velocity.linear_velocity == vmath.vector3(1, 2, 3))\n"
+        "assert(decoded_velocity.angular_velocity == vmath.vector3(4, 5, 6))\n");
+
+    lua_pushnil(L); lua_setglobal(L, "decoded_collision");
+    lua_pushnil(L); lua_setglobal(L, "decoded_contact");
+    lua_pushnil(L); lua_setglobal(L, "decoded_trigger");
+    lua_pushnil(L); lua_setglobal(L, "decoded_ray");
+    lua_pushnil(L); lua_setglobal(L, "decoded_missed");
+    lua_pushnil(L); lua_setglobal(L, "decoded_velocity");
 }
 
 /* Update mass for physics collision object */
