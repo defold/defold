@@ -16,6 +16,7 @@ namespace dmRender
     static const dmhash_t CLUSTER_BUFFER_NAMES[CLUSTER_BUFFER_COUNT] =
     {
         dmHashString64("ClusterBoundsBuffer"),
+        dmHashString64("ClusterDepthRangesBuffer"),
         dmHashString64("ClusterMetadataBuffer"),
         dmHashString64("ClusterLightIndicesBuffer"),
         dmHashString64("ClusterCountersBuffer"),
@@ -120,6 +121,7 @@ namespace dmRender
         const uint32_t sizes[CLUSTER_BUFFER_COUNT] =
         {
             cluster_count * 32u,                       // two vec4 AABB corners
+            x * y * 16u,                               // min/max visible depth per screen tile
             cluster_count * 8u,                        // offset + count
             (uint32_t) index_count_64 * 4u,
             sizeof(uint32_t) * 4,                      // allocator + global diagnostics

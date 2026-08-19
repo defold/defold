@@ -44,6 +44,7 @@ namespace dmRender
     enum ClusterBufferType
     {
         CLUSTER_BUFFER_BOUNDS,
+        CLUSTER_BUFFER_DEPTH_RANGES,
         CLUSTER_BUFFER_METADATA,
         CLUSTER_BUFFER_LIGHT_INDICES,
         CLUSTER_BUFFER_COUNTERS,

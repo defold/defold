@@ -34,6 +34,7 @@
 DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
 DM_PROPERTY_U32(rmtp_RenderDispatchCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch registrations", &rmtp_Render);
 DM_PROPERTY_GROUP(rmtp_ClusterPasses, "Cluster Passes", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_ClusterDepthDispatches, 0, PROFILE_PROPERTY_FRAME_RESET, "# cluster-depth dispatches", &rmtp_ClusterPasses);
 DM_PROPERTY_U32(rmtp_ClusterBuildDispatches, 0, PROFILE_PROPERTY_FRAME_RESET, "# cluster-build dispatches", &rmtp_ClusterPasses);
 DM_PROPERTY_U32(rmtp_ClusterAssignDispatches, 0, PROFILE_PROPERTY_FRAME_RESET, "# cluster-assignment dispatches", &rmtp_ClusterPasses);
 DM_PROPERTY_U32(rmtp_ClusterDebugDispatches, 0, PROFILE_PROPERTY_FRAME_RESET, "# cluster-debug dispatches", &rmtp_ClusterPasses);
@@ -1188,6 +1189,7 @@ namespace dmRender
         ApplyComputeProgramClusterBuffers(render_context, compute_program);
 
         const bool has_bounds = compute_program->m_ClusterBufferBindings[CLUSTER_BUFFER_BOUNDS].m_Present != 0;
+        const bool has_depth_ranges = compute_program->m_ClusterBufferBindings[CLUSTER_BUFFER_DEPTH_RANGES].m_Present != 0;
         const bool has_metadata = compute_program->m_ClusterBufferBindings[CLUSTER_BUFFER_METADATA].m_Present != 0;
         const bool has_overflow = compute_program->m_ClusterBufferBindings[CLUSTER_BUFFER_OVERFLOW].m_Present != 0;
 
@@ -1195,6 +1197,12 @@ namespace dmRender
         {
             DM_PROFILE("ClusterLightAssignmentSubmit");
             DM_PROPERTY_ADD_U32(rmtp_ClusterAssignDispatches, 1);
+            dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+        }
+        else if (has_depth_ranges && !has_bounds && !has_metadata)
+        {
+            DM_PROFILE("ClusterDepthReduceSubmit");
+            DM_PROPERTY_ADD_U32(rmtp_ClusterDepthDispatches, 1);
             dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
         }
         else if (has_bounds && !has_metadata)

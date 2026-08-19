@@ -319,6 +319,10 @@ namespace dmRender
     static inline void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light)
     {
         out_light->m_Position = dmVMath::Vector4(position);
+        // Reserved for render-path-specific per-light metadata. Clustered
+        // spotlight shadows use zero for unshadowed lights and slot + 1 for
+        // lights assigned to a shadow atlas.
+        out_light->m_Position.setW(0.0f);
         out_light->m_Color    = prototype->m_Color;
 
         dmVMath::Vector3 direction(0.0f, 0.0f, 0.0f);
@@ -537,6 +541,63 @@ namespace dmRender
         render_context->m_LightBufferScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetCapacity(0);
+    }
+
+    uint32_t SelectSpotLightShadows(HRenderContext render_context, uint32_t max_shadows, SpotLightShadowData* out_shadows)
+    {
+        uint32_t compacted_light_index = 0;
+        uint32_t shadow_count = 0;
+        const uint32_t render_light_count = render_context->m_RenderLights.Size();
+
+        for (uint32_t i = 0; i < render_light_count; ++i)
+        {
+            const LightInstance* instance = &render_context->m_RenderLights[i];
+            if (instance->m_LightPrototype == 0)
+                continue;
+
+            const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
+            LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+            const bool selected = prototype != 0 &&
+                                  prototype->m_Type == LIGHT_TYPE_SPOT &&
+                                  shadow_count < max_shadows;
+            const float shadow_tag = selected ? (float) (shadow_count + 1) : 0.0f;
+
+            if (light.m_Position.getW() != shadow_tag)
+            {
+                light.m_Position.setW(shadow_tag);
+                render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, (uint32_t) instance->m_LightBufferIndex);
+                render_context->m_LightBufferDirtyEnd = dmMath::Max(render_context->m_LightBufferDirtyEnd, (uint32_t) (instance->m_LightBufferIndex + 1));
+            }
+
+            if (selected && out_shadows != 0)
+            {
+                SpotLightShadowData& shadow = out_shadows[shadow_count];
+                shadow.m_Position = dmVMath::Point3(light.m_Position.getX(), light.m_Position.getY(), light.m_Position.getZ());
+                shadow.m_Direction = light.m_DirectionRange.getXYZ();
+                shadow.m_Range = light.m_DirectionRange.getW();
+                shadow.m_OuterConeAngle = light.m_Params.getW();
+                shadow.m_LightIndex = compacted_light_index;
+                shadow.m_ShadowIndex = shadow_count;
+
+                dmVMath::Vector3 world_up(0.0f, 1.0f, 0.0f);
+                if (fabsf(dmVMath::Dot(shadow.m_Direction, world_up)) > 0.99f)
+                    world_up = dmVMath::Vector3(0.0f, 0.0f, 1.0f);
+
+                const float near_z = dmMath::Min(0.1f, dmMath::Max(0.02f, shadow.m_Range * 0.01f));
+                const float far_z = dmMath::Max(shadow.m_Range, near_z + 0.01f);
+                const float fov = dmMath::Min((float) M_PI - 0.01f, dmMath::Max(0.01f, shadow.m_OuterConeAngle));
+                const dmVMath::Point3 target = shadow.m_Position + shadow.m_Direction;
+                shadow.m_View = dmVMath::Matrix4::lookAt(shadow.m_Position, target, world_up);
+                shadow.m_Projection = dmVMath::Matrix4::perspective(fov, 1.0f, near_z, far_z);
+                shadow.m_ViewProjection = shadow.m_Projection * shadow.m_View;
+            }
+
+            if (selected)
+                ++shadow_count;
+            ++compacted_light_index;
+        }
+
+        return shadow_count;
     }
 
     void FinalizeLightData(HRenderContext render_context)

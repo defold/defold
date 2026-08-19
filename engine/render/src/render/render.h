@@ -221,6 +221,19 @@ namespace dmRender
         float            m_OuterConeAngle;
     };
 
+    struct SpotLightShadowData
+    {
+        dmVMath::Matrix4 m_View;
+        dmVMath::Matrix4 m_Projection;
+        dmVMath::Matrix4 m_ViewProjection;
+        dmVMath::Point3  m_Position;
+        dmVMath::Vector3 m_Direction;
+        float            m_Range;
+        float            m_OuterConeAngle;
+        uint32_t         m_LightIndex;
+        uint32_t         m_ShadowIndex;
+    };
+
     struct SamplerInfo
     {
         dmhash_t                     m_NameHash;
@@ -502,6 +515,7 @@ namespace dmRender
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
     void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
+    uint32_t        SelectSpotLightShadows(HRenderContext render_context, uint32_t max_shadows, SpotLightShadowData* out_shadows);
 
     /** Configure the engine-owned clustered-lighting storage buffers.
      * Buffers are resized lazily and retain stable shader contracts named

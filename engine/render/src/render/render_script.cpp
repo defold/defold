@@ -2955,6 +2955,59 @@ namespace dmRender
         return 0;
     }
 
+    /*# selects spotlights for a shadow atlas
+     * Selects up to `max_shadows` active spotlights in compacted light-buffer
+     * order. Selected lights are tagged with a one-based shadow-atlas slot in
+     * `Light.position.w`; all other lights are tagged with zero.
+     *
+     * @name render.select_spot_light_shadows
+     * @param max_shadows [type:number] maximum number of selected spotlights
+     * @return shadows [type:table] selected spotlight view data
+     */
+    static int RenderScript_SelectSpotLightShadows(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        int max_shadows_arg = (int) luaL_checkinteger(L, 1);
+        if (max_shadows_arg < 0 || max_shadows_arg > 256)
+            return DM_LUA_ERROR("max_shadows must be between 0 and 256");
+
+        const uint32_t max_shadows = (uint32_t) max_shadows_arg;
+        dmArray<SpotLightShadowData> shadows;
+        shadows.SetCapacity(max_shadows);
+        shadows.SetSize(max_shadows);
+        const uint32_t shadow_count = SelectSpotLightShadows(i->m_RenderContext, max_shadows, shadows.Begin());
+
+        lua_createtable(L, shadow_count, 0);
+        for (uint32_t shadow_index = 0; shadow_index < shadow_count; ++shadow_index)
+        {
+            const SpotLightShadowData& shadow = shadows[shadow_index];
+            lua_createtable(L, 0, 9);
+
+            lua_pushnumber(L, shadow.m_LightIndex);
+            lua_setfield(L, -2, "light_index");
+            lua_pushnumber(L, shadow.m_ShadowIndex);
+            lua_setfield(L, -2, "shadow_index");
+            lua_pushnumber(L, shadow.m_Range);
+            lua_setfield(L, -2, "range");
+            lua_pushnumber(L, shadow.m_OuterConeAngle);
+            lua_setfield(L, -2, "outer_cone_angle");
+            dmScript::PushVector3(L, dmVMath::Vector3(shadow.m_Position));
+            lua_setfield(L, -2, "position");
+            dmScript::PushVector3(L, shadow.m_Direction);
+            lua_setfield(L, -2, "direction");
+            dmScript::PushMatrix4(L, shadow.m_View);
+            lua_setfield(L, -2, "view");
+            dmScript::PushMatrix4(L, shadow.m_Projection);
+            lua_setfield(L, -2, "projection");
+            dmScript::PushMatrix4(L, shadow.m_ViewProjection);
+            lua_setfield(L, -2, "view_projection");
+
+            lua_rawseti(L, -2, shadow_index + 1);
+        }
+        return 1;
+    }
+
     /*# dispatches the currently enabled compute program
      * Dispatches the currently enabled compute program. The dispatch call takes three arguments x,y,z which constitutes
      * the 'global working group' of the compute dispatch. Together with the 'local working group' specified in the compute shader
@@ -3154,6 +3207,7 @@ namespace dmRender
         {"dispatch_compute",                RenderScript_Dispatch},
         {"set_clustered_lighting_grid",     RenderScript_SetClusteredLightingGrid},
         {"reset_clustered_lighting_buffers",RenderScript_ResetClusteredLightingBuffers},
+        {"select_spot_light_shadows",       RenderScript_SelectSpotLightShadows},
         {"set_camera",                      RenderScript_SetCamera},
         {"set_listener",                    RenderScript_SetListener},
         {0, 0}

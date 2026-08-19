@@ -2546,6 +2546,52 @@ TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
     dmRender::DeleteLightPrototype(m_Context, prototype);
 }
 
+TEST_F(dmRenderTest, SelectSpotLightShadows)
+{
+    dmRender::LightPrototypeParams point_params;
+    point_params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    dmRender::HLightPrototype point_prototype = dmRender::NewLightPrototype(m_Context, point_params);
+    dmRender::HLightInstance point = dmRender::NewLightInstance(m_Context, point_prototype);
+
+    dmRender::LightPrototypeParams spot_params;
+    spot_params.m_Type = dmRender::LIGHT_TYPE_SPOT;
+    spot_params.m_Range = 12.0f;
+    spot_params.m_OuterConeAngle = 0.75f;
+    dmRender::HLightPrototype spot_prototype = dmRender::NewLightPrototype(m_Context, spot_params);
+    dmRender::HLightInstance spot_a = dmRender::NewLightInstance(m_Context, spot_prototype);
+    dmRender::HLightInstance spot_b = dmRender::NewLightInstance(m_Context, spot_prototype);
+
+    dmRender::SetLightInstance(m_Context, point, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, spot_a, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, spot_b, dmVMath::Point3(4, 5, 6), dmVMath::Quat::identity(), 1.0f);
+
+    dmRender::SpotLightShadowData shadows[2];
+    ASSERT_EQ(1u, dmRender::SelectSpotLightShadows(m_Context, 1, shadows));
+    ASSERT_EQ(1u, shadows[0].m_LightIndex);
+    ASSERT_EQ(0u, shadows[0].m_ShadowIndex);
+    ASSERT_EQ(12.0f, shadows[0].m_Range);
+    ASSERT_EQ(0.75f, shadows[0].m_OuterConeAngle);
+
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_Context;
+    ASSERT_EQ(0.0f, render_ctx->m_LightBufferScratch[0].m_Position.getW());
+    ASSERT_EQ(1.0f, render_ctx->m_LightBufferScratch[1].m_Position.getW());
+    ASSERT_EQ(0.0f, render_ctx->m_LightBufferScratch[2].m_Position.getW());
+
+    ASSERT_EQ(2u, dmRender::SelectSpotLightShadows(m_Context, 2, shadows));
+    ASSERT_EQ(1.0f, render_ctx->m_LightBufferScratch[1].m_Position.getW());
+    ASSERT_EQ(2.0f, render_ctx->m_LightBufferScratch[2].m_Position.getW());
+
+    ASSERT_EQ(0u, dmRender::SelectSpotLightShadows(m_Context, 0, 0));
+    ASSERT_EQ(0.0f, render_ctx->m_LightBufferScratch[1].m_Position.getW());
+    ASSERT_EQ(0.0f, render_ctx->m_LightBufferScratch[2].m_Position.getW());
+
+    dmRender::DeleteLightInstance(m_Context, point);
+    dmRender::DeleteLightInstance(m_Context, spot_a);
+    dmRender::DeleteLightInstance(m_Context, spot_b);
+    dmRender::DeleteLightPrototype(m_Context, point_prototype);
+    dmRender::DeleteLightPrototype(m_Context, spot_prototype);
+}
+
 TEST(Constants, Constant)
 {
     dmhash_t original_name_hash = dmHashString64("test_constant");
