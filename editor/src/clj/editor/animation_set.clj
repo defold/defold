@@ -115,10 +115,10 @@
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
   (when (not (empty? animation-set))
     (bt/with-content-hash
-       {:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-animation-set
-        :user-data {:animation-set animation-set}})))
+      {:node-id _node-id
+       :resource (workspace/make-build-resource resource)
+       :build-fn build-animation-set
+       :user-data {:animation-set animation-set}})))
 
 (def ^:private form-sections
   {:navigation false
@@ -195,4 +195,4 @@
     :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

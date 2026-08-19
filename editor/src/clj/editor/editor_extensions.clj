@@ -47,6 +47,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
+            [editor.lsp.project :as lsp.project]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -235,7 +236,7 @@
                                                                   type-ext (string/lower-case (FilenameUtils/getExtension file-name))]
                                                               (workspace/replace-template-name (type-ext->template type-ext) base-name)))]
                                             (coll/pair file-path content))))
-                                  created-resource-infos)]
+                                      created-resource-infos)]
               (->> path+contents
                    (e/map key)
                    (frequencies)
@@ -290,10 +291,7 @@
                        (path/normalized))
           protected-paths (mapv #(.resolve root-path ^String %)
                                 [".git"
-                                 ".internal"])
-          protected-path? (fn protected-path? [^Path path]
-                            (some #(.startsWith path ^Path %)
-                                  protected-paths))]
+                                 ".internal"])]
       (cond
         (not (.startsWith dir-path root-path))
         (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory")))
@@ -301,7 +299,7 @@
         (= (.getNameCount dir-path) (.getNameCount root-path))
         (throw (LuaError. "Can't delete the project directory itself"))
 
-        (protected-path? dir-path)
+        (coll/any? #(.startsWith dir-path ^Path %) protected-paths)
         (throw (LuaError. (str "Can't delete " dir-path ": protected by editor")))
 
         :else
@@ -355,7 +353,7 @@
 
 (defn- make-ext-execute-fn [^Path project-path reload-resources!]
   (rt/suspendable-lua-fn ext-execute [{:keys [rt]} & lua-args]
-    (when (empty? lua-args)
+    (when (coll/empty? lua-args)
       (throw (LuaError. "No arguments provided to editor.execute()")))
     (let [last-arg (rt/->clj rt execute-last-arg-coercer (last lua-args))
           butlast-args (mapv #(rt/->clj rt coerce/string %) (butlast lua-args))
@@ -380,23 +378,23 @@
                        (actions/input-stream->console (process/err p) (rt/stderr rt)))]
       (-> (.onExit p)
           (cond-> out-future (future/then (fn [_] out-future))
-                  err-future (future/then (fn [_] err-future)))
+            err-future (future/then (fn [_] err-future)))
           (future/then
             (fn [_]
               (let [exit-code (.exitValue p)]
                 (when-not (zero? exit-code)
                   (throw (LuaError. (format "Command \"%s\" exited with code %s"
-                                            (string/join " " cmd+args)
+                                            (coll/join-to-string " " cmd+args)
                                             exit-code)))))))
           (cond-> maybe-output-future
-                  (future/then (fn [_] maybe-output-future))
+            (future/then (fn [_] maybe-output-future))
 
-                  reload
-                  (future/then
-                    (fn [result]
-                      (future/then
-                        (reload-resources!)
-                        (fn [_] (rt/and-refresh-context result))))))))))
+            reload
+            (future/then
+              (fn [result]
+                (future/then
+                  (reload-resources!)
+                  (fn [_] (rt/and-refresh-context result))))))))))
 
 (def bob-options-coercer
   (let [scalar-coercer (coerce/one-of coerce/string coerce/boolean coerce/integer)]
@@ -409,7 +407,7 @@
 
 (defn- make-ext-bob-fn [invoke-bob!]
   (rt/suspendable-lua-fn bob [{:keys [rt evaluation-context]} & lua-args]
-    (let [[options commands] (if (empty? lua-args)
+    (let [[options commands] (if (coll/empty? lua-args)
                                [{} []]
                                (let [options-or-command (rt/->clj rt bob-options-or-command-coercer (first lua-args))
                                      first-arg-is-command (string? options-or-command)
@@ -487,13 +485,28 @@
               (when (coll/not-empty error-messages)
                 (LuaError. ^String (localization-state (localization/join "\n" error-messages)))))))))))
 
+(def ^:private open-resource-args-coercer
+  (coerce/regex :resource-path graph/resource-path-coercer
+                :rest :? [:view (coerce/enum :code :text :scene :html :form)
+                          :args :? coerce/untouched]))
+
 (defn- make-open-resource-fn [workspace open-resource!]
-  (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [basis (:basis evaluation-context)
-          resource-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
-          resource (workspace/find-resource basis workspace resource-path)]
-      (when (and resource (resource/exists? resource) (resource/openable? resource))
-        (open-resource! resource)))))
+  (rt/suspendable-varargs-lua-fn open-resource [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [resource-path]
+           {:keys [view args]} :rest} (rt/->clj rt open-resource-args-coercer varargs)
+          resource (workspace/find-resource (:basis evaluation-context) workspace resource-path)]
+      (if-not (and resource (resource/exists? resource) (resource/openable? resource))
+        (throw (LuaError. (format "Resource '%s' could not be opened" resource-path)))
+        (if-not view
+          (open-resource! resource {})
+          (let [view-type (or (coll/first-where #(= view (:id %)) (workspace/resource-view-types resource))
+                              (throw (LuaError. (format "Resource '%s' does not support the '%s' view" resource-path (name view)))))
+                view-opts (if-not args
+                            {}
+                            (if-let [args-coercer (:open-resource-args-coercer view-type)]
+                              (rt/->clj rt args-coercer args)
+                              (throw (LuaError. (format "The '%s' view does not accept open-resource args" (name view))))))]
+            (open-resource! resource (assoc view-opts :selected-view-type view-type))))))))
 
 (def ext-browse-fn
   (rt/suspendable-lua-fn browse [{:keys [rt]} lua-string]
@@ -607,7 +620,7 @@
                                                   (pprint (.arg kv-varargs 2) indent seen)
                                                   ;; wrap `true` in boolean so that the loop compiles, otherwise it complains
                                                   ;; about java.lang.Boolean not matching primitive boolean ¯\_(ツ)_/¯
-                                                  (recur k (boolean true))))))))
+                                                  (recur k #_{:clj-kondo/ignore [:redundant-primitive-coercion]} (boolean true))))))))
                                       (.println out)
                                       (write-indent! out indent)
                                       (.print out "}"))))
@@ -657,7 +670,7 @@
                json
                (assoc response :body (with-open [reader (io/reader (:body response))]
                                        (json/read reader)))
-     
+
                path
                (with-open [^InputStream body (:body response)]
                  (if-not (<= 200 (:status response) 299)
@@ -676,7 +689,7 @@
                          @(reload-resources!)
                          (rt/and-refresh-context response))
                        response))))
-     
+
                :else
                response))
            (catch Throwable e
@@ -727,14 +740,17 @@
                    (assoc :launcher (select-keys language-server [:command]))))))
       (execute-all-top-level-functions state :get_language_servers {} evaluation-context))))
 
-(defn- reload-language-servers! [lsp script-annotations ext-language-servers]
+(defn- reload-language-servers! [project lsp script-annotations ext-language-servers]
   (future
     ;; perform annotation sync asynchronously since it potentially involves writing a lot
     ;; of lua annotation files
     (error-reporting/catch-all!
       (g/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)]
-        (lsp/set-servers! lsp (conj ext-language-servers (built-in-lua-language-server sync-hash)))))))
-
+        (lsp/set-servers!
+          lsp
+          (conj ext-language-servers
+                (built-in-lua-language-server sync-hash)
+                (lsp.project/language-server project)))))))
 
 ;; endregion
 
@@ -768,7 +784,7 @@
 (defn- prefs-schema [state evaluation-context]
   (let [{:keys [rt]} state
         report-omitted-schema! (fn report-omitted-schema! [path reason]
-                                 (.println (rt/stderr rt) (str "Omitting prefs schema definition for path '" (string/join "." (map name path)) "': " reason)))
+                                 (.println (rt/stderr rt) (str "Omitting prefs schema definition for path '" (coll/join-to-string "." (e/map name path)) "': " reason)))
         omit-on-conflict (fn omit-on-conflict [a b path]
                            (if (= a b)
                              a
@@ -925,7 +941,7 @@
                    (-> acc
                        (update :all add-all-entry proto-path module)
                        (cond-> (= hooks-file-path proto-path)
-                               (assoc :hooks module)))
+                         (assoc :hooks module)))
                    acc))
 
                (nil? x)
@@ -995,9 +1011,9 @@
     :save!                0-arg function that asynchronously saves any unsaved
                           changes, returns CompletableFuture (that might
                           complete exceptionally if reload fails)
-    :open-resource!       1-arg function that asynchronously opens the supplied
-                          resource either in an editor tab or in another app that
-                          has OS-defined file association, returns
+    :open-resource!       2-arg function that asynchronously opens the supplied
+                          resource with an options map, either in an editor tab
+                          or in another app, returns
                           CompletableFuture (that might complete exceptionally
                           if resource could not be opened)
     :fetch-libraries!     0-arg function that asynchronously fetches libraries,
@@ -1106,7 +1122,7 @@
              dynamic-routes (dynamic-routes new-state evaluation-context)]
     (g/user-data-swap! extensions :state (constantly new-state))
     (reload-prefs! project-path prefs-schema)
-    (reload-language-servers! lsp script-annotations ext-language-servers)
+    (reload-language-servers! project lsp script-annotations ext-language-servers)
     (reload-commands! command-handlers)
     (reload-server-routes! new-state dynamic-routes)
     nil))
@@ -1121,9 +1137,9 @@
                :message (str (name hook-keyword) " in " hooks-file-path " failed: " message)
                :severity :fatal}
 
-              line
-              (assoc-in [:user-data :cursor-range]
-                        (data/line-number->CursorRange (Integer/parseInt line)))))))
+        line
+        (assoc-in [:user-data :cursor-range]
+                  (data/line-number->CursorRange (Integer/parseInt line)))))))
 
 (defn execute-hook!
   "Execute hook defined in this project

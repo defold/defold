@@ -145,4 +145,4 @@
     :icon "icons/32/Icons_31-Material.png"
     :icon-class :property
     :category (localization/message "resource.category.shaders")
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

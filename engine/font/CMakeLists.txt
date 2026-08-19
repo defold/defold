@@ -105,16 +105,31 @@ endif()
 if(FONT_RENDERER_IS_DESKTOP)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+  defold_add_library(font_skribidi_noasan STATIC ${FONT_SKRIBIDI_SOURCES})
+  target_include_directories(font_skribidi_noasan PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
+  target_compile_definitions(font_skribidi_noasan PRIVATE
+    "DLIB_LOG_DOMAIN=\"FONT\""
+    FONT_USE_HARFBUZZ
+    FONT_USE_SKRIBIDI)
+  defold_target_link_libraries(font_skribidi_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC
+    dlib_noasan
+    harfbuzz
+    sheenbidi
+    unibreak
+    skribidi)
+  set_target_properties(font_skribidi_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
   add_library(fontc_shared SHARED
     "${FONTC_SRC_DIR}/fontc.cpp"
     "${FONT_GLYPH_VERTEX_SOURCE}"
-    "${FONT_LAYOUT_VERTEX_SOURCE}")
+    "${FONT_LAYOUT_VERTEX_SOURCE}"
+    ${FONT_RICHTEXT_SOURCES})
   defold_target_skip_sanitizer(fontc_shared)
   target_include_directories(fontc_shared PRIVATE "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONTC_SRC_DIR}")
   target_compile_definitions(fontc_shared PRIVATE
     FONT_USE_HARFBUZZ
     FONT_USE_SKRIBIDI)
-  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi font_richtext image profile_null)
+  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi_noasan image_noasan profile_null_noasan)
   defold_codesign_target(fontc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(FONT_RENDERER_JAR "${CMAKE_CURRENT_BINARY_DIR}/fontrenderer.jar")

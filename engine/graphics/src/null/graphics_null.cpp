@@ -968,7 +968,7 @@ namespace dmGraphics
         delete program;
     }
 
-    static bool NullReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf)
+    static bool NullReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         NullProgram* p = (NullProgram*) program;
 

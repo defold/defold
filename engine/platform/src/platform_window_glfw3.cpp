@@ -241,10 +241,10 @@ namespace dmPlatform
         else
         {
             uint32_t major = 3, minor = 3;
-            if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+            if (!OpenGLGetVersion(params.m_GraphicsApiVersionHint, &major, &minor))
             {
                 dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
-                    params.m_OpenGLVersionHint, major, minor);
+                    params.m_GraphicsApiVersionHint, major, minor);
             }
 
             bool use_highest_version = major == 0 && minor == 0;

@@ -35,8 +35,11 @@
 
   :local-repo       ~(pathname (local-maven-repository-directory))
 
-  :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
+  :plugins          [[dev.weavejester/lein-cljfmt "0.16.4"]
+                     [lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
+
+  :cljfmt           {:load-config-file? true}
 
   :dependencies     [[org.clojure/clojure                         "1.12.0"]
                      [org.clojure/core.cache                      "0.7.1"]
@@ -232,6 +235,9 @@
                                                       [commons-io/commons-io "2.4"]
                                                       [prismatic/schema "1.1.9"]
                                                       [org.luaj/luaj-jse "3.0.1"]
+                                                      ;; editor.code.data reaches util.diff,
+                                                      ;; which needs jgit
+                                                      [org.eclipse.jgit/org.eclipse.jgit "7.6.0.202603022253-r"]
                                                       ;; normally, we get this from bob,
                                                       ;; but docs are built before bob
                                                       [org.antlr/antlr4-runtime "4.9.1"]]}

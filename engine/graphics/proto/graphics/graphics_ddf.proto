@@ -470,4 +470,7 @@ message ShaderDesc
     repeated Shader shaders              = 1;
     optional ShaderReflection reflection = 2;
     optional bytes hlsl_root_signature   = 3;
+    optional string vertex_program       = 4;
+    optional string fragment_program     = 5;
+    optional string compute_program      = 6;
 }
