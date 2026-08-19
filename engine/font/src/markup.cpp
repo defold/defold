@@ -38,11 +38,11 @@ struct ParseContext
 };
 
 template <typename T>
-static void EnsurePushCapacity(dmArray<T>& array)
+static void EnsureCapacity(dmArray<T>& array)
 {
     if (array.Full())
     {
-        array.SetCapacity(array.Capacity() ? array.Capacity() * 2 : 8);
+        array.OffsetCapacity(array.Capacity() ? array.Capacity() : 8);
     }
 }
 
@@ -52,14 +52,6 @@ static void SetError(MarkupError* error, MarkupErrorType type, uint32_t byte_off
     {
         error->m_Type = type;
         error->m_ByteOffset = byte_offset;
-    }
-}
-
-static void SetFirstError(MarkupError* error, const MarkupError& first)
-{
-    if (error && error->m_Type == MARKUP_ERROR_NONE)
-    {
-        *error = first;
     }
 }
 
@@ -545,7 +537,7 @@ static MarkupResult PushAttribute(ParseContext* context, MarkupString name, Mark
     }
 
     MarkupAttribute attribute = { name, value, (uint8_t)type, (uint8_t)constant };
-    EnsurePushCapacity(context->m_Markup->m_Attributes);
+    EnsureCapacity(context->m_Markup->m_Attributes);
     context->m_Markup->m_Attributes.Push(attribute);
 
     return MARKUP_RESULT_OK;
@@ -703,7 +695,7 @@ static MarkupResult ParseOpeningTag(ParseContext* context, MarkupString tag, Mar
 
     MarkupStyleNode node = { tag, context->m_StyleNodeIndex, (uint16_t)attribute_index, (uint16_t)attribute_count,
                              (uint8_t)tag_type, context->m_Markup->m_Text.Size(), 0 };
-    EnsurePushCapacity(context->m_Markup->m_StyleNodes);
+    EnsureCapacity(context->m_Markup->m_StyleNodes);
     context->m_Markup->m_StyleNodes.Push(node);
 
     if (!*self_closing)
@@ -956,7 +948,7 @@ static void PushText(ParseContext* context, uint32_t codepoint)
 {
     Markup*        markup = context->m_Markup;
     const uint32_t text_offset = markup->m_Text.Size();
-    EnsurePushCapacity(markup->m_Text);
+    EnsureCapacity(markup->m_Text);
     markup->m_Text.Push(codepoint);
 
     if (!markup->m_Spans.Empty() && markup->m_Spans.Back().m_StyleNodeIndex == context->m_StyleNodeIndex &&
@@ -967,82 +959,12 @@ static void PushText(ParseContext* context, uint32_t codepoint)
     else
     {
         MarkupSpan span = { text_offset, 1, context->m_StyleNodeIndex };
-        EnsurePushCapacity(markup->m_Spans);
+        EnsureCapacity(markup->m_Spans);
         markup->m_Spans.Push(span);
     }
 }
 
-struct ParseSnapshot
-{
-    uint32_t m_SourceOffset;
-    uint32_t m_TextCount;
-    uint32_t m_SpanCount;
-    uint32_t m_LastSpanLength;
-    uint32_t m_StyleNodeCount;
-    uint32_t m_AttributeCount;
-    uint16_t m_StyleNodeIndex;
-};
-
-static ParseSnapshot TakeSnapshot(ParseContext* context, uint32_t source_offset)
-{
-    ParseSnapshot snapshot;
-    snapshot.m_SourceOffset = source_offset;
-    snapshot.m_TextCount = context->m_Markup->m_Text.Size();
-    snapshot.m_SpanCount = context->m_Markup->m_Spans.Size();
-    snapshot.m_LastSpanLength = snapshot.m_SpanCount ? context->m_Markup->m_Spans.Back().m_TextLength : 0;
-    snapshot.m_StyleNodeCount = context->m_Markup->m_StyleNodes.Size();
-    snapshot.m_AttributeCount = context->m_Markup->m_Attributes.Size();
-    snapshot.m_StyleNodeIndex = context->m_StyleNodeIndex;
-
-    return snapshot;
-}
-
-static void RestoreSnapshot(ParseContext* context, const ParseSnapshot& snapshot)
-{
-    context->m_Markup->m_Text.SetSize(snapshot.m_TextCount);
-    context->m_Markup->m_Spans.SetSize(snapshot.m_SpanCount);
-
-    if (snapshot.m_SpanCount)
-    {
-        context->m_Markup->m_Spans.Back().m_TextLength = snapshot.m_LastSpanLength;
-    }
-
-    context->m_Markup->m_StyleNodes.SetSize(snapshot.m_StyleNodeCount);
-    context->m_Markup->m_Attributes.SetSize(snapshot.m_AttributeCount);
-    context->m_StyleNodeIndex = snapshot.m_StyleNodeIndex;
-}
-
-static uint32_t FindTagEnd(const char* source, uint32_t length, uint32_t cursor)
-{
-    while (cursor < length && source[cursor++] != '>')
-    {
-    }
-
-    return cursor;
-}
-
-static MarkupResult PushLiteralRange(ParseContext* context, uint32_t begin, uint32_t end, MarkupError* error)
-{
-    uint32_t cursor = begin;
-
-    while (cursor < end)
-    {
-        uint32_t     codepoint;
-        MarkupResult result = DecodeCodepoint(context->m_Source, end, &cursor, &codepoint, error);
-
-        if (result != MARKUP_RESULT_OK)
-        {
-            return result;
-        }
-
-        PushText(context, codepoint);
-    }
-
-    return MARKUP_RESULT_OK;
-}
-
-// Parses one tag and restores the nearest useful parser state on recoverable errors.
-static MarkupResult ParseMarkupTag(ParseContext* context, dmArray<ParseSnapshot>* open_tags, bool recover, bool style_fragment, MarkupError* error)
+static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, MarkupError* error)
 {
     const uint32_t tag_start = context->m_Cursor;
     const bool     closing = tag_start + 1 < context->m_Length && context->m_Source[tag_start + 1] == '/';
@@ -1054,99 +976,44 @@ static MarkupResult ParseMarkupTag(ParseContext* context, dmArray<ParseSnapshot>
         return MARKUP_RESULT_SYNTAX_ERROR;
     }
 
-    ParseSnapshot snapshot = {};
-
-    if (recover)
-    {
-        snapshot = TakeSnapshot(context, tag_start);
-    }
-
-    MarkupError  parse_error = { tag_start, MARKUP_ERROR_NONE };
     bool         self_closing = false;
-    MarkupResult result = ParseTag(context, &parse_error, &self_closing);
+    MarkupResult result = ParseTag(context, error, &self_closing);
 
-    if (result == MARKUP_RESULT_OK)
-    {
-        if (style_fragment && self_closing)
-        {
-            SetError(error, MARKUP_ERROR_INVALID_TAG, tag_start);
-
-            return MARKUP_RESULT_SYNTAX_ERROR;
-        }
-
-        if (self_closing)
-        {
-            MarkupStyleNode& node = context->m_Markup->m_StyleNodes.Back();
-
-            if (node.m_Tag.m_Length == 6 && memcmp(context->m_Source + node.m_Tag.m_Offset, "sprite", 6) == 0)
-            {
-                PushText(context, 0xfffc);
-                node.m_TextLength = 1;
-            }
-        }
-
-        if (!recover)
-        {
-            return MARKUP_RESULT_OK;
-        }
-
-        if (closing)
-        {
-            if (!open_tags->Empty())
-            {
-                open_tags->Pop();
-            }
-        }
-        else if (!self_closing)
-        {
-            EnsurePushCapacity(*open_tags);
-            open_tags->Push(snapshot);
-        }
-
-        return MARKUP_RESULT_OK;
-    }
-
-    SetFirstError(error, parse_error);
-
-    if (!recover || result == MARKUP_RESULT_LIMIT_EXCEEDED)
+    if (result != MARKUP_RESULT_OK)
     {
         return result;
     }
 
-    if (parse_error.m_Type == MARKUP_ERROR_MISMATCHED_CLOSING_TAG && !open_tags->Empty())
+    if (style_fragment && self_closing)
     {
-        const ParseSnapshot unmatched = open_tags->Back();
-        open_tags->Pop();
-        RestoreSnapshot(context, unmatched);
-        result = PushLiteralRange(context, unmatched.m_SourceOffset, tag_start, error);
-        context->m_Cursor = tag_start;
+        SetError(error, MARKUP_ERROR_INVALID_TAG, tag_start);
 
-        return result;
+        return MARKUP_RESULT_SYNTAX_ERROR;
     }
 
-    RestoreSnapshot(context, snapshot);
-    const uint32_t tag_end = parse_error.m_Type == MARKUP_ERROR_UNEXPECTED_CLOSING_TAG
-                                 ? context->m_Cursor
-                                 : FindTagEnd(context->m_Source, context->m_Length, parse_error.m_ByteOffset);
-    result = PushLiteralRange(context, tag_start, tag_end, error);
-    context->m_Cursor = tag_end;
+    if (self_closing)
+    {
+        MarkupStyleNode& node = context->m_Markup->m_StyleNodes.Back();
 
-    return result;
+        if (node.m_Tag.m_Length == 6 && memcmp(context->m_Source + node.m_Tag.m_Offset, "sprite", 6) == 0)
+        {
+            PushText(context, 0xfffc);
+            node.m_TextLength = 1;
+        }
+    }
+
+    return MARKUP_RESULT_OK;
 }
 
-// Parses one visible codepoint, including entity recovery for authoring tools.
-static MarkupResult ParseVisibleText(ParseContext* context, bool recover, MarkupError* error)
+static MarkupResult ParseVisibleText(ParseContext* context, MarkupError* error)
 {
     if (context->m_Source[context->m_Cursor] != '&')
     {
-        uint32_t    codepoint;
-        MarkupError parse_error = { context->m_Cursor, MARKUP_ERROR_NONE };
-        const MarkupResult result = DecodeCodepoint(context->m_Source, context->m_Length, &context->m_Cursor, &codepoint, &parse_error);
+        uint32_t codepoint;
+        const MarkupResult result = DecodeCodepoint(context->m_Source, context->m_Length, &context->m_Cursor, &codepoint, error);
 
         if (result != MARKUP_RESULT_OK)
         {
-            SetFirstError(error, parse_error);
-
             return result;
         }
 
@@ -1155,32 +1022,18 @@ static MarkupResult ParseVisibleText(ParseContext* context, bool recover, Markup
         return MARKUP_RESULT_OK;
     }
 
-    const uint32_t entity_start = context->m_Cursor;
-    uint32_t       codepoint;
-    MarkupError    parse_error = { entity_start, MARKUP_ERROR_NONE };
-    const MarkupResult result = ParseEntity(context, &codepoint, &parse_error);
+    uint32_t codepoint;
+    const MarkupResult result = ParseEntity(context, &codepoint, error);
 
     if (result == MARKUP_RESULT_OK)
     {
         PushText(context, codepoint);
-
-        return MARKUP_RESULT_OK;
     }
 
-    SetFirstError(error, parse_error);
-
-    if (!recover || result == MARKUP_RESULT_LIMIT_EXCEEDED)
-    {
-        return result;
-    }
-
-    context->m_Cursor = entity_start + 1;
-    PushText(context, '&');
-
-    return MARKUP_RESULT_OK;
+    return result;
 }
 
-static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error, bool recover, bool style_fragment)
+static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error, bool style_fragment)
 {
     if (out_markup)
     {
@@ -1209,18 +1062,17 @@ static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length,
 
     MarkupStyleNode root = {};
     root.m_Parent = MARKUP_INVALID_INDEX;
-    EnsurePushCapacity(markup->m_StyleNodes);
+    EnsureCapacity(markup->m_StyleNodes);
     markup->m_StyleNodes.Push(root);
 
-    dmArray<ParseSnapshot> open_tags;
-    ParseContext           context = { markup, markup->m_Source.Begin(), text_length, 0, 0 };
-    MarkupResult           result = MARKUP_RESULT_OK;
+    ParseContext context = { markup, markup->m_Source.Begin(), text_length, 0, 0 };
+    MarkupResult result = MARKUP_RESULT_OK;
 
     while (context.m_Cursor < context.m_Length)
     {
         if (context.m_Source[context.m_Cursor] == '<')
         {
-            result = ParseMarkupTag(&context, &open_tags, recover, style_fragment, out_error);
+            result = ParseMarkupTag(&context, style_fragment, out_error);
         }
         else
         {
@@ -1237,7 +1089,7 @@ static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length,
                 break;
             }
 
-            result = ParseVisibleText(&context, recover, out_error);
+            result = ParseVisibleText(&context, out_error);
         }
 
         if (result != MARKUP_RESULT_OK)
@@ -1264,24 +1116,8 @@ static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length,
     if (result == MARKUP_RESULT_OK && context.m_StyleNodeIndex != 0)
     {
         const MarkupStyleNode& node = markup->m_StyleNodes[context.m_StyleNodeIndex];
-        MarkupError            unclosed_error = { node.m_Tag.m_Offset - 1, MARKUP_ERROR_UNCLOSED_TAG };
-        SetFirstError(out_error, unclosed_error);
-
-        if (!recover)
-        {
-            result = MARKUP_RESULT_INCOMPLETE;
-        }
-        else
-        {
-            uint16_t node_index = context.m_StyleNodeIndex;
-
-            while (node_index != 0 && node_index != MARKUP_INVALID_INDEX)
-            {
-                MarkupStyleNode& open_node = markup->m_StyleNodes[node_index];
-                open_node.m_TextLength = markup->m_Text.Size() - open_node.m_TextOffset;
-                node_index = open_node.m_Parent;
-            }
-        }
+        SetError(out_error, MARKUP_ERROR_UNCLOSED_TAG, node.m_Tag.m_Offset - 1);
+        result = MARKUP_RESULT_INCOMPLETE;
     }
 
     if (result != MARKUP_RESULT_OK)
@@ -1298,17 +1134,12 @@ static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length,
 
 MarkupResult MarkupCreate(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error)
 {
-    return MarkupCreateInternal(text, text_length, out_markup, out_error, false, false);
-}
-
-MarkupResult MarkupCreateRecovering(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error)
-{
-    return MarkupCreateInternal(text, text_length, out_markup, out_error, true, false);
+    return MarkupCreateInternal(text, text_length, out_markup, out_error, false);
 }
 
 MarkupResult MarkupCreateStyleFragment(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error)
 {
-    return MarkupCreateInternal(text, text_length, out_markup, out_error, false, true);
+    return MarkupCreateInternal(text, text_length, out_markup, out_error, true);
 }
 
 void MarkupDestroy(HMarkup markup)

@@ -241,7 +241,7 @@ namespace dmGameSystem
 
         HTextLayout  layout = 0;
         HMarkup      markup = 0;
-        MarkupResult markup_result = MarkupCreateRecovering(component->m_Text, strlen(component->m_Text), &markup, 0);
+        MarkupResult markup_result = MarkupCreate(component->m_Text, strlen(component->m_Text), &markup, 0);
         TextResult   result = TEXT_RESULT_ERROR;
 
         if (markup_result == MARKUP_RESULT_OK)

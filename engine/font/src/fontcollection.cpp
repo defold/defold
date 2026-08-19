@@ -38,13 +38,13 @@ struct FontCollection
 {
     dmArray<HFont>                  m_Fonts;
     dmArray<TextNamedStyle*>        m_NamedStyles;
-    TextLayoutType                 m_LayoutType;
-    uint32_t                       m_NamedStyleRevision;
-    FontCollectionFallbackCallback m_FallbackCallback;
+    TextLayoutType                  m_LayoutType;
+    uint32_t                        m_NamedStyleRevision;
+    FontCollectionFallbackCallback  m_FallbackCallback;
     void*                           m_FallbackContext;
 
 #if defined(FONT_USE_SKRIBIDI)
-    skb_font_collection_t* m_Collection;
+    skb_font_collection_t*                m_Collection;
     dmHashTable<skb_font_handle_t, HFont> m_FontLookup;
 #endif
 };

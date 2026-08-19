@@ -30,14 +30,6 @@ TEST(MarkupNull, ReportsUnsupported)
     markup = (HMarkup)(uintptr_t)1;
     error.m_ByteOffset = 12;
     error.m_Type = MARKUP_ERROR_NONE;
-    ASSERT_EQ(MARKUP_RESULT_UNSUPPORTED, MarkupCreateRecovering("text", 4, &markup, &error));
-    ASSERT_EQ((HMarkup)0, markup);
-    ASSERT_EQ(MARKUP_ERROR_UNSUPPORTED, error.m_Type);
-    ASSERT_EQ(0u, error.m_ByteOffset);
-
-    markup = (HMarkup)(uintptr_t)1;
-    error.m_ByteOffset = 12;
-    error.m_Type = MARKUP_ERROR_NONE;
     ASSERT_EQ(MARKUP_RESULT_UNSUPPORTED, MarkupCreateStyleFragment("<color=#fff>", 12, &markup, &error));
     ASSERT_EQ((HMarkup)0, markup);
     ASSERT_EQ(MARKUP_ERROR_UNSUPPORTED, error.m_Type);

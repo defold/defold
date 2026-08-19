@@ -35,11 +35,6 @@ MarkupResult MarkupCreate(const char*, uint32_t, HMarkup* out_markup, MarkupErro
     return MarkupUnsupported(out_markup, out_error);
 }
 
-MarkupResult MarkupCreateRecovering(const char*, uint32_t, HMarkup* out_markup, MarkupError* out_error)
-{
-    return MarkupUnsupported(out_markup, out_error);
-}
-
 MarkupResult MarkupCreateStyleFragment(const char*, uint32_t, HMarkup* out_markup, MarkupError* out_error)
 {
     return MarkupUnsupported(out_markup, out_error);

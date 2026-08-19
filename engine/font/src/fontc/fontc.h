@@ -197,7 +197,6 @@ extern "C"
 
     /*#
      * Measures UTF-8 rich-text markup using the renderer's font and text-layout mode.
-     * The markup is parsed in recovering mode, matching label and GUI text rendering.
      * This operation does not modify the retained renderer state.
      *
      * @name FontcMeasureMarkup

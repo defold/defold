@@ -84,8 +84,8 @@ enum MarkupResult
 
 /*# Markup parsing error type
  *
- * Describes the first error encountered by `MarkupCreate()` or recovered by
- * `MarkupCreateRecovering()`.
+ * Describes the first error encountered by `MarkupCreate()` or
+ * `MarkupCreateStyleFragment()`.
  *
  * @enum
  * @name MarkupErrorType
@@ -303,36 +303,6 @@ struct MarkupSpan
  */
 MarkupResult MarkupCreate(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error);
 
-/*# Parse markup text with error recovery
- *
- * Parses the same representation as `MarkupCreate()`, but preserves malformed
- * markup as visible literal text and resumes parsing at the next tag or entity.
- * This is intended for interactive tools and previews, where showing the
- * broken source while continuing to apply later valid markup makes authoring
- * errors easier to find.
- *
- * A mismatched closing tag rolls back the innermost unmatched opening tag and
- * its contents to literal text, then retries the closing tag against the next
- * enclosing tag. An unexpected or otherwise malformed tag is emitted as
- * literal text through its closing `>`. Invalid entities preserve their `&`
- * and parsing continues with the following byte. A syntactically valid but
- * unclosed tag remains active through the end of the text.
- *
- * Recoverable syntax and incomplete-input errors return `MARKUP_RESULT_OK`
- * with a valid markup object. When `out_error` is supplied, it receives the
- * first recovered error, which can be reported as a warning. Invalid UTF-8 and
- * representation-limit errors remain fatal and return no markup object.
- * Returns `MARKUP_RESULT_UNSUPPORTED` when `font_richtext_null` is linked.
- *
- * @name MarkupCreateRecovering
- * @param text [type: const char*] UTF-8 source bytes. May be null only when `text_length` is zero.
- * @param text_length [type: uint32_t] Exact source length in bytes.
- * @param out_markup [type: HMarkup*] (out) Parsed markup handle. Must not be null.
- * @param out_error [type: MarkupError*] (out) Optional first recovered or fatal error.
- * @return result [type: MarkupResult] Parsing result.
- */
-MarkupResult MarkupCreateRecovering(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error);
-
 /*# Parse a named-style markup fragment
  *
  * Parses one or more opening tags without visible text or closing tags. The
@@ -366,9 +336,9 @@ void MarkupDestroy(HMarkup markup);
 /*# Get the owned source copy
  *
  * Returns a copy of the original, unparsed markup input passed to
- * `MarkupCreate()` or `MarkupCreateRecovering()`. It therefore still contains
- * all tags, attribute syntax, escaped entities, and other original UTF-8
- * bytes. It is not the stripped visible text returned by `MarkupGetText()`.
+ * `MarkupCreate()`. It therefore still contains all tags, attribute syntax,
+ * escaped entities, and other original UTF-8 bytes. It is not the stripped
+ * visible text returned by `MarkupGetText()`.
  *
  * The source copy is null-terminated for convenience, while its authoritative
  * byte length is returned by `MarkupGetSourceLength()`. Embedded null bytes
@@ -384,10 +354,10 @@ const char* MarkupGetSource(HMarkup markup);
 /*# Get source length
  *
  * Returns the exact `text_length` value supplied to the successful
- * `MarkupCreate()` or `MarkupCreateRecovering()` call: the number of bytes in
- * the original, unparsed markup input. This includes bytes occupied by tags,
- * attributes, escaped entities, embedded nulls, and visible text. It excludes
- * only the convenience null terminator appended to the owned source copy.
+ * `MarkupCreate()` call: the number of bytes in the original, unparsed markup
+ * input. This includes bytes occupied by tags, attributes, escaped entities,
+ * embedded nulls, and visible text. It excludes only the convenience null
+ * terminator appended to the owned source copy.
  *
  * This value is unrelated to `MarkupGetTextLength()`, which reports the number
  * of UTF-32 codepoints remaining after tags are removed and entities decoded.

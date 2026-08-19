@@ -1081,7 +1081,7 @@ static bool CreateLayout(Viewer* viewer, const char* text, uint32_t text_length,
     {
         HMarkup      parsed_markup = 0;
         MarkupError  error;
-        MarkupResult markup_result = MarkupCreateRecovering(text, text_length, &parsed_markup, &error);
+        MarkupResult markup_result = MarkupCreate(text, text_length, &parsed_markup, &error);
 
         if (markup_result != MARKUP_RESULT_OK)
         {
@@ -1089,11 +1089,6 @@ static bool CreateLayout(Viewer* viewer, const char* text, uint32_t text_length,
         }
         else
         {
-            if (error.m_Type != MARKUP_ERROR_NONE)
-            {
-                dmLogWarning("Recovered markup parsing error at byte %u (error %d)", error.m_ByteOffset, error.m_Type);
-            }
-
             TextResult result = legacy_layout ? TextLayoutLegacyCreateMarkup(viewer->m_Collection, parsed_markup, &settings, out_layout) : TextLayoutCreateMarkup(viewer->m_Collection, parsed_markup, &settings, out_layout);
             MarkupDestroy(parsed_markup);
 

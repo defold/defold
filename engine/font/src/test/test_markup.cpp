@@ -39,18 +39,6 @@ static void AssertText(HMarkup markup, const uint32_t* expected, uint32_t expect
     }
 }
 
-static void AssertAsciiText(HMarkup markup, const char* expected)
-{
-    uint32_t expected_count = strlen(expected);
-    ASSERT_EQ(expected_count, MarkupGetTextLength(markup));
-    const uint32_t* actual = MarkupGetText(markup);
-
-    for (uint32_t i = 0; i < expected_count; ++i)
-    {
-        ASSERT_EQ((uint32_t)expected[i], actual[i]);
-    }
-}
-
 TEST(Markup, PlainText)
 {
     const char  text[] = "Hello";
@@ -255,57 +243,6 @@ TEST(Markup, StrictLifo)
     ASSERT_EQ(MARKUP_ERROR_MISMATCHED_CLOSING_TAG, error.m_Type);
 }
 
-TEST(Markup, RecoverMismatchedTagAndContinue)
-{
-    const char  text[] = "<wave hz=00000000>hello</color> <size=+4>world</size>";
-    HMarkup     markup = 0;
-    MarkupError error;
-    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreateRecovering(text, sizeof(text) - 1, &markup, &error));
-    ASSERT_EQ(MARKUP_ERROR_MISMATCHED_CLOSING_TAG, error.m_Type);
-    ASSERT_EQ(23u, error.m_ByteOffset);
-    AssertAsciiText(markup, "<wave hz=00000000>hello</color> world");
-
-    ASSERT_EQ(2u, MarkupGetStyleNodeCount(markup));
-    const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
-    AssertString(markup, nodes[1].m_Tag, "size");
-    ASSERT_EQ(0u, nodes[1].m_Parent);
-    ASSERT_EQ(1u, nodes[1].m_AttributeCount);
-    const MarkupAttribute* attributes = MarkupGetAttributes(markup);
-    AssertString(markup, attributes[nodes[1].m_AttributeIndex].m_Value, "+4");
-
-    ASSERT_EQ(2u, MarkupGetSpanCount(markup));
-    const MarkupSpan* spans = MarkupGetSpans(markup);
-    ASSERT_EQ(0u, spans[0].m_StyleNodeIndex);
-    ASSERT_EQ(1u, spans[1].m_StyleNodeIndex);
-    ASSERT_EQ(5u, spans[1].m_TextLength);
-    MarkupDestroy(markup);
-}
-
-TEST(Markup, RecoverMalformedMarkupAndEntities)
-{
-    const char  text[] = "<color red>bad</color> &unknown; <size=+2>good</size>";
-    HMarkup     markup = 0;
-    MarkupError error;
-    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreateRecovering(text, sizeof(text) - 1, &markup, &error));
-    ASSERT_EQ(MARKUP_ERROR_INVALID_ATTRIBUTE, error.m_Type);
-    AssertAsciiText(markup, "<color red>bad</color> &unknown; good");
-    ASSERT_EQ(2u, MarkupGetStyleNodeCount(markup));
-    AssertString(markup, MarkupGetStyleNodes(markup)[1].m_Tag, "size");
-    MarkupDestroy(markup);
-}
-
-TEST(Markup, RecoverUnclosedTag)
-{
-    const char  text[] = "<size=+2>text";
-    HMarkup     markup = 0;
-    MarkupError error;
-    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreateRecovering(text, sizeof(text) - 1, &markup, &error));
-    ASSERT_EQ(MARKUP_ERROR_UNCLOSED_TAG, error.m_Type);
-    AssertAsciiText(markup, "text");
-    ASSERT_EQ(1u, MarkupGetSpans(markup)[0].m_StyleNodeIndex);
-    MarkupDestroy(markup);
-}
-
 TEST(Markup, StyleFragmentAcceptsOpeningTagsOnly)
 {
     const char source[] = "<color=#ff0000>\n    <shake amplitude=2>";
@@ -325,16 +262,6 @@ TEST(Markup, StyleFragmentAcceptsOpeningTagsOnly)
     const char text[] = "<color=#fff>text";
     ASSERT_EQ(MARKUP_RESULT_SYNTAX_ERROR, MarkupCreateStyleFragment(text, sizeof(text) - 1, &markup, &error));
     ASSERT_EQ(MARKUP_ERROR_INVALID_TAG, error.m_Type);
-}
-
-TEST(Markup, RecoveringStillRejectsInvalidUtf8)
-{
-    const char  text[] = { (char)0xc0, (char)0x80 };
-    HMarkup     markup = 0;
-    MarkupError error;
-    ASSERT_EQ(MARKUP_RESULT_INVALID_UTF8, MarkupCreateRecovering(text, sizeof(text), &markup, &error));
-    ASSERT_EQ((HMarkup)0, markup);
-    ASSERT_EQ(MARKUP_ERROR_INVALID_UTF8, error.m_Type);
 }
 
 TEST(Markup, InvalidUtf8)
@@ -416,11 +343,6 @@ TEST(Markup, EveryPrefixOfLongTextWithManyTags)
         {
             MarkupDestroy(markup);
         }
-
-        markup = 0;
-        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreateRecovering(text, length, &markup, 0));
-        ASSERT_NE((HMarkup)0, markup);
-        MarkupDestroy(markup);
     }
 
     HMarkup markup = 0;
