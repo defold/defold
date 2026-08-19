@@ -53,6 +53,13 @@ dmResource::HFactory g_ResourceFactory = 0;
  * Named object styles are resolved by text layouts without reshaping text.
  * A `link` tag uses `link` by default. Callers may select another named style,
  * such as `link:hover` or `link:active`, in response to input.
+ * Font collections initially define these named styles. Each default contains
+ * only a normalized RGBA face-color multiplier and no effects:
+ *
+ * - `link`: `(0.10, 0.45, 0.90, 1.0)`
+ * - `link:hover`: `(0.30, 0.65, 1.00, 1.0)`
+ * - `link:active`: `(0.05, 0.30, 0.70, 1.0)`
+ *
  * The definition is an opening-only sequence of rich-text tags. Tags are
  * implicitly closed in reverse order. Calling this function replaces the
  * complete named style.
