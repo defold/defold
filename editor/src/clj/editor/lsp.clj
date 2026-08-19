@@ -174,6 +174,8 @@
         :when (server-handles-resource? server resource)]
     (set-view-node-completion-trigger-characters-tx state resource view-node)))
 
+(declare request-document-symbols)
+
 (defn- on-server-initialized [server capabilities]
   {:pre [(s/assert ::server server)
          (s/assert ::lsp.server/capabilities capabilities)]}
@@ -191,7 +193,16 @@
           (g/transact
             {:undoable false}
             (refresh-completion-trigger-characters-for-server-tx state server))))
-      state)))
+      (if (:document-symbol capabilities)
+        (reduce
+          (fn [state resource]
+            (if (server-handles-resource? server resource)
+              (request-document-symbols state resource)
+              state))
+          state
+          (keys (:resource->view-node state)))
+        state))))
+
 
 (defonce/protocol ServerResponse
   (server-response-value [response])
@@ -927,6 +938,57 @@
                            :capabilities-pred :goto-definition
                            :resource resource
                            :timeout-ms timeout-ms)))))
+
+(defn format-document! [lsp resource indent-type result-callback & {:keys [timeout-ms]
+                                                                    :or {timeout-ms 5000}}]
+  (if-not (and (resource/file-resource? resource)
+               (resource/editable? resource))
+    (do (result-callback nil) nil)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1 (take 1))]
+             (a/go (result-callback (<! ch)))
+             (send-requests!
+               state ch
+               :requests [(lsp.server/formatting resource indent-type)]
+               :capabilities-pred :formatting
+               :language (resource/language resource)
+               :timeout-ms timeout-ms))))))
+
+(defn- first-complete-server [^long n]
+  (fn [rf]
+    (let [server->responses (volatile! {})]
+      (fn
+        ([] (rf))
+        ;; Never flush a partial group: an incomplete server has nothing to say
+        ([acc] (rf acc))
+        ([acc [server response]]
+         (let [responses (conj (@server->responses server []) response)]
+           (if (= n (count responses))
+             (rf acc responses)
+             (do (vswap! server->responses assoc server responses)
+                 acc))))))))
+
+(defn format-ranges! [lsp resource cursor-ranges indent-type result-callback & {:keys [timeout-ms]
+                                                                                :or {timeout-ms 5000}}]
+  (if-not (and (coll/not-empty cursor-ranges)
+               (resource/file-resource? resource)
+               (resource/editable? resource))
+    (do (result-callback []) nil)
+    (lsp (bound-fn [state]
+           ;; Every matching server answers every range, but the ranges are
+           ;; applied as one edit, so mixing servers would corrupt the result.
+           ;; Use the ranges of whoever answers them all first, and stop there.
+           (let [ch (a/chan 1 (comp (first-complete-server (count cursor-ranges))
+                                    (take 1)))]
+             (a/go (result-callback (or (<! ch) [])))
+             (send-requests!
+               state ch
+               :requests-fn (fn [server _server-state]
+                              (mapv #(lsp.server/range-formatting resource % indent-type (partial pair server))
+                                    cursor-ranges))
+               :capabilities-pred :range-formatting
+               :language (resource/language resource)
+               :timeout-ms timeout-ms))))))
 
 (defn find-references! [lsp resource cursor result-callback & {:keys [timeout-ms]
                                                                :or {timeout-ms 3000}}]

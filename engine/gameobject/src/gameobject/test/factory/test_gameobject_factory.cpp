@@ -206,6 +206,9 @@ TEST_F(FactoryTest, FactoryProperties)
     lua_pushboolean(L, 1);
     lua_setfield(L, -2, "bool");
 
+    lua_pushliteral(L, "factory text");
+    lua_setfield(L, -2, "text");
+
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
     lua_pop(L, 1);
 

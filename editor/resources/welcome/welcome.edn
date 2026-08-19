@@ -46,7 +46,7 @@
                              :image "3d.svg"
                              :duration "Short"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-basic-3d/archive/3ff7694cc4147276febe2d19ce78b813e79b5bd2.zip"
+                             :zip-url "https://github.com/defold/template-basic-3d/archive/e6a59eb88d14d21031f65780bb179c8e29275fba.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.platformer-game.title"
