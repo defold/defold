@@ -24,6 +24,10 @@ elseif(TARGET_PLATFORM MATCHES "^(wasm|wasm_pthread)-web$")
   target_compile_options(box2d PRIVATE -matomics -mbulk-memory -msimd128 -msse2)
 endif()
 
+if(TARGET_PLATFORM MATCHES "win32$")
+  set_target_properties(box2d box2d_nosimd PROPERTIES PREFIX "lib")
+endif()
+
 if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
   set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External package install prefix" FORCE)
 endif()

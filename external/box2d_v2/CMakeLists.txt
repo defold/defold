@@ -13,6 +13,10 @@ target_include_directories(box2d_defold PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
 target_compile_definitions(box2d_defold PRIVATE NDEBUG)
 target_link_libraries(box2d_defold PRIVATE defold_sdk)
 
+if(TARGET_PLATFORM MATCHES "win32$")
+  set_target_properties(box2d_defold PROPERTIES PREFIX "lib")
+endif()
+
 if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
   set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External package install prefix" FORCE)
 endif()
