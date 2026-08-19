@@ -188,7 +188,7 @@ list(FILTER GS_SOURCES EXCLUDE REGEX "/scripts/box2d/")
 # Choose platform-specific window script
 if (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
     list(APPEND GS_SOURCES "${GS_SRC_DIR}/scripts/window/script_window_ios.mm")
-elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
+elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
     list(APPEND GS_SOURCES "${GS_SRC_DIR}/scripts/window/script_window_android.cpp")
 else()
     list(APPEND GS_SOURCES "${GS_SRC_DIR}/scripts/window/script_window_null.cpp")
@@ -373,7 +373,7 @@ foreach(_target IN ITEMS gamesys gamesys_gui gamesys_particle gamesys_model game
 endforeach()
 
 # ========= Android Java (optional) =========
-if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
+if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
     find_package(Java 21 COMPONENTS Development QUIET)
     if(Java_JAVAC_EXECUTABLE AND Java_JAR_EXECUTABLE)
         file(GLOB_RECURSE GS_JAVA_SRC "${GS_ROOT}/src/java/*.java")
