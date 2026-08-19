@@ -97,6 +97,15 @@
         (is (= preview-text (:native-text text-layout)))
         (is (< 1 (:line-count text-layout)))))))
 
+(deftest native-preview-invalid-markup-falls-back-to-plain-text
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")
+          font-map (g/node-value font-node :font-map)
+          markup-layout (font/layout-text font-map "<color=#ff0000>red</color>" false 0 0 1)
+          plain-layout (font/layout-text font-map "<>" false 0 0 1)]
+      (is (true? (:use-rich-text markup-layout)))
+      (is (false? (:use-rich-text plain-layout))))))
+
 (defn- font-map-uses-text-shaping? [font-node]
   (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
                                                     [:native-renderer-spec :render-params])]

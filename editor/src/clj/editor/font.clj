@@ -449,12 +449,13 @@
   (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
         native-text (restrict-native-preview-text renderer-spec text)
-        ^FontRenderer$Layout layout (if (.-use-rich-text renderer-spec)
-                                      (let [^FontRenderer$Layout markup-layout (.measureMarkup renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))]
-                                        (if (.-markupError markup-layout)
-                                          (.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))
-                                          markup-layout))
-                                      (.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)))]
+        [^FontRenderer$Layout layout use-rich-text]
+        (if-not (.-use-rich-text renderer-spec)
+          [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false]
+          (let [^FontRenderer$Layout markup-layout (.measureMarkup renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))]
+            (if-not (.-markupError markup-layout)
+              [markup-layout true]
+              [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false])))]
     {:width (double (.-width layout))
      :height (double (.-height layout))
      :line-count (long (.-lineCount layout))
@@ -462,6 +463,7 @@
      :max-descent (double (.-maxDescent layout))
      :text text
      :native-text native-text
+     :use-rich-text use-rich-text
      :line-break line-break?
      :layout-width max-width
      :text-tracking text-tracking
@@ -735,6 +737,7 @@
         ^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         text (or (:native-text text-layout)
                  (restrict-native-preview-text renderer-spec (:text text-layout)))
+        use-rich-text (:use-rich-text text-layout)
         transform (matrix->float-array (entry-transform entry))
         properties (FontRenderer$Properties.)]
     (set! (.-lineBreak properties) ^boolean line-break)
@@ -753,10 +756,10 @@
     (set! (.-sdfScale properties) sdf-scale)
     {:properties properties
      :text text
-     :use-rich-text (.-use-rich-text renderer-spec)
+     :use-rich-text use-rich-text
      :transform transform
-     :atlas-key [line-break width tracking text]
-     :state-key [line-break width height leading tracking align vertical-align
+     :atlas-key [use-rich-text line-break width tracking text]
+     :state-key [use-rich-text line-break width height leading tracking align vertical-align
                  face-color outline-color shadow-color sdf-scale text]}))
 
 (defn- apply-native-entry-state!
