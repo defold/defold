@@ -20,6 +20,7 @@ readonly VERSION=35.1
 readonly PROTOBUF_FILE=protobuf-${VERSION}.tar.gz
 readonly ABSEIL_VERSION=20250512.1
 readonly ABSEIL_FILE=abseil-cpp-${ABSEIL_VERSION}.tar.gz
+readonly JAVA_PARSER_COMPAT_PATCH=java-parser-compat.patch
 PROTOBUF_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 readonly PROTOBUF_SCRIPT_DIR
 readonly PLATFORM=${1:-}
@@ -61,6 +62,11 @@ function unpack_sources() {
     mkdir -p "${root}/protobuf" "${root}/abseil"
     tar xf "${PROTOBUF_SCRIPT_DIR}/${PROTOBUF_FILE}" --directory "${root}/protobuf" --strip-components=1
     tar xf "${PROTOBUF_SCRIPT_DIR}/${ABSEIL_FILE}" --directory "${root}/abseil" --strip-components=1
+    # Older extension JARs reference the public PARSER field emitted by protoc
+    # 3.20. Preserve that generated-code ABI while retaining modern gencode.
+    # TODO: Remove once all distributed external JARs have been regenerated to
+    # call the public parser() method instead.
+    patch -d "${root}/protobuf" -p1 -s -f < "${PROTOBUF_SCRIPT_DIR}/${JAVA_PARSER_COMPAT_PATCH}"
 }
 
 function normalize_cmake_compilers() {
