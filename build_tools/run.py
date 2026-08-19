@@ -31,6 +31,13 @@ def _to_str(x):
         x = str(x, encoding='utf-8')
     return x
 
+def _to_output_str(x):
+    if x is None:
+        return ''
+    elif isinstance(x, (bytes, bytearray)):
+        x = str(x, encoding='utf-8', errors='replace')
+    return x
+
 def _to_str_set(values):
     if values is None:
         return set()
@@ -118,7 +125,7 @@ def _exec_command(arg_list, **kwargs):
     output = ''
     if stream_output:
         while True:
-            line = _to_str(process.stdout.readline())
+            line = _to_output_str(process.stdout.readline())
             if line == '':
                 break
             output += line
@@ -127,7 +134,7 @@ def _exec_command(arg_list, **kwargs):
         process.stdout.close()
     else:
         captured_stdout, captured_stderr = process.communicate()
-        output = _to_str(captured_stdout) + _to_str(captured_stderr)
+        output = _to_output_str(captured_stdout) + _to_output_str(captured_stderr)
 
     retcode = process.wait()
     output = _sanitize_text(output, secrets)
