@@ -18,6 +18,12 @@ endforeach()
 
 target_compile_definitions(box2d_nosimd PRIVATE BOX2D_DISABLE_SIMD)
 
+if(TARGET_PLATFORM STREQUAL "armv7-android")
+  target_compile_options(box2d PRIVATE -mfpu=neon)
+elseif(TARGET_PLATFORM MATCHES "^(wasm|wasm_pthread)-web$")
+  target_compile_options(box2d PRIVATE -matomics -mbulk-memory -msimd128 -msse2)
+endif()
+
 if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
   set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External package install prefix" FORCE)
 endif()
