@@ -3116,7 +3116,7 @@
                indent-type (get-property view-node :indent-type evaluation-context)
                lines (get-property view-node :lines evaluation-context)
                cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
-      (if-not (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
         (show-no-language-server-for-resource-language-notification! resource)
         (if (formatting-selected-rows? cursor-ranges)
           (format-selected-rows! view-node lsp resource indent-type lines cursor-ranges)
