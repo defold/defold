@@ -9612,6 +9612,7 @@ TEST_F(ShaderTest, ClusteredLightingResources)
     ASSERT_TRUE(dmRender::SetClusteredLightingGrid(m_RenderContext, 16, 9, 24, 64));
     ASSERT_EQ(3456u, dmRender::GetClusteredLightingClusterCount(m_RenderContext));
     ASSERT_EQ(3456u * 32u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_BOUNDS]);
+    ASSERT_EQ(16u * 9u * 16u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_DEPTH_RANGES]);
     ASSERT_EQ(3456u * 8u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_METADATA]);
     ASSERT_EQ(3456u * 64u * 4u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_LIGHT_INDICES]);
     ASSERT_EQ(16u, m_RenderContext->m_ClusterBufferSizes[dmRender::CLUSTER_BUFFER_COUNTERS]);
