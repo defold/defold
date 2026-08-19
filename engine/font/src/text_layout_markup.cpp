@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include "fontcollection.h"
 #include "text_layout.h"
 
 #include <dmsdk/dlib/hash.h>
@@ -1094,6 +1095,40 @@ static bool ParseDecorationNode(HMarkup markup, const MarkupStyleNode& node, uin
     return false;
 }
 
+static dmhash_t GetObjectDefaultStyle(HMarkup markup, const MarkupStyleNode& node)
+{
+    static const char STYLE_ATTRIBUTE[] = "style";
+
+    const dmhash_t         tag = GetObjectTag(node);
+    const char*            source = MarkupGetSource(markup);
+    const MarkupAttribute* attributes = MarkupGetAttributes(markup);
+    const MarkupAttribute* style = 0;
+
+    if (!tag)
+    {
+        return 0;
+    }
+
+    for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
+    {
+        const MarkupAttribute& attribute = attributes[node.m_AttributeIndex + i];
+
+        if (attribute.m_Name.m_Length == sizeof(STYLE_ATTRIBUTE) - 1 &&
+            memcmp(source + attribute.m_Name.m_Offset, STYLE_ATTRIBUTE, sizeof(STYLE_ATTRIBUTE) - 1) == 0)
+        {
+            style = &attribute;
+            break;
+        }
+    }
+
+    if (!style || style->m_Value.m_Length == 0)
+    {
+        return tag;
+    }
+
+    return dmHashBuffer64(source + style->m_Value.m_Offset, style->m_Value.m_Length);
+}
+
 bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_length, TextRenderStyle* style, dmArray<TextEffect>* effects, MarkupError* error)
 {
     HMarkup markup = 0;
@@ -1165,7 +1200,7 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
     return valid;
 }
 
-bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved)
+bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved)
 {
     const float            base_font_size = settings->m_Size;
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
@@ -1287,6 +1322,24 @@ bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, Resol
             }
 
             ApplyStyleNode(markup, nodes[current], base_font_size, &style);
+
+            const dmhash_t                  object_style = GetObjectDefaultStyle(markup, nodes[current]);
+            const TextNamedStyleDecoration* decoration = FontCollectionGetNamedStyleDecoration(collection, object_style);
+
+            if (decoration)
+            {
+                decoration_flags |= decoration->m_Flags;
+
+                if (decoration->m_Flags & TEXT_RESOLVED_DECORATION_UNDERLINE)
+                {
+                    underline_pattern = decoration->m_UnderlinePattern;
+                }
+
+                if (decoration->m_Flags & TEXT_RESOLVED_DECORATION_STRIKE)
+                {
+                    strike_pattern = decoration->m_StrikePattern;
+                }
+            }
 
             if (IsDecorationNode(nodes[current]))
             {

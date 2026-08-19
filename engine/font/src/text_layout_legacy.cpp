@@ -515,7 +515,7 @@ TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup mark
 {
     ResolvedMarkup resolved;
 
-    if (!TextLayoutResolveMarkup(markup, settings, &resolved))
+    if (!TextLayoutResolveMarkup(collection, markup, settings, &resolved))
     {
         *outlayout = 0;
 

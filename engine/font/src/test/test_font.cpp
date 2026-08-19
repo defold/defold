@@ -1673,7 +1673,7 @@ static void AssertLayoutObjectAttribute(HTextLayout layout, const TextLayoutObje
 TEST_F(FontTest, LayoutResolvesAndOwnsMarkupObjects)
 {
     const char source[] =
-    "A<sprite src=/icon.png/>B<link src=https://defold.com>CD</link>"
+    "A<sprite src=/icon.png/>B<link src=https://defold.com role=button>CD</link>"
     "<sprite src=/icons.atlas width=2em height=50%/>"
     "<sprite src=/badge.png width=48px height=12/>";
     HMarkup markup = 0;
@@ -1712,6 +1712,7 @@ TEST_F(FontTest, LayoutResolvesAndOwnsMarkupObjects)
     ASSERT_EQ(3u, objects[1].m_TextOffset);
     ASSERT_EQ(2u, objects[1].m_TextLength);
     AssertLayoutObjectAttribute(layout, objects[1], 0, "src", "https://defold.com");
+    AssertLayoutObjectAttribute(layout, objects[1], 1, "role", "button");
 
     ASSERT_EQ(dmHashString64("sprite"), objects[2].m_Tag);
     ASSERT_EQ(5u, objects[2].m_TextOffset);
@@ -1747,8 +1748,113 @@ TEST_F(FontTest, LayoutResolvesAndOwnsMarkupObjects)
     ASSERT_NEAR(glyphs[1].m_X - first_x, object_x, 0.001f);
     ASSERT_NEAR(-layout_height + object_line.m_Baseline - objects[0].m_Height * 0.2f, object_y, 0.001f);
 
+    TextLayoutHitTestParams hit_test = {};
+    hit_test.m_X = object_x + objects[0].m_Width * 0.5f;
+    hit_test.m_Y = object_y + objects[0].m_Height * 0.5f;
+    hit_test.m_Width = settings.m_Width;
+    hit_test.m_FontSize = settings.m_Size;
+    ASSERT_EQ(0u, TextLayoutHitTestObject(layout, hit_test));
+    hit_test.m_Tag = dmHashString64("link");
+    ASSERT_EQ(UINT32_MAX, TextLayoutHitTestObject(layout, hit_test));
+    hit_test.m_Tag = dmHashString64("sprite");
+    ASSERT_EQ(0u, TextLayoutHitTestObject(layout, hit_test));
+
     TextLayoutRelease(layout);
     ASSERT_EQ(3u, context.m_ReleaseCount);
+}
+
+TEST_F(FontTest, LayoutObjectPositionAfterCombiningCharacter)
+{
+    const char source[] = "A\xCC\x81<sprite/>B";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    LayoutObjectTestContext context = {};
+    TextLayoutSettings      settings = {};
+    settings.m_Width = 1000.0f;
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_ResolveObject = ResolveTestLayoutObject;
+    settings.m_ObjectContext = &context;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    const TextLayoutObject& object = TextLayoutGetObjects(layout)[0];
+    TextGlyph*              glyphs = TextLayoutGetGlyphs(layout);
+    const TextLine&         line = TextLayoutGetLines(layout)[0];
+    const TextGlyph*        object_glyph = 0;
+    const TextGlyph*        following_glyph = 0;
+    float                   first_x = glyphs[line.m_Index].m_X;
+
+    for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
+    {
+        const TextGlyph& glyph = glyphs[i];
+        first_x = fminf(first_x, glyph.m_X);
+
+        if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+        {
+            object_glyph = &glyph;
+        }
+        else if (glyph.m_Codepoint == 'B')
+        {
+            following_glyph = &glyph;
+        }
+    }
+
+    ASSERT_NE((const TextGlyph*)0, object_glyph);
+    ASSERT_NE((const TextGlyph*)0, following_glyph);
+    const float paragraph_x = 17.0f;
+    float       object_x;
+    float       object_y;
+    ASSERT_TRUE(TextLayoutGetObjectPosition(layout, &object, paragraph_x, 100.0f, settings.m_Width, &object_x, &object_y));
+    ASSERT_NEAR(paragraph_x + object_glyph->m_X - first_x, object_x, 0.001f);
+    ASSERT_LE(object_x + object.m_Width, paragraph_x + following_glyph->m_X - first_x + 0.001f);
+
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, LayoutHitTestPrefersNestedObject)
+{
+    const char source[] = "<link id=outer><sprite id=inner width=32px height=32px/></link>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    LayoutObjectTestContext context = {};
+    TextLayoutSettings      settings = {};
+    settings.m_Width = 1000.0f;
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_ResolveObject = ResolveTestLayoutObject;
+    settings.m_ObjectContext = &context;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    ASSERT_EQ(2u, TextLayoutGetObjectCount(layout));
+    const TextLayoutObject* objects = TextLayoutGetObjects(layout);
+    ASSERT_EQ(dmHashString64("link"), objects[0].m_Tag);
+    ASSERT_EQ(dmHashString64("sprite"), objects[1].m_Tag);
+
+    float layout_width;
+    float layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    (void)layout_height;
+    float object_x;
+    float object_y;
+    ASSERT_TRUE(TextLayoutGetObjectPosition(layout, &objects[1], 0.0f, 0.0f, layout_width, &object_x, &object_y));
+
+    TextLayoutHitTestParams hit_test = {};
+    hit_test.m_X = object_x + objects[1].m_Width * 0.5f;
+    hit_test.m_Y = object_y + objects[1].m_Height * 0.5f;
+    hit_test.m_Width = settings.m_Width;
+    hit_test.m_FontSize = settings.m_Size;
+    ASSERT_EQ(1u, TextLayoutHitTestObject(layout, hit_test));
+    hit_test.m_Tag = dmHashString64("link");
+    ASSERT_EQ(0u, TextLayoutHitTestObject(layout, hit_test));
+
+    TextLayoutRelease(layout);
 }
 
 static TextRenderStyle MakeTestColorStyle(float red, float green, float blue)
@@ -1952,6 +2058,10 @@ TEST_F(FontTest, LayoutLinkUsesTagStyleByDefault)
 {
     FontCollectionSetNamedStyle(m_FontCollection, dmHashString64("link"), MakeTestColorStyle(1.0f, 0.0f, 0.0f));
     FontCollectionSetNamedStyle(m_FontCollection, dmHashString64("link:hover"), MakeTestColorStyle(0.0f, 1.0f, 0.0f));
+    TextNamedStyleDecoration link_decoration = {};
+    link_decoration.m_Flags = TEXT_RESOLVED_DECORATION_UNDERLINE;
+    link_decoration.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
+    FontCollectionSetNamedStyleDecoration(m_FontCollection, dmHashString64("link"), link_decoration);
 
     const char source[] = "<link id=manual src=https://defold.com>AB</link>C";
     HMarkup markup = 0;
@@ -1965,8 +2075,10 @@ TEST_F(FontTest, LayoutLinkUsesTagStyleByDefault)
     MarkupDestroy(markup);
 
     const uint64_t object_id = TextLayoutGetObjects(layout)[0].m_Id;
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
     AssertGlyphColor(layout, 0, 1.0f, 0.0f, 0.0f);
     ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, object_id, dmHashString64("link:hover")));
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
     AssertGlyphColor(layout, 0, 0.0f, 1.0f, 0.0f);
     ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, object_id, 0));
     AssertGlyphColor(layout, 0, 1.0f, 0.0f, 0.0f);
@@ -1992,6 +2104,7 @@ TEST_F(FontTest, LayoutObjectStyleOverrideResolvesWithoutRelayout)
     MarkupDestroy(markup);
 
     ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
     const uint64_t object_id = TextLayoutGetObjects(layout)[0].m_Id;
     ASSERT_EQ(dmHashString64("manual"), object_id);
     AssertGlyphColor(layout, 0, 1.0f, 0.0f, 0.0f);

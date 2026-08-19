@@ -19,6 +19,7 @@
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/font/fontcollection.h>
+#include <string.h>
 
 #if defined(FONT_USE_SKRIBIDI)
     #include <dmsdk/dlib/hashtable.h>
@@ -29,9 +30,10 @@
 
 struct TextNamedStyle
 {
-    dmhash_t            m_Name;
-    TextRenderStyle     m_Style;
-    dmArray<TextEffect> m_Effects;
+    dmhash_t                 m_Name;
+    TextRenderStyle          m_Style;
+    TextNamedStyleDecoration m_Decoration;
+    dmArray<TextEffect>      m_Effects;
 };
 
 struct FontCollection
@@ -48,18 +50,6 @@ struct FontCollection
     dmHashTable<skb_font_handle_t, HFont> m_FontLookup;
 #endif
 };
-
-static TextRenderStyle MakeColorStyle(float r, float g, float b, float a)
-{
-    TextRenderStyle style = {};
-    style.m_FaceColor[0] = r;
-    style.m_FaceColor[1] = g;
-    style.m_FaceColor[2] = b;
-    style.m_FaceColor[3] = a;
-    style.m_Flags = TEXT_RENDER_STYLE_FACE_COLOR;
-
-    return style;
-}
 
 static TextNamedStyle* FindNamedStyle(HFontCollection collection, dmhash_t name)
 {
@@ -90,6 +80,8 @@ static TextNamedStyle* GetOrCreateNamedStyle(HFontCollection collection, dmhash_
 
     named_style = new TextNamedStyle;
     named_style->m_Name = name;
+    memset(&named_style->m_Style, 0, sizeof(named_style->m_Style));
+    memset(&named_style->m_Decoration, 0, sizeof(named_style->m_Decoration));
     collection->m_NamedStyles.Push(named_style);
 
     return named_style;
@@ -106,9 +98,6 @@ HFontCollection FontCollectionCreate()
 #if defined(FONT_USE_SKRIBIDI)
     coll->m_Collection = skb_font_collection_create();
 #endif
-    FontCollectionSetNamedStyle(coll, dmHashString64("link"), MakeColorStyle(0.10f, 0.45f, 0.90f, 1.0f));
-    FontCollectionSetNamedStyle(coll, dmHashString64("link:hover"), MakeColorStyle(0.30f, 0.65f, 1.00f, 1.0f));
-    FontCollectionSetNamedStyle(coll, dmHashString64("link:active"), MakeColorStyle(0.05f, 0.30f, 0.70f, 1.0f));
     return coll;
 }
 
@@ -223,6 +212,13 @@ bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name
     return true;
 }
 
+void FontCollectionSetNamedStyleDecoration(HFontCollection collection, dmhash_t name, const TextNamedStyleDecoration& decoration)
+{
+    TextNamedStyle* named_style = GetOrCreateNamedStyle(collection, name);
+    named_style->m_Decoration = decoration;
+    ++collection->m_NamedStyleRevision;
+}
+
 const TextRenderStyle* FontCollectionGetNamedStyle(HFontCollection collection, dmhash_t name)
 {
     const TextNamedStyle* named_style = FindNamedStyle(collection, name);
@@ -244,6 +240,13 @@ const TextEffect* FontCollectionGetNamedStyleEffects(HFontCollection collection,
     *effect_count = named_style->m_Effects.Size();
 
     return named_style->m_Effects.Begin();
+}
+
+const TextNamedStyleDecoration* FontCollectionGetNamedStyleDecoration(HFontCollection collection, dmhash_t name)
+{
+    const TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
+    return named_style && named_style->m_Decoration.m_Flags ? &named_style->m_Decoration : 0;
 }
 
 uint32_t FontCollectionGetNamedStyleRevision(HFontCollection collection)

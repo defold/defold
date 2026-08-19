@@ -94,7 +94,7 @@ uint32_t MarkupGetAttributeCount(HMarkup)
     return 0;
 }
 
-bool TextLayoutResolveMarkup(HMarkup, TextLayoutSettings*, ResolvedMarkup*)
+bool TextLayoutResolveMarkup(HFontCollection, HMarkup, TextLayoutSettings*, ResolvedMarkup*)
 {
     return false;
 }

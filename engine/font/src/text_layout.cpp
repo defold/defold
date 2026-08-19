@@ -590,6 +590,148 @@ void TextLayoutGetBounds(HTextLayout layout, float* width, float* height)
     *height = layout->m_Height;
 }
 
+static float TextLayoutOffsetX(uint32_t align, float width)
+{
+    if (align == 1)
+    {
+        return width * 0.5f;
+    }
+
+    if (align == 2)
+    {
+        return width;
+    }
+
+    return 0.0f;
+}
+
+static float TextLayoutOffsetY(uint32_t align, float height, float layout_height)
+{
+    if (align == 1)
+    {
+        return (height - layout_height) * 0.5f;
+    }
+
+    if (align == 2)
+    {
+        return 0.0f;
+    }
+
+    return height - layout_height;
+}
+
+static uint32_t TextLayoutResolveAlign(uint32_t align, TextDirection direction)
+{
+    if (direction == TEXT_DIRECTION_RTL)
+    {
+        if (align == 0)
+        {
+            return 2;
+        }
+
+        if (align == 2)
+        {
+            return 0;
+        }
+    }
+
+    return align;
+}
+
+uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestParams& params)
+{
+    if (!layout)
+    {
+        return UINT32_MAX;
+    }
+
+    TextLayoutRefreshObjectStyles(layout);
+
+    TextGlyph*              glyphs = layout->m_Glyphs.Begin();
+    TextLine*               lines = layout->m_Lines.Begin();
+    TextParagraph*          paragraphs = layout->m_Paragraphs.Begin();
+    const TextLayoutObject* objects = layout->m_Objects.Begin();
+    const float             layout_y = TextLayoutOffsetY(params.m_VAlign, params.m_Height, layout->m_Height);
+
+    for (uint32_t object_index = layout->m_Objects.Size(); object_index-- > 0;)
+    {
+        const TextLayoutObject& object = objects[object_index];
+
+        if ((params.m_Tag && object.m_Tag != params.m_Tag) || object.m_TextLength == 0)
+        {
+            continue;
+        }
+
+        const uint32_t object_end = object.m_TextOffset + object.m_TextLength;
+
+        for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
+        {
+            const TextLine& line = lines[line_index];
+
+            if (line.m_Length == 0)
+            {
+                continue;
+            }
+
+            float       first_x = glyphs[line.m_Index].m_X;
+            const float first_y = glyphs[line.m_Index].m_Y;
+
+            for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
+            {
+                first_x = fminf(first_x, glyphs[i].m_X);
+            }
+
+            const uint32_t align = TextLayoutResolveAlign(params.m_Align, paragraphs[line.m_ParagraphIndex].m_Direction);
+            const float    line_x = TextLayoutOffsetX(align, params.m_Width) - TextLayoutOffsetX(align, line.m_Width) - params.m_MonospacePadding * 0.5f;
+            const float    line_y = layout_y + line.m_Baseline;
+
+            for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
+            {
+                const TextGlyph& glyph = glyphs[i];
+
+                if (glyph.m_Cluster < object.m_TextOffset || glyph.m_Cluster >= object_end)
+                {
+                    continue;
+                }
+
+                const float x = line_x + glyph.m_X - first_x;
+
+                if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+                {
+                    const float y = line_y - glyph.m_Height * 0.2f;
+
+                    if (params.m_X >= x && params.m_X <= x + glyph.m_Width &&
+                        params.m_Y >= y && params.m_Y <= y + glyph.m_Height)
+                    {
+                        return object_index;
+                    }
+
+                    continue;
+                }
+
+                const float         glyph_size = params.m_FontSize * glyph.m_RenderScale;
+                const float         scale = FontGetScaleFromSize(glyph.m_Font, glyph_size);
+                const float         ascent = FontGetAscent(glyph.m_Font, scale);
+                const float         descent = fabsf(FontGetDescent(glyph.m_Font, scale));
+                const float         white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+                TextGlyphRenderData render_data;
+                TextLayoutGetGlyphRenderData(layout, glyph, white, &render_data);
+                const float glyph_x = x + render_data.m_OffsetX;
+                const float y = line_y + glyph.m_Y - first_y + render_data.m_OffsetY;
+                const float width = fmaxf(glyph.m_Width, glyph_size * 0.35f);
+
+                if (params.m_X >= glyph_x && params.m_X <= glyph_x + width &&
+                    params.m_Y >= y - descent && params.m_Y <= y + ascent)
+                {
+                    return object_index;
+                }
+            }
+        }
+    }
+
+    return UINT32_MAX;
+}
+
 void TextLayoutAcquire(HTextLayout layout)
 {
     assert(layout);

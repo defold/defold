@@ -837,8 +837,8 @@ static bool LayoutText(LayoutContext* ctx,
                 }
 
                 const skb_cluster_t& cluster = clusters[skbglyph->cluster_idx];
-                uint32_t codepoint_index = object_run ? source_run->cluster_range.start : cluster.text_offset;
-                uint32_t cp = codepoints[codepoint_index];
+                uint32_t             codepoint_index = object_run ? clusters[source_run->cluster_range.start].text_offset : cluster.text_offset;
+                uint32_t             cp = codepoints[codepoint_index];
 
                 // Skip explicit line break codepoints. They should not
                 // contribute a visible glyph nor count towards line length.
@@ -1043,7 +1043,7 @@ TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup ma
 {
     ResolvedMarkup resolved;
 
-    if (!TextLayoutResolveMarkup(markup, settings, &resolved))
+    if (!TextLayoutResolveMarkup(collection, markup, settings, &resolved))
     {
         *outlayout = 0;
 

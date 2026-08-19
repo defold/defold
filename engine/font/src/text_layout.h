@@ -203,7 +203,7 @@ TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup ma
 TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 
 // Resolves generic markup nodes into renderer-facing styles, effects, and objects.
-bool TextLayoutResolveMarkup(HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved);
+bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved);
 
 // Compiles an opening-tag fragment into one named style and its effects.
 bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_length, TextRenderStyle* style, dmArray<TextEffect>* effects, MarkupError* error);
@@ -241,6 +241,23 @@ struct TextGlyphRenderData
     float               m_ShadowBlur;
     uint32_t            m_StyleFlags;
 };
+
+struct TextLayoutHitTestParams
+{
+    dmhash_t m_Tag; // Zero matches all layout object types.
+    float    m_X;
+    float    m_Y;
+    float    m_Width;
+    float    m_Height;
+    float    m_FontSize;
+    float    m_MonospacePadding;
+    uint32_t m_Align;
+    uint32_t m_VAlign;
+};
+
+// Returns the index of the tagged layout object under the local text-render
+// position, or UINT32_MAX when no object was hit.
+uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestParams& params);
 
 // Resolves the final four-corner face colors for a glyph.
 void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphFaceColors* colors);

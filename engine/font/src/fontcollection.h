@@ -24,6 +24,22 @@ struct TextRenderStyle;
 struct TextEffect;
 struct MarkupError;
 
+/** Decoration geometry contributed by a named object's base style.
+ *
+ * Decorations affect layout geometry and must be registered before creating
+ * layouts that use the named style. Runtime render-style changes preserve the
+ * registered decoration.
+ */
+struct TextNamedStyleDecoration
+{
+    /** Bitwise `TextResolvedDecorationFlags`. */
+    uint8_t m_Flags;
+    /** `TextDecorationPattern` used for underlines. */
+    uint8_t m_UnderlinePattern;
+    /** `TextDecorationPattern` used for strikethroughs. */
+    uint8_t m_StrikePattern;
+};
+
 TextLayoutType FontCollectionGetLayoutType(HFontCollection coll);
 
 /** Called when full text layout cannot find a font for a language and script.
@@ -40,11 +56,17 @@ void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, cons
 /** Parse and replace a named opening-only markup style definition. */
 bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name, const char* definition, uint32_t definition_length, MarkupError* error);
 
+/** Set the decoration applied by a named style. Must be called before creating layouts that use the style. */
+void FontCollectionSetNamedStyleDecoration(HFontCollection collection, dmhash_t name, const TextNamedStyleDecoration& decoration);
+
 /** Return a borrowed named style, or null when the name is not registered. */
 const TextRenderStyle* FontCollectionGetNamedStyle(HFontCollection collection, dmhash_t name);
 
 /** Return the ordered effects stored in a named style. */
 const TextEffect* FontCollectionGetNamedStyleEffects(HFontCollection collection, dmhash_t name, uint32_t* effect_count);
+
+/** Return the borrowed decoration stored in a named style, or null when none is registered. */
+const TextNamedStyleDecoration* FontCollectionGetNamedStyleDecoration(HFontCollection collection, dmhash_t name);
 
 /** Revision used by layouts to refresh named styles without reshaping text. */
 uint32_t FontCollectionGetNamedStyleRevision(HFontCollection collection);
