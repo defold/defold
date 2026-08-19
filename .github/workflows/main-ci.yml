@@ -70,7 +70,7 @@ jobs:
         name: 'Stop Gradle Daemon',
         run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop'
       },
-      - {
+      {
         name: 'Notify if build status changed',
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
@@ -121,7 +121,7 @@ jobs:
         name: 'Stop Gradle Daemon',
         run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop'
       },
-      - {
+      {
         name: 'Notify if build status changed',
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
@@ -306,7 +306,7 @@ jobs:
             -f targets="arm64-nx64" \
             -f channel="$channel" \
             -f release="$release"
-      {
+      - {
         name: 'Notify if build status changed',
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
@@ -353,7 +353,7 @@ jobs:
             -f targets="x86_64-ps4,x86_64-ps5" \
             -f channel="$channel" \
             -f release="$release"
-      {
+      - {
         name: 'Notify if build status changed',
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
