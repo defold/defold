@@ -435,7 +435,7 @@ platforms:
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     # mainDexList is automatically created by listing all classes inside the engine jars
     dxCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/d8 --min-api {{minAndroidSdkVersion}} --main-dex-rules {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
-    r8Cmd: 'java -cp "{{{env.R8}}}" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib "{{{env.LIBRARYJAR}}}" {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules "{{{.}}}" {{/mainDexRules}}{{/useMainDexRules}}--pg-map-output "{{{mapping}}}" --no-data-resources --output "{{{classes_dex_dir}}}" {{#rules}}--pg-conf "{{{.}}}" {{/rules}} {{#jars}}"{{{.}}}" {{/jars}}'
+    r8Cmd: 'java -cp "{{{env.R8}}}" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib "{{{env.LIBRARYJAR}}}" {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules "{{{.}}}" {{/mainDexRules}}{{/useMainDexRules}}--pg-map-output "{{{mapping}}}" --output "{{{classes_dex_dir}}}" {{#rules}}--pg-conf "{{{.}}}" {{/rules}} {{#jars}}"{{{.}}}" {{/jars}}'
     r8Version: '{{env.R8_VERSION}}'
     r8RuleSourceRe: '(?i).+(\.keep)$'
     aapt2compileCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 compile {{resourceFile}} -o {{outputDirectory}}'

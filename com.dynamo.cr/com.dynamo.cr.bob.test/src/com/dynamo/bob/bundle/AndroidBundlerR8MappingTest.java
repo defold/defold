@@ -33,6 +33,8 @@ public class AndroidBundlerR8MappingTest {
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+    // Verifies the selected Android architecture's mapping.txt is copied verbatim
+    // to the top level of the APK symbols directory.
     @Test
     public void testExtenderMappingIsCopiedToApkSymbolsDirectory() throws IOException {
         File extenderOutput = temporaryFolder.newFolder("build");

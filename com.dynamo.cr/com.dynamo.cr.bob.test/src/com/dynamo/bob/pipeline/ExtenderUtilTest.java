@@ -112,6 +112,8 @@ public class ExtenderUtilTest {
         assertTrue(resources.containsKey("bundle2/values/strings.xml"));
     }
 
+    // Verifies a project containing native extensions reports them globally and
+    // for the tested Android and Linux platforms.
     @Test
     public void testNativeExtensionsAreDetectedForEveryPlatform() {
         assertTrue(ExtenderUtil.hasNativeExtensions(project));
@@ -147,6 +149,8 @@ public class ExtenderUtilTest {
         return null;
     }
 
+    // Verifies built-in R8 keep rules select Extender only for Android and are
+    // uploaded solely at the canonical R8 rules path.
     @Test
     public void testR8KeepRulesSelectExtenderAndUploadBuiltinRules() throws Exception {
         Project r8Project = createR8Project(
@@ -168,6 +172,7 @@ public class ExtenderUtilTest {
         }
     }
 
+    // Verifies custom R8 keep rules replace the built-in contents while retaining the canonical upload path.
     @Test
     public void testCustomR8KeepRulesReplaceBuiltinRules() throws Exception {
         Project r8Project = createR8Project("[android]\nr8_keep_rules = /custom.keep\n", true);
@@ -185,6 +190,7 @@ public class ExtenderUtilTest {
         }
     }
 
+    // Verifies the removed android.proguard property neither selects Extender nor uploads R8 keep rules.
     @Test
     public void testRemovedProGuardPropertyDoesNotForceNativeBuild() throws Exception {
         Project r8Project = createR8Project("[android]\nproguard = /custom.pro\n", true);
@@ -198,6 +204,7 @@ public class ExtenderUtilTest {
         }
     }
 
+    // Verifies an empty android.r8_keep_rules value is treated as absent and does not select Extender.
     @Test
     public void testEmptyR8KeepRulesDoNotForceNativeBuild() throws Exception {
         Project r8Project = createR8Project("[android]\nr8_keep_rules =\n", false);
@@ -209,6 +216,8 @@ public class ExtenderUtilTest {
         }
     }
 
+    // Verifies a missing R8 rules resource selects Extender only for Android and
+    // reports the missing resource during source collection.
     @Test
     public void testMissingR8KeepRulesStillSelectExtenderAndReportResourceError() throws Exception {
         Project r8Project = createR8Project("[android]\nr8_keep_rules = /missing.keep\n", false);
