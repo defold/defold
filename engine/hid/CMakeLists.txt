@@ -152,7 +152,7 @@ if(BUILD_TESTS)
         "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp"
     )
 
-    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
         set(_DM_USE_OPENGLES ON)
 
     elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")

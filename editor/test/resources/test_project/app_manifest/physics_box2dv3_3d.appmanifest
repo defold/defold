@@ -41,6 +41,15 @@ platforms:
       libs: [physics_2d, box2d, script_box2d, physics_3d]
       linkFlags: []
       jetifier: true
+  x86_64-android:
+    context:
+      excludeLibs: [physics, box2d_defold, script_box2d_defold]
+      excludeJars: []
+      excludeSymbols: []
+      symbols: []
+      libs: [physics_2d, box2d, script_box2d, physics_3d]
+      linkFlags: []
+      jetifier: true
   arm64-osx:
     context:
       excludeLibs: [physics, box2d_defold, script_box2d_defold]

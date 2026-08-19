@@ -57,6 +57,8 @@
                                      :library-paths #{"android" "armv7-android"}}
    (.getPair Platform/Arm64Android) {:platform      "arm64-android"
                                      :library-paths #{"android" "arm64-android"}}
+   (.getPair Platform/X86_64Android) {:platform     "x86_64-android"
+                                     :library-paths #{"android" "x86_64-android"}}
    (.getPair Platform/WasmWeb)      {:platform      "wasm-web"
                                      :library-paths #{"web" "wasm-web"}}
    (.getPair Platform/WasmPthreadWeb) {:platform      "wasm_pthread-web"
@@ -235,6 +237,7 @@
    (case platform
      "armv7-android"    ["android" "manifest"]
      "arm64-android"    ["android" "manifest"]
+     "x86_64-android"   ["android" "manifest"]
      "arm64-ios"        ["ios" "infoplist"]
      "armv7-ios"        ["ios" "infoplist"]
      "arm64-osx"        ["osx" "infoplist"]
@@ -246,6 +249,7 @@
   (case ne-platform
     "armv7-android"    "AndroidManifest.xml"
     "arm64-android"    "AndroidManifest.xml"
+    "x86_64-android"   "AndroidManifest.xml"
     "arm64-ios"        "Info.plist"
     "armv7-ios"        "Info.plist"
     "arm64-osx"        "Info.plist"

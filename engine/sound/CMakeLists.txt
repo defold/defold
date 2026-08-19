@@ -132,7 +132,7 @@ endif()
 
 if(TARGET_PLATFORM MATCHES "web$")
   defold_install_js_library("${SOUND_SRC_DIR}/js/library_sound.js")
-elseif(TARGET_PLATFORM MATCHES "^arm.*android$")
+elseif(TARGET_PLATFORM MATCHES "android$")
   include(tools_java)
   set(SOUND_ANDROID_CLASS_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")
   set(SOUND_ANDROID_JAR "${CMAKE_CURRENT_BINARY_DIR}/sound_android.jar")

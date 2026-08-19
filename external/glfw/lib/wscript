@@ -14,7 +14,7 @@ def build(bld):
     elif platform in ('arm64-ios', 'x86_64-ios'):
         sources  = bld.path.ant_glob(['*.c', 'ios/*.m', 'ios/app/*.m'])
         includes = '. ios'
-    elif re.match('arm.*?android', platform):
+    elif re.match('.*?-android$', platform):
         sources  = bld.path.ant_glob(['*.c', 'android/*.c'])
         sources  = [source for source in sources if source.name != 'android_window_no_api.c']
         includes = '. android'
@@ -33,7 +33,7 @@ def build(bld):
                        includes     = includes,
                        target       = 'dmglfw')
 
-    if re.match('arm.*?android', platform):
+    if re.match('.*?-android$', platform):
         vulkan_sources = bld.path.ant_glob(['*.c', 'android/*.c'])
         vulkan_sources = [source for source in vulkan_sources if source.name not in ('android_util.c', 'android_glext.c', 'android_window_gl.c', 'image.c')]
         dmglfw_vulkan = bld.stlib(features     = 'c',

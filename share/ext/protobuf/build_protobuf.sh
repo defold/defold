@@ -113,10 +113,22 @@ pushd _build
 
     export FLAGS="-fPIC"
 
+    # When cross compiling for Android from a macOS host, CMake defaults CMAKE_SYSTEM_NAME
+    # to the host (Darwin) and appends "-arch <host> -isysroot <MacOSX SDK>" after our NDK
+    # sysroot. The last -isysroot wins, so the macOS C headers shadow bionic's and the build
+    # fails (e.g. sem_timedwait not declared). Declaring the target system disables all the
+    # Darwin specific logic, and matches how these packages are built on the Linux CI.
+    CMAKE_OSX_ARGS="-DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCHS}"
+    case ${PLATFORM} in
+        armv7-android)  CMAKE_OSX_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=armv7-a" ;;
+        arm64-android)  CMAKE_OSX_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64" ;;
+        x86_64-android) CMAKE_OSX_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=x86_64" ;;
+    esac
+
     cmake -G "Unix Makefiles" \
         -DCMAKE_INSTALL_PREFIX=${INSTALL_TARGET} \
         -DCMAKE_INSTALL_LIBDIR="${INSTALL_TARGET}/${PLATFORM}" \
-        -DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCHS} \
+        ${CMAKE_OSX_ARGS} \
         -DCMAKE_C_COMPILER=${CC} \
         -DCMAKE_CXX_COMPILER=${CXX} \
         -DCMAKE_C_COMPILER_WORKS=1 \

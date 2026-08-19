@@ -57,7 +57,7 @@ import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.tools.AndroidTools;
 import com.dynamo.bob.tools.ToolsHelper;
 
-@BundlerParams(platforms = {"armv7-android", "arm64-android"})
+@BundlerParams(platforms = {"armv7-android", "arm64-android", "x86_64-android"})
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
@@ -68,12 +68,15 @@ public class AndroidBundler implements IBundler {
     static {
         platformToStripToolMap.put(Platform.Armv7Android, stripToolName);
         platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
+        // llvm-strip is architecture agnostic, reuse the same tool for x86_64
+        platformToStripToolMap.put(Platform.X86_64Android, "strip_android_aarch64");
     }
 
     private static Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
     static {
         platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
         platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
+        platformToLibMap.put(Platform.X86_64Android, "x86_64");
     }
 
     private void logResourceMap(Map<String, IResource> map) {
@@ -319,6 +322,7 @@ public class AndroidBundler implements IBundler {
         Set<String> set = new HashSet<>();
         set.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         set.addAll(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        set.addAll(Arrays.asList(Platform.X86_64Android.getExtenderPaths()));
         List<String> platformFolders = new ArrayList<String>(set);
 
         for (String bundleResourcesPath : bundleResourcesPaths) {

@@ -34,7 +34,8 @@ jobs:
           { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
           { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" },
           { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
-          { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
+          { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" },
+          { "name": "x86_64-android", "runner": "ubuntu-22.04", "target": "android" }
         ]
       pre_build_command: |
         if [ "$BUILD_PLATFORM_NAME" = "arm64-linux" ]; then

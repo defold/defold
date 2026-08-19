@@ -226,7 +226,7 @@
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :both)
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
           (is (some #{"dmglfw"} (:libs context)))
@@ -239,7 +239,7 @@
           (is (some #{"GLESv2"} (:dynamicLibs context)))))))
   (testing "Vulkan-only Android excludes OpenGL ES link inputs"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-android :vulkan)]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
           (is (some #{"dmglfw_vulkan"} (:libs context)))

@@ -26,7 +26,7 @@
 
 (def windows #{:x86-win32 :x86_64-win32})
 
-(def android #{:armv7-android :arm64-android})
+(def android #{:armv7-android :arm64-android :x86_64-android})
 
 (def ios #{:armv7-ios :arm64-ios :x86_64-ios})
 
@@ -37,7 +37,7 @@
 (def vulkan
   #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     :arm64-ios})
 
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
@@ -50,7 +50,7 @@
   #{;; ios
     :armv7-ios :arm64-ios :x86_64-ios
     ;; android
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     ;; osx
     :x86_64-osx :arm64-osx
     ;; linux
@@ -542,7 +542,8 @@
 (def use-android-support-lib-setting
   (make-check-box-setting
     [(boolean-toggle :armv7-android :jetifier false)
-     (boolean-toggle :arm64-android :jetifier false)]))
+     (boolean-toggle :arm64-android :jetifier false)
+     (boolean-toggle :x86_64-android :jetifier false)]))
 
 (def physics-setting
   ;; by default, legacy 2d and 3d are included in `physics` lib
@@ -596,7 +597,7 @@
 
 
 (def generic-vulkan
-  (disj vulkan :armv7-android :arm64-android :arm64-ios))
+  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
@@ -790,6 +791,7 @@
                   ;; android
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]
+                  [:x86_64-android platform-pattern]
                   ;; osx
                   [:arm64-osx platform-pattern]
                   [:x86_64-osx platform-pattern]
