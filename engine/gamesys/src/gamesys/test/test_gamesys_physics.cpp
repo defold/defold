@@ -1,6 +1,8 @@
 #include <test_script.h>
+#include <stddef.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <gamesys/components/comp_collision_object.h>
 #include <gamesys/physics_ddf.h>
 
 #include "test_gamesys.h"
@@ -16,6 +18,92 @@ static void AssertLua(lua_State* L, const char* source)
         lua_pop(L, 1);
     }
     ASSERT_EQ(0, result);
+}
+
+struct PhysicsCallbackTestInstance
+{
+    int      m_ContextTableRef;
+    uint32_t m_UniqueScriptId;
+};
+
+static int GetPhysicsCallbackTestContextTableRef(lua_State* L)
+{
+    PhysicsCallbackTestInstance* instance = (PhysicsCallbackTestInstance*) lua_touserdata(L, 1);
+    lua_pushnumber(L, instance->m_ContextTableRef);
+    return 1;
+}
+
+static int GetPhysicsCallbackTestUniqueScriptId(lua_State* L)
+{
+    PhysicsCallbackTestInstance* instance = (PhysicsCallbackTestInstance*) lua_touserdata(L, 1);
+    lua_pushinteger(L, instance->m_UniqueScriptId);
+    return 1;
+}
+
+static int IsPhysicsCallbackTestInstanceValid(lua_State* L)
+{
+    lua_pushboolean(L, lua_touserdata(L, 1) != 0);
+    return 1;
+}
+
+static const luaL_reg PHYSICS_CALLBACK_TEST_INSTANCE_METHODS[] =
+{
+    { 0, 0 }
+};
+
+static const luaL_reg PHYSICS_CALLBACK_TEST_INSTANCE_META[] =
+{
+    { dmScript::META_TABLE_IS_VALID, IsPhysicsCallbackTestInstanceValid },
+    { dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GetPhysicsCallbackTestContextTableRef },
+    { dmScript::META_GET_UNIQUE_SCRIPT_ID, GetPhysicsCallbackTestUniqueScriptId },
+    { 0, 0 }
+};
+
+struct PhysicsTestCallback
+{
+    dmScript::LuaCallbackInfo* m_Callback;
+    int                        m_InstanceRef;
+    int                        m_ContextTableRef;
+    int                        m_PreviousInstanceRef;
+};
+
+static PhysicsTestCallback CreatePhysicsTestCallback(lua_State* L, const char* function_name)
+{
+    dmScript::GetInstance(L);
+    int previous_instance_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::RegisterUserType(L, "PhysicsCallbackTestInstance",
+                               PHYSICS_CALLBACK_TEST_INSTANCE_METHODS,
+                               PHYSICS_CALLBACK_TEST_INSTANCE_META);
+
+    PhysicsCallbackTestInstance* instance = (PhysicsCallbackTestInstance*) lua_newuserdata(L, sizeof(PhysicsCallbackTestInstance));
+    luaL_getmetatable(L, "PhysicsCallbackTestInstance");
+    lua_setmetatable(L, -2);
+    lua_newtable(L);
+    instance->m_ContextTableRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    instance->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
+    int instance_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instance_ref);
+    dmScript::SetInstance(L);
+
+    lua_getglobal(L, function_name);
+    dmScript::LuaCallbackInfo* callback = dmScript::CreateCallback(L, -1);
+    lua_pop(L, 1);
+
+    PhysicsTestCallback result = { callback, instance_ref, instance->m_ContextTableRef, previous_instance_ref };
+    return result;
+}
+
+static void DestroyPhysicsTestCallback(lua_State* L, PhysicsTestCallback* callback)
+{
+    dmScript::DestroyCallback(callback->m_Callback);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback->m_InstanceRef);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback->m_ContextTableRef);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, callback->m_PreviousInstanceRef);
+    dmScript::SetInstance(L);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback->m_PreviousInstanceRef);
 }
 
 static void RunPhysicsScriptTest(dmResource::HFactory factory, dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context,
@@ -264,6 +352,113 @@ TEST_F(ComponentTest, PhysicsDDFDecoderTest)
     lua_pushnil(L); lua_setglobal(L, "decoded_ray");
     lua_pushnil(L); lua_setglobal(L, "decoded_missed");
     lua_pushnil(L); lua_setglobal(L, "decoded_velocity");
+}
+
+TEST_F(ComponentTest, PhysicsBatchedEventDecoderTest)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    AssertLua(L,
+        "function capture_physics_events(self, events)\n"
+        "    decoded_physics_events = events\n"
+        "end\n");
+
+    PhysicsTestCallback callback = CreatePhysicsTestCallback(L, "capture_physics_events");
+    ASSERT_NE((dmScript::LuaCallbackInfo*) 0, callback.m_Callback);
+
+    struct PhysicsEventBatchPayload
+    {
+        alignas(16) dmPhysicsDDF::CollisionEvent    m_Collision;
+        alignas(16) dmPhysicsDDF::ContactPointEvent m_Contact;
+        alignas(16) dmPhysicsDDF::TriggerEvent      m_Trigger;
+        alignas(16) dmPhysicsDDF::RayCastResponse   m_RayCastResponse;
+        alignas(16) dmPhysicsDDF::RayCastMissed     m_RayCastMissed;
+    } payload = {};
+
+    payload.m_Collision.m_A.m_Position = Point3(1.0f, 2.0f, 3.0f);
+    payload.m_Collision.m_A.m_Id = dmHashString64("collision_a");
+    payload.m_Collision.m_A.m_Group = dmHashString64("group_a");
+    payload.m_Collision.m_B.m_Position = Point3(4.0f, 5.0f, 6.0f);
+    payload.m_Collision.m_B.m_Id = dmHashString64("collision_b");
+    payload.m_Collision.m_B.m_Group = dmHashString64("group_b");
+
+    payload.m_Contact.m_A.m_Position = Point3(7.0f, 8.0f, 9.0f);
+    payload.m_Contact.m_A.m_InstancePosition = Point3(10.0f, 11.0f, 12.0f);
+    payload.m_Contact.m_A.m_Normal = Vector3(0.0f, 1.0f, 0.0f);
+    payload.m_Contact.m_A.m_RelativeVelocity = Vector3(1.0f, 2.0f, 3.0f);
+    payload.m_Contact.m_A.m_Mass = 1.25f;
+    payload.m_Contact.m_A.m_Id = dmHashString64("contact_a");
+    payload.m_Contact.m_A.m_Group = dmHashString64("group_a");
+    payload.m_Contact.m_B.m_Position = Point3(13.0f, 14.0f, 15.0f);
+    payload.m_Contact.m_B.m_InstancePosition = Point3(16.0f, 17.0f, 18.0f);
+    payload.m_Contact.m_B.m_Normal = Vector3(0.0f, -1.0f, 0.0f);
+    payload.m_Contact.m_B.m_RelativeVelocity = Vector3(-1.0f, -2.0f, -3.0f);
+    payload.m_Contact.m_B.m_Mass = 2.5f;
+    payload.m_Contact.m_B.m_Id = dmHashString64("contact_b");
+    payload.m_Contact.m_B.m_Group = dmHashString64("group_b");
+    payload.m_Contact.m_Distance = 0.25f;
+    payload.m_Contact.m_AppliedImpulse = 3.5f;
+
+    payload.m_Trigger.m_Enter = true;
+    payload.m_Trigger.m_A.m_Id = dmHashString64("trigger_a");
+    payload.m_Trigger.m_A.m_Group = dmHashString64("group_a");
+    payload.m_Trigger.m_B.m_Id = dmHashString64("trigger_b");
+    payload.m_Trigger.m_B.m_Group = dmHashString64("group_b");
+
+    payload.m_RayCastResponse.m_Fraction = 0.75f;
+    payload.m_RayCastResponse.m_Position = Point3(19.0f, 20.0f, 21.0f);
+    payload.m_RayCastResponse.m_Normal = Vector3(0.0f, 0.0f, 1.0f);
+    payload.m_RayCastResponse.m_Id = dmHashString64("ray_id");
+    payload.m_RayCastResponse.m_Group = dmHashString64("ray_group");
+    payload.m_RayCastResponse.m_RequestId = 42;
+    payload.m_RayCastMissed.m_RequestId = 43;
+
+    dmGameSystem::PhysicsMessage messages[] =
+    {
+        { (uint32_t) offsetof(PhysicsEventBatchPayload, m_Collision),       dmGameSystem::PHYSICS_MESSAGE_TYPE_COLLISION },
+        { (uint32_t) offsetof(PhysicsEventBatchPayload, m_Contact),         dmGameSystem::PHYSICS_MESSAGE_TYPE_CONTACT_POINT },
+        { (uint32_t) offsetof(PhysicsEventBatchPayload, m_Trigger),         dmGameSystem::PHYSICS_MESSAGE_TYPE_TRIGGER },
+        { (uint32_t) offsetof(PhysicsEventBatchPayload, m_RayCastResponse), dmGameSystem::PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE },
+        { (uint32_t) offsetof(PhysicsEventBatchPayload, m_RayCastMissed),   dmGameSystem::PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED },
+    };
+
+    dmGameSystem::RunBatchedEventCallback(callback.m_Callback, DM_ARRAY_SIZE(messages), messages, (const uint8_t*) &payload);
+
+    AssertLua(L,
+        "local events = decoded_physics_events\n"
+        "assert(#events == 5)\n"
+        "assert(events[1].type == hash('collision_event'))\n"
+        "assert(events[1].a.position == vmath.vector3(1, 2, 3))\n"
+        "assert(events[1].a.id == hash('collision_a') and events[1].a.group == hash('group_a'))\n"
+        "assert(events[1].b.position == vmath.vector3(4, 5, 6))\n"
+        "assert(events[1].b.id == hash('collision_b') and events[1].b.group == hash('group_b'))\n"
+        "assert(events[2].type == hash('contact_point_event'))\n"
+        "assert(events[2].a.position == vmath.vector3(7, 8, 9))\n"
+        "assert(events[2].a.instance_position == vmath.vector3(10, 11, 12))\n"
+        "assert(events[2].a.normal == vmath.vector3(0, 1, 0))\n"
+        "assert(events[2].a.relative_velocity == vmath.vector3(1, 2, 3))\n"
+        "assert(events[2].a.mass == 1.25)\n"
+        "assert(events[2].a.id == hash('contact_a') and events[2].a.group == hash('group_a'))\n"
+        "assert(events[2].b.position == vmath.vector3(13, 14, 15))\n"
+        "assert(events[2].b.instance_position == vmath.vector3(16, 17, 18))\n"
+        "assert(events[2].b.normal == vmath.vector3(0, -1, 0))\n"
+        "assert(events[2].b.relative_velocity == vmath.vector3(-1, -2, -3))\n"
+        "assert(events[2].b.mass == 2.5)\n"
+        "assert(events[2].b.id == hash('contact_b') and events[2].b.group == hash('group_b'))\n"
+        "assert(events[2].distance == 0.25 and events[2].applied_impulse == 3.5)\n"
+        "assert(events[3].type == hash('trigger_event') and events[3].enter)\n"
+        "assert(events[3].a.id == hash('trigger_a') and events[3].a.group == hash('group_a'))\n"
+        "assert(events[3].b.id == hash('trigger_b') and events[3].b.group == hash('group_b'))\n"
+        "assert(events[4].type == hash('ray_cast_response'))\n"
+        "assert(events[4].fraction == 0.75)\n"
+        "assert(events[4].position == vmath.vector3(19, 20, 21))\n"
+        "assert(events[4].normal == vmath.vector3(0, 0, 1))\n"
+        "assert(events[4].id == hash('ray_id') and events[4].group == hash('ray_group'))\n"
+        "assert(events[4].request_id == 42)\n"
+        "assert(events[5].type == hash('ray_cast_missed') and events[5].request_id == 43)\n");
+
+    lua_pushnil(L); lua_setglobal(L, "decoded_physics_events");
+    lua_pushnil(L); lua_setglobal(L, "capture_physics_events");
+    DestroyPhysicsTestCallback(L, &callback);
 }
 
 /* Update mass for physics collision object */
