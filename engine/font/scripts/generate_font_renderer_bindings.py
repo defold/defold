@@ -17,8 +17,10 @@
 import argparse
 import hashlib
 import pathlib
+import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 
 
@@ -121,9 +123,18 @@ def main():
             if hash_lines != [expected_hash_line] or has_platform_dependent_long:
                 stale_files.append(filename)
         if stale_files:
+            regeneration_command = shlex.join((
+                sys.executable,
+                str(pathlib.Path(__file__).resolve()),
+                "--jextract", "/path/to/jextract",
+                "--header", str(args.header.resolve()),
+                "--include-dir", str(args.include_dir.resolve()),
+                "--output", str(args.output.resolve()),
+            ))
             raise SystemExit(
                 "error: Font renderer FFM bindings are stale or missing: " + ", ".join(stale_files) +
-                ". Regenerate them with the generate_font_renderer_ffm target and a jextract executable.")
+                ".\nRegenerate them with Java 25 jextract (https://jdk.java.net/jextract/):\n  " +
+                regeneration_command)
         return
     if not args.jextract:
         raise RuntimeError("--jextract is required when generating bindings")
