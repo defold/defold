@@ -2288,8 +2288,8 @@ namespace dmGameSystem
  * @param constraint [type:btTypedConstraint] hinge constraint
  * @param lower [type:number] lower angle in radians
  * @param upper [type:number] upper angle in radians
- * @param bias [type:number|nil] optional limit bias from 0 to 1
- * @param relaxation [type:number|nil] optional relaxation from 0 to 1
+ * @param [bias] [type:number|nil] optional limit bias from 0 to 1
+ * @param [relaxation] [type:number|nil] optional relaxation from 0 to 1
  */
 
 /*# Get hinge motor settings
@@ -2339,9 +2339,9 @@ namespace dmGameSystem
  * @param swing_span_1 [type:number] non-negative first swing span
  * @param swing_span_2 [type:number] non-negative second swing span
  * @param twist_span [type:number] non-negative twist span
- * @param softness [type:number|nil] optional softness from 0 to 1
- * @param bias [type:number|nil] optional bias from 0 to 1
- * @param relaxation [type:number|nil] optional relaxation from 0 to 1
+ * @param [softness] [type:number|nil] optional softness from 0 to 1
+ * @param [bias] [type:number|nil] optional bias from 0 to 1
+ * @param [relaxation] [type:number|nil] optional relaxation from 0 to 1
  */
 
 /*# Get the current cone-twist twist angle
@@ -2366,7 +2366,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.set_cone_twist_motor_target
  * @param constraint [type:btTypedConstraint] cone-twist constraint
  * @param target [type:quaternion] target orientation
- * @param constraint_space [type:boolean|nil] target is already in constraint space
+ * @param [constraint_space] [type:boolean|nil] target is already in constraint space
  */
 
 /*# Get a 6-DOF axis limit
@@ -2438,7 +2438,7 @@ namespace dmGameSystem
  * @param enabled [type:boolean] motor state
  * @param target_velocity [type:number] target velocity
  * @param max_impulse [type:number] non-negative maximum motor impulse
- * @param bounce [type:number|nil] optional angular bounce from 0 to 1
+ * @param [bounce] [type:number|nil] optional angular bounce from 0 to 1
  */
 
 /*# Enable or disable a spring axis
@@ -2474,8 +2474,8 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.set_spring_equilibrium_point
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:integer|nil] optional one-based axis from 1 to 6
- * @param value [type:number|nil] optional explicit equilibrium value
+ * @param [axis] [type:integer|nil] optional one-based axis from 1 to 6
+ * @param [value] [type:number|nil] optional explicit equilibrium value
  */
 
 /*# Get slider limits

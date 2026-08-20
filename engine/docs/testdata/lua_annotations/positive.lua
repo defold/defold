@@ -148,6 +148,50 @@ b2d.world.cast_ray(
     vmath.vector3(),
     vmath.vector3())
 
+local bullet_world = assert(bullet3d.get_world())
+local bullet_body = assert(bullet3d.get_rigid_body("#collisionobject"))
+local bullet_constraint = bullet3d.constraint.create_point_to_point(
+    bullet_body,
+    nil,
+    {pivot_a = vmath.vector3()})
+
+bullet3d.constraint.set_hinge_limits(bullet_constraint, -1, 1)
+bullet3d.constraint.set_cone_twist_limits(bullet_constraint, 1, 1, 1)
+bullet3d.constraint.set_cone_twist_motor_target(bullet_constraint, vmath.quat())
+bullet3d.constraint.set_6dof_motor(bullet_constraint, 1, true, 1, 1)
+bullet3d.constraint.set_spring_equilibrium_point(bullet_constraint)
+bullet3d.constraint.set_spring_equilibrium_point(bullet_constraint, 1)
+
+---@param self script_instance
+---@param hits bullet3d.world.cast_result[]
+local function on_bullet_cast(self, hits)
+    if hits[1] then
+        pprint(self, hits[1].object)
+    end
+end
+
+local bullet_origin = vmath.vector3()
+local bullet_translation = vmath.vector3(0, -1, 0)
+local bullet_filter = {include_triggers = false}
+local bullet_shape = {
+    type = bullet3d.shape.SHAPE_TYPE_SPHERE,
+    diameter = 1,
+}
+
+bullet3d.world.cast_ray_async(
+    bullet_world, bullet_origin, bullet_translation, on_bullet_cast)
+bullet3d.world.cast_ray_async(
+    bullet_world, bullet_origin, bullet_translation, on_bullet_cast, bullet_filter)
+bullet3d.world.cast_ray_async(
+    bullet_world, bullet_origin, bullet_translation, on_bullet_cast, bullet_filter, 1)
+
+bullet3d.world.cast_shape_async(
+    bullet_world, bullet_shape, bullet_translation, on_bullet_cast)
+bullet3d.world.cast_shape_async(
+    bullet_world, bullet_shape, bullet_translation, on_bullet_cast, bullet_filter)
+bullet3d.world.cast_shape_async(
+    bullet_world, bullet_shape, bullet_translation, on_bullet_cast, bullet_filter, 1)
+
 render.clear({
     [graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(),
     [graphics.BUFFER_TYPE_DEPTH_BIT] = 1,

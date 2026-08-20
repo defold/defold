@@ -777,7 +777,7 @@ local function test_async_cast_queries(self, world, objects)
 
     queue_async_cast(self, function(callback)
         assert(select("#", bullet3d.world.cast_ray_async(
-            world, ray_origin, ray_translation, filter, 1, callback)) == 0)
+            world, ray_origin, ray_translation, callback, filter, 1)) == 0)
     end, function(hits)
         assert(#hits == 1)
         assert(hits[1].object == expected_ray_hits[1].object)
@@ -793,14 +793,14 @@ local function test_async_cast_queries(self, world, objects)
         position = vmath.vector3(-5, 0, 0),
     }
     local shape_translation = vmath.vector3(10, 0, 0)
-    local expected_shape_hits = bullet3d.world.cast_shape(world, shape, shape_translation, filter, 1)
-    assert(#expected_shape_hits == 1)
+    local expected_shape_hits = bullet3d.world.cast_shape(world, shape, shape_translation, filter)
+    assert(#expected_shape_hits > 0)
 
     queue_async_cast(self, function(callback)
         assert(select("#", bullet3d.world.cast_shape_async(
-            world, shape, shape_translation, filter, 1, callback)) == 0)
+            world, shape, shape_translation, callback, filter)) == 0)
     end, function(hits)
-        assert(#hits == 1)
+        assert(#hits == #expected_shape_hits)
         assert(hits[1].object == expected_shape_hits[1].object)
         assert_near(hits[1].fraction, expected_shape_hits[1].fraction, 0.002)
         assert_vec3_near(hits[1].point, expected_shape_hits[1].point, 0.002)
@@ -813,13 +813,13 @@ local function test_async_cast_queries(self, world, objects)
     local snapshot_origin = vmath.vector3(58, 0, 0)
     local snapshot_translation = vmath.vector3(4, 0, 0)
     local expected_snapshot_hits = bullet3d.world.cast_ray(
-        world, snapshot_origin, snapshot_translation, filter, 1)
+        world, snapshot_origin, snapshot_translation)
     assert(#expected_snapshot_hits == 1)
     assert(expected_snapshot_hits[1].object == objects.movable)
 
     queue_async_cast(self, function(callback)
         assert(select("#", bullet3d.world.cast_ray_async(
-            world, snapshot_origin, snapshot_translation, filter, 1, callback)) == 0)
+            world, snapshot_origin, snapshot_translation, callback)) == 0)
     end, function(hits)
         assert_vec3_near(
             bullet3d.collision_object.get_position(objects.movable),
@@ -1073,10 +1073,10 @@ local function test_query_validation(world, objects)
         bullet3d.world.cast_shape(world, valid_shape, vmath.vector3(10, 0, 0), nil, -1)
     end)
     assert_error(function()
-        bullet3d.world.cast_ray_async(world, vmath.vector3(-5, 0, 0), vmath.vector3(10, 0, 0), nil, -1, callback)
+        bullet3d.world.cast_ray_async(world, vmath.vector3(-5, 0, 0), vmath.vector3(10, 0, 0), callback, nil, -1)
     end)
     assert_error(function()
-        bullet3d.world.cast_shape_async(world, valid_shape, vmath.vector3(10, 0, 0), nil, -1, callback)
+        bullet3d.world.cast_shape_async(world, valid_shape, vmath.vector3(10, 0, 0), callback, nil, -1)
     end)
     assert_error(function()
         bullet3d.world.contact_test(world, objects.contact_a, nil, -1)

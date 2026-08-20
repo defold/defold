@@ -310,19 +310,6 @@ namespace dmGameSystem
         return (int)max_results;
     }
 
-    static int CheckAsyncCastCallback(lua_State* L, int* max_results)
-    {
-        int top = lua_gettop(L);
-        if (top < 4 || top > 6)
-        {
-            luaL_error(L, "expected callback after optional filter and max_results arguments");
-            return 0;
-        }
-        luaL_checktype(L, top, LUA_TFUNCTION);
-        *max_results = top == 6 ? CheckMaxResults(L, 5) : 0;
-        return top;
-    }
-
     static uint16_t CheckFilterBits(lua_State* L, int index, const char* field_name)
     {
         lua_Number value = luaL_checknumber(L, index);
@@ -1523,18 +1510,11 @@ namespace dmGameSystem
         btVector3 target = origin + translation;
         CheckBullet3DComputedVector3(L, target, "ray target");
 
-        int max_results = 0;
-        int callback_index = CheckAsyncCastCallback(L, &max_results);
+        luaL_checktype(L, 4, LUA_TFUNCTION);
+        int max_results = CheckMaxResults(L, 6);
         int top = lua_gettop(L);
         Bullet3DQueryFilterInput filter_input;
-        if (callback_index == 4)
-        {
-            InitializeQueryFilterInput(&filter_input);
-        }
-        else
-        {
-            CheckQueryFilterInput(L, 4, &filter_input);
-        }
+        CheckQueryFilterInput(L, 5, &filter_input);
 
         Bullet3DAsyncCastRequest* request = new Bullet3DAsyncCastRequest;
         request->m_World = world;
@@ -1548,7 +1528,7 @@ namespace dmGameSystem
         CreateAsyncQueryFilter(L, filter_input, &request->m_Filter);
         lua_settop(L, top);
 
-        request->m_Callback = dmScript::CreateCallback(L, callback_index);
+        request->m_Callback = dmScript::CreateCallback(L, 4);
         if (!request->m_Callback)
         {
             DestroyAsyncCastRequest(request);
@@ -1565,19 +1545,12 @@ namespace dmGameSystem
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
         btVector3                translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
         CheckNonZeroTranslation(L, translation);
-        int max_results = 0;
-        int callback_index = CheckAsyncCastCallback(L, &max_results);
+        luaL_checktype(L, 4, LUA_TFUNCTION);
+        int max_results = CheckMaxResults(L, 6);
         int top = lua_gettop(L);
 
         Bullet3DQueryFilterInput filter_input;
-        if (callback_index == 4)
-        {
-            InitializeQueryFilterInput(&filter_input);
-        }
-        else
-        {
-            CheckQueryFilterInput(L, 4, &filter_input);
-        }
+        CheckQueryFilterInput(L, 5, &filter_input);
         Bullet3DQueryShapeInput shape_input;
         CheckQueryShapeInput(L, 2, &shape_input);
         btVector3 target = shape_input.m_Position + translation;
@@ -1596,7 +1569,7 @@ namespace dmGameSystem
         request->m_QueryShape.m_To.setOrigin(target);
         lua_settop(L, top);
 
-        request->m_Callback = dmScript::CreateCallback(L, callback_index);
+        request->m_Callback = dmScript::CreateCallback(L, 4);
         if (!request->m_Callback)
         {
             DestroyAsyncCastRequest(request);
@@ -2054,9 +2027,9 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param origin [type:vector3] ray origin in world space
  * @param translation [type:vector3] non-zero ray displacement in world units
+ * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] result callback
  * @param [filter] [type:bullet3d.world.query_filter] query filter
  * @param [max_results] [type:integer] maximum sorted hits, or zero for all
- * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] result callback
  * @examples
  *
  * Queue a downward cast and inspect only the closest non-trigger hit:
@@ -2066,13 +2039,13 @@ namespace dmGameSystem
  *     bullet3d.get_world(),
  *     go.get_world_position(),
  *     vmath.vector3(0, -100, 0),
- *     { include_triggers = false },
- *     1,
  *     function(self, hits)
  *         if hits[1] then
  *             print("hit", hits[1].object)
  *         end
- *     end)
+ *     end,
+ *     { include_triggers = false },
+ *     1)
  * ```
  */
 
@@ -2123,9 +2096,9 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param shape [type:bullet3d.shape.definition] convex query shape with optional target rotation
  * @param translation [type:vector3] non-zero sweep displacement in world units
+ * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] result callback
  * @param [filter] [type:bullet3d.world.query_filter] query filter
  * @param [max_results] [type:integer] maximum sorted hits, or zero for all
- * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] result callback
  */
 
 /*# Test one collision object against the world
