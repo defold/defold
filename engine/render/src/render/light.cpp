@@ -148,6 +148,7 @@ namespace dmRender
         LightInstance* light_instance = &render_context->m_RenderLights[light_buffer_index];
         light_instance->m_LightPrototype   = light_prototype;
         light_instance->m_LightBufferIndex = light_buffer_index;
+        light_instance->m_ShadowEligible   = true;
         render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][light_buffer_index] = INVALID_SHADOW_SLOT;
         render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][light_buffer_index] = INVALID_SHADOW_SLOT;
         uint32_t& shadow_revision = render_context->m_LightShadowRevisions[light_buffer_index];
@@ -220,6 +221,14 @@ namespace dmRender
             if (++shadow_revision == 0)
                 shadow_revision = 1;
         }
+    }
+
+    void SetLightInstanceShadowEligible(HRenderContext render_context, HLightInstance instance, bool eligible)
+    {
+        const uint16_t light_buffer_index = instance & 0xFFFF;
+        LightInstance* light_instance = light_buffer_index < render_context->m_RenderLights.Size() ? &render_context->m_RenderLights[light_buffer_index] : 0;
+        if (light_instance && light_instance->m_LightPrototype != 0 && light_instance->m_Version == (instance >> 16))
+            light_instance->m_ShadowEligible = eligible;
     }
 
     ////////////////////////////////
@@ -642,7 +651,7 @@ namespace dmRender
                 continue;
 
             const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
-            if (prototype && prototype->m_Type == LIGHT_TYPE_SPOT)
+            if (prototype && prototype->m_Type == LIGHT_TYPE_SPOT && instance->m_ShadowEligible)
             {
                 SpotShadowCandidate candidate;
                 candidate.m_InstanceIndex = i;
@@ -757,7 +766,7 @@ namespace dmRender
             if (instance->m_LightPrototype == 0)
                 continue;
             const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
-            if (prototype && prototype->m_Type == LIGHT_TYPE_POINT)
+            if (prototype && prototype->m_Type == LIGHT_TYPE_POINT && instance->m_ShadowEligible)
             {
                 SpotShadowCandidate candidate;
                 candidate.m_InstanceIndex = i;
@@ -850,7 +859,7 @@ namespace dmRender
             if (instance->m_LightPrototype == 0)
                 continue;
             const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
-            if (prototype && prototype->m_Type == LIGHT_TYPE_DIRECTIONAL)
+            if (prototype && prototype->m_Type == LIGHT_TYPE_DIRECTIONAL && instance->m_ShadowEligible)
             {
                 const float score = dmMath::Max(prototype->m_Color.getX(), dmMath::Max(prototype->m_Color.getY(), prototype->m_Color.getZ())) * prototype->m_Intensity;
                 if (score > selected_score)

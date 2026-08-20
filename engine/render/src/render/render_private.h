@@ -311,6 +311,7 @@ namespace dmRender
         HLightPrototype m_LightPrototype;
         uint16_t        m_LightBufferIndex;
         uint16_t        m_Version;
+        bool            m_ShadowEligible;
     };
 
     const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);

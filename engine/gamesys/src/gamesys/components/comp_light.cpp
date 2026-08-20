@@ -38,6 +38,7 @@ namespace dmGameSystem
         dmRender::HRenderContext m_RenderContext;
         dmResource::HFactory     m_Factory;
         uint32_t                 m_MaxLightCount;
+        dmhash_t                 m_ShadowParentId;
     };
 
     struct LightComponent
@@ -91,6 +92,19 @@ namespace dmGameSystem
             return false;
         }
         return true;
+    }
+
+    static bool IsShadowEligible(LightContext* context, dmGameObject::HInstance instance)
+    {
+        if (context->m_ShadowParentId == 0)
+            return true;
+
+        for (dmGameObject::HInstance parent = dmGameObject::GetParent(instance); parent; parent = dmGameObject::GetParent(parent))
+        {
+            if (dmGameObject::GetIdentifier(parent) == context->m_ShadowParentId)
+                return true;
+        }
+        return false;
     }
 
     static dmGameObject::CreateResult CompLightDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
@@ -207,6 +221,11 @@ namespace dmGameSystem
             float scale_z = dmMath::Abs(world_scale.getZ());
             float scale = dmMath::Min(scale_x, dmMath::Min(scale_y, scale_z));
 
+            dmRender::SetLightInstanceShadowEligible(
+                context->m_RenderContext,
+                light->m_LightInstance,
+                IsShadowEligible(context, light->m_Instance)
+            );
             dmRender::SetLightInstance(context->m_RenderContext, light->m_LightInstance, position, rotation, scale);
         }
         dmRender::SetAmbientLight(context->m_RenderContext, ambient_light);
@@ -220,6 +239,8 @@ namespace dmGameSystem
         light_context->m_Factory = ctx->m_Factory;
         light_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
         light_context->m_MaxLightCount = (uint32_t) dmMath::Max(0, dmConfigFile::GetInt(ctx->m_Config, LIGHT_MAX_COUNT_KEY, 64));
+        const char* shadow_parent = dmConfigFile::GetString(ctx->m_Config, "render.shadow_light_parent", "");
+        light_context->m_ShadowParentId = shadow_parent[0] == '\0' ? 0 : dmHashString64(shadow_parent);
 
         dmRender::SetLightBufferCount(light_context->m_RenderContext, light_context->m_MaxLightCount);
 

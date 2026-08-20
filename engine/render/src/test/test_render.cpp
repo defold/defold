@@ -2677,6 +2677,11 @@ TEST_F(dmRenderTest, SelectPointAndDirectionalLightShadows)
     ASSERT_EQ(0u, point_shadow.m_ShadowIndex);
     ASSERT_EQ(8.0f, point_shadow.m_Range);
 
+    dmRender::SetLightInstanceShadowEligible(m_Context, point_b, false);
+    ASSERT_EQ(1u, dmRender::SelectPointLightShadows(m_Context, 1, &point_shadow, &selection_params));
+    ASSERT_EQ(0u, point_shadow.m_LightIndex);
+    dmRender::SetLightInstanceShadowEligible(m_Context, point_b, true);
+
     dmRender::LightPrototypeParams dim_directional_params;
     dim_directional_params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
     dim_directional_params.m_Intensity = 0.5f;
@@ -2696,6 +2701,10 @@ TEST_F(dmRenderTest, SelectPointAndDirectionalLightShadows)
     ASSERT_TRUE(dmRender::SelectDirectionalLightShadow(m_Context, &directional_shadow));
     ASSERT_EQ(3u, directional_shadow.m_LightIndex);
     ASSERT_VEC4(dmVMath::Vector4(dmVMath::Rotate(rotation, dmVMath::Vector3(0.0f, 0.0f, -1.0f)), 0.0f), dmVMath::Vector4(directional_shadow.m_Direction, 0.0f));
+
+    dmRender::SetLightInstanceShadowEligible(m_Context, bright_directional, false);
+    ASSERT_TRUE(dmRender::SelectDirectionalLightShadow(m_Context, &directional_shadow));
+    ASSERT_EQ(2u, directional_shadow.m_LightIndex);
 
     dmRender::DeleteLightInstance(m_Context, point_a);
     dmRender::DeleteLightInstance(m_Context, point_b);

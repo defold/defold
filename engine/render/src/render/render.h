@@ -539,6 +539,7 @@ namespace dmRender
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
+    void            SetLightInstanceShadowEligible(HRenderContext render_context, HLightInstance light_instance, bool eligible);
     void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
     uint32_t        SelectSpotLightShadows(HRenderContext render_context, uint32_t max_shadows, SpotLightShadowData* out_shadows, const SpotLightShadowSelectionParams* selection_params = 0);
