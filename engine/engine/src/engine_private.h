@@ -167,6 +167,8 @@ namespace dmEngine
         uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
         uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
+        uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
+        uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
         float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_FixedUpdateFrequency;
@@ -248,6 +250,10 @@ namespace dmEngine
      * @return true if frame pacing should be handled manually
      */
     bool UseEngineFramePacing();
+
+    // Advances a deadline by one rational frame period without accumulating
+    // integer microsecond rounding error. Exposed here for unit testing.
+    uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder);
 
     /**
      *

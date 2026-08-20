@@ -477,6 +477,35 @@ TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
     ASSERT_LE(elapsed, 300000u);
 }
 
+TEST_F(EngineTest, FramePacingDeadlineDoesNotAccumulateRoundingError)
+{
+    const uint64_t start = 1234567;
+
+    // Advance one second at 60 Hz, whose period is not a whole number of
+    // microseconds.
+    uint64_t deadline_60hz = start;
+    uint32_t remainder_60hz = 0;
+    for (uint32_t i = 0; i < 60; ++i)
+    {
+        deadline_60hz = dmEngine::AdvanceFrameDeadline(deadline_60hz, 60, remainder_60hz);
+    }
+
+    // Repeat at a higher non-integral frequency to exercise a different
+    // fractional remainder pattern.
+    uint64_t deadline_144hz = start;
+    uint32_t remainder_144hz = 0;
+    for (uint32_t i = 0; i < 144; ++i)
+    {
+        deadline_144hz = dmEngine::AdvanceFrameDeadline(deadline_144hz, 144, remainder_144hz);
+    }
+
+    // The carried remainders must add up to exactly one second without drift.
+    ASSERT_EQ(start + 1000000, deadline_60hz);
+    ASSERT_EQ(0u, remainder_60hz);
+    ASSERT_EQ(start + 1000000, deadline_144hz);
+    ASSERT_EQ(0u, remainder_144hz);
+}
+
 TEST_F(EngineTest, CameraAqcuireFocus)
 {
     uint32_t frame_count = 0;

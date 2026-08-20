@@ -127,6 +127,7 @@ namespace dmEngine
     // Used to pace engine frames when rendering is disabled and the platform
     // cannot report the display refresh rate (for example, a headless adapter).
     static const uint32_t DEFAULT_DISPLAY_REFRESH_RATE = 60;
+    static const uint32_t FRAME_PACING_TIME_BASE = 1000000; // Microseconds per second
 
     dmEngineService::HEngineService g_EngineService = 0;
 
@@ -431,6 +432,8 @@ namespace dmEngine
     , m_EffectiveSwapInterval(~0U)
     , m_PreviousFrameTime(dmTime::GetMonotonicTime())
     , m_NextFrameTime(0)
+    , m_FramePacingFrequency(0)
+    , m_FrameTimeRemainder(0)
     , m_AccumFrameTime(0.0f)
     , m_UpdateFrequency(0)
     , m_FixedUpdateFrequency(0)
@@ -768,11 +771,39 @@ namespace dmEngine
         }
     }
 
+    // Advances an absolute frame deadline by one period. Fractional
+    // microseconds are carried in remainder so repeated calls do not accumulate
+    // integer rounding drift. The caller must provide a nonzero frequency.
+    uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder)
+    {
+        // A microsecond clock cannot represent periods shorter than one
+        // microsecond. Preserve the previous minimum period for such inputs.
+        if (frequency >= FRAME_PACING_TIME_BASE)
+        {
+            remainder = 0;
+            return deadline + 1;
+        }
+
+        deadline += FRAME_PACING_TIME_BASE / frequency;
+
+        uint64_t accumulated_remainder = remainder + FRAME_PACING_TIME_BASE % frequency;
+        deadline += accumulated_remainder / frequency;
+        remainder = (uint32_t)(accumulated_remainder % frequency);
+        return deadline;
+    }
+
+    static void ResetFramePacing(HEngine engine)
+    {
+        engine->m_NextFrameTime = 0;
+        engine->m_FramePacingFrequency = 0;
+        engine->m_FrameTimeRemainder = 0;
+    }
+
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
         swap_interval = dmMath::Max(0, swap_interval);
         engine->m_SwapInterval = (uint32_t) swap_interval;
-        engine->m_NextFrameTime = 0;
+        ResetFramePacing(engine);
         ApplyEffectiveSwapInterval(engine);
     }
 
@@ -783,7 +814,12 @@ namespace dmEngine
 
         uint64_t now = dmTime::GetMonotonicTime();
         engine->m_PreviousFrameTime = now;
-        engine->m_NextFrameTime = frequency == 0 ? 0 : now + (1000000ULL + frequency - 1) / frequency;
+        ResetFramePacing(engine);
+        if (frequency != 0)
+        {
+            engine->m_FramePacingFrequency = frequency;
+            engine->m_NextFrameTime = AdvanceFrameDeadline(now, frequency, engine->m_FrameTimeRemainder);
+        }
     }
 
     struct LuaCallstackCtx
@@ -2323,16 +2359,17 @@ bail:
         uint32_t pacing_frequency = GetFramePacingFrequency(engine);
         if (pacing_frequency == 0)
         {
-            engine->m_NextFrameTime = 0;
+            ResetFramePacing(engine);
             return false;
         }
 
-        const uint64_t frame_period = (1000000ULL + pacing_frequency - 1) / pacing_frequency;
         uint64_t now = dmTime::GetMonotonicTime();
 
-        if (engine->m_NextFrameTime == 0)
+        if (engine->m_NextFrameTime == 0 || engine->m_FramePacingFrequency != pacing_frequency)
         {
             engine->m_NextFrameTime = now;
+            engine->m_FramePacingFrequency = pacing_frequency;
+            engine->m_FrameTimeRemainder = 0;
         }
 
         while (now < engine->m_NextFrameTime)
@@ -2341,11 +2378,13 @@ bail:
             now = dmTime::GetMonotonicTime();
         }
 
-        engine->m_NextFrameTime += frame_period;
+        engine->m_NextFrameTime = AdvanceFrameDeadline(engine->m_NextFrameTime, pacing_frequency, engine->m_FrameTimeRemainder);
         if (engine->m_NextFrameTime <= now)
         {
             // Do not run several frames back-to-back when a deadline was missed.
-            engine->m_NextFrameTime = now + frame_period;
+            engine->m_NextFrameTime = now;
+            engine->m_FrameTimeRemainder = 0;
+            engine->m_NextFrameTime = AdvanceFrameDeadline(engine->m_NextFrameTime, pacing_frequency, engine->m_FrameTimeRemainder);
         }
         return true;
     }
