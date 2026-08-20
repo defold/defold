@@ -30,6 +30,8 @@ Generated using the Defold build pipeline
 ---@diagnostic disable: args-after-dots
 """
 
+REFERENCE_BASE_URL = "https://defold.com/ref"
+
 LUA_BUILTIN_TYPES = frozenset({
     "nil",
     "any",
@@ -273,7 +275,33 @@ def lua_doc_lines(value):
     return ["---%s" % line if line else "---" for line in value.splitlines()]
 
 
-def _element_doc_lines(element, related_elements=()):
+def _lua_doc_example_text(value):
+    return re.sub(
+        r"\[icon:([\w| ]+)\]",
+        lambda match: '<span class="icon-%s"></span>' % match.group(1).lower(),
+        value,
+        flags=re.IGNORECASE)
+
+
+def _reference_url(namespace, element):
+    if namespace is None:
+        return None
+    anchor = element.name
+    if element.type == script_doc_ddf_pb2.FUNCTION:
+        anchor += ":%s" % "-".join(
+            parameter.name for parameter in element.parameters)
+    anchor = re.sub(r'["#*]', "", anchor)
+    return "%s/%s-lua#%s" % (REFERENCE_BASE_URL, namespace, anchor)
+
+
+def _append_reference_link(lines, reference_url):
+    if reference_url:
+        if lines:
+            lines.append("---")
+        lines.append("---[Open in Browser](%s)" % reference_url)
+
+
+def _element_doc_lines(element, related_elements=(), reference_url=None):
     lines = lua_doc_lines(element.description or element.brief)
     examples = []
     for documented_element in (element, *related_elements):
@@ -289,7 +317,8 @@ def _element_doc_lines(element, related_elements=()):
                 lines.append("---")
             lines.extend(
                 "---%s" % line if line else "---"
-                for line in example.splitlines())
+                for line in _lua_doc_example_text(example).splitlines())
+    _append_reference_link(lines, reference_url)
     return lines
 
 
@@ -719,6 +748,7 @@ def _collect(documents, metadata):
     class_methods = defaultdict(lambda: defaultdict(list))
     descriptions = {}
     constants = set()
+    reference_namespaces = {}
 
     for source_path, document in documents:
         if not document.HasField("info") or document.info.language != "Lua":
@@ -727,6 +757,7 @@ def _collect(documents, metadata):
             continue
 
         document_namespace = document.info.namespace.strip()
+        reference_namespaces[source_path] = document_namespace
         if document_namespace and "." not in document_namespace:
             descriptions.setdefault(
                 document_namespace,
@@ -832,7 +863,8 @@ def _collect(documents, metadata):
         documented_enums,
         class_methods,
         descriptions,
-        constants)
+        constants,
+        reference_namespaces)
 
 
 def _namespace_sets(functions, values):
@@ -852,22 +884,31 @@ def _namespace_sets(functions, values):
     return by_root
 
 
-def _render_namespace(namespace, child_namespaces, fields, description):
+def _render_namespace(
+        namespace,
+        child_namespaces,
+        fields,
+        description,
+        reference_namespaces):
     lines = ["---@class defold_api.%s" % namespace]
     if description:
         lines.extend(lua_doc_lines(description))
     for child in sorted(child_namespaces):
         lines.append("---@field %s defold_api.%s" % (_field_name(child), child))
-    for field_name, field_type, element in sorted(
+    for field_name, field_type, source_path, element in sorted(
             fields,
             key=lambda field: field[0]):
-        lines.extend(_element_doc_lines(element))
+        lines.extend(_element_doc_lines(
+            element,
+            reference_url=_reference_url(
+                reference_namespaces.get(source_path),
+                element)))
         lines.append("---@field %s %s" % (field_name, field_type))
     lines.append("%s = {}" % namespace)
     return lines
 
 
-def _render_function(name, variants, metadata):
+def _render_function(name, variants, metadata, reference_namespaces):
     unique = []
     identities = set()
     for source_path, element in variants:
@@ -880,6 +921,9 @@ def _render_function(name, variants, metadata):
     lines = _element_doc_lines(
         primary,
         (element for _, element in variants[1:]))
+    reference_url = _reference_url(
+        reference_namespaces.get(source_path),
+        primary)
     stub_parameter_names = _function_stub_parameter_names(primary)
     if len(stub_parameter_names) != len(primary.parameters):
         lines.append("---@overload %s" % _function_signature(primary, metadata))
@@ -909,13 +953,23 @@ def _render_function(name, variants, metadata):
             _correlated_type(name, _return_type(return_value, metadata), metadata),
             name_part,
             " " + doc if doc else ""))
+    _append_reference_link(lines, reference_url)
     lines.append("function %s(%s) end" % (name, _function_stub_parameters(primary)))
     return lines
 
 
-def _render_message(class_name, element, metadata):
+def _render_message(
+        class_name,
+        source_path,
+        element,
+        metadata,
+        reference_namespaces):
     lines = ["---@class %s" % class_name]
-    lines.extend(_element_doc_lines(element))
+    lines.extend(_element_doc_lines(
+        element,
+        reference_url=_reference_url(
+            reference_namespaces.get(source_path),
+            element)))
     for parameter in element.parameters:
         name = _normalize_parameter_name(parameter.name)
         if parameter.is_optional:
@@ -928,9 +982,18 @@ def _render_message(class_name, element, metadata):
     return lines
 
 
-def _render_documented_class(class_name, element, metadata):
+def _render_documented_class(
+        class_name,
+        source_path,
+        element,
+        metadata,
+        reference_namespaces):
     lines = ["---@class %s" % class_name]
-    lines.extend(_element_doc_lines(element))
+    lines.extend(_element_doc_lines(
+        element,
+        reference_url=_reference_url(
+            reference_namespaces.get(source_path),
+            element)))
     for member in element.members:
         if not re.match(r"^[A-Za-z_]\w*\??$", member.name):
             raise ValueError(
@@ -959,18 +1022,29 @@ def _method_signature(class_name, element, metadata):
     return signature
 
 
-def _render_class_method(class_name, method_name, variants, metadata):
+def _render_class_method(
+        class_name,
+        method_name,
+        variants,
+        metadata,
+        reference_namespaces):
     signatures = []
     for _, element in variants:
         signature = _method_signature(class_name, element, metadata)
         if signature not in signatures:
             signatures.append(signature)
-    primary = variants[0][1]
+    source_path, primary = variants[0]
     description = lua_doc_text(primary.description or primary.brief).replace("\n", " ")
+    documentation = [description] if description else []
+    reference_url = _reference_url(
+        reference_namespaces.get(source_path),
+        primary)
+    if reference_url:
+        documentation.append("[Open in Browser](%s)" % reference_url)
     return "---@field %s %s%s" % (
         method_name,
         "|".join(signatures),
-        " " + description if description else "")
+        " " + " ".join(documentation) if documentation else "")
 
 
 def _class_operator_variants(class_name, operator, operator_data):
@@ -1016,7 +1090,7 @@ def _class_operator_variants(class_name, operator, operator_data):
     return result
 
 
-def _render_enum(enum_name, enum):
+def _render_enum(enum_name, enum, reference_namespaces):
     backing_type = "defold_enum.%s" % enum_name
     backing_variable = "__defold_enum_%s" % re.sub(r"\W", "_", enum_name)
     lines = [
@@ -1028,13 +1102,25 @@ def _render_enum(enum_name, enum):
         for member in enum["members"])
     lines.extend(["}", ""])
     if enum["element"]:
-        lines.extend(_element_doc_lines(enum["element"]))
+        lines.extend(_element_doc_lines(
+            enum["element"],
+            reference_url=_reference_url(
+                reference_namespaces.get(enum["source_path"]),
+                enum["element"])))
     lines.append("---@alias %s %s" % (enum_name, backing_type))
     lines.extend("---| `%s`" % member for member in enum["members"])
     return lines
 
 
-def _render_module(root, functions, values, namespaces, descriptions, enum_members, metadata):
+def _render_module(
+        root,
+        functions,
+        values,
+        namespaces,
+        descriptions,
+        enum_members,
+        metadata,
+        reference_namespaces):
     lines = [GENERATED_NOTICE.rstrip(), ""]
     namespace_fields = defaultdict(list)
     child_namespaces = defaultdict(set)
@@ -1044,7 +1130,7 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
         if parent:
             child_namespaces[parent].add(namespace)
 
-    for name, (_, element) in values.items():
+    for name, (source_path, element) in values.items():
         namespace = _namespace_of(name)
         if not namespace:
             continue
@@ -1056,7 +1142,7 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
                 enum_members,
                 metadata)
         namespace_fields[namespace].append(
-            (_field_name(name), value_type, element))
+            (_field_name(name), value_type, source_path, element))
 
     for namespace in sorted(namespaces, key=lambda value: (value.count("."), value)):
         description = descriptions.get(root, "") if namespace == root else ""
@@ -1064,21 +1150,33 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
             namespace,
             child_namespaces.get(namespace, set()),
             namespace_fields.get(namespace, []),
-            description))
+            description,
+            reference_namespaces))
         lines.append("")
 
     for enum_name, enum in sorted(enum_members.items()):
         if _root_namespace(enum_name) == root and enum["members"]:
-            lines.extend(_render_enum(enum_name, enum))
+            lines.extend(_render_enum(
+                enum_name,
+                enum,
+                reference_namespaces))
             lines.append("")
 
     for name, variants in sorted(functions.items()):
-        lines.extend(_render_function(name, variants, metadata))
+        lines.extend(_render_function(
+            name,
+            variants,
+            metadata,
+            reference_namespaces))
         lines.append("")
 
-    for name, (_, element) in sorted(values.items()):
+    for name, (source_path, element) in sorted(values.items()):
         if "." not in name:
-            lines.extend(_element_doc_lines(element))
+            lines.extend(_element_doc_lines(
+                element,
+                reference_url=_reference_url(
+                    reference_namespaces.get(source_path),
+                    element)))
             lines.append("---@type %s" % (
                 _constant_value_type(name, element, enum_members, metadata)
                 if element.type == script_doc_ddf_pb2.CONSTANT
@@ -1094,7 +1192,8 @@ def _render_meta(
         messages,
         documented_classes,
         documented_aliases,
-        class_methods):
+        class_methods,
+        reference_namespaces):
     lines = [GENERATED_NOTICE.rstrip(), ""]
     aliases = dict(metadata.get("aliases", {}))
     for name, (source_path, _, target) in documented_aliases.items():
@@ -1116,8 +1215,12 @@ def _render_meta(
             continue
         documented_alias = documented_aliases.get(name)
         if documented_alias:
-            _, element, _ = documented_alias
-            lines.extend(_element_doc_lines(element))
+            source_path, element, _ = documented_alias
+            lines.extend(_element_doc_lines(
+                element,
+                reference_url=_reference_url(
+                    reference_namespaces.get(source_path),
+                    element)))
         lines.append("---@alias %s %s" % (name, target))
     if aliases:
         lines.append("")
@@ -1135,14 +1238,23 @@ def _render_meta(
     for class_name in sorted(class_names):
         documented_class = documented_classes.get(class_name)
         if documented_class:
-            _, element = documented_class
-            lines.extend(_render_documented_class(class_name, element, metadata))
+            source_path, element = documented_class
+            lines.extend(_render_documented_class(
+                class_name,
+                source_path,
+                element,
+                metadata,
+                reference_namespaces))
         class_data = metadata.get("classes", {}).get(class_name) or {}
         if not documented_class:
             documented_alias = documented_aliases.get(class_name)
             if documented_alias:
-                _, element, _ = documented_alias
-                lines.extend(_element_doc_lines(element))
+                source_path, element, _ = documented_alias
+                lines.extend(_element_doc_lines(
+                    element,
+                    reference_url=_reference_url(
+                        reference_namespaces.get(source_path),
+                        element)))
             base = aliases.get(class_name)
             lines.append("---@class %s%s" % (
                 class_name,
@@ -1158,7 +1270,8 @@ def _render_meta(
                 class_name,
                 method_name,
                 variants,
-                metadata))
+                metadata,
+                reference_namespaces))
         for operator, operator_data in sorted((class_data.get("operators") or {}).items()):
             for parameter_type, result_type in _class_operator_variants(
                     class_name,
@@ -1171,8 +1284,13 @@ def _render_meta(
         lines.append("")
 
     for root in sorted(messages):
-        for class_name, (_, element) in sorted(messages[root].items()):
-            lines.extend(_render_message(class_name, element, metadata))
+        for class_name, (source_path, element) in sorted(messages[root].items()):
+            lines.extend(_render_message(
+                class_name,
+                source_path,
+                element,
+                metadata,
+                reference_namespaces))
             lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -1366,6 +1484,7 @@ def generate(
         all_class_methods,
         _,
         all_constants,
+        _,
     ) = all_collected
     all_enum_members = _collect_enum_members(
         all_constants,
@@ -1401,6 +1520,7 @@ def generate(
         class_methods,
         descriptions,
         constants,
+        reference_namespaces,
     ) = collected
     enum_members = _collect_enum_members(
         constants,
@@ -1414,7 +1534,8 @@ def generate(
             messages,
             documented_classes,
             documented_aliases,
-            class_methods)}
+            class_methods,
+            reference_namespaces)}
     roots = sorted(set(functions) | set(values))
     for root in roots:
         root_namespaces = namespaces.get(root, set())
@@ -1428,7 +1549,8 @@ def generate(
             root_namespaces,
             descriptions,
             enum_members,
-            context_metadata)
+            context_metadata,
+            reference_namespaces)
         if content.strip():
             outputs["%s%s" % (root, extension)] = content
 

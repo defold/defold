@@ -234,17 +234,36 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@param value boolean", editor_lua)
             self.assertIn("---@return hash result", editor_lua)
             self.assertNotIn("<code>", editor_lua)
+            self.assertIn(
+                "---[Open in Browser](https://defold.com/ref/"
+                "editor-lua#editor.ui.show:value)",
+                editor_lua)
+
+    def test_reference_urls_match_legacy_popup_anchors(self):
+        application_info = function("sys.get_application_info")
+        application_info.parameters[0].name = "app_string"
+        self.assertEqual(
+            "https://defold.com/ref/"
+            "sys-lua#sys.get_application_info:app_string",
+            lua_annotations._reference_url("sys", application_info))
+
+        application_path = function("sys.get_application_path")
+        application_path.ClearField("parameters")
+        self.assertEqual(
+            "https://defold.com/ref/"
+            "sys-lua#sys.get_application_path:",
+            lua_annotations._reference_url("sys", application_path))
 
     def test_function_examples_are_preserved_as_markdown(self):
         vector = function("vmath.vector3", "number", "vector3")
         vector.examples = (
-            "Create a vector:\n\n"
+            "[icon:attention] Create a vector:\n\n"
             "```lua\n"
             "local value = vmath.vector3(1) -- <vector-value>\n"
             "```")
         copy = function("vmath.vector3", "vector3", "vector3")
         copy.examples = (
-            "Copy a vector:\n\n"
+            "[icon:iOS] Copy a vector:\n\n"
             "```lua\n"
             "local copy = vmath.vector3(value)\n"
             "```")
@@ -260,22 +279,34 @@ class TestLuaAnnotations(unittest.TestCase):
             vmath_lua = (output / "vmath.lua").read_text(encoding="utf-8")
             self.assertEqual(1, vmath_lua.count("---**Examples:**"))
             self.assertIn(
-                "---Create a vector:\n"
+                "---<span class=\"icon-attention\"></span> Create a vector:\n"
                 "---\n"
                 "---```lua\n"
                 "---local value = vmath.vector3(1) -- <vector-value>\n"
                 "---```",
                 vmath_lua)
             self.assertIn(
-                "---Copy a vector:\n"
+                "---<span class=\"icon-ios\"></span> Copy a vector:\n"
                 "---\n"
                 "---```lua\n"
                 "---local copy = vmath.vector3(value)\n"
                 "---```",
                 vmath_lua)
+            self.assertNotIn("[icon:", vmath_lua)
+            self.assertEqual(1, vmath_lua.count("---[Open in Browser]"))
+            self.assertIn(
+                "---[Open in Browser](https://defold.com/ref/"
+                "vmath-lua#vmath.vector3:value)",
+                vmath_lua)
             self.assertLess(
                 vmath_lua.index("---**Examples:**"),
                 vmath_lua.index("---@overload"))
+            self.assertLess(
+                vmath_lua.index("---@return"),
+                vmath_lua.index("---[Open in Browser]"))
+            self.assertLess(
+                vmath_lua.index("---[Open in Browser]"),
+                vmath_lua.index("function vmath.vector3"))
 
     def test_runtime_and_editor_annotations_are_separate(self):
         runtime_doc = document(
@@ -647,6 +678,10 @@ class TestLuaAnnotations(unittest.TestCase):
                 "---@field send fun(self:socket_client, value:string):number|nil "
                 "Sends `data` like `string.sub`.",
                 meta_lua)
+            self.assertIn(
+                "[Open in Browser](https://defold.com/ref/"
+                "socket-lua#client:send:value)",
+                meta_lua)
             self.assertNotIn("function client:send", meta_lua)
             self.assertIn("---@field x number", meta_lua)
 
@@ -775,7 +810,10 @@ class TestLuaAnnotations(unittest.TestCase):
 
             meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
             self.assertIn(
-                "---hash type\n---@class hash: userdata",
+                "---hash type\n"
+                "---\n"
+                "---[Open in Browser](https://defold.com/ref/builtins-lua#hash)\n"
+                "---@class hash: userdata",
                 meta_lua)
             self.assertNotIn("---@alias hash", meta_lua)
 
