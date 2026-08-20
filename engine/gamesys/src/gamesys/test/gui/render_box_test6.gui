@@ -52,9 +52,9 @@ nodes {
   inherit_alpha: true
   slice9 {
     x: 2.0
-    y: 2.0
-    z: 2.0
-    w: 2.0
+    y: 3.0
+    z: 4.0
+    w: 5.0
   }
   clipping_mode: CLIPPING_MODE_NONE
   clipping_visible: true
