@@ -198,7 +198,14 @@ def parse_source(source_path, defold_root):
     return elements
 
 
-def extract_source(defold_root, source, output):
+def extract_source(defold_root, source, output, docs_dir, pythonpath):
+    add_python_paths([docs_dir] + pythonpath)
+    import script_doc
+
+    script_doc.validate_source_documentation(
+        Path(source).read_text(encoding="utf-8"),
+        source,
+        require_document=True)
     docs = []
     for values in parse_source(source, defold_root).values():
         docs.extend(values)
@@ -220,6 +227,10 @@ def convert_apidoc(docs_dir, apidoc, output_dir, key, formats, pythonpath):
     add_python_paths([docs_dir] + pythonpath)
     import script_doc
 
+    script_doc.validate_source_documentation(
+        doc_str,
+        apidoc,
+        require_document=True)
     script_doc.write_formats(doc_str, output_specs)
     log("Converted API doc %s to %d formats" % (key, len(output_specs)))
 
@@ -249,6 +260,10 @@ def generate_lua_annotations(docs_dir, inputs, output_dir, manifest, metadata, p
         doc_str = Path(input_path).read_text(encoding="utf-8")
         if not re.search(r"/\*[\*#]", doc_str):
             continue
+        script_doc.validate_source_documentation(
+            doc_str,
+            input_path,
+            require_document=True)
         documents.append((input_path, script_doc.parse_document(doc_str, input_path)))
 
     output_names = []
@@ -486,9 +501,19 @@ def sync_outputs(manifests, output_dir, all_formats, stamp):
         if suffix in all_formats and target.name not in expected_names:
             target.unlink()
     for extension in ("lua", "editor_script"):
-        for target in output_dir.glob("*.%s" % extension):
-            if target.name not in expected_names:
+        for target in output_dir.rglob("*.%s" % extension):
+            target_name = str(target.relative_to(output_dir))
+            if target_name not in expected_names:
                 target.unlink()
+
+    for directory in sorted(
+            (path for path in output_dir.rglob("*") if path.is_dir()),
+            key=lambda path: len(path.parts),
+            reverse=True):
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
 
     write_stamp(stamp)
     log("Installed %d non-empty API docs into %s" % (installed_count, output_dir))
@@ -544,6 +569,8 @@ def main():
     extract.add_argument("--defold-root", required=True)
     extract.add_argument("--source", required=True)
     extract.add_argument("--output", required=True)
+    extract.add_argument("--docs-dir", required=True)
+    extract.add_argument("--pythonpath", action="append", default=[])
 
     convert = subparsers.add_parser("convert")
     convert.add_argument("--docs-dir", required=True)
@@ -609,7 +636,12 @@ def main():
     if args.command == "editor":
         timed("Generating editor API docs", lambda: write_editor_docs(os.path.abspath(args.defold_root), os.path.abspath(args.output)))
     elif args.command == "extract":
-        timed("Extracting API docs from %s" % args.source, lambda: extract_source(os.path.abspath(args.defold_root), os.path.abspath(args.source), os.path.abspath(args.output)))
+        timed("Extracting API docs from %s" % args.source, lambda: extract_source(
+            os.path.abspath(args.defold_root),
+            os.path.abspath(args.source),
+            os.path.abspath(args.output),
+            os.path.abspath(args.docs_dir),
+            [os.path.abspath(path) for path in args.pythonpath]))
     elif args.command == "convert":
         timed("Converting API doc %s" % args.key, lambda: convert_apidoc(os.path.abspath(args.docs_dir), os.path.abspath(args.input), os.path.abspath(args.output_dir), args.key, parse_formats(args.formats), [os.path.abspath(path) for path in args.pythonpath]))
     elif args.command == "lua":

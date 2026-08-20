@@ -287,6 +287,140 @@ foobar
         parameter = script_doc.parse_document(doc).elements[0].parameters[0]
         self.assertEqual(["foobar"], list(parameter.types))
 
+    def test_strict_source_validation_accepts_canonical_lua_documentation(self):
+        doc = r'''
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+
+/*# Calls the test function.
+ * @name test.call
+ * @param values [type:string[]] values to inspect
+ * @param callback [type:fun(value:string):boolean] callback to invoke
+ * @return result [type:{ ok:boolean }] call result
+ * @examples
+ * ```objective-c
+ * @interface MyDelegate : NSObject
+ * @end
+ * ```
+ */
+'''
+        script_doc.validate_source_documentation(
+            doc,
+            "example.cpp",
+            require_document=True)
+
+    def test_strict_source_validation_requires_name(self):
+        doc = """
+/*# Test API
+ * @document
+ * @namespace test
+ * @language Lua
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                r"example\.cpp:\d+: documentation comment is missing required @name"):
+            script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_rejects_unknown_tag_with_suggestion(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Calls the test function.
+ * @name test.call
+ * @pram value [type:string] value to inspect
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                r"unknown Lua documentation tag @pram; did you mean @param\?"):
+            script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_requires_explicit_lua_types(self):
+        invalid_elements = (
+            "@name test.call\n * @param value description",
+            "@name test.call\n * @return result description",
+            "@name test.value\n * @struct\n * @member value description",
+        )
+        for invalid_element in invalid_elements:
+            with self.subTest(invalid_element=invalid_element):
+                doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Invalid element.
+ * %s
+ */
+""" % invalid_element
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r"requires an explicit \[type:\.\.\.\] declaration"):
+                    script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_allows_untyped_enum_members(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Test values.
+ * @enum
+ * @name test.VALUE
+ * @member test.VALUE_ONE
+ * @version 1
+ * @warning Kept for compatibility.
+ */
+"""
+        script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_rejects_legacy_type_syntax(self):
+        invalid_types = (
+            ("[string]", "legacy array type"),
+            ("function(value)", "legacy callback type"),
+        )
+        for invalid_type, expected_error in invalid_types:
+            with self.subTest(invalid_type=invalid_type):
+                doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Invalid element.
+ * @name test.call
+ * @param value [type:%s] value to inspect
+ */
+""" % invalid_type
+                with self.assertRaisesRegex(ValueError, expected_error):
+                    script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_requires_document_comment(self):
+        doc = """
+/*# Calls the test function.
+ * @name test.call
+ * @param value [type:string] value to inspect
+ */
+"""
+        with self.assertRaisesRegex(ValueError, r"no @document comment"):
+            script_doc.validate_source_documentation(
+                doc,
+                "example.cpp",
+                require_document=True)
+
 
     def test_document(self):
         doc= """

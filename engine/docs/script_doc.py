@@ -21,6 +21,7 @@ import sys
 import io
 import codecs
 import html
+import difflib
 
 from optparse import OptionParser
 from markdown import Markdown
@@ -377,16 +378,29 @@ def _validate_document_names(doc, file):
 
 def _parse_tags(text):
     """Parse documentation tags without treating fenced code as tags."""
+    return [
+        (tag, value)
+        for tag, value, _ in _parse_tag_records(text)
+    ]
+
+
+def _parse_tag_records(text):
+    """Parse documentation tags and retain their comment-relative lines."""
     parsed_tags = []
     current_tag = None
+    current_line = None
     current_value_lines = []
     opening_fence = None
 
     def finish_tag():
         if current_tag is not None:
-            parsed_tags.append((current_tag, "\n".join(current_value_lines).strip()))
+            parsed_tags.append((
+                current_tag,
+                "\n".join(current_value_lines).strip(),
+                current_line,
+            ))
 
-    for line in text.splitlines():
+    for line_number, line in enumerate(text.splitlines(), 1):
         tag_match = None
         if opening_fence is None:
             tag_match = re.match(r'^\s*@(\S+)(?:\s+(.*))?$', line)
@@ -394,6 +408,7 @@ def _parse_tags(text):
         if tag_match:
             finish_tag()
             current_tag = tag_match.group(1)
+            current_line = line_number
             inline_value = tag_match.group(2)
             current_value_lines = [] if inline_value is None else [inline_value]
         elif current_tag is not None:
@@ -667,6 +682,146 @@ def extract_type_from_docstr(s):
     type_list = split_type_union(type_expression)
     return (type_list[0] if len(type_list) == 1 else type_list), doc
 
+
+_STRICT_LUA_TAGS = frozenset({
+    "class",
+    "constant",
+    "document",
+    "enum",
+    "examples",
+    "file",
+    "language",
+    "macro",
+    "member",
+    "message",
+    "name",
+    "namespace",
+    "note",
+    "param",
+    "path",
+    "property",
+    "replaces",
+    "return",
+    "struct",
+    "tparam",
+    "type",
+    "typedef",
+    "variable",
+    # These tags already occur in Lua API documentation. Keep accepting them
+    # until they have dedicated structured output instead of treating them as
+    # spelling mistakes.
+    "version",
+    "warning",
+})
+
+
+def _strict_tag_suggestion(tag):
+    matches = difflib.get_close_matches(
+        tag,
+        sorted(_STRICT_LUA_TAGS),
+        n=1,
+        cutoff=0.6)
+    return matches[0] if matches else None
+
+
+def _strict_type_expression(value):
+    offset = value.find("[type:")
+    if offset == -1:
+        return None
+    expression, _ = _extract_balanced_type_tag(value[offset:])
+    return expression
+
+
+def validate_source_documentation(doc_str, file=None, require_document=False):
+    """Validate canonical source syntax in Defold ``/*#`` API comments.
+
+    The normal parser intentionally accepts some legacy forms for backwards
+    compatibility. This validation runs before normalization so build_docs can
+    prevent new malformed or legacy source documentation from being accepted
+    silently.
+    """
+    source = file if file else "<string>"
+    errors = []
+    document_found = False
+    current_language = None
+    comments = list(re.finditer(r'/\*#(.*?)\*/', doc_str, re.DOTALL))
+
+    for comment_match in comments:
+        comment_line = doc_str.count("\n", 0, comment_match.start()) + 1
+        comment_text = _strip_comment_stars(comment_match.group(1))
+        records = _parse_tag_records(comment_text)
+        tags = {}
+        for tag, value, relative_line in records:
+            tags.setdefault(tag, []).append((value, relative_line))
+
+        if "document" in tags:
+            document_found = True
+            language_values = tags.get("language", [])
+            current_language = (
+                language_values[-1][0]
+                if language_values
+                else "C++")
+
+        if "name" not in tags:
+            errors.append(
+                "%s:%d: documentation comment is missing required @name"
+                % (source, comment_line))
+
+        if current_language != "Lua":
+            continue
+
+        element_tags = set(tags)
+        typed_tags = {"param", "return"}
+        if element_tags & {"class", "struct"}:
+            typed_tags.add("member")
+
+        for tag, value, relative_line in records:
+            source_line = comment_line + relative_line - 1
+            if tag not in _STRICT_LUA_TAGS:
+                suggestion = _strict_tag_suggestion(tag)
+                suffix = "; did you mean @%s?" % suggestion if suggestion else ""
+                errors.append(
+                    "%s:%d: unknown Lua documentation tag @%s%s"
+                    % (source, source_line, tag, suffix))
+                continue
+
+            expression = None
+            try:
+                expression = _strict_type_expression(value)
+            except ValueError as error:
+                errors.append("%s:%d: %s" % (source, source_line, error))
+                continue
+
+            if tag in typed_tags and expression is None:
+                errors.append(
+                    "%s:%d: @%s requires an explicit [type:...] declaration; "
+                    "use [type:any] if the broad type is intentional"
+                    % (source, source_line, tag))
+                continue
+
+            if expression is None:
+                continue
+            if re.match(r'^\[[^\[\]]+\]$', expression):
+                errors.append(
+                    "%s:%d: legacy array type '%s'; use '%s[]'"
+                    % (source, source_line, expression, expression[1:-1].strip()))
+            if re.search(r'(?<![A-Za-z0-9_.])function\s*\(', expression):
+                errors.append(
+                    "%s:%d: legacy callback type '%s'; use LuaLS fun(...) syntax"
+                    % (source, source_line, expression))
+
+    if require_document and comments and not document_found:
+        first_line = doc_str.count("\n", 0, comments[0].start()) + 1
+        errors.insert(
+            0,
+            "%s:%d: file contains /*# API comments but no @document comment"
+            % (source, first_line))
+
+    if errors:
+        raise ValueError(
+            "Strict documentation validation failed:\n"
+            + "\n".join("  " + error for error in errors))
+
 def is_optional(str):
     m = re.search(r'^\[(.*)\]', str)
     if m and m.group(1):
@@ -689,6 +844,7 @@ CPP_TYPES = [
     "size_t",
     "jobject", "JNIEnv",
     "lua_State",
+    "android_app",
     "dmhash_t", "dmArray", "dmAllocator" ]
 
 def validate_lua_type(t, doc):
@@ -698,7 +854,7 @@ def validate_lua_type(t, doc):
     return True
 
 def validate_cpp_type(t, doc):
-    t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "")
+    t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "").replace("struct ", "")
 
     # ignore types with a namespace
     if "::" in t:

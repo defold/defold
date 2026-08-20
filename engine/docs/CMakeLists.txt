@@ -164,8 +164,12 @@ foreach(_docs_index RANGE 0 ${_DOCS_SOURCE_LAST})
       --defold-root "${DEFOLD_HOME}"
       --source "${_docs_source}"
       --output "${_docs_apidoc}"
+      --docs-dir "${DOCS_ROOT}"
+      --pythonpath "${DOCS_PROTO_PY_DIR}"
     DEPENDS
+      "${DOCS_PROTO_PY}"
       "${DOCS_ROOT}/build_docs.py"
+      "${DOCS_ROOT}/script_doc.py"
       "${_docs_source}"
     COMMENT "Extracting API docs from ${_docs_source}"
     VERBATIM)

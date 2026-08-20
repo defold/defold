@@ -172,6 +172,34 @@ class TestLuaAnnotations(unittest.TestCase):
                 ],
                 build_docs.read_input_list(input_list))
 
+    def test_sync_outputs_removes_nested_stale_annotations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            generated = directory / "generated"
+            generated.mkdir()
+            current = generated / "go.lua"
+            current.write_text("---@meta\n", encoding="utf-8")
+            manifest = directory / "manifest.txt"
+            manifest.write_text(
+                "%s|go.lua\n" % current,
+                encoding="utf-8")
+            output = directory / "output"
+            stale = output / "lua-annotations" / "runtime" / "go.lua"
+            stale.parent.mkdir(parents=True)
+            stale.write_text("stale\n", encoding="utf-8")
+
+            build_docs.sync_outputs(
+                [manifest],
+                output,
+                build_docs.ALL_TARGET_FORMATS,
+                directory / "sync.stamp")
+
+            self.assertEqual(
+                "---@meta\n",
+                (output / "go.lua").read_text(encoding="utf-8"))
+            self.assertFalse(stale.exists())
+            self.assertFalse((output / "lua-annotations").exists())
+
     def test_aggregate_namespaces_duplicates_overloads_and_exclusions(self):
         duplicate = function("go.play", "string")
         overload = function("go.play", "number")
