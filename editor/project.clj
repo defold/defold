@@ -153,7 +153,11 @@
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
-                      :lua-language-server-version "3.19.1"}
+                      :lua-language-server {:version "3.19.1"
+                                            :sha256 {"arm64-macos" "0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c"
+                                                     "x86_64-macos" "eb373c159cbe556711d7cd316315de2dce969bfd54b31edb7eb9cab2937f2cca"
+                                                     "x86_64-linux" "e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8"
+                                                     "x86_64-win32" "fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd"}}}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"

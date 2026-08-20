@@ -3,6 +3,7 @@
 # Licensed under the Defold License version 1.0
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -421,17 +422,38 @@ def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
     log("LuaLS positive and negative behavior fixtures passed")
 
 
-def lua_language_server_version(project_clj):
+def lua_language_server_config(project_clj, platform):
     project = Path(project_clj).read_text(encoding="utf-8")
-    match = re.search(r':lua-language-server-version\s+"([^"]+)"', project)
-    if not match:
+    config_start = project.find(":lua-language-server")
+    if config_start < 0:
         raise RuntimeError(
-            "Could not find :lua-language-server-version in %s" % project_clj)
-    return match.group(1)
+            "Could not find :lua-language-server in %s" % project_clj)
+    config = project[config_start:]
+    version_match = re.search(r':version\s+"([^"]+)"', config)
+    sha256_map_match = re.search(r':sha256\s+\{([^}]*)\}', config, re.DOTALL)
+    if not version_match or not sha256_map_match:
+        raise RuntimeError(
+            "Invalid :lua-language-server config in %s" % project_clj)
+    sha256_match = re.search(
+        r'"%s"\s+"([0-9a-fA-F]{64})"' % re.escape(platform),
+        sha256_map_match.group(1))
+    if not sha256_match:
+        raise RuntimeError(
+            "Could not find LuaLS SHA-256 for %s in %s"
+            % (platform, project_clj))
+    return version_match.group(1), sha256_match.group(1).lower()
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as input_file:
+        for chunk in iter(lambda: input_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def install_lua_language_server(project_clj, platform, output_dir, github_env):
-    version = lua_language_server_version(project_clj)
+    version, expected_sha256 = lua_language_server_config(project_clj, platform)
     release_platform, extension = LUA_LANGUAGE_SERVER_ASSETS[platform]
     asset_name = "lua-language-server-%s-%s.%s" % (
         version,
@@ -447,6 +469,11 @@ def install_lua_language_server(project_clj, platform, output_dir, github_env):
     with tempfile.TemporaryDirectory(prefix="defold-lualls-download.") as temp_dir:
         release_path = Path(temp_dir) / asset_name
         urllib.request.urlretrieve(release_url, str(release_path))
+        actual_sha256 = file_sha256(release_path)
+        if actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                "LuaLS archive SHA-256 mismatch for %s: expected %s, got %s"
+                % (asset_name, expected_sha256, actual_sha256))
         if extension == "zip":
             with zipfile.ZipFile(release_path) as archive:
                 archive.extractall(output_dir)

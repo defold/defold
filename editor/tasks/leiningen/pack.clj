@@ -16,8 +16,9 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [leiningen.util.http-cache :as http-cache])
-  (:import [java.io File]
+  (:import [java.io File InputStream]
            [java.util.zip ZipEntry ZipFile]
+           [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.compress.archivers ArchiveEntry ArchiveInputStream]
            [org.apache.commons.compress.archivers.tar TarArchiveEntry TarArchiveInputStream]
            [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipArchiveInputStream]
@@ -157,20 +158,34 @@
   (doseq [jogl-native-dep (filter jogl-native-dep? dependencies)]
     (extract-jogl-native-dep local-repo jogl-native-dep pack-path selected-platforms)))
 
-(defn pack-lua-language-server [pack-path lua-language-server-version selected-platforms]
+(defn pack-lua-language-server [pack-path {:keys [version sha256]} selected-platforms]
   (doseq [platform selected-platforms
           :let [[release-platform extension] (case platform
                                                "x86_64-macos" ["darwin-x64" "tar.gz"]
                                                "arm64-macos" ["darwin-arm64" "tar.gz"]
                                                "x86_64-linux" ["linux-x64" "tar.gz"]
                                                "x86_64-win32" ["win32-x64" "zip"])
+                expected-sha256 (or (get sha256 platform)
+                                    (throw (IllegalArgumentException.
+                                             (format "Missing LuaLS archive SHA-256 for platform %s and version %s"
+                                                     platform
+                                                     version))))
                 archive-file (-> (format "https://github.com/LuaLS/lua-language-server/releases/download/%s/lua-language-server-%s-%s.%s"
-                                         lua-language-server-version
-                                         lua-language-server-version
+                                         version
+                                         version
                                          release-platform
                                          extension)
                                  http-cache/download)
                 output-dir (.getCanonicalFile (io/file pack-path platform "bin" "lsp" "lua"))]]
+    (let [actual-sha256 (with-open [^InputStream input (io/input-stream archive-file)]
+                          (DigestUtils/sha256Hex input))]
+      (when-not (= expected-sha256 actual-sha256)
+        (throw (IllegalStateException.
+                 (format "LuaLS archive SHA-256 mismatch for %s: expected %s, got %s"
+                         archive-file
+                         expected-sha256
+                         actual-sha256)))))
+
     (with-open [^ArchiveInputStream input
                 (case extension
                   "tar.gz" (-> archive-file io/input-stream GzipCompressorInputStream. TarArchiveInputStream.)
@@ -209,11 +224,11 @@
   [{:keys [dependencies local-repo packing] :as project} & [git-sha]]
   (let [sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)
-        {:keys [pack-path lua-language-server-version target-platform]} packing
+        {:keys [pack-path lua-language-server target-platform]} packing
         platforms-to-pack (selected-platforms target-platform)]
     (when-not local-repo
       (throw (ex-info "Missing project :local-repo" {:task "pack"})))
     (FileUtils/deleteQuietly (io/file pack-path))
     (copy-artifacts pack-path archive-domain sha platforms-to-pack)
     (pack-jogl-natives pack-path local-repo dependencies platforms-to-pack)
-    (pack-lua-language-server pack-path lua-language-server-version platforms-to-pack)))
+    (pack-lua-language-server pack-path lua-language-server platforms-to-pack)))

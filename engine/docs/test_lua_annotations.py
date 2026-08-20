@@ -1,6 +1,7 @@
 # Copyright 2020-2026 The Defold Foundation
 # Licensed under the Defold License version 1.0
 
+import hashlib
 import io
 import tarfile
 import tempfile
@@ -1201,9 +1202,6 @@ class TestLuaAnnotations(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             project_clj = directory / "project.clj"
-            project_clj.write_text(
-                '{:packing {:lua-language-server-version "3.19.1"}}',
-                encoding="utf-8")
 
             release_archive = io.BytesIO()
             with tarfile.open(fileobj=release_archive, mode="w:gz") as archive:
@@ -1211,6 +1209,12 @@ class TestLuaAnnotations(unittest.TestCase):
                 executable_info.mode = 0o755
                 executable_info.size = len(b"lua-language-server")
                 archive.addfile(executable_info, io.BytesIO(b"lua-language-server"))
+
+            archive_sha256 = hashlib.sha256(release_archive.getvalue()).hexdigest()
+            project_clj.write_text(
+                '{:packing {:lua-language-server {:version "3.19.1" '
+                ':sha256 {"x86_64-linux" "%s"}}}}}' % archive_sha256,
+                encoding="utf-8")
 
             def fake_download(url, destination):
                 self.assertTrue(url.endswith(
