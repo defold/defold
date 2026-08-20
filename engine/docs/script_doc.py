@@ -422,7 +422,8 @@ LUA_TYPES = [
     "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
-    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData", "bufferstream" ]
+    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData",
+    "btDiscreteDynamicsWorld", "btCollisionObject", "btRigidBody", "btCollisionShape", "btTypedConstraint", "bufferstream" ]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
@@ -725,8 +726,7 @@ def write_lua_annotation(msg, output_file):
             for parameter in element["parameters"]:
                 parameter["types_string"] = "|".join([t for t in parameter["types"]])
                 parameter["doc"] = fixdoc(parameter["doc"])
-                if parameter["is_optional"] != True:
-                    parameter["is_optional"] = None
+                parameter["is_optional"] = parameter["is_optional"] in (True, "True")
             for rv in element["returnvalues"]:
                 rv["types_string"] = "|".join([t for t in rv["types"]])
                 rv["doc"] = fixdoc(rv["doc"])
