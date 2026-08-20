@@ -1121,7 +1121,9 @@ def _render_documented_class(class_name, element, metadata):
     lines = ["---@class %s" % class_name]
     lines.extend(lua_doc_lines(element.description or element.brief))
     for member in element.members:
-        if not re.match(r"^[A-Za-z_]\w*\??$", member.name):
+        if not re.match(
+                r"^(?:[A-Za-z_]\w*\??|\[(?:string|integer)\])$",
+                member.name):
             raise ValueError(
                 "Class %s has invalid member name '%s'"
                 % (class_name, member.name))

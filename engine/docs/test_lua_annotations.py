@@ -347,27 +347,13 @@ class TestLuaAnnotations(unittest.TestCase):
             {"fields": {"[string]": "any"}},
             metadata["classes"]["script_instance"])
         self.assertEqual(
-            {
-                "editor.resource_definition",
-                "editor.schema",
-                "editor.component",
-                "editor.transaction_step",
-                "editor.tiles",
-                "editor.image",
-                "editor.message",
-                "http.response",
-                "http.route",
-                "http.server.handler",
-                "zip.entries",
-                "zip.entry",
-                "zip.unpack_options",
-            },
+            set(),
             set(metadata["aliases"]))
         self.assertEqual(
             set(metadata["aliases"]),
             set(metadata["editor_only_metadata"]["aliases"]))
         self.assertEqual(
-            {"http.server.request"},
+            set(),
             set(metadata["editor_only_metadata"]["classes"]))
         self.assertEqual(
             {"editor.ui.component"},
@@ -682,6 +668,43 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn(
                 "---@field enabled? boolean Whether enabled.",
                 meta_lua)
+
+    def test_documented_struct_index_fields_are_rendered_from_source(self):
+        request = struct("http.server.request", [
+            ("[string]", "any", "Route path parameter."),
+            ("path", "string", "Matched request path."),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("editor.apidoc", document("editor", [request]))],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn(
+                "---@field [string] any Route path parameter.",
+                meta_lua)
+            self.assertIn(
+                "---@field path string Matched request path.",
+                meta_lua)
+
+    def test_documented_struct_rejects_invalid_index_fields(self):
+        options = struct("resource.options", [
+            ("[boolean]", "any", "Invalid index."),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"Class resource\.options has invalid member name '\[boolean\]'"):
+                lua_annotations.generate(
+                    [("resource.cpp", document("resource", [options]))],
+                    Path(directory) / "output",
+                    metadata)
 
     def test_class_fields_cannot_be_defined_in_source_and_metadata(self):
         vector3 = struct("vector3", [("x", "number", "X")])

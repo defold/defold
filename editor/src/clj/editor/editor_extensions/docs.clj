@@ -85,6 +85,30 @@
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
           :description "Check whether this property supports reset on the supplied node."}
+         {:name "editor.schema"
+          :type :typedef
+          :types ["userdata"]
+          :description "Editor preference schema"}
+         {:name "editor.component"
+          :type :typedef
+          :types ["userdata"]
+          :description "Editor UI component"}
+         {:name "editor.transaction_step"
+          :type :typedef
+          :types ["userdata"]
+          :description "Editor transaction step"}
+         {:name "editor.tiles"
+          :type :typedef
+          :types ["userdata"]
+          :description "Unbounded two-dimensional grid of tiles"}
+         {:name "editor.image"
+          :type :typedef
+          :types ["userdata"]
+          :description "Image loaded for reading by an editor script"}
+         {:name "editor.message"
+          :type :typedef
+          :types ["userdata"]
+          :description "Localizable editor message"}
          {:name "editor.command"
           :type :typedef
           :types ["userdata"]
@@ -182,40 +206,39 @@ editor.command({
   end
 })
 ```"}
+         {:name "editor.resource_attributes.result"
+          :type :struct
+          :description "Project resource attributes"
+          :members [{:name "exists"
+                     :types ["boolean"]
+                     :doc "whether a resource identified by the path exists in the project"}
+                    {:name "is_file"
+                     :types ["boolean"]
+                     :doc "whether the resource represents a file with some content"}
+                    {:name "is_directory"
+                     :types ["boolean"]
+                     :doc "whether the resource represents a directory"}]}
          {:name "editor.resource_attributes"
           :type :function
           :description "Query information about a project resource"
           :parameters [resource-path-param]
           :returnvalues [{:name "value"
-                          :types ["{ exists:boolean, is_file:boolean, is_directory:boolean }"]
-                          :doc (str "A table with the following keys:"
-                                    (ui-docs/args-doc-html
-                                      [{:name "exists"
-                                        :types ["boolean"]
-                                        :doc "whether a resource identified by the path exists in the project"}
-                                       {:name "is_file"
-                                        :types ["boolean"]
-                                        :doc "whether the resource represents a file with some content"}
-                                       {:name "is_directory"
-                                        :types ["boolean"]
-                                        :doc "whether the resource represents a directory"}]))}]}
+                          :types ["editor.resource_attributes.result"]
+                          :doc "resource attributes"}]}
          {:name "editor.create_directory"
           :type :function
           :parameters [resource-path-param]
           :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
           :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
+         {:name "editor.create_resources.resource"
+          :type :typedef
+          :types ["{[1]:string, [2]?:string}"]
+          :description "A resource definition used by editor.create_resources"}
          {:name "editor.create_resources"
           :type :function
           :parameters [{:name "resources"
-                        :types ["(string|editor.resource_definition)[]"]
-                        :doc (str "Array of resource paths (strings starting with <code>/</code>) or resource definitions, lua tables with the following keys:"
-                                  (ui-docs/args-doc-html
-                                    [{:name "1"
-                                      :types ["string"]
-                                      :doc "required, resource path (starting with <code>/</code>)"}
-                                     {:name "2"
-                                      :types ["string"]
-                                      :doc "optional, created resource content"}]))}]
+                        :types ["(string|editor.create_resources.resource)[]"]
+                        :doc "resource paths (strings starting with <code>/</code>) or pairs containing a resource path and optional content"}]
           :description "Create resources (including non-existent parent directories).\n\nThrows an error if any of the provided resource paths already exist"
           :examples "Create a single resource from template:
 ```
@@ -242,6 +265,21 @@ editor.create_resources({
           :parameters [resource-path-param]
           :description "Delete a directory if it exists, and all existent child directories and files.\n\nThrows an error if the directory can't be deleted."
           :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"}
+         {:name "editor.external_file_attributes.result"
+          :type :struct
+          :description "External file attributes"
+          :members [{:name "path"
+                     :types ["string"]
+                     :doc "resolved file path"}
+                    {:name "exists"
+                     :types ["boolean"]
+                     :doc "whether there is a file system entry at the path"}
+                    {:name "is_file"
+                     :types ["boolean"]
+                     :doc "whether the path corresponds to a file"}
+                    {:name "is_directory"
+                     :types ["boolean"]
+                     :doc "whether the path corresponds to a directory"}]}
          {:name "editor.external_file_attributes"
           :type :function
           :description "Query information about file system path"
@@ -249,17 +287,20 @@ editor.create_resources({
                         :types ["string"]
                         :doc "External file path, resolved against project root if relative"}]
           :returnvalues [{:name "attributes"
-                          :types ["{ path:string, exists:boolean, is_file:boolean, is_directory:boolean }"]
-                          :doc "A table with the following keys:<dl>
-                                                 <dt><code>path <small>string</small></code></dt>
-                                                 <dd>resolved file path</dd>
-                                                 <dt><code>exists <small>boolean</small></code></dt>
-                                                 <dd>whether there is a file system entry at the path</dd>
-                                                 <dt><code>is_file <small>boolean</small></code></dt>
-                                                 <dd>whether the path corresponds to a file</dd>
-                                                 <dt><code>is_directory <small>boolean</small></code></dt>
-                                                 <dd>whether the path corresponds to a directory</dd>
-                                               </dl>"}]}
+                          :types ["editor.external_file_attributes.result"]
+                          :doc "external file attributes"}]}
+         {:name "editor.execute.options"
+          :type :struct
+          :description "Options for editor.execute"
+          :members [{:name "reload_resources?"
+                     :types ["boolean"]
+                     :doc "whether the editor reloads resources from disk after the command is executed; defaults to true"}
+                    {:name "out?"
+                     :types ["\"pipe\"" "\"capture\"" "\"discard\""]
+                     :doc "standard output mode; defaults to <code>\"pipe\"</code>"}
+                    {:name "err?"
+                     :types ["\"pipe\"" "\"stdout\"" "\"discard\""]
+                     :doc "standard error output mode; defaults to <code>\"pipe\"</code>"}]}
          {:name "editor.execute"
           :type :function
           :parameters [{:name "command"
@@ -269,41 +310,8 @@ editor.create_resources({
                         :types ["string"]
                         :doc "Optional shell command arguments"}
                        {:name "[options]"
-                        :types ["{ reload_resources?:boolean, out?:string, err?:string }"]
-                        :doc "Optional options table. Supported entries:
-                                           <ul>
-                                             <li>
-                                               <span class=\"type\">boolean</span> <code>reload_resources</code>: make the editor reload the resources from disk after the command is executed, default <code>true</code>
-                                             </li>
-                                             <li>
-                                               <span class=\"type\">string</span> <code>out</code>: standard output mode, either:
-                                               <ul>
-                                                 <li>
-                                                   <code>\"pipe\"</code>: the output is piped to the editor console (this is the default behavior).
-                                                 </li>
-                                                 <li>
-                                                   <code>\"capture\"</code>: capture and return the output to the editor script with trailing newlines trimmed.
-                                                 </li>
-                                                 <li>
-                                                   <code>\"discard\"</code>: the output is discarded completely.
-                                                 </li>
-                                               </ul>
-                                             </li>
-                                             <li>
-                                               <span class=\"type\">string</span> <code>err</code>: standard error output mode, either:
-                                               <ul>
-                                                 <li>
-                                                   <code>\"pipe\"</code>: the error output is piped to the editor console (this is the default behavior).
-                                                 </li>
-                                                 <li>
-                                                   <code>\"stdout\"</code>: the error output is redirected to the standard output of the process.
-                                                 </li>
-                                                 <li>
-                                                   <code>\"discard\"</code>: the error output is discarded completely.
-                                                 </li>
-                                               </ul>
-                                             </li>
-                                           </ul>"}]
+                        :types ["editor.execute.options"]
+                        :doc "execution options"}]
           :returnvalues [{:name "result"
                           :types ["nil" "string"]
                           :doc "If <code>out</code> option is set to <code>\"capture\"</code>, returns the output as string with trimmed trailing newlines. Otherwise, returns <code>nil</code>."}]
@@ -435,6 +443,76 @@ editor.create_resources({
         [{:name "http"
           :type :module
           :description "HTTP client and editor's HTTP server-related functionality"}
+         {:name "http.response"
+          :type :typedef
+          :types ["userdata"]
+          :description "HTTP server response"}
+         {:name "http.route"
+          :type :typedef
+          :types ["userdata"]
+          :description "HTTP server route"}
+         {:name "http.server.request"
+          :type :struct
+          :description "HTTP server request"
+          :members [{:name "[string]"
+                     :types ["any"]
+                     :doc "route path parameter extracted from a path pattern"}
+                    {:name "path"
+                     :types ["string"]
+                     :doc "full matched path, starting with <code>/</code>"}
+                    {:name "method"
+                     :types ["string"]
+                     :doc "HTTP request method, e.g. <code>\"POST\"</code>"}
+                    {:name "headers"
+                     :types ["table<string, string|string[]>"]
+                     :doc "request headers, keyed by lowercase header name"}
+                    {:name "query?"
+                     :types ["string"]
+                     :doc "query string"}
+                    {:name "body?"
+                     :types ["any"]
+                     :doc "request body, whose type depends on the route's <code>as</code> argument"}]}
+         {:name "http.server.handler"
+          :type :typedef
+          :types ["fun(request:http.server.request):(http.response|integer|nil, table<string, string>|nil, string|nil)"]
+          :description "HTTP server request handler"}
+         {:name "http.request.method"
+          :type :typedef
+          :types ["\"GET\"" "\"POST\"" "\"PUT\"" "\"PATCH\"" "\"DELETE\"" "\"HEAD\"" "\"OPTIONS\"" "string"]
+          :description "HTTP request method, either a common method or a custom method string"}
+         {:name "http.request.options"
+          :type :struct
+          :description "Options for http.request"
+          :members [{:name "method?"
+                     :types ["http.request.method"]
+                     :doc "request method, defaults to <code>\"GET\"</code>"}
+                    {:name "headers?"
+                     :types ["table<string, string>"]
+                     :doc "request headers"}
+                    {:name "body?"
+                     :types ["string"]
+                     :doc "request body"}
+                    {:name "as?"
+                     :types ["\"string\"" "\"json\""]
+                     :doc "response body converter; mutually exclusive with <code>path</code>"}
+                    {:name "path?"
+                     :types ["string"]
+                     :doc "destination file path, resolved against project root if relative; mutually exclusive with <code>as</code>"}]}
+         {:name "http.request.response"
+          :type :struct
+          :description "Response returned by http.request"
+          :members [{:name "status"
+                     :types ["integer"]
+                     :doc "response code"}
+                    {:name "headers"
+                     :types ["table<string, string|string[]>"]
+                     :doc "response headers, where keys are lowercase and repeated headers have arrays of values"}
+                    {:name "body?"
+                     :types ["any"]
+                     :doc "response body, present only when the <code>as</code> option was provided"}
+                    {:name "path?"
+                     :types ["string"]
+                     :doc "resolved absolute destination path, present after a successful response was written using the <code>path</code> option"}]}
          {:name "http.request"
           :type :function
           :description "Perform an HTTP request"
@@ -442,40 +520,11 @@ editor.create_resources({
                         :types ["string"]
                         :doc "request URL"}
                        {:name "[opts]"
-                        :types ["{ method?:string, headers?:table<string, string>, body?:string, as?:string, path?:string }"]
-                        :doc (str "Additional request options, a table with the following keys:"
-                                  (ui-docs/args-doc-html
-                                    [{:name "method"
-                                      :types ["string"]
-                                      :doc "request method, defaults to <code>\"GET\"</code>"}
-                                     {:name "headers"
-                                      :types ["table<string, string>"]
-                                      :doc "request headers, a table with string keys and values"}
-                                     {:name "body"
-                                      :types ["string"]
-                                      :doc "request body"}
-                                     {:name "as"
-                                      :types ["string"]
-                                      :doc "response body converter, either <code>\"string\"</code> or <code>\"json\"</code>; mutually exclusive with <code>path</code>"}
-                                     {:name "path"
-                                      :types ["string"]
-                                      :doc "destination file path, resolved against project root if relative; mutually exclusive with <code>as</code>"}]))}]
+                        :types ["http.request.options"]
+                        :doc "request options"}]
           :returnvalues [{:name "response"
-                          :types ["{ status:integer, headers:table<string, string|string[]>, body?:any, path?:string }"]
-                          :doc (str "HTTP response, a table with the following keys:"
-                                    (ui-docs/args-doc-html
-                                      [{:name "status"
-                                        :types ["integer"]
-                                        :doc "response code"}
-                                       {:name "headers"
-                                        :types ["table<string, string|string[]>"]
-                                        :doc "response headers, a table where each key is a lower-cased string, and each value is either a string or an array of strings if the header was repeated"}
-                                       {:name "body"
-                                        :types ["any"]
-                                        :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}
-                                       {:name "path"
-                                        :types ["string" "nil"]
-                                        :doc "resolved absolute destination path, present only after a successful response was written when the <code>path</code> option was provided"}]))}]}
+                          :types ["http.request.response"]
+                          :doc "HTTP response"}]}
          {:name "http.server"
           :type :module
           :description "Editor's HTTP server-related functionality"}
@@ -542,24 +591,7 @@ editor.create_resources({
                         :doc "Optional OpenAPI Operation Object for this route method, exposed from <code>/openapi.json</code>. Must follow <code>https://spec.openapis.org/oas/v3.0.3.html#operation-object</code>."}
                        {:name "handler"
                         :types ["http.server.handler"]
-                        :doc (str "Request handler function, will receive request argument, a table with the following keys:"
-                                  (ui-docs/args-doc-html
-                                    [{:name "path"
-                                      :types ["string"]
-                                      :doc "full matched path, a string starting with <code>/</code>"}
-                                     {:name "method"
-                                      :types ["string"]
-                                      :doc "HTTP request method, e.g. <code>\"POST\"</code>"}
-                                     {:name "headers"
-                                      :types ["table&lt;string,(string|string[])&gt;"]
-                                      :doc "HTTP request headers, a table from lower-case header names to header values"}
-                                     {:name "query"
-                                      :types ["string"]
-                                      :doc "optional query string"}
-                                     {:name "body"
-                                      :types ["string" "any"]
-                                      :doc "optional request body, depends on the <code>as</code> argument"}])
-                                  "\nHandler function should return either a single response value, or 0 or more arguments to the <code>http.server.response()</code> function")}]
+                        :doc "Request handler. Return either a single response value or arguments accepted by <code>http.server.response()</code>."}]
           :returnvalues [{:name "route" :types ["http.route"] :doc "HTTP server route"}]
           :examples "Receive JSON and respond with JSON:
 ```
@@ -663,6 +695,12 @@ end
          {:name "json"
           :type :module
           :description "Module for encoding or decoding values in JSON format"}
+         {:name "json.decode.options"
+          :type :struct
+          :description "Options for json.decode"
+          :members [{:name "all?"
+                     :types ["boolean"]
+                     :doc "if true, decodes all JSON values in a string and returns an array"}]}
          {:name "json.decode"
           :type :function
           :description "Decode JSON string to Lua value"
@@ -670,12 +708,8 @@ end
                         :types ["string"]
                         :doc "json data"}
                        {:name "[options]"
-                        :types ["{ all?:boolean }"]
-                        :doc (str "A table with the following keys:"
-                                  (ui-docs/args-doc-html
-                                    [{:name "all"
-                                      :types ["boolean"]
-                                      :doc "if <code>true</code>, decodes all json values in a string and returns an array"}]))}]}
+                        :types ["json.decode.options"]
+                        :doc "decoding options"}]}
          {:name "json.encode"
           :type :function
           :description "Encode Lua value to JSON string"
@@ -921,32 +955,32 @@ end
             :description "Helper function for constructing prefs schema for new bundle dialogs"
             :parameters [{:name "variant_schema" :types ["editor.schema"] :doc "bundle variant schema"}
                          {:name "[properties]" :types ["table<string, editor.schema>" "nil"] :doc "extra config properties"}]
-            :returnvalues [{:name "schema" :types ["editor.schema"] :doc (str "full bundle schema, defines a project-scoped object schema with the following keys:"
-                                                                              (ui-docs/args-doc-html
-                                                                                [{:name "variant" :doc "the provided variant schema"}
-                                                                                 {:name "texture_compression" :types ["string"] :doc "either <code>enabled</code>, <code>disabled</code> or <code>editor</code>"}
-                                                                                 {:name "with_symbols" :types ["boolean"]}
-                                                                                 {:name "build_report" :types ["boolean"]}
-                                                                                 {:name "liveupdate" :types ["boolean"]}
-                                                                                 {:name "contentless" :types ["boolean"]}]))}]}])
+            :returnvalues [{:name "schema" :types ["editor.schema"] :doc "full project-scoped bundle schema, combining the supplied variant schema with the standard bundle properties"}]}])
         (let [tiles-param {:name "tiles" :types ["editor.tiles"] :doc "unbounded 2d grid of tiles"}
               x-param {:name "x" :types ["integer"] :doc "x coordinate of a tile"}
               y-param {:name "y" :types ["integer"] :doc "y coordinate of a tile"}
               tile-doc "1-indexed tile index of a tilemap's tilesource"
-              info-doc (str "full tile information table with the following keys:"
-                            (ui-docs/args-doc-html
-                              [{:name "index" :types ["integer"] :doc tile-doc}
-                               {:name "h_flip" :types ["boolean"] :doc "horizontal flip"}
-                               {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
-                               {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]))
-              tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}
-              info-param {:name "info" :types ["{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }?"] :doc info-doc}]
+              tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}]
           [{:name "tilemap"
             :type :module
             :description "Module for manipulating tilemaps"}
            {:name "tilemap.tiles"
             :type :module
             :description "Module for manipulating tiles on a tilemap layer"}
+           {:name "tilemap.tiles.get_info.result"
+            :type :struct
+            :description "Full tile information returned by tilemap.tiles.get_info"
+            :members [{:name "index" :types ["integer"] :doc tile-doc}
+                      {:name "h_flip" :types ["boolean"] :doc "horizontal flip"}
+                      {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
+                      {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]}
+           {:name "tilemap.tiles.set.info"
+            :type :struct
+            :description "Tile information accepted by tilemap.tiles.set"
+            :members [{:name "index" :types ["integer"] :doc tile-doc}
+                      {:name "h_flip?" :types ["boolean"] :doc "horizontal flip"}
+                      {:name "v_flip?" :types ["boolean"] :doc "vertical flip"}
+                      {:name "rotate_90?" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]}
            {:name "tilemap.tiles.new"
             :type :function
             :description "Create a new unbounded 2d grid data structure for storing tilemap layer tiles"
@@ -959,9 +993,11 @@ end
             :returnvalues [tile-param]}
            {:name "tilemap.tiles.get_info"
             :type :function
-            :description "Get full information from a tile at a particular coordinate"
+           :description "Get full information from a tile at a particular coordinate"
             :parameters [tiles-param x-param y-param]
-            :returnvalues [info-param]}
+            :returnvalues [{:name "info"
+                            :types ["tilemap.tiles.get_info.result" "nil"]
+                            :doc "full tile information, or nil if no tile is set at the coordinate"}]}
            {:name "tilemap.tiles.iterator"
             :type :function
             :description "Create an iterator over all tiles in a tiles data structure\n\nWhen iterating using for loop, each iteration returns x, y and tile index of a tile in a tile map"
@@ -989,8 +1025,8 @@ end
                          x-param
                          y-param
                          {:name "tile_or_info"
-                          :types ["integer" "{ index:integer, h_flip?:boolean, v_flip?:boolean, rotate_90?:boolean }"]
-                          :doc (str "Either " tile-doc " or " info-doc)}]
+                          :types ["integer" "tilemap.tiles.set.info"]
+                          :doc (str "Either " tile-doc " or full tile information")}]
             :returnvalues [tiles-param]}
            {:name "tilemap.tiles.remove"
             :type :function
@@ -1000,27 +1036,42 @@ end
         [{:name "zip"
           :type :module
           :description "Module for manipulating zip archives"}
-         (let [method-param {:name "method" :types ["zip.METHOD"] :doc "compression method, either <code>zip.METHOD.DEFLATED</code> (default) or <code>zip.METHOD.STORED</code>"}
-               level-param {:name "level" :types ["integer"] :doc "compression level, an integer between 0 and 9, only useful when the compression method is <code>zip.METHOD.DEFLATED</code>; defaults to 6"}]
-           {:name "zip.pack"
-            :type :function
-            :parameters [{:name "output_path"
-                          :types ["string"]
-                          :doc "output zip file path, resolved against project root if relative"}
-                         {:name "[opts]"
-                          :types ["{ method?:zip.METHOD, level?:integer }"]
-                          :doc (str "compression options, a table with the following keys:"
-                                    (ui-docs/args-doc-html [method-param level-param]))}
-                         {:name "entries"
-                          :types ["zip.entries"]
-                          :doc (str "entries to compress; each entry is either a string (relative path to file or folder to include) or a table with the following keys:"
-                                    (ui-docs/args-doc-html
-                                      [{:name "1" :types ["string"] :doc "required; source file or folder path to include, resolved against project root if relative"}
-                                       {:name "2" :types ["string"] :doc "optional; target file or folder path in the zip archive. May be omitted if source is a relative path that does not go above the project directory."}
-                                       method-param
-                                       level-param]))}]
-            :description "Create a ZIP archive"
-            :examples "Archive a file and a folder:
+         {:name "zip.pack.entry"
+          :type :typedef
+          :types ["{[1]:string, [2]?:string, method?:zip.METHOD, level?:integer}"]
+          :description "ZIP entry containing a source path, optional archive target path, and optional compression settings"}
+         {:name "zip.pack.entries"
+          :type :typedef
+          :types ["(string|zip.pack.entry)[]"]
+          :description "Entries included in a ZIP archive"}
+         {:name "zip.pack.options"
+          :type :struct
+          :description "Options for zip.pack"
+          :members [{:name "method?"
+                     :types ["zip.METHOD"]
+                     :doc "compression method, defaults to <code>zip.METHOD.DEFLATED</code>"}
+                    {:name "level?"
+                     :types ["integer"]
+                     :doc "compression level from 0 to 9 for deflated entries; defaults to 6"}]}
+         {:name "zip.unpack.options"
+          :type :struct
+          :description "Options for zip.unpack"
+          :members [{:name "on_conflict"
+                     :types ["zip.ON_CONFLICT"]
+                     :doc "conflict resolution strategy"}]}
+         {:name "zip.pack"
+          :type :function
+          :parameters [{:name "output_path"
+                        :types ["string"]
+                        :doc "output zip file path, resolved against project root if relative"}
+                       {:name "[opts]"
+                        :types ["zip.pack.options"]
+                        :doc "compression options"}
+                       {:name "entries"
+                        :types ["zip.pack.entries"]
+                        :doc "files and folders to include in the archive"}]
+          :description "Create a ZIP archive"
+          :examples "Archive a file and a folder:
 ```
 zip.pack(\"build.zip\", {\"build\", \"game.project\"})
 ```
@@ -1051,7 +1102,7 @@ zip.pack(\"build.zip\", {
   \"build\",
   {\"../secrets/auth-key.txt\", \"auth-key.txt\"}
 })
-```"})
+```"}
          {:name "zip.unpack"
           :type :function
           :parameters [{:name "archive_path"
@@ -1061,12 +1112,8 @@ zip.pack(\"build.zip\", {
                         :types ["string"]
                         :doc "target path for extraction, defaults to parent of <code>archive_path</code> if omitted"}
                        {:name "[opts]"
-                        :types ["zip.unpack_options"]
-                        :doc (str "extraction options, a table with the following keys:"
-                                  (ui-docs/args-doc-html
-                                    [{:name "on_conflict"
-                                      :types ["zip.ON_CONFLICT"]
-                                      :doc "conflict resolution strategy, defaults to <code>zip.ON_CONFLICT.ERROR</code>"}]))}
+                        :types ["zip.unpack.options"]
+                        :doc "extraction options; conflict handling defaults to <code>zip.ON_CONFLICT.ERROR</code>"}
                        {:name "[paths]"
                         :types ["string[]"]
                         :doc "entries to extract, relative string paths"}]

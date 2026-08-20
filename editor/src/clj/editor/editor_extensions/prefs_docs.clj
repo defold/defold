@@ -60,9 +60,7 @@
   (let [scope-prop (ui-docs/make-prop :scope
                                       :coerce (coerce/enum :global :project)
                                       :types ["editor.prefs.SCOPE"]
-                                      :doc (ui-docs/doc-with-ul-options "preference scope"
-                                                                        ["<code>editor.prefs.SCOPE.GLOBAL</code>: same preference value is used in every project on this computer"
-                                                                         "<code>editor.prefs.SCOPE.PROJECT</code>: a separate preference value per project"]))]
+                                      :doc "preference scope; global values are shared by every project on this computer, while project values are stored separately per project")]
     [(ui-docs/component
        "boolean"
        :description "boolean schema"
@@ -111,7 +109,7 @@
                                   :coerce schema-coercer
                                   :types ["editor.schema"]
                                   :doc "set item schema")
-               (make-default-prop "table<any, boolean>")
+               (make-default-prop "table<any, true>")
                scope-prop])
      (ui-docs/component
        "object"
@@ -176,34 +174,23 @@
                (make-default-prop "any[]")
                scope-prop])]))
 
-(defn- schema-component->script-doc [{:keys [name props description]}]
-  (let [[req opt] (coll/separate-by :required props)
-        optional (coll/empty? req)]
-    {:name (str "editor.prefs.schema." name)
-     :type :function
-     :description description
-     :parameters [{:name (if optional "[opts]" "opts")
-                   :types [(str "{ "
-                                (coll/join-to-string
-                                  ", "
-                                  (into []
-                                        (map (fn [{prop-name :name
-                                                   :keys [required types]}]
-                                               (str (clojure.core/name prop-name)
-                                                    (when-not required "?")
-                                                    ":"
-                                                    (coll/join-to-string "|" types))))
-                                        props))
-                                " }")]
-                   :doc (str (when-not optional
-                               (str "Required opts:\n"
-                                    (ui-docs/props-doc-html req)
-                                    "\n\n"))
-                             "Optional opts:\n"
-                             (ui-docs/props-doc-html opt))}]
-     :returnvalues [{:name "value"
-                     :types ["editor.schema"]
-                     :doc "Prefs schema"}]}))
+(defn- schema-component->script-docs [{:keys [name props description]}]
+  (let [function-name (str "editor.prefs.schema." name)
+        options-type (str function-name ".options")
+        optional (coll/not-any? :required props)]
+    [{:name options-type
+      :type :struct
+      :description (str "Options for " function-name)
+      :members (ui-docs/props->struct-members props)}
+     {:name function-name
+      :type :function
+      :description description
+      :parameters [{:name (if optional "[opts]" "opts")
+                    :types [options-type]
+                    :doc "schema options"}]
+      :returnvalues [{:name "value"
+                      :types ["editor.schema"]
+                      :doc "Prefs schema"}]}]))
 
 (def enums
   {:scope [:global :project]})
@@ -244,7 +231,7 @@
        {:name "editor.prefs.schema"
         :type :module
         :description "Schema for defining preferences"}]
-      (e/map schema-component->script-doc schema-components)
+      (e/mapcat schema-component->script-docs schema-components)
       (e/mapcat (fn [[id-kw vs]]
                   (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
                     (e/concat

@@ -11,15 +11,17 @@
   "patches": {
     "editor.apidoc_doc.lua": [
       {
-        "current": "(string|editor.resource_definition)[]",
+        "current": "(string|editor.create_resources.resource)[]",
         "expected": "[string]",
         "path_pattern": "elements.editor.create_resources.parameters.resources.types.string["
       },
       {
+        "current": "editor.execute.options",
         "expected": "{ reload_resources?:boolean, out?:string, err?:string }",
         "path_pattern": "elements.editor.execute.parameters.options.types.table"
       },
       {
+        "current": "editor.external_file_attributes.result",
         "expected": "{ path:string, exists:boolean, is_file:boolean, is_directory:boolean }",
         "path_pattern": "elements.editor.external_file_attributes.returnvalues.attributes.types.table"
       },
@@ -28,62 +30,62 @@
         "path_pattern": "elements.editor.bob.parameters.\\\\.\\\\.\\\\.commands.name"
       },
       {
-        "current": "{ item:editor.schema, default?:any[], scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.array.options",
         "expected": "{ item:editor.schema, default?:[any], scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.array.parameters.opts.types.table"
       },
       {
-        "current": "{ default?:boolean, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.boolean.options",
         "expected": "{ default?:boolean, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.boolean.parameters.opts.types.table"
       },
       {
-        "current": "{ values:(nil|boolean|number|string)[], default?:any, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.enum.options",
         "expected": "{ values:[nil|boolean|number|string], default?:any, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.enum.parameters.opts.types.table"
       },
       {
-        "current": "{ default?:integer, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.integer.options",
         "expected": "{ default?:integer, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.integer.parameters.opts.types.table"
       },
       {
-        "current": "{ default?:string, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.keyword.options",
         "expected": "{ default?:string, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.keyword.parameters.opts.types.table"
       },
       {
-        "current": "{ default?:number, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.number.options",
         "expected": "{ default?:number, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.number.parameters.opts.types.table"
       },
       {
-        "current": "{ properties:table<string, editor.schema>, default?:table<string, any>, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.object.options",
         "expected": "{ properties:table<string, editor.schema>, default?:table<string, editor.schema>, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.object.parameters.opts.types.table"
       },
       {
-        "current": "{ key:editor.schema, val:editor.schema, default?:table<any, any>, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.object_of.options",
         "expected": "{ key:editor.schema, val:editor.schema, default?:table, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.object_of.parameters.opts.types.table"
       },
       {
-        "current": "{ schemas:editor.schema[], default?:any, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.one_of.options",
         "expected": "{ schemas:[editor.schema], default?:any, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.one_of.parameters.opts.types.table"
       },
       {
-        "current": "{ item:editor.schema, default?:table<any, boolean>, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.set.options",
         "expected": "{ item:editor.schema, default?:table<editor.schema, boolean>, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.set.parameters.opts.types.table"
       },
       {
-        "current": "{ default?:string, scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.string.options",
         "expected": "{ default?:string, scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.string.parameters.opts.types.table"
       },
       {
-        "current": "{ items:editor.schema[], default?:any[], scope?:editor.prefs.SCOPE }",
+        "current": "editor.prefs.schema.tuple.options",
         "expected": "{ items:[editor.schema], default?:[any], scope?:string }",
         "path_pattern": "elements.editor.prefs.schema.tuple.parameters.opts.types.table"
       },
@@ -92,6 +94,7 @@
         "path_pattern": "elements.editor.properties.returnvalues.properties.types.string["
       },
       {
+        "current": "editor.resource_attributes.result",
         "expected": "{ exists:boolean, is_file:boolean, is_directory:boolean }",
         "path_pattern": "elements.editor.resource_attributes.returnvalues.value.types.table"
       },
@@ -138,7 +141,7 @@
         "path_pattern": "elements.http.server.response.parameters.headers.types.table&lt;string,string&gt;"
       },
       {
-        "current": "{ all?:boolean }",
+        "current": "json.decode.options",
         "expected": "{ decode_null_as_userdata?:boolean }",
         "path_pattern": "elements.json.decode.parameters.options.types.table"
       },
@@ -155,7 +158,7 @@
         "path_pattern": "elements.localization.or_list.parameters.items.types.any["
       },
       {
-        "current": "{ method?:zip.METHOD, level?:integer }",
+        "current": "zip.pack.options",
         "expected": "{ method?:string, level?:integer }",
         "path_pattern": "elements.zip.pack.parameters.opts.types.table"
       }
