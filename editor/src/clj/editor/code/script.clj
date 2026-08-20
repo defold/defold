@@ -103,12 +103,98 @@
                        (if (Character/isWhitespace ch) last-non-space ch)
                        tokens)))))))))
 
+(defn lua-lex-line [^String line]
+  (let [len (.length line)]
+    (loop [i 0
+           in-quote nil
+           escaped false
+           tokens []]
+      (if (>= i len)
+        tokens
+        (let [ch (.charAt line i)]
+          (cond
+            in-quote
+            (cond
+              escaped (recur (inc i) in-quote false tokens)
+              (= ch \\) (recur (inc i) in-quote true tokens)
+              (= ch in-quote) (recur (inc i) nil false tokens)
+              :else (recur (inc i) in-quote false tokens))
+
+            ;; Inline comment
+            (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
+            (recur len in-quote false tokens)
+
+            ;; Start of quote
+            (or (= ch \") (= ch \'))
+            (recur (inc i) ch false tokens)
+
+            ;; Word character, with peek
+            (or (Character/isLetter ch) (= ch \_))
+            (let [end (loop [j (inc i)]
+                        (if (and (< j len)
+                                 (let [c (.charAt line j)]
+                                   (or (Character/isLetterOrDigit c) (= c \_))))
+                          (recur (inc j))
+                          j))
+                  tok (.substring line i end)]
+              (recur end in-quote false
+                     (case tok
+                       ;; Closes the previous branch and opens a new one.
+                       "else" (conj tokens :close :open)
+                       ;; The `then` on the same line supplies the :open.
+                       "elseif" (conj tokens :close)
+                       (cond-> tokens
+                         (contains? lua-open-keywords tok) (conj :open)
+                         (contains? lua-close-keywords tok) (conj :close)))))
+
+            ;; Non-word character
+            :else
+            (let [tokens (cond-> tokens
+                           (contains? #{\{ \( \[} ch) (conj :open)
+                           (contains? #{\} \) \]} ch) (conj :close))]
+              (recur (inc i) in-quote false tokens))))))))
+
+(defn lua-indent-deltas [^String line]
+  (let [leftover (reduce (fn [stack t]
+                           (if (and (= t :close) (= (peek stack) :open))
+                             (pop stack)
+                             (conj stack t)))
+                         []
+                         (lua-lex-line line))
+        closes (count (filter #{:close} leftover))]
+    {:closes closes
+     :opens (- (count leftover) closes)
+     :leading (if (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line) closes 0)}))
+
+;; (lua-indent-deltas "local x = 1")                       ;; 0 0 0
+;; (lua-indent-deltas "local p = vmath.vector3(1,2,3)")    ;; 0 0 0
+;; (lua-indent-deltas "foo(")                              ;; leading 0 closes 0 opens 1
+;; (lua-indent-deltas "function foo()")                    ;; 0 0 1
+;; (lua-indent-deltas "function foo(a,")                   ;; 0 0 2
+;; (lua-indent-deltas "    1, 2)")                         ;; 0 1 0
+;; (lua-indent-deltas ")")                                 ;; 1 1 0
+;; (lua-indent-deltas "end")                               ;; 1 1 0
+;; (lua-indent-deltas "    end)")                          ;; 2 2 0
+;; (lua-indent-deltas "        2, 3))")                    ;; 0 2 0
+;; (lua-indent-deltas "    b) then")                       ;; 0 1 1
+;; (lua-indent-deltas "else")                              ;; 1 1 1
+;; (lua-indent-deltas "elseif x then")                     ;; 1 1 1
+;; (lua-indent-deltas "until done(i)")                     ;; 1 1 0
+;; (lua-indent-deltas "}) do")                             ;; 2 2 1
+;; (lua-indent-deltas "print(pos) -- (")                   ;; 0 0 0
+;; (lua-indent-deltas "local text = \"(\"")                ;; 0 0 0
+;; (lua-indent-deltas "foo(bar(")                          ;; 0 0 2
+;; (lua-indent-deltas "))")                                ;; 2 2 0
+
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
    ;; indent patterns shamelessly stolen from textmate:
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
-   :indent {:begin lua-opens-block?
+   ;; Wrapped so the var is resolved per call, letting REPL redefs of
+   ;; lua-opens-block? take effect without rebuilding this map.
+   :indent {:begin #(lua-opens-block? %)
+            :deltas #(lua-indent-deltas %)
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
    :auto-insert {:characters {\" \"

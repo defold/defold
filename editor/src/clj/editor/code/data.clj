@@ -2144,6 +2144,7 @@
   (let [^long start-row (loop [row queried-row]
                           (cond (not (pos? row)) 0
                                 (string/blank? (get lines row)) (recur (dec row))
+                                (pos? (parse-indent-level indent-level-pattern (get lines row))) (recur (dec row))
                                 :else row))
         start-line (get lines start-row)]
     (loop [row (inc start-row)
