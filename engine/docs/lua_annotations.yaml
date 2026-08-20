@@ -63,14 +63,12 @@ global_symbols:
 # entries accompany editor.apidoc and must not be exposed by the runtime bundle.
 editor_only_metadata:
   aliases:
-    - editor.command_location
     - editor.resource_definition
     - editor.schema
     - editor.component
     - editor.transaction_step
     - editor.tiles
     - editor.image
-    - editor.command
     - editor.message
     - http.response
     - http.route
@@ -79,7 +77,6 @@ editor_only_metadata:
     - zip.entry
     - zip.unpack_options
   classes:
-    - editor.command_context
     - http.server.request
   generics:
     - editor.ui.component
@@ -89,14 +86,12 @@ editor_only_metadata:
     - zip.unpack
 
 aliases:
-  editor.command_location: '"Assets"|"Bundle"|"Code"|"Debug"|"Edit"|"Help"|"Outline"|"Project"|"Scene"|"View"'
   editor.resource_definition: "{[1]:string, [2]?:string}"
   editor.schema: userdata
   editor.component: userdata
   editor.transaction_step: userdata
   editor.tiles: userdata
   editor.image: userdata
-  editor.command: userdata
   editor.message: userdata
   http.response: userdata
   http.route: userdata
@@ -140,11 +135,6 @@ function_overloads:
     - "fun(archive_path:string, opts:zip.unpack_options, paths:string[])"
 
 classes:
-  editor.command_context:
-    fields:
-      selection?: "string|userdata|(string|userdata)[]"
-      active_view?: userdata
-      argument?: any
   http.server.request:
     fields:
       "[string]": any

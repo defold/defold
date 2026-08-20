@@ -348,14 +348,12 @@ class TestLuaAnnotations(unittest.TestCase):
             metadata["classes"]["script_instance"])
         self.assertEqual(
             {
-                "editor.command_location",
                 "editor.resource_definition",
                 "editor.schema",
                 "editor.component",
                 "editor.transaction_step",
                 "editor.tiles",
                 "editor.image",
-                "editor.command",
                 "editor.message",
                 "http.response",
                 "http.route",
@@ -369,7 +367,7 @@ class TestLuaAnnotations(unittest.TestCase):
             set(metadata["aliases"]),
             set(metadata["editor_only_metadata"]["aliases"]))
         self.assertEqual(
-            {"editor.command_context", "http.server.request"},
+            {"http.server.request"},
             set(metadata["editor_only_metadata"]["classes"]))
         self.assertEqual(
             {"editor.ui.component"},

@@ -86,51 +86,79 @@
           :returnvalues [boolean-ret-param]
           :description "Check whether this property supports reset on the supplied node."}
          {:name "editor.command"
+          :type :typedef
+          :types ["userdata"]
+          :description "An editor command"}
+         {:name "editor.command.location"
+          :type :typedef
+          :types ["\"Assets\"" "\"Bundle\"" "\"Code\"" "\"Debug\"" "\"Edit\"" "\"Help\"" "\"Outline\"" "\"Project\"" "\"Scene\"" "\"View\""]
+          :description "A location where an editor command can be displayed"}
+         {:name "editor.command.context"
+          :type :struct
+          :description "Context provided to editor command handler functions"
+          :members [{:name "selection?"
+                     :types ["string" "userdata" "(string|userdata)[]"]
+                     :doc "current selection, populated when requested by the command query"}
+                    {:name "active_view?"
+                     :types ["userdata"]
+                     :doc "current active editor view, populated when requested by the command query"}
+                    {:name "argument?"
+                     :types ["any"]
+                     :doc "command argument, populated when requested by the command query"}]}
+         {:name "editor.command.query.selection"
+          :type :struct
+          :description "Selection requested by an editor command"
+          :members [{:name "type"
+                     :types ["\"resource\"" "\"outline\"" "\"scene\""]
+                     :doc "selection type"}
+                    {:name "cardinality"
+                     :types ["\"one\"" "\"many\""]
+                     :doc "either the first selected item or all selected items"}]}
+         {:name "editor.command.query.active_view"
+          :type :struct
+          :description "Active editor view requested by an editor command"
+          :members [{:name "type"
+                     :types ["\"code\"" "\"scene\"" "\"html\"" "\"form\""]
+                     :doc "active editor view type"}]}
+         {:name "editor.command.query"
+          :type :struct
+          :description "A query that controls command availability and provides context to its handler functions"
+          :members [{:name "selection?"
+                     :types ["editor.command.query.selection"]
+                     :doc "current selection request"}
+                    {:name "active_view?"
+                     :types ["editor.command.query.active_view"]
+                     :doc "current active editor view request"}
+                    {:name "argument?"
+                     :types ["true"]
+                     :doc "set to true to provide the command argument to the handler functions"}]}
+         {:name "editor.command.options"
+          :type :struct
+          :description "Options used to create an editor command"
+          :members [{:name "label"
+                     :types ["string" "editor.message"]
+                     :doc "user-visible command name, either a string or a localization message"}
+                    {:name "locations"
+                     :types ["editor.command.location[]"]
+                     :doc "non-empty list of locations where the command is displayed"}
+                    {:name "query?"
+                     :types ["editor.command.query"]
+                     :doc "query that controls command availability and provides context to its handler functions"}
+                    {:name "id?"
+                     :types ["string"]
+                     :doc "keyword identifier that may be used for assigning a shortcut to a command; should be a dot-separated identifier string, e.g. <code>\"my-extension.do-stuff\"</code>"}
+                    {:name "active?"
+                     :types ["fun(opts:editor.command.context):boolean"]
+                     :doc "function that additionally checks if a command is active in the current context; should be fast to execute since the editor might invoke it in response to UI interactions"}
+                    {:name "run?"
+                     :types ["fun(opts:editor.command.context):any"]
+                     :doc "function that is invoked when the user decides to execute the command"}]}
+         {:name "editor.command"
           :type :function
           :description "Create an editor command"
           :parameters [{:name "opts"
-                        :types ["{ label:string|editor.message, locations:editor.command_location[], query?:{ selection?:{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }, active_view?:{ type:\"code\"|\"scene\"|\"html\"|\"form\" }, argument?:true }, id?:string, active?:(fun(opts:editor.command_context):boolean), run?:(fun(opts:editor.command_context):any) }"]
-                        :doc (str "A table with the following keys:"
-                                  (ui-docs/args-doc-html
-                                    [{:name "label"
-                                      :types ["string" "editor.message"]
-                                      :doc "required, user-visible command name, either a string or a localization message"}
-                                     {:name "locations"
-                                      :types ["editor.command_location[]"]
-                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code>, <code>\"Bundle\"</code>, <code>\"Help\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), <code>\"Outline\"</code> (the outline pane), <code>\"Scene\"</code> (the scene view), or <code>\"Code\"</code> (the code editor)"}
-                                     {:name "query"
-                                      :types ["{ selection?:{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }, active_view?:{ type:\"code\"|\"scene\"|\"html\"|\"form\" }, argument?:true }"]
-                                      :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
-                                                (ui-docs/args-doc-html
-                                                  [{:name "selection"
-                                                    :types ["{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }"]
-                                                    :doc (str "current selection, a table with the following keys:"
-                                                              (ui-docs/args-doc-html
-                                                                [{:name "type"
-                                                                  :types ["\"resource\"" "\"outline\"" "\"scene\""]
-                                                                  :doc "either <code>\"resource\"</code> (selected resource), <code>\"outline\"</code> (selected outline node), or <code>\"scene\"</code> (selected scene node)"}
-                                                                 {:name "cardinality"
-                                                                  :types ["\"one\"" "\"many\""]
-                                                                  :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
-                                                   {:name "active_view"
-                                                    :types ["{ type:\"code\"|\"scene\"|\"html\"|\"form\" }"]
-                                                    :doc (str "current active editor view, a table with the following keys:"
-                                                              (ui-docs/args-doc-html
-                                                                [{:name "type"
-                                                                  :types ["\"code\"" "\"scene\"" "\"html\"" "\"form\""]
-                                                                  :doc "either <code>\"code\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}]))}
-                                                   {:name "argument"
-                                                    :types ["true"]
-                                                    :doc "set to <code>true</code> to provide the command argument to the handler functions as <code>opts.argument</code>"}]))}
-                                     {:name "id"
-                                      :types ["string"]
-                                      :doc "optional, keyword identifier that may be used for assigning a shortcut to a command; should be a dot-separated identifier string, e.g. <code>\"my-extension.do-stuff\"</code>"}
-                                     {:name "active"
-                                      :types ["fun(opts:editor.command_context):boolean"]
-                                      :doc "optional function that additionally checks if a command is active in the current context; will receive opts table with values populated by the query; should be fast to execute since the editor might invoke it in response to UI interactions (on key typed, mouse clicked)"}
-                                     {:name "run"
-                                      :types ["fun(opts:editor.command_context):any"]
-                                      :doc "optional function that is invoked when the user decides to execute the command; will receive opts table with values populated by the query"}]))}]
+                        :types ["editor.command.options"]
+                        :doc "command options"}]
           :returnvalues [{:name "command"
                           :types ["editor.command"]
                           :doc ""}]
