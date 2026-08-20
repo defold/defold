@@ -489,6 +489,26 @@ def lua_doc_lines(value):
     return ["---%s" % line if line else "---" for line in value.splitlines()]
 
 
+def _element_doc_lines(element, related_elements=()):
+    lines = lua_doc_lines(element.description or element.brief)
+    examples = []
+    for documented_element in (element, *related_elements):
+        example = documented_element.examples
+        if example and example not in examples:
+            examples.append(example)
+    if examples:
+        if lines:
+            lines.append("---")
+        lines.extend(["---**Examples:**", "---"])
+        for index, example in enumerate(examples):
+            if index:
+                lines.append("---")
+            lines.extend(
+                "---%s" % line if line else "---"
+                for line in example.splitlines())
+    return lines
+
+
 def _replace_type_identifier(expression, source, target):
     pattern = r"(?<![\w.])%s(?![\w.]|\s*:)" % re.escape(source)
     return re.sub(pattern, target, expression)
@@ -1054,8 +1074,10 @@ def _render_namespace(namespace, child_namespaces, fields, description):
         lines.extend(lua_doc_lines(description))
     for child in sorted(child_namespaces):
         lines.append("---@field %s defold_api.%s" % (_field_name(child), child))
-    for field_name, field_type, field_doc in sorted(fields):
-        lines.extend(lua_doc_lines(field_doc))
+    for field_name, field_type, element in sorted(
+            fields,
+            key=lambda field: field[0]):
+        lines.extend(_element_doc_lines(element))
         lines.append("---@field %s %s" % (field_name, field_type))
     lines.append("%s = {}" % namespace)
     return lines
@@ -1071,7 +1093,9 @@ def _render_function(name, variants, metadata):
             unique.append((source_path, element))
 
     source_path, primary = unique[0]
-    lines = lua_doc_lines(primary.description or primary.brief)
+    lines = _element_doc_lines(
+        primary,
+        (element for _, element in variants[1:]))
     stub_parameter_names = _function_stub_parameter_names(primary)
     if len(stub_parameter_names) != len(primary.parameters):
         lines.append("---@overload %s" % _function_signature(primary, metadata))
@@ -1107,7 +1131,7 @@ def _render_function(name, variants, metadata):
 
 def _render_message(class_name, element, metadata):
     lines = ["---@class %s" % class_name]
-    lines.extend(lua_doc_lines(element.description or element.brief))
+    lines.extend(_element_doc_lines(element))
     for parameter in element.parameters:
         name = _normalize_parameter_name(parameter.name)
         if parameter.is_optional:
@@ -1122,7 +1146,7 @@ def _render_message(class_name, element, metadata):
 
 def _render_documented_class(class_name, element, metadata):
     lines = ["---@class %s" % class_name]
-    lines.extend(lua_doc_lines(element.description or element.brief))
+    lines.extend(_element_doc_lines(element))
     for member in element.members:
         if not re.match(r"^[A-Za-z_]\w*\??$", member.name):
             raise ValueError(
@@ -1220,8 +1244,7 @@ def _render_enum(enum_name, enum):
         for member in enum["members"])
     lines.extend(["}", ""])
     if enum["element"]:
-        lines.extend(lua_doc_lines(
-            enum["element"].description or enum["element"].brief))
+        lines.extend(_element_doc_lines(enum["element"]))
     lines.append("---@alias %s %s" % (enum_name, backing_type))
     lines.extend("---| `%s`" % member for member in enum["members"])
     return lines
@@ -1248,7 +1271,8 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
                 element,
                 enum_members,
                 metadata)
-        namespace_fields[namespace].append((_field_name(name), value_type, element.description or element.brief))
+        namespace_fields[namespace].append(
+            (_field_name(name), value_type, element))
 
     for namespace in sorted(namespaces, key=lambda value: (value.count("."), value)):
         description = descriptions.get(root, "") if namespace == root else ""
@@ -1270,7 +1294,7 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
 
     for name, (_, element) in sorted(values.items()):
         if "." not in name:
-            lines.extend(lua_doc_lines(element.description or element.brief))
+            lines.extend(_element_doc_lines(element))
             lines.append("---@type %s" % (
                 _constant_value_type(name, element, enum_members, metadata)
                 if element.type == script_doc_ddf_pb2.CONSTANT
@@ -1309,7 +1333,7 @@ def _render_meta(
         documented_alias = documented_aliases.get(name)
         if documented_alias:
             _, element, _ = documented_alias
-            lines.extend(lua_doc_lines(element.description or element.brief))
+            lines.extend(_element_doc_lines(element))
         lines.append("---@alias %s %s" % (name, target))
     if aliases:
         lines.append("")
@@ -1334,7 +1358,7 @@ def _render_meta(
             documented_alias = documented_aliases.get(class_name)
             if documented_alias:
                 _, element, _ = documented_alias
-                lines.extend(lua_doc_lines(element.description or element.brief))
+                lines.extend(_element_doc_lines(element))
             base = aliases.get(class_name)
             lines.append("---@class %s%s" % (
                 class_name,

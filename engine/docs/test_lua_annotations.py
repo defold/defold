@@ -241,6 +241,48 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@return hash result", editor_lua)
             self.assertNotIn("<code>", editor_lua)
 
+    def test_function_examples_are_preserved_as_markdown(self):
+        vector = function("vmath.vector3", "number", "vector3")
+        vector.examples = (
+            "Create a vector:\n\n"
+            "```lua\n"
+            "local value = vmath.vector3(1) -- <vector-value>\n"
+            "```")
+        copy = function("vmath.vector3", "vector3", "vector3")
+        copy.examples = (
+            "Copy a vector:\n\n"
+            "```lua\n"
+            "local copy = vmath.vector3(value)\n"
+            "```")
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("vmath.cpp", document("vmath", [vector, copy]))],
+                output,
+                metadata)
+
+            vmath_lua = (output / "vmath.lua").read_text(encoding="utf-8")
+            self.assertEqual(1, vmath_lua.count("---**Examples:**"))
+            self.assertIn(
+                "---Create a vector:\n"
+                "---\n"
+                "---```lua\n"
+                "---local value = vmath.vector3(1) -- <vector-value>\n"
+                "---```",
+                vmath_lua)
+            self.assertIn(
+                "---Copy a vector:\n"
+                "---\n"
+                "---```lua\n"
+                "---local copy = vmath.vector3(value)\n"
+                "---```",
+                vmath_lua)
+            self.assertLess(
+                vmath_lua.index("---**Examples:**"),
+                vmath_lua.index("---@overload"))
+
     def test_runtime_and_editor_annotations_are_separate(self):
         runtime_doc = document(
             "http",
