@@ -561,7 +561,7 @@ public class ProjectBuildTest {
     }
 
     @Test
-    public void testArchiveBuildMergesExtensionCustomResources() throws IOException, CompileExceptionError, MultipleCompileException {
+    public void testArchiveBuildMergesExtensionCustomResources() throws IOException, CompileExceptionError, MultipleCompileException, ParseException {
         createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ncustom_resources = /project_resource.txt\n");
         createFile(contentRoot, "project_resource.txt", "project");
@@ -578,6 +578,12 @@ public class ProjectBuildTest {
         assertTrue(hasResource(bundledManifestData, "/project_resource.txt"));
         assertTrue(hasResource(bundledManifestData, "/extension1_resource.txt"));
         assertTrue(hasResource(bundledManifestData, "/extension2_resource.txt"));
+
+        BobProjectProperties outputProperties = new BobProjectProperties();
+        outputProperties.load(new FileInputStream(new File(contentRoot, "build/game.projectc")));
+        String[] serializedCustomResources = outputProperties.getStringArrayValue("project", "custom_resources", new String[0]);
+        assertEquals(new HashSet<>(Arrays.asList("/project_resource.txt", "/extension1_resource.txt", "/extension2_resource.txt")),
+                     new HashSet<>(Arrays.asList(serializedCustomResources)));
     }
 
     @Test
