@@ -2163,8 +2163,8 @@
   (let [tab-trigger-boundary-by-row
         (reduce
           (fn [acc ^CursorRange region]
-            (case (:type region)
-              (:tab-trigger-word :tab-trigger-exit)
+            (if (and (::indentation-anchor region)
+                     (case (:type region) (:tab-trigger-word :tab-trigger-exit) true false))
               (let [start (cursor-range-start region)
                     end (cursor-range-end region)
                     start-row (.row start)
@@ -2446,18 +2446,24 @@
                visible-occurrences))))
 
 (defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
-  (-> (splice lines regions splices)
-      (fix-indentation-after-splice
-        (introduce-replacement-ranges
-          (mapv (fn [[cursor-range replacement-lines]]
-                  [cursor-range
-                   replacement-lines
-                   [(->CursorRange document-start-cursor (document-end-cursor replacement-lines))]])
-                splices))
-        indent-level-pattern
-        indent-string
-        grammar)
-      (update-document-width-after-splice layout)))
+  (let [result (-> (splice lines regions
+                           (mapv (fn [[cursor-range replacement-lines introduced-regions]]
+                                   [cursor-range
+                                    replacement-lines
+                                    (coll/mapv-> introduced-regions assoc ::indentation-anchor true)])
+                                 splices))
+                   (fix-indentation-after-splice
+                     (introduce-replacement-ranges
+                       (mapv (fn [[cursor-range replacement-lines]]
+                               [cursor-range
+                                replacement-lines
+                                [(->CursorRange document-start-cursor (document-end-cursor replacement-lines))]])
+                             splices))
+                     indent-level-pattern
+                     indent-string
+                     grammar)
+                   (update-document-width-after-splice layout))]
+    (cond-> result (:regions result) (update :regions coll/mapv-> dissoc ::indentation-anchor))))
 
 ;; -----------------------------------------------------------------------------
 

@@ -122,7 +122,56 @@
               "    do"
               "        "
               "    end"]
+             (:lines result)))))
+
+  (testing "ignores tab triggers from earlier completions"
+    (let [lines ["if true then"
+                 "    foo"]
+          replacement-range (data/->CursorRange (data/->Cursor 1 4)
+                                                (data/->Cursor 1 7))
+          outer-word-range (assoc replacement-range :type :tab-trigger-word)
+          result (data/replace-typed-chars
+                   indent-level-pattern
+                   indent-string
+                   script/lua-grammar
+                   lines
+                   [outer-word-range]
+                   (layout-info lines)
+                   [[replacement-range ["do" "\tvalue" "end"]]])]
+      (is (= ["if true then"
+              "    do"
+              "        value"
+              "    end"]
              (:lines result))))))
+
+(deftest enter-inside-tab-trigger-test
+  (let [lines ["return {"
+               "    editor.command({"
+               "        label"
+               "    })"
+               "}"]
+        cursor-range (data/Cursor->CursorRange (data/->Cursor 2 13))
+        tab-trigger-word (assoc (data/->CursorRange (data/->Cursor 1 20)
+                                                    (data/->Cursor 3 5))
+                           :type :tab-trigger-word)
+        result (data/key-typed
+                 indent-level-pattern
+                 indent-string
+                 script/lua-grammar
+                 false
+                 lines
+                 [cursor-range]
+                 [tab-trigger-word]
+                 (layout-info lines)
+                 nil
+                 "\r")]
+    (is (= ["return {"
+            "    editor.command({"
+            "        label"
+            "        "
+            "    })"
+            "}"]
+           (:lines result)))))
 
 (deftest insert-indentation-test
   (are [inserted-lines before after]
