@@ -233,3 +233,210 @@
     ["    s = 'will end something'|"]
     ["    s = 'will end something'"
      "    |"]))
+
+(defn- reindent [lines]
+  (let [last-row (dec (count lines))
+        cursor-range (data/->CursorRange (data/->Cursor 0 0)
+                                         (data/->Cursor last-row (count (lines last-row))))]
+    (or (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar lines
+                               [cursor-range] nil (layout-info lines)))
+        lines)))
+
+(deftest reindent-preserves-correct-indentation-test
+  ;; Correctly indented code must come back unchanged.
+  (are [lines] (= lines (reindent lines))
+
+    ;; Callback argument closed with `end)`.
+    ["function init(self)"
+     "    timer.delay(1, false, function(self, handle, dt)"
+     "        print(dt)"
+     "    end)"
+     "    print(\"after\")"
+     "end"]
+
+    ;; Table argument closed with `})`.
+    ["function init(self)"
+     "    local id = factory.create(pos, nil, {"
+     "        scale = 2"
+     "    })"
+     "    print(id)"
+     "end"]
+
+    ;; Function signature split over two lines.
+    ["function foo(a,"
+     "    b)"
+     "    print(a)"
+     "end"]
+
+    ["local function on_msg(self,"
+     "    message_id, message)"
+     "    print(message_id)"
+     "end"]
+
+    ["repeat"
+     "    print(i)"
+     "until done(i)"
+     "print(\"x\")"]
+
+    ["function foo()"
+     "    local id = factory.create(pos, nil, {})"
+     "    print(id)"
+     "end"]
+
+    ;; An unmatched parenthesis inside a long string opens nothing.
+    ["local s = [[ see the note (below ]]"
+     "print(s)"]
+
+    ;; Nor does one inside a comment or a quoted string.
+    ["local text = \"(\""
+     "print(text)"]
+
+    ["print(pos) -- ("
+     "print(1)"]))
+
+(deftest reindent-parentheses-test
+  (are [expected lines] (= expected (reindent lines))
+
+    ;; A call closed on a later line does not indent what follows it.
+    ["local pos = vmath.vector3("
+     "    1, 2, 3)"
+     "print(pos)"]
+    ["local pos = vmath.vector3("
+     "1, 2, 3)"
+     "        print(pos)"]
+
+    ;; Arguments continued after a trailing comma.
+    ["function update(self, dt)"
+     "    local ax, ay = steering.combine_axes(dx, dy,"
+     "        self.gamepad_axis.x, self.gamepad_axis.y)"
+     "    print(ax)"
+     "end"]
+    ["function update(self, dt)"
+     "local ax, ay = steering.combine_axes(dx, dy,"
+     "self.gamepad_axis.x, self.gamepad_axis.y)"
+     "print(ax)"
+     "end"]
+
+    ;; A closing parenthesis alone on its line.
+    ["local x = foo("
+     "    1, 2"
+     ")"
+     "print(x)"]
+    ["local x = foo("
+     "1, 2"
+     ")"
+     "        print(x)"]
+
+    ;; Nested calls closed on the same line unwind both levels.
+    ["function foo()"
+     "    local x = math.max("
+     "        1, math.min("
+     "            2, 3))"
+     "    print(x)"
+     "end"]
+    ["function foo()"
+     "local x = math.max("
+     "1, math.min("
+     "2, 3))"
+     "print(x)"
+     "end"]
+
+    ;; Condition split over two lines, block keyword on the closing line.
+    ["if check(a,"
+     "    b) then"
+     "    print(a)"
+     "end"]
+    ["if check(a,"
+     "b) then"
+     "print(a)"
+     "end"]
+
+    ;; A parenthesis opened and closed on the same line changes nothing.
+    ["local pos = vmath.vector3(1, 2, 3)"
+     "print(pos)"]
+    ["local pos = vmath.vector3(1, 2, 3)"
+     "        print(pos)"]
+
+    ;; A trailing comment after the closing parenthesis is ignored.
+    ["local pos = vmath.vector3("
+     "    1, 2, 3) -- close call"
+     "print(pos)"]
+    ["local pos = vmath.vector3("
+     "1, 2, 3) -- close call"
+     "        print(pos)"]))
+
+(deftest insert-indentation-parentheses-test
+  ;; Pressing enter after these lines.
+  (are [before after]
+    (= (into [] xform-test-lines->lines after)
+       (:lines (insert-lines (into [] xform-test-lines->lines before)
+                             (into [] xform-test-lines->cursor-ranges before)
+                             ["" ""])))
+
+    ["local pos = vmath.vector3("
+     "    1, 2, 3)|"]
+    ["local pos = vmath.vector3("
+     "    1, 2, 3)"
+     "|"]
+
+    ["if pos.x > 0 then"
+     "    local pos = vmath.vector3("
+     "        1, 2, 3)|"]
+    ["if pos.x > 0 then"
+     "    local pos = vmath.vector3("
+     "        1, 2, 3)"
+     "    |"]
+
+    ;; A line ending in an open parenthesis indents the next line.
+    ["local pos = vmath.vector3(|"]
+    ["local pos = vmath.vector3("
+     "    |"]
+
+    ;; ...but a balanced one does not.
+    ["local pos = vmath.vector3(1, 2, 3)|"]
+    ["local pos = vmath.vector3(1, 2, 3)"
+     "|"]
+
+    ;; A callback closed with `end)` dedents once, not twice.
+    ["function init(self)"
+     "    timer.delay(1, false, function(self, handle, dt)"
+     "        print(dt)"
+     "    end)|"]
+    ["function init(self)"
+     "    timer.delay(1, false, function(self, handle, dt)"
+     "        print(dt)"
+     "    end)"
+     "    |"]
+
+    ;; Same for a table argument closed with `})`.
+    ["function init(self)"
+     "    local id = factory.create(pos, nil, {"
+     "        scale = 2"
+     "    })|"]
+    ["function init(self)"
+     "    local id = factory.create(pos, nil, {"
+     "        scale = 2"
+     "    })"
+     "    |"]
+
+    ;; The body of a function whose signature spans two lines.
+    ["function foo(a,"
+     "    b)|"]
+    ["function foo(a,"
+     "    b)"
+     "    |"]
+
+    ;; Parentheses in strings and comments are not counted.
+    ["local text = \"(\"|"]
+    ["local text = \"(\""
+     "|"]
+
+    ["print(pos) -- )|"]
+    ["print(pos) -- )"
+     "|"]
+
+    ["local pos = vmath.vector3("
+     "    1, 2, 3) -- close call|"]
+    ["local pos = vmath.vector3("
+     "    1, 2, 3) -- close call"
+     "|"]))
