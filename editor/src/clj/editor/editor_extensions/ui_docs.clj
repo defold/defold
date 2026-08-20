@@ -16,12 +16,35 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [editor.editor-extensions.coerce :as coerce]
-            [editor.lua-completion :as lua-completion]
             [editor.util :as util]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.defold.editor.localization MessagePattern]))
+
+(defn args-doc-html
+  "Convert lua args data structure to html string
+
+   Args is a collection of maps with the following keys:
+     :name     string, required
+     :doc      optional html string
+     :types    coll of strings, i.e. union"
+  [args]
+  (str "<dl>"
+       (transduce
+         (map
+           (fn [{:keys [name doc types]}]
+             (format "<dt><code>%s%s</code></dt>%s"
+                     name
+                     (if (pos? (count types))
+                       (format " <small>%s</small>" (coll/join-to-string ", " types))
+                       "")
+                     (if doc
+                       (format "<dd>%s</dd>" doc)
+                       ""))))
+         coll/str-rf
+         args)
+       "</dl>"))
 
 (def message-pattern-coercer
   ;; We don't use `localization/message-pattern?` because we can't depend on
@@ -297,7 +320,7 @@
                               absent-coercer)
                     :types ["{ severity:editor.ui.ISSUE_SEVERITY, message:string|editor.message }|false"]
                     :doc (str "issue related to the input; table with the following keys (all required):"
-                              (lua-completion/args-doc-html
+                              (args-doc-html
                                 [{:name "severity"
                                   :types ["editor.ui.ISSUE_SEVERITY"]
                                   :doc "either <code>editor.ui.ISSUE_SEVERITY.WARNING</code> or <code>editor.ui.ISSUE_SEVERITY.ERROR</code>"}
@@ -421,7 +444,7 @@
 
 (def ^:private external-file-dialog-filters-doc
   (str "File filters, an array of filter tables, where each filter has following keys:"
-       (lua-completion/args-doc-html
+       (args-doc-html
          [{:name "description"
            :types ["string" "editor.message"]
            :doc "text explaining the filter, either a literal string like <code>\"Text files (*.txt)\"</code> or a localization message"}
@@ -453,7 +476,7 @@
 ;; region component definitions
 
 (defn props-doc-html [props]
-  (lua-completion/args-doc-html
+  (args-doc-html
     (map #(update % :name name) props)))
 
 (s/def :editor.editor-extensions.ui-docs.component/name string?)
@@ -669,7 +692,7 @@
    :description "Show a modal OS file selection dialog and await a result"
    :parameters [{:name "[opts]"
                  :types ["{ path?:string, title?:string|editor.message, filters?:{ description:string|editor.message, extensions:string[] }[] }"]
-                 :doc (lua-completion/args-doc-html
+                 :doc (args-doc-html
                         [{:name "path"
                           :types ["string"]
                           :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
@@ -689,7 +712,7 @@
    :description "Show a modal OS directory selection dialog and await a result"
    :parameters [{:name "[opts]"
                  :types ["{ path?:string, title?:string|editor.message }"]
-                 :doc (lua-completion/args-doc-html
+                 :doc (args-doc-html
                         [{:name "path"
                           :types ["string"]
                           :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
@@ -712,7 +735,7 @@
    :description "Show a modal resource selection dialog and await a result"
    :parameters [{:name "[opts]"
                  :types ["{ extensions?:string[], selection?:string, title?:string|editor.message }"]
-                 :doc (lua-completion/args-doc-html
+                 :doc (args-doc-html
                         [{:name "extensions"
                           :types ["string[]"]
                           :doc resource-dialog-extensions-doc-string}

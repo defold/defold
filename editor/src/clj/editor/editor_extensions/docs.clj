@@ -16,7 +16,6 @@
   (:require [clojure.string :as string]
             [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.ui-docs :as ui-docs]
-            [editor.lua-completion :as lua-completion]
             [util.eduction :as e]))
 
 (defn editor-script-docs
@@ -92,7 +91,7 @@
           :parameters [{:name "opts"
                         :types ["{ label:string|editor.message, locations:editor.command_location[], query?:{ selection?:{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }, active_view?:{ type:\"code\"|\"scene\"|\"html\"|\"form\" }, argument?:true }, id?:string, active?:(fun(opts:editor.command_context):boolean), run?:(fun(opts:editor.command_context):any) }"]
                         :doc (str "A table with the following keys:"
-                                  (lua-completion/args-doc-html
+                                  (ui-docs/args-doc-html
                                     [{:name "label"
                                       :types ["string" "editor.message"]
                                       :doc "required, user-visible command name, either a string or a localization message"}
@@ -102,11 +101,11 @@
                                      {:name "query"
                                       :types ["{ selection?:{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }, active_view?:{ type:\"code\"|\"scene\"|\"html\"|\"form\" }, argument?:true }"]
                                       :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
-                                                (lua-completion/args-doc-html
+                                                (ui-docs/args-doc-html
                                                   [{:name "selection"
                                                     :types ["{ type:\"resource\"|\"outline\"|\"scene\", cardinality:\"one\"|\"many\" }"]
                                                     :doc (str "current selection, a table with the following keys:"
-                                                              (lua-completion/args-doc-html
+                                                              (ui-docs/args-doc-html
                                                                 [{:name "type"
                                                                   :types ["\"resource\"" "\"outline\"" "\"scene\""]
                                                                   :doc "either <code>\"resource\"</code> (selected resource), <code>\"outline\"</code> (selected outline node), or <code>\"scene\"</code> (selected scene node)"}
@@ -116,7 +115,7 @@
                                                    {:name "active_view"
                                                     :types ["{ type:\"code\"|\"scene\"|\"html\"|\"form\" }"]
                                                     :doc (str "current active editor view, a table with the following keys:"
-                                                              (lua-completion/args-doc-html
+                                                              (ui-docs/args-doc-html
                                                                 [{:name "type"
                                                                   :types ["\"code\"" "\"scene\"" "\"html\"" "\"form\""]
                                                                   :doc "either <code>\"code\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}]))}
@@ -162,7 +161,7 @@ editor.command({
           :returnvalues [{:name "value"
                           :types ["{ exists:boolean, is_file:boolean, is_directory:boolean }"]
                           :doc (str "A table with the following keys:"
-                                    (lua-completion/args-doc-html
+                                    (ui-docs/args-doc-html
                                       [{:name "exists"
                                         :types ["boolean"]
                                         :doc "whether a resource identified by the path exists in the project"}
@@ -182,7 +181,7 @@ editor.command({
           :parameters [{:name "resources"
                         :types ["(string|editor.resource_definition)[]"]
                         :doc (str "Array of resource paths (strings starting with <code>/</code>) or resource definitions, lua tables with the following keys:"
-                                  (lua-completion/args-doc-html
+                                  (ui-docs/args-doc-html
                                     [{:name "1"
                                       :types ["string"]
                                       :doc "required, resource path (starting with <code>/</code>)"}
@@ -417,7 +416,7 @@ editor.create_resources({
                        {:name "[opts]"
                         :types ["{ method?:string, headers?:table<string, string>, body?:string, as?:string, path?:string }"]
                         :doc (str "Additional request options, a table with the following keys:"
-                                  (lua-completion/args-doc-html
+                                  (ui-docs/args-doc-html
                                     [{:name "method"
                                       :types ["string"]
                                       :doc "request method, defaults to <code>\"GET\"</code>"}
@@ -436,7 +435,7 @@ editor.create_resources({
           :returnvalues [{:name "response"
                           :types ["{ status:integer, headers:table<string, string|string[]>, body?:any, path?:string }"]
                           :doc (str "HTTP response, a table with the following keys:"
-                                    (lua-completion/args-doc-html
+                                    (ui-docs/args-doc-html
                                       [{:name "status"
                                         :types ["integer"]
                                         :doc "response code"}
@@ -516,7 +515,7 @@ editor.create_resources({
                        {:name "handler"
                         :types ["http.server.handler"]
                         :doc (str "Request handler function, will receive request argument, a table with the following keys:"
-                                  (lua-completion/args-doc-html
+                                  (ui-docs/args-doc-html
                                     [{:name "path"
                                       :types ["string"]
                                       :doc "full matched path, a string starting with <code>/</code>"}
@@ -645,7 +644,7 @@ end
                        {:name "[options]"
                         :types ["{ all?:boolean }"]
                         :doc (str "A table with the following keys:"
-                                  (lua-completion/args-doc-html
+                                  (ui-docs/args-doc-html
                                     [{:name "all"
                                       :types ["boolean"]
                                       :doc "if <code>true</code>, decodes all json values in a string and returns an array"}]))}]}
@@ -895,7 +894,7 @@ end
             :parameters [{:name "variant_schema" :types ["editor.schema"] :doc "bundle variant schema"}
                          {:name "[properties]" :types ["table<string, editor.schema>" "nil"] :doc "extra config properties"}]
             :returnvalues [{:name "schema" :types ["editor.schema"] :doc (str "full bundle schema, defines a project-scoped object schema with the following keys:"
-                                                                              (lua-completion/args-doc-html
+                                                                              (ui-docs/args-doc-html
                                                                                 [{:name "variant" :doc "the provided variant schema"}
                                                                                  {:name "texture_compression" :types ["string"] :doc "either <code>enabled</code>, <code>disabled</code> or <code>editor</code>"}
                                                                                  {:name "with_symbols" :types ["boolean"]}
@@ -907,7 +906,7 @@ end
               y-param {:name "y" :types ["integer"] :doc "y coordinate of a tile"}
               tile-doc "1-indexed tile index of a tilemap's tilesource"
               info-doc (str "full tile information table with the following keys:"
-                            (lua-completion/args-doc-html
+                            (ui-docs/args-doc-html
                               [{:name "index" :types ["integer"] :doc tile-doc}
                                {:name "h_flip" :types ["boolean"] :doc "horizontal flip"}
                                {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
@@ -983,11 +982,11 @@ end
                          {:name "[opts]"
                           :types ["{ method?:zip.METHOD, level?:integer }"]
                           :doc (str "compression options, a table with the following keys:"
-                                    (lua-completion/args-doc-html [method-param level-param]))}
+                                    (ui-docs/args-doc-html [method-param level-param]))}
                          {:name "entries"
                           :types ["zip.entries"]
                           :doc (str "entries to compress; each entry is either a string (relative path to file or folder to include) or a table with the following keys:"
-                                    (lua-completion/args-doc-html
+                                    (ui-docs/args-doc-html
                                       [{:name "1" :types ["string"] :doc "required; source file or folder path to include, resolved against project root if relative"}
                                        {:name "2" :types ["string"] :doc "optional; target file or folder path in the zip archive. May be omitted if source is a relative path that does not go above the project directory."}
                                        method-param
@@ -1036,7 +1035,7 @@ zip.pack(\"build.zip\", {
                        {:name "[opts]"
                         :types ["zip.unpack_options"]
                         :doc (str "extraction options, a table with the following keys:"
-                                  (lua-completion/args-doc-html
+                                  (ui-docs/args-doc-html
                                     [{:name "on_conflict"
                                       :types ["zip.ON_CONFLICT"]
                                       :doc "conflict resolution strategy, defaults to <code>zip.ON_CONFLICT.ERROR</code>"}]))}
