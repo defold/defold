@@ -50,7 +50,7 @@ namespace dmLiveUpdate
  *
  * @name liveupdate.get_mounts
  * @return mounts [type:{ name:hash, uri:string, priority:integer }[]] Array of mounts
- * @note: Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
+ * @note Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
  * @examples
  *
  * Output the current resource mounts

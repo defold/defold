@@ -39,6 +39,7 @@ namespace dmGameSystem
     /*#
      * CompFactoryStatus
      * @enum
+     * @name CompFactoryStatus
      */
     enum CompFactoryStatus
     {
