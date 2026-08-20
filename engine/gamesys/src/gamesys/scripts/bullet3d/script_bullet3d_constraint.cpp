@@ -1856,6 +1856,82 @@ namespace dmGameSystem
  * @param value [type:userdata] opaque constraint handle
  */
 
+/*# Constraint types
+ * @enum
+ * @name bullet3d.constraint.CONSTRAINT_TYPE
+ */
+
+/*# Point-to-point constraint parameters
+ * @struct
+ * @name bullet3d.constraint.point_to_point_params
+ * @member pivot_a [type:vector3] local body-A pivot
+ * @member pivot_b? [type:vector3] local body-B pivot or world-space anchor
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
+ */
+
+/*# Hinge constraint parameters
+ * @struct
+ * @name bullet3d.constraint.hinge_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member use_reference_frame_a? [type:boolean] whether angular calculations reference frame A
+ * @member angular_only? [type:boolean] whether to constrain angular motion only
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
+ */
+
+/*# Cone-twist constraint parameters
+ * @struct
+ * @name bullet3d.constraint.cone_twist_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member angular_only? [type:boolean] whether to constrain angular motion only
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
+ */
+
+/*# Generic 6-DOF constraint parameters
+ * @struct
+ * @name bullet3d.constraint.generic_6dof_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
+ */
+
+/*# Generic spring 6-DOF constraint parameters
+ * @struct
+ * @name bullet3d.constraint.generic_6dof_spring_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position [type:vector3] local body-B frame position
+ * @member frame_b_rotation [type:quaternion] local body-B frame rotation
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
+ */
+
+/*# Slider constraint parameters
+ * @struct
+ * @name bullet3d.constraint.slider_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member use_linear_reference_frame_a? [type:boolean] whether linear calculations reference frame A
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
+ */
+
+/*# Universal and hinge2 constraint parameters
+ * @struct
+ * @name bullet3d.constraint.anchor_axes_params
+ * @member anchor [type:vector3] world-space anchor
+ * @member axis1 [type:vector3] first non-zero world-space axis
+ * @member axis2 [type:vector3] second non-zero world-space axis, orthogonal to `axis1`
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
+ */
+
 /*# Point-to-point constraint type
  * @name bullet3d.constraint.CONSTRAINT_TYPE_POINT_TO_POINT
  * @constant
@@ -1906,7 +1982,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_point_to_point
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] pivots and options
+ * @param params [type:bullet3d.constraint.point_to_point_params] pivots and options
  * @return constraint [type:btTypedConstraint] point-to-point constraint
  * @examples
  *
@@ -1941,7 +2017,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_hinge
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.hinge_params] local frames and options
  * @return constraint [type:btTypedConstraint] hinge constraint
  * @examples
  *
@@ -1978,7 +2054,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_cone_twist
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.cone_twist_params] local frames and options
  * @return constraint [type:btTypedConstraint] cone-twist constraint
  */
 
@@ -1993,7 +2069,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_generic_6dof
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.generic_6dof_params] local frames and options
  * @return constraint [type:btTypedConstraint] generic 6-DOF constraint
  */
 
@@ -2007,7 +2083,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_generic_6dof_spring
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody] second body
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.generic_6dof_spring_params] local frames and options
  * @return constraint [type:btTypedConstraint] spring 6-DOF constraint
  * @examples
  *
@@ -2047,7 +2123,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_slider
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.slider_params] local frames and options
  * @return constraint [type:btTypedConstraint] slider constraint
  */
 
@@ -2060,7 +2136,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_universal
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody] second body
- * @param params [type:table] anchor, axes, and options
+ * @param params [type:bullet3d.constraint.anchor_axes_params] anchor, axes, and options
  * @return constraint [type:btTypedConstraint] universal constraint
  */
 
@@ -2074,7 +2150,7 @@ namespace dmGameSystem
  * @name bullet3d.constraint.create_hinge2
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody] second body
- * @param params [type:table] anchor, axes, and options
+ * @param params [type:bullet3d.constraint.anchor_axes_params] anchor, axes, and options
  * @return constraint [type:btTypedConstraint] hinge2 constraint
  */
 
@@ -2098,7 +2174,7 @@ namespace dmGameSystem
 /*# Get the constraint type
  * @name bullet3d.constraint.get_type
  * @param constraint [type:btTypedConstraint] constraint
- * @return type [type:number] one of the `bullet3d.constraint.CONSTRAINT_TYPE_*` constants
+ * @return type [type:bullet3d.constraint.CONSTRAINT_TYPE] constraint type
  */
 
 /*# Get the constraint type name
@@ -2300,7 +2376,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.get_limit
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @return lower [type:number] lower limit
  * @return upper [type:number] upper limit
  */
@@ -2308,7 +2384,7 @@ namespace dmGameSystem
 /*# Set a 6-DOF axis limit
  * @name bullet3d.constraint.set_limit
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param lower [type:number] lower limit
  * @param upper [type:number] upper limit
  */
@@ -2316,28 +2392,28 @@ namespace dmGameSystem
 /*# Test whether a 6-DOF axis is limited
  * @name bullet3d.constraint.is_limited
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @return limited [type:boolean] limit state
  */
 
 /*# Get a current 6-DOF angular axis
  * @name bullet3d.constraint.get_6dof_axis
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based angular-axis index from 1 to 3
+ * @param axis [type:integer] one-based angular-axis index from 1 to 3
  * @return direction [type:vector3] world-space unit axis
  */
 
 /*# Get a current 6-DOF angle
  * @name bullet3d.constraint.get_6dof_angle
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based angular-axis index from 1 to 3
+ * @param axis [type:integer] one-based angular-axis index from 1 to 3
  * @return angle [type:number] current angle in radians
  */
 
 /*# Get a current 6-DOF linear position
  * @name bullet3d.constraint.get_6dof_position
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based linear-axis index from 1 to 3
+ * @param axis [type:integer] one-based linear-axis index from 1 to 3
  * @return position [type:number] relative position in Defold units
  */
 
@@ -2348,7 +2424,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.get_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @return enabled [type:boolean] motor state
  * @return target_velocity [type:number] target velocity
  * @return max_impulse [type:number] maximum motor impulse
@@ -2358,7 +2434,7 @@ namespace dmGameSystem
 /*# Set 6-DOF motor settings
  * @name bullet3d.constraint.set_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param enabled [type:boolean] motor state
  * @param target_velocity [type:number] target velocity
  * @param max_impulse [type:number] non-negative maximum motor impulse
@@ -2368,7 +2444,7 @@ namespace dmGameSystem
 /*# Enable or disable a spring axis
  * @name bullet3d.constraint.enable_spring
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param enabled [type:boolean] spring state
  */
 
@@ -2379,14 +2455,14 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.set_spring_stiffness
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param stiffness [type:number] non-negative stiffness
  */
 
 /*# Set spring damping
  * @name bullet3d.constraint.set_spring_damping
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param damping [type:number] damping from 0 to 1
  */
 
@@ -2398,7 +2474,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.set_spring_equilibrium_point
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number|nil] optional one-based axis from 1 to 6
+ * @param axis [type:integer|nil] optional one-based axis from 1 to 6
  * @param value [type:number|nil] optional explicit equilibrium value
  */
 

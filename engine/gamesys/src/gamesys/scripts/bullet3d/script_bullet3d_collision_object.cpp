@@ -689,6 +689,38 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Collision object activation states
+ * @enum
+ * @name bullet3d.collision_object.ACTIVATION_STATE
+ * @member ACTIVE_TAG
+ * @member ISLAND_SLEEPING
+ * @member WANTS_DEACTIVATION
+ * @member DISABLE_DEACTIVATION
+ * @member DISABLE_SIMULATION
+ */
+
+/*# Collision object flags
+ * @enum
+ * @name bullet3d.collision_object.COLLISION_FLAG
+ * @member CF_STATIC_OBJECT
+ * @member CF_KINEMATIC_OBJECT
+ * @member CF_NO_CONTACT_RESPONSE
+ * @member CF_CUSTOM_MATERIAL_CALLBACK
+ * @member CF_CHARACTER_OBJECT
+ * @member CF_DISABLE_VISUALIZE_OBJECT
+ * @member CF_DISABLE_SPU_COLLISION_PROCESSING
+ */
+
+/*# Native collision object types
+ * @enum
+ * @name bullet3d.collision_object.INTERNAL_TYPE
+ * @member CO_COLLISION_OBJECT
+ * @member CO_RIGID_BODY
+ * @member CO_GHOST_OBJECT
+ * @member CO_SOFT_BODY
+ * @member CO_HF_FLUID
+ */
+
 /*# Active simulation state
  * @name bullet3d.collision_object.ACTIVE_TAG
  * @constant
@@ -832,19 +864,19 @@ namespace dmGameSystem
 /*# Get the activation state
  * @name bullet3d.collision_object.get_activation_state
  * @param object [type:btCollisionObject] collision object
- * @return state [type:number] one of the activation constants
+ * @return state [type:bullet3d.collision_object.ACTIVATION_STATE] activation state
  */
 
 /*# Set the activation state
  * @name bullet3d.collision_object.set_activation_state
  * @param object [type:btCollisionObject] collision object
- * @param state [type:number] activation state
+ * @param state [type:bullet3d.collision_object.ACTIVATION_STATE] activation state
  */
 
 /*# Force the activation state
  * @name bullet3d.collision_object.force_activation_state
  * @param object [type:btCollisionObject] collision object
- * @param state [type:number] activation state
+ * @param state [type:bullet3d.collision_object.ACTIVATION_STATE] activation state
  */
 
 /*# Activate a collision object
@@ -973,7 +1005,7 @@ namespace dmGameSystem
 /*# Get collision flags
  * @name bullet3d.collision_object.get_collision_flags
  * @param object [type:btCollisionObject] collision object
- * @return flags [type:number] bit field of `CF_*` constants
+ * @return flags [type:integer] bit field of `CF_*` constants
  */
 
 /*# Get the collision filter group
@@ -986,7 +1018,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.get_collision_filter_group
  * @param object [type:btCollisionObject] collision object in a Bullet world
- * @return group [type:number] raw unsigned 16-bit collision filter group
+ * @return group [type:integer] raw unsigned 16-bit collision filter group
  */
 
 /*# Get the collision filter mask
@@ -999,20 +1031,20 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.get_collision_filter_mask
  * @param object [type:btCollisionObject] collision object in a Bullet world
- * @return mask [type:number] raw unsigned 16-bit collision filter mask
+ * @return mask [type:integer] raw unsigned 16-bit collision filter mask
  */
 
 /*# Test a collision flag
  * @name bullet3d.collision_object.has_collision_flag
  * @param object [type:btCollisionObject] collision object
- * @param flag [type:number] collision flag or mask
+ * @param flag [type:integer] collision flag or mask
  * @return set [type:boolean] `true` when all requested flag bits are set
  */
 
 /*# Get the Bullet collision object type
  * @name bullet3d.collision_object.get_internal_type
  * @param object [type:btCollisionObject] collision object
- * @return type [type:number] one of the `CO_*` constants
+ * @return type [type:bullet3d.collision_object.INTERNAL_TYPE] native collision object type
  */
 
 /*# Test whether the object is static
