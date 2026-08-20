@@ -30,13 +30,6 @@ excluded_functions:
   - on_input
   - on_reload
 
-excluded_function_patterns:
-  - "client:*"
-  - "server:*"
-  - "master:*"
-  - "connected:*"
-  - "unconnected:*"
-
 method_classes:
   master: socket_master
   client: socket_client
@@ -57,16 +50,12 @@ global_symbols:
 # The editor API runs in a separate Lua environment from game scripts. These
 # entries accompany editor.apidoc and must not be exposed by the runtime bundle.
 editor_only_metadata:
-  aliases: []
-  classes: []
   generics:
     - editor.ui.component
   function_overloads:
     - http.server.route
     - zip.pack
     - zip.unpack
-
-aliases: {}
 
 type_replacements:
   b2BodyType: b2d.body.B2

@@ -423,15 +423,10 @@ class TestLuaAnnotations(unittest.TestCase):
         self.assertEqual(
             {"fields": {"[string]": "any"}},
             metadata["classes"]["script_instance"])
-        self.assertEqual(
-            set(),
-            set(metadata["aliases"]))
-        self.assertEqual(
-            set(metadata["aliases"]),
-            set(metadata["editor_only_metadata"]["aliases"]))
-        self.assertEqual(
-            set(),
-            set(metadata["editor_only_metadata"]["classes"]))
+        self.assertNotIn("aliases", metadata)
+        self.assertNotIn("excluded_function_patterns", metadata)
+        self.assertNotIn("aliases", metadata["editor_only_metadata"])
+        self.assertNotIn("classes", metadata["editor_only_metadata"])
         self.assertEqual(
             {"editor.ui.component"},
             set(metadata["editor_only_metadata"]["generics"]))
