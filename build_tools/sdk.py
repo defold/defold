@@ -135,19 +135,27 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     dirs = [x for x in os.listdir(path)]
     return _get_latest_version_from_list(dirs, replace_patterns)
 
+def _parse_folder_version(s, replace_patterns=[]):
+    for pattern, replace in replace_patterns:
+        s = s.replace(pattern, replace)
+    # handle -ext to fix Android versions like android-34-ext12
+    if '-ext' in s:
+        s = re.sub(r'-ext\d+$', '', s)
+    # skip anything that isn't a plain numeric version, e.g. the preview platforms
+    # 'android-37.2-beta2' or named releases like 'android-Baklava'
+    if not re.match(r'^\d+(\.\d+)*$', s):
+        return None
+    return tuple(int(token) for token in s.split('.'))
+
+def _sort_versions(entries, replace_patterns=[]):
+    versions = [(_parse_folder_version(x, replace_patterns), x) for x in entries]
+    versions = [x for x in versions if x[0] is not None]
+    return [x[1] for x in sorted(versions, reverse=True)]
+
 def _get_latest_version_from_list(entries, replace_patterns=[]):
+    entries = _sort_versions(entries, replace_patterns)
     if len(entries) == 0:
         return None
-
-    def _replace_pattern(s, patterns):
-        for pattern, replace in patterns:
-            s = s.replace(pattern, replace)
-        # handle -ext to fix Android versions like android-34-ext12
-        if '-ext' in s:
-            s = re.sub(r'-ext\d+$', '', s)
-        return s
-
-    entries = sorted(entries, key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return entries[0]
 
 def _get_version_major_prefix(version):
@@ -157,12 +165,7 @@ def _get_version_major_prefix(version):
     return version
 
 def _sort_version_strings(values):
-    def _normalize_version(s):
-        if '-ext' in s:
-            s = re.sub(r'-ext\d+$', '', s)
-        return s
-
-    return sorted(values, key=lambda x: tuple(int(token) for token in _normalize_version(x).split('.')), reverse=True)
+    return _sort_versions(values)
 
 def _get_host_exe_suffix():
     if sys.platform == 'win32':
@@ -300,7 +303,14 @@ def get_android_local_build_tools_path(platform):
     if not os.path.exists(build_tools_path):
         raise SDKException(f"  Failed to find {build_tools_path}")
 
+    # prefer the version pinned by the build scripts, the same one the packaged sdk uses
+    path = os.path.join(build_tools_path, ANDROID_BUILD_TOOLS_VERSION)
+    if os.path.exists(path):
+        return path
+
     version = _get_latest_version_from_folders(build_tools_path)
+    if not version:
+        raise SDKException(f"  No build tools versions installed in {build_tools_path}")
     return os.path.join(build_tools_path, version)
 
 def get_android_local_sdk_version(platform):
@@ -309,8 +319,17 @@ def get_android_local_sdk_version(platform):
 def get_android_local_jar_path(verbose=False):
     sdkfolder = get_android_local_sdk_path()
     platforms_folder = os.path.join(sdkfolder, 'platforms')
+
+    # prefer the api level pinned by the build scripts, the same one the packaged sdk uses
+    path = os.path.join(platforms_folder, ANDROID_PACKAGE, 'android.jar')
+    if os.path.exists(path):
+        log_verbose(verbose, f"  Detected android jar {path}")
+        return path
+
     android_version = _get_latest_version_from_folders(platforms_folder, [('android-', '')])
-    path = os.path.join(sdkfolder, 'platforms', android_version, 'android.jar')
+    if not android_version:
+        raise SDKException(f"  No android platforms installed in {platforms_folder}")
+    path = os.path.join(platforms_folder, android_version, 'android.jar')
     if not os.path.exists(path):
         raise SDKException(f"Path {path} not found")
     return path

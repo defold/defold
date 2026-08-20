@@ -166,6 +166,8 @@
         :when (contains? languages language)]
     (set-view-node-completion-trigger-characters-tx state resource view-node)))
 
+(declare request-document-symbols)
+
 (defn- on-server-initialized [server capabilities]
   {:pre [(s/assert ::server server)
          (s/assert ::lsp.server/capabilities capabilities)]}
@@ -185,7 +187,15 @@
           (g/transact
             {:undoable false}
             (refresh-completion-trigger-characters-for-languages-tx state languages))))
-      state)))
+      (if (:document-symbol capabilities)
+        (reduce
+          (fn [state resource]
+            (if (contains? languages (resource/language resource))
+              (request-document-symbols state resource)
+              state))
+          state
+          (keys (:resource->view-node state)))
+        state))))
 
 (defprotocol ServerResponse
   (server-response-value [response])
