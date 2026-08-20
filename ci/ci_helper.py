@@ -154,9 +154,9 @@ def should_build_private_platform(branch, repository):
     changed_paths = set()
     for pull_request_number in pull_request_numbers:
         changed_path_output = run_gh([
-            'pr', 'diff', pull_request_number,
-            '--repo', repository,
-            '--name-only',
+            'api', '--paginate',
+            'repos/%s/pulls/%s/files' % (repository, pull_request_number),
+            '--jq', '.[] | .filename, (.previous_filename // empty)',
         ])
         if changed_path_output is None:
             return False
