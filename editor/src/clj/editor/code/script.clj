@@ -147,6 +147,17 @@
                          (contains? lua-open-keywords tok) (conj :open)
                          (contains? lua-close-keywords tok) (conj :close)))))
 
+            ;; Long string or block comment. Doubled brackets are delimiters
+            ;; rather than index brackets, so neither they nor anything between
+            ;; them is code. An unterminated one runs to the end of the line.
+            (and (= ch \[) (< (inc i) len) (= (.charAt line (inc i)) \[))
+            (let [close (.indexOf line "]]" (int (+ i 2)))]
+              (recur (if (neg? close) len (+ close 2)) in-quote false tokens))
+
+            ;; The tail of one whose opener was on an earlier line.
+            (and (= ch \]) (< (inc i) len) (= (.charAt line (inc i)) \]))
+            (recur (+ i 2) in-quote false tokens)
+
             ;; Non-word character
             :else
             (let [tokens (cond-> tokens
