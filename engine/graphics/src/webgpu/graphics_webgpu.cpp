@@ -1998,6 +1998,32 @@ static void WebGPUFlip(HContext _context)
     dmPlatform::SwapBuffers(context->m_BaseContext.m_Window);
 }
 
+// WebGPU queue.writeBuffer requires both the destination offset and the number
+// of uploaded bytes to be multiples of four. Defold buffer resources retain
+// their original logical size, but the physical allocation and the final
+// upload word are padded as needed.
+static void WebGPUQueueWriteBuffer(WebGPUContext* context, WGPUBuffer buffer, size_t offset, const void* data, size_t size)
+{
+    assert((offset & 3) == 0);
+    if (size == 0)
+        return;
+
+    const size_t aligned_prefix_size = size & ~size_t(3);
+    if (aligned_prefix_size == size)
+    {
+        wgpuQueueWriteBuffer(context->m_Queue, buffer, offset, data, size);
+        return;
+    }
+
+    const uint8_t* bytes = (const uint8_t*) data;
+    if (aligned_prefix_size > 0)
+        wgpuQueueWriteBuffer(context->m_Queue, buffer, offset, bytes, aligned_prefix_size);
+
+    uint32_t final_word = 0;
+    memcpy(&final_word, bytes + aligned_prefix_size, size - aligned_prefix_size);
+    wgpuQueueWriteBuffer(context->m_Queue, buffer, offset + aligned_prefix_size, &final_word, sizeof(final_word));
+}
+
 static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size_t offset, void const* data, size_t size)
 {
     TRACE_CALL;
@@ -2010,16 +2036,16 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
         WGPUBufferDescriptor desc = {};
 #endif
         desc.usage                = buffer->m_Usage;
-        desc.size                 = size;
+        desc.size                 = DM_ALIGN(size, 4);
         buffer->m_Buffer          = wgpuDeviceCreateBuffer(context->m_Device, &desc);
-        buffer->m_Used = buffer->m_Base.m_Size = desc.size;
+        buffer->m_Used = buffer->m_Base.m_Size = size;
     }
     else if (buffer->m_LastRenderPass && buffer->m_LastRenderPass > context->m_LastSubmittedRenderPass) // flush pipeline
     {
         //dmLogWarning("Deoptimization: Forcing pipeline flush due to buffer write");
         WebGPUSubmitCommandEncoder(context);
     }
-    wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+    WebGPUQueueWriteBuffer(context, buffer->m_Buffer, offset, data, size);
 }
 
 static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
@@ -2038,7 +2064,7 @@ static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLay
     WGPUBufferDescriptor desc = {};
 #endif
 
-    desc.size  = size;
+    desc.size  = DM_ALIGN(size, 4);
     // Defold's light and cluster buffers deliberately share one backing
     // allocation between uniform-buffer and storage-buffer bindings.
     desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
@@ -2053,7 +2079,7 @@ static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buf
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
     assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
-    wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, data, size);
+    WebGPUQueueWriteBuffer(context, ubo->m_Buffer, offset, data, size);
 }
 
 static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
@@ -2565,7 +2591,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                                     WGPUBufferDescriptor desc = {};
 #endif
                                     desc.usage                = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-                                    desc.size                 = std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BindingInfo.m_BlockSize);
+                                    desc.size                 = DM_ALIGN(std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BindingInfo.m_BlockSize), 4);
                                     alloc->m_Buffer           = wgpuDeviceCreateBuffer(context->m_Device, &desc);
                                     alloc->m_Size             = desc.size;
                                 }
@@ -2580,7 +2606,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                         entries[desc.entryCount].buffer = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Buffer;
                         entries[desc.entryCount].offset = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used;
                         entries[desc.entryCount].size   = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                        wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset, entries[desc.entryCount].size);
+                        WebGPUQueueWriteBuffer(context, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset, entries[desc.entryCount].size);
                         context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
                     }
                     break;
