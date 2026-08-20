@@ -386,7 +386,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
     ASSERT_GE(elapsed, 20000u);
 }
 
-TEST_F(EngineTest, VSyncPacingWithoutRendering)
+TEST_F(EngineTest, FallbackPacingWithoutRendering)
 {
     dmEngineInitialize();
 
@@ -397,13 +397,14 @@ TEST_F(EngineTest, VSyncPacingWithoutRendering)
     const char* argv[] = {
         "dmengine",
         "--config=display.update_frequency=0",
-        "--config=display.swap_interval=1",
+        "--config=display.swap_interval=2",
         "--config=dmengine.unload_builtins=0",
         project_path
     };
 
     bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
     uint64_t elapsed = 0;
+    uint32_t pacing_frequency = 0;
     dmEngine::Stats stats;
     memset(&stats, 0, sizeof(stats));
 
@@ -418,6 +419,7 @@ TEST_F(EngineTest, VSyncPacingWithoutRendering)
         }
         elapsed = dmTime::GetMonotonicTime() - start;
         dmEngine::GetStats(engine, stats);
+        pacing_frequency = engine->m_FramePacingFrequency;
 
         dmEngine::SetRenderEnabled(true);
     }
@@ -427,7 +429,8 @@ TEST_F(EngineTest, VSyncPacingWithoutRendering)
 
     ASSERT_TRUE(initialized);
     ASSERT_EQ(4u, stats.m_FrameCount);
-    ASSERT_GE(elapsed, 30000u);
+    ASSERT_EQ(30u, pacing_frequency);
+    ASSERT_GE(elapsed, 80000u);
 }
 
 TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)

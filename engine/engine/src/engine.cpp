@@ -124,9 +124,11 @@ namespace dmEngine
 
 #define SYSTEM_SOCKET_NAME "@system"
 
-    // Used to pace engine frames when rendering is disabled and the platform
-    // cannot report the display refresh rate (for example, a headless adapter).
-    static const uint32_t DEFAULT_DISPLAY_REFRESH_RATE = 60;
+    // Policy rate used when swap-interval pacing is requested but no presenter
+    // can pace the frame, such as when rendering is disabled or headless. It is
+    // deliberately independent of display refresh-rate discovery, which may be
+    // unavailable, stale, or ambiguous for windowed and variable-refresh output.
+    static const uint32_t DEFAULT_TIMER_PACING_FREQUENCY = 60;
     static const uint32_t FRAME_PACING_TIME_BASE = 1000000; // Microseconds per second
 
     dmEngineService::HEngineService g_EngineService = 0;
@@ -2314,9 +2316,9 @@ bail:
      * Selects the frequency used by the engine-side frame pacer. An explicit
      * update frequency set via SetUpdateFrequency() always wins. With a
      * variable update frequency, Flip() normally provides the wait through
-     * vsync; when rendering is disabled or no pacing presenter is available,
-     * we derive the same cadence from the display refresh rate and swap
-     * interval.
+     * vsync. When rendering is disabled or no pacing presenter is available,
+     * the engine uses its fallback timer policy adjusted by the requested swap
+     * interval instead of relying on platform refresh-rate discovery.
      * @return The number of engine frames per second
      */
     static uint32_t GetFramePacingFrequency(HEngine engine)
@@ -2332,19 +2334,13 @@ bail:
         }
 
         bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
-        bool presenter_paces_frame = do_render &&
-        dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
-        if (presenter_paces_frame)
+        bool supports_vsync = dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
+        if (do_render && supports_vsync)
         {
             return 0;
         }
 
-        uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
-        if (refresh_rate == 0)
-        {
-            refresh_rate = DEFAULT_DISPLAY_REFRESH_RATE;
-        }
-        return dmMath::Max(1U, refresh_rate / engine->m_SwapInterval);
+        return dmMath::Max(1U, DEFAULT_TIMER_PACING_FREQUENCY / engine->m_SwapInterval);
     }
 
     /**
