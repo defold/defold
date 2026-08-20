@@ -2178,7 +2178,11 @@
                                 (pos? (parse-indent-level indent-level-pattern (get lines row))) (recur (dec row))
                                 :else row))]
     (loop [row start-row
-           stack []]
+           stack (loop [n (parse-indent-level indent-level-pattern (get lines start-row))
+                        stack []]
+                   (if (zero? n)
+                     stack
+                     (recur (dec n) (conj stack (long (count stack))))))]
       (if (< queried-row row)
         stack
         (let [[next-stack] (indent-step stack (line-indent-counts grammar (get lines row)))]
