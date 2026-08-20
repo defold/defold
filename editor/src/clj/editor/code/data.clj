@@ -2070,30 +2070,52 @@
           (recur (inc indent-level))
           indent-level)))))
 
-(defn- indent-level
-  ^long [^long prev-line-indent-level prev-line-begin? line-end?]
-  (if (and line-end? prev-line-begin?)
-    ;; function foo()
-    ;; end|
-    prev-line-indent-level
+(defn- indent-step [stack {:keys [leading closes opens]}]
+  (let [level (if (zero? leading)
+                (if (coll/empty? stack) 0 (inc (peek stack)))
+                (loop [n leading
+                       s stack
+                       level 0]
+                  (if (or (zero? n) (coll/empty? s))
+                    level
+                    (recur (dec n) (pop s) (peek s)))))
+        stack (loop [n closes
+                     s stack]
+                (if (or (zero? n) (coll/empty? s))
+                  s
+                  (recur (dec n) (pop s))))
+        stack (let [line-indent (if (coll/empty? stack) 0 (inc (peek stack)))]
+                (loop [n opens
+                       s stack]
+                  (if (zero? n)
+                    s
+                    (recur (dec n) (conj s line-indent)))))]
+    [stack level]))
 
-    (if line-end?
-      ;; function foo()
-      ;;     ...
-      ;;     ...
-      ;;     end|
-      (dec prev-line-indent-level)
+(reduce (fn [[stack curr] counts]
+          (indent-step stack counts))
+        [[] 0]
+        [{:closes 0, :opens 1, :leading 0}])
 
-      (if prev-line-begin?
-        ;; function foo()
-        ;; |
-        (inc prev-line-indent-level)
+(reduce (fn [[stack curr] counts]
+          (indent-step stack counts))
+        [[] 0]
+        [{:closes 0, :opens 1, :leading 0}
+         {:closes 0, :opens 1, :leading 0}])
 
-        ;; function foo()
-        ;;     ...
-        ;;     ...
-        ;; |
-        prev-line-indent-level))))
+(reduce (fn [[stack curr] counts]
+          (indent-step stack counts))
+        [[] 0]
+        [{:closes 0, :opens 1, :leading 0}
+         {:closes 0, :opens 1, :leading 0}
+         {:closes 1, :opens 0, :leading 0}])
+
+(reduce (fn [[stack curr] counts]
+          (indent-step stack counts))
+        [[] 0]
+        [{:closes 0, :opens 1, :leading 0}
+         {:closes 0, :opens 1, :leading 0}
+         {:closes 1, :opens 0, :leading 1}])
 
 (defn- indent-line
   ^String [unindented-line indent-string ^long indent-level]
@@ -2140,80 +2162,79 @@
               (not= regions regions')
               (assoc :regions regions')))))
 
-(defn- find-indent-level [indent-level-pattern grammar lines ^long queried-row]
+(defn- line-indent-counts [grammar line]
+  (if-let [counts (:counts (:indent grammar))]
+    (counts line)
+    (let [close? (boolean (ends-indentation? grammar line))
+          open? (boolean (begins-indentation? grammar line))]
+      {:leading (if close? 1 0)
+       :closes (if close? 1 0)
+       :opens (if open? 1 0)})))
+
+(defn- find-indent-stack [indent-level-pattern grammar lines ^long queried-row]
   (let [^long start-row (loop [row queried-row]
                           (cond (not (pos? row)) 0
                                 (string/blank? (get lines row)) (recur (dec row))
                                 (pos? (parse-indent-level indent-level-pattern (get lines row))) (recur (dec row))
-                                :else row))
-        start-line (get lines start-row)]
-    (loop [row (inc start-row)
-           prev-line-begin? (begins-indentation? grammar start-line)
-           prev-line-indent-level (parse-indent-level indent-level-pattern start-line)]
+                                :else row))]
+    (loop [row start-row
+           stack []]
       (if (< queried-row row)
-        prev-line-indent-level
-        (let [line (lines row)
-              line-begin? (begins-indentation? grammar line)
-              line-end? (ends-indentation? grammar line)
-              line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
-          (recur (inc row)
-                 line-begin?
-                 line-indent-level))))))
+        stack
+        (let [[next-stack] (indent-step stack (line-indent-counts grammar (get lines row)))]
+          (recur (inc row) next-stack))))))
 
 (defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
-  (let [fixed-rows (volatile! #{})]
-    (splice-indentation lines cursor-ranges regions
-                        (into []
-                              (mapcat (fn [^CursorRange cursor-range]
-                                        (let [start (cursor-range-start cursor-range)
-                                              end (cursor-range-end cursor-range)
-                                              start-row (.row start)
-                                              end-row (inc (.row end))
-                                              prev-row (dec start-row)]
-                                          (loop [row start-row
-                                                 prev-line-indent-level (find-indent-level indent-level-pattern grammar lines prev-row)
-                                                 prev-line-begin? (begins-indentation? grammar (get lines prev-row))
-                                                 splices (transient [])]
-                                            (if (<= end-row row)
-                                              (persistent! splices)
-                                              (let [next-row (inc row)
-                                                    line (lines row)
-                                                    line-begin? (begins-indentation? grammar line)
-                                                    line-end? (ends-indentation? grammar line)
-                                                    line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
-                                                (if (contains? @fixed-rows row)
-                                                  (recur next-row line-indent-level line-begin? splices)
-                                                  (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
-                                                        typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
-                                                        line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
-                                                        indented-line (cond
-                                                                        ;; Insert typed whitespace (except newlines) without adjusting indentation.
-                                                                        (and typed? (whitespace-character-at-index? line (.col start)))
-                                                                        line
+  (let [fixed-rows (volatile! #{})
+        mapcat-fn
+        (fn [^CursorRange cursor-range]
+          (let [start (cursor-range-start cursor-range)
+                end (cursor-range-end cursor-range)
+                start-row (.row start)
+                end-row (inc (.row end))
+                prev-row (dec start-row)]
+            (loop [row start-row
+                   stack (find-indent-stack indent-level-pattern grammar lines prev-row)
+                   splices (transient [])]
+              (if (<= end-row row)
+                (persistent! splices)
+                (let [next-row (inc row)
+                      line (lines row)
+                      [next-stack line-indent-level] (indent-step stack (line-indent-counts grammar line))]
+                  (if (contains? @fixed-rows row)
+                    (recur next-row next-stack splices)
+                    (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
+                          typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
+                          line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
+                          indented-line
+                          (cond
+                            ;; Insert typed whitespace (except newlines) without adjusting indentation.
+                            (and typed? (whitespace-character-at-index? line (.col start)))
+                            line
 
-                                                                        ;; Typing can only decrease indentation (i.e. typing the final character of "end"), never increase it.
-                                                                        (and typed? (not (and (ends-indentation? grammar line)
-                                                                                              (not (ends-indentation? grammar (str (subs line 0 (.col start))
-                                                                                                                                   (subs line (.col end))))))))
-                                                                        line
+                            ;; Typing can only decrease indentation (i.e. typing the final character of "end"), never increase it.
+                            (and typed? (not (and (ends-indentation? grammar line)
+                                                  (not (ends-indentation? grammar (str (subs line 0 (.col start))
+                                                                                       (subs line (.col end))))))))
+                            line
 
-                                                                        ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
-                                                                        (= end-row next-row)
-                                                                        (let [unindented-line (str (string/triml (subs line 0 (.col end))) (subs line (.col end)))]
-                                                                          (indent-line unindented-line indent-string line-indent-level))
+                            ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
+                            (= end-row next-row)
+                            (let [unindented-line (str (string/triml (subs line 0 (.col end))) (subs line (.col end)))]
+                              (indent-line unindented-line indent-string line-indent-level))
 
-                                                                        ;; On in-between lines, we only want to keep whitespace that comes before code.
-                                                                        :else
-                                                                        (let [unindented-line (string/triml line)]
-                                                                          (if (seq unindented-line)
-                                                                            (indent-line unindented-line indent-string line-indent-level)
-                                                                            "")))
-                                                        splices (if (= line indented-line)
-                                                                  splices
-                                                                  (conj! splices [line-cursor-range [indented-line]]))]
-                                                    (vswap! fixed-rows conj row)
-                                                    (recur next-row line-indent-level line-begin? splices)))))))))
-                              affected-cursor-ranges))))
+                            ;; On in-between lines, we only want to keep whitespace that comes before code.
+                            :else
+                            (let [unindented-line (string/triml line)]
+                              (if (seq unindented-line)
+                                (indent-line unindented-line indent-string line-indent-level)
+                                "")))
+                          splices (if (= line indented-line)
+                                    splices
+                                    (conj! splices [line-cursor-range [indented-line]]))]
+                      (vswap! fixed-rows conj row)
+                      (recur next-row next-stack splices))))))))]
+    (splice-indentation lines cursor-ranges regions (into [] (mapcat mapcat-fn) affected-cursor-ranges))))
 
 (defn- transform-indentation [rows lines cursor-ranges regions line-fn]
   (splice-indentation lines cursor-ranges regions

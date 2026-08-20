@@ -154,7 +154,7 @@
                            (contains? #{\} \) \]} ch) (conj :close))]
               (recur (inc i) in-quote false tokens))))))))
 
-(defn lua-indent-deltas [^String line]
+(defn lua-indent-counts [^String line]
   (let [leftover (reduce (fn [stack t]
                            (if (and (= t :close) (= (peek stack) :open))
                              (pop stack)
@@ -166,25 +166,56 @@
      :opens (- (count leftover) closes)
      :leading (if (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line) closes 0)}))
 
-;; (lua-indent-deltas "local x = 1")                       ;; 0 0 0
-;; (lua-indent-deltas "local p = vmath.vector3(1,2,3)")    ;; 0 0 0
-;; (lua-indent-deltas "foo(")                              ;; leading 0 closes 0 opens 1
-;; (lua-indent-deltas "function foo()")                    ;; 0 0 1
-;; (lua-indent-deltas "function foo(a,")                   ;; 0 0 2
-;; (lua-indent-deltas "    1, 2)")                         ;; 0 1 0
-;; (lua-indent-deltas ")")                                 ;; 1 1 0
-;; (lua-indent-deltas "end")                               ;; 1 1 0
-;; (lua-indent-deltas "    end)")                          ;; 2 2 0
-;; (lua-indent-deltas "        2, 3))")                    ;; 0 2 0
-;; (lua-indent-deltas "    b) then")                       ;; 0 1 1
-;; (lua-indent-deltas "else")                              ;; 1 1 1
-;; (lua-indent-deltas "elseif x then")                     ;; 1 1 1
-;; (lua-indent-deltas "until done(i)")                     ;; 1 1 0
-;; (lua-indent-deltas "}) do")                             ;; 2 2 1
-;; (lua-indent-deltas "print(pos) -- (")                   ;; 0 0 0
-;; (lua-indent-deltas "local text = \"(\"")                ;; 0 0 0
-;; (lua-indent-deltas "foo(bar(")                          ;; 0 0 2
-;; (lua-indent-deltas "))")                                ;; 2 2 0
+(lua-indent-counts "local x = 1")        ;; 0 0 0
+(lua-indent-counts "foo(")               ;; leading 0 closes 0 opens 1
+(lua-indent-counts "function foo()")     ;; 0 0 1
+(lua-indent-counts "function foo(a,")    ;; 0 0 2
+(lua-indent-counts "    1, 2)")          ;; 0 1 0
+(lua-indent-counts ")")                  ;; 1 1 0
+(lua-indent-counts "end")                ;; 1 1 0
+(lua-indent-counts "    end)")           ;; 2 2 0
+(lua-indent-counts "        2, 3))")     ;; 0 2 0
+(lua-indent-counts "    b) then")        ;; 0 1 1
+(lua-indent-counts "else")               ;; 1 1 1
+(lua-indent-counts "elseif x then")      ;; 1 1 1
+(lua-indent-counts "until done(i)")      ;; 1 1 0
+(lua-indent-counts "}) do")              ;; 2 2 1
+(lua-indent-counts "print(pos) -- (")    ;; 0 0 0
+(lua-indent-counts "local text = \"(\"") ;; 0 0 0
+(lua-indent-counts "foo(bar(")           ;; 0 0 2
+(lua-indent-counts "))")                 ;; 2 2 0
+
+(lua-indent-counts "function a()")
+(lua-indent-counts "    function b()")
+(lua-indent-counts "        function c()")
+(lua-indent-counts "            x()")
+(lua-indent-counts "        end")
+(lua-indent-counts "    end")
+(lua-indent-counts "end")
+
+(lua-indent-counts "function case_05_call_closed_later()")       ;; => {:closes 0, :opens 1, :leading 0}
+(lua-indent-counts "    local pos = vmath.vector3(\"testing\",") ;; => {:closes 0, :opens 1, :leading 0}
+(lua-indent-counts "        1,")                                 ;; => {:closes 0, :opens 0, :leading 0}
+(lua-indent-counts "        2, 3)")                              ;; => {:closes 1, :opens 0, :leading 0}
+(lua-indent-counts "    print(pos)")                             ;; => {:closes 0, :opens 0, :leading 0}
+(lua-indent-counts "end")                                        ;; => {:closes 1, :opens 0, :leading 1}
+
+(lua-indent-counts "function case_05_call_closed_later()")       ;; => {:closes 0, :opens 1, :leading 0}
+(lua-indent-counts "    local pos = vmath.vector3(\"testing\",") ;; => {:closes 0, :opens 1, :leading 0}
+(lua-indent-counts "        1,")                                 ;; => {:closes 0, :opens 0, :leading 0}
+(lua-indent-counts "        2,")                                 ;; => {:closes 0, :opens 0, :leading 0}
+(lua-indent-counts "        3")                                  ;; => {:closes 0, :opens 0, :leading 0}
+(lua-indent-counts "        )")                                  ;; => {:closes 1, :opens 0, :leading 1}
+(lua-indent-counts "    print(pos)")                             ;; => {:closes 0, :opens 0, :leading 0}
+(lua-indent-counts "end")                                        ;; => {:closes 1, :opens 0, :leading 1}
+
+;; function a()            -- level 0, push → [0]
+;;     function b()        -- level 1, push → [0 1]
+;;         function c()    -- level 2, push → [0 1 2]
+;;             x()         -- level 3, no change
+;;         end             -- pop → [0 1], lands at 2
+;;     end                 -- pop → [0], lands at 1
+;; end
 
 (def lua-grammar
   {:name "Lua"
@@ -194,7 +225,7 @@
    ;; Wrapped so the var is resolved per call, letting REPL redefs of
    ;; lua-opens-block? take effect without rebuilding this map.
    :indent {:begin #(lua-opens-block? %)
-            :deltas #(lua-indent-deltas %)
+            :counts #(lua-indent-counts %)
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
    :auto-insert {:characters {\" \"
