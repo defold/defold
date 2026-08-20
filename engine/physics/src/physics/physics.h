@@ -347,6 +347,8 @@ namespace dmPhysics
      */
     void DeleteWorld2D(HContext2D context, HWorld2D world);
 
+    void* GetWorldContext3D(HWorld3D world);
+    void* GetCollisionObjectContext3D(HCollisionObject3D collision_object);
     void* GetWorldContext2D(HWorld2D world);
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object);
 
@@ -1428,6 +1430,11 @@ namespace dmPhysics
     bool IsWorldLocked(HWorld2D world);
 
     void              ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
+    // On success, ownership of the unattached new_shape is transferred to object.
+    // Passing a shape that is attached to another collision object is invalid.
+    bool              ReplaceCollisionShapeAtIndex3D(HCollisionObject3D object, uint32_t index, HCollisionShape3D new_shape);
+    bool              MakeCollisionShapeOwned3D(HCollisionObject3D object, uint32_t index, HCollisionShape3D* out_shape);
+    void              RefreshCollisionShape3D(HWorld3D world, HCollisionObject3D object);
     HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);
     void              GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
     void              GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);

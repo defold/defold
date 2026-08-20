@@ -6,6 +6,9 @@ on:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
 
+  pull_request:
+    types: [opened]
+
   repository_dispatch: {}
 
 env:
@@ -20,7 +23,7 @@ env:
   GCLOUD_EDITOR_SERVICE_KEY: ${{ secrets.GCLOUD_EDITOR_SERVICE_KEY }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
-  BUILD_BRANCH: ${{ github.event.client_payload.branch }}
+  BUILD_BRANCH: ${{ github.event.client_payload.branch || github.head_ref }}
   SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
@@ -38,7 +41,7 @@ jobs:
         platform: [win32, x86_64-win32]
 
     runs-on: windows-2025-vs2026
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -91,7 +94,7 @@ jobs:
           - platform: x86_64-ios
             skip_tests: true
     runs-on: macos-26
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -136,7 +139,7 @@ jobs:
       matrix:
         platform: [wasm-web, wasm_pthread-web]
     runs-on: ubuntu-22.04
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 45
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -174,7 +177,7 @@ jobs:
           # Without skip_tests the unit tests run on a hardware accelerated emulator, see below
           - platform: x86_64-android
     runs-on: ubuntu-latest
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 60
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -240,7 +243,7 @@ jobs:
       matrix:
         platform: [x86_64-linux]
     runs-on: ubuntu-22.04
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -283,7 +286,7 @@ jobs:
       matrix:
         platform: [arm64-linux]
     runs-on: ubuntu-22.04-arm
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -310,12 +313,13 @@ jobs:
       matrix:
         platform: [arm64-nx64]
     runs-on: windows-2025-vs2026
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 60
     steps: [
       { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
       { name: 'Check platform support', id: platform, shell: bash, run: 'echo "should_build=$(python ci-check/ci/ci.py --platform=${{ matrix.platform }} should-build-platform)" >> "$GITHUB_OUTPUT"' },
-      { name: 'Checkout', if: &should_build_switch steps.platform.outputs.should_build == 'true', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
+      { name: 'Check private platform changes', id: private_changes, if: steps.platform.outputs.should_build == 'true', shell: bash, env: { GH_TOKEN: '${{ github.token }}' }, run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"' },
+      { name: 'Checkout', if: &should_build_switch steps.platform.outputs.should_build == 'true' && steps.private_changes.outputs.should_build == 'true', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', if: *should_build_switch, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_build_switch, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', if: *should_build_switch, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
@@ -341,12 +345,13 @@ jobs:
       matrix:
         platform: [x86_64-ps4, x86_64-ps5]
     runs-on: windows-2025-vs2026
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 60
     steps: [
       { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
       { name: 'Check platform support', id: platform, shell: bash, run: 'echo "should_build=$(python ci-check/ci/ci.py --platform=${{ matrix.platform }} should-build-platform)" >> "$GITHUB_OUTPUT"' },
-      { name: 'Checkout', if: &should_build_ps steps.platform.outputs.should_build == 'true', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
+      { name: 'Check private platform changes', id: private_changes, if: steps.platform.outputs.should_build == 'true', shell: bash, env: { GH_TOKEN: '${{ github.token }}' }, run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"' },
+      { name: 'Checkout', if: &should_build_ps steps.platform.outputs.should_build == 'true' && steps.private_changes.outputs.should_build == 'true', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', if: *should_build_ps, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_build_ps, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', if: *should_build_ps, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
@@ -370,9 +375,17 @@ jobs:
 
   bld-eng-xbox:
     runs-on: ubuntu-latest
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     steps:
+      - { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } } # v6.0.2
+      - name: 'Check private platform changes'
+        id: private_changes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"'
       - name: 'Dispatch private Xbox build'
+        if: steps.private_changes.outputs.should_build == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
@@ -400,7 +413,7 @@ jobs:
             --ref "${{ vars.XBOX_PRIVATE_REF || 'dev' }}" \
             -f public_repo="${{ github.repository }}" \
             -f public_branch="$public_branch" \
-            -f public_sha="${{ github.event.client_payload.sha || github.sha }}" \
+            -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
             -f source_run_id="${{ github.run_id }}" \
             -f source_run_attempt="${{ github.run_attempt }}" \
             -f request_id="$request_id" \
@@ -515,6 +528,7 @@ jobs:
 
   gen-release-notes:
     runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request'
     timeout-minutes: 30
     steps: [
       {

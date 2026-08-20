@@ -845,7 +845,8 @@ LUA_TYPES = [
     "string", "number", "integer", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
-    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2Transform", "b2MassData", "bufferstream",
+    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData",
+    "btDiscreteDynamicsWorld", "btCollisionObject", "btRigidBody", "btCollisionShape", "btTypedConstraint", "bufferstream",
     "resource_data", "buffer_data", "buffer_stream", "constant_buffer", "render_target", "render_predicate",
     "socket_client", "socket_master", "socket_unconnected" ]
 CPP_TYPES = [
@@ -999,7 +1000,7 @@ def message_to_dict(message):
     ret = {}
     for field in message.DESCRIPTOR.fields:
         value = getattr(message, field.name)
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if field.is_repeated:
             lst = []
             for element in value:
                 if isinstance(element, Message):
@@ -1158,8 +1159,7 @@ def write_lua_annotation(msg, output_file):
             for parameter in element["parameters"]:
                 parameter["types_string"] = "|".join([t for t in parameter["types"]])
                 parameter["doc"] = fixdoc(parameter["doc"])
-                if parameter["is_optional"] != True:
-                    parameter["is_optional"] = None
+                parameter["is_optional"] = parameter["is_optional"] in (True, "True")
             for rv in element["returnvalues"]:
                 rv["types_string"] = "|".join([t for t in rv["types"]])
                 rv["doc"] = fixdoc(rv["doc"])

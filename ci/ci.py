@@ -20,7 +20,7 @@ import os
 import base64
 import re
 from argparse import ArgumentParser
-from ci_helper import is_platform_supported, is_platform_private, is_repo_private
+from ci_helper import is_platform_supported, is_platform_private, is_repo_private, should_build_private_platform
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
@@ -550,7 +550,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -583,6 +583,12 @@ def main(argv):
 
     if args.commands == ["should-build-platform"]:
         print("true" if platform and is_platform_supported(platform) else "false")
+        return
+
+    if args.commands == ["should-build-private-platform"]:
+        branch = get_branch()
+        repository = os.environ.get('GITHUB_REPOSITORY', '')
+        print("true" if should_build_private_platform(branch, repository) else "false")
         return
 
     if platform and not is_platform_supported(platform):
