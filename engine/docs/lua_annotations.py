@@ -995,7 +995,9 @@ def _render_documented_class(
             reference_namespaces.get(source_path),
             element)))
     for member in element.members:
-        if not re.match(r"^[A-Za-z_]\w*\??$", member.name):
+        if not re.match(
+                r"^(?:[A-Za-z_]\w*\??|\[(?:string|integer)\])$",
+                member.name):
             raise ValueError(
                 "Class %s has invalid member name '%s'"
                 % (class_name, member.name))
