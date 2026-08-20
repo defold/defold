@@ -735,7 +735,7 @@ public class AndroidBundler implements IBundler {
     * Copy debug symbols
     */
     static void copyR8Mapping(File extenderExeDir, Platform architecture, File symbolsDir) throws IOException {
-        File r8Mapping = new File(new File(extenderExeDir, architecture.getExtenderPair()), "mapping.txt");
+        File r8Mapping = Path.of(extenderExeDir.getPath(), architecture.getExtenderPair(), "mapping.txt").toFile();
         if (r8Mapping.exists()) {
             File symbolMapping = new File(symbolsDir, r8Mapping.getName());
             FileUtils.copyFile(r8Mapping, symbolMapping);
