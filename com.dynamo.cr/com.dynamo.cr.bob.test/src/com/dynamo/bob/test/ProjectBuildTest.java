@@ -566,14 +566,18 @@ public class ProjectBuildTest {
         createFile(contentRoot, "game.project", "[project]\ncustom_resources = /project_resource.txt\n");
         createFile(contentRoot, "project_resource.txt", "project");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/ext.properties", "[project]\ncustom_resources.default = /extension_resource.txt\n");
-        createFile(contentRoot, "extension_resource.txt", "extension");
+        createFile(contentRoot, "extension1/ext.properties", "[project]\ncustom_resources.default = /extension1_resource.txt\n");
+        createFile(contentRoot, "extension1_resource.txt", "extension1");
+        createFile(contentRoot, "extension2/ext.manifest", "name: Extension2\n");
+        createFile(contentRoot, "extension2/ext.properties", "[project]\ncustom_resources.default = /extension2_resource.txt\n");
+        createFile(contentRoot, "extension2_resource.txt", "extension2");
 
         buildArchive(false);
 
         Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
         assertTrue(hasResource(bundledManifestData, "/project_resource.txt"));
-        assertTrue(hasResource(bundledManifestData, "/extension_resource.txt"));
+        assertTrue(hasResource(bundledManifestData, "/extension1_resource.txt"));
+        assertTrue(hasResource(bundledManifestData, "/extension2_resource.txt"));
     }
 
     @Test

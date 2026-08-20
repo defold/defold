@@ -73,6 +73,7 @@ public class BobProjectProperties {
     private class ProjectProperty {
         private String value;
         private String defaultValue;
+        private final List<String> defaultValues = new ArrayList<String>();
         PropertyType type;
         private Boolean isPrivate;
 
@@ -98,6 +99,7 @@ public class BobProjectProperties {
                     break;
                 case "default":
                     this.defaultValue = value;
+                    this.defaultValues.add(value);
                     break;
                 case "help":
                     // no need in bob
@@ -148,6 +150,7 @@ public class BobProjectProperties {
         }
 
         public void overrideBy(ProjectProperty prop) {
+            this.defaultValues.addAll(prop.defaultValues);
             try {
                 Field[] fields = ProjectProperty.class.getDeclaredFields();
                 for(Field f : fields) {
@@ -345,7 +348,7 @@ public class BobProjectProperties {
     }
 
     /**
-     * Get property as an array of strings, merging both the property's default value and explicit value.
+     * Get property as an array of strings, merging all contributed default values and the explicit value.
      * This is intended for comma-separated string settings that may be contributed by meta property files
      * and extended by the project's game.project.
      * @param category property category
@@ -360,7 +363,9 @@ public class BobProjectProperties {
         }
 
         LinkedHashSet<String> values = new LinkedHashSet<String>();
-        addStringArrayValues(values, val.defaultValue);
+        for (String contributedDefaultValue : val.defaultValues) {
+            addStringArrayValues(values, contributedDefaultValue);
+        }
         addStringArrayValues(values, val.value);
 
         if (values.isEmpty()) {

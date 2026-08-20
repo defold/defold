@@ -27,6 +27,8 @@ import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
 
 import org.junit.After;
@@ -122,16 +124,18 @@ public class BobProjectPropertiesTest {
     public void testMergedStringArrayValueIncludesExtensionDefaults() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_resources = /project_resource");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension_resource");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension1_resource");
+        createFile(contentRoot, "extension2/ext.manifest", "name: Extension2\n");
+        createFile(contentRoot, "extension2/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension2_resource");
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile(true);
-        BobProjectProperties properties = project.getProjectProperties();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.loadProjectFile(true);
+            BobProjectProperties properties = project.getProjectProperties();
 
-        String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
-        assertEquals(2, customResources.length);
-        assertEquals("/extension_resource", customResources[0]);
-        assertEquals("/project_resource", customResources[1]);
+            String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
+            assertEquals(new HashSet<>(Arrays.asList("/extension1_resource", "/extension2_resource", "/project_resource")),
+                         new HashSet<>(Arrays.asList(customResources)));
+        }
     }
 
     private String createFile(String root, String name, String content) throws IOException {
