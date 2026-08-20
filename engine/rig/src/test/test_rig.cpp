@@ -143,14 +143,6 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
                 delete[] mesh.m_BoneIndices.m_Data;
                 delete[] mesh.m_Weights.m_Data;
 
-                for (uint32_t ti = 0; ti < mesh.m_MorphTargets.m_Count; ++ti)
-                {
-                    dmRigDDF::MorphTarget& mt = mesh.m_MorphTargets.m_Data[ti];
-                    delete[] mt.m_PositionsDelta.m_Data;
-                    delete[] mt.m_NormalsDelta.m_Data;
-                    delete[] mt.m_TangentsDelta.m_Data;
-                }
-                delete[] mesh.m_MorphTargets.m_Data;
                 delete[] mesh.m_MorphBaseWeights.m_Data;
             }
 
@@ -306,8 +298,7 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Weights.m_Data[14]     = 0.0f;
     mesh.m_Weights.m_Data[15]     = 0.0f;
 
-    mesh.m_MorphTargets.m_Count = 0;
-    mesh.m_MorphTargets.m_Data = 0x0;
+    mesh.m_MorphTargetCount = 0;
     mesh.m_MorphBaseWeights.m_Count = 0;
     mesh.m_MorphBaseWeights.m_Data = 0x0;
 }
@@ -1405,6 +1396,9 @@ TEST_F(RigInstanceTest, PoseAnim)
 
 TEST_F(RigInstanceTest, PoseAnimOnceHoldsLastFrame)
 {
+    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, dmRig::AcquirePoseMatrixCacheEntry(m_Context, m_Instance));
+    ASSERT_FALSE(dmRig::HasPoseMatrixCacheAnimatedPose(m_Instance));
+
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f));
 
@@ -1422,6 +1416,7 @@ TEST_F(RigInstanceTest, PoseAnimOnceHoldsLastFrame)
     ASSERT_EQ(Quat::identity(), pose[0].m_World.GetRotation());
     ASSERT_EQ(Vector3(1.0f, 0.0f, 0.0f), pose[1].m_World.GetTranslation());
     ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[1].m_World.GetRotation());
+    ASSERT_TRUE(dmRig::HasPoseMatrixCacheAnimatedPose(m_Instance));
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
@@ -1430,6 +1425,7 @@ TEST_F(RigInstanceTest, PoseAnimOnceHoldsLastFrame)
     ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[0].m_World.GetRotation());
     ASSERT_EQ(Vector3(0.0f, 1.0f, 0.0f), pose[1].m_World.GetTranslation());
     ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[1].m_World.GetRotation());
+    ASSERT_TRUE(dmRig::HasPoseMatrixCacheAnimatedPose(m_Instance));
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
@@ -1438,6 +1434,8 @@ TEST_F(RigInstanceTest, PoseAnimOnceHoldsLastFrame)
     ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[0].m_World.GetRotation());
     ASSERT_EQ(Vector3(0.0f, 1.0f, 0.0f), pose[1].m_World.GetTranslation());
     ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[1].m_World.GetRotation());
+    ASSERT_FALSE(dmRig::IsAnimating(m_Instance));
+    ASSERT_TRUE(dmRig::HasPoseMatrixCacheAnimatedPose(m_Instance));
 }
 
 TEST_F(RigInstanceTest, PoseAnimCancel)
@@ -1462,6 +1460,20 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
     ASSERT_EQ(Quat::identity(), pose[0].m_World.GetRotation());
     ASSERT_EQ(Quat::identity(), pose[1].m_World.GetRotation());
 
+}
+
+TEST_F(RigInstanceTest, PoseMatrixCacheAnimatedPoseClearedOnCancel)
+{
+    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, dmRig::AcquirePoseMatrixCacheEntry(m_Context, m_Instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_TRUE(dmRig::HasPoseMatrixCacheAnimatedPose(m_Instance));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance));
+    ASSERT_FALSE(dmRig::HasPoseMatrixCacheAnimatedPose(m_Instance));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_FALSE(dmRig::HasPoseMatrixCacheAnimatedPose(m_Instance));
 }
 
 // Test that blend between two rotation animations that their midway
@@ -2020,12 +2032,7 @@ static dmRigDDF::MeshSet* NewMorphMeshSet(uint64_t model_id, uint32_t morph_coun
 
     mesh.m_AabbMin = Vector3(-1.0f, -1.0f, -1.0f);
     mesh.m_AabbMax = Vector3(1.0f, 1.0f, 1.0f);
-    mesh.m_MorphTargets.m_Count = morph_count;
-    mesh.m_MorphTargets.m_Data = new dmRigDDF::MorphTarget[morph_count];
-    for (uint32_t i = 0; i < morph_count; ++i)
-    {
-        memset(&mesh.m_MorphTargets.m_Data[i], 0, sizeof(dmRigDDF::MorphTarget));
-    }
+    mesh.m_MorphTargetCount = morph_count;
     mesh.m_MorphBaseWeights.m_Count = morph_count;
     mesh.m_MorphBaseWeights.m_Data = new float[morph_count];
     memset(mesh.m_MorphBaseWeights.m_Data, 0, morph_count * sizeof(float));

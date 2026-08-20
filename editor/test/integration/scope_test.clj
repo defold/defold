@@ -29,7 +29,7 @@
 (deftest project-disposes-nodes
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
-          proj-graph-id (g/make-graph! :history true :volatility 1)
+          proj-graph-id (g/make-graph! :volatility 1)
           extensions (extensions/make proj-graph-id)
           project-id (project/make-project proj-graph-id workspace extensions)]
       (project/load-project! project-id)

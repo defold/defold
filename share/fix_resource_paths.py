@@ -92,7 +92,7 @@ def process_file(file_name):
 
 ProtofileType('.collection', 'gameobject_ddf_pb2', 'CollectionDesc')
 ProtofileType('.go', 'gameobject_ddf_pb2', 'PrototypeDesc')
-ProtofileType('.collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc')
+ProtofileType('.collectionproxy', 'collectionproxy_ddf_pb2', 'CollectionProxyDesc')
 ProtofileType('.emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter')
 ProtofileType('.model', 'model_ddf_pb2', 'ModelDesc')
 ProtofileType('.convexshape',  'physics_ddf_pb2', 'ConvexShape')

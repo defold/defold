@@ -18,6 +18,7 @@ title = TMP
 
 [input]
 gamepads = /input/default.gamepadsc
+gamepad_database =
 
 [graphics]
 texture_profiles = /main/default.texture_profiles

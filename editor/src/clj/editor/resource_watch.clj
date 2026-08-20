@@ -173,8 +173,7 @@
     empty-snapshot
     snapshots))
 
-(defn- make-debugger-snapshot
-  [workspace]
+(defn- make-debugger-snapshot [workspace]
   (let [base-path (if (system/defold-dev?)
                     ;; Use local debugger support files so we can see
                     ;; changes to them instantly without re-packing/restarting.

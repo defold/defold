@@ -133,6 +133,7 @@ namespace dmRig
         {
             RigPlayer* player = GetPlayer(instance);
             player->m_Playing = 0;
+            instance->m_HasPoseMatrixCacheAnimatedPose = 0;
             return dmRig::RESULT_ANIM_NOT_FOUND;
         }
 
@@ -153,6 +154,7 @@ namespace dmRig
         player->m_Animation = anim;
         player->m_Playing = 1;
         player->m_Playback = playback;
+        instance->m_HasPoseMatrixCacheAnimatedPose = 0;
 
         if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD) {
             player->m_Backwards = 1;
@@ -170,6 +172,7 @@ namespace dmRig
     {
         RigPlayer* player = GetPlayer(instance);
         player->m_Playing = 0;
+        instance->m_HasPoseMatrixCacheAnimatedPose = 0;
 
         return dmRig::RESULT_OK;
     }
@@ -446,7 +449,8 @@ namespace dmRig
         uint32_t mcount = 0;
         for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
         {
-            mcount = dmMath::Max(mcount, model->m_Meshes[m].m_MorphTargets.m_Count);
+            const dmRigDDF::Mesh* mesh = &model->m_Meshes[m];
+            mcount = dmMath::Max(mcount, mesh->m_MorphTargetCount);
         }
         return mcount;
     }
@@ -682,7 +686,7 @@ namespace dmRig
         }
     }
 
-    static void UpdatePoseTransforms(dmArray<BonePose>& pose)
+    static void UpdatePoseTransforms(const dmRigDDF::Skeleton* skeleton, dmArray<BonePose>& pose)
     {
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -690,9 +694,19 @@ namespace dmRig
             BonePose& bp = pose[bi];
 
             if (bp.m_ParentIndex != INVALID_BONE_INDEX)
+            {
                 bp.m_World = dmTransform::Mul(pose[bp.m_ParentIndex].m_World, bp.m_Local);
+            }
             else
-                bp.m_World = bp.m_Local;
+            {
+                // Apply the skeleton bone transform when the there is no parent.
+                const dmRigDDF::Bone* sk_bone = &skeleton->m_Bones[bi];
+                // Separate the anscestor (everything "above" this joint hierarchy-wise) from the local transform of this joint.
+                const Matrix4 world_bind = dmTransform::ToMatrix4(sk_bone->m_World);
+                const Matrix4 local_bind = dmTransform::ToMatrix4(sk_bone->m_Local);
+                const Matrix4 ancestor = world_bind * dmVMath::Inverse(local_bind);
+                bp.m_World = dmTransform::ToTransform(ancestor * dmTransform::ToMatrix4(bp.m_Local));
+            }
         }
     }
 
@@ -737,6 +751,11 @@ namespace dmRig
         return player->m_Playing && player->m_Animation && instance->m_Enabled;
     }
 
+    bool HasPoseMatrixCacheAnimatedPose(HRigInstance instance)
+    {
+        return instance && instance->m_HasPoseMatrixCacheAnimatedPose;
+    }
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
@@ -750,11 +769,11 @@ namespace dmRig
             // Skinned meshes sample the pose matrix cache every frame. If we skip the cache write while
             // idle, the vertex shader falls back to non-skinned positions which can cause a disparity
             // between authoring tools and animated result. Instead, we write the non-animated
-            // skeleton bind pose whenever this instance owns cache space.
+            // current non-playing pose whenever this instance owns cache space.
             if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
             {
                 dmArray<BonePose>& pose = instance->m_Pose;
-                UpdatePoseTransforms(pose);
+                UpdatePoseTransforms(instance->m_Skeleton, pose);
                 CommitPoseMatrixToCache(context, instance);
             }
             return;
@@ -828,9 +847,10 @@ namespace dmRig
             }
         }
 
-        UpdatePoseTransforms(pose);
+        UpdatePoseTransforms(skeleton, pose);
 
         CommitPoseMatrixToCache(context, instance);
+        instance->m_HasPoseMatrixCacheAnimatedPose = instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY;
     }
 
     static Result PostUpdate(HRigContext context)
@@ -1233,6 +1253,8 @@ namespace dmRig
         const float** tangents,
         const float** colors,
         const float** texture_transform_2d,
+        const float** morph_target_weights,
+        dmGraphics::VertexAttribute::VectorType morph_target_weights_vector_type,
         const float** uv_channels,
         uint32_t uv_channels_count)
     {
@@ -1244,6 +1266,7 @@ namespace dmRig
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_NormalMatrix, normal_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_TextureTransform2D, texture_transform_2d, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_MorphTargetWeights, morph_target_weights, morph_target_weights_vector_type, 1, true);
 
         // Per-vertex channels
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsWorldSpace, positions_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
@@ -1300,6 +1323,8 @@ namespace dmRig
             tangents_channels,
             colors_channels,
             texture_transform_2d_channels,
+            0,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,
             uv_channels,
             uv_channels_count);
 
@@ -1397,6 +1422,7 @@ namespace dmRig
         for (uint32_t i = 0; i < n; ++i)
         {
             instances[i]->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
+            instances[i]->m_HasPoseMatrixCacheAnimatedPose = 0;
         }
     }
 

@@ -15,6 +15,7 @@
 #include "sslsocket.h"
 #include "log.h"
 #include "math.h"
+#include "socket_private.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -131,13 +132,8 @@ static int RecvTimeout(void* _ctx, unsigned char* buf, size_t len, uint32_t time
 
     if (ret < 0)
     {
-#if ( defined(_WIN32) || defined(_WIN32_WCE) ) && !defined(EFIX64) && !defined(EFI32)
-        if (WSAGetLastError() == WSAEINTR)
+        if (DM_SOCKET_ERRNO() == DM_SOCKET_EINTR())
             return MBEDTLS_ERR_SSL_WANT_READ;
-#else
-        if (errno == EINTR)
-            return MBEDTLS_ERR_SSL_WANT_READ;
-#endif
         return MBEDTLS_ERR_NET_RECV_FAILED;
     }
 
@@ -305,18 +301,10 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
     mbedtls_ssl_config_init(c->m_MbedConf);
 
 #if defined(MBEDTLS_DEBUG_C)
-    mbedtls_debug_set_threshold(MBED_DEBUG_LEVEL);
     mbedtls_ssl_conf_dbg(c->m_MbedConf, mbedtls_debug, 0);
 #endif
 
     int ret = 0;
-    Result result = InitializePSA();
-    if (result != RESULT_OK)
-    {
-        Delete(c);
-        return result;
-    }
-
     if ((ret = mbedtls_ssl_config_defaults(c->m_MbedConf,
                                            MBEDTLS_SSL_IS_CLIENT,
                                            MBEDTLS_SSL_TRANSPORT_STREAM,
@@ -577,6 +565,10 @@ Result Initialize()
         dm_mbedtls_condition_wait
     );
 
+#if defined(MBEDTLS_DEBUG_C)
+    mbedtls_debug_set_threshold(MBED_DEBUG_LEVEL);
+#endif
+
     Result result = InitializePSA();
     if (result != RESULT_OK)
     {
@@ -601,6 +593,10 @@ namespace dmSSLSocket
 
 Result Initialize()
 {
+#if defined(MBEDTLS_DEBUG_C)
+    mbedtls_debug_set_threshold(MBED_DEBUG_LEVEL);
+#endif
+
     return InitializePSA();
 }
 

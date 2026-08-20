@@ -91,16 +91,29 @@
               (test-util/with-prop [shape prop value]
                 (is (g/error? (g/node-value node-id :build-targets)))))))))))
 
+(deftest group-property-read-only-for-tilemap
+  (test-util/with-loaded-project
+    (testing "group is editable when collision-shape is nil"
+      (let [node-id (test-util/resource-node project "/collision_object/new.collisionobject")]
+        (is (not (test-util/prop-read-only? node-id :group)))))
+
+    (testing "group is read-only when collision-shape is a tilemap"
+      (let [node-id (test-util/resource-node project "/collision_object/tile_map_collision_shape.collisionobject")]
+        (is (test-util/prop-read-only? node-id :group))))
+
+    (testing "existing group value is preserved under a tilemap collision-shape"
+      (let [node-id (test-util/resource-node project "/collision_object/tile_map_collision_shape.collisionobject")]
+        (is (= "default" (test-util/prop node-id :group)))))))
+
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          collision-object-path "/collision_object/three_shapes.collisionobject"
+    (let [collision-object-path "/collision_object/three_shapes.collisionobject"
           collision-object (project/get-resource-node project collision-object-path)
           [[sphere-shape] [box-shape] [capsule-shape]] (g/sources-of collision-object :child-scenes)]
 
       (testing "Sphere Shape"
         (doseq [original-diameter [(float 10.0) (double 10.0)]]
-          (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (with-open [_ (test-util/make-system-reverter)]
             (g/set-property! sphere-shape :diameter original-diameter)
             (test-util/manip-scale! sphere-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-diameter (g/node-value sphere-shape :diameter)))))
@@ -112,14 +125,14 @@
                        [(double 10.0) (double 10.0) (double 10.0)]
                        (vector-of :float 10.0 10.0 10.0)
                        (vector-of :double 10.0 10.0 10.0)])]
-          (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (with-open [_ (test-util/make-system-reverter)]
             (g/set-property! box-shape :dimensions original-dimensions)
             (test-util/manip-scale! box-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-dimensions (g/node-value box-shape :dimensions)))))
 
       (testing "Capsule Shape"
         (doseq [original-value [(float 10.0) (double 10.0)]]
-          (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (with-open [_ (test-util/make-system-reverter)]
             (g/set-properties! capsule-shape :diameter original-value :height original-value)
             (test-util/manip-scale! capsule-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :diameter))

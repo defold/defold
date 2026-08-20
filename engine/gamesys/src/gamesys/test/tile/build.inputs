@@ -1,0 +1,6 @@
+/tile/default.texture_profiles
+/tile/flipbook.tilesource
+/tile/invalid_vertexspace.tilegrid
+/tile/valid2.tileset
+/tile/valid_tilegrid.go
+/tile/valid_tilegrid_collisionobject.go

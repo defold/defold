@@ -14,7 +14,7 @@
 
 function init(self)
 
-    local maxnumproxies = tonumber(sys.get_config("collection_proxy.max_count"))
+    local maxnumproxies = sys.get_config_int("collection_proxy.max_count")
     if maxnumproxies > 8 then
         print("This test was designed for max 8 proxy collections. Please adjust accordingly")
         msg.post("@system:", "exit", {code = 1})

@@ -22,9 +22,9 @@
 #include "../dlib/math.h"
 #include "../dlib/thread.h"
 #include "../dlib/dstrings.h"
-#include "../dlib/http_server.h"
-#include "../dlib/http_server_private.h"
-#include "../dlib/http_client.h"
+#include "../dlib/http/http_server.h"
+#include "../dlib/http/http_server_private.h"
+#include "../dlib/http/http_client.h"
 #include "../dlib/hash.h"
 #include "../dlib/network_constants.h"
 

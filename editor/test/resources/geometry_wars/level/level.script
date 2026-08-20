@@ -79,11 +79,11 @@ end
 
 local function send_attractor(i, p, f)
 	local p = p * (1.0)
-	msg.post("#model", "set_constant", { name_hash = hash("attractor" .. i), value = vmath.vector4(p.x, p.y, 1, f)})
+	go.set("#model", "attractor" .. i, vmath.vector4(p.x, p.y, 1, f))
 end
 
 local function clear_attractor(i)
-	msg.post("#model", "set_constant", { name_hash = hash("attractor" .. i), value = vmath.vector4(0, 0, 0, 0)})
+	go.set("#model", "attractor" .. i, vmath.vector4(0, 0, 0, 0))
 end
 
 function update(self, dt)
@@ -133,7 +133,7 @@ function on_message(self, message_id, message, sender)
 		--send_attractor(1, message.position, message.magnitude)
 		--[[
 		local p = message.position
-		msg.post("#model", "set_constant", { name_hash = hash("attractor1"), value = vmath.vector4(p.x, p.y, 0, 1) })
+		go.set("#model", "attractor1", vmath.vector4(p.x, p.y, 0, 1))
 		--]]
 		self.temp = message.position
 	elseif message_id == hash("enemy_dead") then

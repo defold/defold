@@ -62,6 +62,14 @@ function M.get_commands()
                             title = message,
                             tooltip = message,
                             issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        }),
+                        editor.ui.tabs({
+                            tabs = {
+                                editor.ui.tab({
+                                    text = message,
+                                    content = editor.ui.label({ text = message })
+                                })
+                            }
                         })
                     }
                 }),

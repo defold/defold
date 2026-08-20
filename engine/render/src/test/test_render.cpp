@@ -37,7 +37,6 @@
 #include "render/render_private.h"
 #include "render/font/fontmap.h"
 #include "render/font/font_glyphbank.h"
-#include "render/font/font_renderer_api.h"
 #include "render/font/font_renderer_private.h"
 
 #include "render/font_ddf.h"
@@ -129,24 +128,17 @@ static uint32_t QueueTextAndCopyVertices(dmRender::HRenderContext render_context
     dmRender::DrawRenderList(render_context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     uint32_t vertex_count = text_context.m_VertexIndex;
-    uint32_t vertex_stride = dmRender::GetFontVertexSize(text_context.m_FontRenderBackend);
-    uint32_t byte_count = vertex_count * vertex_stride;
+    uint32_t byte_count = vertex_count * sizeof(FontGlyphVertex);
 
     out_vertices.SetCapacity(byte_count);
     out_vertices.SetSize(byte_count);
     if (byte_count > 0)
     {
-        memcpy(out_vertices.Begin(), text_context.m_ClientBuffer, byte_count);
+        memcpy(out_vertices.Begin(), text_context.m_ClientBuffer.Begin(), byte_count);
     }
 
     return vertex_count;
 }
-
-struct TestGlyphVertex
-{
-    float m_Position[4];
-};
-
 
 class dmRenderTest : public jc_test_base_class
 {
@@ -860,7 +852,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     // Turn off all context features (mostly for testing array textutes here)
-    null_context->m_ContextFeatures = 0;
+    null_context->m_BaseContext.m_ContextFeatureSupport = 0;
 
     dmGraphics::HTexture test_texture_0     = MakeDummyTexture(m_GraphicsContext);
     dmGraphics::HTexture test_texture_1     = MakeDummyTexture(m_GraphicsContext);
@@ -1695,7 +1687,6 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::RenderListEnd(m_Context);
 
     dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
-    dmRender::DrawDebug2d(m_Context);
     dmRender::DrawDebug3d(m_Context, 0);
 }
 
@@ -1867,8 +1858,6 @@ TEST_F(dmRenderTest, TextAlignment)
     float tracking;
     int numlines;
 
-    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
-
     float leadings[] = { 1.0f, 2.0f, 0.5f };
     for( size_t i = 0; i < sizeof(leadings)/sizeof(leadings[0]); ++i )
     {
@@ -1882,7 +1871,7 @@ TEST_F(dmRenderTest, TextAlignment)
         settings.m_Tracking     = tracking;
         settings.m_LineBreak    = true;
 
-        dmRender::GetTextMetrics(font_backend, m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
+        dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
         ASSERT_EQ(ascent, metrics.m_MaxAscent);
         ASSERT_EQ(descent, metrics.m_MaxDescent);
         ASSERT_EQ(charwidth*7, metrics.m_Width);
@@ -1907,14 +1896,11 @@ TEST_F(dmRenderTest, TextAlignment)
         ASSERT_EQ( lineheight * leading * (numlines - 1) + descent, offset );
     }
 
-    dmRender::DestroyFontRenderBackend(font_backend);
 }
 
 
 TEST_F(dmRenderTest, GetTextMetrics)
 {
-
-    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
 
     dmRender::TextMetrics metrics = {0};
 
@@ -1930,7 +1916,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = false;
 
-    GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*11, metrics.m_Width);
@@ -1944,7 +1930,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
 
-    GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1956,7 +1942,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
 
-    GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1967,7 +1953,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
 
-    GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1979,20 +1965,17 @@ TEST_F(dmRenderTest, GetTextMetrics)
     settings.m_LineBreak = true;
 
     numlines = 3;
-    GetTextMetrics(font_backend, m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*7, metrics.m_Width);
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
     ASSERT_EQ(numlines, metrics.m_LineCount);
 
-    dmRender::DestroyFontRenderBackend(font_backend);
 }
 
 TEST_F(dmRenderTest, GetPreparedTextMetrics)
 {
-    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
-
     const char* text = "Hello World Bonanza";
     TextLayoutSettings settings = {0};
     settings.m_Width = 16.0f;
@@ -2001,7 +1984,7 @@ TEST_F(dmRenderTest, GetPreparedTextMetrics)
     settings.m_LineBreak = true;
 
     dmRender::TextMetrics raw_metrics = {0};
-    dmRender::GetTextMetrics(font_backend, m_SystemFontMap, text, &settings, &raw_metrics);
+    dmRender::GetTextMetrics(m_SystemFontMap, text, &settings, &raw_metrics);
 
     HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
     ASSERT_NE((HTextLayout)0, layout);
@@ -2015,7 +1998,6 @@ TEST_F(dmRenderTest, GetPreparedTextMetrics)
     ASSERT_EQ(raw_metrics.m_LineCount, prepared_metrics.m_LineCount);
 
     TextLayoutRelease(layout);
-    dmRender::DestroyFontRenderBackend(font_backend);
 }
 
 TEST_F(dmRenderTest, GetTextMetricsWithNullPreparedLayout)
@@ -2032,11 +2014,9 @@ TEST_F(dmRenderTest, GetTextMetricsWithNullPreparedLayout)
 
 TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout)
 {
-    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
-
     const char* text = "Hello World Bonanza";
     const uint32_t max_vertices = 128;
-    const uint32_t vertex_stride = dmRender::GetFontVertexSize(font_backend);
+    const uint32_t     vertex_stride = sizeof(FontGlyphVertex);
 
     TextLayoutSettings settings = {0};
     settings.m_Width = 16.0f;
@@ -2062,7 +2042,7 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
     raw_vertices.SetSize(max_vertices * vertex_stride);
     memset(raw_vertices.Begin(), 0, raw_vertices.Size());
 
-    uint32_t raw_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, raw_vertices.Begin(), max_vertices);
+    uint32_t    raw_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, (FontGlyphVertex*)raw_vertices.Begin(), max_vertices);
 
     HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
     ASSERT_NE((HTextLayout)0, layout);
@@ -2074,22 +2054,19 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
     prepared_vertices.SetSize(max_vertices * vertex_stride);
     memset(prepared_vertices.Begin(), 0, prepared_vertices.Size());
 
-    uint32_t prepared_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, prepared_te, 1.0f, 1.0f, 1.0f, prepared_vertices.Begin(), max_vertices);
+    uint32_t prepared_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, prepared_te, 1.0f, 1.0f, 1.0f, (FontGlyphVertex*)prepared_vertices.Begin(), max_vertices);
 
     ASSERT_EQ(raw_count, prepared_count);
     ASSERT_EQ(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
     TextLayoutRelease(layout);
-    dmRender::DestroyFontRenderBackend(font_backend);
 }
 
 TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
 {
-    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
-
     const char* text = "Hello World";
     const uint32_t max_vertices = 128;
-    const uint32_t vertex_stride = dmRender::GetFontVertexSize(font_backend);
+    const uint32_t      vertex_stride = sizeof(FontGlyphVertex);
 
     dmRender::TextEntry te = {};
     te.m_Transform = Matrix4::identity();
@@ -2109,7 +2086,16 @@ TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
     raw_vertices.SetSize(max_vertices * vertex_stride);
     memset(raw_vertices.Begin(), 0, raw_vertices.Size());
 
-    uint32_t raw_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, raw_vertices.Begin(), max_vertices);
+    uint32_t         raw_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, (FontGlyphVertex*)raw_vertices.Begin(), max_vertices);
+
+    const uint32_t   limited_vertex_count = 6;
+    dmArray<uint8_t> limited_vertices;
+    limited_vertices.SetCapacity(limited_vertex_count * vertex_stride + 1);
+    limited_vertices.SetSize(limited_vertex_count * vertex_stride + 1);
+    memset(limited_vertices.Begin(), 0, limited_vertices.Size());
+    limited_vertices[limited_vertices.Size() - 1] = 0x7f;
+    ASSERT_EQ(limited_vertex_count, dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, (FontGlyphVertex*)limited_vertices.Begin(), limited_vertex_count));
+    ASSERT_EQ(0x7f, limited_vertices[limited_vertices.Size() - 1]);
 
     TextLayoutSettings wrapped_settings = {0};
     wrapped_settings.m_Width = 16.0f;
@@ -2127,13 +2113,12 @@ TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
     prepared_vertices.SetSize(max_vertices * vertex_stride);
     memset(prepared_vertices.Begin(), 0, prepared_vertices.Size());
 
-    uint32_t prepared_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, prepared_te, 1.0f, 1.0f, 1.0f, prepared_vertices.Begin(), max_vertices);
+    uint32_t prepared_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, prepared_te, 1.0f, 1.0f, 1.0f, (FontGlyphVertex*)prepared_vertices.Begin(), max_vertices);
 
     ASSERT_EQ(raw_count, prepared_count);
     ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
     TextLayoutRelease(wrapped_layout);
-    dmRender::DestroyFontRenderBackend(font_backend);
 }
 
 TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
@@ -2278,6 +2263,12 @@ TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+TEST_F(dmRenderTest, FontVertexDeclaration)
+{
+    ASSERT_NE((dmGraphics::HVertexDeclaration)0, m_Context->m_TextContext.m_VertexDecl);
+    ASSERT_EQ(sizeof(FontGlyphVertex), dmGraphics::GetVertexDeclarationStride(m_Context->m_TextContext.m_VertexDecl));
+}
+
 // TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
 // {
 //     dmRender::TextMetrics metricsHello;
@@ -2419,6 +2410,8 @@ TEST_F(dmRenderTest, FontMapSetup)
 
 TEST_F(dmRenderTest, LightBufferTestSimple)
 {
+    ASSERT_EQ(8u, sizeof(dmRender::LightInstance));
+
     // Default params (point light, white, intensity 1, range 10, etc.)
     dmRender::LightPrototypeParams light_params;
     dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(m_Context, light_params);
@@ -2430,7 +2423,7 @@ TEST_F(dmRenderTest, LightBufferTestSimple)
 
         dmVMath::Point3 p0;
         dmVMath::Quat r0;
-        dmRender::SetLightInstance(m_Context, light0, p0, r0);
+        dmRender::SetLightInstance(m_Context, light0, p0, r0, 1.0f);
         dmRender::DeleteLightInstance(m_Context, light0);
     }
 
@@ -2443,13 +2436,12 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
 
     params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
     params.m_Color = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f);
-    params.m_Direction = dmVMath::Vector3(0.0f, -1.0f, 0.0f);
     params.m_Intensity = 2.0f;
     dmRender::HLightPrototype proto_dir = dmRender::NewLightPrototype(m_Context, params);
     ASSERT_NE((dmRender::HLightPrototype)0, proto_dir);
     dmRender::HLightInstance inst_dir = dmRender::NewLightInstance(m_Context, proto_dir);
     ASSERT_NE((dmRender::HLightInstance)0, inst_dir);
-    dmRender::SetLightInstance(m_Context, inst_dir, dmVMath::Point3(0, 10, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, inst_dir, dmVMath::Point3(0, 10, 0), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_dir);
     dmRender::DeleteLightPrototype(m_Context, proto_dir);
 
@@ -2461,13 +2453,12 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     ASSERT_NE((dmRender::HLightPrototype)0, proto_point);
     dmRender::HLightInstance inst_point = dmRender::NewLightInstance(m_Context, proto_point);
     ASSERT_NE((dmRender::HLightInstance)0, inst_point);
-    dmRender::SetLightInstance(m_Context, inst_point, dmVMath::Point3(5.0f, 0.0f, -3.0f), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, inst_point, dmVMath::Point3(5.0f, 0.0f, -3.0f), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_point);
     dmRender::DeleteLightPrototype(m_Context, proto_point);
 
     params.m_Type = dmRender::LIGHT_TYPE_SPOT;
     params.m_Color = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
     params.m_InnerConeAngle = 0.2f;
     params.m_OuterConeAngle = 0.8f;
     params.m_Range = 15.0f;
@@ -2475,7 +2466,7 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     ASSERT_NE((dmRender::HLightPrototype)0, proto_spot);
     dmRender::HLightInstance inst_spot = dmRender::NewLightInstance(m_Context, proto_spot);
     ASSERT_NE((dmRender::HLightInstance)0, inst_spot);
-    dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_spot);
     dmRender::DeleteLightPrototype(m_Context, proto_spot);
 }
@@ -2495,7 +2486,7 @@ TEST_F(dmRenderTest, LightBufferTestMultipleInstances)
     {
         lights[i] = dmRender::NewLightInstance(m_Context, prototype);
         ASSERT_NE((dmRender::HLightInstance)0, lights[i]);
-        dmRender::SetLightInstance(m_Context, lights[i], dmVMath::Point3((float)i, (float)i * 2.0f, (float)i * -1.0f), dmVMath::Quat::identity());
+        dmRender::SetLightInstance(m_Context, lights[i], dmVMath::Point3((float)i, (float)i * 2.0f, (float)i * -1.0f), dmVMath::Quat::identity(), 1.0f);
     }
 
     for (uint32_t i = 0; i < 4; ++i)
@@ -2521,8 +2512,8 @@ TEST_F(dmRenderTest, LightBufferTestIndexReuse)
     dmRender::HLightInstance c = dmRender::NewLightInstance(m_Context, prototype);
     ASSERT_NE((dmRender::HLightInstance)0, c);
 
-    dmRender::SetLightInstance(m_Context, b, dmVMath::Point3(1, 0, 0), dmVMath::Quat::identity());
-    dmRender::SetLightInstance(m_Context, c, dmVMath::Point3(2, 0, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, b, dmVMath::Point3(1, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, c, dmVMath::Point3(2, 0, 0), dmVMath::Quat::identity(), 1.0f);
 
     dmRender::DeleteLightInstance(m_Context, b);
     dmRender::DeleteLightInstance(m_Context, c);
@@ -2533,19 +2524,23 @@ TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
 {
     dmRender::LightPrototypeParams params;
     params.m_Type = dmRender::LIGHT_TYPE_SPOT;
-    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
     dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
     ASSERT_NE((dmRender::HLightPrototype)0, prototype);
 
     dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
     ASSERT_NE((dmRender::HLightInstance)0, instance);
 
-    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity());
-    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity());
-    // Z rotation by 45 degrees: quat (0, 0, sin(θ/2), cos(θ/2))
-    const float half = 3.14159265f / 8.0f;
-    dmVMath::Quat rot_z(0.0f, 0.0f, sinf(half), cosf(half));
-    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_z);
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_Context;
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, params.m_Range), render_ctx->m_LightBufferScratch[0].m_DirectionRange);
+
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity(), 1.0f);
+    // Y rotation by 90 degrees rotates the fixed local forward vector into world space.
+    const float half = 3.14159265f / 4.0f;
+    dmVMath::Quat rot_y(0.0f, sinf(half), 0.0f, cosf(half));
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_y, 1.0f);
+    dmVMath::Vector3 rotated_direction = dmVMath::Rotate(rot_y, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+    ASSERT_VEC4(dmVMath::Vector4(rotated_direction, params.m_Range), render_ctx->m_LightBufferScratch[0].m_DirectionRange);
 
     dmRender::DeleteLightInstance(m_Context, instance);
     dmRender::DeleteLightPrototype(m_Context, prototype);

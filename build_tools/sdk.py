@@ -38,15 +38,23 @@ DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dyna
 SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 ## **********************************************************************************************
+# Editor
+
+# If you update editor JDK version, don't forget to update it here too:
+# - /editor/bundle-resources/config at "launcher.jdk" key
+# - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
+VERSION_EDITOR_JDK="25+36"
+
+## **********************************************************************************************
 # Darwin
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="26.2" # we also use this to match version on Github Actions
-VERSION_XCODE_CLANG="17.0.0"
-VERSION_MACOSX="26.2"
-VERSION_IPHONEOS="26.2"
-VERSION_IPHONESIMULATOR="26.2"
+VERSION_XCODE="26.5" # we also use this to match version on Github Actions
+VERSION_XCODE_CLANG="21.0.0"
+VERSION_MACOSX="26.5"
+VERSION_IPHONEOS="26.5"
+VERSION_IPHONESIMULATOR="26.5"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -54,13 +62,9 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 VERSION_IPHONEOS_MIN="11.0"
 VERSION_MACOSX_MIN="10.15"
 
-SWIFT_VERSION="5.5"
+SWIFT_VERSION="6.2"
 
-VERSION_LINUX_CLANG="16.0.0"
-PACKAGES_LINUX_CLANG="clang-16.0.0"
-PACKAGES_LINUX_X86_64_TOOLCHAIN="clang+llvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04"
-PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu"
-
+VERSION_LINUX_CLANG="20.1.8"
 ## **********************************************************************************************
 # Android
 
@@ -75,10 +79,11 @@ ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 # Win32
 
 # The version we have prepackaged
-VERSION_WINDOWS_SDK_10="10.0.26100.0"
-VERSION_WINDOWS_MSVC_2022="14.44.35207"
-PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-2022-{VERSION_WINDOWS_MSVC_2022}"
-PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
+VERSION_WINDOWS_SDK="10.0.28000.0"
+VISUAL_STUDIO_VERSION="2026"
+VERSION_WINDOWS_MSVC="14.51.36231"
+PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-{VISUAL_STUDIO_VERSION}-{VERSION_WINDOWS_MSVC}"
+PACKAGES_WIN32_SDK=f"WindowsKits-{VERSION_WINDOWS_SDK}"
 
 ## **********************************************************************************************
 # Emscripten
@@ -112,19 +117,13 @@ defold_info['x86_64-macos']['pattern'] = PACKAGES_MACOS_SDK
 defold_info['arm64-macos']['version'] = VERSION_MACOSX
 defold_info['arm64-macos']['pattern'] = PACKAGES_MACOS_SDK
 
-defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK_10
+defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
 defold_info['win32']['version'] = defold_info['x86_64-win32']['version']
 defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 
-defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK_10
-defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
-
-defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['x86_64-linux']['pattern'] = 'x86_64-linux/clang-%s' % VERSION_LINUX_CLANG
-
-defold_info['arm64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['arm64-linux']['pattern'] = 'arm64-linux/clang-%s' % VERSION_LINUX_CLANG
+defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK
+defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK
 
 ## **********************************************************************************************
 
@@ -325,7 +324,7 @@ def get_android_bintools_path(ndk, platform):
     return f'{ndk}/toolchains/llvm/prebuilt/{ndk_os}-x86_64/bin'
 
 def get_android_api_version(platform):
-    if platform == 'arm64-android':
+    if platform in ('arm64-android', 'x86_64-android'):
         return ANDROID_64_NDK_API_VERSION
     else:
         return ANDROID_NDK_API_VERSION
@@ -333,6 +332,8 @@ def get_android_api_version(platform):
 def get_android_clang_name(platform, api_version):
     if platform == 'arm64-android':
         return f'aarch64-linux-android{api_version}-clang'
+    elif platform == 'x86_64-android':
+        return f'x86_64-linux-android{api_version}-clang'
     else:
         return f'armv7a-linux-androideabi{api_version}-clang'
 
@@ -342,6 +343,7 @@ def get_android_clang_name(platform, api_version):
 # Linux
 
 _is_wsl = None
+_local_compiler_info = None
 
 def is_wsl():
     global _is_wsl
@@ -356,33 +358,52 @@ def is_wsl():
             _is_wsl = "Microsoft" in data
     return _is_wsl
 
-def get_local_compiler_from_bash():
-    path = run.shell_command('which clang++')
-    if path != None:
-        return "clang++"
-    path = run.shell_command('which g++')
-    if path != None:
-        return "g++"
-    return None
-
-def get_local_compiler_path():
-    tool = get_local_compiler_from_bash()
-    if tool is None:
-        return None
-
-    path = run.shell_command('which %s' % tool)
+def _get_compiler_root_from_path(path):
     substr = '/bin'
     if substr in path:
         i = path.find(substr)
-        path = path[:i]
-        return path
+        return path[:i]
     return None
 
+def _get_local_compiler_info():
+    global _local_compiler_info
+    if _local_compiler_info is not None:
+        return _local_compiler_info
+
+    compiler_path = shutil.which('clang++')
+    if compiler_path is not None:
+        _local_compiler_info = {
+            'name': 'clang++',
+            'path': compiler_path,
+            'root': _get_compiler_root_from_path(compiler_path),
+            'version': run.shell_command('clang++ -dumpversion').strip(),
+        }
+        return _local_compiler_info
+
+    compiler_path = shutil.which('g++')
+    if compiler_path is not None:
+        _local_compiler_info = {
+            'name': 'g++',
+            'path': compiler_path,
+            'root': _get_compiler_root_from_path(compiler_path),
+            'version': run.shell_command('g++ -dumpversion').strip(),
+        }
+        return _local_compiler_info
+
+    _local_compiler_info = {}
+    return _local_compiler_info
+
+def get_local_compiler_from_bash():
+    info = _get_local_compiler_info()
+    return info.get('name', None)
+
+def get_local_compiler_path():
+    info = _get_local_compiler_info()
+    return info.get('root', None)
+
 def get_local_compiler_version():
-    tool = get_local_compiler_from_bash()
-    if tool is None:
-        return None
-    return run.shell_command('%s -dumpversion' % tool).strip()
+    info = _get_local_compiler_info()
+    return info.get('version', None)
 
 
 ## **********************************************************************************************
@@ -437,7 +458,7 @@ def _get_local_vswhere_installations():
 def _get_common_visual_studio_roots():
     roots = []
     for base in filter(None, [os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)')]):
-        for year in ('2022', '2019', '2017'):
+        for year in ('18', '2026', '2022'):
             for edition in ('BuildTools', 'Community', 'Professional', 'Enterprise'):
                 installation_root = os.path.join(base, 'Microsoft Visual Studio', year, edition)
                 if os.path.exists(installation_root):
@@ -576,6 +597,32 @@ def _get_windows_llvm_bin_dir(installation_root):
         return os.path.normpath(llvm_bin_dir)
     return None
 
+def _get_windows_visual_studio_year(installation=None, installation_root=None):
+    if installation:
+        for value in (
+            installation.get('displayName', ''),
+            (installation.get('catalog') or {}).get('productLineVersion', ''),
+        ):
+            match = re.search(r'\b(20\d{2})\b', str(value))
+            if match:
+                return match.group(1)
+
+    if installation_root:
+        for part in os.path.normpath(installation_root).split(os.sep):
+            if re.match(r'^20\d{2}$', part):
+                return part
+
+        # Visual Studio 2026 uses the major version in the installation path.
+        major_to_year = {
+            '18': '2026',
+            '17': '2022'
+        }
+        for part in os.path.normpath(installation_root).split(os.sep):
+            if part in major_to_year:
+                return major_to_year[part]
+
+    return None
+
 def _log_windows_detection_trace(verbose):
     global windows_info_trace
 
@@ -602,6 +649,7 @@ def _log_windows_detection_trace(verbose):
         log_verbose(verbose, "  Visual Studio candidate roots: none")
 
     log_verbose(verbose, f"  Selected Visual Studio installation: {trace.get('installation_root')}")
+    log_verbose(verbose, f"  Selected Visual Studio year: {trace.get('vs_year')}")
     log_verbose(verbose, f"  Selected MSVC root: {trace.get('vs_root')}")
     log_verbose(verbose, f"  Selected MSVC version: {trace.get('vs_version')}")
     log_verbose(verbose, f"  Visual Studio LLVM bin dir: {trace.get('llvm_bin_dir')}")
@@ -637,12 +685,14 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
 
     vswhere_path = _get_local_vswhere_path()
     vswhere_installations = []
+    vswhere_installations_by_root = {}
     installation_roots = []
     for installation in _get_local_vswhere_installations():
         installation_root = installation.get('installationPath')
         if installation_root:
             installation_root = os.path.normpath(installation_root)
             vswhere_installations.append(installation_root)
+            vswhere_installations_by_root[installation_root] = installation
             installation_roots.append(installation_root)
 
     for installation_root in _get_common_visual_studio_roots():
@@ -661,12 +711,14 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
     sdk_root = _get_windows_sdk_root()
     sdk_version = _get_windows_sdk_version(sdk_root) if sdk_root else None
     llvm_bin_dir = _get_windows_llvm_bin_dir(selected_installation_root) if selected_installation_root else None
+    vs_year = _get_windows_visual_studio_year(vswhere_installations_by_root.get(selected_installation_root), selected_installation_root)
 
     windows_info_trace = {
         'vswhere_path': vswhere_path,
         'vswhere_installations': vswhere_installations,
         'candidate_roots': installation_roots,
         'installation_root': selected_installation_root,
+        'vs_year': vs_year,
         'vs_root': vs_root,
         'vs_version': vs_version,
         'llvm_bin_dir': llvm_bin_dir,
@@ -691,6 +743,7 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
         return None, windows_info_error
 
     windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir)
+    windows_info['vs_year'] = vs_year
     return windows_info, None
 
 def win_locale_vswhere(platform='x86_64-win32'):
@@ -809,6 +862,8 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
 def _setup_info_from_windowsinfo(windowsinfo, platform):
 
     info = {}
+    info['sdk_root'] = windowsinfo['sdk_root']
+    info['sdk_version'] = windowsinfo['sdk_version']
     info[platform] = {}
     info[platform]['version'] = windowsinfo['sdk_version']
     info[platform]['path'] = windowsinfo['sdk_root']
@@ -903,7 +958,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         folders.append(get_android_sdk_path(sdkfolder))
         folders.append(get_android_ndk_path(sdkfolder))
 
@@ -948,7 +1003,7 @@ def check_local_sdk(platform, verbose=False):
         if info is None:
             raise SDKException(error)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         path = get_android_local_sdk_path()
         ndkpath = get_android_local_ndk_path(platform, verbose)
         return path is not None and ndkpath is not None
@@ -967,6 +1022,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
         info['xcode-clang'] = defold_info['xcode-clang']['version']
+        info['clang-version'] = info['xcode-clang']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
@@ -976,6 +1032,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
+        info['clang-version'] = defold_info[platform]['version']
         # We download the package for the host platform, and rely on its ability cross compile
         info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
@@ -983,7 +1040,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         info['version']     = ANDROID_BUILD_TOOLS_VERSION
         info['sdk']         = get_android_sdk_path(sdkfolder)
         info['ndk']         = get_android_ndk_path(sdkfolder)
@@ -1009,6 +1066,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
         info['xcode-clang'] = get_local_darwin_clang_version()
+        info['clang-version'] = info['xcode-clang']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
@@ -1021,13 +1079,14 @@ def _get_local_sdk_info(platform, verbose=False):
     elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
+        info['clang-version'] = info[platform]['version']
         info[platform]['path'] = get_local_compiler_path()
 
     elif platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_local_sdk_info(platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         ndk_os = 'linux'
         if sys.platform == 'darwin':
             ndk_os = 'darwin'
@@ -1052,30 +1111,36 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
-# ********************************************************************
-# vendor
+class sdk_vendor(object):
+    @classmethod
+    def _module_for_platform(cls, platform):
+        from private_hooks import load_hook_module
+        module = load_hook_module('sdk', platform)
+        if module:
+            module.SDKException = SDKException
+        return module
 
-def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
-    pass
+    @classmethod
+    def _call(cls, platform, name, default, *args):
+        module = cls._module_for_platform(platform)
+        func = getattr(module, name, None) if module else None
+        return func(*args) if func else default
 
-check_vendor_sdk = dummy_check_vendor_sdk
+    @classmethod
+    def supports_platform(cls, platform):
+        return cls._call(platform, 'supports_platform', False, platform)
 
-try:
-    import sdk_vendor
-    sdk_vendor.SDKException = SDKException # give access to the esception
-    check_vendor_sdk = sdk_vendor.check_vendor_sdk
-except ModuleNotFoundError as e:
-    # Currently, the output is parsed by other scripts
-    if "No module named 'sdk_vendor'" in str(e):
-        pass
-    else:
-        raise e
-except Exception as e:
-    print("Failed to import sdk_vendor.py:")
-    raise e
+    @classmethod
+    def get_defold_sdk_folders(cls, platform):
+        return cls._call(platform, 'get_defold_sdk_folders', [], platform)
 
-if 'sdk_vendor' not in sys.modules:
-    sdk_vendor = None
+    @classmethod
+    def get_sdk_info(cls, platform):
+        return cls._call(platform, 'get_sdk_info', None, platform)
+
+
+def check_vendor_sdk(sdkfolder, platform, verbose):
+    return sdk_vendor._call(platform, 'check_vendor_sdk', None, sdkfolder, platform, verbose)
 
 # ********************************************************************
 
@@ -1157,29 +1222,64 @@ def _get_clang_arch_from_platform(platform):
 class TestSdkException(Exception):
     pass
 
+def _get_clang_from_info(info):
+    clang = info.get('clang', None)
+    if clang is not None:
+        return clang
+
+    clang = shutil.which('clang++')
+    if clang is None:
+        raise TestSdkException("Path not found for clang!")
+
+    info['clang'] = clang
+    return clang
+
+def _parse_version_tuple(version):
+    match = re.search(r'(\d+(?:\.\d+)+)', version)
+    if not match:
+        raise TestSdkException(f"Failed to parse version from '{version}'")
+    return tuple(int(token) for token in match.group(1).split('.'))
+
+def _test_version_clang(platform, info, can_run, verbose):
+    required_version = None
+
+    if platform in ['arm64-linux', 'x86_64-linux']:
+        required_version = VERSION_LINUX_CLANG
+    elif platform in ['arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+        required_version = VERSION_XCODE_CLANG
+
+    if required_version is None:
+        return
+
+    version_str = info.get('clang-version', None)
+    if version_str is None:
+        raise TestSdkException(f"Failed to get clang version for {platform}")
+    actual_version = _parse_version_tuple(version_str)
+    minimum_version = _parse_version_tuple(required_version)
+    actual_version_str = '.'.join(str(token) for token in actual_version)
+
+    log.log(f"clang version for {platform}: required={required_version}, actual={actual_version_str}")
+
+    if actual_version < minimum_version:
+        raise TestSdkException(f"Invalid clang version for {platform}: found {actual_version}, expected at least {required_version}")
+
 def _compile_file_clang(platform, info, srcfile, exefile, verbose):
     # if we can rely on the PATH variable
     use_local_path = False
+    clang = 'clang++'
     if platform in ['arm64-linux', 'x86_64-linux', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
         use_local_path = True
-
-        clang = run.shell_command(f'which clang++')
+        clang = _get_clang_from_info(info)
         if verbose:
             log.log(clang)
+    cmd = [clang]
 
-        if not clang:
-            raise TestSdkException("Path not found for clang!")
-
-    clang = 'clang++'
-    sysroot = ''
-    arch = ''
-
-    if platform in ['arm64-android', 'armv7-android']:
+    if platform in ['arm64-android', 'armv7-android', 'x86_64-android']:
         clang = os.path.join(info['bintools'], info['clangname'])
+        cmd = [clang]
 
     elif platform in ['arm64-ios', 'x86_64-ios']:
-        sysroot = '-isysroot' + info[platform]['path']
-        arch = '-arch ' + platform.split('-')[0]
+        cmd.extend(['-isysroot', info[platform]['path'], '-arch', platform.split('-')[0]])
 
     if not use_local_path:
         if not os.path.exists(clang):
@@ -1187,12 +1287,10 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
 
     target = _get_clang_arch_from_platform(platform)
     if target is not None:
-        target = f'--target={target}'
-    else:
-        target = ''
+        cmd.append(f'--target={target}')
 
-    cmd = f'{clang} {sysroot} {target} {arch} {srcfile} -o {exefile}'
-    return run.shell_command(cmd)
+    cmd.extend([srcfile, '-o', exefile])
+    return run.command(cmd)
 
 def _test_compiler_clang(platform, info, can_run, verbose):
     testdir = os.path.join(os.environ['DYNAMO_HOME'], 'sdktest')
@@ -1202,11 +1300,11 @@ def _test_compiler_clang(platform, info, can_run, verbose):
     output = _compile_file_clang(platform, info, testfile, exefile, verbose)
 
     if verbose:
-        output = run.shell_command(f'file {exefile}')
+        output = run.command(['file', exefile])
         log.log(output)
 
     if can_run:
-        output = run.shell_command(f'{exefile}')
+        output = run.command([exefile])
         if verbose:
             log.log(output)
 
@@ -1222,11 +1320,12 @@ def test_sdk(platform, info, verbose=False):
     if platform in ['arm64-linux', 'x86_64-linux',
                     'arm64-macos', 'x86_64-macos',
                     'arm64-ios', 'x86_64-ios',
-                    'arm64-android', 'armv7-android']:
+                    'arm64-android', 'armv7-android', 'x86_64-android']:
         use_clang = True
 
     try:
         if use_clang:
+            _test_version_clang(platform, info, can_run, verbose)
             _test_compiler_clang(platform, info, can_run, verbose)
 
     except TestSdkException as e:
@@ -1244,7 +1343,7 @@ def get_toolchain_root(sdkinfo, platform):
 
 
 def get_strip_executable(platform, sdkinfo):
-    if platform in ('armv7-android', 'arm64-android'):
+    if platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         return os.path.join(sdkinfo['bintools'], 'llvm-strip')
 
     if platform in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):

@@ -1,0 +1,36 @@
+name: "morph_instanced_attr"
+tags: "model"
+vertex_program: "/model/morph_instanced_attr.vp"
+fragment_program: "/model/morph_instanced.fp"
+vertex_space: VERTEX_SPACE_LOCAL
+samplers {
+  name: "morph_targets"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+}
+attributes {
+  name: "mtx_world"
+  semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
+  vector_type: VECTOR_TYPE_MAT4
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "mtx_normal"
+  semantic_type: SEMANTIC_TYPE_NORMAL_MATRIX
+  vector_type: VECTOR_TYPE_MAT4
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "morph_targets_weights"
+  semantic_type: SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS
+  vector_type: VECTOR_TYPE_MAT4
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}

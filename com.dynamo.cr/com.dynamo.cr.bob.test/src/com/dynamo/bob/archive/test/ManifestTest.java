@@ -112,35 +112,36 @@ public class ManifestTest {
         }
 
         private ResourceGraph createResourceGraph() {
-            Project project = new Project(new DefaultFileSystem());
-            ResourceGraph graph = new ResourceGraph(project);
+            try (Project project = new Project(new DefaultFileSystem())) {
+                ResourceGraph graph = new ResourceGraph(project);
 
-            ResourceNode root = graph.getRootNode();
-            ResourceNode mainCollection = graph.add("/main/main.collectionc", root);
-            ResourceNode mainGo = graph.add("/main/main.goc", mainCollection);
-            graph.add("/main/main.scriptc", mainGo);
-            ResourceNode dynamicCollection = graph.add("/main/dynamic.collectionc", mainCollection);
-            ResourceNode dynamicGo = graph.add("/main/dynamic.goc", dynamicCollection);
-            ResourceNode sharedGo = graph.add("/main/shared_go.goc", mainCollection);
+                ResourceNode root = graph.getRootNode();
+                ResourceNode mainCollection = graph.add("/main/main.collectionc", root);
+                ResourceNode mainGo = graph.add("/main/main.goc", mainCollection);
+                graph.add("/main/main.scriptc", mainGo);
+                ResourceNode dynamicCollection = graph.add("/main/dynamic.collectionc", mainCollection);
+                ResourceNode dynamicGo = graph.add("/main/dynamic.goc", dynamicCollection);
+                ResourceNode sharedGo = graph.add("/main/shared_go.goc", mainCollection);
 
-            ResourceNode level1Proxy = graph.add("/main/level1.collectionproxyc", mainGo);
-            ResourceNode level1Collection = graph.add("/main/level1.collectionc", level1Proxy);
-            level1Proxy.setType(ResourceNode.Type.ExcludedCollectionProxy);
-            level1Collection.setType(ResourceNode.Type.ExcludedCollection);
-            ResourceNode level1Go = graph.add("/main/level1.goc", level1Collection);
-            graph.add("/main/level1.scriptc", level1Go);
+                ResourceNode level1Proxy = graph.add("/main/level1.collectionproxyc", mainGo);
+                ResourceNode level1Collection = graph.add("/main/level1.collectionc", level1Proxy);
+                level1Proxy.setType(ResourceNode.Type.ExcludedCollectionProxy);
+                level1Collection.setType(ResourceNode.Type.ExcludedCollection);
+                ResourceNode level1Go = graph.add("/main/level1.goc", level1Collection);
+                graph.add("/main/level1.scriptc", level1Go);
 
-            ResourceNode level2Proxy = graph.add("/main/level2.collectionproxyc", level1Go);
-            ResourceNode level2Collection = graph.add("/main/level2.collectionc", level2Proxy);
-            graph.add("/main/level2.goc", level2Collection);
-            graph.add("/main/level2.soundc", level2Collection);
+                ResourceNode level2Proxy = graph.add("/main/level2.collectionproxyc", level1Go);
+                ResourceNode level2Collection = graph.add("/main/level2.collectionc", level2Proxy);
+                graph.add("/main/level2.goc", level2Collection);
+                graph.add("/main/level2.soundc", level2Collection);
 
-            graph.add(dynamicGo, level1Collection);
-            graph.add(dynamicGo, level2Collection);
-            graph.add(sharedGo, level1Go);
+                graph.add(dynamicGo, level1Collection);
+                graph.add(dynamicGo, level2Collection);
+                graph.add(sharedGo, level1Go);
 
-            graph.findAllResourcesReferencedFromMainCollection();
-            return graph;
+                graph.findAllResourcesReferencedFromMainCollection();
+                return graph;
+            }
         }
 
         public HashDigest projectIdentifierHash() {

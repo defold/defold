@@ -76,7 +76,7 @@ namespace dmGameObject
         if (script_world->m_Instances.Full())
         {
             dmLogError("Could not create script component, out of resources. Increase the 'collection.max_instances' value in [game.project](defold://open?path=/game.project)");
-            return CREATE_RESULT_UNKNOWN_ERROR;
+            return CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         HScriptInstance script_instance = NewScriptInstance(script_world, script, params.m_Instance, params.m_ComponentIndex);
@@ -523,8 +523,37 @@ namespace dmGameObject
 
             if (params.m_InputAction->m_GamepadConnected)
             {
-                lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_TextCount);
+                lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_Count);
                 lua_setfield(L, action_table, "gamepad_name");
+
+                const dmHID::GamepadGuid& guid = params.m_InputAction->m_GamepadGuid;
+                char guid_str[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
+                dmHID::FormatGamepadGuid(&guid, guid_str);
+
+                lua_pushstring(L, guid_str);
+                lua_setfield(L, action_table, "gamepad_guid"); // SDL format
+
+                lua_pushliteral(L, "gamepad_guid_info");
+                lua_createtable(L, 0, 0);
+
+                {
+                    lua_pushinteger(L, guid.m_Bus);
+                    lua_setfield(L, -2, "bus");
+
+                    lua_pushinteger(L, guid.m_CRC16);
+                    lua_setfield(L, -2, "crc");
+
+                    lua_pushinteger(L, guid.m_Vendor);
+                    lua_setfield(L, -2, "vendor");
+
+                    lua_pushinteger(L, guid.m_Product);
+                    lua_setfield(L, -2, "product");
+
+                    lua_pushinteger(L, guid.m_Version);
+                    lua_setfield(L, -2, "version");
+
+                    lua_settable(L, -3);
+                }
             }
 
             if (params.m_InputAction->m_HasGamepadPacket)
@@ -638,9 +667,9 @@ namespace dmGameObject
                 lua_settable(L, action_table);
             }
 
-            if (params.m_InputAction->m_TouchCount > 0)
+            if (params.m_InputAction->m_Count > 0 && !params.m_InputAction->m_HasText && !params.m_InputAction->m_GamepadConnected)
             {
-                int tc = params.m_InputAction->m_TouchCount;
+                int tc = params.m_InputAction->m_Count;
                 lua_pushliteral(L, "touch");
                 lua_createtable(L, tc, 0);
                 for (int i = 0; i < tc; ++i)
@@ -705,7 +734,7 @@ namespace dmGameObject
 
             if (params.m_InputAction->m_HasText)
             {
-                int tc = params.m_InputAction->m_TextCount;
+                int tc = params.m_InputAction->m_Count;
                 lua_pushliteral(L, "text");
                 if (tc == 0) {
                     lua_pushliteral(L, "");
@@ -875,6 +904,12 @@ namespace dmGameObject
             *out_type = PROPERTY_TYPE_URL;
             return true;
         }
+        if (FindPropertyNameFromEntries(decls->m_TextEntries.m_Data, decls->m_TextEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_TEXT;
+            return true;
+        }
         if (FindPropertyNameFromEntries(decls->m_Vector3Entries.m_Data, decls->m_Vector3Entries.m_Count,
                 property_id, out_key, out_element_ids))
         {
@@ -1009,6 +1044,8 @@ namespace dmGameObject
         uint32_t element_index = 0;
         if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
             return PROPERTY_RESULT_NOT_FOUND;
+        if (params.m_Value.m_Type != type)
+            return PROPERTY_RESULT_TYPE_MISMATCH;
 
         lua_State* L = GetLuaState(script_instance);
 
@@ -1085,6 +1122,7 @@ namespace dmGameObject
             case dmGameObject::PROPERTY_TYPE_VECTOR4:   entries = decls->m_Vector4Entries.m_Data; element_count = decls->m_Vector4Entries.m_Count; break;
             case dmGameObject::PROPERTY_TYPE_QUAT:      entries = decls->m_QuatEntries.m_Data; element_count = decls->m_QuatEntries.m_Count; break;
             case dmGameObject::PROPERTY_TYPE_BOOLEAN:   entries = decls->m_BoolEntries.m_Data; element_count = decls->m_BoolEntries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_TEXT:      entries = decls->m_TextEntries.m_Data; element_count = decls->m_TextEntries.m_Count; break;
             default: break;
             }
 
@@ -1149,10 +1187,16 @@ namespace dmGameObject
             pit->m_Property.m_Value.m_V4[3] = var.m_V4[3];
             break;
         case dmGameObject::PROPERTY_TYPE_URL:
+        {
             pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_URL;
             dmMessage::URL* url = (dmMessage::URL*)&var.m_URL[0];
             dmSnPrintf(pit->m_Property.m_Value.m_URL, sizeof(pit->m_Property.m_Value.m_URL), "%s:%s%s%s",
                             dmHashReverseSafe64(url->m_Socket), dmHashReverseSafe64(url->m_Path), url->m_Fragment?"#":"", url->m_Fragment?dmHashReverseSafe64(url->m_Fragment):"");
+            break;
+        }
+        case dmGameObject::PROPERTY_TYPE_TEXT:
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_TEXT;
+            pit->m_Property.m_Value.m_Text = var.m_Text;
             break;
         }
 

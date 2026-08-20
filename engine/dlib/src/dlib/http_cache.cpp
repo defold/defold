@@ -17,7 +17,7 @@
 #include <string.h>
 #include <errno.h>
 #include "dstrings.h"
-#include "http_cache.h"
+#include <dlib/http/http_cache.h>
 #include "log.h"
 #include "sys.h"
 #include "hashtable.h"

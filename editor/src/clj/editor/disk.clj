@@ -155,6 +155,7 @@
 
 (defn process-post-save-actions! [workspace post-save-actions]
   (g/transact
+    {:undoable false}
     (concat
       (g/update-property workspace :resource-snapshot resource-watch/update-snapshot-status (:written-file-resource-status-map-entries post-save-actions))
       (workspace/merge-disk-sha256s workspace (:written-disk-sha256s-by-node-id post-save-actions))))

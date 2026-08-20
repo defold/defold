@@ -14,13 +14,13 @@
 
 
 function init(self)
-	self.max_time = tonumber(sys.get_config("test.max_time", "1.0")) -- seconds
-	self.target_count = tonumber(sys.get_config("test.target_count", "15"))
+	self.max_time = sys.get_config_number("test.max_time", 1.0) -- seconds
+	self.target_count = sys.get_config_int("test.target_count", 15)
 
-	self.fixed_update_frequency = tonumber(sys.get_config("engine.fixed_update_frequency", "60")) -- Hz
+	self.fixed_update_frequency = sys.get_config_int("engine.fixed_update_frequency", 60) -- Hz
 	self.target_fixed_update_count = self.max_time * self.fixed_update_frequency
 
-	self.use_physics_fixed_timestep = sys.get_config("physics.use_fixed_timestep", "0") ~= "0"
+	self.use_physics_fixed_timestep = sys.get_config_int("physics.use_fixed_timestep", 0) ~= 0
 	self.use_fixed_timestep = self.fixed_update_frequency ~= 0
 
 	self.time = 0.0

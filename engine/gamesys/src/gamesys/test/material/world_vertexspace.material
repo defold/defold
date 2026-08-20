@@ -1,4 +1,4 @@
 name: "valid_material"
-vertex_program: "/vertex_program/valid.vp"
-fragment_program: "/fragment_program/valid.fp"
+vertex_program: "/material/vertex_program_valid.vp"
+fragment_program: "/material/fragment_program_valid.fp"
 vertex_space: VERTEX_SPACE_WORLD

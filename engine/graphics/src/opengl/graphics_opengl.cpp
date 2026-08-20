@@ -304,8 +304,6 @@ namespace dmGraphics
 
 #endif
 
-static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format);
-
 static void OpenGLClearGLError()
 {
     GLint err = glGetError();
@@ -314,6 +312,78 @@ static void OpenGLClearGLError()
         err = glGetError();
     }
 }
+
+#if defined(ANDROID)
+static bool OpenGLValidateASTCSupport()
+{
+    // One opaque white ASTC 4x4 block.
+    static const unsigned char astc_texture_data[] = {
+        0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+    };
+
+    GLint previous_texture_binding = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture_binding);
+    OpenGLClearGLError();
+
+    dmLogInfo("Checking ASTC support. May produce GL error.");
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glCompressedTexImage2D(GL_TEXTURE_2D, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR,
+        4, 4, 0, (GLsizei) sizeof(astc_texture_data), astc_texture_data);
+
+    GLint err = glGetError();
+
+    glBindTexture(GL_TEXTURE_2D, (GLuint) previous_texture_binding);
+    glDeleteTextures(1, &texture);
+    OpenGLClearGLError();
+
+    if (err != 0)
+    {
+        dmLogWarning("ASTC texture support reported by driver, but a 4x4 ASTC texture upload failed with %s. Disabling ASTC texture support.",
+            GetGLErrorLiteral(err));
+        return false;
+    }
+
+    return true;
+}
+#endif
+
+#if defined(__EMSCRIPTEN__)
+static bool OpenGLValidateASTCArraySupport()
+{
+    // Two opaque white ASTC 4x4 blocks, one per array layer.
+    static const unsigned char astc_texture_data[] = {
+        0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+
+        0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+
+    };
+
+    dmLogInfo("Checking ASTC Array support. May produce GL error.");
+
+    GLint previous_texture_binding = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &previous_texture_binding);
+    OpenGLClearGLError();
+
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+    DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR,
+        4, 4, 2, 0, (GLsizei) sizeof(astc_texture_data), astc_texture_data);
+
+    GLint err = glGetError();
+
+    glBindTexture(GL_TEXTURE_2D_ARRAY, (GLuint) previous_texture_binding);
+    glDeleteTextures(1, &texture);
+    OpenGLClearGLError();
+
+    return err == 0;
+}
+#endif
 
 #define CLEAR_GL_ERROR { if(g_Context->m_BaseContext.m_VerifyGraphicsCalls) OpenGLClearGLError(); }
 
@@ -391,18 +461,6 @@ static void LogFrameBufferError(GLenum status)
             assert(false);\
         } \
     } \
-
-
-    #if defined(DM_PLATFORM_IOS)
-    struct ChooseEAGLView
-    {
-        ChooseEAGLView() {
-            // Let's us choose the CAEAGLLayer
-            // Note: We don't need a valid window here (and we don't have access to one)
-            dmPlatform::SetiOSViewTypeOpenGL((HWindow) 0);
-        }
-    } g_ChooseEAGLView;
-    #endif
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
@@ -489,7 +547,7 @@ static void LogFrameBufferError(GLenum status)
         return v;
     }
 
-#if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+#if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
     static inline GLint OpenGLGetInteger(GLenum pname, GLuint index)
     {
         GLint v = 0;
@@ -1140,25 +1198,6 @@ static void LogFrameBufferError(GLenum status)
         return context->m_Extensions[index];
     }
 
-    static bool OpenGLIsContextFeatureSupported(HContext _context, ContextFeature feature)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        switch (feature)
-        {
-            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
-            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
-            case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
-            case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
-            case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
-            case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
-            case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
-            case CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX: return context->m_BlendEquationMinMaxSupport;
-            case CONTEXT_FEATURE_VSYNC:
-                break;
-        }
-        return false;
-    }
-
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext _context)
     {
         HWindow window = GetWindow(_context);
@@ -1592,6 +1631,22 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
+        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
+        // On desktop GL this mandates acceptance of the ETC2/EAC internalformats.
+        bool es3_compatibility = OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility");
+
+        // ETC2 is a superset of ETC1. If the driver supports ETC2 we upload ETC1 payloads
+        // with the GL_COMPRESSED_RGB8_ETC2 internalformat instead of ETC1_RGB8_OES
+        // (see GetOpenGLSetTextureParams). Same approach as the Metal/Vulkan/WebGPU adapters.
+#if defined(__EMSCRIPTEN__)
+        // Never version-based on WebGL: the ETC2 enums are only legal with the extension enabled.
+        context->m_RGB8ETC2Support = OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc");
+#elif defined(__ANDROID__) || defined(DM_GRAPHICS_USE_OPENGLES) || defined(DM_PLATFORM_IOS)
+        context->m_RGB8ETC2Support = context->m_IsGles3Version; // ETC2/EAC is core in OpenGL ES 3.0
+#else
+        context->m_RGB8ETC2Support = es3_compatibility;
+#endif
+
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
         if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_s3tc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_s3tc"))
@@ -1619,21 +1674,17 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         }
 
-        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility"))
+        if (es3_compatibility)
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_KHR_texture_compression_astc_ldr") ||
-            OpenGLIsExtensionSupported(_context, "GL_OES_texture_compression_astc") ||
-            OpenGLIsExtensionSupported(_context, "OES_texture_compression_astc") ||
-            OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_astc"))
-        {
-            context->m_ASTCSupport = 1;
-            context->m_ASTCArrayTextureSupport = 1;
-        }
+        bool astc_supported = OpenGLIsExtensionSupported(_context, "GL_KHR_texture_compression_astc_ldr") ||
+                              OpenGLIsExtensionSupported(_context, "GL_OES_texture_compression_astc") ||
+                              OpenGLIsExtensionSupported(_context, "OES_texture_compression_astc") ||
+                              OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_astc");
+        bool astc_array_textures_supported = true;
 
         // Check if we're using a recent enough OpenGL version
         if (context->m_IsGles3Version)
@@ -1685,42 +1736,16 @@ static void LogFrameBufferError(GLenum status)
         {
             GLint *pCompressedFormats = new GLint[iNumCompressedFormats];
             glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, pCompressedFormats);
-            bool isPagedASTCSupported = true;
-            #if defined (__EMSCRIPTEN__)
-            // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
-            // see https://github.com/defold/defold/issues/8030
-            // and https://github.com/defold/defold/issues/11009
-            if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(_context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
-                unsigned char fakeZeroBuffer[] = {
-                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-
-                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-
-                };
-                GLuint texture;
-                glGenTextures(1, &texture);
-                glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
-                DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
-                GLint err = glGetError();
-                if (err != 0)
-                {
-                    // Only disable ASTC for array textures; keep 2D ASTC enabled
-                    context->m_ASTCArrayTextureSupport = 0;
-                    isPagedASTCSupported = false;
-                }
-                glDeleteTextures(1, &texture);
-            }
-            #endif
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
                 // If 4x4 is supported, all ASTC formats should be supported.
                 if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
-                    context->m_ASTCSupport = 1;
-                    if (isPagedASTCSupported)
-                        context->m_ASTCArrayTextureSupport = 1;
+                    astc_supported = true;
+                }
+                else if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2)
+                {
+                    context->m_RGB8ETC2Support = 1;
                 }
                 else
                 {
@@ -1735,9 +1760,45 @@ static void LogFrameBufferError(GLenum status)
                     }
                 }
             }
+            #if defined (__EMSCRIPTEN__)
+            // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
+            // see https://github.com/defold/defold/issues/8030
+            // and https://github.com/defold/defold/issues/11009
+            if (context->m_IsGles3Version && astc_supported)
+            {
+                astc_array_textures_supported = OpenGLValidateASTCArraySupport();
+            }
+            #endif
             delete[] pCompressedFormats;
         }
 
+        // An ETC2 capable driver can consume ETC1 payloads as-is, so advertise ETC1 as a
+        // supported format even when GL_OES_compressed_ETC1_RGB8_texture is missing. Without
+        // this the texture profile picker (GetSupportedCompressionFormatForType) never selects
+        // ETC1 on such drivers and RGB textures fall all the way back to uncompressed.
+        // The upload itself uses the RGB8_ETC2 internalformat, see GetOpenGLSetTextureParams.
+        // The Vulkan and Metal adapters key ETC1 support off ETC2 capability in the same way.
+        if (context->m_RGB8ETC2Support)
+        {
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+    #if defined(ANDROID)
+        if (astc_supported)
+        {
+            // The issue is that the Android Emulator may report support, but not actually support it
+            // So we do a quick verification
+            // (https://github.com/defold/defold/issues/12511)
+            astc_supported = OpenGLValidateASTCSupport();
+        }
+    #endif
+
+        if (astc_supported)
+        {
+            context->m_ASTCSupport = 1;
+            context->m_ASTCArrayTextureSupport = astc_array_textures_supported;
+            SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
+        }
 
 #if defined (__EMSCRIPTEN__)
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
@@ -1749,7 +1810,11 @@ static void LogFrameBufferError(GLenum status)
         context->m_PackedDepthStencilSupport = 1;
     #endif
 
-        if ((OpenGLIsExtensionSupported(_context, "GL_OES_packed_depth_stencil")) || (OpenGLIsExtensionSupported(_context, "GL_EXT_packed_depth_stencil")))
+        // Packed depth/stencil is part of the OpenGL ES 3.0 core API, so an ES 3
+        // driver is not required to advertise either of the legacy extensions.
+        if (context->m_IsGles3Version ||
+            OpenGLIsExtensionSupported(_context, "GL_OES_packed_depth_stencil") ||
+            OpenGLIsExtensionSupported(_context, "GL_EXT_packed_depth_stencil"))
         {
             context->m_PackedDepthStencilSupport = 1;
         }
@@ -1839,7 +1904,7 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         int32_t version_major = 0, version_minor = 0;
         glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &version_major);
         glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &version_minor);
@@ -1924,11 +1989,17 @@ static void LogFrameBufferError(GLenum status)
 
             // GL has no separate "max vertex buffer bindings" before
             // GL 4.3 (GL_MAX_VERTEX_ATTRIB_BINDINGS); fall back to attrib count.
-        #ifdef GL_MAX_VERTEX_ATTRIB_BINDINGS
-            limits.m_MaxVertexBuffers = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+            // Emscripten headers expose the define, but WebGL getParameter() support
+            // is not portable here and may report INVALID_ENUM, so keep the fallback.
+        #if defined(GL_MAX_VERTEX_ATTRIB_BINDINGS) && !defined(__EMSCRIPTEN__)
+            GLint max_vertex_attrib_bindings = OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+            if (max_vertex_attrib_bindings > 0)
+            {
+                limits.m_MaxVertexBuffers = (uint32_t) max_vertex_attrib_bindings;
+            }
         #endif
 
-        #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+        #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
             if (context->m_ComputeSupport)
             {
                 limits.m_MaxComputeWorkgroupSizeX = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0);
@@ -1954,6 +2025,15 @@ static void LogFrameBufferError(GLenum status)
             }
         #endif
         }
+
+        if (context->m_MultiTargetRenderingSupport)      SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
+        if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
+        if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        if (context->m_StorageBufferSupport)             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        if (context->m_InstancingSupport)                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
+        if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
+        if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
+        if (context->m_BlendEquationMinMaxSupport)       SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
 
         // Adapter API version
         {
@@ -2064,20 +2144,6 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static uint32_t OpenGLGetWidth(HContext _context)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        assert(context);
-        return context->m_BaseContext.m_Width;
-    }
-
-    static uint32_t OpenGLGetHeight(HContext _context)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        assert(context);
-        return context->m_BaseContext.m_Height;
-    }
-
     static void OpenGLSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -2098,13 +2164,6 @@ static void LogFrameBufferError(GLenum status)
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
-    }
-
-    static void OpenGLGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void OpenGLClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -2182,7 +2241,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
 
@@ -2194,6 +2253,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLUniformBuffer* ubo = new OpenGLUniformBuffer();
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
@@ -2203,7 +2263,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         // Clear out UBO first
-        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, layout.m_Size, 0);
+        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, size, 0);
 
         return (HUniformBuffer) ubo;
     }
@@ -2212,12 +2272,12 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
 
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
-        if (size < ubo->m_BaseUniformBuffer.m_Layout.m_Size)
+        if (size < ubo->m_BaseUniformBuffer.m_Size)
         {
             glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
             CHECK_GL_ERROR;
@@ -2234,14 +2294,15 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+                {
+                    context->m_CurrentUniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2255,11 +2316,6 @@ static void LogFrameBufferError(GLenum status)
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_CurrentUniformBuffers[set][binding])
-        {
-            OpenGLDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -2276,7 +2332,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLBuffer* vertex_buffer = new OpenGLBuffer();
-        vertex_buffer->m_MemorySize = size;
+        vertex_buffer->m_Base.m_Size = size;
         GLuint handle = 0;
         glGenBuffersARB(1, &handle);
         vertex_buffer->m_Id = AddNewGLHandle(context, handle);
@@ -2308,7 +2364,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
         OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
-        vertex_buffer->m_MemorySize = size;
+        vertex_buffer->m_Base.m_Size = size;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, GetGLHandle(g_Context, vertex_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
@@ -2333,16 +2389,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static uint32_t OpenGLGetVertexBufferSize(HVertexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
-        return vertex_buffer->m_MemorySize;
-    }
-
     static uint32_t OpenGLGetMaxElementsVertices(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -2359,7 +2405,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
-        index_buffer->m_MemorySize = size;
+        index_buffer->m_Base.m_Size = size;
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, GetGLHandle(g_Context, index_buffer->m_Id));
         CHECK_GL_ERROR
@@ -2378,7 +2424,7 @@ static void LogFrameBufferError(GLenum status)
         index_buffer->m_Id = AddNewGLHandle(context, handle);
         CHECK_GL_ERROR
         OpenGLSetIndexBufferData((HIndexBuffer) index_buffer, size, data, buffer_usage);
-        index_buffer->m_MemorySize = size;
+        index_buffer->m_Base.m_Size = size;
         return (HIndexBuffer) index_buffer;
     }
 
@@ -2411,16 +2457,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
-    }
-
-    static uint32_t OpenGLGetIndexBufferSize(HIndexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
-        return index_buffer->m_MemorySize;
     }
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext _context, IndexBufferFormat format)
@@ -2671,7 +2707,12 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
+        case TEXTURE_FORMAT_RGB_ETC1:
+            // ETC1 data decodes identically under ETC2. Prefer the ETC2 enum when available:
+            // Safari/WebGL2 rejects ETC1_RGB8_OES, and it is never legal for array textures.
+            gl_format = context->m_RGB8ETC2Support ? DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2
+                                                   : DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1;
+            break;
         case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
         case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
         case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
@@ -2769,7 +2810,7 @@ static void LogFrameBufferError(GLenum status)
     #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
-#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+#ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
     static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
     {
         uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
@@ -2793,7 +2834,7 @@ static void LogFrameBufferError(GLenum status)
 
     static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
     {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         if (!context->m_ComputeSupport)
             return false;
 
@@ -2914,14 +2955,15 @@ static void LogFrameBufferError(GLenum status)
                     ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
                     UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
 
-                    if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                    if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                     {
                         dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                            bound_ubo->m_BaseUniformBuffer.m_Layout,
                             pgm_res.m_Res->m_Name,
-                            pgm_layout->m_Hash);
+                            *pgm_layout);
 
                         // Fallback to the scratch buffer uniform setup
+                        OpenGLDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                         bound_ubo = 0;
                     }
                 }
@@ -3093,7 +3135,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_ComputeSupport)
         {
@@ -3111,12 +3153,84 @@ static void LogFrameBufferError(GLenum status)
     #endif
     }
 
-    static GLuint DoCreateShader(HContext _context, GLenum type, const void* program, uint32_t program_size, char* error_buffer, uint32_t error_buffer_size)
+    static const char* GetShaderStageName(GLenum type)
+    {
+        switch(type)
+        {
+            case GL_VERTEX_SHADER:                  return "vertex";
+            case GL_FRAGMENT_SHADER:                return "fragment";
+            case DMGRAPHICS_TYPE_COMPUTE_SHADER:    return "compute";
+            default:                                return "unknown";
+        }
+    }
+
+    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
+
+    static const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
+    {
+        switch(language)
+        {
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
+            default:break;
+        }
+        return "<unknown ShaderDesc::Language>";
+    }
+
+    #undef SHADERDESC_ENUM_TO_STR_CASE
+
+    static const char* GetShaderVariantName(const ShaderDesc::Shader* shader)
+    {
+        return shader->m_VariantTextureArray ? "texture-array fallback" : "base";
+    }
+
+    static void SetShaderCreateError(GLenum type, const ShaderDesc::Shader* shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
+    {
+        if (!error_buffer || error_buffer_size == 0)
+            return;
+
+        const char* stage = GetShaderStageName(type);
+        const char* language = GetShaderProgramLanguageLiteral(shader->m_Language);
+        const char* variant = GetShaderVariantName(shader);
+        if (source_path && source_path[0])
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader '%s'.\nVariant: %s (%s).", stage, source_path, language, variant);
+        else
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader.\nVariant: %s (%s).", stage, language, variant);
+    }
+
+    static void SetShaderCompileError(GLenum type, const ShaderDesc::Shader* shader, const char* source_path, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
+    {
+        if (!error_buffer || error_buffer_size == 0)
+            return;
+
+        const char* stage = GetShaderStageName(type);
+        const char* log = driver_log && driver_log[0] ? driver_log : "No compiler log was provided by the graphics driver.";
+        const char* language = GetShaderProgramLanguageLiteral(shader->m_Language);
+        const char* variant = GetShaderVariantName(shader);
+        if (source_path && source_path[0])
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader '%s'.\nVariant: %s (%s).\nError: %s", stage, source_path, language, variant, log);
+        else
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nVariant: %s (%s).\nError: %s", stage, language, variant, log);
+    }
+
+    static GLuint DoCreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
-        GLint size = program_size;
-        glShaderSource(shader_id, 1, (const GLchar**) &program, &size);
+        if (shader_id == 0)
+        {
+            SetShaderCreateError(type, ddf_shader, source_path, error_buffer, error_buffer_size);
+            return 0;
+        }
+
+        GLint size = ddf_shader->m_Source.m_Count;
+        glShaderSource(shader_id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, &size);
         CHECK_GL_ERROR;
         glCompileShader(shader_id);
         CHECK_GL_ERROR;
@@ -3125,41 +3239,19 @@ static void LogFrameBufferError(GLenum status)
         glGetShaderiv(shader_id, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
-            const char* type_str = "";
-            switch(type)
-            {
-                case GL_VERTEX_SHADER:
-                    type_str = "vertex";
-                    break;
-                case GL_FRAGMENT_SHADER:
-                    type_str = "fragment";
-                    break;
-                case DMGRAPHICS_TYPE_COMPUTE_SHADER:
-                    type_str = "compute";
-                    break;
-                default:
-                    break;
-            }
+            GLint log_length = 0;
+            glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &log_length);
 
-            char* log_str = 0;
-
-#ifndef NDEBUG
-            GLint logLength;
-            glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
+            char* log = 0;
+            if (log_length > 0)
             {
-                log_str = (GLchar *)malloc(logLength);
-                glGetShaderInfoLog(shader_id, logLength, &logLength, log_str);
+                log = (char*) malloc(log_length + 1);
+                GLsizei written = 0;
+                glGetShaderInfoLog(shader_id, log_length, &written, log);
+                log[written] = 0;
             }
-#endif
-            if (error_buffer)
-            {
-                dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nError: %s", type_str, log_str == 0 ? "Unknown" : log_str);
-            }
-            if (log_str)
-            {
-                free(log_str);
-            }
+            SetShaderCompileError(type, ddf_shader, source_path, log, error_buffer, error_buffer_size);
+            free(log);
             glDeleteShader(shader_id);
             return 0;
         }
@@ -3167,10 +3259,10 @@ static void LogFrameBufferError(GLenum status)
         return shader_id;
     }
 
-    static OpenGLShader* CreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, char* error_buffer, uint32_t error_buffer_size)
+    static OpenGLShader* CreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        GLuint shader_id = DoCreateShader(_context, type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
+        GLuint shader_id = DoCreateShader(_context, type, ddf_shader, source_path, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
@@ -3642,7 +3734,45 @@ static void LogFrameBufferError(GLenum status)
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
-    static bool LinkProgram(GLuint program)
+    static void SetProgramLinkError(HContext context, ShaderDesc* ddf, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
+    {
+        if (!error_buffer || error_buffer_size == 0)
+            return;
+
+        const char* log = driver_log && driver_log[0] ? driver_log : "No linker log was provided by the graphics driver.";
+        ShaderDesc::Shader* vertex_shader = 0;
+        ShaderDesc::Shader* fragment_shader = 0;
+        ShaderDesc::Shader* compute_shader = 0;
+        GetShaderProgram(context, ddf, &vertex_shader, &fragment_shader, &compute_shader);
+        if (compute_shader)
+        {
+            const char* language = GetShaderProgramLanguageLiteral(compute_shader->m_Language);
+            const char* variant = GetShaderVariantName(compute_shader);
+            if (ddf->m_ComputeProgram && ddf->m_ComputeProgram[0])
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (compute '%s').\nVariant: %s (%s).\nError: %s", ddf->m_ComputeProgram, language, variant, log);
+            else
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link compute shader program.\nVariant: %s (%s).\nError: %s", language, variant, log);
+        }
+        else if (vertex_shader && fragment_shader)
+        {
+            const char* vertex_language = GetShaderProgramLanguageLiteral(vertex_shader->m_Language);
+            const char* fragment_language = GetShaderProgramLanguageLiteral(fragment_shader->m_Language);
+            const char* vertex_variant = GetShaderVariantName(vertex_shader);
+            const char* fragment_variant = GetShaderVariantName(fragment_shader);
+            if (ddf->m_VertexProgram && ddf->m_VertexProgram[0] && ddf->m_FragmentProgram && ddf->m_FragmentProgram[0])
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (vertex '%s', fragment '%s').\nVariants: vertex %s (%s), fragment %s (%s).\nError: %s",
+                    ddf->m_VertexProgram, ddf->m_FragmentProgram, vertex_language, vertex_variant, fragment_language, fragment_variant, log);
+            else
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program.\nVariants: vertex %s (%s), fragment %s (%s).\nError: %s",
+                    vertex_language, vertex_variant, fragment_language, fragment_variant, log);
+        }
+        else
+        {
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program.\nError: %s", log);
+        }
+    }
+
+    static bool LinkProgram(HContext context, GLuint program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         glLinkProgram(program);
 
@@ -3651,18 +3781,18 @@ static void LogFrameBufferError(GLenum status)
 
         if (status == 0)
         {
-            dmLogError("Unable to link program.");
-#ifndef NDEBUG
-            GLint logLength;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
+            GLint log_length = 0;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &log_length);
+            char* log = 0;
+            if (log_length > 0)
             {
-                GLchar *log = (GLchar*) malloc(logLength);
-                glGetProgramInfoLog(program, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
-                free(log);
+                log = (char*) malloc(log_length + 1);
+                GLsizei written = 0;
+                glGetProgramInfoLog(program, log_length, &written, log);
+                log[written] = 0;
             }
-#endif
+            SetProgramLinkError(context, ddf, log, error_buffer, error_buffer_size);
+            free(log);
             return false;
         }
         return true;
@@ -3679,12 +3809,26 @@ static void LogFrameBufferError(GLenum status)
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
     }
 
-    static bool SetupGraphicsProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader)
+    static bool SetupGraphicsProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader,
+        ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        if (!program || !vertex_shader || !fragment_shader)
+        {
+            if (error_buffer && error_buffer_size && error_buffer[0] == 0)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program: vertex or fragment shader is missing.");
+            return false;
+        }
+
         IncreaseModificationVersion(context);
 
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
+        if (p == 0)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program.");
+            return false;
+        }
 
         GLuint vertex_id   = GetGLHandle(context, vertex_shader->m_Id);
         GLuint fragment_id = GetGLHandle(context, fragment_shader->m_Id);
@@ -3706,9 +3850,8 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        if (!LinkProgram(p))
+        if (!LinkProgram((HContext) context, p, ddf, error_buffer, error_buffer_size))
         {
-            delete program;
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return false;
@@ -3727,22 +3870,35 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static bool SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader)
+#ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+    static bool SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader,
+        ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        if (!program || !shader)
+        {
+            if (error_buffer && error_buffer_size && error_buffer[0] == 0)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program: compute shader is missing.");
+            return false;
+        }
+
         IncreaseModificationVersion(context);
 
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
+        if (p == 0)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program.");
+            return false;
+        }
 
         GLuint compute_shader_id = GetGLHandle(context, shader->m_Id);
 
         glAttachShader(p, compute_shader_id);
         CHECK_GL_ERROR;
 
-        if (!LinkProgram(p))
+        if (!LinkProgram((HContext) context, p, ddf, error_buffer, error_buffer_size))
         {
-            delete program;
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return false;
@@ -3750,15 +3906,11 @@ static void LogFrameBufferError(GLenum status)
 
         program->m_Id            = AddNewGLHandle(context, p);
         program->m_Language      = shader->m_Language;
-        program->m_ComputeShader = shader;
 
         OpenGLBuildUniforms(context, program, &shader, 1);
         return true;
-    #else
-        dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
-        return false;
-    #endif
     }
+#endif
 
     static void DeleteShader(OpenGLContext* context, OpenGLShader* shader)
     {
@@ -3769,6 +3921,15 @@ static void LogFrameBufferError(GLenum status)
             CleanupGLHandle(context, shader->m_Id);
             delete shader;
         }
+    }
+
+    static void DeleteIncompleteProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader, OpenGLShader* compute_shader)
+    {
+        DeleteShader(context, vertex_shader);
+        DeleteShader(context, fragment_shader);
+        DeleteShader(context, compute_shader);
+        DestroyShaderMeta(program->m_BaseProgram.m_ShaderMeta);
+        delete program;
     }
 
     static HProgram OpenGLNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
@@ -3789,59 +3950,84 @@ static void LogFrameBufferError(GLenum status)
 
         if (ddf_cp)
         {
-        #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-            OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
-            if (!SetupComputeProgram(context, program, compute_shader))
+        #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
+            OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, ddf->m_ComputeProgram, error_buffer, error_buffer_size);
+            if (!compute_shader)
             {
-                DeleteShader(context, compute_shader);
+                DeleteIncompleteProgram(context, program, 0, 0, 0);
                 return 0;
             }
+            if (!SetupComputeProgram(context, program, compute_shader, ddf, error_buffer, error_buffer_size))
+            {
+                DeleteIncompleteProgram(context, program, 0, 0, compute_shader);
+                return 0;
+            }
+            program->m_ComputeShader = compute_shader;
         #else
-            dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
+            DeleteIncompleteProgram(context, program, 0, 0, 0);
             return 0;
         #endif
         }
         else
         {
-            OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, error_buffer, error_buffer_size);
-            OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, error_buffer, error_buffer_size);
-            if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader))
+            OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, ddf->m_VertexProgram, error_buffer, error_buffer_size);
+            if (!vertex_shader)
             {
-                DeleteShader(context, vertex_shader);
-                DeleteShader(context, fragment_shader);
+                DeleteIncompleteProgram(context, program, 0, 0, 0);
                 return 0;
             }
+
+            OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, ddf->m_FragmentProgram, error_buffer, error_buffer_size);
+            if (!fragment_shader)
+            {
+                DeleteIncompleteProgram(context, program, vertex_shader, 0, 0);
+                return 0;
+            }
+
+            if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader, ddf, error_buffer, error_buffer_size))
+            {
+                DeleteIncompleteProgram(context, program, vertex_shader, fragment_shader, 0);
+                return 0;
+            }
+            program->m_VertexShader   = vertex_shader;
+            program->m_FragmentShader = fragment_shader;
         }
 
         return (HProgram) program;
     }
 
-    // Tries to compile a shader (either a vertex or fragment) program.
-    // We use this together with a temporary GLuint program to see if we it's
-    // possible to compile a reloaded program.
-    //
-    // In case the compile fails, it also prints the compile errors with dmLogWarning.
-    static bool TryCompileShader(GLuint prog, const void* program, GLint size)
+    static bool TryCompileShader(GLuint shader, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
-        glShaderSource(prog, 1, (const GLchar**) &program, &size);
+        if (shader == 0)
+        {
+            SetShaderCreateError(type, ddf_shader, source_path, error_buffer, error_buffer_size);
+            return false;
+        }
+
+        GLint size = ddf_shader->m_Source.m_Count;
+        glShaderSource(shader, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, &size);
         CHECK_GL_ERROR;
-        glCompileShader(prog);
+        glCompileShader(shader);
         CHECK_GL_ERROR;
 
         GLint status;
-        glGetShaderiv(prog, GL_COMPILE_STATUS, &status);
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
-            dmLogError("Unable to compile shader.");
-            GLint logLength;
-            glGetShaderiv(prog, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
+            GLint log_length = 0;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_length);
+            char* log = 0;
+            if (log_length > 0)
             {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetShaderInfoLog(prog, logLength, &logLength, log);
-                dmLogError("%s", log);
-                free(log);
+                log = (char*) malloc(log_length + 1);
+                GLsizei written = 0;
+                glGetShaderInfoLog(shader, log_length, &written, log);
+                log[written] = 0;
             }
+            SetShaderCompileError(type, ddf_shader, source_path, log, error_buffer, error_buffer_size);
+            free(log);
             CHECK_GL_ERROR;
             return false;
         }
@@ -3849,10 +4035,16 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static bool TryLinkProgram(GLuint* ids, int num_ids)
+    static bool TryLinkProgram(HContext context, GLuint* ids, int num_ids, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint tmp_program = glCreateProgram();
         CHECK_GL_ERROR;
+        if (tmp_program == 0)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program.");
+            return false;
+        }
 
         for (int i = 0; i < num_ids; ++i)
         {
@@ -3860,35 +4052,25 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
         }
 
-        glLinkProgram(tmp_program);
-
-        bool success = true;
-        GLint status;
-        glGetProgramiv(tmp_program, GL_LINK_STATUS, &status);
-        if (status == 0)
-        {
-            dmLogError("Unable to link program.");
-            GLint logLength;
-            glGetProgramiv(tmp_program, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
-            {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetProgramInfoLog(tmp_program, logLength, &logLength, log);
-                dmLogError("%s", log);
-                free(log);
-            }
-            success = false;
-        }
+        bool success = LinkProgram(context, tmp_program, ddf, error_buffer, error_buffer_size);
         glDeleteProgram(tmp_program);
 
         return success;
     }
 
-    static bool ReloadShader(OpenGLContext* context, OpenGLShader* shader, ShaderDesc::Shader* ddf, GLenum type)
+    static bool ReloadShader(OpenGLContext* context, OpenGLShader* shader, ShaderDesc::Shader* ddf, GLenum type, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
+        if (!shader || !ddf)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to reload %s shader: shader is missing.", GetShaderStageName(type));
+            return false;
+        }
+
         GLuint tmp_shader = glCreateShader(type);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
-        glDeleteShader(tmp_shader);
+        bool success = TryCompileShader(tmp_shader, type, ddf, source_path, error_buffer, error_buffer_size);
+        if (tmp_shader)
+            glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
@@ -3902,7 +4084,7 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
-    static bool OpenGLReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
+    static bool OpenGLReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_vp = 0x0;
         ShaderDesc::Shader* ddf_fp = 0x0;
@@ -3918,14 +4100,14 @@ static void LogFrameBufferError(GLenum status)
 
         if (ddf_cp)
         {
-            if (!ReloadShader(context, program->m_ComputeShader, ddf_cp, DMGRAPHICS_TYPE_COMPUTE_SHADER))
+            if (!ReloadShader(context, program->m_ComputeShader, ddf_cp, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf->m_ComputeProgram, error_buffer, error_buffer_size))
             {
                 return false;
             }
 
             GLuint id = GetGLHandle(context, program->m_ComputeShader->m_Id);
 
-            if (!TryLinkProgram(&id, 1))
+            if (!TryLinkProgram(_context, &id, 1, ddf, error_buffer, error_buffer_size))
             {
                 return false;
             }
@@ -3935,11 +4117,11 @@ static void LogFrameBufferError(GLenum status)
         }
         else
         {
-            if (!ReloadShader(context, program->m_VertexShader, ddf_vp, GL_VERTEX_SHADER))
+            if (!ReloadShader(context, program->m_VertexShader, ddf_vp, GL_VERTEX_SHADER, ddf->m_VertexProgram, error_buffer, error_buffer_size))
             {
                 return false;
             }
-            if (!ReloadShader(context, program->m_FragmentShader, ddf_fp, GL_FRAGMENT_SHADER))
+            if (!ReloadShader(context, program->m_FragmentShader, ddf_fp, GL_FRAGMENT_SHADER, ddf->m_FragmentProgram, error_buffer, error_buffer_size))
             {
                 return false;
             }
@@ -3949,7 +4131,7 @@ static void LogFrameBufferError(GLenum status)
                 GetGLHandle(context, program->m_FragmentShader->m_Id)
             };
 
-            if (!TryLinkProgram(ids, 2))
+            if (!TryLinkProgram(_context, ids, 2, ddf, error_buffer, error_buffer_size))
             {
                 return false;
             }
@@ -4199,10 +4381,9 @@ static void LogFrameBufferError(GLenum status)
     }
 #endif
 
-    static void CreateRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, AttachmentType type, const TextureParams params, const TextureCreationParams creation_params)
+    static void CreateRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, AttachmentType type, TextureParams& params, const TextureCreationParams creation_params, HTexture* texture)
     {
-        attachment.m_Params = params;
-        attachment.m_Type   = type;
+        attachment.m_Type = type;
 
         switch(type)
         {
@@ -4215,15 +4396,16 @@ static void LogFrameBufferError(GLenum status)
                 break;
             }
             case ATTACHMENT_TYPE_TEXTURE:
-                attachment.m_Texture = NewTexture((HContext) context, creation_params);
+                assert(texture);
+                *texture = NewTexture((HContext) context, creation_params);
                 break;
             default: assert(0);
         }
 
-        ClearTextureParamsData(attachment.m_Params);
+        ClearTextureParamsData(params);
     }
 
-    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, GLenum* attachment_targets, uint32_t num_attachment_targets)
+    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, HTexture texture, GLenum* attachment_targets, uint32_t num_attachment_targets)
     {
         if (attachment.m_Attached)
         {
@@ -4241,7 +4423,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
-            OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, attachment.m_Texture);
+            OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
             for (int i = 0; i < num_attachment_targets; ++i)
             {
                 glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
@@ -4261,10 +4443,10 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_ColorAttachments[i].m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(_context, rt->m_ColorAttachments[i].m_Texture, rt->m_ColorAttachments[i].m_Params);
+                SetTexture(_context, rt->m_Base.m_TextureColor[i], rt->m_Base.m_ColorTextureParams[i]);
 
                 GLenum attachments[] = { (GLenum) GL_COLOR_ATTACHMENT0 + i };
-                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], attachments, DM_ARRAY_SIZE(attachments));
             }
         }
 
@@ -4273,22 +4455,22 @@ static void LogFrameBufferError(GLenum status)
             if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
                 glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthStencilAttachment.m_Buffer));
-                glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_DepthStencilAttachment.m_Params.m_Width, rt->m_DepthStencilAttachment.m_Params.m_Height);
+                glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_Base.m_DepthStencilTextureParams.m_Width, rt->m_Base.m_DepthStencilTextureParams.m_Height);
                 CHECK_GL_ERROR;
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
     #else
                 // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
     #endif
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_DepthStencilAttachment.m_Texture);
+                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
@@ -4298,18 +4480,18 @@ static void LogFrameBufferError(GLenum status)
                  // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
                 glTexImage2D(GL_TEXTURE_2D, 0,
                     DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
-                    rt->m_DepthStencilAttachment.m_Params.m_Width,
-                    rt->m_DepthStencilAttachment.m_Params.m_Height,
+                    rt->m_Base.m_DepthStencilTextureParams.m_Width,
+                    rt->m_Base.m_DepthStencilTextureParams.m_Height,
                     0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
                 CHECK_GL_ERROR;
 
                 glBindTexture(GL_TEXTURE_2D, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
             #else
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
             #endif
             }
             else
@@ -4322,39 +4504,39 @@ static void LogFrameBufferError(GLenum status)
             if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
                 glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthAttachment.m_Buffer));
-                glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), rt->m_DepthAttachment.m_Params.m_Width, rt->m_DepthAttachment.m_Params.m_Height);
+                glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), rt->m_Base.m_DepthBufferParams.m_Width, rt->m_Base.m_DepthBufferParams.m_Height);
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(_context, rt->m_DepthAttachment.m_Texture, rt->m_DepthAttachment.m_Params);
+                SetTexture(_context, rt->m_Base.m_TextureDepth, rt->m_Base.m_DepthBufferParams);
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
             }
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
                 glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_StencilAttachment.m_Buffer));
-                glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, rt->m_StencilAttachment.m_Params.m_Width, rt->m_StencilAttachment.m_Params.m_Height);
+                glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, rt->m_Base.m_StencilBufferParams.m_Width, rt->m_Base.m_StencilBufferParams.m_Height);
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(_context, rt->m_StencilAttachment.m_Texture, rt->m_StencilAttachment.m_Params);
+                SetTexture(_context, rt->m_Base.m_TextureStencil, rt->m_Base.m_StencilBufferParams);
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
             }
         }
     }
@@ -4401,6 +4583,11 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLRenderTarget* rt = new OpenGLRenderTarget();
         rt->m_BufferTypeFlags  = buffer_type_flags;
+        rt->m_Base.m_Id        = GetNextRenderTargetId();
+        memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
+        rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
+        rt->m_Base.m_DepthStencilTextureParams = use_depth_attachment ? params.m_DepthBufferParams : params.m_StencilBufferParams;
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);
@@ -4414,7 +4601,8 @@ static void LogFrameBufferError(GLenum status)
             if (buffer_type_flags & color_buffer_flags[i])
             {
                 uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
-                CreateRenderTargetAttachment(context, rt->m_ColorAttachments[i], ATTACHMENT_TYPE_TEXTURE, params.m_ColorBufferParams[color_buffer_index], params.m_ColorBufferCreationParams[color_buffer_index]);
+                CreateRenderTargetAttachment(context, rt->m_ColorAttachments[i], ATTACHMENT_TYPE_TEXTURE, rt->m_Base.m_ColorTextureParams[color_buffer_index], params.m_ColorBufferCreationParams[color_buffer_index], &rt->m_Base.m_TextureColor[color_buffer_index]);
+                ++rt->m_Base.m_ColorAttachmentCount;
                 any_color_attachment_set = true;
             }
         }
@@ -4426,25 +4614,25 @@ static void LogFrameBufferError(GLenum status)
                 // If both depth and stencil attachments are requested, we create a shared texture for both attachments since we cannot mix and match buffers and textures as attachments in OpenGL.
                 if (depth_texture)
                 {
-                    CreateRenderTargetAttachment(context, rt->m_DepthStencilAttachment, ATTACHMENT_TYPE_TEXTURE, params.m_DepthBufferParams, params.m_DepthBufferCreationParams);
+                    CreateRenderTargetAttachment(context, rt->m_DepthStencilAttachment, ATTACHMENT_TYPE_TEXTURE, rt->m_Base.m_DepthStencilTextureParams, params.m_DepthBufferCreationParams, &rt->m_Base.m_TextureDepthStencil);
                 }
                 else if (context->m_PackedDepthStencilSupport)
                 {
-                    CreateRenderTargetAttachment(context, rt->m_DepthStencilAttachment, ATTACHMENT_TYPE_BUFFER, params.m_DepthBufferParams, params.m_DepthBufferCreationParams);
+                    CreateRenderTargetAttachment(context, rt->m_DepthStencilAttachment, ATTACHMENT_TYPE_BUFFER, rt->m_Base.m_DepthStencilTextureParams, params.m_DepthBufferCreationParams, 0);
                 }
                 else
                 {
-                    CreateRenderTargetAttachment(context, rt->m_DepthAttachment, ATTACHMENT_TYPE_BUFFER, params.m_DepthBufferParams, params.m_DepthBufferCreationParams);
-                    CreateRenderTargetAttachment(context, rt->m_DepthAttachment, ATTACHMENT_TYPE_BUFFER, params.m_StencilBufferParams, params.m_StencilBufferCreationParams);
+                    CreateRenderTargetAttachment(context, rt->m_DepthAttachment, ATTACHMENT_TYPE_BUFFER, rt->m_Base.m_DepthBufferParams, params.m_DepthBufferCreationParams, 0);
+                    CreateRenderTargetAttachment(context, rt->m_StencilAttachment, ATTACHMENT_TYPE_BUFFER, rt->m_Base.m_StencilBufferParams, params.m_StencilBufferCreationParams, 0);
                 }
             }
             else if (use_depth_attachment)
             {
-                CreateRenderTargetAttachment(context, rt->m_DepthAttachment, depth_texture ? ATTACHMENT_TYPE_TEXTURE : ATTACHMENT_TYPE_BUFFER, params.m_DepthBufferParams, params.m_DepthBufferCreationParams);
+                CreateRenderTargetAttachment(context, rt->m_DepthAttachment, depth_texture ? ATTACHMENT_TYPE_TEXTURE : ATTACHMENT_TYPE_BUFFER, rt->m_Base.m_DepthBufferParams, params.m_DepthBufferCreationParams, depth_texture ? &rt->m_Base.m_TextureDepth : 0);
             }
             else if (use_stencil_attachment)
             {
-                CreateRenderTargetAttachment(context, rt->m_StencilAttachment, ATTACHMENT_TYPE_BUFFER, params.m_StencilBufferParams, params.m_StencilBufferCreationParams);
+                CreateRenderTargetAttachment(context, rt->m_StencilAttachment, ATTACHMENT_TYPE_BUFFER, rt->m_Base.m_StencilBufferParams, params.m_StencilBufferCreationParams, 0);
             }
         }
 
@@ -4471,7 +4659,7 @@ static void LogFrameBufferError(GLenum status)
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
-    static void DeleteRenderTargetAttachment(OpenGLRenderTargetAttachment& attachment)
+    static void DeleteRenderTargetAttachment(OpenGLRenderTargetAttachment& attachment, HTexture& texture)
     {
         if (attachment.m_Type == ATTACHMENT_TYPE_BUFFER && attachment.m_Buffer)
         {
@@ -4480,10 +4668,10 @@ static void LogFrameBufferError(GLenum status)
             CleanupGLHandle(g_Context, attachment.m_Buffer);
             attachment.m_Buffer = 0;
         }
-        else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE && attachment.m_Texture)
+        else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE && texture)
         {
-            DeleteTexture((HContext)g_Context, attachment.m_Texture);
-            attachment.m_Texture = 0;
+            DeleteTexture((HContext)g_Context, texture);
+            texture = 0;
         }
     }
 
@@ -4498,12 +4686,12 @@ static void LogFrameBufferError(GLenum status)
 
         for (uint8_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
         {
-            DeleteRenderTargetAttachment(rt->m_ColorAttachments[i]);
+            DeleteRenderTargetAttachment(rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i]);
         }
 
-        DeleteRenderTargetAttachment(rt->m_DepthStencilAttachment);
-        DeleteRenderTargetAttachment(rt->m_DepthAttachment);
-        DeleteRenderTargetAttachment(rt->m_StencilAttachment);
+        DeleteRenderTargetAttachment(rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil);
+        DeleteRenderTargetAttachment(rt->m_DepthAttachment, rt->m_Base.m_TextureDepth);
+        DeleteRenderTargetAttachment(rt->m_StencilAttachment, rt->m_Base.m_TextureStencil);
 
         context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
@@ -4574,7 +4762,7 @@ static void LogFrameBufferError(GLenum status)
 
             for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
             {
-                if (rt->m_ColorAttachments[i].m_Texture)
+                if (rt->m_Base.m_TextureColor[i])
                 {
                     buffers[i] = GL_COLOR_ATTACHMENT0 + i;
                     num_buffers++;
@@ -4596,70 +4784,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
 
-    static inline HTexture GetAttachmentTexture(OpenGLRenderTargetAttachment& attachment)
-    {
-        if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
-            return attachment.m_Texture;
-        return 0;
-    }
-
-    static HTexture OpenGLGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-
-        if (IsColorBufferType(buffer_type))
-        {
-            return GetAttachmentTexture(rt->m_ColorAttachments[GetBufferTypeIndex(buffer_type)]);
-        }
-        else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
-        {
-            return rt->m_DepthStencilAttachment.m_Texture;
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT && rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
-        {
-            return GetAttachmentTexture(rt->m_DepthAttachment);
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT && rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
-        {
-            return GetAttachmentTexture(rt->m_StencilAttachment);
-        }
-        return 0;
-    }
-
-    static void OpenGLGetRenderTargetSize(HContext _context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-        TextureParams* params = 0;
-
-        if (IsColorBufferType(buffer_type))
-        {
-            uint32_t i = GetBufferTypeIndex(buffer_type);
-            assert(i < MAX_BUFFER_COLOR_ATTACHMENTS);
-            params = &rt->m_ColorAttachments[i].m_Params;
-        }
-        else if (rt->m_DepthStencilAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
-        {
-            params = &rt->m_DepthStencilAttachment.m_Params;
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            params = &rt->m_DepthAttachment.m_Params;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            params = &rt->m_StencilAttachment.m_Params;
-        }
-        else
-        {
-            assert(0);
-        }
-
-        width  = params->m_Width;
-        height = params->m_Height;
-    }
-
     static void OpenGLSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -4667,24 +4791,18 @@ static void LogFrameBufferError(GLenum status)
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            rt->m_ColorAttachments[i].m_Params.m_Width  = width;
-            rt->m_ColorAttachments[i].m_Params.m_Height = height;
+            rt->m_Base.m_ColorTextureParams[i].m_Width  = width;
+            rt->m_Base.m_ColorTextureParams[i].m_Height = height;
         }
 
-        rt->m_DepthStencilAttachment.m_Params.m_Width  = width;
-        rt->m_DepthStencilAttachment.m_Params.m_Height = height;
-        rt->m_DepthAttachment.m_Params.m_Width         = width;
-        rt->m_DepthAttachment.m_Params.m_Height        = height;
-        rt->m_StencilAttachment.m_Params.m_Width       = width;
-        rt->m_StencilAttachment.m_Params.m_Height      = height;
+        rt->m_Base.m_DepthStencilTextureParams.m_Width  = width;
+        rt->m_Base.m_DepthStencilTextureParams.m_Height = height;
+        rt->m_Base.m_DepthBufferParams.m_Width          = width;
+        rt->m_Base.m_DepthBufferParams.m_Height         = height;
+        rt->m_Base.m_StencilBufferParams.m_Width        = width;
+        rt->m_Base.m_StencilBufferParams.m_Height       = height;
 
         ApplyRenderTargetAttachments(_context, rt, true);
-    }
-
-    static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext _context)
@@ -4817,7 +4935,8 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
         tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
         dmAtomicStore32(&tex->m_Base.m_DataState, 0);
-        tex->m_ResourceSize = 0;
+        tex->m_Base.m_ResourceSize = 0;
+        tex->m_Base.m_Mip0ResourceSize = 0;
 
         SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         tex->m_SamplerDirty = tex->m_Sampler;
@@ -4943,13 +5062,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
-    }
-
-    static uint8_t OpenGLGetTexturePageCount(HTexture texture)
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_BaseContext.m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
     }
 
     // Called on worker thread
@@ -5098,10 +5210,7 @@ static void LogFrameBufferError(GLenum status)
                 tex->m_Base.m_Depth  = params.m_Depth;
             }
 
-            if (params.m_MipMap == 0)
-            {
-                tex->m_ResourceSize = params.m_DataSize;
-            }
+            SetTextureResourceSize(&tex->m_Base, sizeof(OpenGLTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
         }
 
         SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
@@ -5328,28 +5437,6 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR;
         }
-    }
-
-    // NOTE: This is an approximation
-    static uint32_t OpenGLGetTextureResourceSize(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-        if (!tex)
-        {
-            return 0;
-        }
-
-        uint32_t size_total = 0;
-        uint32_t size = tex->m_ResourceSize; // Size for mip 0
-        for(uint32_t i = 0; i < tex->m_Base.m_MipMapCount; ++i)
-        {
-            size_total += size;
-            size >>= 2;
-        }
-        size_total *= dmMath::Max((uint16_t) 1, tex->m_Base.m_Depth);
-        return size_total + sizeof(OpenGLTexture);
     }
 
     static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
@@ -5581,28 +5668,6 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         glPolygonOffset(factor, units);
         CHECK_GL_ERROR;
-    }
-
-    static bool OpenGLIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-
-        OpenGLContext* context = (OpenGLContext*) _context;
-        AssetType type         = GetAssetType(asset_handle);
-
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            return GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     // DMSDK

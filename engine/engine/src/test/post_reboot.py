@@ -12,13 +12,19 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+import os
 import sys
-sys.path = ['../script/build/src/script'] + sys.path
-import sys_ddf_pb2, http.client
+import http.client
+from test_python_paths import add_engine_test_proto_paths
+
+add_engine_test_proto_paths()
+import sys_ddf_pb2
 
 m = sys_ddf_pb2.Reboot()
 m.arg1 = '--config=dmengine.unload_builtins=0'
-m.arg2 = 'src/test/build/default/game.projectc'
+m.arg2 = 'build/src/test/build/default/game.projectc'
+if not os.path.exists(m.arg2):
+    m.arg2 = 'src/test/build/default/game.projectc'
 
 conn = http.client.HTTPConnection("localhost", int(sys.argv[1]))
 conn.request("POST", "/post/@system/reboot", m.SerializeToString())

@@ -157,6 +157,11 @@ namespace dmPlatform
         return 0;
     }
 
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+        return 0;
+    }
+
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
         return 0;
@@ -416,16 +421,16 @@ namespace dmPlatform
     const int PLATFORM_KEY_BACK            = 57;
 
     const int PLATFORM_MOUSE_BUTTON_LEFT   = 0;
-    const int PLATFORM_MOUSE_BUTTON_MIDDLE = 1;
-    const int PLATFORM_MOUSE_BUTTON_RIGHT  = 2;
-    const int PLATFORM_MOUSE_BUTTON_1      = 3;
-    const int PLATFORM_MOUSE_BUTTON_2      = 4;
-    const int PLATFORM_MOUSE_BUTTON_3      = 5;
-    const int PLATFORM_MOUSE_BUTTON_4      = 6;
-    const int PLATFORM_MOUSE_BUTTON_5      = 7;
-    const int PLATFORM_MOUSE_BUTTON_6      = 8;
-    const int PLATFORM_MOUSE_BUTTON_7      = 9;
-    const int PLATFORM_MOUSE_BUTTON_8      = 10;
+    const int PLATFORM_MOUSE_BUTTON_RIGHT  = 1;
+    const int PLATFORM_MOUSE_BUTTON_MIDDLE = 2;
+    const int PLATFORM_MOUSE_BUTTON_1      = 0;
+    const int PLATFORM_MOUSE_BUTTON_2      = 1;
+    const int PLATFORM_MOUSE_BUTTON_3      = 2;
+    const int PLATFORM_MOUSE_BUTTON_4      = 3;
+    const int PLATFORM_MOUSE_BUTTON_5      = 4;
+    const int PLATFORM_MOUSE_BUTTON_6      = 5;
+    const int PLATFORM_MOUSE_BUTTON_7      = 6;
+    const int PLATFORM_MOUSE_BUTTON_8      = 7;
 
     const int PLATFORM_JOYSTICK_1          = 0;
     const int PLATFORM_JOYSTICK_2          = 1;

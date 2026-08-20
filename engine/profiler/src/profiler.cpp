@@ -54,6 +54,7 @@ namespace dmProfiler
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
 static bool g_ProfilerEnabled = false;
 static bool g_TrackCpuUsage = false;
+static bool g_TrackDetailedMemory = false;
 static dmProfileRender::HRenderProfile gRenderProfile = 0;
 static uint32_t gUpdateFrequency = 60;
 
@@ -356,10 +357,8 @@ void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmR
     }
 }
 
-/*# get current memory usage for app reported by OS
- * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS.
- *
- * [icon:attention] This function is not available on [icon:html5] HTML5.
+/*# get current detailed memory usage for app reported by the platform
+ * Get the detailed amount of memory used by the application in bytes, as reported by the platform.
  *
  * The values are gathered from internal OS functions which correspond to the following;
  *
@@ -367,7 +366,7 @@ void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmR
  * ----------------------------------|------------------
  * [icon:ios] iOS<br/>[icon:macos] MacOS<br/>[icon:android]<br/>Android<br/>[icon:linux] Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
  * [icon:windows] Windows            | [Working set](https://en.wikipedia.org/wiki/Working_set)
- * [icon:html5] HTML5                | [icon:attention] Not available
+ * [icon:html5] HTML5                | Allocated bytes reported by `mallinfo().uordblks`
  *
  * @name profiler.get_memory_usage
  * @return bytes [type:number] used by the application
@@ -385,7 +384,7 @@ void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmR
 static int MemoryUsage(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
-    lua_pushnumber(L, dmProfilerExt::GetMemoryUsage());
+    lua_pushnumber(L, dmProfilerExt::GetDetailedMemoryUsage());
     return 1;
 }
 
@@ -982,6 +981,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
     {
         dmProfiler::g_TrackCpuUsage = true;
     }
+    dmProfiler::g_TrackDetailedMemory = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.track_detailed_memory", 0) == 1;
 
     static const luaL_reg Module_methods[] =
     {
@@ -1034,7 +1034,8 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 
     if (dLib::IsDebugMode()) {
         DM_PROPERTY_SET_U32(rmtp_CpuUsage, dmProfilerExt::GetCpuUsage()*100.0);
-        DM_PROPERTY_SET_U32(rmtp_Memory, dmProfilerExt::GetMemoryUsage() / 1024u);
+        uint64_t memory_usage = g_TrackDetailedMemory ? dmProfilerExt::GetDetailedMemoryUsage() : dmProfilerExt::GetMemoryUsage();
+        DM_PROPERTY_SET_U32(rmtp_Memory, memory_usage / 1024u);
     }
 
     dmProfilerExt::UpdatePlatformProfiler();

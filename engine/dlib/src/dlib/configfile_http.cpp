@@ -16,8 +16,9 @@
 
 #include "array.h"
 #include "configfile_http.h"
-#include "http_client.h"
 #include "math.h"
+
+#include <dlib/http/http_client.h>
 
 namespace dmConfigFile
 {

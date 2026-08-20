@@ -37,16 +37,17 @@ on:
           [
             { "name": "x86_64-linux", "runner": "ubuntu-22.04", "target": "linux" },
             { "name": "arm64-linux", "runner": "ubuntu-22.04-arm", "target": "linux" },
-            { "name": "arm64-macos", "runner": "macOS-14", "target": "macos" },
-            { "name": "x86_64-macos", "runner": "macOS-14", "target": "macos" },
-            { "name": "arm64-ios", "runner": "macOS-14", "target": "macos" },
-            { "name": "x86_64-ios", "runner": "macOS-14", "target": "macos" },
+            { "name": "arm64-macos", "runner": "macOS-26", "target": "macos" },
+            { "name": "x86_64-macos", "runner": "macOS-26", "target": "macos" },
+            { "name": "arm64-ios", "runner": "macOS-26", "target": "macos" },
+            { "name": "x86_64-ios", "runner": "macOS-26", "target": "macos" },
             { "name": "wasm-web", "runner": "ubuntu-22.04", "target": "web" },
             { "name": "wasm_pthread-web", "runner": "ubuntu-22.04", "target": "web" },
-            { "name": "win32", "runner": "windows-2025", "target": "windows" },
-            { "name": "x86_64-win32", "runner": "windows-2025", "target": "windows" },
+            { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
+            { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
-            { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
+            { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" },
+            { "name": "x86_64-android", "runner": "ubuntu-22.04", "target": "android" }
           ]
         description: 'JSON array of platforms to build'
         required: false
@@ -96,13 +97,13 @@ jobs:
     runs-on: ${{ matrix.platforms.runner }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
 
       - name: Setup MSVC
         if: "${{ matrix.platforms.target == 'windows' && inputs.setup_msvc }}"
-        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
         with:
           arch: ${{ matrix.platforms.name == 'win32' && 'x86' || 'x64' }}
 
@@ -115,7 +116,7 @@ jobs:
           add-to-path: false
 
       - name: Install Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: 3.13
 
@@ -175,6 +176,9 @@ jobs:
             if [[ "$BUILD_PLATFORM_NAME" == "arm64-android" ]]; then
               export CC="aarch64-linux-android${{ inputs.android_abi_version }}-clang"
               export CXX="aarch64-linux-android${{ inputs.android_abi_version }}-clang++"
+            elif [[ "$BUILD_PLATFORM_NAME" == "x86_64-android" ]]; then
+              export CC="x86_64-linux-android${{ inputs.android_abi_version }}-clang"
+              export CXX="x86_64-linux-android${{ inputs.android_abi_version }}-clang++"
             else
               export CC="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang"
               export CXX="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang++"
@@ -233,7 +237,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
           fetch-depth: 0

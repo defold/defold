@@ -15,8 +15,10 @@
 package com.dynamo.bob;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -58,6 +60,17 @@ public class ClassLoaderScanner implements IClassScanner {
             }
         }
     }
+
+    private static boolean isMissingFileException(Throwable e) {
+        while (e != null) {
+            if (e instanceof FileNotFoundException || e instanceof NoSuchFileException) {
+                return true;
+            }
+            e = e.getCause();
+        }
+        return false;
+    }
+
     private static void scanJar(URL resource, String pkgname, Set<String> classes) throws IOException {
         String relPath = pkgname.replace('.', '/');
         String resPath = resource.getPath();
@@ -116,7 +129,13 @@ public class ClassLoaderScanner implements IClassScanner {
                     File dir = new File(url.getFile());
                     scanDir(dir, pkg, classes);
                 } else if (protocol.equals("jar")) {
-                    scanJar(url, pkg, classes);
+                    try {
+                        scanJar(url, pkg, classes);
+                    } catch (IOException ex) {
+                        if (!isMissingFileException(ex)) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
                 }
             }
         } catch (IOException e) {

@@ -2517,6 +2517,7 @@ namespace dmScript
                 y = x; z = x;
             }
             PushMatrix4(L, Matrix4::scale(Vector3(x, y, z)));
+            return 1;
         }
         else
         {
@@ -2721,7 +2722,6 @@ namespace dmScript
         {"matrix4_look_at", Matrix4_LookAt},
         {"matrix4_orthographic", Matrix4_Orthographic},
         {"matrix4_perspective", Matrix4_Perspective},
-        {"matrix4_from_quat", Matrix4_Quat}, // deprecated
         {"matrix4_quat", Matrix4_Quat},
         {"matrix4_axis_angle", Matrix4_AxisAngle},
         {"matrix4_rotation_x", Matrix4_RotationX},

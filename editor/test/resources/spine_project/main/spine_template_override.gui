@@ -1,0 +1,24 @@
+nodes {
+  type: TYPE_TEMPLATE
+  id: "template"
+  inherit_alpha: true
+  template: "/main/spine_template_base.gui"
+  enabled: true
+}
+nodes {
+  type: TYPE_CUSTOM
+  id: "template/spine"
+  parent: "template"
+  inherit_alpha: true
+  overridden_fields: 39
+  template_node_child: true
+  size_mode: SIZE_MODE_AUTO
+  spine_scene: "flag"
+  custom_type: 405028931
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+resources {
+  name: "flag"
+  path: "/assets/spineboy/spineboy.spinescene"
+}

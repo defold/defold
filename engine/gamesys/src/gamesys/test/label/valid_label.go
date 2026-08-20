@@ -36,8 +36,8 @@ embedded_components {
   "blend_mode: BLEND_MODE_ALPHA\n"
   "line_break: false\n"
   "text: \"Label\"\n"
-  "font: \"/font/valid_font.font\"\n"
-  "material: \"/material/valid.material\"\n"
+  "font: \"/label/font_valid_font.font\"\n"
+  "material: \"/label/material_valid.material\"\n"
   ""
   position {
     x: 0.0

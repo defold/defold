@@ -164,12 +164,20 @@
 
 (defn make-changes-view [view-graph workspace prefs localization ^Parent parent async-reload!]
   (assert (fn? async-reload!))
-  (let [^ListView list-view     (.lookup parent "#changes")
-        diff-button             (.lookup parent "#changes-diff")
-        revert-button           (.lookup parent "#changes-revert")
-        progress-overlay        (.lookup parent "#changes-progress-overlay")
-        git                     (try-open-git workspace)
-        view-id                 (g/make-node! view-graph ChangesView :list-view list-view :progress-overlay progress-overlay :git git :prefs prefs)
+  (let [^ListView list-view (.lookup parent "#changes")
+        diff-button (.lookup parent "#changes-diff")
+        revert-button (.lookup parent "#changes-revert")
+        progress-overlay (.lookup parent "#changes-progress-overlay")
+        git (try-open-git workspace)
+        view-id (first
+                  (g/tx-nodes-added
+                    (g/transact
+                      {:undoable false}
+                      (g/make-node view-graph ChangesView
+                                   :list-view list-view
+                                   :progress-overlay progress-overlay
+                                   :git git
+                                   :prefs prefs))))
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (g/let-ec [can-revert (ui/bound-action-enabled? revert-button evaluation-context)]

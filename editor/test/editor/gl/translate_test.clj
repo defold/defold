@@ -13,9 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gl.translate-test
-  (:use clojure.test
-        editor.gl.shader))
+  (:require [clojure.test :refer [deftest is testing]]
+            [editor.gl.shader :refer [defshader]]))
 
+(declare test-shader)
 
 (deftest simplest-test
   (testing "The simplest shader."

@@ -1,0 +1,5 @@
+[project]
+title = Project LSP Completion Test
+
+[bootstrap]
+main_collection = /main/main.collectionc

@@ -48,7 +48,7 @@
  * ```
  */
 
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && defined(__cplusplus))
     // For backwards compatibility, we need to keep the old error format
     #define DM_STATIC_ASSERT(x, error) static_assert(x, #error)
 #else

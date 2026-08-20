@@ -1,3 +1,0 @@
-name: "texture_transform_model"
-mesh: "/model/aabb_model.gltf"
-material: "/material/attributes_texture_transform_valid.material"

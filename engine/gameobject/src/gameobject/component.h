@@ -22,6 +22,11 @@
 
 namespace dmGameObject
 {
+    struct ComponentTypeCreateCtxImpl
+    {
+        HContextRegistry m_ContextRegistry;
+    };
+
     /*#
      * Collection of component registration data.
      */

@@ -39,7 +39,7 @@
     (let [queries ["**/atlas.atlas" "**/env.cubemap"
                    "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
       (test-util/with-loaded-project
-        (let [view-graph (g/make-graph! :history false :volatility 2)]
+        (let [view-graph (g/make-graph! :volatility 2)]
           (doseq [query queries
                   :let [results (project/find-resources project query)]]
             (is (= 1 (count results)))

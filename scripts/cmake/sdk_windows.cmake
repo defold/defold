@@ -27,6 +27,26 @@ set(_FOUND_LLVM_CLANGXX "")
 set(_FOUND_LLVM_CLANG   "")
 set(_FOUND_WINSDK_VERSION "")
 set(_FOUND_PACKAGED_TOOLCHAIN FALSE)
+set(_DEFOLD_REQUESTED_VS_ROOT "")
+
+if(DEFINED DEFOLD_VISUAL_STUDIO_ROOT AND NOT "${DEFOLD_VISUAL_STUDIO_ROOT}" STREQUAL "")
+    file(TO_CMAKE_PATH "${DEFOLD_VISUAL_STUDIO_ROOT}" _DEFOLD_REQUESTED_VS_ROOT)
+elseif(DEFINED CMAKE_GENERATOR_INSTANCE AND NOT "${CMAKE_GENERATOR_INSTANCE}" STREQUAL "")
+    file(TO_CMAKE_PATH "${CMAKE_GENERATOR_INSTANCE}" _DEFOLD_REQUESTED_VS_ROOT)
+endif()
+
+if(_DEFOLD_REQUESTED_VS_ROOT AND NOT EXISTS "${_DEFOLD_REQUESTED_VS_ROOT}")
+    message(WARNING "sdk_windows: requested Visual Studio root does not exist: ${_DEFOLD_REQUESTED_VS_ROOT}")
+    set(_DEFOLD_REQUESTED_VS_ROOT "")
+endif()
+
+if(DEFINED DEFOLD_WINDOWS_SDK_VERSION AND NOT "${DEFOLD_WINDOWS_SDK_VERSION}" STREQUAL "")
+    set(_FOUND_WINSDK_VERSION "${DEFOLD_WINDOWS_SDK_VERSION}")
+    defold_log("sdk_windows: Requested Windows SDK version: ${_FOUND_WINSDK_VERSION}")
+elseif(DEFINED CMAKE_SYSTEM_VERSION AND CMAKE_SYSTEM_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")
+    set(_FOUND_WINSDK_VERSION "${CMAKE_SYSTEM_VERSION}")
+    defold_log("sdk_windows: Requested Windows SDK version from CMAKE_SYSTEM_VERSION: ${_FOUND_WINSDK_VERSION}")
+endif()
 
 
 # Helper to pick latest directory path from a list of paths
@@ -227,9 +247,15 @@ function(_defold_detect_msvc_cl_from_vsroot VSROOT ARCH OUT_PATH)
 endfunction()
 
 #############################################
-# Visual Studio roots and detection (packaged first)
+# Visual Studio roots and detection (requested root first, then packaged)
 set(_VS_PACKAGED_ROOTS "")
 set(_VS_PACKAGED_SEARCH_DIRS "")
+set(_VS_REQUESTED_ROOTS "")
+
+if(_DEFOLD_REQUESTED_VS_ROOT)
+    list(APPEND _VS_REQUESTED_ROOTS "${_DEFOLD_REQUESTED_VS_ROOT}")
+    defold_log("sdk_windows: Requested Visual Studio root: ${_DEFOLD_REQUESTED_VS_ROOT}")
+endif()
 
 # Always probe the repo-local tmp/dynamo_home first to prefer packaged toolchains
 get_filename_component(_DEFOLD_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
@@ -261,11 +287,30 @@ endforeach()
 list(REMOVE_DUPLICATES _VS_PACKAGED_ROOTS)
 
 set(_VS_CANDIDATE_ROOTS "")
+if(_VS_REQUESTED_ROOTS)
+    list(APPEND _VS_CANDIDATE_ROOTS ${_VS_REQUESTED_ROOTS})
+endif()
 if(_VS_PACKAGED_ROOTS)
     list(APPEND _VS_CANDIDATE_ROOTS ${_VS_PACKAGED_ROOTS})
 endif()
 
-# 1) Scan packaged Visual Studio roots first
+# 1) Scan requested Visual Studio roots first
+foreach(_vs IN LISTS _VS_REQUESTED_ROOTS)
+    if(NOT _FOUND_MSVC_CL)
+        _defold_detect_msvc_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _cl)
+        if(_cl)
+            set(_FOUND_MSVC_CL "${_cl}")
+        endif()
+    endif()
+    if(NOT _FOUND_CLANG_CL)
+        _defold_detect_clang_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _clangcl)
+        if(_clangcl)
+            set(_FOUND_CLANG_CL "${_clangcl}")
+        endif()
+    endif()
+endforeach()
+
+# 2) Scan packaged Visual Studio roots
 foreach(_vs IN LISTS _VS_PACKAGED_ROOTS)
     if(NOT _FOUND_MSVC_CL)
         _defold_detect_msvc_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _cl)
@@ -281,7 +326,7 @@ foreach(_vs IN LISTS _VS_PACKAGED_ROOTS)
     endif()
 endforeach()
 
-# 2) If not found yet, add local Visual Studio roots
+# 3) If not found yet, add local Visual Studio roots
 set(_VS_LOCAL_ROOTS "")
 find_program(_VSWHERE vswhere HINTS "C:/Program Files (x86)/Microsoft Visual Studio/Installer")
 if(_VSWHERE)
@@ -295,10 +340,10 @@ if(_VSWHERE)
 endif()
 
 list(APPEND _VS_LOCAL_ROOTS
-    "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
-    "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
-    "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
-    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community")
+    "C:/Program Files/Microsoft Visual Studio/18/BuildTools"
+    "C:/Program Files/Microsoft Visual Studio/18/Community"
+    "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools"
+    "C:/Program Files (x86)/Microsoft Visual Studio/18/Community")
 list(REMOVE_DUPLICATES _VS_LOCAL_ROOTS)
 
 if(_VS_LOCAL_ROOTS)
@@ -663,6 +708,9 @@ endif()
 if(NOT DEFOLD_MSVC_INCLUDE_DIR)
     # Fallback: search common Visual Studio roots (packaged and system)
     set(_MSVC_INC_CANDIDATE_ROOTS "")
+    if(_DEFOLD_REQUESTED_VS_ROOT)
+        list(APPEND _MSVC_INC_CANDIDATE_ROOTS "${_DEFOLD_REQUESTED_VS_ROOT}")
+    endif()
     if(DEFINED DEFOLD_SDK_ROOT)
         set(_SDKS_DIR "${DEFOLD_SDK_ROOT}/ext/SDKs")
         if(EXISTS "${_SDKS_DIR}")
@@ -676,10 +724,10 @@ if(NOT DEFOLD_MSVC_INCLUDE_DIR)
         endif()
     endif()
     list(APPEND _MSVC_INC_CANDIDATE_ROOTS
-        "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community"
+        "C:/Program Files/Microsoft Visual Studio/18/BuildTools"
+        "C:/Program Files/Microsoft Visual Studio/18/Community"
+        "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools"
+        "C:/Program Files (x86)/Microsoft Visual Studio/18/Community"
     )
     list(REMOVE_DUPLICATES _MSVC_INC_CANDIDATE_ROOTS)
 
@@ -735,6 +783,9 @@ endif()
 if(NOT DEFOLD_MSVC_LIB_DIR)
     # Try to locate in common Visual Studio roots (packaged and system)
     set(_MSVC_CANDIDATE_ROOTS "")
+    if(_DEFOLD_REQUESTED_VS_ROOT)
+        list(APPEND _MSVC_CANDIDATE_ROOTS "${_DEFOLD_REQUESTED_VS_ROOT}")
+    endif()
     if(DEFINED DEFOLD_SDK_ROOT)
         set(_SDKS_DIR "${DEFOLD_SDK_ROOT}/ext/SDKs")
         if(EXISTS "${_SDKS_DIR}")
@@ -748,10 +799,10 @@ if(NOT DEFOLD_MSVC_LIB_DIR)
         endif()
     endif()
     list(APPEND _MSVC_CANDIDATE_ROOTS
-        "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community"
+        "C:/Program Files/Microsoft Visual Studio/18/BuildTools"
+        "C:/Program Files/Microsoft Visual Studio/18/Community"
+        "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools"
+        "C:/Program Files (x86)/Microsoft Visual Studio/18/Community"
     )
     list(REMOVE_DUPLICATES _MSVC_CANDIDATE_ROOTS)
 

@@ -34,21 +34,20 @@ namespace dmGraphics
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
-    RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_SubPasses(0)
-        , m_TextureDepthStencil(0)
+    VulkanRenderTarget::VulkanRenderTarget(const uint32_t rtId)
+        : m_Base()
         , m_DepthAttachmentClearValue(1.0f)
         , m_StencilAttachmentClearValue(0)
-        , m_Id(rtId)
-        , m_IsBound(0)
+        , m_SubPasses(0)
+        , m_Destroyed(0)
         , m_HasPendingClearColor(0)
         , m_HasPendingClearDepth(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
+        m_Base.m_Id = rtId;
         m_Extent.width  = 0;
         m_Extent.height = 0;
-        memset(m_TextureColor, 0, sizeof(m_TextureColor));
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
@@ -255,7 +254,7 @@ namespace dmGraphics
         {
             return VK_SUCCESS;
         }
-        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
+        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Base.m_Size, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
@@ -283,7 +282,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_PROGRAM;
     }
 
-    const VulkanResourceType RenderTarget::GetType()
+    const VulkanResourceType VulkanRenderTarget::GetType()
     {
         return RESOURCE_TYPE_RENDER_TARGET;
     }
@@ -314,7 +313,10 @@ namespace dmGraphics
 
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
-            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            if (pNextFeatures && vkGetPhysicalDeviceFeatures2)
+            {
+                vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            }
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
@@ -514,21 +516,21 @@ namespace dmGraphics
         texture->m_ImageLayout[base_mip_level] = new_layout;
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device,
-        VkCommandPool vk_command_pool,
-        VkQueue vk_queue,
+    VkResult TransitionImageLayout(LogicalDevice* logical_device,
         VulkanTexture* texture,
         VkImageAspectFlags vk_image_aspect,
         VkImageLayout vk_to_layout,
         uint32_t base_mip_level,
         uint32_t layer_count)
     {
+        VkDevice vk_device = logical_device->m_Device;
+        VkCommandPool vk_command_pool = logical_device->m_CommandPool;
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+        SubmitCommandBuffer(logical_device, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
@@ -646,8 +648,21 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
+    VkResult QueueSubmit(LogicalDevice* logical_device, uint32_t submit_count, const VkSubmitInfo* submit_info, VkFence fence)
     {
+        DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+        return vkQueueSubmit(logical_device->m_GraphicsQueue, submit_count, submit_info, fence);
+    }
+
+    VkResult QueuePresent(LogicalDevice* logical_device, const VkPresentInfoKHR* present_info)
+    {
+        DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+        return vkQueuePresentKHR(logical_device->m_PresentQueue, present_info);
+    }
+
+    VkResult SubmitCommandBuffer(LogicalDevice* logical_device, VkCommandBuffer cmd, VkFence* fence_out)
+    {
+        VkDevice vk_device = logical_device->m_Device;
         VkResult res = vkEndCommandBuffer(cmd);
         if (res != VK_SUCCESS)
         {
@@ -663,7 +678,7 @@ namespace dmGraphics
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &cmd;
 
-        res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        res = QueueSubmit(logical_device, 1, &submit_info, fence);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -758,8 +773,8 @@ namespace dmGraphics
             return res;
         }
 
-        bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
-        bufferOut->m_Destroyed  = 0;
+        bufferOut->m_Base.m_Size = (uint32_t) vk_size;
+        bufferOut->m_Destroyed   = 0;
 
         return VK_SUCCESS;
 bail:
@@ -910,7 +925,7 @@ bail:
             goto bail;
         }
 
-        device_buffer.m_MemorySize = vk_memory_req.size;
+        device_buffer.m_Base.m_Size = (uint32_t) vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -1016,7 +1031,7 @@ bail:
             attachment_depth.format         = depthStencilAttachment->m_Format;
             attachment_depth.samples        = vk_sample_flags;
             attachment_depth.loadOp         = depthStencilAttachment->m_LoadOp;
-            attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_depth.storeOp        = depthStencilAttachment->m_StoreOp;
             // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
@@ -1167,6 +1182,11 @@ bail:
         VK_CULL_MODE_FRONT_AND_BACK
     };
 
+    static const VkFrontFace g_vk_face_windings[] = {
+        VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        VK_FRONT_FACE_CLOCKWISE
+    };
+
     static const VkBlendFactor g_vk_blend_factors[] = {
         VK_BLEND_FACTOR_ZERO,
         VK_BLEND_FACTOR_ONE,
@@ -1228,7 +1248,7 @@ bail:
 
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
-        RenderTarget* render_target, Pipeline* pipelineOut)
+        VulkanRenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1299,7 +1319,7 @@ bail:
         vk_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
         vk_rasterizer.lineWidth               = 1.0f;
         vk_rasterizer.cullMode                = vk_cull_mode;
-        vk_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        vk_rasterizer.frontFace               = g_vk_face_windings[pipelineState.m_FaceWinding];
         vk_rasterizer.depthBiasEnable         = VK_FALSE;
         vk_rasterizer.depthBiasConstantFactor = 0.0f;
         vk_rasterizer.depthBiasClamp          = 0.0f;
@@ -1327,7 +1347,7 @@ bail:
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
-        uint8_t blend_attachment_count = render_target->m_ColorAttachmentCount;
+        uint8_t blend_attachment_count = render_target->m_Base.m_ColorAttachmentCount;
 
         if (render_target->m_SubPasses)
         {
@@ -1521,7 +1541,7 @@ bail:
         }
     }
 
-    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle)
+    void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle)
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
@@ -1576,6 +1596,7 @@ bail:
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
         vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
+        dmMutex::Delete(device->m_QueueMutex);
         memset(device, 0, sizeof(*device));
     }
 
@@ -1592,6 +1613,24 @@ bail:
 
     #define QUEUE_FAMILY_INVALID 0xffff
 
+    QueueFamily GetGraphicsQueueFamily(PhysicalDevice* device)
+    {
+        QueueFamily qf;
+
+        for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
+        {
+            VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
+            if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                qf.m_GraphicsQueueIx = i;
+                qf.m_PresentQueueIx  = i;
+                break;
+            }
+        }
+
+        return qf;
+    }
+
     // All GPU operations are pushed to various queues. The physical device can have multiple
     // queues with different properties supported, so we need to find a combination of queues
     // that will work for our needs. Note that the present queue might not be the same queue as the
@@ -1599,6 +1638,7 @@ bail:
     QueueFamily GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface)
     {
         assert(device);
+        assert(vkGetPhysicalDeviceSurfaceSupportKHR && "Vulkan function table not initialized for current instance");
 
         QueueFamily qf;
 
@@ -1615,7 +1655,11 @@ bail:
         for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
         {
             QueueFamily candidate;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            VkResult present_support_res = vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            if (present_support_res != VK_SUCCESS)
+            {
+                continue;
+            }
             VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
 
             if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
@@ -1719,6 +1763,11 @@ bail:
                 vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
                 res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPoolWorker);
+            }
+
+            if (res == VK_SUCCESS)
+            {
+                logicalDeviceOut->m_QueueMutex = dmMutex::New();
             }
         }
 

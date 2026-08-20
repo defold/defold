@@ -10,6 +10,7 @@ set(_DEFOLD_SYSROOT "${CMAKE_SYSROOT}")
 
 # Common compile definitions and options (mirrors waf_dynamo defaults)
 target_compile_definitions(defold_sdk INTERFACE ANDROID)
+target_compile_definitions(defold_sdk INTERFACE DM_HOSTFS=\"\")
 
 target_compile_options(defold_sdk INTERFACE
   -gdwarf-2
@@ -23,6 +24,12 @@ target_compile_options(defold_sdk INTERFACE
 if(TARGET_PLATFORM MATCHES "arm64-android")
     target_compile_definitions(defold_sdk INTERFACE __aarch64__)
     target_compile_options(defold_sdk INTERFACE -march=armv8-a)
+    target_link_options(defold_sdk INTERFACE -Wl,-z,max-page-size=16384)
+elseif(TARGET_PLATFORM MATCHES "x86_64-android")
+    # No -march: the NDK x86_64-linux-android<api>-clang wrapper already targets the
+    # baseline mandated by the Android x86_64 ABI (SSE4.2 + POPCNT).
+    target_compile_definitions(defold_sdk INTERFACE GOOGLE_PROTOBUF_NO_RTTI)
+    target_compile_options(defold_sdk INTERFACE -fvisibility=hidden)
     target_link_options(defold_sdk INTERFACE -Wl,-z,max-page-size=16384)
 else()
     target_compile_definitions(defold_sdk INTERFACE

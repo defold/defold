@@ -1,0 +1,30 @@
+data {
+  struct {
+    fields {
+      key: "color"
+      value {
+        list {
+          values { number: 1.0 }
+          values { number: 1.0 }
+          values { number: 1.0 }
+        }
+      }
+    }
+    fields {
+      key: "intensity"
+      value { number: 1.0 }
+    }
+    fields {
+      key: "range"
+      value { number: 10.0 }
+    }
+    fields {
+      key: "inner_cone_angle"
+      value { number: 0.0 }
+    }
+    fields {
+      key: "outer_cone_angle"
+      value { number: 45.0 }
+    }
+  }
+}

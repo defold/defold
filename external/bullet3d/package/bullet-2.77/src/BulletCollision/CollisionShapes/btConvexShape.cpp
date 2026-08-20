@@ -227,7 +227,8 @@ btVector3 btConvexShape::localGetSupportVertexWithoutMarginNonVirtual (const btV
 			pos[capsuleUpAxis] = halfHeight;
 
 			//vtx = pos +vec*(radius);
-			vtx = pos +vec*capsuleShape->getLocalScalingNV()*(radius) - vec * capsuleShape->getMarginNV();
+			// DEFOLD: Capsule dimensions already include local scaling.
+			vtx = pos +vec*(radius) - vec * capsuleShape->getMarginNV();
 			newDot = vec.dot(vtx);
 			
 
@@ -242,7 +243,8 @@ btVector3 btConvexShape::localGetSupportVertexWithoutMarginNonVirtual (const btV
 			pos[capsuleUpAxis] = -halfHeight;
 
 			//vtx = pos +vec*(radius);
-			vtx = pos +vec*capsuleShape->getLocalScalingNV()*(radius) - vec * capsuleShape->getMarginNV();
+			// DEFOLD: Capsule dimensions already include local scaling.
+			vtx = pos +vec*(radius) - vec * capsuleShape->getMarginNV();
 			newDot = vec.dot(vtx);
 			if (newDot > maxDot)
 			{

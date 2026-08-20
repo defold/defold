@@ -52,7 +52,6 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.util.FileUtil;
 
 @BundlerParams(platforms = {"arm64-ios", "x86_64-ios"})
 public class IOSBundler implements IBundler {
@@ -77,22 +76,8 @@ public class IOSBundler implements IBundler {
         }
     }
 
-    private static File createTempDirectory() throws IOException {
-        final File temp;
-
-        temp = File.createTempFile("temp_defold_", Long.toString(System.nanoTime()));
-
-        if(!(temp.delete()))
-        {
-            throw new IOException("Could not delete temp file: " + temp.getAbsolutePath());
-        }
-
-        if(!(temp.mkdir()))
-        {
-            throw new IOException("Could not create temp directory: " + temp.getAbsolutePath());
-        }
-
-        return (temp);
+    private static File createTempDirectory(Project project) throws IOException {
+        return project.createTempDirectory("temp_defold_");
     }
 
     public static List<File> getBinariesFromArchitectures(Project project, List<Platform> architectures, String variant) throws IOException {
@@ -399,8 +384,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
-        File exe = File.createTempFile("dmengine", "");
-        FileUtil.deleteOnExit(exe);
+        File exe = project.createTempFile("dmengine", "");
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -425,10 +409,11 @@ public class IOSBundler implements IBundler {
 
         // copy dynamic libraries
         if (architectures.size() == 1) {
-            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
-            BundleHelper.copySharedLibraries(platform, binaryDir, appDir);
+            Platform architecture = architectures.get(0);
+            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair()));
+            BundleHelper.copySharedLibraries(architecture, binaryDir, appDir);
         } else {
-            BundleHelper.createFatLibrary(architectures, project.getBinaryOutputDirectory(), appDir, canceled);
+            BundleHelper.createFatLibrary(project, architectures, project.getBinaryOutputDirectory(), appDir, canceled);
         }
 
         // Copy extension frameworks
@@ -479,8 +464,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Package zip file
-        File tmpZipDir = createTempDirectory();
-        FileUtil.deleteOnExit(tmpZipDir);
+        File tmpZipDir = createTempDirectory(project);
         File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
 
         // Copy any libswift*.dylib files from the Frameworks folder
@@ -516,15 +500,14 @@ public class IOSBundler implements IBundler {
             // Copy Provisioning Profile
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
-            File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
-            FileUtil.deleteOnExit(textProvisionFile);
+            File textProvisionFile = project.createTempFile("mobileprovision", ".plist");
 
             Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
             if (securityResult.ret != 0) {
                 logger.severe("Error executing security command:\n" + new String(securityResult.stdOutErr));
             }
 
-            File entitlementOut = File.createTempFile("entitlement", ".xcent");
+            File entitlementOut = project.createTempFile("entitlement", ".xcent");
             String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
             Boolean overrideEntitlementsProperty = projectProperties.getBooleanValue("ios", "override_entitlements", false);
 
@@ -591,7 +574,6 @@ public class IOSBundler implements IBundler {
                     entitlements.initFileLocator(locator);
                     entitlements.write(writer);
                     writer.close();
-                    FileUtil.deleteOnExit(entitlementOut);
                 }
                 catch (ConfigurationException e) {
                     logger.severe("Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );

@@ -889,8 +889,8 @@ namespace dmRender
      * end
      *
      * function update(self, dt)
-     *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
+     *     -- set target so all drawing is done to it
+     *     render.set_render_target(self.my_render_target)
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
@@ -1248,100 +1248,6 @@ namespace dmRender
             return 0;
         else
             return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-    }
-
-    /* DEPRECATED. NO API DOC GENERATED.
-     * enables a render target
-     *
-     * Enables a render target. Subsequent draw operations will be to the enabled render target until
-     * a subsequent call to render.enable_render_target, render.disable_render_target or render.set_render_target.
-     *
-     * @name render.enable_render_target
-     * @param render_target [type:render_target] render target to enable
-     *
-     * @deprecated Use render.set_render_target() instead
-     *
-     * @examples
-     *
-     * How to enable a render target and draw to it:
-     *
-     * ```lua
-     * function update(self, dt)
-     *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
-     *
-     *     -- draw a predicate to the render target
-     *     render.draw(self.my_pred)
-     * end
-     * ```
-    */
-    int RenderScript_EnableRenderTarget(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        DM_LUA_STACK_CHECK(L, 0);
-
-        dmGraphics::HRenderTarget render_target = 0;
-
-        if (lua_isnumber(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        }
-        else
-        {
-            return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, 0)))
-        {
-            return 0;
-        }
-        else
-        {
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        }
-    }
-
-    /* DEPRECATED. NO API DOC GENERATED.
-     * disables a render target
-     *
-     * Disables a previously enabled render target. Subsequent draw operations
-     * will be drawn to the default frame buffer unless another render target is
-     * enabled.
-     *
-     * @name render.disable_render_target
-     * @param render_target [type:render_target] render target to disable
-     *
-     * @deprecated Use render.set_render_target() instead
-     *
-     * @examples
-     *
-     * How to disable a render target so we can draw to the screen:
-     *
-     * ```lua
-     * function update(self, dt)
-     *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
-     *
-     *     -- draw a predicate to the render target
-     *     render.draw(self.my_pred)
-     *
-     *     -- disable target
-     *     render.disable_render_target(self.my_render_target)
-     *
-     *     -- draw a predicate to the screen
-     *     render.draw(self.my_other_pred)
-     * end
-     * ```
-     */
-    int RenderScript_DisableRenderTarget(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        DM_LUA_STACK_CHECK(L, 0);
-
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uint64_t) 0x0, 0)))
-            return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /*# sets the render target size
@@ -1831,6 +1737,10 @@ namespace dmRender
         dmRender::SortOrder sort_order = dmRender::SORT_UNSPECIFIED;
 
         bool has_options_table = lua_istable(L, 2);
+        if (lua_gettop(L) >=2 && !has_options_table)
+        {
+            return luaL_error(L, "Invalid argument #2 type. Should be table or nil");
+        }
         bool has_constant_buffer_value = false;
 
         if (has_options_table)
@@ -1860,12 +1770,6 @@ namespace dmRender
                 sort_order = (dmRender::SortOrder) luaL_checkinteger(L, -1);
             }
             lua_pop(L, 1);
-        }
-        else if (lua_isuserdata(L, 2)) // Deprecated
-        {
-            dmLogOnceWarning("This interface for render.draw() is deprecated. Please see documentation at https://defold.com/ref/stable/render/#render.draw:predicate-[constants]")
-            HNamedConstantBuffer* tmp = RenderScriptConstantBuffer_Check(L, 2);
-            constant_buffer = *tmp;
         }
 
         // we need to pass ownership to the command queue
@@ -1918,7 +1822,6 @@ namespace dmRender
      * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
      * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.
      *
-     * @replaces render.draw_debug2d
      * @examples
      *
      * ```lua
@@ -1963,19 +1866,6 @@ namespace dmRender
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-    }
-
-    /* DEPRECATED. NO API DOC GENERATED.
-     * draws all 2d debug graphics (Deprecated)
-     *
-     * @name render.draw_debug2d
-     * @deprecated Use render.draw_debug3d() to draw visual debug info.
-     */
-    int RenderScript_DrawDebug2d(lua_State* L)
-    {
-        RenderScriptInstance_Check(L);
-        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "render", "draw_debug2d", "render", "draw_debug3d");
-        return 0;
     }
 
     /*# sets the view matrix
@@ -3191,8 +3081,6 @@ namespace dmRender
         {"render_target",                   RenderScript_RenderTarget},
         {"delete_render_target",            RenderScript_DeleteRenderTarget},
         {"set_render_target",               RenderScript_SetRenderTarget},
-        {"enable_render_target",            RenderScript_EnableRenderTarget},
-        {"disable_render_target",           RenderScript_DisableRenderTarget},
         {"set_render_target_size",          RenderScript_SetRenderTargetSize},
         {"enable_texture",                  RenderScript_EnableTexture},
         {"disable_texture",                 RenderScript_DisableTexture},
@@ -3215,7 +3103,6 @@ namespace dmRender
         {"set_polygon_offset",              RenderScript_SetPolygonOffset},
         {"draw",                            RenderScript_Draw},
         {"draw_debug3d",                    RenderScript_DrawDebug3d},
-        {"draw_debug2d",                    RenderScript_DrawDebug2d},
         {"get_width",                       RenderScript_GetWidth},
         {"get_height",                      RenderScript_GetHeight},
         {"get_window_width",                RenderScript_GetWindowWidth},
@@ -3252,167 +3139,6 @@ namespace dmRender
         RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY, RenderScriptConstantBuffer_methods, RenderScriptConstantBufferArray_meta);
 
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, Render_methods);
-
-        ////////////////////////////////////////////////////////////////////
-        // DEPRECATED!
-        // -----------
-        // The graphics enums are now exposed in script_graphics.cpp instead
-        // DO NOT add any more graphics enums in this file
-        ////////////////////////////////////////////////////////////////////
-
-#define REGISTER_STATE_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::name); \
-        lua_setfield(L, -2, #name);
-
-        REGISTER_STATE_CONSTANT(STATE_DEPTH_TEST);
-        REGISTER_STATE_CONSTANT(STATE_STENCIL_TEST);
-        REGISTER_STATE_CONSTANT(STATE_ALPHA_TEST);
-        REGISTER_STATE_CONSTANT(STATE_BLEND);
-        REGISTER_STATE_CONSTANT(STATE_CULL_FACE);
-        REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_FILL);
-
-#undef REGISTER_STATE_CONSTANT
-
-#define REGISTER_FORMAT_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FORMAT_##name); \
-        lua_setfield(L, -2, "FORMAT_"#name);
-
-        REGISTER_FORMAT_CONSTANT(LUMINANCE);
-        REGISTER_FORMAT_CONSTANT(RGBA);
-        REGISTER_FORMAT_CONSTANT(DEPTH);
-        REGISTER_FORMAT_CONSTANT(STENCIL);
-
-#undef REGISTER_FORMAT_CONSTANT
-
-#define REGISTER_FORMAT_CONSTANT(name)\
-        if (dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::TEXTURE_FORMAT_##name)) { \
-            lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FORMAT_##name); \
-            lua_setfield(L, -2, "FORMAT_"#name); \
-        }
-
-        // These depend on driver support
-        REGISTER_FORMAT_CONSTANT(RGB);
-        REGISTER_FORMAT_CONSTANT(RGB16F);
-        REGISTER_FORMAT_CONSTANT(RGB32F);
-        REGISTER_FORMAT_CONSTANT(RGBA16F);
-        REGISTER_FORMAT_CONSTANT(RGBA32F);
-        REGISTER_FORMAT_CONSTANT(R16F);
-        REGISTER_FORMAT_CONSTANT(RG16F);
-        REGISTER_FORMAT_CONSTANT(R32F);
-        REGISTER_FORMAT_CONSTANT(RG32F);
-
-#undef REGISTER_FORMAT_CONSTANT
-
-#define REGISTER_FILTER_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FILTER_##name); \
-        lua_setfield(L, -2, "FILTER_"#name);
-
-        REGISTER_FILTER_CONSTANT(LINEAR);
-        REGISTER_FILTER_CONSTANT(NEAREST);
-
-#undef REGISTER_FILTER_CONSTANT
-
-#define REGISTER_WRAP_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_WRAP_##name); \
-        lua_setfield(L, -2, "WRAP_"#name);
-
-        REGISTER_WRAP_CONSTANT(CLAMP_TO_BORDER);
-        REGISTER_WRAP_CONSTANT(CLAMP_TO_EDGE);
-        REGISTER_WRAP_CONSTANT(MIRRORED_REPEAT);
-        REGISTER_WRAP_CONSTANT(REPEAT);
-
-#undef REGISTER_WRAP_CONSTANT
-
-#define REGISTER_BLEND_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::BLEND_FACTOR_##name); \
-        lua_setfield(L, -2, "BLEND_"#name);
-
-        REGISTER_BLEND_CONSTANT(ZERO);
-        REGISTER_BLEND_CONSTANT(ONE);
-        REGISTER_BLEND_CONSTANT(SRC_COLOR);
-        REGISTER_BLEND_CONSTANT(ONE_MINUS_SRC_COLOR);
-        REGISTER_BLEND_CONSTANT(DST_COLOR);
-        REGISTER_BLEND_CONSTANT(ONE_MINUS_DST_COLOR);
-        REGISTER_BLEND_CONSTANT(SRC_ALPHA);
-        REGISTER_BLEND_CONSTANT(ONE_MINUS_SRC_ALPHA);
-        REGISTER_BLEND_CONSTANT(DST_ALPHA);
-        REGISTER_BLEND_CONSTANT(ONE_MINUS_DST_ALPHA);
-        REGISTER_BLEND_CONSTANT(SRC_ALPHA_SATURATE);
-        REGISTER_BLEND_CONSTANT(CONSTANT_COLOR);
-        REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_COLOR);
-        REGISTER_BLEND_CONSTANT(CONSTANT_ALPHA);
-        REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
-
-#undef REGISTER_BLEND_CONSTANT
-
-#define REGISTER_BLEND_EQUATION_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::BLEND_EQUATION_##name); \
-        lua_setfield(L, -2, "BLEND_EQUATION_"#name);
-
-        REGISTER_BLEND_EQUATION_CONSTANT(ADD);
-        REGISTER_BLEND_EQUATION_CONSTANT(SUBTRACT);
-        REGISTER_BLEND_EQUATION_CONSTANT(REVERSE_SUBTRACT);
-        REGISTER_BLEND_EQUATION_CONSTANT(MIN);
-        REGISTER_BLEND_EQUATION_CONSTANT(MAX);
-
-#undef REGISTER_BLEND_EQUATION_CONSTANT
-
-#define REGISTER_COMPARE_FUNC_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::COMPARE_FUNC_##name); \
-        lua_setfield(L, -2, "COMPARE_FUNC_"#name);
-
-        REGISTER_COMPARE_FUNC_CONSTANT(NEVER);
-        REGISTER_COMPARE_FUNC_CONSTANT(LESS);
-        REGISTER_COMPARE_FUNC_CONSTANT(LEQUAL);
-        REGISTER_COMPARE_FUNC_CONSTANT(GREATER);
-        REGISTER_COMPARE_FUNC_CONSTANT(GEQUAL);
-        REGISTER_COMPARE_FUNC_CONSTANT(EQUAL);
-        REGISTER_COMPARE_FUNC_CONSTANT(NOTEQUAL);
-        REGISTER_COMPARE_FUNC_CONSTANT(ALWAYS);
-
-#undef REGISTER_COMPARE_FUNC_CONSTANT
-
-#define REGISTER_STENCIL_OP_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_OP_##name); \
-        lua_setfield(L, -2, "STENCIL_OP_"#name);
-
-        REGISTER_STENCIL_OP_CONSTANT(KEEP);
-        REGISTER_STENCIL_OP_CONSTANT(ZERO);
-        REGISTER_STENCIL_OP_CONSTANT(REPLACE);
-        REGISTER_STENCIL_OP_CONSTANT(INCR);
-        REGISTER_STENCIL_OP_CONSTANT(INCR_WRAP);
-        REGISTER_STENCIL_OP_CONSTANT(DECR);
-        REGISTER_STENCIL_OP_CONSTANT(DECR_WRAP);
-        REGISTER_STENCIL_OP_CONSTANT(INVERT);
-
-#undef REGISTER_STENCIL_OP_CONSTANT
-
-#define REGISTER_FACE_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::FACE_TYPE_##name); \
-        lua_setfield(L, -2, "FACE_"#name);
-
-        REGISTER_FACE_CONSTANT(FRONT);
-        REGISTER_FACE_CONSTANT(BACK);
-        REGISTER_FACE_CONSTANT(FRONT_AND_BACK);
-
-#undef REGISTER_FACE_CONSTANT
-
-#define REGISTER_BUFFER_CONSTANT(enum_type, name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##enum_type); \
-        lua_setfield(L, -2, "BUFFER_"#name);
-
-        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR_BIT); // For backwards compatability
-        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR0_BIT);
-        // These depend on driver and context support
-        if (dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_MULTI_TARGET_RENDERING))
-        {
-            REGISTER_BUFFER_CONSTANT(COLOR1_BIT,  COLOR1_BIT);
-            REGISTER_BUFFER_CONSTANT(COLOR2_BIT,  COLOR2_BIT);
-            REGISTER_BUFFER_CONSTANT(COLOR3_BIT,  COLOR3_BIT);
-        }
-        REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
-        REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
-#undef REGISTER_BUFFER_CONSTANT
 
 #define REGISTER_FRUSTUM_PLANES_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmRender::FRUSTUM_PLANES_##name); \

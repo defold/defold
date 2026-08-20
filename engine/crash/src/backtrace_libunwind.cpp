@@ -29,13 +29,16 @@ extern "C" {
 
 #include "crash.h"
 #include "crash_private.h"
+#include "backtrace_signal_posix.h"
 
 namespace dmCrash
 {
-    static const int SIGNAL_MAX = 64;
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
+    static struct sigaction             g_PreviousSignalActions[MAX_SIGNAL_COUNT];
+
+    static void Handler(const int signum, siginfo_t *const si, void *const sc);
 
     void EnableHandler(bool enable)
     {
@@ -196,36 +199,31 @@ namespace dmCrash
         OnCrash(0xDEAD);
     }
 
-    static void ResetToDefaultHandler(const int signum)
-    {
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_handler = SIG_DFL;
-        sa.sa_flags = 0;
-        sigaction(signum, &sa, NULL);
-    }
-
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
+        bool first_signal_handler = BeginSignalHandler();
+
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        ResetToDefaultHandler(signum);
-        OnCrash(signum);
+        ResetToDefaultSignalHandler(signum);
+
+        if (g_CrashDumpEnabled && first_signal_handler)
+        {
+            OnCrash(signum);
+        }
+
+        if (first_signal_handler)
+        {
+            ChainSignalOrRaiseDefault(signum, si, sc, g_PreviousSignalActions, Handler);
+            EndSignalHandler();
+        }
     }
 
     void InstallOnSignal(int signum)
     {
-        assert(signum >= 0 && signum < SIGNAL_MAX);
-
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_sigaction = Handler;
-        sa.sa_flags = SA_SIGINFO;
-        
-        sigaction(signum, &sa, NULL);
+        assert(IsValidSignal(signum));
+        InstallSignalHandler(signum, Handler, g_PreviousSignalActions);
     }
 
     void SetCrashFilename(const char*)

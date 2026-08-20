@@ -84,13 +84,18 @@ void dmProfilerExt::SampleCpuUsage() {
     }
 }
 
-uint64_t dmProfilerExt::GetMemoryUsage()
+uint64_t dmProfilerExt::GetDetailedMemoryUsage()
 {
     PROCESS_MEMORY_COUNTERS_EX pmc;
     if (!GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
         dmLogError("Could not get memory information.");
     }
     return pmc.WorkingSetSize;
+}
+
+uint64_t dmProfilerExt::GetMemoryUsage()
+{
+    return GetDetailedMemoryUsage();
 }
 
 double dmProfilerExt::GetCpuUsage()

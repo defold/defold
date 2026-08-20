@@ -1,0 +1,17 @@
+attribute highp vec4 position;
+attribute mediump mat4 mtx_world;
+attribute mediump mat4 mtx_normal;
+
+uniform mediump vec4 morph_targets_weights[1];
+uniform lowp sampler2DArray morph_targets;
+
+varying mediump vec4 var_color;
+
+void main()
+{
+    vec4 morph_sample = texture2DArray(morph_targets, vec3(0.0, 0.0, 0.0));
+    vec3 normal_value = (mtx_normal * vec4(position.xyz, 0.0)).xyz;
+    vec3 morph_offset = vec3((morph_targets_weights[0].x + morph_sample.x) * 0.001);
+    var_color = vec4(morph_targets_weights[0].xyz + normal_value * 0.000001, 1.0);
+    gl_Position = mtx_world * vec4(position.xyz + morph_offset, 1.0);
+}

@@ -35,8 +35,11 @@
 
   :local-repo       ~(pathname (local-maven-repository-directory))
 
-  :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
+  :plugins          [[dev.weavejester/lein-cljfmt "0.16.4"]
+                     [lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
+
+  :cljfmt           {:load-config-file? true}
 
   :dependencies     [[org.clojure/clojure                         "1.12.0"]
                      [org.clojure/core.cache                      "0.7.1"]
@@ -88,7 +91,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.6"
+                     [cljfx "1.10.10"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -161,8 +164,8 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
-                      "-Ddefold.library.connectTimeoutMillis=2000"
-                      "-Ddefold.library.hostProbeTimeoutMillis=5000"
+                      "-Ddefold.library.connectTimeoutMillis=10000"
+                      "-Ddefold.library.hostProbeTimeoutMillis=10000"
                       "-Dfile.encoding=UTF-8"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
@@ -232,6 +235,9 @@
                                                       [commons-io/commons-io "2.4"]
                                                       [prismatic/schema "1.1.9"]
                                                       [org.luaj/luaj-jse "3.0.1"]
+                                                      ;; editor.code.data reaches util.diff,
+                                                      ;; which needs jgit
+                                                      [org.eclipse.jgit/org.eclipse.jgit "7.6.0.202603022253-r"]
                                                       ;; normally, we get this from bob,
                                                       ;; but docs are built before bob
                                                       [org.antlr/antlr4-runtime "4.9.1"]]}
@@ -239,6 +245,13 @@
                               :java-source-paths ^:replace []
                               :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
                                                        [org.antlr/antlr4 "4.9.1"]]}
+                      :zip-parallel {:prep-tasks ^:replace []
+                                     :source-paths ^:replace ["src/zip_parallel"]
+                                     :java-source-paths ^:replace []
+                                     :resource-paths ^:replace []
+                                     :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
+                                                              [commons-io/commons-io "2.4"]
+                                                              [org.apache.commons/commons-compress "1.18"]]}
                       :uberjar {:prep-tasks  ^:replace []
                                 :aot          :all
                                 :auto-clean   false
@@ -260,7 +273,8 @@
                                :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.312"]
-                                              [org.openjfx/javafx-web "25"]]}
+                                              [org.openjfx/javafx-web "25"]]
+                               :repl-options {:nrepl-middleware [vlaaad.reveal.nrepl/middleware]}}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:" (pathname (local-maven-jar-file "com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")))
@@ -285,7 +299,7 @@
                                                     [org.openjfx/javafx-media "25" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "25" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "25" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:dll|dylib)$"]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
                       :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "25" :classifier "win" :exclusions [org.openjfx/javafx-base]]
@@ -294,7 +308,7 @@
                                                     [org.openjfx/javafx-media "25" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "25" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "25" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
                       :x86_64-macos {:dependencies [[org.openjfx/javafx-base "25" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
@@ -303,7 +317,7 @@
                                                     [org.openjfx/javafx-media "25" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "25" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "25" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dll)$"]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
                       :arm64-macos {:dependencies [[org.openjfx/javafx-base "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
@@ -312,7 +326,7 @@
                                                    [org.openjfx/javafx-media "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
                                                    [org.openjfx/javafx-fxml "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                    [org.openjfx/javafx-swing "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
-                                    :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$)(?![^/]+/.*dmengine).*"
+                                    :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                          #"^[^/]+\.(?:so|dll)$"]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
                       :dev     {:dependencies      [;; generic javafx dep picks up natives for the current platform
@@ -334,15 +348,16 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.2.0.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/11.0.4.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.0.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.5.1.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.7.0.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.7.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Ddefold.dev=true"
+                                                    "-Djavafx.cachedir=.openjfx/cache"
                                                     ;"-Djogl.verbose=true"
                                                     ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful

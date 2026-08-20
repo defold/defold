@@ -26,8 +26,12 @@ if sys.platform == 'win32':
     msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
 
 from io import StringIO
-import dlib
 import functools
+
+try:
+    import dlib
+except Exception:
+    dlib = None
 
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
@@ -41,6 +45,70 @@ DDF_MAJOR_VERSION=1
 DDF_MINOR_VERSION=0
 
 DDF_POINTER_SIZE = 4
+
+def dm_hash_buffer64(buf):
+    if dlib:
+        return dlib.dmHashBuffer64(buf)
+    return dm_hash_buffer_no_reverse64(buf)
+
+def dm_hash_buffer_no_reverse64(buf):
+    # Keep in sync with dmHashBufferNoReverse64 in engine/dlib/src/dlib/hash.cpp.
+    data = buf.encode('ascii')
+    data_len = len(data)
+    remaining_len = data_len
+    offset = 0
+    mask = 0xffffffffffffffff
+    m = 0xc6a4a7935bd1e995
+    r = 47
+    h = 0
+
+    def mmix(h, k):
+        k = (k * m) & mask
+        k ^= k >> r
+        k = (k * m) & mask
+        h = (h * m) & mask
+        h ^= k
+        return h & mask
+
+    while remaining_len >= 8:
+        k = data[offset]
+        k |= data[offset + 1] << 8
+        k |= data[offset + 2] << 16
+        k |= data[offset + 3] << 24
+        k |= data[offset + 4] << 32
+        k |= data[offset + 5] << 40
+        k |= data[offset + 6] << 48
+        k |= data[offset + 7] << 56
+
+        h = mmix(h, k)
+
+        offset += 8
+        remaining_len -= 8
+
+    t = 0
+    if remaining_len >= 7:
+        t ^= data[offset + 6] << 48
+    if remaining_len >= 6:
+        t ^= data[offset + 5] << 40
+    if remaining_len >= 5:
+        t ^= data[offset + 4] << 32
+    if remaining_len >= 4:
+        t ^= data[offset + 3] << 24
+    if remaining_len >= 3:
+        t ^= data[offset + 2] << 16
+    if remaining_len >= 2:
+        t ^= data[offset + 1] << 8
+    if remaining_len >= 1:
+        t ^= data[offset]
+
+    h = mmix(h, t)
+    h = mmix(h, data_len)
+
+    h ^= h >> r
+    h = (h * m) & mask
+    h ^= h >> r
+
+    return h & mask
 
 type_to_ctype = { FieldDescriptor.TYPE_DOUBLE : "double",
                   FieldDescriptor.TYPE_FLOAT : "float",
@@ -335,7 +403,7 @@ def to_cxx_default_value_string(context, f):
             tmp = struct.pack('<' + form, func(f.default_value))
             return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(chr(x)), tmp))
 
-def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespace_lst):
+def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespace_lst, registered_descriptors):
     namespace = "_".join(namespace_lst)
     pp_h.p('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
@@ -344,7 +412,7 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
     context.set_message_type_defined(dot_to_cxx_namespace(mt_type_name))
 
     for nt in message_type.nested_type:
-        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, nt, namespace_lst + [message_type.name], registered_descriptors)
 
     for f in message_type.field:
         default = to_cxx_default_value_string(context, f)
@@ -408,36 +476,36 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
             pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index, fully_defined_type))
 
         pp_cpp.end()
+        fields_descriptor = '%s_%s_FIELDS_DESCRIPTOR' % (namespace, message_type.name)
+        fields_count = 'sizeof(%s)/sizeof(dmDDF::FieldDescriptor)' % fields_descriptor
     else:
-        pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
+        fields_descriptor = '0x0'
+        fields_count = '0'
 
     if len(oneof_scope_names) > 0:
         pp_cpp.p('uint32_t %s_%s_ONEOF_OFFSETS[] = {', namespace, message_type.name)
         for name in oneof_scope_names:
             pp_cpp.p('    (uint32_t)DDF_OFFSET_OF(%s::%s, m_%sOneOfIndex),' % (namespace.replace("_", "::"), message_type.name, name))
         pp_cpp.p('};')
+        oneof_offsets = '%s_%s_ONEOF_OFFSETS' % (namespace, message_type.name)
+        oneof_offsets_count = 'sizeof(%s)/sizeof(uint32_t)' % oneof_offsets
     else:
-        pp_cpp.p('uint32_t* %s_%s_ONEOF_OFFSETS = 0x0;', namespace, message_type.name)
+        oneof_offsets = '0x0'
+        oneof_offsets_count = '0'
 
     pp_cpp.begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.p('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.p('"%s",', to_lower_case(message_type.name))
-    pp_cpp.p('0x%016XULL,', dlib.dmHashBuffer64(to_lower_case(message_type.name)))
+    pp_cpp.p('0x%016XULL,', dm_hash_buffer64(to_lower_case(message_type.name)))
     pp_cpp.p('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
 
     # Descriptors
-    pp_cpp.p('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
-    if len(lst) > 0:
-        pp_cpp.p('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::FieldDescriptor),', namespace, message_type.name)
-    else:
-        pp_cpp.p('0,')
+    pp_cpp.p('%s,', fields_descriptor)
+    pp_cpp.p('%s,', fields_count)
 
     # One-of offsets
-    pp_cpp.p('%s_%s_ONEOF_OFFSETS,', namespace, message_type.name)
-    if len(oneof_scope_names) > 0:
-        pp_cpp.p('sizeof(%s_%s_ONEOF_OFFSETS)/sizeof(uint32_t),', namespace, message_type.name)
-    else:
-        pp_cpp.p('0,')
+    pp_cpp.p('%s,', oneof_offsets)
+    pp_cpp.p('%s,', oneof_offsets_count)
 
     # Contains dynamic fields
     pp_cpp.p('%d,', contains_dynamic_fields and 1 or 0)
@@ -449,9 +517,9 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
+    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dm_hash_buffer64(hash_string)))
 
-    pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s_%s(&%s_%s_DESCRIPTOR);' % (namespace, message_type.name, namespace, message_type.name))
+    registered_descriptors.append('%s_%s_DESCRIPTOR' % (namespace, message_type.name))
 
     pp_cpp.p('')
 
@@ -835,8 +903,18 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     # Build mapping of C++ type to descriptor
     cpp_desc_map = build_cpp_desc_map_for_file(file_desc, file_desc.package)
 
+    registered_descriptors = []
     for mt in file_desc.message_type:
-        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, mt, [file_desc.package])
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, mt, [file_desc.package], registered_descriptors)
+
+    if len(registered_descriptors) > 0:
+        register_name = 'g_Register_%s_DESCRIPTORS' % base_name.replace('.', '_').replace('-', '_')
+        pp_cpp.begin('static dmDDF::Descriptor* %s[] = ' % register_name)
+        for descriptor_name in registered_descriptors:
+            pp_cpp.p('&%s,' % descriptor_name)
+        pp_cpp.end()
+        pp_cpp.p('static dmDDF::InternalRegisterDescriptor g_Register_%s(%s, sizeof(%s)/sizeof(dmDDF::Descriptor*));' % (base_name.replace('.', '_').replace('-', '_'), register_name, register_name))
+        pp_cpp.p('')
 
     pp_h.p("#endif")
 

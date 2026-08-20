@@ -27,7 +27,7 @@
 #include "dlib/sys.h"
 #include "dlib/socket.h"
 #include "dlib/sslsocket.h"
-#include "dlib/http_client.h"
+#include "dlib/http/http_client.h"
 #include "dlib/http_cache_verify.h"
 #include "dlib/testutil.h"
 
@@ -541,7 +541,6 @@ struct HttpStressHelper
 
     HttpStressHelper(const dmURI::Parts& uri)
     {
-        bool secure = strcmp(uri.m_Scheme, "https") == 0;
         m_StatusCode = 0;
         m_RangeStart = 0xFFFFFFFF;
         m_RangeEnd = 0xFFFFFFFF;
@@ -744,29 +743,6 @@ static void ShutdownThread(void *args)
             dmAtomicStore32(&ctx->m_GotIt, 1);
         } else {
             break; // done.
-        }
-    }
-}
-
-static void ProxyHandshakeShutdownThread(void *args)
-{
-    ShutdownThreadContext* ctx = (ShutdownThreadContext*)args;
-    while (!dmAtomicGet32(&ctx->m_GotIt))
-    {
-        if (dmHttpClient::GetNumPoolConnections() == 0)
-        {
-            dmTime::Sleep(1000);
-            continue;
-        }
-
-        // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
-        // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
-        dmTime::Sleep(200 * 1000);
-
-        if (dmHttpClient::ShutdownConnectionPool() > 0) {
-            dmAtomicStore32(&ctx->m_GotIt, 1);
-        } else {
-            break;
         }
     }
 }
@@ -1688,12 +1664,13 @@ static void ProxyCloseReusedDoesNotLeakPoolHandles(bool secure, int port, uint32
 struct ProxyShutdownThreadContext
 {
     int32_atomic_t m_GotIt;
+    int32_atomic_t m_Stop;
 };
 
 static void ProxyHandshakeShutdownThreadLocal(void *args)
 {
     ProxyShutdownThreadContext* ctx = (ProxyShutdownThreadContext*)args;
-    while (!dmAtomicGet32(&ctx->m_GotIt))
+    while (!dmAtomicGet32(&ctx->m_GotIt) && !dmAtomicGet32(&ctx->m_Stop))
     {
         if (dmHttpClient::GetNumPoolConnections() == 0)
         {
@@ -1704,6 +1681,9 @@ static void ProxyHandshakeShutdownThreadLocal(void *args)
         // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
         // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
         dmTime::Sleep(200 * 1000);
+
+        if (dmAtomicGet32(&ctx->m_Stop))
+            break;
 
         if (dmHttpClient::ShutdownConnectionPool() > 0) {
             dmAtomicStore32(&ctx->m_GotIt, 1);
@@ -1728,6 +1708,7 @@ static void ProxyThreadedShutdownDuringHandshake(int port)
 
     ProxyShutdownThreadContext ctx;
     ctx.m_GotIt = 0;
+    ctx.m_Stop = 0;
 
     dmHttpClient::SetOptionInt(helper.GetClient(), dmHttpClient::OPTION_REQUEST_TIMEOUT, 15 * 1000000);
 
@@ -1735,17 +1716,19 @@ static void ProxyThreadedShutdownDuringHandshake(int port)
     dmHttpClient::Result r = dmHttpClient::RESULT_OK;
     for (int i = 0; i < 3; ++i)
     {
+        dmAtomicStore32(&ctx.m_Stop, 0);
         dmThread::Thread thr = dmThread::New(&ProxyHandshakeShutdownThreadLocal, 65536, &ctx, "cts-proxy-ssl");
 
         uint64_t timestart = dmTime::GetMonotonicTime();
         r = helper.Get("/sleep/5000");
         elapsed = dmTime::GetMonotonicTime() - timestart;
 
+        dmAtomicStore32(&ctx.m_Stop, 1);
+        dmThread::Join(thr);
+
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_NE(dmSocket::RESULT_OK, dmHttpClient::GetLastSocketResult(helper.GetClient()));
-
-        dmThread::Join(thr);
 
         if (dmAtomicGet32(&ctx.m_GotIt))
             break;

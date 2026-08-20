@@ -45,21 +45,16 @@ public:
 	
 	virtual void setMargin(btScalar collisionMargin)
 	{
-		//correct the m_implicitShapeDimensions for the margin
-		btVector3 oldMargin(getMargin(),getMargin(),getMargin());
-		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
-		
-		btConvexInternalShape::setMargin(collisionMargin);
-		btVector3 newMargin(getMargin(),getMargin(),getMargin());
-		m_implicitShapeDimensions = implicitShapeDimensionsWithMargin - newMargin;
-
+		// DEFOLD: The capsule radius is the margin, so ignore explicit margin changes.
+		//don't override the margin for capsules, their entire radius == margin
+		(void)collisionMargin;
 	}
 
 	virtual void getAabb (const btTransform& t, btVector3& aabbMin, btVector3& aabbMax) const
 	{
 			btVector3 halfExtents(getRadius(),getRadius(),getRadius());
 			halfExtents[m_upAxis] = getRadius() + getHalfHeight();
-			halfExtents += btVector3(getMargin(),getMargin(),getMargin());
+			// DEFOLD: getRadius() already includes the capsule margin.
 			btMatrix3x3 abs_b = t.getBasis().absolute();  
 			btVector3 center = t.getOrigin();
 			btVector3 extent = btVector3(abs_b[0].dot(halfExtents),abs_b[1].dot(halfExtents),abs_b[2].dot(halfExtents));		  
@@ -91,14 +86,12 @@ public:
 
 	virtual void	setLocalScaling(const btVector3& scaling)
 	{
-		btVector3 oldMargin(getMargin(),getMargin(),getMargin());
-		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
-		btVector3 unScaledImplicitShapeDimensionsWithMargin = implicitShapeDimensionsWithMargin / m_localScaling;
-
+		btVector3 unScaledImplicitShapeDimensions = m_implicitShapeDimensions / m_localScaling;
+		// DEFOLD: Keep local scaling absolute while scaling the radius-as-margin dimensions.
 		btConvexInternalShape::setLocalScaling(scaling);
-
-		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * m_localScaling) - oldMargin;
-
+		m_implicitShapeDimensions = (unScaledImplicitShapeDimensions * m_localScaling);
+		int radiusAxis = (m_upAxis + 2) % 3;
+		m_collisionMargin = m_implicitShapeDimensions[radiusAxis];
 	}
 
 	virtual	int	calculateSerializeBufferSize() const;

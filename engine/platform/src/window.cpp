@@ -26,10 +26,11 @@ extern "C"
         }
 
         memset(params, 0, sizeof(*params));
-        params->m_Width   = 640;
-        params->m_Height  = 480;
-        params->m_Samples = 1;
-        params->m_Title   = "Defold Application";
+        params->m_Width       = 640;
+        params->m_Height      = 480;
+        params->m_Samples     = 1;
+        params->m_Title       = "Defold Application";
+        params->m_FocusOnShow = 1;
     }
 
     HWindow WindowNew(void)
@@ -140,6 +141,11 @@ extern "C"
     const char* WindowGetJoystickDeviceName(HWindow window, uint32_t joystick_index)
     {
         return dmPlatform::GetJoystickDeviceName(window, joystick_index);
+    }
+
+    const char* WindowGetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+        return dmPlatform::GetJoystickDeviceGuid(window, joystick_index);
     }
 
     uint32_t WindowGetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

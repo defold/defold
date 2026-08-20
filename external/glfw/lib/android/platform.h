@@ -145,6 +145,7 @@ struct _GLFWwin_android_struct {
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];
     uint32_t m_RenderLock; // Set if we are between "frame begin" and "swap buffers"
+    uint8_t egl_bad_alloc_retry_count;
     uint8_t should_recreate_surface:1;
     uint8_t :7;
 };
@@ -257,6 +258,7 @@ GLFWGLOBAL struct {
 // Joystick information & state
 //------------------------------------------------------------------------
 #define DEVICE_NAME_LENGTH 64
+#define DEVICE_GUID_LENGTH 32 // DEFOLD
 #define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 36
 #define GLFW_ANDROID_GAMEPAD_NUMAXIS 8
 
@@ -264,6 +266,7 @@ GLFWGLOBAL struct {
     int           State;
     int           DeviceId;
     char          DeviceName[DEVICE_NAME_LENGTH];
+    char          DeviceGuid[DEVICE_GUID_LENGTH+1];
     int           NumAxes;
     int           NumButtons;
     float         Axis[GLFW_ANDROID_GAMEPAD_NUMAXIS];

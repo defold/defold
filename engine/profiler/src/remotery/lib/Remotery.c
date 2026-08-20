@@ -125,10 +125,9 @@ static rmtBool g_SettingsInitialized = RMT_FALSE;
         #include <processthreadsapi.h>
         typedef long NTSTATUS;  // winternl.h
 
-    #ifdef _XBOX_ONE
-        #ifdef _DURANGO
-            #include "xmem.h"
-        #endif
+    #if defined(_GAMING_XBOX)
+        #define ALLOW_MEM_LARGE_PAGES
+        #include "xmem.h"
     #else
         #define RMT_ENABLE_THREAD_SAMPLER
     #endif
@@ -1027,7 +1026,7 @@ typedef struct VirtualMirrorBuffer
     rmtU8* ptr;
 
 #ifdef RMT_PLATFORM_WINDOWS
-#ifdef _DURANGO
+#ifdef _GAMING_XBOX
     size_t page_count;
     size_t* page_mapping;
 #else
@@ -1176,7 +1175,7 @@ static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmt
     buffer->size = size;
     buffer->ptr = NULL;
 #ifdef RMT_PLATFORM_WINDOWS
-#ifdef _DURANGO
+#ifdef _GAMING_XBOX
     buffer->page_count = 0;
     buffer->page_mapping = NULL;
 #else
@@ -1185,7 +1184,7 @@ static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmt
 #endif
 
 #ifdef RMT_PLATFORM_WINDOWS
-#ifdef _DURANGO
+#ifdef _GAMING_XBOX
 
     // Xbox version based on Windows version and XDK reference
 
@@ -1201,8 +1200,7 @@ static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmt
         rmtU8* desired_addr;
 
         // Create a page mapping for pointing to its physical address with multiple virtual pages
-        if (!AllocateTitlePhysicalPages(GetCurrentProcess(), MEM_LARGE_PAGES, &buffer->page_count,
-                                        buffer->page_mapping))
+        if (!XMemAllocatePhysicalPages(MEM_LARGE_PAGES, &buffer->page_count, buffer->page_mapping))
         {
             free(buffer->page_mapping);
             buffer->page_mapping = NULL;
@@ -1210,7 +1208,10 @@ static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmt
         }
 
         // Reserve two contiguous pages of virtual memory
-        desired_addr = (rmtU8*)VirtualAlloc(0, size * 2, MEM_RESERVE, PAGE_NOACCESS);
+        desired_addr = (rmtU8*)XMemVirtualAlloc(0, size * 2,
+                                                MEM_64K_PAGES | MEM_RESERVE,
+                                                XMEM_CPU | XMEM_MAPPABLE,
+                                                PAGE_NOACCESS);
         if (desired_addr == NULL)
             break;
 
@@ -1220,17 +1221,15 @@ static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmt
         VirtualFree(desired_addr, 0, MEM_RELEASE);
 
         // Immediately try to point both pages at the file mapping
-        if (MapTitlePhysicalPages(desired_addr, buffer->page_count, MEM_LARGE_PAGES, PAGE_READWRITE,
-                                  buffer->page_mapping) == desired_addr &&
-            MapTitlePhysicalPages(desired_addr + size, buffer->page_count, MEM_LARGE_PAGES, PAGE_READWRITE,
-                                  buffer->page_mapping) == desired_addr + size)
+        if (XMemFreePhysicalPages(desired_addr, buffer->page_count, buffer->page_mapping) == desired_addr &&
+            XMemFreePhysicalPages(desired_addr + size, buffer->page_count, buffer->page_mapping) == desired_addr + size)
         {
             buffer->ptr = desired_addr;
             break;
         }
 
         // Failed to map the virtual pages; cleanup and try again
-        FreeTitlePhysicalPages(GetCurrentProcess(), buffer->page_count, buffer->page_mapping);
+        XMemFreePhysicalPages(buffer->page_count, buffer->page_mapping);
         buffer->page_mapping = NULL;
     }
 
@@ -1299,7 +1298,7 @@ static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmt
         buffer->file_map_handle = NULL;
     }
 
-#endif // _XBOX_ONE
+#endif // _GAMING_XBOX
 
 #endif
 
@@ -1437,12 +1436,10 @@ static void VirtualMirrorBuffer_Destructor(VirtualMirrorBuffer* buffer)
     assert(buffer != 0);
 
 #ifdef RMT_PLATFORM_WINDOWS
-#ifdef _DURANGO
+#ifdef _GAMING_XBOX
     if (buffer->page_mapping != NULL)
     {
-        VirtualFree(buffer->ptr, 0, MEM_DECOMMIT); // needed in conjunction with FreeTitlePhysicalPages
-        FreeTitlePhysicalPages(GetCurrentProcess(), buffer->page_count, buffer->page_mapping);
-        free(buffer->page_mapping);
+        XMemFreePhysicalPages(buffer->page_count, buffer->page_mapping);
         buffer->page_mapping = NULL;
     }
 #else
@@ -2126,7 +2123,7 @@ static void rmtGetThreadNameFallback(char* out_thread_name, rmtU32 thread_name_s
 
 static void rmtGetThreadName(rmtThreadId thread_id, rmtThreadHandle thread_handle, char* out_thread_name, rmtU32 thread_name_size)
 {
-#ifdef RMT_PLATFORM_WINDOWS
+#ifdef RMT_PLATFORM_WINDOWS && !defined(_GAMING_XBOX)
     DWORD_PTR address;
     const char* module_name;
     rmtU32 len;
@@ -2153,7 +2150,7 @@ static void rmtGetThreadName(rmtThreadId thread_id, rmtThreadHandle thread_handl
         }
     }
 
-    #ifndef _XBOX_ONE
+    #ifndef _GAMING_XBOX
     // At this point GetThreadDescription hasn't returned anything so let's get the thread module name and use that
     address = GetThreadStartAddress(thread_handle);
     if (address == 0)

@@ -19,7 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_cache.h>
 #include <dlib/jobsystem.h>
 #include <dlib/mutex.h>
 
@@ -70,11 +70,6 @@ namespace dmResource
      * Enable resource reloading support. Both over files and http.
      */
     #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
-
-    /**
-     * Enable Live update
-     */
-    #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START    (1 << 3)
 
     typedef dmArray<char> LoadBufferType;
     typedef HResourcePreloader HPreloader;

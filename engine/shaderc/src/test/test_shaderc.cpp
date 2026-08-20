@@ -26,11 +26,27 @@
 #if defined(_WIN32)
 #include <d3d12.h>
 #include <d3d12shader.h>
+#include <d3dcompiler.h>
+#endif
+
+#ifndef DM_SHADERC_TEST_DATA_DIR
+#define DM_SHADERC_TEST_DATA_DIR "./build/src/test/data"
 #endif
 
 static void* ReadFile(const char* path, uint32_t* file_size)
 {
     FILE* file = fopen(path, "rb");
+    char resolved_path[512];
+    resolved_path[0] = 0;
+    if (!file)
+    {
+        const char* filename = strrchr(path, '/');
+        if (filename)
+        {
+            dmSnPrintf(resolved_path, sizeof(resolved_path), "%s/%s", DM_SHADERC_TEST_DATA_DIR, filename + 1);
+            file = fopen(resolved_path, "rb");
+        }
+    }
     if (!file)
     {
         printf("Failed to load %s\n", path);
@@ -60,6 +76,53 @@ static void* ReadFile(const char* path, uint32_t* file_size)
 
     return mem;
 }
+
+#if defined(_WIN32)
+static ID3DBlob* CreateTestRootSignatureBlobWin32(UINT register_space)
+{
+    D3D12_DESCRIPTOR_RANGE1 range = {};
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+    range.NumDescriptors = 1;
+    range.BaseShaderRegister = 0;
+    range.RegisterSpace = register_space;
+    range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    range.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC;
+
+    D3D12_ROOT_PARAMETER1 parameter = {};
+    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.pDescriptorRanges = &range;
+
+    D3D12_VERSIONED_ROOT_SIGNATURE_DESC rs_desc = {};
+    rs_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+    rs_desc.Desc_1_1.NumParameters = 1;
+    rs_desc.Desc_1_1.pParameters = &parameter;
+    rs_desc.Desc_1_1.NumStaticSamplers = 0;
+    rs_desc.Desc_1_1.pStaticSamplers = 0;
+    rs_desc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+
+    ID3DBlob* signature_blob = 0;
+    ID3DBlob* error_blob = 0;
+    HRESULT hr = D3D12SerializeVersionedRootSignature(&rs_desc, &signature_blob, &error_blob);
+    if (FAILED(hr))
+    {
+        if (error_blob)
+        {
+            dmLogError("CreateTestRootSignatureBlobWin32 failed: %s", (const char*)error_blob->GetBufferPointer());
+            error_blob->Release();
+        }
+        return 0;
+    }
+
+    if (error_blob)
+    {
+        error_blob->Release();
+    }
+
+    return signature_blob;
+}
+#endif
 
 TEST(Shaderc, TestSimpleShader)
 {
@@ -108,9 +171,22 @@ static const dmShaderc::ShaderResource* GetShaderResourceByNameHash(const dmArra
     return 0;
 }
 
-static inline const char* FindFirstOccurance(const char* src, const char* text)
+static inline const char* FindFirstOccurrence(const dmArray<uint8_t>& data, const char* text)
 {
-    return strstr(src, text);
+    uint32_t text_size = (uint32_t) strlen(text);
+    if (text_size > data.Size())
+    {
+        return 0;
+    }
+
+    for (uint32_t i = 0; i <= data.Size() - text_size; ++i)
+    {
+        if (memcmp(data.Begin() + i, text, text_size) == 0)
+        {
+            return (const char*) data.Begin() + i;
+        }
+    }
+    return 0;
 }
 
 TEST(Shaderc, ModifyBindings)
@@ -154,12 +230,12 @@ TEST(Shaderc, ModifyBindings)
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 3) in vec4 position;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 4) in vec3 normal;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 5) in vec2 tex_coord;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(location = 3) in vec4 position;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(location = 4) in vec3 normal;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(location = 5) in vec2 tex_coord;"));
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 3, std140) uniform matrices"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 4, std140) uniform extra"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(binding = 3, std140) uniform matrices"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(binding = 4, std140) uniform extra"));
 
     dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
@@ -509,6 +585,38 @@ TEST(Shaderc, TestMetal)
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+    dmShaderc::DebugPrintReflection(reflection);
+
+    dmShaderc::FreeShaderCompileResult(dst);
+
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+TEST(Shaderc, TestMetalCompute)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/compute_workgroups.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_MSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 22;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    ASSERT_EQ(2, dst->m_WorkGroupSizeX);
+    ASSERT_EQ(4, dst->m_WorkGroupSizeY);
+    ASSERT_EQ(8, dst->m_WorkGroupSizeZ);
+
     dmShaderc::FreeShaderCompileResult(dst);
 
     dmShaderc::DeleteShaderCompiler(compiler);
@@ -538,7 +646,6 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((void*) 0, dst);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    const char* src = (const char*) dst->m_Data.Begin();
     const char* float_highp_block =
         "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
         "    precision highp float;\n"
@@ -546,8 +653,8 @@ TEST(Shaderc, GlslEsPrecisionOptions)
         "    precision mediump float;\n"
         "#endif";
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, float_highp_block));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, float_highp_block));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump int;"));
 
     dmShaderc::FreeShaderCompileResult(dst);
 
@@ -559,7 +666,6 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((void*) 0, dst);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    src = (const char*) dst->m_Data.Begin();
     const char* int_highp_block =
         "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
         "    precision highp int;\n"
@@ -567,8 +673,23 @@ TEST(Shaderc, GlslEsPrecisionOptions)
         "    precision mediump int;\n"
         "#endif";
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump float;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, int_highp_block));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, int_highp_block));
+
+    dmShaderc::FreeShaderCompileResult(dst);
+
+    // Case 3: mediump float, mediump int
+    options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_MEDIUMP;
+    options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_MEDIUMP;
+
+    dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump int;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision highp float;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision highp int;"));
 
     dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
@@ -578,44 +699,29 @@ TEST(Shaderc, GlslEsPrecisionOptions)
 
 TEST(Shaderc, HLSLMergeRootSignatures)
 {
-#if !defined(DM_BINARY_HLSL_SUPPORTED)
+#if !defined(_WIN32)
     // Skip on non-Windows platforms
-    ASSERT_TRUE(true);
+    SKIP();
     return;
 #else
-    // Prepare two shaders with resources to produce root signatures
-    uint32_t vs_size = 0;
-    void* vs_spv = ReadFile("./build/src/test/data/bindings.spv", &vs_size);
-    ASSERT_NE((void*)0, vs_spv);
+    ID3DBlob* vs_rs_blob = CreateTestRootSignatureBlobWin32(0);
+    ID3DBlob* fs_rs_blob = CreateTestRootSignatureBlobWin32(1);
+    ASSERT_NE((void*)0, vs_rs_blob);
+    ASSERT_NE((void*)0, fs_rs_blob);
 
-    uint32_t fs_size = 0;
-    void* fs_spv = ReadFile("./build/src/test/data/reflection.spv", &fs_size);
-    ASSERT_NE((void*)0, fs_spv);
-
-    dmShaderc::HShaderContext vs_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, vs_spv, vs_size);
-    dmShaderc::HShaderContext fs_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, fs_spv, fs_size);
-
-    dmShaderc::HShaderCompiler vs_comp = dmShaderc::NewShaderCompiler(vs_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
-    dmShaderc::HShaderCompiler fs_comp = dmShaderc::NewShaderCompiler(fs_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
-
-    dmShaderc::ShaderCompilerOptions opts = {};
-    opts.m_Version = 51; // ensure RS path
-    opts.m_EntryPoint = "main";
-
-    dmShaderc::ShaderCompileResult* vs_res = dmShaderc::Compile(vs_ctx, vs_comp, opts);
-    dmShaderc::ShaderCompileResult* fs_res = dmShaderc::Compile(fs_ctx, fs_comp, opts);
-
-    ASSERT_NE((void*)0, vs_res);
-    ASSERT_NE((void*)0, fs_res);
-    ASSERT_GT(vs_res->m_HLSLRootSignature.Size(), 0u);
-    ASSERT_GT(fs_res->m_HLSLRootSignature.Size(), 0u);
-
-    dmShaderc::ShaderCompileResult arr[2];
-    arr[0] = *vs_res;
-    arr[1] = *fs_res;
+    dmShaderc::ShaderCompileResult arr[2] = {};
+    uint32_t vs_rs_size = (uint32_t)vs_rs_blob->GetBufferSize();
+    uint32_t fs_rs_size = (uint32_t)fs_rs_blob->GetBufferSize();
+    arr[0].m_HLSLRootSignature.SetCapacity(vs_rs_size);
+    arr[0].m_HLSLRootSignature.SetSize(vs_rs_size);
+    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_rs_blob->GetBufferPointer(), vs_rs_size);
+    arr[1].m_HLSLRootSignature.SetCapacity(fs_rs_size);
+    arr[1].m_HLSLRootSignature.SetSize(fs_rs_size);
+    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_rs_blob->GetBufferPointer(), fs_rs_size);
 
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
+    ASSERT_EQ('\0', merged->m_LastError[0]);
     ASSERT_GT(merged->m_HLSLRootSignature.Size(), 0u);
 
     // Validate the merged blob deserializes
@@ -628,14 +734,89 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     const D3D12_ROOT_SIGNATURE_DESC* desc = deser->GetRootSignatureDesc();
     ASSERT_NE((void*)0, desc);
     ASSERT_GT(desc->NumParameters, 0u);
+    ASSERT_NE(0u, desc->Flags & D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     deser->Release();
+    vs_rs_blob->Release();
+    fs_rs_blob->Release();
+    delete merged;
+#endif
+}
 
-    dmShaderc::FreeShaderCompileResult(vs_res);
-    dmShaderc::FreeShaderCompileResult(fs_res);
-    dmShaderc::DeleteShaderCompiler(vs_comp);
-    dmShaderc::DeleteShaderCompiler(fs_comp);
-    dmShaderc::DeleteShaderContext(vs_ctx);
-    dmShaderc::DeleteShaderContext(fs_ctx);
+TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
+{
+#if !defined(DM_BINARY_HLSL_SUPPORTED)
+    ASSERT_TRUE(true);
+    return;
+#else
+    D3D12_DESCRIPTOR_RANGE vs_range = {};
+    vs_range.RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+    vs_range.NumDescriptors                    = 1;
+    vs_range.BaseShaderRegister                = 0;
+    vs_range.RegisterSpace                     = 0;
+    vs_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER vs_param = {};
+    vs_param.ParameterType                       = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    vs_param.DescriptorTable.NumDescriptorRanges = 1;
+    vs_param.DescriptorTable.pDescriptorRanges   = &vs_range;
+    vs_param.ShaderVisibility                    = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    D3D12_ROOT_SIGNATURE_DESC vs_desc = {};
+    vs_desc.NumParameters = 1;
+    vs_desc.pParameters   = &vs_param;
+    vs_desc.Flags         = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    D3D12_DESCRIPTOR_RANGE fs_range = vs_range;
+
+    D3D12_ROOT_PARAMETER fs_param = vs_param;
+    fs_param.DescriptorTable.pDescriptorRanges = &fs_range;
+    fs_param.ShaderVisibility                  = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_ROOT_SIGNATURE_DESC fs_desc = {};
+    fs_desc.NumParameters = 1;
+    fs_desc.pParameters   = &fs_param;
+    fs_desc.Flags         = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    ID3DBlob* vs_blob = 0;
+    ID3DBlob* fs_blob = 0;
+    ID3DBlob* error_blob = 0;
+    ASSERT_EQ(S_OK, D3D12SerializeRootSignature(&vs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &vs_blob, &error_blob));
+    if (error_blob)
+        error_blob->Release();
+    error_blob = 0;
+
+    ASSERT_EQ(S_OK, D3D12SerializeRootSignature(&fs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &fs_blob, &error_blob));
+    if (error_blob)
+        error_blob->Release();
+
+    dmShaderc::ShaderCompileResult arr[2];
+    arr[0].m_HLSLRootSignature.SetCapacity((uint32_t) vs_blob->GetBufferSize());
+    arr[0].m_HLSLRootSignature.SetSize((uint32_t) vs_blob->GetBufferSize());
+    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_blob->GetBufferPointer(), vs_blob->GetBufferSize());
+
+    arr[1].m_HLSLRootSignature.SetCapacity((uint32_t) fs_blob->GetBufferSize());
+    arr[1].m_HLSLRootSignature.SetSize((uint32_t) fs_blob->GetBufferSize());
+    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_blob->GetBufferPointer(), fs_blob->GetBufferSize());
+
+    dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_NE((void*)0, merged);
+    ASSERT_EQ(0, strcmp("", merged->m_LastError));
+    ASSERT_GT(merged->m_HLSLRootSignature.Size(), 0u);
+
+    ID3D12RootSignatureDeserializer* deser = 0;
+    HRESULT hr = D3D12CreateRootSignatureDeserializer(
+        merged->m_HLSLRootSignature.Begin(),
+        merged->m_HLSLRootSignature.Size(),
+        IID_PPV_ARGS(&deser));
+    ASSERT_EQ(S_OK, hr);
+    const D3D12_ROOT_SIGNATURE_DESC* merged_desc = deser->GetRootSignatureDesc();
+    ASSERT_EQ(2u, merged_desc->NumParameters);
+    ASSERT_EQ(D3D12_SHADER_VISIBILITY_VERTEX, merged_desc->pParameters[0].ShaderVisibility);
+    ASSERT_EQ(D3D12_SHADER_VISIBILITY_PIXEL, merged_desc->pParameters[1].ShaderVisibility);
+
+    deser->Release();
+    vs_blob->Release();
+    fs_blob->Release();
 #endif
 }
 

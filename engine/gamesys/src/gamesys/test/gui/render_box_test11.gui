@@ -42,7 +42,7 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: "my_paged_atlas/valid_png"
+  texture: "my_paged_atlas/texture_valid_png"
   id: "box"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE

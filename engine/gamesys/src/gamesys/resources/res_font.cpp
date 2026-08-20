@@ -36,6 +36,7 @@
 namespace dmGameSystem
 {
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
+    const static dmhash_t EXT_HASH_OTF = dmHashString64("otf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
 
     struct ImageDataHeader
@@ -113,6 +114,12 @@ namespace dmGameSystem
 
     static void CancelPendingJobs(FontResource* font)
     {
+        if (font->m_PendingJobs.Empty())
+        {
+            return;
+        }
+
+        font->m_Destroying = 1;
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
             FontJobResourceInfo* job_info = font->m_PendingJobs[i];
@@ -129,6 +136,7 @@ namespace dmGameSystem
             DeallocateJobResourceInfo(job_info);
         }
         font->m_PendingJobs.SetSize(0);
+        font->m_Destroying = 0;
     }
 
     static void ReleaseResourceIter(void* ctx, const uint64_t* hash, TTFResource** presource)
@@ -212,9 +220,21 @@ namespace dmGameSystem
     static void TextCallbackJobInfo(void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobResourceInfo* job_info = (FontJobResourceInfo*)cbk_ctx;
-        if (job_info->m_Callback)
-            job_info->m_Callback(job_info->m_CallbackContext, result, errmsg);
+
+        FPrewarmTextCallback callback = job_info->m_Callback;
+        void* callback_context = job_info->m_CallbackContext;
+        char errmsg_copy[128];
+        const char* callback_errmsg = 0;
+        if (errmsg)
+        {
+            dmStrlCpy(errmsg_copy, errmsg, sizeof(errmsg_copy));
+            callback_errmsg = errmsg_copy;
+        }
+
         DestroyJobInfo(job_info);
+
+        if (callback)
+            callback(callback_context, result, callback_errmsg);
     }
 
     dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
@@ -222,6 +242,11 @@ namespace dmGameSystem
         if (!resource->m_IsDynamic)
         {
             return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        if (resource->m_Destroying)
+        {
+            return dmResource::RESULT_INVAL;
         }
 
         dmArray<uint32_t> codepoints;
@@ -539,6 +564,10 @@ namespace dmGameSystem
     static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
     {
         FontResource* resource = (FontResource*)user_ctx;
+        if (resource->m_Destroying)
+        {
+            return FONT_RESULT_ERROR;
+        }
 
         // Increment all child resources (i.e. .ttf) before we send them to the thread
         FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0);
@@ -859,7 +888,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* resource, dmhash_t ttf_hash)
+    dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* resource, dmhash_t path_hash)
     {
         if (!resource->m_TTFResource) // Only dynamic fonts are supported
         {
@@ -868,14 +897,16 @@ namespace dmGameSystem
         }
 
         dmGameSystem::TTFResource* ttfresource;
-        dmResource::Result r = dmResource::GetWithExt(factory, ttf_hash, EXT_HASH_TTF, (void**)&ttfresource);
+        dmResource::Result r = dmResource::GetWithExt(factory, path_hash, EXT_HASH_TTF, (void**)&ttfresource);
+        if (r == dmResource::RESULT_INVALID_FILE_EXTENSION)
+            r = dmResource::GetWithExt(factory, path_hash, EXT_HASH_OTF, (void**)&ttfresource);
         if (dmResource::RESULT_OK != r)
         {
-            dmLogError("Failed to get ttf '%s': %d", dmHashReverseSafe64(ttf_hash), r);
+            dmLogError("Failed to get font '%s': %d", dmHashReverseSafe64(path_hash), r);
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 
-        r = AddFontInternal(factory, resource, ttfresource, ttf_hash);
+        r = AddFontInternal(factory, resource, ttfresource, path_hash);
         if (r == dmResource::RESULT_OK)
         {
             ++resource->m_Version;
@@ -893,9 +924,11 @@ namespace dmGameSystem
 
         dmGameSystem::TTFResource* ttfresource;
         dmResource::Result r = dmResource::GetWithExt(factory, ttf_path, "ttf", (void**)&ttfresource);
+        if (r == dmResource::RESULT_INVALID_FILE_EXTENSION)
+            r = dmResource::GetWithExt(factory, ttf_path, "otf", (void**)&ttfresource);
         if (dmResource::RESULT_OK != r)
         {
-            dmLogError("Failed to get ttf '%s': %d", ttf_path, r);
+            dmLogError("Failed to get font '%s': %d", ttf_path, r);
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 

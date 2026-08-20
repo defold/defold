@@ -15,10 +15,15 @@
 #ifndef DM_SOCKET_PRIVATE_H
 #define DM_SOCKET_PRIVATE_H
 
+#define DM_SOCKET_ERRNO() dmSocket::GetSocketLastError()
+#define DM_SOCKET_EINTR() dmSocket::GetSocketInterruptedError()
+
 namespace dmSocket
 {
     Result PlatformInitialize();
     Result PlatformFinalize();
+    int GetSocketLastError();
+    int GetSocketInterruptedError();
 
     Result NativeToResult(const char* filename, int line, int r);
     #define NATIVETORESULT(_R_) NativeToResult(__FILE__, __LINE__, _R_)

@@ -9,17 +9,21 @@
 Repository for the Defold engine, editor and command line tools.
 
 ## Supported by
-[![](https://defold.com/images/logo/others/moonactive-color-black.png)](https://www.moonactive.com/)
+[![](https://defold.com/images/logo/others/moonactive-github.png)](https://www.moonactive.com/)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/denda-corporate-black.png)](https://denda-corporate.com/)
+[![](https://defold.com/images/logo/others/rive-github.png)](https://www.rive.app)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/8bitskull.png)](https://www.8bitskull.com)
+
+[![](https://defold.com/images/logo/others/heroiclabs-github.png)](https://www.heroiclabs.com)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/rive-black.png)](https://www.rive.app)
+[![](https://defold.com/images/logo/others/poki-github.png)](https://www.poki.com)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/poki-black.png)](https://www.poki.com)
+
+[![](https://defold.com/images/logo/others/denda-github.png)](https://denda-corporate.com/)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/heroiclabs-blue.png)](https://www.heroiclabs.com)
+[![](https://defold.com/images/logo/others/8bitskull-github.png)](https://www.8bitskull.com)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/wavedash-github.png)](https://www.wavedash.com)
 ![](https://defold.com/images/spacer32.png)
 
 ## Folder Structure

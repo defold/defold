@@ -23,6 +23,11 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
 
+// Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
+#ifdef MAX_TOUCH_COUNT
+#undef MAX_TOUCH_COUNT
+#endif
+
 /*# Game object functions
  *
  * API for manipulating game objects
@@ -32,6 +37,13 @@
  * @namespace dmGameObject
  * @language C++
  */
+
+/*# Game object extension context name
+ * Name used when registering the game object context with the engine context registry.
+ * @constant
+ * @name GAMEOBJECT_CONTEXT_NAME
+ */
+#define GAMEOBJECT_CONTEXT_NAME "register"
 
 namespace dmMessage
 {
@@ -210,6 +222,8 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_TYPE_VECTOR4
      * @member dmGameObject::PROPERTY_TYPE_QUAT
      * @member dmGameObject::PROPERTY_TYPE_BOOLEAN
+     * @member dmGameObject::PROPERTY_TYPE_MATRIX4
+     * @member dmGameObject::PROPERTY_TYPE_TEXT
      * @member dmGameObject::PROPERTY_TYPE_COUNT
      */
     enum PropertyType
@@ -223,6 +237,7 @@ namespace dmGameObject
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
         PROPERTY_TYPE_MATRIX4 = 7,
+        PROPERTY_TYPE_TEXT = 8,
         PROPERTY_TYPE_COUNT
     };
 
@@ -288,11 +303,13 @@ namespace dmGameObject
      * @enum
      * @name CreateResult
      * @member dmGameObject::CREATE_RESULT_OK
+     * @member dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS
      * @member dmGameObject::CREATE_RESULT_UNKNOWN_ERROR
      */
     enum CreateResult
     {
         CREATE_RESULT_OK = 0,
+        CREATE_RESULT_TOO_MANY_COMPONENTS = -1,
         CREATE_RESULT_UNKNOWN_ERROR = -1000,
     };
 
@@ -338,6 +355,7 @@ namespace dmGameObject
      * @member m_Url [type:const uin8_t*] An URL value (union)
      * @member m_V4 [type:float] A vector4 value (union)
      * @member m_Bool [type:bool] A boolean value (union)
+     * @member m_Text [type:const char*] A borrowed text value (union). The caller owns the pointed-to memory.
      */
     struct PropertyVar
     {
@@ -351,6 +369,7 @@ namespace dmGameObject
         PropertyVar(dmVMath::Quat v);
         PropertyVar(dmVMath::Matrix4 v);
         PropertyVar(bool v);
+        PropertyVar(const char* v);
 
         PropertyType m_Type;
         union
@@ -362,6 +381,7 @@ namespace dmGameObject
             float m_V4[4];
             float m_M4[16];
             bool m_Bool;
+            const char* m_Text;
         };
     };
 
@@ -433,6 +453,13 @@ namespace dmGameObject
     {
         InputAction();
 
+        union {
+            dmHID::Touch         m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char                 m_Text[dmHID::MAX_CHAR_COUNT];  /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
+            dmHID::GamepadPacket m_GamepadPacket;
+        };
+        dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
+
         /// Action id, hashed action name
         dmhash_t m_ActionId;
         /// Value of the input [0,1]
@@ -459,36 +486,32 @@ namespace dmGameObject
         float m_AccY;
         /// Accelerometer z value (if present)
         float m_AccZ;
-        /// Touch data
-        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
-        /// Number of m_Touch
-        int32_t  m_TouchCount;
-        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
-        char     m_Text[dmHID::MAX_CHAR_COUNT];
-        uint32_t m_TextCount;
-        uint32_t m_GamepadIndex;
-        uint32_t m_UserID;
-        dmHID::GamepadPacket m_GamepadPacket;
 
-        uint8_t  m_IsGamepad : 1;
-        uint8_t  m_GamepadUnknown : 1;
-        uint8_t  m_GamepadDisconnected : 1;
-        uint8_t  m_GamepadConnected : 1;
-        uint8_t  m_HasGamepadPacket : 1;
+        /// Text or touch count
+        int16_t m_Count;
+        uint16_t m_GamepadIndex;
+        uint16_t m_UserID;
+
+        uint16_t  m_IsGamepad : 1;
+        uint16_t  m_GamepadUnknown : 1;
+        uint16_t  m_GamepadDisconnected : 1;
+        uint16_t  m_GamepadConnected : 1;
+        uint16_t  m_HasGamepadPacket : 1;
         /// If input has a text payload (can be true even if text count is 0)
-        uint8_t  m_HasText : 1;
+        uint16_t  m_HasText : 1;
         /// If the input was 0 last update
-        uint8_t  m_Pressed : 1;
+        uint16_t  m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
-        uint8_t  m_Released : 1;
+        uint16_t  m_Released : 1;
         /// If the input was held enough for the value to be repeated this update
-        uint8_t  m_Repeated : 1;
+        uint16_t  m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
-        uint8_t  m_PositionSet : 1;
+        uint16_t  m_PositionSet : 1;
         /// If the accelerometer fields (m_AccX, m_AccY, m_AccZ) were set and valid to read
-        uint8_t  m_AccelerationSet : 1;
+        uint16_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
-        uint8_t  m_Consumed : 1;
+        uint16_t  m_Consumed : 1;
+        uint16_t  : 4;
     };
 
     /*#
@@ -981,6 +1004,18 @@ namespace dmGameObject
     PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value);
 
     /*#
+     * Retrieve a text property from a component.
+     * The returned pointer is borrowed from the component and must not be freed. Its lifetime is controlled by the component.
+     * @name GetPropertyAsText
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:const char**] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char** out_value);
+
+    /*#
      * Retrieve a matrix4 property from a component.
      * @name GetPropertyAsMatrix
      * @param instance [type:HInstance] Instance of the game object
@@ -1067,6 +1102,18 @@ namespace dmGameObject
      * @return PROPERTY_RESULT_OK if the value could be set
      */
     PropertyResult SetPropertyFromURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value);
+
+    /*#
+     * Sets the value of a text property on a component.
+     * The component must copy the value if it needs to retain it after this function returns.
+     * @name SetPropertyFromText
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:const char*] Null-terminated UTF-8 value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char* value);
 
     /*#
      * Sets the value of a matrix4 property on a component.
@@ -1194,7 +1241,6 @@ namespace dmGameObject
     bool TraverseIterateNext(SceneNodeIterator* it);
 
     /*# scene node property types
-     * @note Since we don't support text properties, we'll keep a separate enum here for now
      * @enum
      * @name SceneNodePropertyType
      * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER

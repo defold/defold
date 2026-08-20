@@ -259,37 +259,44 @@ static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_c
     if (desired_num_components == 0)
         desired_num_components = num_components;
 
-    uint32_t size = accessor->count * num_components;
+    uint32_t source_size = accessor->count * num_components;
+    uint32_t size = source_size;
     if (desired_num_components > num_components)
         size = accessor->count * desired_num_components;
 
     *out_count = size;
     float* out = new float[size]; // Now the buffer will fit the max num components
-    float* writeptr = out;
 
     if (desired_num_components > num_components)
     {
-        for (uint32_t i = 0; i < accessor->count; ++i)
-        {
-            for (uint32_t j = 0; j < desired_num_components; ++j)
-                *writeptr++ = default_value;
-        }
-    }
-
-    writeptr = out;
-
-    for (uint32_t i = 0; i < accessor->count; ++i)
-    {
-        bool result = cgltf_accessor_read_float(accessor, i, writeptr, num_components);
-
-        if (!result)
+        float* packed = new float[source_size];
+        cgltf_size unpacked = cgltf_accessor_unpack_floats(accessor, packed, source_size);
+        if (unpacked != source_size)
         {
             printf("Couldn't read floats!\n");
+            delete[] packed;
             delete[] out;
             return 0;
         }
 
-        writeptr += desired_num_components;
+        for (uint32_t i = 0; i < accessor->count; ++i)
+        {
+            for (uint32_t j = 0; j < desired_num_components; ++j)
+            {
+                out[i * desired_num_components + j] = j < num_components ? packed[i * num_components + j] : default_value;
+            }
+        }
+
+        delete[] packed;
+        return out;
+    }
+
+    cgltf_size unpacked = cgltf_accessor_unpack_floats(accessor, out, source_size);
+    if (unpacked != source_size)
+    {
+        printf("Couldn't read floats!\n");
+        delete[] out;
+        return 0;
     }
 
     return out;
@@ -352,6 +359,98 @@ static float* ReadAccessorMatrix4(cgltf_accessor* accessor, uint32_t index, floa
     }
 
     return out;
+}
+
+static bool ReadSparseIndex(const uint8_t* data, cgltf_component_type component_type, cgltf_size* out)
+{
+    switch (component_type)
+    {
+        case cgltf_component_type_r_8u:
+            *out = *data;
+            return true;
+        case cgltf_component_type_r_16u:
+        {
+            uint16_t value;
+            memcpy(&value, data, sizeof(value));
+            *out = value;
+            return true;
+        }
+        case cgltf_component_type_r_32u:
+        {
+            uint32_t value;
+            memcpy(&value, data, sizeof(value));
+            *out = value;
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+static bool ValidateSparseAccessorsForUnpack(Scene* scene, cgltf_data* data)
+{
+    for (cgltf_size i = 0; i < data->accessors_count; ++i)
+    {
+        cgltf_accessor* accessor = &data->accessors[i];
+        if (!accessor->is_sparse)
+            continue;
+
+        cgltf_size element_size = cgltf_calc_size(accessor->type, accessor->component_type);
+        if (element_size == 0)
+        {
+            SetLoadError(scene, "Invalid sparse accessor component type.");
+            return false;
+        }
+
+        if (accessor->buffer_view && accessor->count > 0)
+        {
+            cgltf_size req_size = accessor->offset + accessor->stride * (accessor->count - 1) + element_size;
+            if (accessor->buffer_view->size < req_size)
+            {
+                SetLoadError(scene, "Sparse accessor base buffer view is too short.");
+                return false;
+            }
+        }
+
+        cgltf_accessor_sparse* sparse = &accessor->sparse;
+        cgltf_size index_component_size = cgltf_component_size(sparse->indices_component_type);
+        if (index_component_size == 0 || !sparse->indices_buffer_view || !sparse->values_buffer_view)
+        {
+            SetLoadError(scene, "Invalid sparse accessor indices or values.");
+            return false;
+        }
+
+        cgltf_size indices_req_size = sparse->indices_byte_offset + index_component_size * sparse->count;
+        cgltf_size values_req_size = sparse->values_byte_offset + element_size * sparse->count;
+        if (sparse->indices_buffer_view->size < indices_req_size ||
+            sparse->values_buffer_view->size < values_req_size)
+        {
+            SetLoadError(scene, "Sparse accessor buffer view is too short.");
+            return false;
+        }
+
+        const uint8_t* index_data = cgltf_buffer_view_data(sparse->indices_buffer_view);
+        const uint8_t* values_data = cgltf_buffer_view_data(sparse->values_buffer_view);
+        if (!index_data || !values_data)
+        {
+            SetLoadError(scene, "Sparse accessor buffer data is missing.");
+            return false;
+        }
+
+        index_data += sparse->indices_byte_offset;
+        for (cgltf_size j = 0; j < sparse->count; ++j, index_data += index_component_size)
+        {
+            cgltf_size sparse_index = 0;
+            if (!ReadSparseIndex(index_data, sparse->indices_component_type, &sparse_index) ||
+                sparse_index >= accessor->count)
+            {
+                SetLoadError(scene, "Sparse accessor index is out of range.");
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 static uint32_t FindNodeIndex(cgltf_node* node, uint32_t nodes_count, cgltf_node* nodes)
@@ -1947,6 +2046,8 @@ static void LoadScene(Scene* scene, cgltf_data* data)
 static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    if (!ValidateSparseAccessorsForUnpack(scene, data->m_Data))
+        return false;
     LoadScene(scene, data->m_Data);
     return scene->m_LoadError == 0;
 }

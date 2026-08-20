@@ -31,6 +31,8 @@ namespace dmGameSystem
     struct GuiSceneResource;
     struct MaterialResource;
 
+    typedef const dmGuiDDF::NodeDesc* HNodeDDF;
+
     struct GuiComponent
     {
         struct GuiWorld*        m_World;
@@ -44,6 +46,7 @@ namespace dmGameSystem
         uint8_t                 m_Initialized   : 1;
         uint8_t                 m_Padding       : 5;
         dmArray<void*>          m_ResourcePropertyPointers;
+        dmHashTable64<HNodeDDF> m_DefaultNodeDescs;
     };
 
     struct BoxVertex

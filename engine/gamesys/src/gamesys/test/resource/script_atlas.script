@@ -12,7 +12,7 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-require "lua.test_resource_helpers"
+require "resource.lua_test_resource_helpers"
 
 -- helper function for general tests in init() function
 -- does a pcall and verify that it fails
@@ -68,7 +68,7 @@ local function test_get_set_atlas(self)
     assert(#data.geometries > 0)
     assert(#data.animations > 0)
 
-    -- these values are specified in the '/tile/valid.t.texturesetc' file
+    -- these values are specified in the '/resource/tile_valid.t.texturesetc' file
     assert_anim(data.animations[1], {
         id              = "anim",
         width           = 16,
@@ -84,7 +84,7 @@ local function test_get_set_atlas(self)
 end
 
 local function test_get_atlas_frames_non_contiguous(self)
-    local data = resource.get_atlas("/resource/issue_11956.t.texturesetc")
+    local data = resource.get_atlas("/resource/issue_11956.a.texturesetc")
 
     assert(#data.geometries == 10)
     assert(#data.animations == 1)
@@ -191,8 +191,8 @@ local function test_create_atlas_invalid(self)
 end
 
 function init(self)
-    self.valid_tileset_path = "/tile/valid.t.texturesetc"
-    self.valid_texture_path = "/tile/mario_tileset.texturec"
+    self.valid_tileset_path = "/resource/tile_valid.t.texturesetc"
+    self.valid_texture_path = "/resource/__tile_valid_tilesource.texturec"
 
     -- valid tests
     test_create_get_atlas(self, make_anim("test_anim", 128, 128, { 1 }))

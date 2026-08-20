@@ -1,0 +1,20 @@
+color_attachments
+{
+    width: 128
+    height: 128
+    format: TEXTURE_FORMAT_RGB
+}
+
+color_attachments
+{
+    width: 128
+    height: 128
+    format: TEXTURE_FORMAT_RGB
+}
+
+depth_stencil_attachment
+{
+    width: 128
+    height: 128
+    texture_storage: true
+}

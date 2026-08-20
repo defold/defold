@@ -19,9 +19,14 @@ void dmProfilerExt::SampleCpuUsage()
     // nop
 }
 
-uint64_t dmProfilerExt::GetMemoryUsage()
+uint64_t dmProfilerExt::GetDetailedMemoryUsage()
 {
     return 0;
+}
+
+uint64_t dmProfilerExt::GetMemoryUsage()
+{
+    return GetDetailedMemoryUsage();
 }
 
 double dmProfilerExt::GetCpuUsage()

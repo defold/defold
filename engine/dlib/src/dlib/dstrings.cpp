@@ -13,15 +13,13 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <string.h>
 #include <errno.h>
 
 #include "dstrings.h"
 
-#if defined(_WIN32)
-#include <stdlib.h>
-#endif
 
 int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
 {
@@ -217,6 +215,25 @@ dmStrlCat(char *dst, const char *src, size_t siz)
         *d = '\0';
 
         return(dlen + (s - src));       /* count does not include NUL */
+}
+
+size_t dmStrTrim(char* dst, size_t dst_size, const char* src)
+{
+    while (isspace((unsigned char)*src))
+        ++src;
+
+    const char* end = src + strlen(src);
+    while (end > src && isspace((unsigned char)end[-1]))
+        --end;
+
+    size_t length = end - src;
+    if (dst_size > 0)
+    {
+        size_t copy_length = length < dst_size ? length : dst_size - 1;
+        memmove(dst, src, copy_length);
+        dst[copy_length] = '\0';
+    }
+    return length;
 }
 
 int dmStrCaseCmp(const char *s1, const char *s2)

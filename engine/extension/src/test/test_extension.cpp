@@ -15,8 +15,10 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "../extension.h"
 #include "../extension.hpp"
 #include "test_extension.h"
+#include <dlib/context_registry.h>
 #include <dlib/hashtable.h>
 
 extern "C"
@@ -31,6 +33,7 @@ extern int g_TestAppInitCount;
 extern int g_TestInitCount;
 extern int g_TestUpdateCount;
 extern int g_TestAppEventCount;
+extern int g_TestContextCount;
 
 extern "C" void TestExt();
 
@@ -42,11 +45,19 @@ struct Initializer {
 
 TEST(dmExtension, Basic)
 {
+    HContextRegistry context_registry = ContextRegistryCreate();
+
     dmExtension::AppParams appparams;
     ExtensionAppParamsInitialize(&appparams);
+    ExtensionAppParamsSetContextRegistry(&appparams, context_registry);
 
     int engine_context = 1337;
-    ExtensionAppParamsSetContext(&appparams, "engine", &engine_context);
+    ContextRegistrySet(context_registry, "engine", &engine_context);
+    ASSERT_EQ((void*)&engine_context, ContextRegistryGetByHash(context_registry, dmHashString64("engine")));
+
+    int engine_hash_context = 7331;
+    ContextRegistrySetByHash(context_registry, dmHashString64("engine_hash"), &engine_hash_context);
+    ASSERT_EQ((void*)&engine_hash_context, ContextRegistryGet(context_registry, "engine_hash"));
 
     ASSERT_EQ(0, g_TestAppInitCount);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&appparams));
@@ -55,14 +66,22 @@ TEST(dmExtension, Basic)
     ASSERT_NE((dmExtension::HExtension)0, extension);
     ASSERT_EQ((dmExtension::HExtension)0, dmExtension::GetNextExtension(extension));
 
-    ASSERT_NE((void*)0, ExtensionAppParamsGetContextByName(&appparams, "lib"));
-    ASSERT_NE((void*)0, ExtensionAppParamsGetContext(&appparams, dmHashString64("lib")));
+    ASSERT_NE((void*)0, ContextRegistryGet(context_registry, "lib"));
+    ASSERT_NE((void*)0, ContextRegistryGetByHash(context_registry, dmHashString64("lib")));
+
+    ExtensionAppParamsFinalize(&appparams);
 
     dmExtension::Params params;
     ExtensionParamsInitialize(&params);
+    ExtensionParamsSetContextRegistry(&params, context_registry);
+
+    ASSERT_NE((void*)0, ContextRegistryGet(context_registry, "lib"));
+    ASSERT_NE((void*)0, ContextRegistryGetByHash(context_registry, dmHashString64("lib")));
 
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&params));
     ASSERT_EQ(1, g_TestInitCount);
+    ASSERT_EQ(1, g_TestContextCount);
+    ASSERT_NE((void*)0, ContextRegistryGet(context_registry, "init"));
 
     for (int i = 0; i < 5; ++i)
     {
@@ -72,8 +91,8 @@ TEST(dmExtension, Basic)
     }
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&params));
     ASSERT_EQ(0, g_TestInitCount);
-
-    ExtensionParamsFinalize(&params);
+    ASSERT_EQ(0, g_TestContextCount);
+    ASSERT_EQ((void*)0, ContextRegistryGet(context_registry, "init"));
 
     dmExtension::Event event;
     event.m_Event = (ExtensionEventID)dmExtension::EVENT_ID_ACTIVATEAPP;
@@ -83,14 +102,22 @@ TEST(dmExtension, Basic)
     dmExtension::DispatchEvent(&params, &event);
     ASSERT_EQ(0, g_TestAppEventCount);
 
-    dmExtension::AppFinalize(&appparams);
+    ExtensionParamsFinalize(&params);
+
+    dmExtension::AppParams appfinalizeparams;
+    ExtensionAppParamsInitialize(&appfinalizeparams);
+    ExtensionAppParamsSetContextRegistry(&appfinalizeparams, context_registry);
+
+    dmExtension::AppFinalize(&appfinalizeparams);
     ASSERT_EQ(0, g_TestAppInitCount);
 
     // it deregistered its own context
-    ASSERT_EQ((void*)0, ExtensionAppParamsGetContextByName(&appparams, "lib"));
-    ASSERT_EQ((void*)0, ExtensionAppParamsGetContext(&appparams, dmHashString64("lib")));
+    ASSERT_EQ((void*)0, ContextRegistryGet(context_registry, "lib"));
+    ASSERT_EQ((void*)0, ContextRegistryGetByHash(context_registry, dmHashString64("lib")));
 
-    ExtensionAppParamsFinalize(&appparams);
+    ExtensionAppParamsFinalize(&appfinalizeparams);
+
+    ContextRegistryDestroy(context_registry);
 }
 
 int main(int argc, char **argv)

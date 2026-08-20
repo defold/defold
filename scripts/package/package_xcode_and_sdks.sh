@@ -65,7 +65,8 @@ function make_archive() {
 function package_platform() {
     local platform=$1
     pushd $PLATFORMS/${platform}.platform/Developer/SDKs/
-    PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | head -1)
+    # Pick the symlink with the most version components, e.g. MacOSX26.5.sdk over MacOSX26.sdk
+    PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | awk -F'.' '{print NF, $0}' | sort -rn | head -1 | cut -d' ' -f2-)
     PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 
     EXTRA_ARGS=""
@@ -117,6 +118,10 @@ function package_xcode() {
     EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.5/watchsimulator ${EXTRA_ARGS}"
     EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.5/appletvos ${EXTRA_ARGS}"
     EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.5/appletvsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-6.2/watchos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-6.2/watchsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-6.2/appletvos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-6.2/appletvsimulator ${EXTRA_ARGS}"
 
     EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/Developer/Platforms ${EXTRA_ARGS}"
     EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/sourcekitd.framework ${EXTRA_ARGS}"

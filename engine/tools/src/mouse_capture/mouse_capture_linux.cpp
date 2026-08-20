@@ -26,8 +26,12 @@ namespace dmMouseCapture
         int        m_XIOpcode;
         bool       m_Capturing;
         MouseDelta m_AccumulatedDelta;
-        int        m_SavedCursorX;
-        int        m_SavedCursorY;
+        // On Linux we need to save both the restore and capture positions so we can restore once we stop,
+        // but also because Linux needs to manually reset the pointer after movement back to the capture pos
+        int        m_RestoreCursorX;
+        int        m_RestoreCursorY;
+        int        m_CaptureCursorX;
+        int        m_CaptureCursorY;
     };
 
     void WarpCursor(int x, int y)
@@ -40,7 +44,28 @@ namespace dmMouseCapture
         XFlush(display);
     }
 
-    HContext StartCapture(int save_cursor_x, int save_cursor_y)
+    static bool GetCursorPos(CursorPos* cursor_pos)
+    {
+        if (!cursor_pos)
+            return false;
+
+        static Display* display = XOpenDisplay(NULL);
+        if (!display)
+            return false;
+        Window root = DefaultRootWindow(display);
+        Window child;
+        int rx, ry, wx, wy;
+        unsigned int mask;
+        bool result = XQueryPointer(display, root, &root, &child, &rx, &ry, &wx, &wy, &mask);
+        if (result)
+        {
+            *cursor_pos = { rx, ry };
+        }
+        XFlush(display);
+        return result;
+    }
+
+    HContext StartCapture(int capture_cursor_x, int capture_cursor_y)
     {
         Display* display = XOpenDisplay(NULL);
         if (!display)
@@ -61,11 +86,7 @@ namespace dmMouseCapture
         }
 
 
-        Window       root = DefaultRootWindow(display);
-        Window       dummy;
-        int          root_x, root_y, dummy_int;
-        unsigned int dummy_uint;
-        XQueryPointer(display, root, &dummy, &dummy, &root_x, &root_y, &dummy_int, &dummy_int, &dummy_uint);
+        Window root = DefaultRootWindow(display);
 
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
         memset(mask_bytes, 0, sizeof(mask_bytes));
@@ -84,13 +105,23 @@ namespace dmMouseCapture
         Context* context = new Context();
         context->m_Display = display;
         context->m_XIOpcode = xi_opcode;
-        context->m_Capturing = true;
-        context->m_SavedCursorX = save_cursor_x;
-        context->m_SavedCursorY = save_cursor_y;
+        context->m_RestoreCursorX = capture_cursor_x;
+        context->m_RestoreCursorY = capture_cursor_y;
+        context->m_CaptureCursorX = capture_cursor_x;
+        context->m_CaptureCursorY = capture_cursor_y;
+        CursorPos restore_cursor_pos;
+        if (GetCursorPos(&restore_cursor_pos))
+        {
+            context->m_RestoreCursorX = restore_cursor_pos.x;
+            context->m_RestoreCursorY = restore_cursor_pos.y;
+        }
         context->m_Window = root;
         context->m_Capturing = true;
         context->m_AccumulatedDelta.dx = 0.0;
         context->m_AccumulatedDelta.dy = 0.0;
+
+        XWarpPointer(display, None, root, 0, 0, 0, 0, capture_cursor_x, capture_cursor_y);
+        XFlush(display);
 
         return context;
     }
@@ -111,6 +142,7 @@ namespace dmMouseCapture
         XISelectEvents(context->m_Display, root, &evmask, 1);
 
         XFixesShowCursor(context->m_Display, context->m_Window);
+        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0, context->m_RestoreCursorX, context->m_RestoreCursorY);
         XFlush(context->m_Display);
 
         XCloseDisplay(context->m_Display);
@@ -160,7 +192,7 @@ namespace dmMouseCapture
         *out_delta = context->m_AccumulatedDelta;
 
         Window root = DefaultRootWindow(context->m_Display);
-        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0, context->m_SavedCursorX, context->m_SavedCursorY);
+        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0, context->m_CaptureCursorX, context->m_CaptureCursorY);
         XFlush(context->m_Display);
 
         return (context->m_AccumulatedDelta.dx != 0.0 ||

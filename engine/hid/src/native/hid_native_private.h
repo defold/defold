@@ -25,20 +25,28 @@ namespace dmHID
     typedef void (*GamepadDriverUpdateCb)(HContext context, GamepadDriver* driver, Gamepad* gamepad);
     typedef void (*GamepadDriverDetectDevicesCb)(HContext context, GamepadDriver* driver);
     typedef void (*GamepadDriverGetGamepadDeviceNameCb)(HContext context, GamepadDriver*, Gamepad* gamepad, char name[MAX_GAMEPAD_NAME_LENGTH]);
+    typedef bool (*GamepadDriverGetGamepadDeviceGuidCb)(HContext context, GamepadDriver*, Gamepad* gamepad, GamepadGuid* guid);
+    typedef uint32_t (*GamepadDriverGetGamepadMappingSupportCb)(HContext context, GamepadDriver*, Gamepad* gamepad);
+    typedef void (*GamepadDriverSetGamepadMappingCb)(HContext context, GamepadDriver*, Gamepad* gamepad, const char* mapping);
 
     struct GamepadDriver
     {
-        GamepadDriverInitializeCb           m_Initialize;
-        GamepadDriverDestroyCb              m_Destroy;
-        GamepadDriverUpdateCb               m_Update;
-        GamepadDriverDetectDevicesCb        m_DetectDevices;
-        GamepadDriverGetGamepadDeviceNameCb m_GetGamepadDeviceName;
+        GamepadDriverInitializeCb               m_Initialize;
+        GamepadDriverDestroyCb                  m_Destroy;
+        GamepadDriverUpdateCb                   m_Update;
+        GamepadDriverDetectDevicesCb            m_DetectDevices;
+        GamepadDriverGetGamepadDeviceNameCb     m_GetGamepadDeviceName;
+        GamepadDriverGetGamepadDeviceGuidCb     m_GetGamepadDeviceGuid;
+        GamepadDriverGetGamepadMappingSupportCb m_GetGamepadMappingSupport = 0;
+        GamepadDriverSetGamepadMappingCb        m_SetGamepadMapping = 0;
     };
 
     Gamepad*       CreateGamepad(HContext context, GamepadDriver* driver);
     void           ReleaseGamepad(HContext context, Gamepad* gamepad);
-    GamepadDriver* CreateGamepadDriverGLFW(HContext context);
     void           SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status);
+
+    GamepadDriver* CreateGamepadDriverGLFW(HContext context);
+    GamepadDriver* CreateGamepadDriverApple(HContext context);
 }
 
 #endif // HID_NATIVE_PRIVATE_H

@@ -33,6 +33,7 @@
             [editor.image :as image]
             [editor.image-util :as image-util]
             [editor.localization :as localization]
+            [editor.mouse-binding :as mouse-binding]
             [editor.outline :as outline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -65,6 +66,17 @@
 (def tile-source-icon "icons/32/Icons_47-Tilesource.png")
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")
+
+(mouse-binding/register!
+  ::tile-source-tool
+  "Tile Source Editor"
+  [{:command :scene.camera.orbit
+    :action ["Orbit"]}
+   {:command :scene.camera.pan
+    :action ["Pan"]}
+   {:command :scene.camera.zoom
+    :action ["Zoom"]}]
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 (def texture-params
   {:min-filter gl/nearest
@@ -170,6 +182,7 @@
   (inherits outline/OutlineNode)
 
   (property id g/Str ; Always assigned in load-fn.
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source.collision-group :id))
             (dynamic error (g/fnk [_node-id id collision-groups-data]
                              (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
                                  (when (collision-groups/overallocated? collision-groups-data)
@@ -281,6 +294,7 @@
 (g/defnode TileAnimationNode
   (inherits outline/OutlineNode)
   (property id g/Str ; Required protobuf field.
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source.animation :id))
             (dynamic error (g/fnk [_node-id id]
                              (validate-animation-id _node-id id))))
   (property start-tile g/Int ; Required protobuf field.
@@ -888,49 +902,51 @@
       {pass/outline render-data
        pass/transparent render-data})))
 
-(defmulti begin-op (fn [op node action] op))
-(defmulti update-op (fn [op node action] op))
+(defmulti begin-op (fn [op _node _action] op))
+(defmulti update-op (fn [op _node _action] op))
 
 (defmethod update-op nil
-  [_ node action])
+  [_op _node _action])
 
 (defmethod begin-op :assign
-  [_ node action]
+  [_op node _action]
   (when-let [active-tile-idx (g/node-value node :active-tile-idx)]
     (let [tile-source-node (g/node-value node :tile-source-node)
           collision-group-node (g/node-value node :selected-collision-group-node)
           op-seq (gensym)]
       [(g/operation-sequence op-seq)
-       (g/set-property node :op-data {:op-seq op-seq
-                                      :collision-group-node collision-group-node})
+       (g/non-undoable
+         (g/set-property node :op-data {:op-seq op-seq
+                                        :collision-group-node collision-group-node}))
        (g/update-property tile-source-node :tile->collision-group-node assign-collision-group active-tile-idx collision-group-node)])))
 
 (defmethod update-op :assign
-  [_ node action]
+  [_op node _action]
   (when-let [active-tile-idx (g/node-value node :active-tile-idx)]
     (let [{:keys [op-seq collision-group-node]} (g/node-value node :op-data)
-          tile-source-node (g/node-value node :tile-source-node)
-          active-tile-idx (g/node-value node :active-tile-idx)]
+          tile-source-node (g/node-value node :tile-source-node)]
       [(g/operation-sequence op-seq)
        (g/update-property tile-source-node :tile->collision-group-node assign-collision-group active-tile-idx collision-group-node)])))
 
 (defn input-txs
-  [self action tool-user-data]
+  [self action _tool-user-data]
   (let [op (g/node-value self :op)]
     (case (:type action)
       :mouse-pressed  (when-not (some? op)
                         (let [op :assign]
                           (when-let [op-txs (begin-op op self action)]
                             (concat
-                             (g/set-property self :op op)
-                             op-txs))))
+                              (g/non-undoable
+                                (g/set-property self :op op))
+                              op-txs))))
       :mouse-moved    (concat
-                       (g/set-property self :cursor-world-pos (:world-pos action))
-                       (update-op op self action))
+                        (g/non-undoable
+                          (g/set-property self :cursor-world-pos (:world-pos action)))
+                        (update-op op self action))
       :mouse-released (when (some? op)
-                        (concat
-                         (g/set-property self :op nil)
-                         (g/set-property self :op-data nil)))
+                        (g/non-undoable
+                          (g/set-property self :op nil)
+                          (g/set-property self :op-data nil)))
 
       nil)))
 
@@ -971,6 +987,7 @@
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output mouse-binding-context g/Keyword (g/constantly ::tile-source-tool))
   (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [active-tile-idx]
                             (when (some? active-tile-idx)

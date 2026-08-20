@@ -378,6 +378,8 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
+    static const float SCALE_EPSILON = 0.000001f;
+
     static void UpdateScale(HWorld2D world, Body* body, bool force_update)
     {
         dmTransform::Transform world_transform;
@@ -391,7 +393,7 @@ namespace dmPhysics
             ShapeData* shape_data = body->m_Shapes[i];
             b2ShapeId shape_id = shape_data->m_ShapeId;
 
-            if (shape_data->m_LastScale == object_scale && !force_update)
+            if (fabsf(shape_data->m_LastScale - object_scale) <= SCALE_EPSILON && !force_update)
             {
                 continue;
             }
@@ -549,11 +551,7 @@ namespace dmPhysics
 
                         b2Rot b2_rot = b2MakeRot(angle);
                         b2Body_SetTransform(body_id, b2_position, b2_rot);
-                        b2Body_EnableSleep(body_id, false);
-                    }
-                    else
-                    {
-                        b2Body_EnableSleep(body_id, true);
+                        b2Body_SetAwake(body_id, true);
                     }
                 }
 

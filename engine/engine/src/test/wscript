@@ -33,6 +33,7 @@ def run_bob(task):
     # Bob writes a dynamic output tree outside Waf's task graph. The declared
     # target is a stamp, so Waf can order and explicitly target this side-effect.
     for stamp in task.outputs:
+        stamp.parent.mkdir()
         stamp.write('')
 
 def build(bld):
@@ -43,7 +44,7 @@ def build(bld):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     additional_libs = []
-    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-android', 'x86_64-macos'):
         additional_libs += ['UNWIND']
 
     # Currently a bug in Remotery where the quick shutdown of the remotery instance can cause problems
@@ -52,7 +53,7 @@ def build(bld):
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
-                             'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable',
+                             'ResourceProviderFile', 'ResourceProviderArchive',
                              'ResourceTypeOgg','ResourceTypeOpus', 'ResourceTypeWav', 'ResourceTypeFont', 'ResourceTypeTTF',
                              'ResourceTypeLight']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound', 'ComponentTypeLight']
@@ -99,7 +100,7 @@ def build(bld):
     bob_flags = ['--variant=debug']
     bob_flags.append("--platform=%s" % platform)
     if Options.options.use_vanilla_lua:
-        bob_flags.append("--use-vanilla-lua")
+        bob_flags.append("--use-uncompressed-lua-source")
     bob_flags = ' '.join(bob_flags)
 
     classpath = os.pathsep.join(['./build/content/bob-engine.jar'] + bld.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR'])
@@ -114,8 +115,10 @@ def build(bld):
     # Build custom collections first to prevent overrides in default game.projectc
     settings = [
         'cross_script_messaging.ini',
+        'issue-12703.ini',
         'render_script.ini',
-        'camera_acquire_input_focus.ini']
+        'camera_acquire_input_focus.ini',
+        'text_input.ini']
     for setting_file in settings:
         bld.add_group()
         bld(rule = run_bob,

@@ -1,0 +1,38 @@
+local EXPECTED_TEXT = "A"
+
+local function maybe_done(self)
+    if self.script_ok and self.gui_ok then
+        sys.exit(0)
+    end
+end
+
+function init(self)
+    self.script_ok = false
+    self.gui_ok = false
+    self.frames = 0
+    msg.post(".", "acquire_input_focus")
+end
+
+function update(self, dt)
+    self.frames = self.frames + 1
+    if self.frames > 60 then
+        sys.exit(1)
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("gui_text_ok") then
+        self.gui_ok = true
+        maybe_done(self)
+    end
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("text") then
+        assert(action.text == EXPECTED_TEXT)
+        assert(action.value == nil)
+        assert(action.pressed == nil)
+        self.script_ok = true
+        maybe_done(self)
+    end
+end

@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.math :as math]
             [editor.particlefx :as particlefx]
             [editor.properties :as properties]
             [editor.types :as types]
@@ -213,9 +214,6 @@
         (box-select! view box)
         (is (empty? (selection app-view)))))))
 
-(defn- near [v1 v2]
-  (< (Math/abs (- v1 v2)) 0.000001))
-
 (deftest insert-control-point
   (test-util/with-loaded-project
     (let [pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
@@ -235,5 +233,5 @@
                           (iv/iv-filter-ids [4])
                           iv/iv-vals
                           first)]
-        (is (near half-sq-2 tx))
-        (is (near half-sq-2 ty))))))
+        (is (math/near? half-sq-2 tx))
+        (is (math/near? half-sq-2 ty))))))
