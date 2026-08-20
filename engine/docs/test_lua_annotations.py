@@ -2,7 +2,6 @@
 # Licensed under the Defold License version 1.0
 
 import io
-import json
 import tarfile
 import tempfile
 import unittest
@@ -127,11 +126,6 @@ class TestLuaAnnotations(unittest.TestCase):
             global_symbols=None,
             method_classes=None):
         data = {
-            "migration": {
-                "source_commit": "test",
-                "patch_files": 0,
-                "patch_entries": 0,
-            },
             "standard_namespaces": ["math"],
             "excluded_functions": ["init"],
             "excluded_function_patterns": ["client:*"],
@@ -390,26 +384,9 @@ class TestLuaAnnotations(unittest.TestCase):
                     metadata,
                     context="unknown")
 
-    def test_metadata_tracks_pinned_migration_source(self):
+    def test_metadata_defines_cross_document_types(self):
         metadata = lua_annotations.load_metadata(
             Path(__file__).with_name("lua_annotations.yaml"))
-        self.assertEqual(
-            "b0731459640bb6aa9f91ea24128bb6584c270160",
-            metadata["migration"]["source_commit"])
-        self.assertEqual(31, metadata["migration"]["patch_files"])
-        self.assertEqual(176, metadata["migration"]["patch_entries"])
-        manifest = json.loads(
-            Path(__file__).with_name(
-                metadata["migration"]["manifest"]).read_text(encoding="utf-8"))
-        self.assertEqual(
-            metadata["migration"]["source_commit"],
-            manifest["attribution"]["source_commit"])
-        self.assertEqual(
-            metadata["migration"]["patch_files"],
-            len(manifest["patches"]))
-        self.assertEqual(
-            metadata["migration"]["patch_entries"],
-            sum(len(entries) for entries in manifest["patches"].values()))
         self.assertNotIn("known_types", metadata)
         self.assertEqual({}, metadata["classes"]["hash"])
         self.assertEqual(
@@ -451,60 +428,6 @@ class TestLuaAnnotations(unittest.TestCase):
                 "b2Transform",
             },
             set(metadata["type_replacements"]))
-
-    def test_migration_manifest_validates_every_expected_outcome(self):
-        go_doc = document("go", [function("go.play", "string")])
-
-        with tempfile.TemporaryDirectory() as directory:
-            metadata = self.metadata(directory)
-            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
-            metadata_data["migration"].update({
-                "manifest": "migration.json",
-                "patch_files": 1,
-                "patch_entries": 1,
-            })
-            metadata.write_text(
-                yaml.safe_dump(metadata_data, sort_keys=False),
-                encoding="utf-8")
-            manifest_path = Path(directory) / "migration.json"
-            manifest = {
-                "attribution": {"source_commit": "test"},
-                "patches": {
-                    "go.cpp_doc.lua": [{
-                        "path_pattern":
-                            "elements.go.play.parameters.value.types.table",
-                        "expected": "table",
-                        "current": "string",
-                    }],
-                },
-            }
-            manifest_path.write_text(
-                json.dumps(manifest),
-                encoding="utf-8")
-
-            lua_annotations.generate(
-                [("go.cpp.apidoc", go_doc)],
-                Path(directory) / "output",
-                metadata)
-
-            manifest["patches"]["go.cpp_doc.lua"][0]["current"] = "number"
-            manifest_path.write_text(
-                json.dumps(manifest),
-                encoding="utf-8")
-            with self.assertRaisesRegex(
-                    ValueError,
-                    r"go\.cpp_doc\.lua: .* expected 'number', got 'string'"):
-                lua_annotations.generate(
-                    [("go.cpp.apidoc", go_doc)],
-                    Path(directory) / "output",
-                    metadata)
-
-    def test_migration_normalizes_callback_self_as_script_instance(self):
-        self.assertEqual(
-            "fun(self:script_instance, result:boolean)",
-            lua_annotations._normalize_migration_type(
-                "fun(self, result:boolean)",
-                {}))
 
     def test_generate_accepts_document_iterators(self):
         go_doc = document("go", [function("go.play", "string")])

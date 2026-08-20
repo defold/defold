@@ -6,7 +6,6 @@
 
 import fnmatch
 import html
-import json
 import os
 import re
 import tempfile
@@ -72,47 +71,6 @@ def load_metadata(path):
     return metadata
 
 
-def _load_migration_manifest(metadata, metadata_path):
-    migration = metadata.get("migration") or {}
-    manifest_name = migration.get("manifest")
-    if not manifest_name:
-        return None
-
-    manifest_path = Path(metadata_path).parent / manifest_name
-    with manifest_path.open(encoding="utf-8") as manifest_file:
-        manifest = json.load(manifest_file)
-
-    errors = []
-    patches = manifest.get("patches")
-    attribution = manifest.get("attribution") or {}
-    if not isinstance(patches, dict):
-        errors.append("manifest patches must be a mapping")
-        patches = {}
-    if attribution.get("source_commit") != migration.get("source_commit"):
-        errors.append("manifest and metadata source commits differ")
-    if len(patches) != migration.get("patch_files"):
-        errors.append(
-            "manifest has %d patch files, expected %s"
-            % (len(patches), migration.get("patch_files")))
-    patch_entries = sum(
-        len(entries) for entries in patches.values()
-        if isinstance(entries, list))
-    if patch_entries != migration.get("patch_entries"):
-        errors.append(
-            "manifest has %d patch entries, expected %s"
-            % (patch_entries, migration.get("patch_entries")))
-    if errors:
-        raise ValueError(
-            "%s: invalid Lua annotation migration manifest:\n%s"
-            % (manifest_path, "\n".join("  " + error for error in errors)))
-    return manifest_path, manifest
-
-
-def _migration_document_key(source_path):
-    name = Path(source_path).name
-    return name[:-len(".apidoc")] if name.endswith(".apidoc") else name
-
-
 def _is_editor_document(source_path):
     return Path(source_path).name in {
         "editor.apidoc",
@@ -167,180 +125,6 @@ def _metadata_for_context(metadata, context):
                 if name not in editor_names
             }
     return result
-
-
-def _migration_patch_key(name):
-    return name[:-len("_doc.lua")] if name.endswith("_doc.lua") else name
-
-
-def _decode_migration_path_name(value):
-    return re.sub(r"\\+", "", html.unescape(value))
-
-
-def _normalize_migration_type(expression, metadata):
-    expression = html.unescape(expression).strip()
-    previous = None
-    while expression != previous:
-        previous = expression
-        expression = re.sub(
-            r"\[([^\[\]]+)\]",
-            lambda match: (
-                "(%s)[]" % match.group(1)
-                if "|" in match.group(1)
-                else "%s[]" % match.group(1)),
-            expression)
-    expression = re.sub(
-        r"fun\(self(?=\s*[,\)])",
-        "fun(self:script_instance",
-        expression)
-    # The source manifest used "any ..." to describe variadic returns. LuaLS
-    # represents that return as `any`.
-    if expression == "any ...":
-        expression = "any"
-    return normalize_type(expression, metadata)
-
-
-def _migration_element_names(documents):
-    result = defaultdict(list)
-    for source_path, document in documents:
-        for element in document.elements:
-            result[element.name].append((source_path, element))
-            canonical_name = _canonical_name(document, element)
-            if canonical_name != element.name:
-                result[canonical_name].append((source_path, element))
-    return result
-
-
-def _migration_member_value(element, remainder, expected, metadata):
-    if remainder == "brief":
-        return element.brief
-    if remainder == "name":
-        return element.name
-
-    match = re.match(
-        r"^(parameters|returnvalues)\.(.*)\."
-        r"(types(?:\..*)?|name|doc|is_optional)$",
-        remainder)
-    if not match:
-        return None
-
-    collection_name, encoded_name, field = match.groups()
-    member_name = _decode_migration_path_name(encoded_name)
-    members = getattr(element, collection_name)
-    matching_members = [
-        member
-        for member in members
-        if _decode_migration_path_name(member.name) == member_name
-    ]
-    if not matching_members and field == "name":
-        matching_members = [
-            member
-            for member in members
-            if _decode_migration_path_name(member.name) == expected
-        ]
-    if not matching_members:
-        return None
-
-    member = matching_members[0]
-    if field.startswith("types"):
-        value = join_types(member.types, metadata)
-        normalized_expected = _normalize_migration_type(expected, metadata)
-        if (
-                getattr(member, "is_optional", False)
-                and normalized_expected.endswith("?")
-                and value == normalized_expected[:-1]):
-            value += "?"
-        return value
-    if field == "is_optional":
-        return str(bool(member.is_optional))
-    return getattr(member, field)
-
-
-def _validate_migration_manifest(documents, metadata, metadata_path):
-    loaded = _load_migration_manifest(metadata, metadata_path)
-    if loaded is None:
-        return
-    manifest_path, manifest = loaded
-
-    documents_by_key = defaultdict(list)
-    for source_path, document in documents:
-        documents_by_key[_migration_document_key(source_path)].append(
-            (source_path, document))
-    all_elements = _migration_element_names(documents)
-    errors = []
-
-    for patch_name, entries in manifest["patches"].items():
-        if not isinstance(entries, list):
-            errors.append("%s: patch entries must be an array" % patch_name)
-            continue
-        patch_documents = documents_by_key.get(
-            _migration_patch_key(patch_name),
-            documents)
-        element_names = _migration_element_names(patch_documents)
-
-        for entry in entries:
-            path_pattern = entry.get("path_pattern")
-            expected = entry.get("current", entry.get("expected"))
-            if not isinstance(path_pattern, str) or expected is None:
-                errors.append(
-                    "%s: migration entry requires path_pattern and expected"
-                    % patch_name)
-                continue
-            if not path_pattern.startswith("elements."):
-                errors.append(
-                    "%s: unsupported migration path %s"
-                    % (patch_name, path_pattern))
-                continue
-
-            path = path_pattern[len("elements."):]
-            matching_names = [
-                name
-                for name in element_names
-                if path == name or path.startswith(name + ".")
-            ]
-            if not matching_names:
-                # One imported patch corrected an element name. Resolve it by
-                # the replacement name because the old element no longer
-                # exists in the source documentation.
-                if path.endswith(".name") and expected in all_elements:
-                    continue
-                errors.append(
-                    "%s: %s does not resolve to a documented element"
-                    % (patch_name, path_pattern))
-                continue
-
-            element_name = max(matching_names, key=len)
-            remainder = path[len(element_name):].lstrip(".")
-            actual_values = []
-            for _, element in element_names[element_name]:
-                value = _migration_member_value(
-                    element,
-                    remainder,
-                    str(expected),
-                    metadata)
-                if value is not None and value not in actual_values:
-                    actual_values.append(value)
-
-            is_type = bool(re.search(r"\.types(?:\.|$)", path_pattern))
-            normalized_expected = (
-                _normalize_migration_type(str(expected), metadata)
-                if is_type
-                else str(expected))
-            if normalized_expected not in actual_values:
-                errors.append(
-                    "%s: %s expected %r, got %s"
-                    % (
-                        patch_name,
-                        path_pattern,
-                        normalized_expected,
-                        ", ".join(repr(value) for value in actual_values)
-                        if actual_values
-                        else "no matching field"))
-
-    if errors:
-        raise ValueError(
-            "%s: Lua annotation migration validation failed:\n%s"
-            % (manifest_path, "\n".join("  " + error for error in errors)))
 
 
 def write_if_changed(path, data):
@@ -1570,11 +1354,6 @@ def generate(
         extension=".lua"):
     documents = list(documents)
     metadata = load_metadata(metadata_path)
-    if strict:
-        _validate_migration_manifest(
-            documents,
-            metadata,
-            str(metadata_path))
 
     all_collected = _collect(documents, metadata)
     (

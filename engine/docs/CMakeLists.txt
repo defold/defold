@@ -22,7 +22,6 @@ set(DOCS_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/docs_outputs.txt")
 set(DOCS_LUA_INPUT_LIST "${DOCS_BUILD_DIR}/lua_inputs.txt")
 set(DOCS_LUA_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/lua_outputs.txt")
 set(DOCS_LUA_METADATA "${DOCS_ROOT}/lua_annotations.yaml")
-set(DOCS_LUA_MIGRATION_MANIFEST "${DOCS_ROOT}/lua_annotations_migration.json")
 set(DOCS_LUA_FIXTURE_DIR "${DOCS_ROOT}/testdata/lua_annotations")
 
 set(DEFOLD_DOCS_FORMATS "sdoc;json;script_api;lua" CACHE STRING "Semicolon-separated docs output formats")
@@ -235,7 +234,6 @@ if(_DOCS_GENERATE_LUA)
       "${DOCS_ROOT}/script_doc.py"
       "${DOCS_ROOT}/lua_annotations.py"
       "${DOCS_LUA_METADATA}"
-      "${DOCS_LUA_MIGRATION_MANIFEST}"
     COMMENT "Generating aggregate Lua API annotations"
     VERBATIM)
   list(APPEND _DOCS_LUA_DEPS "${DOCS_LUA_STAMP}" "${DOCS_LUA_OUTPUT_MANIFEST}")
@@ -356,7 +354,6 @@ if(DEFOLD_DOCS_RUN_TESTS)
       "${DOCS_ROOT}/script_doc.py"
       "${DOCS_ROOT}/lua_annotations.py"
       "${DOCS_ROOT}/lua_annotations.yaml"
-      "${DOCS_ROOT}/lua_annotations_migration.json"
       "${DOCS_ROOT}/test_script_doc.py"
       "${DOCS_ROOT}/test_lua_annotations.py"
     WORKING_DIRECTORY "${DOCS_ROOT}"

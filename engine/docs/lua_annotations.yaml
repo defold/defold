@@ -1,16 +1,11 @@
 # Cross-document metadata for the generated Lua language-server annotations.
 #
-# The initial contents were reconciled with defold-annotations at:
+# Initial metadata and source documentation corrections were reconciled with
+# the MIT-licensed defold-annotations 1.13.0 at:
 # https://github.com/astrochili/defold-annotations/tree/b0731459640bb6aa9f91ea24128bb6584c270160
 #
 # Source-specific documentation corrections belong in their source API comments,
 # not in this file.
-
-migration:
-  source_commit: b0731459640bb6aa9f91ea24128bb6584c270160
-  patch_files: 31
-  patch_entries: 176
-  manifest: lua_annotations_migration.json
 
 standard_namespaces:
   - base
