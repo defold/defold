@@ -427,8 +427,13 @@ namespace dmEngine
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
-    , m_UseSwVSync(false)
     , m_SwapInterval(0)
+    , m_EffectiveSwapInterval(~0U)
+    , m_PreviousFrameTime(dmTime::GetMonotonicTime())
+    , m_NextFrameTime(0)
+    , m_AccumFrameTime(0.0f)
+    , m_UpdateFrequency(0)
+    , m_FixedUpdateFrequency(0)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -450,9 +455,6 @@ namespace dmEngine
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
-        m_AccumFrameTime = 0;
-        m_PreviousFrameTime = dmTime::GetMonotonicTime();
-        m_NextFrameTime = 0;
         m_HttpCache = 0;
         m_DependenciesJsonResource = 0;
         m_DependenciesJsonSize = 0;
@@ -753,18 +755,25 @@ namespace dmEngine
         return loadind_key_result == dmSSLSocket::RESULT_OK;
     }
 
+    static void ApplyEffectiveSwapInterval(HEngine engine)
+    {
+        // An explicit update frequency is timer-paced on platforms whose engine
+        // owns the application loop. Disable presentation pacing in that mode so
+        // Flip() cannot block for vsync after PaceFrame() has already waited.
+        uint32_t effective_swap_interval = UseEngineFramePacing() && engine->m_UpdateFrequency != 0 ? 0 : engine->m_SwapInterval;
+        if (effective_swap_interval != engine->m_EffectiveSwapInterval)
+        {
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, effective_swap_interval);
+            engine->m_EffectiveSwapInterval = effective_swap_interval;
+        }
+    }
+
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
         swap_interval = dmMath::Max(0, swap_interval);
         engine->m_SwapInterval = (uint32_t) swap_interval;
         engine->m_NextFrameTime = 0;
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
-
-        bool vsync = dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
-        if (!vsync)
-        {
-            engine->m_UseSwVSync = swap_interval != 0;
-        }
+        ApplyEffectiveSwapInterval(engine);
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
@@ -1979,8 +1988,6 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
-        uint64_t frame_start = dmTime::GetMonotonicTime();
-
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
@@ -2237,27 +2244,6 @@ bail:
                     dmExtension::PostRender(ext_params);
                 }
 
-                if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
-                {
-                    DM_PROFILE("SoftwareVsync");
-                    uint64_t current = dmTime::GetMonotonicTime();
-
-                    float target_time = dt; // already pre calculated by CalcTimeStep
-                    uint64_t elapsed = current - frame_start;
-                    uint64_t remainder = uint64_t(target_time*1000000) - elapsed;
-
-                    while (remainder > 500) // dont bother with less than 0.5ms
-                    {
-                        uint64_t t1 = dmTime::GetMonotonicTime();
-                        dmTime::Sleep(100); // sleep in chunks of 0.1ms
-                        uint64_t t2 = dmTime::GetMonotonicTime();
-                        uint64_t slept = t2 - t1;
-                        if (slept >= remainder)
-                            break;
-                        remainder -= slept;
-                    }
-                }
-
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
                 RecordData* record_data = &engine->m_RecordData;
@@ -2292,8 +2278,9 @@ bail:
      * Selects the frequency used by the engine-side frame pacer. An explicit
      * update frequency set via SetUpdateFrequency() always wins. With a
      * variable update frequency, Flip() normally provides the wait through
-     * vsync; when rendering is disabled we derive the same cadence from the
-     * display refresh rate and swap interval.
+     * vsync; when rendering is disabled or no pacing presenter is available,
+     * we derive the same cadence from the display refresh rate and swap
+     * interval.
      * @return The number of engine frames per second
      */
     static uint32_t GetFramePacingFrequency(HEngine engine)
@@ -2303,8 +2290,15 @@ bail:
             return engine->m_UpdateFrequency;
         }
 
+        if (engine->m_SwapInterval == 0)
+        {
+            return 0;
+        }
+
         bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
-        if (do_render || engine->m_SwapInterval == 0)
+        bool presenter_paces_frame = do_render &&
+        dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
+        if (presenter_paces_frame)
         {
             return 0;
         }
@@ -2424,6 +2418,10 @@ bail:
         bool frame_was_paced = false;
         if (dmEngine::UseEngineFramePacing())
         {
+            // Change pacing ownership only at a frame boundary. This prevents a
+            // runtime setting change during StepFrame from making that frame
+            // wait first in PaceFrame and then again in Flip.
+            ApplyEffectiveSwapInterval(engine);
             frame_was_paced = PaceFrame(engine);
         }
         CalcTimeStep(engine, frame_was_paced, step_dt, num_steps);

@@ -430,6 +430,53 @@ TEST_F(EngineTest, VSyncPacingWithoutRendering)
     ASSERT_GE(elapsed, 30000u);
 }
 
+TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
+{
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=display.swap_interval=1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    uint64_t elapsed = 0;
+    uint32_t requested_swap_interval = 0;
+    uint32_t effective_swap_interval = ~0U;
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        uint64_t start = dmTime::GetMonotonicTime();
+        for (uint32_t i = 0; i < 20; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+        elapsed = dmTime::GetMonotonicTime() - start;
+        dmEngine::GetStats(engine, stats);
+        requested_swap_interval = engine->m_SwapInterval;
+        effective_swap_interval = engine->m_EffectiveSwapInterval;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(20u, stats.m_FrameCount);
+    ASSERT_EQ(1u, requested_swap_interval);
+    ASSERT_EQ(0u, effective_swap_interval);
+    ASSERT_GE(elapsed, 150000u);
+    ASSERT_LE(elapsed, 300000u);
+}
+
 TEST_F(EngineTest, CameraAqcuireFocus)
 {
     uint32_t frame_count = 0;
