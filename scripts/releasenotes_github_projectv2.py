@@ -99,6 +99,20 @@ QUERY_PULLREQUEST = r"""
         author {
           login
         }
+        commits(first: 100) {
+          nodes {
+            commit {
+              authors(first: 20) {
+                nodes {
+                  name
+                  user {
+                    login
+                  }
+                }
+              }
+            }
+          }
+        }
         repository {
           name
         }
@@ -279,6 +293,24 @@ def get_labels(*args):
             if not label["name"] in labels:
                 labels.append(label["name"])
     return labels
+
+def get_pr_authors(pr):
+    authors = []
+    for commit_node in pr.get("commits", {}).get("nodes", []):
+        commit = (commit_node or {}).get("commit") or {}
+        for author_node in commit.get("authors", {}).get("nodes", []):
+            author_node = author_node or {}
+            login = (author_node.get("user") or {}).get("login")
+            author = login or author_node.get("name")
+            if author and author not in authors:
+                authors.append(author)
+
+    if not authors:
+        author = (pr.get("author") or {}).get("login")
+        if author:
+            authors.append(author)
+
+    return authors
 
 def get_issue_type_from_labels(labels):
     if "breaking change" in labels:
@@ -477,7 +509,7 @@ def parse_github_project(version):
             "issue_number": issue.get("number"),
             "pr_number": pr.get("number"),
             "closed_issues": [ issue.get("number") ],
-            "author": pr.get("author").get("login"),
+            "author": ", ".join(get_pr_authors(pr)),
             "labels": labels,
             "type": get_issue_type_from_labels(labels),
             "mergecommit": find_merge_commit(pr),
