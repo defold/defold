@@ -1641,12 +1641,6 @@ namespace dmGameSystem
  * @return joints [type:b2Joint[]] array of `b2Joint` handles created by `b2d.joint`
  */
 
-/** Get the list of all contacts attached to this body.
- * @name b2d.body.get_contact_list
- * @param body [type: b2Body] body
- * @return edge [type: b2ContactEdge] the first edge
- */
-
 /** Get the user data pointer that was provided in the body definition.
  * @name b2d.body.get_user_data
  * @param body [type: b2Body] body
@@ -1687,7 +1681,7 @@ namespace dmGameSystem
 /*# Get the body name.
  * @name b2d.body.get_name
  * @param body [type: b2Body] body
- * @return name [type: string] body name, or nil if no name is set
+ * @return name [type: string|nil] body name, or `nil` if no name is set
  */
 
 /*# Set velocity to reach a target transform.

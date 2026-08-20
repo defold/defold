@@ -309,6 +309,33 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("function pprint(...) end", builtins_lua)
             self.assertNotIn("editor.pprint", builtins_lua)
 
+    def test_variadic_parameters_and_returns_are_rendered(self):
+        skip_function = function("socket.skip", "integer")
+        skip_function.parameters[0].name = "d"
+        parameter = skip_function.parameters.add()
+        parameter.name = "..."
+        parameter.doc = "Values"
+        parameter.types.append("any")
+        return_value = skip_function.returnvalues.add()
+        return_value.name = "..."
+        return_value.doc = "Remaining values"
+        return_value.types.append("any")
+        socket_doc = document("socket", [skip_function])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+
+            lua_annotations.generate(
+                [("luasocket.doc_h", socket_doc)],
+                output,
+                metadata)
+
+            socket_lua = (output / "socket.lua").read_text(encoding="utf-8")
+            self.assertIn("---@param ... any", socket_lua)
+            self.assertIn("---@return ...", socket_lua)
+            self.assertIn("function socket.skip(d, ...) end", socket_lua)
+
     def test_unknown_annotation_context_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             metadata = self.metadata(directory)
@@ -378,7 +405,6 @@ class TestLuaAnnotations(unittest.TestCase):
         self.assertEqual(
             {
                 "b2BodyType",
-                "b2ContactEdge",
                 "b2MassData",
                 "b2Transform",
             },

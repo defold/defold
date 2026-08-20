@@ -1297,7 +1297,7 @@ namespace dmGameSystem
  */
 
 /*# Get the world position of the center of mass.
- * @name b2d.body.get_world_center_of_mass
+ * @name b2d.body.get_world_center
  * @param body [type: b2Body] body
  * @return center [type: vector3] Get the world position of the center of mass.
  */
@@ -1593,16 +1593,10 @@ namespace dmGameSystem
  * @return joints [type:b2Joint[]] array of `b2Joint` handles created by `b2d.joint`
  */
 
-/** Get the list of all contacts attached to this body.
- * @name b2d.body.get_contact_list
- * @param body [type: b2Body] body
- * @return edge [type: b2ContactEdge] the first edge
- */
-
 /*# Get the next body in the world's body list.
  * @name b2d.body.get_next
  * @param body [type: b2Body] body
- * @return body [type: b2Body] the next body
+ * @return body [type: b2Body|nil] the next body, or `nil` if this is the last body
  */
 
 /*# Get the parent world of this body.

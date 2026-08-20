@@ -724,12 +724,23 @@ def _strict_tag_suggestion(tag):
     return matches[0] if matches else None
 
 
-def _strict_type_expression(value):
-    offset = value.find("[type:")
-    if offset == -1:
+def _strict_type_expression(tag, value):
+    type_value = value
+    if tag in {"param", "member"}:
+        parts = value.split(None, 1)
+        if len(parts) < 2:
+            return None
+        type_value = parts[1]
+    elif tag == "return" and not value.lstrip().startswith("[type:"):
+        parts = value.split(None, 1)
+        if len(parts) < 2:
+            return None
+        type_value = parts[1]
+
+    extracted = _extract_balanced_type_tag(type_value)
+    if not extracted:
         return None
-    expression, _ = _extract_balanced_type_tag(value[offset:])
-    return expression
+    return extracted[0]
 
 
 def validate_source_documentation(doc_str, file=None, require_document=False):
@@ -787,7 +798,7 @@ def validate_source_documentation(doc_str, file=None, require_document=False):
 
             expression = None
             try:
-                expression = _strict_type_expression(value)
+                expression = _strict_type_expression(tag, value)
             except ValueError as error:
                 errors.append("%s:%d: %s" % (source, source_line, error))
                 continue
@@ -834,7 +845,7 @@ LUA_TYPES = [
     "string", "number", "integer", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
-    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData", "bufferstream",
+    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2Transform", "b2MassData", "bufferstream",
     "resource_data", "buffer_data", "buffer_stream", "constant_buffer", "render_target", "render_predicate",
     "socket_client", "socket_master", "socket_unconnected" ]
 CPP_TYPES = [

@@ -1780,7 +1780,7 @@ namespace dmRender
      * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
      *
      * `frustum_planes`
-     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     * : [type:render.FRUSTUM_PLANES] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
      *
      * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
      * - render.FRUSTUM_PLANES_ALL : All 6 sides of the frustum.
@@ -1789,7 +1789,7 @@ namespace dmRender
      * : [type:constant_buffer] optional constants to use while rendering
      *
      * `sort_order`
-     * : [type:int] How to sort draw order for world-ordered entries. Default uses the renderer's preferred world sorting (back-to-front).
+     * : [type:render.SORT] How to sort draw order for world-ordered entries. Default uses the renderer's preferred world sorting (back-to-front).
      *
      * @examples
      *
@@ -1927,7 +1927,7 @@ namespace dmRender
      * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
      *
      * `frustum_planes`
-     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     * : [type:render.FRUSTUM_PLANES] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
      *
      * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
      * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.

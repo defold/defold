@@ -378,7 +378,10 @@ message ContactPoint
  * @param a [type:{ position:vector3, instance_position:vector3, normal:vector3, relative_velocity:vector3, mass:number, id:hash, group:hash }] contact point information for object A
  *
  * `position`
- * : [type:vector3] The world position of object A
+ * : [type:vector3] The contact point position in world space
+ *
+ * `instance_position`
+ * : [type:vector3] The position of object A in world space
  *
  * `id`
  * : [type:hash] The ID of object A
@@ -398,7 +401,10 @@ message ContactPoint
  * @param b [type:{ position:vector3, instance_position:vector3, normal:vector3, relative_velocity:vector3, mass:number, id:hash, group:hash }] contact point information for object B
  *
  * `position`
- * : [type:vector3] The world position of object B
+ * : [type:vector3] The contact point position in world space
+ *
+ * `instance_position`
+ * : [type:vector3] The position of object B in world space
  *
  * `id`
  * : [type:hash] The ID of object B

@@ -462,13 +462,13 @@ union SaveLoadBuffer
      * @name sys.get_config_string
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:string] (optional) default value to return if the value does not exist
-     * @return value [type:string] config value as a string. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:string|nil] config value as a string. default_value if the config key does not exist. nil if no default value was supplied.
      * @examples
      *
      * Get user config value
      *
      * ```lua
-     * local text = sys.get_config_string("my_game.text", "default text"))
+     * local text = sys.get_config_string("my_game.text", "default text")
      * ```
      *
      * Start the engine with a bootstrap config override and add a custom config value

@@ -2635,7 +2635,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:number[]] a list of the uv coordinates in image space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}.
  *
  * * `indices`
- * : [type:integer[]] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
+ * : [type:integer[]] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each triple in the list represents a triangle.
  *
  * @note The index values are zero based where zero refers to the first entry of the vertex and uv lists
  *
@@ -2823,7 +2823,7 @@ static int CreateAtlas(lua_State* L)
  * : [type:number[]] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
  *
  * * `indices`
- * : [type:integer[]] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
+ * : [type:integer[]] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each triple in the list represents a triangle.
  *
  * @note The index values are zero based where zero refers to the first entry of the vertex and uv lists
  *

@@ -1092,6 +1092,9 @@ def _render_function(name, variants, metadata):
             _correlated_type(name, _parameter_type(parameter, metadata), metadata),
             " " + doc if doc else ""))
     for return_value in primary.returnvalues:
+        if return_value.name == "...":
+            lines.append("---@return ...")
+            continue
         doc = lua_doc_text(return_value.doc).replace("\n", " ")
         name_part = " %s" % return_value.name if return_value.name else ""
         lines.append("---@return %s%s%s" % (

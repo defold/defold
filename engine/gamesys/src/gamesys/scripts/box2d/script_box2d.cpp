@@ -194,26 +194,6 @@ namespace dmGameSystem
  * ```
  */
 
-/*# Box2D body contact entry
- *
- * An opaque entry in the contact list of a Box2D body. Obtain the first entry
- * with [ref:b2d.body.get_contact_list]. Contact entries are owned by the physics
- * world and must not be created directly.
- *
- * @typedef
- * @name b2ContactEdge
- * @param value [type:userdata] body contact-list entry
- * @examples
- *
- * ```lua
- * local body = b2d.get_body("#collisionobject")
- * local first_contact = b2d.body.get_contact_list(body)
- * if first_contact then
- *     pprint(first_contact)
- * end
- * ```
- */
-
 /*# Box2D mass data
  *
  * Mass properties for a Box2D body or shape.
@@ -680,13 +660,13 @@ namespace dmGameSystem
 
 /*# Get the Box2D world from the current collection
  * @name b2d.get_world
- * @return world [type: b2World] the world if successful. Otherwise `nil`.
+ * @return world [type: b2World|nil] the world if successful. Otherwise `nil`.
  */
 
 /*# Get the Box2D body from a collision object
  * @name b2d.get_body
  * @param url [type: string|hash|url] the url to the game object collision component
- * @return body [type: b2Body] the body if successful. Otherwise `nil`.
+ * @return body [type: b2Body|nil] the body if successful. Otherwise `nil`.
  */
 
 /*# Get the Box2D version information for the active backend.

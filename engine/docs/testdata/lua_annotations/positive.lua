@@ -133,7 +133,7 @@ end
 
 inspect_action({pressed = true})
 
-local collision_body = b2d.get_body("#collisionobject")
+local collision_body = assert(b2d.get_body("#collisionobject"))
 b2d.body.set_mass_data(
     collision_body,
     {
@@ -142,7 +142,7 @@ b2d.body.set_mass_data(
         inertia = 0,
     })
 
-local physics_world = b2d.get_world()
+local physics_world = assert(b2d.get_world())
 b2d.world.cast_ray(
     physics_world,
     vmath.vector3(),

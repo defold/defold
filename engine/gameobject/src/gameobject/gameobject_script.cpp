@@ -104,7 +104,7 @@ namespace dmGameObject
      * @member gamepad_hats? [type:number[]] Hat values for raw gamepad input.
      * @member gamepad_buttons? [type:number[]] Button values for raw gamepad input.
      * @member touch? [type:on_input.touch[]] Touch inputs, one entry per finger.
-     * @member text? [type:string] Text entered by a text input action.
+     * @member text? [type:string] Text entered by a text or marked-text input action.
      */
 
     /*# Touch input
@@ -2982,8 +2982,7 @@ bail:
      * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
      * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
      * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
-     * `text`        | Text input from a (virtual) keyboard or similar.
-     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
+     * `text`        | Text input from a (virtual) keyboard or similar. For marked-text input, this is the sequence entered while composing a symbol, for example Japanese Kana.
      *
      * Gamepad specific fields:
      *
@@ -2996,7 +2995,7 @@ bail:
      * `gamepad_unknown`   | True if the input originated from an unknown/unmapped gamepad.
      * `gamepad_name`      | Name of the gamepad
      * `gamepad_axis`      | List of gamepad axis values. For raw gamepad input only.
-     * `gamepadhats`       | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_hats`      | List of gamepad hat values. For raw gamepad input only.
      * `gamepad_buttons`   | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:

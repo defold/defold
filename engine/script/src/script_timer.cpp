@@ -662,7 +662,7 @@ namespace dmScript
      * : [type:script_instance] The current script instance
      *
      * `handle`
-     * : [type:number] The handle of the timer
+     * : [type:timer_handle] The handle of the timer
      *
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger

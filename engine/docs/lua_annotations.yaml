@@ -102,7 +102,6 @@ aliases:
 
 type_replacements:
   b2BodyType: b2d.body.B2
-  b2ContactEdge: b2d.contact_edge
   b2MassData: b2d.mass_data
   b2Transform: b2d.transform
 

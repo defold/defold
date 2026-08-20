@@ -368,6 +368,30 @@ foobar
                         r"requires an explicit \[type:\.\.\.\] declaration"):
                     script_doc.validate_source_documentation(doc, "example.cpp")
 
+    def test_strict_source_validation_rejects_misplaced_lua_types(self):
+        invalid_elements = (
+            "@name test.call\n * @param value description [type:string]",
+            "@name test.call\n * @return result description [type:string]",
+            "@name test.value\n * @struct\n * @member value description [type:string]",
+        )
+        for invalid_element in invalid_elements:
+            with self.subTest(invalid_element=invalid_element):
+                doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Invalid element.
+ * %s
+ */
+""" % invalid_element
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r"requires an explicit \[type:\.\.\.\] declaration"):
+                    script_doc.validate_source_documentation(doc, "example.cpp")
+
     def test_strict_source_validation_allows_untyped_enum_members(self):
         doc = """
 /*# Test API

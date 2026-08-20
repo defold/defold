@@ -287,12 +287,12 @@ namespace dmGameSystem
      * For example "main/data/,assets/level_data.json".
      *
      * Note that issuing multiple requests of the same resource will yield
-     * individual buffers per request. There is no implic caching of the buffers
+     * individual buffers per request. There is no implicit caching of the buffers
      * based on request path.
      *
      * @name sys.load_buffer_async
      * @param path [type:string] the path to load the buffer from
-     * @param status_callback [type:fun(self:script_instance, request_id:integer, result:{ status:sys.REQUEST_STATUS, buffer?:buffer_data })] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
+     * @param status_callback [type:fun(self:script_instance, request_id:integer, result:{ status:sys.REQUEST_STATUS, buffer?:buffer_data })] A status callback that will be invoked when a request has been handled, or an error occurred. The result is a table containing:
      *
      * `status`
      * : [type:sys.REQUEST_STATUS] The status of the request, supported values are:
@@ -302,7 +302,7 @@ namespace dmGameSystem
      * - `sys.REQUEST_STATUS_ERROR_NOT_FOUND`
      *
      * `buffer`
-     * : [type:buffer_data] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
+     * : [type:buffer_data] If the request was successful, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
      *
      * @return handle [type:integer] a handle to the request
      * @examples

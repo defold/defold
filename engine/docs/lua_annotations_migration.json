@@ -200,7 +200,7 @@
         "path_pattern": "elements.gui.animate.parameters.playback.types.constant"
       },
       {
-        "current": "nil|string|gui.PROP",
+        "current": "nil|string|hash|gui.PROP",
         "expected": "gui.PROP",
         "path_pattern": "elements.gui.cancel_animations.parameters.property.types.constant"
       },
@@ -266,6 +266,7 @@
         "path_pattern": "elements.gui.play_flipbook.parameters.complete_function.types.function(self, node)"
       },
       {
+        "current": "fun(self:script_instance, node:node|nil, emitter:hash, state:particlefx.EMITTER_STATE)",
         "expected": "fun(self, node:node, emitter:hash, state:particlefx.EMITTER_STATE)",
         "path_pattern": "elements.gui.play_particlefx.parameters.emitter_state_function.types.function(self, node, emitter, state)"
       },
@@ -478,6 +479,7 @@
     ],
     "scripts-box2d-script_box2d_body_defold.cpp_doc.lua": [
       {
+        "current": "b2d.body.get_world_center",
         "expected": "b2d.body.get_angle",
         "path_pattern": "elements.b2d.body.get_world_center.name"
       }

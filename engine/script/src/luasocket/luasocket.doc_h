@@ -331,13 +331,9 @@
  * The function returns <code>ret<sub>D+1</sub></code> to <code>ret<sub>N</sub></code>.
  *
  * @name socket.skip
- * @param d [type:number] the number of arguments to drop.
- * @param [ret1] [type:any] argument 1.
- * @param [ret2] [type:any] argument 2.
- * @param [retN] [type:any] argument N.
- * @return retD+1 [type:any|nil] argument D+1.
- * @return retD+2 [type:any|nil] argument D+2.
- * @return retN [type:any|nil] argument N.
+ * @param d [type:integer] the number of arguments to drop.
+ * @param ... [type:any] the values from which to drop arguments.
+ * @return ... [type:any] the remaining values after the first `d` values are dropped.
  * @examples
  *
  * Instead of doing the following with dummy variables:
@@ -477,6 +473,7 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name master:close
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -487,6 +484,7 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name client:close
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -497,6 +495,7 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name server:close
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -521,7 +520,9 @@
  * [icon:attention] It makes no sense to call this method on server objects.
  *
  * @name client:getpeername
- * @return info [type:string] a string with the IP address of the peer, the port number that peer is using for the connection, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
+ * @return address [type:string|nil] the IP address of the peer, or `nil` in case of error.
+ * @return port_or_error [type:integer|string] the peer port number, or the error message in case of error.
+ * @return family [type:string|nil] the socket family (`"inet"` or `"inet6"`), or `nil` in case of error.
  *
  */
 
@@ -530,7 +531,9 @@
  * Returns the local address information associated to the object.
  *
  * @name master:getsockname
- * @return info [type:string] a string with local IP address, the local port number, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
+ * @return address [type:string|nil] the local IP address, or `nil` in case of error.
+ * @return port_or_error [type:string] the local port, or the error message in case of error.
+ * @return family [type:string|nil] the socket family (`"inet"` or `"inet6"`), or `nil` in case of error.
  *
  */
 
@@ -539,7 +542,9 @@
  * Returns the local address information associated to the object.
  *
  * @name client:getsockname
- * @return info [type:string] a string with local IP address, the local port number, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
+ * @return address [type:string|nil] the local IP address, or `nil` in case of error.
+ * @return port_or_error [type:string] the local port, or the error message in case of error.
+ * @return family [type:string|nil] the socket family (`"inet"` or `"inet6"`), or `nil` in case of error.
  *
  */
 
@@ -548,16 +553,9 @@
  * Returns the local address information associated to the object.
  *
  * @name server:getsockname
- * @return info [type:string] a string with local IP address, the local port number, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
- *
- */
-
-/*# gets accounting information on the socket
- *
- * Returns accounting information on the socket, useful for throttling of bandwidth.
- *
- * @name master:getstats
- * @return stats [type:string] a string with the number of bytes received, the number of bytes sent, and the age of the socket object in seconds.
+ * @return address [type:string|nil] the local IP address, or `nil` in case of error.
+ * @return port_or_error [type:string] the local port, or the error message in case of error.
+ * @return family [type:string|nil] the socket family (`"inet"` or `"inet6"`), or `nil` in case of error.
  *
  */
 
@@ -566,16 +564,9 @@
  * Returns accounting information on the socket, useful for throttling of bandwidth.
  *
  * @name client:getstats
- * @return stats [type:string] a string with the number of bytes received, the number of bytes sent, and the age of the socket object in seconds.
- *
- */
-
-/*# gets accounting information on the socket
- *
- * Returns accounting information on the socket, useful for throttling of bandwidth.
- *
- * @name server:getstats
- * @return stats [type:string] a string with the number of bytes received, the number of bytes sent, and the age of the socket object in seconds.
+ * @return received [type:number] the number of bytes received.
+ * @return sent [type:number] the number of bytes sent.
+ * @return age [type:number] the age of the socket object in seconds.
  *
  */
 
@@ -734,35 +725,11 @@
  *
  * Resets accounting information on the socket, useful for throttling of bandwidth.
  *
- * @name master:setstats
- * @param received [type:number] the new number of bytes received.
- * @param sent [type:number] the new number of bytes sent.
- * @param age [type:number] the new age in seconds.
- * @return success [type:number|nil] the value `1` in case of success, or `nil` in case of error.
- *
- */
-
-/*# resets accounting information on the socket
- *
- * Resets accounting information on the socket, useful for throttling of bandwidth.
- *
  * @name client:setstats
- * @param received [type:number] the new number of bytes received.
- * @param sent [type:number] the new number of bytes sent.
- * @param age [type:number] the new age in seconds.
- * @return success [type:number|nil] the value `1` in case of success, or `nil` in case of error.
- *
- */
-
-/*# resets accounting information on the socket
- *
- * Resets accounting information on the socket, useful for throttling of bandwidth.
- *
- * @name server:setstats
- * @param received [type:number] the new number of bytes received.
- * @param sent [type:number] the new number of bytes sent.
- * @param age [type:number] the new age in seconds.
- * @return success [type:number|nil] the value `1` in case of success, or `nil` in case of error.
+ * @param [received] [type:number|nil] the new number of bytes received, or `nil` to preserve it.
+ * @param [sent] [type:number|nil] the new number of bytes sent, or `nil` to preserve it.
+ * @param [age] [type:number|nil] the new age in seconds, or `nil` to preserve it.
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -775,7 +742,7 @@
  * [icon:attention] Although timeout values have millisecond precision in LuaSocket, large blocks can cause I/O functions not to respect timeout values due to the time the library takes to transfer blocks to and from the OS and to and from the Lua interpreter. Also, function that accept host names and perform automatic name resolution might be blocked by the resolver for longer than the specified timeout value.
  *
  * @name master:settimeout
- * @param value [type:number] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
+ * @param [value] [type:number|nil] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
  * @param [mode] [type:string] optional timeout mode to set:
  *
  * `"b"`
@@ -783,6 +750,7 @@
  *
  * `"t"`
  * : total timeout. Specifies the upper limit on the amount of time LuaSocket can block a Lua script before returning from a call.
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -795,7 +763,7 @@
  * [icon:attention] Although timeout values have millisecond precision in LuaSocket, large blocks can cause I/O functions not to respect timeout values due to the time the library takes to transfer blocks to and from the OS and to and from the Lua interpreter. Also, function that accept host names and perform automatic name resolution might be blocked by the resolver for longer than the specified timeout value.
  *
  * @name client:settimeout
- * @param value [type:number] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
+ * @param [value] [type:number|nil] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
  * @param [mode] [type:string] optional timeout mode to set:
  *
  * `"b"`
@@ -803,6 +771,7 @@
  *
  * `"t"`
  * : total timeout. Specifies the upper limit on the amount of time LuaSocket can block a Lua script before returning from a call.
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -815,7 +784,7 @@
  * [icon:attention] Although timeout values have millisecond precision in LuaSocket, large blocks can cause I/O functions not to respect timeout values due to the time the library takes to transfer blocks to and from the OS and to and from the Lua interpreter. Also, function that accept host names and perform automatic name resolution might be blocked by the resolver for longer than the specified timeout value.
  *
  * @name server:settimeout
- * @param value [type:number] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
+ * @param [value] [type:number|nil] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
  * @param [mode] [type:string] optional timeout mode to set:
  *
  * `"b"`
@@ -823,6 +792,7 @@
  *
  * `"t"`
  * : total timeout. Specifies the upper limit on the amount of time LuaSocket can block a Lua script before returning from a call.
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -952,6 +922,7 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name connected:close
+ * @return success [type:number] the value `1`.
  */
 
 /*# closes the UDP socket
@@ -961,6 +932,7 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name unconnected:close
+ * @return success [type:number] the value `1`.
  */
 
 /*# gets information about the UDP socket peer
@@ -970,7 +942,9 @@
  * [icon:attention] It makes no sense to call this method on unconnected objects.
  *
  * @name connected:getpeername
- * @return info [type:string] a string with the IP address of the peer, the port number that peer is using for the connection, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
+ * @return address [type:string|nil] the IP address of the peer, or `nil` in case of error.
+ * @return port_or_error [type:integer|string] the peer port number, or the error message in case of error.
+ * @return family [type:string|nil] the socket family (`"inet"` or `"inet6"`), or `nil` in case of error.
  *
  */
 
@@ -981,7 +955,9 @@
  * [icon:attention] UDP sockets are not bound to any address until the `setsockname` or the `sendto` method is called for the first time (in which case it is bound to an ephemeral port and the wild-card address).
  *
  * @name connected:getsockname
- * @return info [type:string] a string with local IP address, a number with the local port, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
+ * @return address [type:string|nil] the local IP address, or `nil` in case of error.
+ * @return port_or_error [type:string] the local port, or the error message in case of error.
+ * @return family [type:string|nil] the socket family (`"inet"` or `"inet6"`), or `nil` in case of error.
  *
  */
 
@@ -992,7 +968,9 @@
  * [icon:attention] UDP sockets are not bound to any address until the `setsockname` or the `sendto` method is called for the first time (in which case it is bound to an ephemeral port and the wild-card address).
  *
  * @name unconnected:getsockname
- * @return info [type:string] a string with local IP address, a number with the local port, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
+ * @return address [type:string|nil] the local IP address, or `nil` in case of error.
+ * @return port_or_error [type:string] the local port, or the error message in case of error.
+ * @return family [type:string|nil] the socket family (`"inet"` or `"inet6"`), or `nil` in case of error.
  *
  */
 
@@ -1253,7 +1231,8 @@
  * [icon:attention] In UDP, the `send` and `sendto` methods never block (the datagram is just passed to the OS and the call returns immediately). Therefore, the `settimeout` method has no effect on them.
  *
  * @name connected:settimeout
- * @param value [type:number] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
+ * @param [value] [type:number|nil] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
+ * @return success [type:number] the value `1`.
  *
  */
 
@@ -1264,6 +1243,7 @@
  * [icon:attention] In UDP, the `send` and `sendto` methods never block (the datagram is just passed to the OS and the call returns immediately). Therefore, the `settimeout` method has no effect on them.
  *
  * @name unconnected:settimeout
- * @param value [type:number] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
+ * @param [value] [type:number|nil] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
+ * @return success [type:number] the value `1`.
  *
  */

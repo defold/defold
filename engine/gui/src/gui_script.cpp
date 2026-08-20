@@ -1740,7 +1740,7 @@ namespace dmGui
      *
      * @name gui.cancel_animations
      * @param node [type:node] node that should have its animation canceled
-     * @param [property] [type:nil|string|gui.PROP] optional property for which the animation should be canceled
+     * @param [property] [type:nil|string|hash|gui.PROP] optional property for which the animation should be canceled
      *
      * - `"position"`
      * - `"rotation"`
@@ -4860,13 +4860,13 @@ namespace dmGui
      *
      * @name gui.play_particlefx
      * @param node [type:node] node to play particle fx for
-     * @param [emitter_state_function] [type:fun(self:script_instance, node:node, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
+     * @param [emitter_state_function] [type:fun(self:script_instance, node:node|nil, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
      *
      * `self`
      * : [type:script_instance] The current script instance
      *
      * `node`
-     * : [type:hash] The particle fx node, or `nil` if the node was deleted
+     * : [type:node|nil] The particle fx node, or `nil` if the node was deleted
      *
      * `emitter`
      * : [type:hash] The id of the emitter
