@@ -19,12 +19,44 @@
 We rely on this script being able to output the unaltered text.
 """
 
-import os, sys, platform
+import os, sys, platform, subprocess
 
 PLATFORMS_NINTENDO = ['arm64-nx64']
 PLATFORMS_SONY     = ['x86_64-ps4', 'x86_64-ps5']
 PLATFORMS_XBOX     = ['x86_64-xbone']
 PLATFORMS_PRIVATE = PLATFORMS_NINTENDO + PLATFORMS_SONY + PLATFORMS_XBOX
+
+PRIVATE_PLATFORM_ALWAYS_BUILD_BRANCHES = ('dev', 'beta', 'master')
+
+PRIVATE_PLATFORM_SOURCE_PATH_PREFIXES = (
+    'engine/crash/',
+    'engine/dlib/',
+    'engine/engine/',
+    'engine/graphics/',
+    'engine/hid/',
+    'engine/platform/',
+    'engine/profiler/',
+    'engine/sound/',
+    'engine/testmain/',
+    'engine/tools/',
+)
+
+PRIVATE_PLATFORM_BUILD_PATH_PREFIXES = (
+    'scripts/cmake/',
+    'build_tools/',
+)
+
+PRIVATE_PLATFORM_BUILD_PATHS = (
+    'scripts/build.py',
+    'ci/ci.py',
+    'ci/ci.sh',
+    'ci/ci_helper.py',
+)
+
+PRIVATE_PLATFORM_PACKAGE_TAGS = (
+    '-common.',
+    '-win32.',
+)
 
 def repo_name_to_platforms(repository):
     # repo is of the form defold/defold-switch
@@ -63,6 +95,79 @@ def is_repo_private():
         for platform in platforms:
             if is_platform_private(platform):
                 return True
+    return False
+
+def is_private_platform_build_path(path):
+    path = path.replace('\\', '/').removeprefix('./')
+    if path in PRIVATE_PLATFORM_BUILD_PATHS:
+        return True
+    if path.startswith(PRIVATE_PLATFORM_SOURCE_PATH_PREFIXES + PRIVATE_PLATFORM_BUILD_PATH_PREFIXES):
+        return True
+    if path.startswith('packages/'):
+        filename = path.rsplit('/', 1)[-1]
+        return any(tag in filename for tag in PRIVATE_PLATFORM_PACKAGE_TAGS)
+    return False
+
+def run_gh(args):
+    try:
+        result = subprocess.run(
+            ['gh'] + args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print("Could not query pull requests: %s" % error, file=sys.stderr)
+        return None
+
+    if result.returncode != 0:
+        error = result.stderr.strip() or 'unknown gh error'
+        print("Could not query pull requests: %s" % error, file=sys.stderr)
+        return None
+    return result.stdout
+
+def should_build_private_platform(branch, repository):
+    if branch in PRIVATE_PLATFORM_ALWAYS_BUILD_BRANCHES:
+        print("Building private platforms for release branch '%s'" % branch, file=sys.stderr)
+        return True
+
+    if not branch or not repository:
+        print("Skipping private platforms because the branch or repository is unknown", file=sys.stderr)
+        return False
+
+    pull_request_output = run_gh([
+        'pr', 'list',
+        '--repo', repository,
+        '--state', 'open',
+        '--head', branch,
+        '--json', 'number',
+        '--jq', '.[].number',
+    ])
+    if pull_request_output is None:
+        return False
+
+    pull_request_numbers = [number for number in pull_request_output.splitlines() if number]
+    if not pull_request_numbers:
+        print("Skipping private platforms because branch '%s' has no open pull request" % branch, file=sys.stderr)
+        return False
+
+    changed_paths = set()
+    for pull_request_number in pull_request_numbers:
+        changed_path_output = run_gh([
+            'pr', 'diff', pull_request_number,
+            '--repo', repository,
+            '--name-only',
+        ])
+        if changed_path_output is None:
+            return False
+        changed_paths.update(path for path in changed_path_output.splitlines() if path)
+
+    for path in sorted(changed_paths):
+        if is_private_platform_build_path(path):
+            print("Building private platforms because pull request path '%s' is relevant" % path, file=sys.stderr)
+            return True
+
+    print("Skipping private platforms because the pull request has no relevant changes", file=sys.stderr)
     return False
 
 # output commands
