@@ -2571,6 +2571,12 @@ TEST_F(dmRenderTest, SelectSpotLightShadows)
     ASSERT_EQ(0u, shadows[0].m_ShadowIndex);
     ASSERT_EQ(12.0f, shadows[0].m_Range);
     ASSERT_EQ(0.75f, shadows[0].m_OuterConeAngle);
+    const uint32_t static_revision = shadows[0].m_Revision;
+
+    // Re-applying an unchanged transform must not invalidate a cached tile.
+    dmRender::SetLightInstance(m_Context, spot_a, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity(), 1.0f);
+    ASSERT_EQ(1u, dmRender::SelectSpotLightShadows(m_Context, 1, shadows));
+    ASSERT_EQ(static_revision, shadows[0].m_Revision);
 
     dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_Context;
     ASSERT_EQ(0.0f, render_ctx->m_LightBufferScratch[0].m_Position.getW());
@@ -2590,6 +2596,114 @@ TEST_F(dmRenderTest, SelectSpotLightShadows)
     dmRender::DeleteLightInstance(m_Context, spot_b);
     dmRender::DeleteLightPrototype(m_Context, point_prototype);
     dmRender::DeleteLightPrototype(m_Context, spot_prototype);
+}
+
+TEST_F(dmRenderTest, SelectSpotLightShadowsPriorityAndStableSlots)
+{
+    dmRender::LightPrototypeParams offscreen_params;
+    offscreen_params.m_Type = dmRender::LIGHT_TYPE_SPOT;
+    offscreen_params.m_Intensity = 1.0f;
+    offscreen_params.m_Range = 12.0f;
+    dmRender::HLightPrototype offscreen_prototype = dmRender::NewLightPrototype(m_Context, offscreen_params);
+
+    dmRender::LightPrototypeParams center_a_params = offscreen_params;
+    dmRender::HLightPrototype center_a_prototype = dmRender::NewLightPrototype(m_Context, center_a_params);
+
+    dmRender::LightPrototypeParams center_b_params = offscreen_params;
+    center_b_params.m_Intensity = 0.8f;
+    dmRender::HLightPrototype center_b_prototype = dmRender::NewLightPrototype(m_Context, center_b_params);
+
+    dmRender::HLightInstance offscreen = dmRender::NewLightInstance(m_Context, offscreen_prototype);
+    dmRender::HLightInstance center_a = dmRender::NewLightInstance(m_Context, center_a_prototype);
+    dmRender::HLightInstance center_b = dmRender::NewLightInstance(m_Context, center_b_prototype);
+    dmRender::SetLightInstance(m_Context, offscreen, dmVMath::Point3(100, 0, -5), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, center_a, dmVMath::Point3(0, 0, -5), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, center_b, dmVMath::Point3(1, 0, -5), dmVMath::Quat::identity(), 1.0f);
+
+    dmRender::SpotLightShadowSelectionParams selection_params;
+    selection_params.m_CameraView = dmVMath::Matrix4::identity();
+    selection_params.m_CameraProjection = dmVMath::Matrix4::perspective(1.0f, 1.0f, 0.1f, 100.0f);
+
+    dmRender::SpotLightShadowData shadows[2];
+    ASSERT_EQ(2u, dmRender::SelectSpotLightShadows(m_Context, 2, shadows, &selection_params));
+    ASSERT_EQ(1u, shadows[0].m_LightIndex);
+    ASSERT_EQ(0u, shadows[0].m_ShadowIndex);
+    ASSERT_EQ(2u, shadows[1].m_LightIndex);
+    ASSERT_EQ(1u, shadows[1].m_ShadowIndex);
+
+    // Reordering selected lights must not reshuffle their atlas tiles.
+    center_b_params.m_Intensity = 2.0f;
+    dmRender::SetLightPrototype(m_Context, center_b_prototype, center_b_params);
+    ASSERT_EQ(2u, dmRender::SelectSpotLightShadows(m_Context, 2, shadows, &selection_params));
+    ASSERT_EQ(2u, shadows[0].m_LightIndex);
+    ASSERT_EQ(1u, shadows[0].m_ShadowIndex);
+    ASSERT_EQ(1u, shadows[1].m_LightIndex);
+    ASSERT_EQ(0u, shadows[1].m_ShadowIndex);
+
+    // A replacement takes the vacated tile while the survivor keeps its slot.
+    center_a_params.m_Intensity = 0.01f;
+    dmRender::SetLightPrototype(m_Context, center_a_prototype, center_a_params);
+    ASSERT_EQ(2u, dmRender::SelectSpotLightShadows(m_Context, 2, shadows, &selection_params));
+    ASSERT_EQ(2u, shadows[0].m_LightIndex);
+    ASSERT_EQ(1u, shadows[0].m_ShadowIndex);
+    ASSERT_EQ(0u, shadows[1].m_LightIndex);
+    ASSERT_EQ(0u, shadows[1].m_ShadowIndex);
+
+    dmRender::DeleteLightInstance(m_Context, offscreen);
+    dmRender::DeleteLightInstance(m_Context, center_a);
+    dmRender::DeleteLightInstance(m_Context, center_b);
+    dmRender::DeleteLightPrototype(m_Context, offscreen_prototype);
+    dmRender::DeleteLightPrototype(m_Context, center_a_prototype);
+    dmRender::DeleteLightPrototype(m_Context, center_b_prototype);
+}
+
+TEST_F(dmRenderTest, SelectPointAndDirectionalLightShadows)
+{
+    dmRender::LightPrototypeParams point_params;
+    point_params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    point_params.m_Range = 8.0f;
+    dmRender::HLightPrototype point_prototype = dmRender::NewLightPrototype(m_Context, point_params);
+    dmRender::HLightInstance point_a = dmRender::NewLightInstance(m_Context, point_prototype);
+    dmRender::HLightInstance point_b = dmRender::NewLightInstance(m_Context, point_prototype);
+    dmRender::SetLightInstance(m_Context, point_a, dmVMath::Point3(100, 0, -5), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, point_b, dmVMath::Point3(0, 0, -5), dmVMath::Quat::identity(), 1.0f);
+
+    dmRender::SpotLightShadowSelectionParams selection_params;
+    selection_params.m_CameraView = dmVMath::Matrix4::identity();
+    selection_params.m_CameraProjection = dmVMath::Matrix4::perspective(1.0f, 1.0f, 0.1f, 100.0f);
+    dmRender::PointLightShadowData point_shadow;
+    ASSERT_EQ(1u, dmRender::SelectPointLightShadows(m_Context, 1, &point_shadow, &selection_params));
+    ASSERT_EQ(1u, point_shadow.m_LightIndex);
+    ASSERT_EQ(0u, point_shadow.m_ShadowIndex);
+    ASSERT_EQ(8.0f, point_shadow.m_Range);
+
+    dmRender::LightPrototypeParams dim_directional_params;
+    dim_directional_params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
+    dim_directional_params.m_Intensity = 0.5f;
+    dmRender::HLightPrototype dim_directional_prototype = dmRender::NewLightPrototype(m_Context, dim_directional_params);
+    dmRender::HLightInstance dim_directional = dmRender::NewLightInstance(m_Context, dim_directional_prototype);
+
+    dmRender::LightPrototypeParams bright_directional_params = dim_directional_params;
+    bright_directional_params.m_Intensity = 2.0f;
+    dmRender::HLightPrototype bright_directional_prototype = dmRender::NewLightPrototype(m_Context, bright_directional_params);
+    dmRender::HLightInstance bright_directional = dmRender::NewLightInstance(m_Context, bright_directional_prototype);
+    dmRender::SetLightInstance(m_Context, dim_directional, dmVMath::Point3(), dmVMath::Quat::identity(), 1.0f);
+    const float half = 3.14159265f / 8.0f;
+    dmVMath::Quat rotation(sinf(half), 0.0f, 0.0f, cosf(half));
+    dmRender::SetLightInstance(m_Context, bright_directional, dmVMath::Point3(), rotation, 1.0f);
+
+    dmRender::DirectionalLightShadowData directional_shadow;
+    ASSERT_TRUE(dmRender::SelectDirectionalLightShadow(m_Context, &directional_shadow));
+    ASSERT_EQ(3u, directional_shadow.m_LightIndex);
+    ASSERT_VEC4(dmVMath::Vector4(dmVMath::Rotate(rotation, dmVMath::Vector3(0.0f, 0.0f, -1.0f)), 0.0f), dmVMath::Vector4(directional_shadow.m_Direction, 0.0f));
+
+    dmRender::DeleteLightInstance(m_Context, point_a);
+    dmRender::DeleteLightInstance(m_Context, point_b);
+    dmRender::DeleteLightInstance(m_Context, dim_directional);
+    dmRender::DeleteLightInstance(m_Context, bright_directional);
+    dmRender::DeleteLightPrototype(m_Context, point_prototype);
+    dmRender::DeleteLightPrototype(m_Context, dim_directional_prototype);
+    dmRender::DeleteLightPrototype(m_Context, bright_directional_prototype);
 }
 
 TEST(Constants, Constant)

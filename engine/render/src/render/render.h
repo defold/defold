@@ -232,6 +232,32 @@ namespace dmRender
         float            m_OuterConeAngle;
         uint32_t         m_LightIndex;
         uint32_t         m_ShadowIndex;
+        uint32_t         m_LightId;
+        uint32_t         m_Revision;
+    };
+
+    struct PointLightShadowData
+    {
+        dmVMath::Point3  m_Position;
+        float            m_Range;
+        uint32_t         m_LightIndex;
+        uint32_t         m_ShadowIndex;
+        uint32_t         m_LightId;
+        uint32_t         m_Revision;
+    };
+
+    struct DirectionalLightShadowData
+    {
+        dmVMath::Vector3 m_Direction;
+        uint32_t         m_LightIndex;
+        uint32_t         m_LightId;
+        uint32_t         m_Revision;
+    };
+
+    struct SpotLightShadowSelectionParams
+    {
+        dmVMath::Matrix4 m_CameraView;
+        dmVMath::Matrix4 m_CameraProjection;
     };
 
     struct SamplerInfo
@@ -515,7 +541,9 @@ namespace dmRender
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
     void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
-    uint32_t        SelectSpotLightShadows(HRenderContext render_context, uint32_t max_shadows, SpotLightShadowData* out_shadows);
+    uint32_t        SelectSpotLightShadows(HRenderContext render_context, uint32_t max_shadows, SpotLightShadowData* out_shadows, const SpotLightShadowSelectionParams* selection_params = 0);
+    uint32_t        SelectPointLightShadows(HRenderContext render_context, uint32_t max_shadows, PointLightShadowData* out_shadows, const SpotLightShadowSelectionParams* selection_params = 0);
+    bool            SelectDirectionalLightShadow(HRenderContext render_context, DirectionalLightShadowData* out_shadow);
 
     /** Configure the engine-owned clustered-lighting storage buffers.
      * Buffers are resized lazily and retain stable shader contracts named

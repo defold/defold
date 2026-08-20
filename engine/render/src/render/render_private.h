@@ -351,6 +351,8 @@ namespace dmRender
         dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
         dmArray<LightInstance>                  m_RenderLights;
         dmIndexPool16                          m_RenderLightsIndices;
+        dmArray<uint16_t>                      m_LightShadowSlots[2];
+        dmArray<uint32_t>                      m_LightShadowRevisions;
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;

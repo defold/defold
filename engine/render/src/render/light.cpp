@@ -16,6 +16,7 @@
 #include "render_private.h"
 
 #include <dlib/profile.h>
+#include <algorithm>
 
 DM_PROPERTY_GROUP(rmtp_Lighting, "Lighting", 0);
 DM_PROPERTY_U32(rmtp_ActiveLights, 0, PROFILE_PROPERTY_FRAME_RESET, "# active lights uploaded", &rmtp_Lighting);
@@ -24,6 +25,9 @@ DM_PROPERTY_U32(rmtp_LightBufferUploadCount, 0, PROFILE_PROPERTY_FRAME_RESET, "#
 
 namespace dmRender
 {
+    static const uint16_t INVALID_SHADOW_SLOT = 0xFFFF;
+    static const uint32_t SHADOW_SLOT_SPOT = 0;
+    static const uint32_t SHADOW_SLOT_POINT = 1;
     static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
     static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
 
@@ -144,6 +148,11 @@ namespace dmRender
         LightInstance* light_instance = &render_context->m_RenderLights[light_buffer_index];
         light_instance->m_LightPrototype   = light_prototype;
         light_instance->m_LightBufferIndex = light_buffer_index;
+        render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][light_buffer_index] = INVALID_SHADOW_SLOT;
+        render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][light_buffer_index] = INVALID_SHADOW_SLOT;
+        uint32_t& shadow_revision = render_context->m_LightShadowRevisions[light_buffer_index];
+        if (++shadow_revision == 0)
+            shadow_revision = 1;
         light_instance->m_Version++;
         if (light_instance->m_Version == 0 || light_instance->m_Version == 0xFFFF)
         {
@@ -173,6 +182,8 @@ namespace dmRender
             }
             render_context->m_RenderLightsIndices.Push(light_instance->m_LightBufferIndex);
             light_instance->m_LightPrototype = 0;
+            render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][light_buffer_index] = INVALID_SHADOW_SLOT;
+            render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][light_buffer_index] = INVALID_SHADOW_SLOT;
             CommitLightInfo(render_context);
         }
     }
@@ -196,11 +207,18 @@ namespace dmRender
 
         LightSTD140 updated_light;
         FillLightInstanceSTD140(prototype, position, direction, clamped_scale, &updated_light);
+        // Shadow selection owns position.w. Preserve it for transform-change
+        // detection so a stable shadow tag does not make an otherwise static
+        // light look dirty every frame.
+        updated_light.m_Position.setW(render_context->m_LightBufferScratch[light_instance->m_LightBufferIndex].m_Position.getW());
         bool needs_commit = !LightSTD140Equals(updated_light, render_context->m_LightBufferScratch[light_instance->m_LightBufferIndex]);
 
         if (needs_commit)
         {
             CommitLightInstance(render_context, light_instance, position, direction, clamped_scale);
+            uint32_t& shadow_revision = render_context->m_LightShadowRevisions[light_buffer_index];
+            if (++shadow_revision == 0)
+                shadow_revision = 1;
         }
     }
 
@@ -529,6 +547,19 @@ namespace dmRender
             render_context->m_RenderLights.SetCapacity(max_lights);
         }
         render_context->m_RenderLights.SetSize(max_lights);
+        for (uint32_t slot_set = 0; slot_set < 2; ++slot_set)
+        {
+            render_context->m_LightShadowSlots[slot_set].SetCapacity(max_lights);
+            render_context->m_LightShadowSlots[slot_set].SetSize(max_lights);
+        }
+        render_context->m_LightShadowRevisions.SetCapacity(max_lights);
+        render_context->m_LightShadowRevisions.SetSize(max_lights);
+        for (uint32_t i = 0; i < max_lights; ++i)
+        {
+            render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][i] = INVALID_SHADOW_SLOT;
+            render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][i] = INVALID_SHADOW_SLOT;
+            render_context->m_LightShadowRevisions[i] = 0;
+        }
         for (uint32_t i = old_light_count; i < max_lights; ++i)
         {
             LightInstance* instance = &render_context->m_RenderLights[i];
@@ -543,41 +574,157 @@ namespace dmRender
         render_context->m_LightBufferUploadScratch.SetCapacity(0);
     }
 
-    uint32_t SelectSpotLightShadows(HRenderContext render_context, uint32_t max_shadows, SpotLightShadowData* out_shadows)
+    struct SpotShadowCandidate
     {
+        uint32_t m_InstanceIndex;
+        uint32_t m_CompactedLightIndex;
+        float    m_Score;
+    };
+
+    static bool CompareSpotShadowCandidates(const SpotShadowCandidate& a, const SpotShadowCandidate& b)
+    {
+        if (a.m_Score != b.m_Score)
+            return a.m_Score > b.m_Score;
+        return a.m_InstanceIndex < b.m_InstanceIndex;
+    }
+
+    static float ScoreSpotShadowCandidate(const LightPrototype* prototype, const LightSTD140& light, uint16_t previous_shadow_slot, uint32_t max_shadows, const SpotLightShadowSelectionParams* params)
+    {
+        const dmVMath::Vector4 color = prototype->m_Color;
+        const float brightness = dmMath::Max(color.getX(), dmMath::Max(color.getY(), color.getZ())) * prototype->m_Intensity;
+        float relevance = 1.0f;
+
+        if (params)
+        {
+            const dmVMath::Vector4 world_position(light.m_Position.getX(), light.m_Position.getY(), light.m_Position.getZ(), 1.0f);
+            const dmVMath::Vector4 view_position = params->m_CameraView * world_position;
+            const float distance = dmVMath::Length(view_position.getXYZ());
+            const float range = dmMath::Max(light.m_DirectionRange.getW(), 0.001f);
+            const float distance_weight = range / (distance + range);
+
+            const dmVMath::Vector4 clip_position = params->m_CameraProjection * view_position;
+            const float clip_w = clip_position.getW();
+            float visibility = 0.05f;
+            float coverage = 0.0f;
+            if (clip_w > 0.001f)
+            {
+                const float projection_scale = dmMath::Max(fabsf(params->m_CameraProjection.getElem(0, 0)), fabsf(params->m_CameraProjection.getElem(1, 1)));
+                const float projected_radius = dmMath::Min(2.0f, range * projection_scale / clip_w);
+                const float ndc_x = clip_position.getX() / clip_w;
+                const float ndc_y = clip_position.getY() / clip_w;
+                const bool overlaps_view = fabsf(ndc_x) <= 1.0f + projected_radius && fabsf(ndc_y) <= 1.0f + projected_radius;
+                visibility = overlaps_view ? 1.0f : 0.1f;
+                coverage = projected_radius * projected_radius;
+            }
+            relevance = visibility * (0.25f + coverage) * (0.25f + distance_weight);
+        }
+
+        // A small hysteresis bonus prevents similarly ranked lights from
+        // exchanging atlas tiles as the camera moves.
+        if (previous_shadow_slot < max_shadows)
+            relevance *= 1.15f;
+        return brightness * relevance;
+    }
+
+    uint32_t SelectSpotLightShadows(HRenderContext render_context, uint32_t max_shadows, SpotLightShadowData* out_shadows, const SpotLightShadowSelectionParams* selection_params)
+    {
+        max_shadows = dmMath::Min(max_shadows, 256u);
+        dmArray<SpotShadowCandidate> candidates;
+        candidates.SetCapacity(render_context->m_RenderLightsIndices.Size());
+
         uint32_t compacted_light_index = 0;
-        uint32_t shadow_count = 0;
         const uint32_t render_light_count = render_context->m_RenderLights.Size();
 
         for (uint32_t i = 0; i < render_light_count; ++i)
         {
-            const LightInstance* instance = &render_context->m_RenderLights[i];
+            LightInstance* instance = &render_context->m_RenderLights[i];
             if (instance->m_LightPrototype == 0)
                 continue;
 
             const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
-            LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
-            const bool selected = prototype != 0 &&
-                                  prototype->m_Type == LIGHT_TYPE_SPOT &&
-                                  shadow_count < max_shadows;
-            const float shadow_tag = selected ? (float) (shadow_count + 1) : 0.0f;
+            if (prototype && prototype->m_Type == LIGHT_TYPE_SPOT)
+            {
+                SpotShadowCandidate candidate;
+                candidate.m_InstanceIndex = i;
+                candidate.m_CompactedLightIndex = compacted_light_index;
+                candidate.m_Score = ScoreSpotShadowCandidate(prototype, render_context->m_LightBufferScratch[instance->m_LightBufferIndex], render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][i], max_shadows, selection_params);
+                candidates.Push(candidate);
+            }
+            else
+            {
+                render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][i] = INVALID_SHADOW_SLOT;
+            }
+            ++compacted_light_index;
+        }
 
+        if (candidates.Size() > 1)
+            std::sort(candidates.Begin(), candidates.End(), CompareSpotShadowCandidates);
+        const uint32_t shadow_count = dmMath::Min(max_shadows, candidates.Size());
+        bool used_slots[256] = {};
+
+        // Preserve valid slots for lights that remain selected.
+        for (uint32_t i = 0; i < shadow_count; ++i)
+        {
+            uint16_t& shadow_slot = render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][candidates[i].m_InstanceIndex];
+            if (shadow_slot < max_shadows && !used_slots[shadow_slot])
+                used_slots[shadow_slot] = true;
+            else
+                shadow_slot = INVALID_SHADOW_SLOT;
+        }
+
+        // New selections take the lowest available atlas slot.
+        uint32_t next_free_slot = 0;
+        for (uint32_t i = 0; i < shadow_count; ++i)
+        {
+            uint16_t& shadow_slot = render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][candidates[i].m_InstanceIndex];
+            if (shadow_slot == INVALID_SHADOW_SLOT)
+            {
+                while (used_slots[next_free_slot])
+                    ++next_free_slot;
+                shadow_slot = (uint16_t) next_free_slot;
+                used_slots[next_free_slot] = true;
+            }
+        }
+
+        // Clear rejected lights, update GPU tags, and emit selected light data.
+        for (uint32_t i = shadow_count; i < candidates.Size(); ++i)
+            render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][candidates[i].m_InstanceIndex] = INVALID_SHADOW_SLOT;
+
+        for (uint32_t i = 0; i < render_light_count; ++i)
+        {
+            LightInstance* instance = &render_context->m_RenderLights[i];
+            if (instance->m_LightPrototype == 0)
+                continue;
+            const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
+            if (!prototype || prototype->m_Type != LIGHT_TYPE_SPOT)
+                continue;
+            LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+            const uint16_t shadow_slot = render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][i];
+            const float shadow_tag = shadow_slot == INVALID_SHADOW_SLOT ? 0.0f : (float) (shadow_slot + 1);
             if (light.m_Position.getW() != shadow_tag)
             {
                 light.m_Position.setW(shadow_tag);
                 render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, (uint32_t) instance->m_LightBufferIndex);
                 render_context->m_LightBufferDirtyEnd = dmMath::Max(render_context->m_LightBufferDirtyEnd, (uint32_t) (instance->m_LightBufferIndex + 1));
             }
+        }
 
-            if (selected && out_shadows != 0)
+        if (out_shadows)
+        {
+            for (uint32_t i = 0; i < shadow_count; ++i)
             {
-                SpotLightShadowData& shadow = out_shadows[shadow_count];
+                const SpotShadowCandidate& candidate = candidates[i];
+                const LightInstance* instance = &render_context->m_RenderLights[candidate.m_InstanceIndex];
+                const LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+                SpotLightShadowData& shadow = out_shadows[i];
                 shadow.m_Position = dmVMath::Point3(light.m_Position.getX(), light.m_Position.getY(), light.m_Position.getZ());
                 shadow.m_Direction = light.m_DirectionRange.getXYZ();
                 shadow.m_Range = light.m_DirectionRange.getW();
                 shadow.m_OuterConeAngle = light.m_Params.getW();
-                shadow.m_LightIndex = compacted_light_index;
-                shadow.m_ShadowIndex = shadow_count;
+                shadow.m_LightIndex = candidate.m_CompactedLightIndex;
+                shadow.m_ShadowIndex = render_context->m_LightShadowSlots[SHADOW_SLOT_SPOT][candidate.m_InstanceIndex];
+                shadow.m_LightId = (uint32_t) instance->m_Version << 16 | instance->m_LightBufferIndex;
+                shadow.m_Revision = render_context->m_LightShadowRevisions[candidate.m_InstanceIndex];
 
                 dmVMath::Vector3 world_up(0.0f, 1.0f, 0.0f);
                 if (fabsf(dmVMath::Dot(shadow.m_Direction, world_up)) > 0.99f)
@@ -591,13 +738,161 @@ namespace dmRender
                 shadow.m_Projection = dmVMath::Matrix4::perspective(fov, 1.0f, near_z, far_z);
                 shadow.m_ViewProjection = shadow.m_Projection * shadow.m_View;
             }
-
-            if (selected)
-                ++shadow_count;
-            ++compacted_light_index;
         }
 
         return shadow_count;
+    }
+
+    uint32_t SelectPointLightShadows(HRenderContext render_context, uint32_t max_shadows, PointLightShadowData* out_shadows, const SpotLightShadowSelectionParams* selection_params)
+    {
+        max_shadows = dmMath::Min(max_shadows, 256u);
+        dmArray<SpotShadowCandidate> candidates;
+        candidates.SetCapacity(render_context->m_RenderLightsIndices.Size());
+
+        uint32_t compacted_light_index = 0;
+        const uint32_t render_light_count = render_context->m_RenderLights.Size();
+        for (uint32_t i = 0; i < render_light_count; ++i)
+        {
+            LightInstance* instance = &render_context->m_RenderLights[i];
+            if (instance->m_LightPrototype == 0)
+                continue;
+            const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
+            if (prototype && prototype->m_Type == LIGHT_TYPE_POINT)
+            {
+                SpotShadowCandidate candidate;
+                candidate.m_InstanceIndex = i;
+                candidate.m_CompactedLightIndex = compacted_light_index;
+                candidate.m_Score = ScoreSpotShadowCandidate(prototype, render_context->m_LightBufferScratch[instance->m_LightBufferIndex], render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][i], max_shadows, selection_params);
+                candidates.Push(candidate);
+            }
+            else
+            {
+                render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][i] = INVALID_SHADOW_SLOT;
+            }
+            ++compacted_light_index;
+        }
+
+        if (candidates.Size() > 1)
+            std::sort(candidates.Begin(), candidates.End(), CompareSpotShadowCandidates);
+        const uint32_t shadow_count = dmMath::Min(max_shadows, candidates.Size());
+        bool used_slots[256] = {};
+        for (uint32_t i = 0; i < shadow_count; ++i)
+        {
+            uint16_t& slot = render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][candidates[i].m_InstanceIndex];
+            if (slot < max_shadows && !used_slots[slot])
+                used_slots[slot] = true;
+            else
+                slot = INVALID_SHADOW_SLOT;
+        }
+        uint32_t next_free_slot = 0;
+        for (uint32_t i = 0; i < shadow_count; ++i)
+        {
+            uint16_t& slot = render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][candidates[i].m_InstanceIndex];
+            if (slot == INVALID_SHADOW_SLOT)
+            {
+                while (used_slots[next_free_slot])
+                    ++next_free_slot;
+                slot = (uint16_t) next_free_slot;
+                used_slots[next_free_slot] = true;
+            }
+        }
+        for (uint32_t i = shadow_count; i < candidates.Size(); ++i)
+            render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][candidates[i].m_InstanceIndex] = INVALID_SHADOW_SLOT;
+
+        for (uint32_t i = 0; i < render_light_count; ++i)
+        {
+            LightInstance* instance = &render_context->m_RenderLights[i];
+            if (instance->m_LightPrototype == 0)
+                continue;
+            const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
+            if (!prototype || prototype->m_Type != LIGHT_TYPE_POINT)
+                continue;
+            LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+            const uint16_t slot = render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][i];
+            const float shadow_tag = slot == INVALID_SHADOW_SLOT ? 0.0f : (float) (slot + 1);
+            if (light.m_Position.getW() != shadow_tag)
+            {
+                light.m_Position.setW(shadow_tag);
+                render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, (uint32_t) instance->m_LightBufferIndex);
+                render_context->m_LightBufferDirtyEnd = dmMath::Max(render_context->m_LightBufferDirtyEnd, (uint32_t) (instance->m_LightBufferIndex + 1));
+            }
+        }
+
+        if (out_shadows)
+        {
+            for (uint32_t i = 0; i < shadow_count; ++i)
+            {
+                const SpotShadowCandidate& candidate = candidates[i];
+                const LightInstance* instance = &render_context->m_RenderLights[candidate.m_InstanceIndex];
+                const LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+                PointLightShadowData& shadow = out_shadows[i];
+                shadow.m_Position = dmVMath::Point3(light.m_Position.getX(), light.m_Position.getY(), light.m_Position.getZ());
+                shadow.m_Range = light.m_DirectionRange.getW();
+                shadow.m_LightIndex = candidate.m_CompactedLightIndex;
+                shadow.m_ShadowIndex = render_context->m_LightShadowSlots[SHADOW_SLOT_POINT][candidate.m_InstanceIndex];
+                shadow.m_LightId = (uint32_t) instance->m_Version << 16 | instance->m_LightBufferIndex;
+                shadow.m_Revision = render_context->m_LightShadowRevisions[candidate.m_InstanceIndex];
+            }
+        }
+        return shadow_count;
+    }
+
+    bool SelectDirectionalLightShadow(HRenderContext render_context, DirectionalLightShadowData* out_shadow)
+    {
+        int32_t selected_instance_index = -1;
+        uint32_t selected_compacted_index = 0;
+        float selected_score = -1.0f;
+        uint32_t compacted_index = 0;
+        const uint32_t render_light_count = render_context->m_RenderLights.Size();
+        for (uint32_t i = 0; i < render_light_count; ++i)
+        {
+            LightInstance* instance = &render_context->m_RenderLights[i];
+            if (instance->m_LightPrototype == 0)
+                continue;
+            const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
+            if (prototype && prototype->m_Type == LIGHT_TYPE_DIRECTIONAL)
+            {
+                const float score = dmMath::Max(prototype->m_Color.getX(), dmMath::Max(prototype->m_Color.getY(), prototype->m_Color.getZ())) * prototype->m_Intensity;
+                if (score > selected_score)
+                {
+                    selected_score = score;
+                    selected_instance_index = (int32_t) i;
+                    selected_compacted_index = compacted_index;
+                }
+            }
+            ++compacted_index;
+        }
+
+        for (uint32_t i = 0; i < render_light_count; ++i)
+        {
+            LightInstance* instance = &render_context->m_RenderLights[i];
+            if (instance->m_LightPrototype == 0)
+                continue;
+            const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
+            if (!prototype || prototype->m_Type != LIGHT_TYPE_DIRECTIONAL)
+                continue;
+            LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+            const float tag = (int32_t) i == selected_instance_index ? 1.0f : 0.0f;
+            if (light.m_Position.getW() != tag)
+            {
+                light.m_Position.setW(tag);
+                render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, (uint32_t) instance->m_LightBufferIndex);
+                render_context->m_LightBufferDirtyEnd = dmMath::Max(render_context->m_LightBufferDirtyEnd, (uint32_t) (instance->m_LightBufferIndex + 1));
+            }
+        }
+
+        if (selected_instance_index < 0)
+            return false;
+        if (out_shadow)
+        {
+            const LightInstance* instance = &render_context->m_RenderLights[(uint32_t) selected_instance_index];
+            const LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+            out_shadow->m_Direction = light.m_DirectionRange.getXYZ();
+            out_shadow->m_LightIndex = selected_compacted_index;
+            out_shadow->m_LightId = (uint32_t) instance->m_Version << 16 | instance->m_LightBufferIndex;
+            out_shadow->m_Revision = render_context->m_LightShadowRevisions[(uint32_t) selected_instance_index];
+        }
+        return true;
     }
 
     void FinalizeLightData(HRenderContext render_context)

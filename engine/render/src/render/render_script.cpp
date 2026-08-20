@@ -2956,12 +2956,16 @@ namespace dmRender
     }
 
     /*# selects spotlights for a shadow atlas
-     * Selects up to `max_shadows` active spotlights in compacted light-buffer
-     * order. Selected lights are tagged with a one-based shadow-atlas slot in
-     * `Light.position.w`; all other lights are tagged with zero.
+     * Selects up to `max_shadows` active spotlights. When camera matrices are
+     * supplied, lights are prioritized by intensity, projected influence and
+     * distance. Atlas slots remain stable while lights stay selected. Selected
+     * lights are tagged with a one-based shadow-atlas slot in `Light.position.w`;
+     * all other lights are tagged with zero.
      *
      * @name render.select_spot_light_shadows
      * @param max_shadows [type:number] maximum number of selected spotlights
+     * @param camera_view [type:matrix4|nil] camera view matrix used for prioritization
+     * @param camera_projection [type:matrix4|nil] camera projection matrix used for prioritization
      * @return shadows [type:table] selected spotlight view data
      */
     static int RenderScript_SelectSpotLightShadows(lua_State* L)
@@ -2973,10 +2977,20 @@ namespace dmRender
             return DM_LUA_ERROR("max_shadows must be between 0 and 256");
 
         const uint32_t max_shadows = (uint32_t) max_shadows_arg;
+        SpotLightShadowSelectionParams selection_params;
+        SpotLightShadowSelectionParams* selection_params_ptr = 0;
+        if (!lua_isnoneornil(L, 2) || !lua_isnoneornil(L, 3))
+        {
+            if (lua_isnoneornil(L, 2) || lua_isnoneornil(L, 3))
+                return DM_LUA_ERROR("camera_view and camera_projection must be supplied together");
+            selection_params.m_CameraView = *dmScript::CheckMatrix4(L, 2);
+            selection_params.m_CameraProjection = *dmScript::CheckMatrix4(L, 3);
+            selection_params_ptr = &selection_params;
+        }
         dmArray<SpotLightShadowData> shadows;
         shadows.SetCapacity(max_shadows);
         shadows.SetSize(max_shadows);
-        const uint32_t shadow_count = SelectSpotLightShadows(i->m_RenderContext, max_shadows, shadows.Begin());
+        const uint32_t shadow_count = SelectSpotLightShadows(i->m_RenderContext, max_shadows, shadows.Begin(), selection_params_ptr);
 
         lua_createtable(L, shadow_count, 0);
         for (uint32_t shadow_index = 0; shadow_index < shadow_count; ++shadow_index)
@@ -2988,6 +3002,10 @@ namespace dmRender
             lua_setfield(L, -2, "light_index");
             lua_pushnumber(L, shadow.m_ShadowIndex);
             lua_setfield(L, -2, "shadow_index");
+            lua_pushnumber(L, shadow.m_LightId);
+            lua_setfield(L, -2, "light_id");
+            lua_pushnumber(L, shadow.m_Revision);
+            lua_setfield(L, -2, "revision");
             lua_pushnumber(L, shadow.m_Range);
             lua_setfield(L, -2, "range");
             lua_pushnumber(L, shadow.m_OuterConeAngle);
@@ -3005,6 +3023,88 @@ namespace dmRender
 
             lua_rawseti(L, -2, shadow_index + 1);
         }
+        return 1;
+    }
+
+    /*# selects point lights for cubemap-face shadows
+     * Selects camera-relevant point lights with persistent shadow slots.
+     * Each selected light is tagged in `Light.position.w` with slot + 1.
+     *
+     * @name render.select_point_light_shadows
+     * @param max_shadows [type:number] maximum number of selected point lights
+     * @param camera_view [type:matrix4|nil] camera view matrix used for prioritization
+     * @param camera_projection [type:matrix4|nil] camera projection matrix used for prioritization
+     * @return shadows [type:table] selected point-light data
+     */
+    static int RenderScript_SelectPointLightShadows(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        int max_shadows_arg = (int) luaL_checkinteger(L, 1);
+        if (max_shadows_arg < 0 || max_shadows_arg > 256)
+            return DM_LUA_ERROR("max_shadows must be between 0 and 256");
+
+        SpotLightShadowSelectionParams selection_params;
+        SpotLightShadowSelectionParams* selection_params_ptr = 0;
+        if (!lua_isnoneornil(L, 2) || !lua_isnoneornil(L, 3))
+        {
+            if (lua_isnoneornil(L, 2) || lua_isnoneornil(L, 3))
+                return DM_LUA_ERROR("camera_view and camera_projection must be supplied together");
+            selection_params.m_CameraView = *dmScript::CheckMatrix4(L, 2);
+            selection_params.m_CameraProjection = *dmScript::CheckMatrix4(L, 3);
+            selection_params_ptr = &selection_params;
+        }
+
+        const uint32_t max_shadows = (uint32_t) max_shadows_arg;
+        dmArray<PointLightShadowData> shadows;
+        shadows.SetCapacity(max_shadows);
+        shadows.SetSize(max_shadows);
+        const uint32_t shadow_count = SelectPointLightShadows(i->m_RenderContext, max_shadows, shadows.Begin(), selection_params_ptr);
+        lua_createtable(L, shadow_count, 0);
+        for (uint32_t shadow_index = 0; shadow_index < shadow_count; ++shadow_index)
+        {
+            const PointLightShadowData& shadow = shadows[shadow_index];
+            lua_createtable(L, 0, 6);
+            lua_pushnumber(L, shadow.m_LightIndex);
+            lua_setfield(L, -2, "light_index");
+            lua_pushnumber(L, shadow.m_ShadowIndex);
+            lua_setfield(L, -2, "shadow_index");
+            lua_pushnumber(L, shadow.m_LightId);
+            lua_setfield(L, -2, "light_id");
+            lua_pushnumber(L, shadow.m_Revision);
+            lua_setfield(L, -2, "revision");
+            lua_pushnumber(L, shadow.m_Range);
+            lua_setfield(L, -2, "range");
+            dmScript::PushVector3(L, dmVMath::Vector3(shadow.m_Position));
+            lua_setfield(L, -2, "position");
+            lua_rawseti(L, -2, shadow_index + 1);
+        }
+        return 1;
+    }
+
+    /*# selects the highest-intensity directional light for cascaded shadows
+     * @name render.select_directional_light_shadow
+     * @return shadow [type:table|nil] selected directional-light data
+     */
+    static int RenderScript_SelectDirectionalLightShadow(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        DirectionalLightShadowData shadow;
+        if (!SelectDirectionalLightShadow(i->m_RenderContext, &shadow))
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+        lua_createtable(L, 0, 4);
+        lua_pushnumber(L, shadow.m_LightIndex);
+        lua_setfield(L, -2, "light_index");
+        lua_pushnumber(L, shadow.m_LightId);
+        lua_setfield(L, -2, "light_id");
+        lua_pushnumber(L, shadow.m_Revision);
+        lua_setfield(L, -2, "revision");
+        dmScript::PushVector3(L, shadow.m_Direction);
+        lua_setfield(L, -2, "direction");
         return 1;
     }
 
@@ -3208,6 +3308,8 @@ namespace dmRender
         {"set_clustered_lighting_grid",     RenderScript_SetClusteredLightingGrid},
         {"reset_clustered_lighting_buffers",RenderScript_ResetClusteredLightingBuffers},
         {"select_spot_light_shadows",       RenderScript_SelectSpotLightShadows},
+        {"select_point_light_shadows",      RenderScript_SelectPointLightShadows},
+        {"select_directional_light_shadow", RenderScript_SelectDirectionalLightShadow},
         {"set_camera",                      RenderScript_SetCamera},
         {"set_listener",                    RenderScript_SetListener},
         {0, 0}
