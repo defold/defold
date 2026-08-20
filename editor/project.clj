@@ -336,6 +336,8 @@
                                                     [org.openjfx/javafx-media "25"]
                                                     [org.openjfx/javafx-fxml "25"]
                                                     [org.openjfx/javafx-swing "25"]
+                                                    [nrepl/nrepl "1.7.0"]
+                                                    [cider/cider-nrepl "0.62.2"]
                                                     [com.clojure-goes-fast/clj-async-profiler "2.0.0-beta1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]

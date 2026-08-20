@@ -705,11 +705,18 @@
 (defn- built-in-lua-language-servers [project-root annotations-sync-hash]
   (let [unpack-path (system/defold-unpack-path)
         lua-annotations-path (str (path/of unpack-path "shared" "lua-annotations"))
-        launcher {:command [(str unpack-path "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua/bin/lua-language-server" (when (os/is-win32?) ".exe"))]}
+        launcher {:command [(str unpack-path "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua/bin/lua-language-server" (when (os/is-win32?) ".exe"))
+                            ;; Enable text document diagnostics:
+                            "--preview=true"]}
         shared-configuration {:Lua {:runtime {:pathStrict true}
                                     :completion {:workspaceWord false :callSnippet "Replace"}
                                     :diagnostics {:enable true
+                                                  :workspaceDelay -1
                                                   :workspaceEvent "None"
+                                                  :groupFileStatus {:duplicate "Any"
+                                                                    :redefined "Any"
+                                                                    :type-check "Any"
+                                                                    :unused "Any"}
                                                   :disable ["trailing-space" "unused-local"]}
                                     :workspace {:checkThirdParty "Disable" :library [lua-annotations-path]}
                                     :window {:progressBar false :statusBar false}}
