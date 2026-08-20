@@ -567,7 +567,7 @@ def message_to_dict(message):
     ret = {}
     for field in message.DESCRIPTOR.fields:
         value = getattr(message, field.name)
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if field.is_repeated:
             lst = []
             for element in value:
                 if isinstance(element, Message):
