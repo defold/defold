@@ -148,6 +148,7 @@ namespace dmPhysics
         m_Solver = new btSequentialImpulseConstraintSolver;
 
         m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_OverlappingPairCache, m_Solver, m_CollisionConfiguration);
+        m_DynamicsWorld->setLatencyMotionStateInterpolation(false);
         m_DynamicsWorld->setGravity(btVector3(context->m_Gravity.getX(), context->m_Gravity.getY(), context->m_Gravity.getZ()));
         m_DynamicsWorld->setDebugDrawer(&m_DebugDraw);
 
@@ -504,8 +505,8 @@ namespace dmPhysics
             for (int i = 0; i < num_manifolds && (requests_collision_callbacks || requests_contact_callbacks); ++i)
             {
                 btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
-                btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
-                btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
+                const btCollisionObject* object_a = contact_manifold->getBody0();
+                const btCollisionObject* object_b = contact_manifold->getBody1();
 
                 if (!object_a->isActive() && !object_b->isActive())
                     continue;
@@ -534,8 +535,8 @@ namespace dmPhysics
                     for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
                     {
                         btManifoldPoint& pt = contact_manifold->getContactPoint(j);
-                        btRigidBody* body_a = btRigidBody::upcast(object_a);
-                        btRigidBody* body_b = btRigidBody::upcast(object_b);
+                        const btRigidBody* body_a = btRigidBody::upcast(object_a);
+                        const btRigidBody* body_b = btRigidBody::upcast(object_b);
                         ContactPoint point;
                         float inv_scale = world->m_Context->m_InvScale;
                         const btVector3& pt_a = pt.getPositionWorldOnA();
@@ -587,8 +588,8 @@ namespace dmPhysics
         for (int i = 0; i < num_manifolds; ++i)
         {
             btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
-            btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
-            btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
+            const btCollisionObject* object_a = contact_manifold->getBody0();
+            const btCollisionObject* object_b = contact_manifold->getBody1();
 
             // Don't skip sleeping objects, in order to be able to catch exit events (also consistent with 2d physics)
 
@@ -992,7 +993,7 @@ namespace dmPhysics
     bool IsEnabled3D(HCollisionObject3D collision_object)
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
-        return co->isInWorld();
+        return co->getBroadphaseHandle() != 0x0;
     }
 
     void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)

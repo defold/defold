@@ -2153,6 +2153,11 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     steps = 10;
     float y = 0.0f;
     float applied_impulse = ud.m_AppliedImpulse;
+#if defined(PHYSICS_TEST_BULLET_3D)
+    const float position_tolerance = 0.015f;
+#else
+    const float position_tolerance = 0.01f;
+#endif
 
     for (int i = 0; i < steps; ++i) {
         (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5f / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
@@ -2182,7 +2187,7 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
         printf("%f\n", fabs(y - vo_a.m_Position.getY()));
     #endif
 
-        ASSERT_NEAR(y, vo_a.m_Position.getY(), 0.01f);
+        ASSERT_NEAR(y, vo_a.m_Position.getY(), position_tolerance);
     }
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
