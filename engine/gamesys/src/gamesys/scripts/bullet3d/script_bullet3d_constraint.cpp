@@ -1464,7 +1464,15 @@ namespace dmGameSystem
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         CheckSpring6Dof(L, meta);
         int      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar damping = CheckBullet3DScalarInRange(L, 3, 1.0f, "damping", 0.0f, 1.0f);
+        btScalar damping = CheckBullet3DScalar(L, 3, 1.0f, "damping");
+        if (damping < btScalar(0.0f))
+        {
+            return luaL_error(L, "damping must not be negative.");
+        }
+        if (meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2 && damping > btScalar(1.0f))
+        {
+            return luaL_error(L, "Legacy 6-DOF spring damping must be between 0 and 1.");
+        }
         CheckConstraintUnlocked(L, meta);
         if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
             GetHinge2Constraint(meta)->setDamping(axis, damping);
@@ -2515,10 +2523,16 @@ namespace dmGameSystem
  */
 
 /*# Set spring damping
+ *
+ * Generic spring 6-DOF constraints use Bullet's legacy damping factor from 0
+ * to 1, where 1 means no damping. Hinge2 constraints use Bullet 3.25's
+ * Spring2 damping coefficient, where 0 means no damping and any non-negative
+ * value is accepted.
+ *
  * @name bullet3d.constraint.set_spring_damping
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
  * @param axis [type:number] one-based axis from 1 to 6
- * @param damping [type:number] damping from 0 to 1
+ * @param damping [type:number] damping value in the range required by the constraint type
  */
 
 /*# Set spring equilibrium points
