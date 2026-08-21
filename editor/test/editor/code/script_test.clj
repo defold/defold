@@ -342,6 +342,31 @@
      "    return x"
      "end"]
 
+    ;; `end)` closes two frames opened on different lines. It lands at the level
+    ;; of the line that opened the inner one, not the outer one.
+    ["foo(a,"
+     "    b, function()"
+     "        x()"
+     "    end)"
+     "print(y)"]
+
+    ;; The same, buried in nested callbacks: each `end)` unwinds to the line
+    ;; that opened its own function, not to the call it is an argument of.
+    ["function on_message(self, message)"
+     "    if message.enter then"
+     "        self.timer = timer.delay(0.3, true, function()"
+     "            local bar = table.remove(self.bars)"
+     "            go.animate(bar.id, \"position\", go.PLAYBACK_ONCE_FORWARD, self.target,"
+     "                go.EASING_OUTSINE, 0.2, 0, function()"
+     "                    msg.post(bar.body_id, \"enable\")"
+     "                    timer.delay(0.6, false, function()"
+     "                        audio.play(audio.DROP_ITEM)"
+     "                    end)"
+     "                end)"
+     "        end)"
+     "    end"
+     "end"]
+
     ;; Single brackets still nest, even though doubled ones delimit strings.
     ["local x = t["
      "    key"

@@ -2076,13 +2076,7 @@
                         [0 nil]
                         (let [top (peek stack)]
                           [(inc ^long (:level top)) (:col top)]))
-                      [(loop [n leading
-                              s stack
-                              level 0]
-                         (if (or (zero? n) (coll/empty? s))
-                           level
-                           (recur (dec n) (pop s) (:level (peek s)))))
-                       nil])
+                      [(if (coll/empty? stack) 0 (:level (peek stack))) nil])
         stack (loop [n closes
                      s stack]
                 (if (or (zero? n) (coll/empty? s))
