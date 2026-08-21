@@ -38,31 +38,28 @@
 (def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
 (def lua-close-keywords #{"end" "until"})
 
-;; These two functions decide what a line does to the indentation around it.
-;; lua-lex-line scans it, lua-indent-counts folds the result into a summary.
+;; lua-lex-line scans a line, lua-indent-counts summarizes it.
 ;;
-;; The scan emits one token per bracket or block keyword, as [kind index]:
-;; - Ignores anything inside string literals (quoted "..." or '...') and
-;;   trailing inline comments (-- outside of a string)
-;; - Threads in-long-string in and out, because a line cannot tell on its own
-;;   whether it starts inside a [[ ]] string or a --[[ ]] block comment
-;; - Records the index of a bracket, so that its contents can be aligned under
-;;   it. Block keywords carry nil, as their bodies always indent by a level
-;; - Reads `else` as a close and an open, and `elseif` as a close alone,
-;;   leaving the `then` on the same line to supply the open
+;; The scanner emits one token per bracket or block keyword, as [kind index]:
+;; - Skips over string literals ("..." or '...') and trailing -- comments
+;; - Tracks whether we're inside a long string/comment, since that state
+;;   carries across lines
+;; - Records where each bracket is, so its contents can line up under it.
+;;   Block keywords get nil instead, since their bodies just indent one level
+;; - Treats `else` as closing and reopening a block, and `elseif` as just
+;;   closing one (the `then` after it opens the new block)
 ;;
-;; The fold cancels matching pairs and describes what is left over:
-;; - :closes, the closers with no opener on this line. They pop enclosing
-;;   blocks, and so decide the indentation of the lines that follow
-;; - :leading, which is :closes when the line begins with one and 0 otherwise.
-;;   Only a closer standing before any code pulls this line itself back; a
-;;   trailing one is punctuation on a continuation line
-;; - :opens, one entry per thing still open at the end of the line, holding:
-;;     * the visual column its contents align to, taken from just past the
-;;       bracket with tabs expanded, so that it is where the text is drawn
-;;       rather than an offset into the string
-;;     * nil when nothing follows the bracket on its line, or when it is a
-;;       block keyword, which indents its contents by a level instead
+;; The summary cancels matched opens/closes and reports what's left:
+;; - :closes - closers with no matching opener on this line; these pop
+;;   enclosing blocks and affect how later lines indent
+;; - :leading - :closes if the line starts with a closer, else 0. Only a
+;;   closer at the start of a line should dedent it; one at the end is just
+;;   punctuation on a continuation
+;; - :opens - one entry per still-open bracket/keyword, holding:
+;;     * the column to align its contents to (just past the bracket, with
+;;       tabs expanded, so it matches where the text actually appears)
+;;     * or nil, if nothing follows the bracket on that line, or if it's a
+;;       block keyword (which just indents contents by one level)
 (defn lua-lex-line [^String line in-long-string]
   (let [len (.length line)]
     (loop [i 0

@@ -380,6 +380,13 @@
      "    print(s)"
      "end"]
 
+    ;; Whitespace inside one is part of the string, so it is left alone.
+    ["local sql = [["
+     "SELECT *"
+     "  FROM t"
+     "]]"
+     "print(sql)"]
+
     ;; A block keyword inside one closes nothing.
     ["function f()"
      "    local s = [[ note"

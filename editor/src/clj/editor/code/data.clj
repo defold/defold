@@ -2216,6 +2216,10 @@
                           line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
                           indented-line
                           (cond
+                            ;; Leading whitespace inside a multi-line string is part of its value.
+                            in-long-string
+                            line
+
                             ;; Insert typed whitespace (except newlines) without adjusting indentation.
                             (and typed? (whitespace-character-at-index? line (.col start)))
                             line
