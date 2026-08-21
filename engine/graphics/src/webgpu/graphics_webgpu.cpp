@@ -3318,7 +3318,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     RenderTargetCreationParams rt_params = params;
-    ConformRenderTargetCreationSampleCount(&rt_params, 1, "WebGPU");
+    rt_params.m_SampleCount = ConformRenderTargetSampleCount(rt_params.m_SampleCount, 1, "WebGPU");
     WebGPURenderTarget* rt = new WebGPURenderTarget();
     rt->m_Multisample      = 1;
     rt->m_Width = rt->m_Height = 0;

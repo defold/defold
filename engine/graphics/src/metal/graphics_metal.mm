@@ -4077,7 +4077,7 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*)_context;
         RenderTargetCreationParams rt_params = params;
-        ConformRenderTargetCreationSampleCount(&rt_params, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
+        rt_params.m_SampleCount = ConformRenderTargetSampleCount(rt_params.m_SampleCount, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
 
         // allocate the render target object (ID helper reused from your Vulkan path)
         MetalRenderTarget* rt = new MetalRenderTarget(GetNextRenderTargetId());

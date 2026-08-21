@@ -3396,7 +3396,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     {
         DX12Context* context = (DX12Context*) _context;
         RenderTargetCreationParams rt_params = params;
-        ConformRenderTargetCreationSampleCount(&rt_params, 1, "DX12");
+        rt_params.m_SampleCount = ConformRenderTargetSampleCount(rt_params.m_SampleCount, 1, "DX12");
 
         DX12RenderTarget* rt     = new DX12RenderTarget();
         rt->m_Format             = DXGI_FORMAT_UNKNOWN;

@@ -1194,7 +1194,7 @@ namespace dmGraphics
     {
         NullContext* context = (NullContext*) _context;
         RenderTargetCreationParams rt_params = params;
-        ConformRenderTargetCreationSampleCount(&rt_params, 255, "Null");
+        rt_params.m_SampleCount = ConformRenderTargetSampleCount(rt_params.m_SampleCount, 255, "Null");
         NullRenderTarget* rt = new NullRenderTarget();
 
         BufferType color_buffer_flags[] = {

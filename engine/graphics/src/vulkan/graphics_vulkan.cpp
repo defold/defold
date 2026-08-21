@@ -4285,7 +4285,7 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         RenderTargetCreationParams rt_params = params;
         VkSampleCountFlags vk_supported_sample_counts = GetSupportedSampleCountFlags(&context->m_PhysicalDevice, buffer_type_flags);
-        ConformRenderTargetCreationSampleCount(&rt_params, (uint32_t) vk_supported_sample_counts, "Vulkan");
+        rt_params.m_SampleCount = ConformRenderTargetSampleCount(rt_params.m_SampleCount, (uint32_t) vk_supported_sample_counts, "Vulkan");
         VulkanRenderTarget* rt = new VulkanRenderTarget(GetNextRenderTargetId());
 
         memcpy(rt->m_Base.m_ColorTextureParams, rt_params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);

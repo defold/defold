@@ -2003,10 +2003,7 @@ TEST_F(dmGraphicsTest, TestRenderTargetSampleCountConformance)
     ASSERT_EQ(8u, dmGraphics::GetClosestSupportedSampleCount(64, supported));
     ASSERT_EQ(4u, dmGraphics::GetClosestSupportedSampleCount(8, 1 | 4));
 
-    dmGraphics::RenderTargetCreationParams params = {};
-    params.m_SampleCount = 3;
-    dmGraphics::ConformRenderTargetCreationSampleCount(&params, 1 | 2 | 4, "Test");
-    ASSERT_EQ(2u, params.m_SampleCount);
+    ASSERT_EQ(2u, dmGraphics::ConformRenderTargetSampleCount(3, 1 | 2 | 4, "Test"));
 }
 
 TEST_F(dmGraphicsTest, TestRenderTarget)

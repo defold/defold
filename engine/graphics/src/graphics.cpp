@@ -55,15 +55,15 @@ namespace dmGraphics
         return closest_sample_count;
     }
 
-    void ConformRenderTargetCreationSampleCount(RenderTargetCreationParams* params, uint32_t supported_sample_counts, const char* adapter_name)
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name)
     {
-        uint32_t requested = GetDefaultSampleCount(params->m_SampleCount);
+        uint32_t requested = GetDefaultSampleCount(requested_sample_count);
         uint32_t conformed = GetClosestSupportedSampleCount(requested, supported_sample_counts);
         if (requested != conformed)
         {
             dmLogWarning("%s render target requested sample_count %u, using supported sample_count %u.", adapter_name, requested, conformed);
         }
-        params->m_SampleCount = conformed;
+        return conformed;
     }
 
     static GraphicsAdapter*             g_adapter_list = 0;

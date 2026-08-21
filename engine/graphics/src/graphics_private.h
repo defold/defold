@@ -193,7 +193,7 @@ namespace dmGraphics
     }
 
     uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts);
-    void ConformRenderTargetCreationSampleCount(RenderTargetCreationParams* params, uint32_t supported_sample_counts, const char* adapter_name);
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name);
 
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
