@@ -1769,6 +1769,34 @@ namespace dmGameSystem
         *ib_where = indices;
     }
 
+    static void EnsureVertexBufferCapacity(SpriteWorld* sprite_world, uint32_t vertex_stride, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    {
+        uint32_t write_offset = sprite_world->m_VertexBufferWritePtr - sprite_world->m_VertexBufferData;
+        uint32_t required_size = write_offset;
+
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
+        for (uint32_t* i = begin; i != end; ++i)
+        {
+            uint32_t component_index = (uint32_t) buf[*i].m_UserData;
+            const SpriteComponent& component = components[component_index];
+            uint32_t remainder = required_size % vertex_stride;
+            if (remainder != 0)
+            {
+                required_size += vertex_stride - remainder;
+            }
+            required_size += component.m_VertexCount * vertex_stride;
+        }
+
+        if (required_size <= sprite_world->m_VertexMemorySize)
+        {
+            return;
+        }
+
+        sprite_world->m_VertexBufferData = (uint8_t*) realloc(sprite_world->m_VertexBufferData, required_size);
+        sprite_world->m_VertexBufferWritePtr = sprite_world->m_VertexBufferData + write_offset;
+        sprite_world->m_VertexMemorySize = required_size;
+    }
+
     static void RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("SpriteRenderBatch");
@@ -1796,6 +1824,10 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
         FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
+
+        // The context material can have a larger vertex format than the component material
+        // used during update. Grow the CPU staging buffer before writing this batch.
+        EnsureVertexBufferCapacity(sprite_world, material_attribute_info.m_VertexStride, buf, begin, end);
 
         // Fill in vertex buffer
         uint8_t* vb_begin = sprite_world->m_VertexBufferWritePtr;
@@ -2148,7 +2180,7 @@ namespace dmGameSystem
         world->m_ReallocBuffers   |= vertex_memsize > world->m_VertexMemorySize || num_indices > world->m_IndexCount;
         world->m_VertexCount      = num_vertices;
         world->m_IndexCount       = num_indices;
-        world->m_VertexMemorySize = vertex_memsize;
+        world->m_VertexMemorySize = dmMath::Max(world->m_VertexMemorySize, vertex_memsize);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -2747,6 +2779,11 @@ namespace dmGameSystem
         SpriteWorld* world = (SpriteWorld*) sprite_world;
         *vx_buffer = world->m_VertexBuffer;
         *ix_buffer = world->m_IndexBuffer;
+    }
+
+    uint32_t GetSpriteWorldVertexBufferCapacity(void* sprite_world)
+    {
+        return ((SpriteWorld*) sprite_world)->m_VertexMemorySize;
     }
 
     void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out)
