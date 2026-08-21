@@ -275,7 +275,8 @@ namespace dmGraphics
             uint8_t          m_ClearColor   : 1;
             uint8_t          m_ClearDepth   : 1;
             uint8_t          m_ClearStencil : 1;
-            uint8_t          m_SampleCount  : 4;
+            // MetalGetSupportedSampleCounts admits values through 64.
+            uint8_t          m_SampleCount;
         };
 
         struct ClearShader
