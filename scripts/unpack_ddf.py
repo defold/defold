@@ -266,7 +266,7 @@ def print_object(printer, msg):
     for descriptor in msg.DESCRIPTOR.fields:
         value = getattr(msg, descriptor.name)
 
-        if descriptor.label == descriptor.LABEL_REPEATED:
+        if descriptor.is_repeated:
             if len(value) == 0:
                 continue
         else:
@@ -288,7 +288,7 @@ def print_object(printer, msg):
         if descriptor.type == descriptor.TYPE_MESSAGE:
             printer.Print(descriptor.name, ": {")
             printer.Indent()
-            if descriptor.label == descriptor.LABEL_REPEATED:
+            if descriptor.is_repeated:
                 for v in value:
                     print_object(printer, v)
             else:
@@ -296,7 +296,7 @@ def print_object(printer, msg):
             printer.Unindent()
             printer.Print("}")
         else:
-            if descriptor.label == descriptor.LABEL_REPEATED:
+            if descriptor.is_repeated:
                 for v in value:
                     printer.PrintIndent(); print_value(descriptor, v)
             else:

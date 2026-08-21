@@ -1533,6 +1533,7 @@ namespace dmGameSystem
 
             if (!dmGameSystem::SetShape(comp_world, comp, shape_ix, &shape_info))
             {
+                lua_pop(L, 1); // args table
                 return DM_LUA_ERROR( "Unable to set shape data at index %d", shape_ix);
             }
 #undef check_val

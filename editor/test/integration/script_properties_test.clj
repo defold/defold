@@ -108,7 +108,18 @@
       (is (overridden? script-c "number"))
       (clear! script-c "number")
       (is (= 1.0 (prop script-c "number")))
-      (is (not (overridden? script-c "number"))))))
+      (is (not (overridden? script-c "number")))
+
+      (is (= "game object text å\nsecond line" (prop script-c "text")))
+      (is (= :multi-line-text
+             (get-in (g/node-value script-c :_properties)
+                     [:properties :__text :edit-type :type])))
+      (prop! script-c "text" "edited text å\nsecond line")
+      (is (= "edited text å\nsecond line" (prop script-c "text")))
+      (is (overridden? script-c "text"))
+      (clear! script-c "text")
+      (is (= "script text å\nsecond line" (prop script-c "text")))
+      (is (not (overridden? script-c "text"))))))
 
 (deftest script-properties-broken-component
   (tu/with-loaded-project
@@ -141,6 +152,7 @@
                                           "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                           "number" 2.0
                                           "quat" [180.0 0.0 0.0]
+                                          "text" "game object text å\nsecond line"
                                           "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.png")
                                           "url" "/url"
                                           "vec3" [1.0 2.0 3.0]
@@ -159,7 +171,12 @@
               script-c (:node-id outline)]
           (is (:outline-overridden? outline))
           (is (= val (prop script-c "number")))
-          (is (overridden? script-c "number")))))))
+          (is (overridden? script-c "number")))))
+    (doseq [[path value] [[[0 0] "collection text å\nsecond line"]
+                          [[1 0] "embedded text å\nsecond line"]]]
+      (let [script-c (:node-id (tu/outline (tu/resource-node project "/collection/props.collection") path))]
+        (is (= value (prop script-c "text")))
+        (is (overridden? script-c "text"))))))
 
 (deftest script-properties-broken-collection
   (tu/with-loaded-project
@@ -207,6 +224,7 @@
                                             "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                             "number" 3.0
                                             "quat" [180.0 0.0 0.0]
+                                            "text" "collection text å\nsecond line"
                                             "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_collection.png")
                                             "url" "/url2"
                                             "vec3" [1.0 2.0 3.0]
@@ -332,6 +350,58 @@
               (when (= wanted-id item-id)
                 item)))
           items)))
+
+(deftest edit-text-script-property-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          build-output (partial tu/build-output project)
+          props-script (doto (tu/make-resource-node! project "/props.script")
+                         (edit-script! ["go.property('text', 'script text å\\nsecond line')"]))
+          props-game-object (tu/make-resource-node! project "/props.go")
+          props-script-component (tu/add-referenced-component! props-game-object (resource-node/resource props-script))
+          default-value "script text å\nsecond line"
+          override-value "game object text ö\nsecond line"]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
+        (testing "Script default"
+          (let [text-property (:__text (properties props-script))]
+            (is (= default-value (:value text-property)))
+            (is (= g/Str (:type text-property)))
+            (is (= :multi-line-text (get-in text-property [:edit-type :type]))))
+          (with-open [_ (tu/build! props-script)]
+            (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
+              (is (= default-value
+                     (get (tu/unpack-property-declarations (:properties built-script)) "text"))))))
+
+        (testing "Game object override"
+          (edit-property! props-script-component :__text override-value)
+          (is (= override-value (prop props-script-component "text")))
+          (is (tu/prop-overridden? props-script-component :__text))
+
+          (let [saved-game-object (save-value props-game-object)
+                saved-script-component (find-corresponding (:components saved-game-object) props-script-component)]
+            (is (= [{:id "text"
+                     :value override-value
+                     :type :property-type-text}]
+                   (:properties saved-script-component))))
+
+          (with-open [_ (tu/build! props-game-object)]
+            (let [built-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
+                  built-script-component (find-corresponding (:components built-game-object) props-script-component)]
+              (is (= override-value
+                     (get (tu/unpack-property-declarations (:property-decls built-script-component)) "text")))))
+
+          (reset-property! props-script-component :__text)
+          (is (= default-value (prop props-script-component "text")))
+          (is (not (tu/prop-overridden? props-script-component :__text))))
+
+        (testing "Embedded NUL validation"
+          (edit-property! props-script-component :__text "invalid\u0000text")
+          (let [property-error (tu/prop-error props-script-component :__text)]
+            (is (g/error? property-error))
+            (is (= (localization/message "error.property-cannot-contain-nul" {"property" "Text"})
+                   (:message property-error))))
+          (is (g/error? (tu/build-error! props-game-object))))))))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 

@@ -49,6 +49,11 @@ endif()
 defold_register_test_target(test_particle ON "${PARTICLE_ROOT}"
   STAGE_FILES
     "build/src/test" "build/src/test")
+# The staged 'build/src/test' folder is the encoded test data, so it has to exist
+# before the target runs anywhere. Hanging it off run_test_particle alone is not
+# enough: on Android run_tests uses the batch run target instead, which would then
+# stage an empty folder and leave every LoadPrototype() call failing.
+add_dependencies(test_particle particle_test_data)
 if(CMAKE_GENERATOR STREQUAL "Xcode")
   add_dependencies(prepare_test_particle particle_test_data)
 endif()

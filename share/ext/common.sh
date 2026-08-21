@@ -296,6 +296,26 @@ function cmi_setup_cc() {
             export RANLIB="${llvm}/llvm-ranlib"
             ;;
 
+        x86_64-android)
+            local platform=`uname | awk '{print tolower($0)}'`
+            local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
+            local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
+
+            # No -march here. The NDK x86_64-linux-android<api>-clang wrapper already targets
+            # the baseline mandated by the Android x86_64 ABI (SSE4.2 + POPCNT).
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID "
+            export CPPFLAGS=${CFLAGS}
+            export CXXFLAGS="${CXXFLAGS} -Wno-c++11-narrowing -stdlib=libc++ ${CFLAGS}"
+            export CPP="${llvm}/x86_64-linux-android${ANDROID_64_VERSION}-clang -E"
+            export CC="${llvm}/x86_64-linux-android${ANDROID_64_VERSION}-clang"
+            export CXX="${llvm}/x86_64-linux-android${ANDROID_64_VERSION}-clang++"
+
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
+            ;;
+
         x86_64-macos)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
@@ -412,7 +432,7 @@ function cmi() {
     cmi_setup_cc $1
 
     case $1 in
-        armv7-android|arm64-android)
+        armv7-android|arm64-android|x86_64-android)
             cmi_cross $1 arm-linux
             ;;
 
