@@ -70,7 +70,6 @@ namespace dmGraphics
     static void           VulkanSetTextureParamsInternal(VulkanContext* context, VulkanTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     static void           CopyToTexture(VulkanContext* context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut);
     static VkFormat       GetVulkanFormatFromTextureFormat(TextureFormat format);
-    static VkSampleCountFlagBits VulkanGetRenderTargetSampleCountFlag(const VulkanRenderTarget* rt);
     static bool           EndRenderPass(VulkanContext* context);
     static void           BeginRenderPass(VulkanContext* context, HRenderTarget render_target);
 
@@ -3183,7 +3182,7 @@ bail:
         }
         else
         {
-            vk_sample_count = VulkanGetRenderTargetSampleCountFlag(current_rt);
+            vk_sample_count = (VkSampleCountFlagBits) current_rt->m_Base.m_SampleCount;
         }
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, context->m_VkPipelineCache, vk_sample_count,
@@ -4095,11 +4094,6 @@ bail:
         return (VkAttachmentLoadOp) -1;
     }
 
-    static VkSampleCountFlagBits VulkanGetRenderTargetSampleCountFlag(const VulkanRenderTarget* rt)
-    {
-        return (VkSampleCountFlagBits) GetDefaultSampleCount(rt->m_Base.m_SampleCount);
-    }
-
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, HTexture* color_resolve_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, VkSampleCountFlagBits vk_sample_count, uint32_t width, uint32_t height, VulkanRenderTarget* rtOut)
     {
         assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPassClear == VK_NULL_HANDLE);
@@ -4642,7 +4636,7 @@ bail:
             rt->m_ColorAttachmentBufferTypes,
             brt->m_ColorAttachmentCount,
             brt->m_TextureDepthStencil,
-            VulkanGetRenderTargetSampleCountFlag(rt),
+            (VkSampleCountFlagBits) brt->m_SampleCount,
             width, height,
             rt);
         CHECK_VK_ERROR(res);

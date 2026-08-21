@@ -1922,7 +1922,20 @@ namespace dmGraphics
             return 0;
         }
 
-        return GetRenderTargetSampleableTexture(rt, buffer_type);
+        if (IsColorBufferType(buffer_type))
+        {
+            uint32_t index = GetBufferTypeIndex(buffer_type);
+            return rt->m_TextureColorResolve[index] ? rt->m_TextureColorResolve[index] : rt->m_TextureColor[index];
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            return rt->m_TextureDepth ? rt->m_TextureDepth : rt->m_TextureDepthStencil;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return rt->m_TextureStencil ? rt->m_TextureStencil : rt->m_TextureDepthStencil;
+        }
+        return 0;
     }
     static inline const TextureParams* GetRenderTargetTextureParams(const RenderTarget* rt, BufferType buffer_type)
     {

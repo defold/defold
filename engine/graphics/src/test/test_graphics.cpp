@@ -2435,9 +2435,9 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
         resolve_params.m_Height = texture_height;
         dmGraphics::HTexture color0_resolve = dmGraphics::NewTexture(m_Context, resolve_params);
         dmGraphics::NullRenderTarget* rt = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(m_NullContext->m_BaseContext.m_AssetHandleContainer, target);
-        dmGraphics::SetRenderTargetResolveTexture(&rt->m_Base, dmGraphics::BUFFER_TYPE_COLOR0_BIT, color0_resolve);
+        rt->m_Base.m_TextureColorResolve[0] = color0_resolve;
         ASSERT_EQ(color0_resolve, dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
-        dmGraphics::SetRenderTargetResolveTexture(&rt->m_Base, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0);
+        rt->m_Base.m_TextureColorResolve[0] = 0;
 
         dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color1));

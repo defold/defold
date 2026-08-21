@@ -104,92 +104,17 @@ namespace dmGraphics
         HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture      m_TextureColorResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture      m_TextureDepth;
-        HTexture      m_TextureDepthResolve;
         HTexture      m_TextureStencil;
-        HTexture      m_TextureStencilResolve;
         HTexture      m_TextureDepthStencil;
-        HTexture      m_TextureDepthStencilResolve;
+        uint32_t      m_SampleCount;
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
-        uint32_t      m_SampleCount;
         uint8_t       m_IsBound;
     };
 
     static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)
     {
         return sample_count == 0 ? 1 : sample_count;
-    }
-
-    static inline HTexture GetRenderTargetAttachmentTexture(const RenderTarget* rt, BufferType buffer_type)
-    {
-        if (IsColorBufferType(buffer_type))
-        {
-            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            return rt->m_TextureDepth ? rt->m_TextureDepth : rt->m_TextureDepthStencil;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            return rt->m_TextureStencil ? rt->m_TextureStencil : rt->m_TextureDepthStencil;
-        }
-        return 0;
-    }
-
-    static inline HTexture GetRenderTargetResolveTexture(const RenderTarget* rt, BufferType buffer_type)
-    {
-        if (IsColorBufferType(buffer_type))
-        {
-            return rt->m_TextureColorResolve[GetBufferTypeIndex(buffer_type)];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            return rt->m_TextureDepthResolve ? rt->m_TextureDepthResolve : rt->m_TextureDepthStencilResolve;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            return rt->m_TextureStencilResolve ? rt->m_TextureStencilResolve : rt->m_TextureDepthStencilResolve;
-        }
-        return 0;
-    }
-
-    static inline HTexture GetRenderTargetSampleableTexture(const RenderTarget* rt, BufferType buffer_type)
-    {
-        HTexture resolve_texture = GetRenderTargetResolveTexture(rt, buffer_type);
-        return resolve_texture ? resolve_texture : GetRenderTargetAttachmentTexture(rt, buffer_type);
-    }
-
-    static inline void SetRenderTargetAttachmentTexture(RenderTarget* rt, BufferType buffer_type, HTexture texture)
-    {
-        if (IsColorBufferType(buffer_type))
-        {
-            rt->m_TextureColor[GetBufferTypeIndex(buffer_type)] = texture;
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            rt->m_TextureDepth = texture;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            rt->m_TextureStencil = texture;
-        }
-    }
-
-    static inline void SetRenderTargetResolveTexture(RenderTarget* rt, BufferType buffer_type, HTexture texture)
-    {
-        if (IsColorBufferType(buffer_type))
-        {
-            rt->m_TextureColorResolve[GetBufferTypeIndex(buffer_type)] = texture;
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            rt->m_TextureDepthResolve = texture;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            rt->m_TextureStencilResolve = texture;
-        }
     }
 
     uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts);

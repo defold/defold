@@ -175,7 +175,6 @@ namespace dmGraphics
         , m_HasPendingClearDepth(0)
         , m_HasPendingClearStencil(0)
         , m_ColorAttachmentCount(0)
-        , m_SampleCount(1)
         {
             memset(&m_Base, 0, sizeof(m_Base));
             m_Base.m_Id = rtId;
@@ -185,7 +184,6 @@ namespace dmGraphics
             memset(m_ColorTextureParams, 0, sizeof(m_ColorTextureParams));
             memset(&m_DepthStencilTextureParams, 0, sizeof(m_DepthStencilTextureParams));
             memset(m_TextureColor, 0, sizeof(m_TextureColor));
-            memset(m_TextureColorResolve, 0, sizeof(m_TextureColorResolve));
             m_TextureDepthStencil = 0;
             memset(m_ColorFormat, 0, sizeof(m_ColorFormat));
             m_DepthStencilFormat = MTL::PixelFormatInvalid;
@@ -202,7 +200,6 @@ namespace dmGraphics
         MTL::ScissorRect      m_Scissor;
 
         HTexture              m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture              m_TextureColorResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture              m_TextureDepthStencil;
 
         MTL::PixelFormat      m_ColorFormat[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -215,7 +212,6 @@ namespace dmGraphics
         uint32_t       m_HasPendingClearDepth : 1;
         uint32_t       m_HasPendingClearStencil : 1;
         uint32_t       m_ColorAttachmentCount : 4;
-        uint32_t       m_SampleCount;
     };
 
     struct MetalStorageBufferBinding

@@ -89,7 +89,6 @@ namespace dmGraphics
         HOpenglID                    m_MultisampleStencilBuffer;
         HOpenglID                    m_MultisampleDepthStencilBuffer;
         uint32_t                     m_BufferTypeFlags;
-        uint32_t                     m_SampleCount;
     };
 
     struct OpenGLShader

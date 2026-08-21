@@ -4569,13 +4569,18 @@ static void LogFrameBufferError(GLenum status)
         return supported_sample_counts;
     }
 
+    static void SetMultisampleRenderbufferStorage(OpenGLContext* context, HOpenglID buffer, uint32_t sample_count, GLenum format, uint32_t width, uint32_t height)
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, buffer));
+        PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, sample_count, format, width, height);
+    }
+
     static HOpenglID CreateMultisampleRenderbuffer(OpenGLContext* context, uint32_t sample_count, GLenum format, uint32_t width, uint32_t height, GLenum attachment)
     {
         GLuint handle = 0;
         glGenRenderbuffers(1, &handle);
         HOpenglID buffer = AddNewGLHandle(context, handle);
-        glBindRenderbuffer(GL_RENDERBUFFER, handle);
-        PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, sample_count, format, width, height);
+        SetMultisampleRenderbufferStorage(context, buffer, sample_count, format, width, height);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment, GL_RENDERBUFFER, handle);
         CHECK_GL_ERROR;
         return buffer;
@@ -4610,7 +4615,7 @@ static void LogFrameBufferError(GLenum status)
             if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
             {
                 GLenum renderbuffer_format = GetOpenGLRenderbufferFormat(context, rt->m_Base.m_ColorTextureParams[i].m_Format);
-                rt->m_MultisampleColorBuffers[i] = CreateMultisampleRenderbuffer(context, rt->m_SampleCount, renderbuffer_format,
+                rt->m_MultisampleColorBuffers[i] = CreateMultisampleRenderbuffer(context, rt->m_Base.m_SampleCount, renderbuffer_format,
                     rt->m_Base.m_ColorTextureParams[i].m_Width, rt->m_Base.m_ColorTextureParams[i].m_Height, GL_COLOR_ATTACHMENT0 + i);
             }
         }
@@ -4619,7 +4624,7 @@ static void LogFrameBufferError(GLenum status)
         const bool has_stencil = (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) != 0;
         if (has_depth && has_stencil && context->m_PackedDepthStencilSupport)
         {
-            rt->m_MultisampleDepthStencilBuffer = CreateMultisampleRenderbuffer(context, rt->m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL,
+            rt->m_MultisampleDepthStencilBuffer = CreateMultisampleRenderbuffer(context, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL,
                 rt->m_Base.m_DepthStencilTextureParams.m_Width, rt->m_Base.m_DepthStencilTextureParams.m_Height, GL_DEPTH_ATTACHMENT);
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, GetGLHandle(context, rt->m_MultisampleDepthStencilBuffer));
             CHECK_GL_ERROR;
@@ -4628,12 +4633,12 @@ static void LogFrameBufferError(GLenum status)
         {
             if (has_depth)
             {
-                rt->m_MultisampleDepthBuffer = CreateMultisampleRenderbuffer(context, rt->m_SampleCount, GetDepthBufferFormat(context),
+                rt->m_MultisampleDepthBuffer = CreateMultisampleRenderbuffer(context, rt->m_Base.m_SampleCount, GetDepthBufferFormat(context),
                     rt->m_Base.m_DepthBufferParams.m_Width, rt->m_Base.m_DepthBufferParams.m_Height, GL_DEPTH_ATTACHMENT);
             }
             if (has_stencil)
             {
-                rt->m_MultisampleStencilBuffer = CreateMultisampleRenderbuffer(context, rt->m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8,
+                rt->m_MultisampleStencilBuffer = CreateMultisampleRenderbuffer(context, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8,
                     rt->m_Base.m_StencilBufferParams.m_Width, rt->m_Base.m_StencilBufferParams.m_Height, GL_STENCIL_ATTACHMENT);
             }
         }
@@ -4687,12 +4692,11 @@ static void LogFrameBufferError(GLenum status)
         rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
         rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = use_depth_attachment ? params.m_DepthBufferParams : params.m_StencilBufferParams;
-        rt->m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, OpenGLGetSupportedSampleCounts(context), "OpenGL");
-        rt->m_Base.m_SampleCount = rt->m_SampleCount;
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, OpenGLGetSupportedSampleCounts(context), "OpenGL");
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);
-        if (rt->m_SampleCount > 1)
+        if (rt->m_Base.m_SampleCount > 1)
         {
             rt->m_ResolveId = AddNewGLHandle(context, handle);
         }
@@ -4762,7 +4766,7 @@ static void LogFrameBufferError(GLenum status)
 
         CHECK_GL_FRAMEBUFFER_ERROR;
 
-        if (rt->m_SampleCount > 1)
+        if (rt->m_Base.m_SampleCount > 1)
         {
             GLuint multisample_handle = 0;
             glGenFramebuffers(1, &multisample_handle);
@@ -4802,7 +4806,7 @@ static void LogFrameBufferError(GLenum status)
         glDeleteFramebuffers(1, &handle);
         CleanupGLHandle(context, rt->m_Id);
 
-        if (rt->m_SampleCount > 1)
+        if (rt->m_Base.m_SampleCount > 1)
         {
             handle = GetGLHandle(context, rt->m_ResolveId);
             glDeleteFramebuffers(1, &handle);
@@ -4866,7 +4870,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void ResolveMultisampleRenderTarget(OpenGLContext* context, OpenGLRenderTarget* rt)
     {
-        if (!rt || rt->m_SampleCount <= 1)
+        if (!rt || rt->m_Base.m_SampleCount <= 1)
         {
             return;
         }
@@ -4994,11 +4998,11 @@ static void LogFrameBufferError(GLenum status)
         rt->m_Base.m_StencilBufferParams.m_Width        = width;
         rt->m_Base.m_StencilBufferParams.m_Height       = height;
 
-        glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_SampleCount > 1 ? rt->m_ResolveId : rt->m_Id));
+        glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Base.m_SampleCount > 1 ? rt->m_ResolveId : rt->m_Id));
         ApplyRenderTargetAttachments(_context, rt, true);
         CHECK_GL_FRAMEBUFFER_ERROR;
 
-        if (rt->m_SampleCount > 1)
+        if (rt->m_Base.m_SampleCount > 1)
         {
             glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
             for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
@@ -5006,26 +5010,22 @@ static void LogFrameBufferError(GLenum status)
                 if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
                 {
                     GLenum renderbuffer_format = GetOpenGLRenderbufferFormat(context, rt->m_Base.m_ColorTextureParams[i].m_Format);
-                    glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_MultisampleColorBuffers[i]));
-                    PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, rt->m_SampleCount, renderbuffer_format, width, height);
+                    SetMultisampleRenderbufferStorage(context, rt->m_MultisampleColorBuffers[i], rt->m_Base.m_SampleCount, renderbuffer_format, width, height);
                 }
             }
             if ((rt->m_BufferTypeFlags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) == (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT) && context->m_PackedDepthStencilSupport)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_MultisampleDepthStencilBuffer));
-                PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, rt->m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, width, height);
+                SetMultisampleRenderbufferStorage(context, rt->m_MultisampleDepthStencilBuffer, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, width, height);
             }
             else
             {
                 if (rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT)
                 {
-                    glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_MultisampleDepthBuffer));
-                    PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, rt->m_SampleCount, GetDepthBufferFormat(context), width, height);
+                    SetMultisampleRenderbufferStorage(context, rt->m_MultisampleDepthBuffer, rt->m_Base.m_SampleCount, GetDepthBufferFormat(context), width, height);
                 }
                 if (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT)
                 {
-                    glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_MultisampleStencilBuffer));
-                    PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, rt->m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, width, height);
+                    SetMultisampleRenderbufferStorage(context, rt->m_MultisampleStencilBuffer, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, width, height);
                 }
             }
             glBindRenderbuffer(GL_RENDERBUFFER, 0);

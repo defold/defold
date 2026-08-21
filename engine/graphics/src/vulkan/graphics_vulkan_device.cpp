@@ -420,28 +420,8 @@ namespace dmGraphics
 
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount)
     {
-        VkSampleCountFlags vk_sample_count = GetSupportedSampleCountFlags(physicalDevice, bufferFlagBits);
-
-        const VkSampleCountFlagBits vk_count_bits[] = {
-            VK_SAMPLE_COUNT_64_BIT,
-            VK_SAMPLE_COUNT_32_BIT,
-            VK_SAMPLE_COUNT_16_BIT,
-            VK_SAMPLE_COUNT_8_BIT,
-            VK_SAMPLE_COUNT_4_BIT,
-            VK_SAMPLE_COUNT_2_BIT,
-            VK_SAMPLE_COUNT_1_BIT,
-        };
-
-        for (uint32_t i = 0; i < DM_ARRAY_SIZE(vk_count_bits); ++i)
-        {
-            VkSampleCountFlagBits vk_count = vk_count_bits[i];
-            if (sampleCount >= (uint8_t) vk_count && (vk_sample_count & vk_count))
-            {
-                return vk_count;
-            }
-        }
-
-        return VK_SAMPLE_COUNT_1_BIT;
+        VkSampleCountFlags supported_sample_counts = GetSupportedSampleCountFlags(physicalDevice, bufferFlagBits);
+        return (VkSampleCountFlagBits) GetClosestSupportedSampleCount(sampleCount, (uint32_t) supported_sample_counts);
     }
 
     struct LayoutTransitionInfo
