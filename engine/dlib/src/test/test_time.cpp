@@ -22,6 +22,18 @@ TEST(dmTime, Sleep)
     dmTime::Sleep(1);
 }
 
+#if defined(_WIN32)
+TEST(dmTime, SleepSubMillisecond)
+{
+    // Verify that a positive sub-millisecond duration blocks instead of being
+    // truncated to Sleep(0), which would make deadline loops busy-wait.
+    uint64_t start = dmTime::GetMonotonicTime();
+    dmTime::Sleep(500);
+    uint64_t elapsed = dmTime::GetMonotonicTime() - start;
+    ASSERT_GE(elapsed, 400U);
+}
+#endif
+
 #if !defined(GITHUB_CI)
 TEST(dmTime, GetTime)
 {

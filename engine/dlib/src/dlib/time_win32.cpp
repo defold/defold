@@ -22,7 +22,10 @@ namespace dmTime
 {
     void Sleep(uint32_t useconds)
     {
-        ::Sleep(useconds / 1000);
+        // Round up so a positive sub-millisecond wait does not become Sleep(0)
+        // and cause callers such as the frame pacer to poll until their deadline.
+        uint32_t milliseconds = useconds / 1000 + (useconds % 1000 != 0);
+        ::Sleep(milliseconds);
     }
 
     uint64_t GetTime()
