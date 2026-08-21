@@ -71,9 +71,9 @@ local function test_constants()
         { bullet3d.collision_object.CF_DISABLE_SPU_COLLISION_PROCESSING, 64 },
         { bullet3d.collision_object.CO_COLLISION_OBJECT, 1 },
         { bullet3d.collision_object.CO_RIGID_BODY, 2 },
-        { bullet3d.collision_object.CO_GHOST_OBJECT, 3 },
-        { bullet3d.collision_object.CO_SOFT_BODY, 4 },
-        { bullet3d.collision_object.CO_HF_FLUID, 5 },
+        { bullet3d.collision_object.CO_GHOST_OBJECT, 4 },
+        { bullet3d.collision_object.CO_SOFT_BODY, 8 },
+        { bullet3d.collision_object.CO_HF_FLUID, 16 },
         { bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY, 1 },
         { bullet3d.shape.SHAPE_TYPE_SPHERE, 0 },
         { bullet3d.shape.SHAPE_TYPE_BOX, 1 },
@@ -265,18 +265,19 @@ local function test_rigid_body(world, rigid_body)
 
     local original_gravity = bullet3d.rigid_body.get_gravity(rigid_body)
     local original_flags = bullet3d.rigid_body.get_flags(rigid_body)
-    assert(original_flags == 0)
-    assert(not bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
-    bullet3d.rigid_body.set_flags(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
-    assert(bullet3d.rigid_body.get_flags(rigid_body) == bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
-    assert(bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
+    local gravity_flag = bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY
+    local custom_flags = bit.bor(original_flags, gravity_flag)
+    assert(not bullet3d.rigid_body.has_flag(rigid_body, gravity_flag))
+    bullet3d.rigid_body.set_flags(rigid_body, custom_flags)
+    assert(bullet3d.rigid_body.get_flags(rigid_body) == custom_flags)
+    assert(bullet3d.rigid_body.has_flag(rigid_body, gravity_flag))
     local custom_gravity = vmath.vector3(3, -4, 5)
     bullet3d.rigid_body.set_gravity(rigid_body, custom_gravity)
     assert_vec3_near(bullet3d.rigid_body.get_gravity(rigid_body), custom_gravity)
     bullet3d.rigid_body.set_gravity(rigid_body, original_gravity)
     bullet3d.rigid_body.set_flags(rigid_body, original_flags)
-    assert(bullet3d.rigid_body.get_flags(rigid_body) == 0)
-    assert(not bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
+    assert(bullet3d.rigid_body.get_flags(rigid_body) == original_flags)
+    assert(not bullet3d.rigid_body.has_flag(rigid_body, gravity_flag))
     assert_vec3_near(bullet3d.rigid_body.get_gravity(rigid_body), original_gravity)
 
     bullet3d.rigid_body.set_sleeping_thresholds(rigid_body, 2.5, 0.75)
@@ -454,7 +455,8 @@ local function test_world_gravity_flag(world, rigid_body)
     local original_flags = bullet3d.rigid_body.get_flags(rigid_body)
     local custom_gravity = vmath.vector3(3, -4, 5)
 
-    bullet3d.rigid_body.set_flags(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
+    local gravity_flag = bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY
+    bullet3d.rigid_body.set_flags(rigid_body, bit.bor(original_flags, gravity_flag))
     bullet3d.rigid_body.set_gravity(rigid_body, custom_gravity)
     bullet3d.world.set_gravity(world, vmath.vector3(6, -7, 8))
     assert_vec3_near(bullet3d.rigid_body.get_gravity(rigid_body), custom_gravity)
@@ -546,10 +548,10 @@ function init(self)
     test_constants()
 
     local version = bullet3d.get_version()
-    assert(version.version == "2.77")
-    assert(version.number == 277)
-    assert(version.major == 2)
-    assert(version.minor == 77)
+    assert(version.version == "3.25")
+    assert(version.number == 325)
+    assert(version.major == 3)
+    assert(version.minor == 25)
 
     local world = bullet3d.get_world()
     assert(world ~= nil)
