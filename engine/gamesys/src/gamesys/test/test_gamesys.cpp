@@ -2471,6 +2471,22 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+/*
+ * Intent:
+ * Verify that sprite vertex staging memory is grown using the active render
+ * material's vertex stride before vertex data is generated.
+ *
+ * Setup:
+ * Create a sprite whose component material has a scalar custom attribute,
+ * then draw it through a render script that overrides the material with one
+ * where the same attribute is a mat4. Confirm that the staging buffer was
+ * initially sized from the smaller component-material stride.
+ *
+ * Expected results:
+ * Rendering grows the staging buffer to fit four vertices using the larger
+ * override-material stride, and the complete vertex data is uploaded without
+ * writing beyond the allocated staging memory.
+ */
 TEST_F(SpriteTest, RenderScriptMaterialOverrideGrowsVertexBuffer)
 {
     dmHashEnableReverseHash(true);
