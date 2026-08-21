@@ -2168,11 +2168,25 @@
 (defn- find-indent-state [indent-level-pattern grammar lines queried-row tab-spaces]
   (let [queried-row (long queried-row)
         tab-spaces (long tab-spaces)
-        ^long start-row (loop [row queried-row]
-                          (cond (not (pos? row)) 0
-                                (string/blank? (get lines row)) (recur (dec row))
-                                (pos? (parse-indent-level indent-level-pattern (get lines row))) (recur (dec row))
-                                :else row))]
+        ^long start-row (loop [row queried-row
+                               in-long-string? false]
+                          (let [^String line (get lines row)]
+                            (cond
+                              (not (pos? row)) 0
+
+                              ;; Nothing between ]] and [[ is code, so it cannot anchor the replay.
+                              in-long-string?
+                              (if (string/includes? line "[[")
+                                (recur row false)
+                                (recur (dec row) true))
+
+                              (and (string/includes? line "]]")
+                                   (not (string/includes? line "[[")))
+                              (recur (dec row) true)
+
+                              (string/blank? line) (recur (dec row) false)
+                              (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row) false)
+                              :else row)))]
     (loop [row start-row
            stack (loop [n (parse-indent-level indent-level-pattern (get lines start-row))
                         stack []]

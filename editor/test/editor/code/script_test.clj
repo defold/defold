@@ -245,6 +245,13 @@
 (defn- reindent [lines]
   (reindent-with indent-string (count indent-string) lines))
 
+(defn- reindent-rows [lines from-row to-row]
+  (let [cursor-range (data/->CursorRange (data/->Cursor from-row 0)
+                                         (data/->Cursor to-row (count (lines to-row))))]
+    (or (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar
+                               lines [cursor-range] nil (layout-info lines)))
+        lines)))
+
 (deftest reindent-preserves-correct-indentation-test
   ;; Correctly indented code must come back unchanged.
   (are [lines] (= lines (reindent lines))
@@ -332,6 +339,24 @@
      "    key"
      "]"
      "print(x)"]))
+
+(deftest reindent-below-long-string-test
+  ;; Reindenting part of a buffer replays from the nearest unindented line above
+  ;; it, which must not be a line that only looks unindented because it is inside
+  ;; a long string.
+  (is (= ["function f()"
+          "    local s = [["
+          "SELECT ("
+          "]]"
+          "    print(s)"
+          "end"]
+         (reindent-rows ["function f()"
+                         "    local s = [["
+                         "SELECT ("
+                         "]]"
+                         "print(s)"
+                         "end"]
+                        4 5))))
 
 (deftest reindent-tab-alignment-test
   ;; An alignment column is where the text is drawn, so tabs both in the
