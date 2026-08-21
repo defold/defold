@@ -13,11 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.script-test
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.code.data :as data]
             [editor.code.data-test :refer [layout-info]]
-            [editor.code.script :as script]))
+            [editor.code.script :as script]
+            [editor.code.util :as code-util]))
 
 (def ^:private indent-string "    ")
 (def ^:private indent-level-pattern (data/indent-level-pattern (count indent-string)))
@@ -328,17 +330,35 @@
      "    print(k)"
      "end"]
 
-    ;; Nested alignment columns unwind one at a time.
+    ;; Call arguments take a level, not a column, matching the language server.
     ["local x = foo(bar(a,"
-     "                  b),"
-     "              c)"
+     "    b),"
+     "    c)"
      "print(x)"]
+
+    ;; A parameter list does align, including an anonymous one.
+    ["local f = function(x,"
+     "                   y)"
+     "    return x"
+     "end"]
 
     ;; Single brackets still nest, even though doubled ones delimit strings.
     ["local x = t["
      "    key"
      "]"
      "print(x)"]))
+
+(deftest reindent-agrees-with-language-server-test
+  ;; The fixture is what the bundled Lua language server's formatter produces,
+  ;; so reindenting it must change nothing. Anything else means indent-on-type
+  ;; and format-on-save disagree, and the user's file flips between the two.
+  ;; Cases the two genuinely disagree on are commented out in the fixture, each
+  ;; with the reason and the shape the language server produced.
+  (let [lines (code-util/split-lines (slurp (io/resource "lua/indent_test_cases.lua")))
+        reindented (reindent lines)]
+    (is (= (count lines) (count reindented)))
+    (doseq [[row expected actual] (map vector (range) lines reindented)]
+      (is (= expected actual) (str "row " row)))))
 
 (deftest reindent-below-long-string-test
   ;; Reindenting part of a buffer replays from the nearest unindented line above
@@ -386,20 +406,28 @@
 
     ["function f()"
      "\tif a then"
-     "\t\tprint(foo(1,"
-     "\t\t\t\t  2))"
+     "\t\tlocal g = function(x,"
+     "\t\t\t\t\t\t   y)"
+     "\t\t\treturn x"
+     "\t\tend"
      "\tend"
      "end"]
 
-    ;; A tab inside the line moves the parenthesis to column 15.
-    ["local x =\tfoo(a,"
-     "\t\t\t\tb)"])
+    ;; A tab inside the line moves the parenthesis to column 21.
+    ["local g =\tfunction(x,"
+     "\t\t\t\t\t y)"
+     "\treturn x"
+     "end"])
 
   ;; The same line indented with spaces aligns to the same column.
-  (is (= ["local x =\tfoo(a,"
-          "                b)"]
-         (reindent-with "    " 4 ["local x =\tfoo(a,"
-                                  "b)"]))))
+  (is (= ["local g =\tfunction(x,"
+          "                     y)"
+          "    return x"
+          "end"]
+         (reindent-with "    " 4 ["local g =\tfunction(x,"
+                                  "y)"
+                                  "return x"
+                                  "end"]))))
 
 (deftest reindent-long-string-test
   ;; Nothing between [[ and ]] is code, however many lines it spans.
@@ -464,10 +492,10 @@
      "1, 2, 3)"
      "        print(pos)"]
 
-    ;; Arguments continued after a trailing comma align under the first argument.
+    ;; Arguments continued after a trailing comma take a level.
     ["function update(self, dt)"
      "    local ax, ay = steering.combine_axes(dx, dy,"
-     "                                         self.gamepad_axis.x, self.gamepad_axis.y)"
+     "        self.gamepad_axis.x, self.gamepad_axis.y)"
      "    print(ax)"
      "end"]
     ["function update(self, dt)"
@@ -502,7 +530,7 @@
 
     ;; Condition split over two lines, block keyword on the closing line.
     ["if check(a,"
-     "         b) then"
+     "    b) then"
      "    print(a)"
      "end"]
     ["if check(a,"
@@ -519,12 +547,16 @@
     ;; The alignment column is read off the line as it will look after the fix,
     ;; not as it looks now.
     ["if a then"
-     "    print(foo(1,"
-     "              2))"
+     "    local f = function(x,"
+     "                       y)"
+     "        return x"
+     "    end"
      "end"]
     ["if a then"
-     "print(foo(1,"
-     "2))"
+     "local f = function(x,"
+     "y)"
+     "return x"
+     "end"
      "end"]
 
     ;; A trailing comment after the closing parenthesis is ignored.

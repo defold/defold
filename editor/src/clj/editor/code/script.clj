@@ -89,6 +89,7 @@
            in-quote nil
            escaped false
            in-long-string in-long-string
+           after-function false
            tokens []]
       (if (>= i len)
         [tokens in-long-string]
@@ -98,14 +99,14 @@
             (let [close (long-bracket-end line i (long in-long-string))]
               (if (neg? close)
                 [tokens in-long-string]
-                (recur close in-quote false nil tokens)))
+                (recur close in-quote false nil after-function tokens)))
 
             in-quote
             (cond
-              escaped (recur (inc i) in-quote false false tokens)
-              (= ch \\) (recur (inc i) in-quote true false tokens)
-              (= ch in-quote) (recur (inc i) nil false false tokens)
-              :else (recur (inc i) in-quote false false tokens))
+              escaped (recur (inc i) in-quote false nil after-function tokens)
+              (= ch \\) (recur (inc i) in-quote true nil after-function tokens)
+              (= ch in-quote) (recur (inc i) nil false nil after-function tokens)
+              :else (recur (inc i) in-quote false nil after-function tokens))
 
             ;; Comment, which is a block comment when written --[[.
             (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
@@ -114,17 +115,17 @@
                           (long-bracket-level line open len \[)
                           -1)]
               (if (neg? level)
-                (recur len in-quote false nil tokens)
-                (recur (+ open level 2) in-quote false level tokens)))
+                (recur len in-quote false nil after-function tokens)
+                (recur (+ open level 2) in-quote false level after-function tokens)))
 
             ;; Start of quote
             (or (= ch \") (= ch \'))
-            (recur (inc i) ch false false tokens)
+            (recur (inc i) ch false nil after-function tokens)
 
             ;; Start of a long string.
             (and (= ch \[) (<= 0 (long-bracket-level line i len \[)))
             (let [level (long-bracket-level line i len \[)]
-              (recur (+ i level 2) in-quote false level tokens))
+              (recur (+ i level 2) in-quote false level after-function tokens))
 
             ;; Word character, with peek
             (or (Character/isLetter ch) (= ch \_))
@@ -135,7 +136,9 @@
                           (recur (inc j))
                           j))
                   tok (.substring line i end)]
-              (recur end in-quote false false
+              (recur end in-quote false nil
+                     ;; A name may sit between `function` and its parameter list.
+                     (or (= "function" tok) after-function)
                      (case tok
                        ;; Closes the previous branch and opens a new one.
                        "else" (conj tokens [:close nil] [:open nil])
@@ -148,9 +151,15 @@
             ;; Non-word character
             :else
             (let [tokens (cond-> tokens
-                           (contains? #{\{ \( \[} ch) (conj [:open i])
-                           (contains? #{\} \) \]} ch) (conj [:close i]))]
-              (recur (inc i) in-quote false false tokens))))))))
+                           (contains? #{\{ \( \[} ch)
+                           (conj [:open (when (and after-function (= ch \()) i)])
+
+                           (contains? #{\} \) \]} ch)
+                           (conj [:close nil]))]
+              (recur (inc i) in-quote false nil
+                     (and after-function
+                          (or (Character/isWhitespace ch) (= ch \.) (= ch \:)))
+                     tokens))))))))
 
 (defn- code-after-index? [^String line ^long index]
   (let [len (.length line)]
