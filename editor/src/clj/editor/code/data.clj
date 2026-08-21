@@ -2169,24 +2169,27 @@
   (let [queried-row (long queried-row)
         tab-spaces (long tab-spaces)
         ^long start-row (loop [row queried-row
-                               in-long-string? false]
-                          (let [^String line (get lines row)]
-                            (cond
-                              (not (pos? row)) 0
+                               long-bracket-level nil]
+                          (if-not (pos? row)
+                            0
+                            (let [^String line (get lines row)
+                                  open-level (some-> (re-find #"\[(=*)\[" line) second count)
+                                  close-level (some-> (re-find #"\](=*)\]" line) second count)]
+                              (cond
+                                ;; Nothing between a long bracket and its match is
+                                ;; code, so it cannot anchor the replay. Only a
+                                ;; bracket of the same level closes one.
+                                long-bracket-level
+                                (if (= long-bracket-level open-level)
+                                  (recur row nil)
+                                  (recur (dec row) long-bracket-level))
 
-                              ;; Nothing between ]] and [[ is code, so it cannot anchor the replay.
-                              in-long-string?
-                              (if (re-find #"\[=*\[" line)
-                                (recur row false)
-                                (recur (dec row) true))
+                                (and (some? close-level) (not= close-level open-level))
+                                (recur (dec row) close-level)
 
-                              (and (re-find #"\]=*\]" line)
-                                   (not (re-find #"\[=*\[" line)))
-                              (recur (dec row) true)
-
-                              (string/blank? line) (recur (dec row) false)
-                              (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row) false)
-                              :else row)))]
+                                (string/blank? line) (recur (dec row) nil)
+                                (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row) nil)
+                                :else row))))]
     (loop [row start-row
            stack (loop [n (parse-indent-level indent-level-pattern (get lines start-row))
                         stack []]

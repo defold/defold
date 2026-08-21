@@ -356,6 +356,21 @@
                          "]]"
                          "print(s)"
                          "end"]
+                        4 5)))
+
+  ;; Only a bracket of the same level ends one, so the [[ here is still string.
+  (is (= ["function f()"
+          "    local s = [=["
+          "[[ x"
+          "]=]"
+          "    print(s)"
+          "end"]
+         (reindent-rows ["function f()"
+                         "    local s = [=["
+                         "[[ x"
+                         "]=]"
+                         "print(s)"
+                         "end"]
                         4 5))))
 
 (deftest reindent-tab-alignment-test
@@ -574,11 +589,12 @@
      "    })"
      "    |"]
 
-    ;; The body of a function whose signature spans two lines.
+    ;; The body of a function whose signature spans two lines. The parameters
+    ;; align under the first one, the body does not.
     ["function foo(a,"
-     "    b)|"]
+     "             b)|"]
     ["function foo(a,"
-     "    b)"
+     "             b)"
      "    |"]
 
     ;; Parentheses in strings and comments are not counted.
