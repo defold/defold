@@ -34,9 +34,12 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; Lua block open/close keywords for indentation
-(def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
-(def lua-close-keywords #{"end" "until"})
+;; Lua block open/close keywords for indentation, and what closes what. A
+;; closer only pops a frame of its own kind, so a stray `end` inside a table
+;; constructor cannot close the `{`.
+(def lua-open-keyword-kinds {"do" :block "then" :block "function" :block "else" :block "repeat" :repeat})
+(def lua-close-keyword-kinds {"end" :block "until" :repeat})
+(def lua-bracket-kinds {\( :paren \) :paren \{ :brace \} :brace \[ :bracket \] :bracket})
 
 (defn- long-bracket-level
   "The number of = signs in the long bracket at index, or -1 if there is none.
@@ -63,7 +66,7 @@
 
 ;; lua-lex-line scans a line, lua-indent-counts summarizes it.
 ;;
-;; The scanner emits one token per bracket or block keyword, as [kind index]:
+;; The scanner emits one token per bracket or block keyword, as [dir kind index]:
 ;; - Skips over string literals ("..." or '...') and trailing -- comments
 ;; - Tracks whether we're inside a long string/comment, since that state
 ;;   carries across lines
@@ -73,16 +76,21 @@
 ;;   closing one (the `then` after it opens the new block)
 ;;
 ;; The summary cancels matched opens/closes and reports what's left:
-;; - :closes - closers with no matching opener on this line; these pop
-;;   enclosing blocks and affect how later lines indent
-;; - :leading - :closes if the line starts with a closer, else 0. Only a
-;;   closer at the start of a line should dedent it; one at the end is just
-;;   punctuation on a continuation
-;; - :opens - one entry per still-open bracket/keyword, holding:
+;; - :closes - kinds of the closers with no matching opener on this line;
+;;   these pop enclosing blocks and affect how later lines indent
+;; - :leading - whether the line starts with a closer. Only a closer at the
+;;   start of a line should dedent it; one at the end is just punctuation on
+;;   a continuation
+;; - :opens - one entry per still-open bracket/keyword, holding its :kind and
+;;   its :col, which is either:
 ;;     * the column to align its contents to (just past the bracket, with
 ;;       tabs expanded, so it matches where the text actually appears)
 ;;     * or nil, if nothing follows the bracket on that line, or if it's a
 ;;       block keyword (which just indents contents by one level)
+;;
+;; A closer whose kind does not match is dropped. On well-formed code that
+;; never happens, since a closer's opener is always the innermost one still
+;; open; on half-typed code it keeps the mistake from disturbing the rest.
 (defn lua-lex-line [^String line in-long-string]
   (let [len (.length line)]
     (loop [i 0
@@ -141,21 +149,24 @@
                      (or (= "function" tok) after-function)
                      (case tok
                        ;; Closes the previous branch and opens a new one.
-                       "else" (conj tokens [:close nil] [:open nil])
+                       "else" (conj tokens [:close :block nil] [:open :block nil])
                        ;; The `then` on the same line supplies the :open.
-                       "elseif" (conj tokens [:close nil])
+                       "elseif" (conj tokens [:close :block nil])
                        (cond-> tokens
-                         (contains? lua-open-keywords tok) (conj [:open nil])
-                         (contains? lua-close-keywords tok) (conj [:close nil])))))
+                         (contains? lua-open-keyword-kinds tok)
+                         (conj [:open (lua-open-keyword-kinds tok) nil])
+
+                         (contains? lua-close-keyword-kinds tok)
+                         (conj [:close (lua-close-keyword-kinds tok) nil])))))
 
             ;; Non-word character
             :else
             (let [tokens (cond-> tokens
                            (contains? #{\{ \( \[} ch)
-                           (conj [:open (when (and after-function (= ch \()) i)])
+                           (conj [:open (lua-bracket-kinds ch) (when (and after-function (= ch \()) i)])
 
                            (contains? #{\} \) \]} ch)
-                           (conj [:close nil]))]
+                           (conj [:close (lua-bracket-kinds ch) nil]))]
               (recur (inc i) in-quote false nil
                      (and after-function
                           (or (Character/isWhitespace ch) (= ch \.) (= ch \:)))
@@ -184,28 +195,36 @@
   (let [[tokens in-long-string] (lua-lex-line line in-long-string)
         leftover (reduce (fn [stack t]
                            (if (and (= :close (t 0))
-                                    (when-let [top (peek stack)] (= :open (top 0))))
+                                    (when-let [top (peek stack)]
+                                      (and (= :open (top 0))
+                                           (= (t 1) (top 1)))))
                              (pop stack)
                              (conj stack t)))
                          []
                          tokens)
         n (count leftover)
         closes (loop [i 0
-                      closes 0]
+                      closes []]
                  (if (or (= i n) (= :open ((leftover i) 0)))
                    closes
-                   (recur (inc i) (inc closes))))
-        opens (loop [i closes
+                   (recur (inc i) (conj closes ((leftover i) 1)))))
+        ;; Anything still closing past this point had an opener of another kind
+        ;; before it, so it closes nothing at all.
+        opens (loop [i (count closes)
                      opens []]
                 (if (= i n)
                   opens
-                  (recur (inc i)
-                         (conj opens (when-let [index ((leftover i) 1)]
-                                       (when (code-after-index? line index)
-                                         (inc (visual-column line index tab-spaces))))))))]
+                  (let [t (leftover i)]
+                    (recur (inc i)
+                           (if (= :open (t 0))
+                             (conj opens {:kind (t 1)
+                                          :col (when-let [index (t 2)]
+                                                 (when (code-after-index? line index)
+                                                   (inc (visual-column line index tab-spaces))))})
+                             opens)))))]
     {:closes closes
      :opens opens
-     :leading (if (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line) closes 0)
+     :leading (some? (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line))
      :in-long-string in-long-string}))
 
 (def lua-grammar

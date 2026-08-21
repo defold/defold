@@ -373,6 +373,36 @@
      "]"
      "print(x)"]))
 
+(deftest reindent-ignores-mismatched-closers-test
+  (are [lines] (= lines (reindent lines))
+
+    ;; A closer only closes its own kind, so half-typing a name that starts with
+    ;; a keyword does not throw the line out of the table it sits in.
+    ["local data = {"
+     "    start_position = vmath.vector3(200, 100, 0),"
+     "    end"
+     "}"]
+
+    ;; `until` belongs to `repeat`, not to `do`.
+    ["while a do"
+     "    until"
+     "end"]
+
+    ;; A stray closer takes the indentation of any other line, and leaves the
+    ;; block it is sitting in on the stack for the lines below it.
+    ["function f()"
+     "    }"
+     "    x()"
+     "end"])
+
+  ;; Conversely, a closer that does match still dedents.
+  (is (= ["local t = {"
+          "    a = 1,"
+          "}"]
+         (reindent ["local t = {"
+                    "a = 1,"
+                    "        }"]))))
+
 (deftest reindent-matches-checked-in-fixture-test
   ;; The fixture is checked in already formatted by the bundled Lua language
   ;; server, so reindenting it must change nothing. Anything else means

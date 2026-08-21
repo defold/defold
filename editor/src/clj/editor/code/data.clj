@@ -2070,25 +2070,37 @@
           (recur (inc indent-level))
           indent-level)))))
 
+(defn- frame-closed-by? [frame kind]
+  (or (= :any kind)
+      (= :any (:kind frame))
+      (= kind (:kind frame))))
+
 (defn- indent-step [stack {:keys [leading closes opens]}]
-  (let [[level col] (if (zero? leading)
+  (let [top (peek stack)
+        ;; A leading closer that closes nothing leaves the line where any other
+        ;; line would go, rather than dedenting it out of an unrelated block.
+        [level col] (if (and leading
+                             (some? top)
+                             (not (coll/empty? closes))
+                             (frame-closed-by? top (closes 0)))
+                      [(:level top) nil]
                       (if (coll/empty? stack)
                         [0 nil]
-                        (let [top (peek stack)]
-                          [(inc ^long (:level top)) (:col top)]))
-                      [(if (coll/empty? stack) 0 (:level (peek stack))) nil])
-        stack (loop [n closes
-                     s stack]
-                (if (or (zero? n) (coll/empty? s))
-                  s
-                  (recur (dec n) (pop s))))
+                        [(inc ^long (:level top)) (:col top)]))
+        stack (reduce (fn [s kind]
+                        (if (and (not (coll/empty? s))
+                                 (frame-closed-by? (peek s) kind))
+                          (pop s)
+                          s))
+                      stack
+                      closes)
         stack (let [line-indent (if (coll/empty? stack) 0 (inc ^long (:level (peek stack))))
                     n (count opens)]
                 (loop [i 0
                        s stack]
                   (if (= i n)
                     s
-                    (recur (inc i) (conj s {:level line-indent :col (opens i)})))))]
+                    (recur (inc i) (conj s (assoc (opens i) :level line-indent))))))]
     [stack level col]))
 
 (defn- indent-string->tab-spaces
@@ -2158,9 +2170,9 @@
     (counts line in-long-string tab-spaces)
     (let [close (boolean (ends-indentation? grammar line))
           open (boolean (begins-indentation? grammar line))]
-      {:leading (if close 1 0)
-       :closes (if close 1 0)
-       :opens (if open [nil] [])
+      {:leading close
+       :closes (if close [:any] [])
+       :opens (if open [{:kind :any :col nil}] [])
        :in-long-string false})))
 
 (defn- find-indent-state [indent-level-pattern grammar lines queried-row tab-spaces]
@@ -2198,7 +2210,8 @@
                         stack []]
                    (if (zero? n)
                      stack
-                     (recur (dec n) (conj stack {:level (long (count stack)) :col nil}))))
+                     ;; Indentation alone says nothing about what opened these.
+                     (recur (dec n) (conj stack {:level (long (count stack)) :col nil :kind :any}))))
            in-long-string false]
       (if (< queried-row row)
         {:stack stack
