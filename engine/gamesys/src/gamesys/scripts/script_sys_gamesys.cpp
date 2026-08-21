@@ -468,32 +468,25 @@ namespace dmGameSystem
         for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
         {
             LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
-            if (!request)
-                continue;
-
-            JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+            if (request)
+            {
+                JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+            }
         }
 
         // Wait for jobs that were already in flight before deleting their requests.
         for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
         {
             LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
-            if (!request)
-                continue;
-
-            JobSystemResult result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
-            while (result == JOBSYSTEM_RESULT_PENDING)
-            {
-                dmTime::Sleep(1000);
-                result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
-            }
-        }
-
-        for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
-        {
-            LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
             if (request)
             {
+                JobSystemResult result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+                while (result == JOBSYSTEM_RESULT_PENDING)
+                {
+                    dmTime::Sleep(1000);
+                    result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+                }
+
                 if (dmBuffer::IsBufferValid(request->m_Payload))
                 {
                     dmBuffer::Destroy(request->m_Payload);
