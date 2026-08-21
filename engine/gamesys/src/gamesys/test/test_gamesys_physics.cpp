@@ -397,6 +397,100 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ASSERT_NEAR(0.3f, rigid_body->getLinearVelocity().z(), 0.0001f);
 }
 
+TEST_F(Bullet3DComponentTest, Bullet3DAngularSpringScaleConversionTest)
+{
+    /* Intent: verify spring coefficients at the native Bullet boundary.
+    ** Setup: two dynamic bodies are connected by generic spring 6-DOF and
+    ** hinge2 constraints while the fixture uses physics scale 0.1.
+    ** Expected: linear coefficients and generic dimensionless damping remain
+    ** unchanged, while angular stiffness and hinge2 angular damping use scale squared.
+    ** Why: angles are scale-independent, but the resulting torque and angular
+    ** impulse must use the same scale-squared convention as rotational inertia.
+    */
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_a"), 0, Point3(-1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_b"), 0, Point3(1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+    ASSERT_NE((void*)0, go_b);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    uint32_t                      component_type_a = 0;
+    dmGameObject::HComponent      component_a = 0;
+    dmGameObject::HComponentWorld component_world_a = 0;
+    uint32_t                      component_type_b = 0;
+    dmGameObject::HComponent      component_b = 0;
+    dmGameObject::HComponentWorld component_world_b = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+              dmGameObject::GetComponent(go_a, dmHashString64("collisionobject"), &component_type_a, &component_a, &component_world_a));
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+              dmGameObject::GetComponent(go_b, dmHashString64("collisionobject"), &component_type_b, &component_b, &component_world_b));
+    ASSERT_EQ(component_world_a, component_world_b);
+
+    btCollisionObject* collision_object_a = (btCollisionObject*)dmGameSystem::CompCollisionObjectGetBullet3DCollisionObject(component_a);
+    btCollisionObject* collision_object_b = (btCollisionObject*)dmGameSystem::CompCollisionObjectGetBullet3DCollisionObject(component_b);
+    ASSERT_NE((void*)0, btRigidBody::upcast(collision_object_a));
+    ASSERT_NE((void*)0, btRigidBody::upcast(collision_object_b));
+
+    btDiscreteDynamicsWorld* world = (btDiscreteDynamicsWorld*)dmGameSystem::CompCollisionObjectGetBullet3DWorld(component_world_a);
+    ASSERT_NE((void*)0, world);
+    ASSERT_EQ(0, world->getNumConstraints());
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::PushBullet3DCollisionObject(L, collision_object_a, m_Collection, dmGameObject::GetIdentifier(go_a));
+    lua_setglobal(L, "bullet3d_spring_scale_body_a");
+    dmGameSystem::PushBullet3DCollisionObject(L, collision_object_b, m_Collection, dmGameObject::GetIdentifier(go_b));
+    lua_setglobal(L, "bullet3d_spring_scale_body_b");
+
+    ASSERT_TRUE(dmScriptTest::RunString(L,
+                                        "local body_a = bullet3d_spring_scale_body_a\n"
+                                        "local body_b = bullet3d_spring_scale_body_b\n"
+                                        "local frames = {\n"
+                                        "    frame_a_position = vmath.vector3(),\n"
+                                        "    frame_a_rotation = vmath.quat(),\n"
+                                        "    frame_b_position = vmath.vector3(),\n"
+                                        "    frame_b_rotation = vmath.quat(),\n"
+                                        "}\n"
+                                        "bullet3d_spring_scale_generic = bullet3d.constraint.create_generic_6dof_spring(body_a, body_b, frames)\n"
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_generic, 1, 4)\n"
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_generic, 4, 4)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_generic, 1, 0.5)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_generic, 4, 0.5)\n"
+                                        "bullet3d_spring_scale_hinge2 = bullet3d.constraint.create_hinge2(body_a, body_b, {\n"
+                                        "    anchor = vmath.vector3(),\n"
+                                        "    axis1 = vmath.vector3(1, 0, 0),\n"
+                                        "    axis2 = vmath.vector3(0, 1, 0),\n"
+                                        "})\n"
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_hinge2, 1, 6)\n"
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_hinge2, 4, 6)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_hinge2, 1, 0.75)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_hinge2, 4, 0.75)"));
+
+    ASSERT_EQ(2, world->getNumConstraints());
+    ASSERT_EQ(D6_SPRING_CONSTRAINT_TYPE, world->getConstraint(0)->getConstraintType());
+    ASSERT_EQ(D6_SPRING_2_CONSTRAINT_TYPE, world->getConstraint(1)->getConstraintType());
+
+    btGeneric6DofSpringConstraint* generic = (btGeneric6DofSpringConstraint*)world->getConstraint(0);
+    ASSERT_NEAR(4.0f, generic->getStiffness(0), 0.0001f);
+    ASSERT_NEAR(0.04f, generic->getStiffness(3), 0.0001f);
+    ASSERT_NEAR(0.5f, generic->getDamping(0), 0.0001f);
+    ASSERT_NEAR(0.5f, generic->getDamping(3), 0.0001f);
+
+    btHinge2Constraint* hinge2 = (btHinge2Constraint*)world->getConstraint(1);
+    ASSERT_NEAR(6.0f, hinge2->getTranslationalLimitMotor()->m_springStiffness[0], 0.0001f);
+    ASSERT_NEAR(0.06f, hinge2->getRotationalLimitMotor(0)->m_springStiffness, 0.0001f);
+    ASSERT_NEAR(0.75f, hinge2->getTranslationalLimitMotor()->m_springDamping[0], 0.0001f);
+    ASSERT_NEAR(0.0075f, hinge2->getRotationalLimitMotor(0)->m_springDamping, 0.0001f);
+
+    ASSERT_TRUE(dmScriptTest::RunString(L,
+                                        "bullet3d.constraint.destroy(bullet3d_spring_scale_generic)\n"
+                                        "bullet3d.constraint.destroy(bullet3d_spring_scale_hinge2)\n"
+                                        "bullet3d_spring_scale_generic = nil\n"
+                                        "bullet3d_spring_scale_hinge2 = nil\n"
+                                        "bullet3d_spring_scale_body_a = nil\n"
+                                        "bullet3d_spring_scale_body_b = nil"));
+    ASSERT_EQ(0, world->getNumConstraints());
+}
+
 TEST_F(Bullet3DComponentTest, Bullet3DStaleIdentitiesDoNotRecycle)
 {
     /* Intent: keep invalid Lua userdata invalid after more allocations than the

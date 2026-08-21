@@ -1446,7 +1446,9 @@ namespace dmGameSystem
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         CheckSpring6Dof(L, meta);
         int      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar stiffness = CheckBullet3DScalar(L, 3, 1.0f, "stiffness");
+        btScalar physics_scale = GetBullet3DPhysicsScale();
+        btScalar stiffness_scale = axis < 3 ? btScalar(1.0f) : physics_scale * physics_scale;
+        btScalar stiffness = CheckBullet3DScalar(L, 3, stiffness_scale, "stiffness");
         if (stiffness < btScalar(0.0f))
         {
             return luaL_error(L, "stiffness must not be negative.");
@@ -1466,7 +1468,13 @@ namespace dmGameSystem
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         CheckSpring6Dof(L, meta);
         int      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar damping = CheckBullet3DScalar(L, 3, 1.0f, "damping");
+        btScalar damping_scale = btScalar(1.0f);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 && axis >= 3)
+        {
+            btScalar physics_scale = GetBullet3DPhysicsScale();
+            damping_scale = physics_scale * physics_scale;
+        }
+        btScalar damping = CheckBullet3DScalar(L, 3, damping_scale, "damping");
         if (damping < btScalar(0.0f))
         {
             return luaL_error(L, "damping must not be negative.");
@@ -2553,8 +2561,8 @@ namespace dmGameSystem
 
 /*# Set spring stiffness
  *
- * Stiffness is Bullet's solver tuning coefficient, not a force or torque
- * value, and is therefore independent of `physics.scale` for every axis.
+ * Linear stiffness values are independent of `physics.scale`. Angular
+ * stiffness values are automatically converted using `physics.scale` squared.
  *
  * @name bullet3d.constraint.set_spring_stiffness
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
@@ -2566,7 +2574,8 @@ namespace dmGameSystem
  *
  * Generic spring 6-DOF constraints use a damping factor from 0 to 1, where 1
  * means no damping. Hinge2 constraints use a damping coefficient where 0 means
- * no damping and any non-negative value is accepted.
+ * no damping and any non-negative value is accepted. Hinge2 angular damping is
+ * automatically converted using `physics.scale` squared.
  *
  * @name bullet3d.constraint.set_spring_damping
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
