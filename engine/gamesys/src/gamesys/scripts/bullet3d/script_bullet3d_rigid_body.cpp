@@ -604,6 +604,12 @@ namespace dmGameSystem
         luaL_register(L, 0, RigidBody_functions);
         lua_pushinteger(L, BT_DISABLE_WORLD_GRAVITY);
         lua_setfield(L, -2, "BT_DISABLE_WORLD_GRAVITY");
+        lua_pushinteger(L, BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT);
+        lua_setfield(L, -2, "BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT");
+        lua_pushinteger(L, BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD);
+        lua_setfield(L, -2, "BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD");
+        lua_pushinteger(L, BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY);
+        lua_setfield(L, -2, "BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY");
         lua_setfield(L, -2, "rigid_body");
     }
 
@@ -638,6 +644,26 @@ namespace dmGameSystem
  * body to a world.
  *
  * @name bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY
+ * @constant
+ */
+
+/*# Enable explicit gyroscopic force integration
+ * @name bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT
+ * @constant
+ */
+
+/*# Enable implicit world-space gyroscopic force integration
+ * @name bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD
+ * @constant
+ */
+
+/*# Enable implicit body-space gyroscopic force integration
+ *
+ * Bullet 3.25 enables this flag by default for newly constructed rigid bodies.
+ * Preserve it when combining flags unless gyroscopic force integration should
+ * be disabled or replaced with another mode.
+ *
+ * @name bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY
  * @constant
  */
 
