@@ -1,14 +1,31 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+--
 -- ---------------------------------------------------------------------------
--- Indentation fixture for editor.code.script-test.
+-- Indentation fixture.
 --
 -- This file is the output of the bundled Lua language server's formatter, so
 -- reindenting it with our own engine must leave it byte for byte identical.
 -- If the two disagree, the editor's indent-on-type fights format-on-save and
 -- the user's file flips back and forth on every keystroke and every save.
 --
--- To regenerate: run textDocument/formatting over it with the language server
--- in resources/_unpack/<platform>/bin/lsp/lua, then re-comment the cases below
--- that are marked as known disagreements.
+-- integration.lua-indent-test runs that formatter over this file and asserts it
+-- comes back unchanged, so bumping :lua-language-server-version in project.clj
+-- fails there rather than letting this drift. editor.code.script-test checks
+-- our half of it without needing the server unpacked.
+--
+-- Cases the two disagree on are commented out below, each with the reason.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------

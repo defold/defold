@@ -348,13 +348,18 @@
      "]"
      "print(x)"]))
 
-(deftest reindent-agrees-with-language-server-test
-  ;; The fixture is what the bundled Lua language server's formatter produces,
-  ;; so reindenting it must change nothing. Anything else means indent-on-type
-  ;; and format-on-save disagree, and the user's file flips between the two.
+(deftest reindent-matches-checked-in-fixture-test
+  ;; The fixture is checked in already formatted by the bundled Lua language
+  ;; server, so reindenting it must change nothing. Anything else means
+  ;; indent-on-type and format-on-save disagree and the user's file flips
+  ;; between the two on every keystroke and every save.
+  ;;
   ;; Cases the two genuinely disagree on are commented out in the fixture, each
   ;; with the reason and the shape the language server produced.
-  (let [lines (code-util/split-lines (slurp (io/resource "lua/indent_test_cases.lua")))
+  ;;
+  ;; integration.lua-indent-test re-derives the fixture from the language server
+  ;; itself; this is the half that runs without it.
+  (let [lines (code-util/split-lines (slurp (io/resource "lua_indent_project/indent_test_cases.lua")))
         reindented (reindent lines)]
     (is (= (count lines) (count reindented)))
     (dotimes [row (count lines)]
