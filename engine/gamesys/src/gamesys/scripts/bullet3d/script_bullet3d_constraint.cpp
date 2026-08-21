@@ -1300,7 +1300,7 @@ namespace dmGameSystem
         int      axis = CheckAxis(L, 2, 6, "axis");
         bool     enabled;
         btScalar target_velocity;
-        btScalar max_impulse;
+        btScalar max_force;
         btScalar bounce = 0.0f;
         if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
         {
@@ -1310,7 +1310,7 @@ namespace dmGameSystem
                 btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
                 enabled = motor->m_enableMotor[axis];
                 target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
-                max_impulse = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+                max_force = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
             }
             else
             {
@@ -1318,7 +1318,7 @@ namespace dmGameSystem
                 enabled = motor->m_enableMotor;
                 target_velocity = motor->m_targetVelocity;
                 btScalar inv_scale = GetBullet3DInvPhysicsScale();
-                max_impulse = motor->m_maxMotorForce * inv_scale * inv_scale;
+                max_force = motor->m_maxMotorForce * inv_scale * inv_scale;
                 bounce = motor->m_bounce;
             }
         }
@@ -1330,7 +1330,7 @@ namespace dmGameSystem
                 btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
                 enabled = motor->m_enableMotor[axis];
                 target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
-                max_impulse = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+                max_force = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
             }
             else
             {
@@ -1338,13 +1338,13 @@ namespace dmGameSystem
                 enabled = motor->m_enableMotor;
                 target_velocity = motor->m_targetVelocity;
                 btScalar inv_scale = GetBullet3DInvPhysicsScale();
-                max_impulse = motor->m_maxMotorForce * inv_scale * inv_scale;
+                max_force = motor->m_maxMotorForce * inv_scale * inv_scale;
                 bounce = motor->m_bounce;
             }
         }
         lua_pushboolean(L, enabled);
         lua_pushnumber(L, target_velocity);
-        lua_pushnumber(L, max_impulse);
+        lua_pushnumber(L, max_force);
         lua_pushnumber(L, bounce);
         return 4;
     }
@@ -1360,10 +1360,10 @@ namespace dmGameSystem
         btScalar target_scale = axis < 3 ? scale : btScalar(1.0f);
         btScalar target_velocity = CheckBullet3DScalar(L, 4, target_scale, "target_velocity");
         btScalar max_scale = axis < 3 ? scale : scale * scale;
-        btScalar max_impulse = CheckBullet3DScalar(L, 5, max_scale, "max_impulse");
-        if (max_impulse < btScalar(0.0f))
+        btScalar max_force = CheckBullet3DScalar(L, 5, max_scale, "max_force");
+        if (max_force < btScalar(0.0f))
         {
-            return luaL_error(L, "max_impulse must not be negative.");
+            return luaL_error(L, "max_force must not be negative.");
         }
         btScalar bounce = lua_isnoneornil(L, 6) ? btScalar(0.0f) : CheckBullet3DScalarInRange(L, 6, 1.0f, "bounce", 0.0f, 1.0f);
         if (axis < 3 && bounce != btScalar(0.0f))
@@ -1380,14 +1380,14 @@ namespace dmGameSystem
                 btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
                 motor->m_enableMotor[axis] = enabled;
                 motor->m_targetVelocity[axis] = target_velocity;
-                motor->m_maxMotorForce[axis] = max_impulse;
+                motor->m_maxMotorForce[axis] = max_force;
             }
             else
             {
                 btRotationalLimitMotor2* motor = constraint->getRotationalLimitMotor(axis - 3);
                 motor->m_enableMotor = enabled;
                 motor->m_targetVelocity = target_velocity;
-                motor->m_maxMotorForce = max_impulse;
+                motor->m_maxMotorForce = max_force;
                 motor->m_bounce = bounce;
             }
         }
@@ -1399,14 +1399,14 @@ namespace dmGameSystem
                 btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
                 motor->m_enableMotor[axis] = enabled;
                 motor->m_targetVelocity[axis] = target_velocity;
-                motor->m_maxMotorForce[axis] = max_impulse;
+                motor->m_maxMotorForce[axis] = max_force;
             }
             else
             {
                 btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
                 motor->m_enableMotor = enabled;
                 motor->m_targetVelocity = target_velocity;
-                motor->m_maxMotorForce = max_impulse;
+                motor->m_maxMotorForce = max_force;
                 motor->m_bounce = bounce;
             }
         }
@@ -2482,7 +2482,7 @@ namespace dmGameSystem
  * @param axis [type:number] one-based axis from 1 to 6
  * @return enabled [type:boolean] motor state
  * @return target_velocity [type:number] target velocity
- * @return max_impulse [type:number] maximum motor impulse
+ * @return max_force [type:number] maximum motor force for linear axes or torque for angular axes
  * @return bounce [type:number] angular bounce from 0 to 1
  */
 
@@ -2492,7 +2492,7 @@ namespace dmGameSystem
  * @param axis [type:number] one-based axis from 1 to 6
  * @param enabled [type:boolean] motor state
  * @param target_velocity [type:number] target velocity
- * @param max_impulse [type:number] non-negative maximum motor impulse
+ * @param max_force [type:number] non-negative maximum motor force for linear axes or torque for angular axes
  * @param bounce [type:number|nil] optional angular bounce from 0 to 1
  */
 
