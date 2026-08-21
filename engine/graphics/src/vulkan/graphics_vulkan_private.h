@@ -520,6 +520,7 @@ namespace dmGraphics
         uint32_t                        m_AndroidVulkanWindowHeight;
 #endif
         uint32_t                        m_SwapInterval;
+        uint32_t                        m_SwapIntervalChanged  : 1;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;

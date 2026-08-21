@@ -5141,6 +5141,15 @@ namespace dmGraphics
 
     }
 
+    static void MetalSetSwapInterval(HContext _context, uint32_t swap_interval)
+    {
+        MetalContext* context = (MetalContext*)_context;
+        context->m_SwapInterval = swap_interval;
+#if !defined(DM_PLATFORM_IOS)
+        context->m_Layer.displaySyncEnabled = swap_interval != 0;
+#endif
+    }
+
     static void MetalGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         MetalContext* context = (MetalContext*)_context;
@@ -5152,6 +5161,7 @@ namespace dmGraphics
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Metal);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, SetSwapInterval);
         return fn_table;
     }
 }

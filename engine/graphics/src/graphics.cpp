@@ -1859,6 +1859,10 @@ namespace dmGraphics
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {
         dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
+        if (g_functions.m_SetSwapInterval)
+        {
+            g_functions.m_SetSwapInterval(context, swap_interval);
+        }
     }
 
     ///////////////////////////////////////////////////

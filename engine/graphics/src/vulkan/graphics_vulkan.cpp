@@ -985,6 +985,7 @@ namespace dmGraphics
         // Create the swap chain
         VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         CHECK_VK_ERROR(res);
+        context->m_SwapIntervalChanged = 0;
 
         // Create the main Depth/Stencil buffer
         VkFormat vk_depth_format;
@@ -1739,6 +1740,11 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         NativeBeginFrame(_context);
+
+        if (context->m_SwapIntervalChanged)
+        {
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
+        }
 
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         uint32_t frameInFlight = context->m_CurrentFrameInFlight;
@@ -5576,11 +5582,21 @@ bail:
         return res == VK_SUCCESS;
     }
 
+    static void VulkanSetSwapInterval(HContext _context, uint32_t swap_interval)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        if (context->m_SwapInterval != swap_interval)
+        {
+            context->m_SwapInterval = swap_interval;
+            context->m_SwapIntervalChanged = 1;
+        }
+    }
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Vulkan);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Vulkan, SetSwapInterval);
         return fn_table;
     }
 }

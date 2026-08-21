@@ -806,7 +806,6 @@ namespace dmEngine
         swap_interval = dmMath::Max(0, swap_interval);
         engine->m_SwapInterval = (uint32_t) swap_interval;
         ResetFramePacing(engine);
-        ApplyEffectiveSwapInterval(engine);
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
@@ -2451,12 +2450,14 @@ bail:
         // Pace before calculating dt so the wait is included in frame_time.
         // This remains effective even when StepFrame skips rendering and Flip().
         bool frame_was_paced = false;
+        // Change pacing ownership only at a frame boundary. This prevents a
+        // runtime setting change during StepFrame from making that frame wait
+        // first in PaceFrame and then again in Flip. Platform-owned loops still
+        // need their requested swap interval applied here even though they do
+        // not use the engine-side timer.
+        ApplyEffectiveSwapInterval(engine);
         if (dmEngine::UseEngineFramePacing())
         {
-            // Change pacing ownership only at a frame boundary. This prevents a
-            // runtime setting change during StepFrame from making that frame
-            // wait first in PaceFrame and then again in Flip.
-            ApplyEffectiveSwapInterval(engine);
             frame_was_paced = PaceFrame(engine);
         }
         CalcTimeStep(engine, frame_was_paced, step_dt, num_steps);

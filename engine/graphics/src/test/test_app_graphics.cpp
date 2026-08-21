@@ -1177,6 +1177,18 @@ static UpdateResult EngineUpdate(void* _engine)
 
     engine->m_Test->Execute(engine);
 
+    // Exercise runtime presentation-mode changes while a frame is active. The
+    // Vulkan backend must defer its swapchain recreation until the next
+    // BeginFrame, while other backends may apply the change immediately.
+    if (engine->m_WasRun == 1)
+    {
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
+    }
+    else if (engine->m_WasRun == 2)
+    {
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 1);
+    }
+
     dmGraphics::Flip(engine->m_GraphicsContext);
 
     if (ShouldAutoExit() && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
