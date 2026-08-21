@@ -1464,6 +1464,11 @@ namespace dmGameSystem
      * @constant
      */
 
+    /*#
+     * @name physics.SHAPE_TYPE_MESH
+     * @constant
+     */
+
     /*# get collision shape info
      * Gets collision shape data from a collision object
      *
@@ -1479,6 +1484,7 @@ namespace dmGameSystem
      * - `physics.SHAPE_TYPE_BOX`
      * - `physics.SHAPE_TYPE_CAPSULE` *Only supported for 3D physics*
      * - `physics.SHAPE_TYPE_HULL`
+     * - `physics.SHAPE_TYPE_MESH` *Only supported by the Bullet 3D backend in this release*
      *
      * The returned table contains different fields depending on which type the shape is.
      *
@@ -1553,6 +1559,7 @@ namespace dmGameSystem
                 lua_setfield(L, -2, "height");
                 break;
             case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+            case dmPhysicsDDF::CollisionShape::TYPE_MESH:
                 break;
             default:break;
         }
@@ -1571,6 +1578,7 @@ namespace dmGameSystem
      * @param table [type:table] the shape data to update the shape with.
      *
      * See [ref:physics.get_shape] for a detailed description of each field in the data table.
+     * Hull and mesh geometry cannot be changed with this function.
      *
      * ```lua
      * local function set_shape_data()
@@ -2241,6 +2249,7 @@ namespace dmGameSystem
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_BOX,     TYPE_BOX)
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_CAPSULE, TYPE_CAPSULE)
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_HULL,    TYPE_HULL)
+        SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_MESH,    TYPE_MESH)
 
 #undef SET_COLLISION_SHAPE_CONSTANT
 

@@ -38,13 +38,14 @@ message ConvexShape
 
 message CollisionShape
 {
-    /* NOTE: These values must match ConvexShape.Type above */
+    /* NOTE: The values shared with ConvexShape.Type above must match. */
     enum Type
     {
         TYPE_SPHERE = 0;
         TYPE_BOX = 1;
         TYPE_CAPSULE = 2;
         TYPE_HULL = 3;
+        TYPE_MESH = 4;
     }
 
     /*
@@ -70,10 +71,16 @@ message CollisionShape
         required uint32 count           = 5;
         optional string id              = 6;
         optional uint64 id_hash         = 7 [(runtime_only) = true];
+        optional string mesh_scene      = 8 [(resource) = true];
+        optional string mesh_name       = 9;
+        optional uint32 mesh_index      = 10;
+        optional uint32 triangle_index  = 11 [(runtime_only) = true];
+        optional uint32 triangle_count  = 12 [(runtime_only) = true];
     }
 
     repeated Shape shapes = 1;
     repeated float data   = 2;
+    repeated uint32 indices = 3 [(runtime_only) = true];
 }
 
 /* This should coincide with CollisionObjectType in physics-lib */
