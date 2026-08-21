@@ -659,9 +659,7 @@ namespace dmGameSystem
 
 /*# Enable implicit body-space gyroscopic force integration
  *
- * Bullet 3.25 enables this flag by default for newly constructed rigid bodies.
- * Preserve it when combining flags unless gyroscopic force integration should
- * be disabled or replaced with another mode.
+ * This flag is enabled by default for newly constructed rigid bodies.
  *
  * @name bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY
  * @constant
@@ -862,10 +860,9 @@ namespace dmGameSystem
 
 /*# Set rigid body flags
  *
- * This replaces the complete flag mask. Bullet 3.25 enables
- * `BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY` on newly constructed bodies, and
- * evaluates every enabled gyroscopic mode independently. Clear existing
- * gyroscopic mode bits before selecting a different mode.
+ * This replaces the complete flag mask. Every enabled gyroscopic mode is
+ * evaluated independently, so clear existing gyroscopic mode bits before
+ * selecting a different mode.
  *
  * @name bullet3d.rigid_body.set_flags
  * @param body [type:btRigidBody] rigid body
@@ -1006,8 +1003,8 @@ namespace dmGameSystem
 
 /*# Get velocity at a center-of-mass-relative point
  *
- * The relative position is expressed in world axes. Despite Bullet's legacy
- * function name, it is not a body-local coordinate.
+ * The relative position is expressed in world axes. Despite Bullet's function
+ * name, it is not a body-local coordinate.
  *
  * @name bullet3d.rigid_body.get_velocity_in_local_point
  * @param body [type:btRigidBody] rigid body

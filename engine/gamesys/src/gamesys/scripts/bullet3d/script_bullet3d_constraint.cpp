@@ -1369,7 +1369,7 @@ namespace dmGameSystem
         btScalar bounce = lua_isnoneornil(L, 6) ? btScalar(0.0f) : CheckBullet3DScalarInRange(L, 6, 1.0f, "bounce", 0.0f, 1.0f);
         if (axis < 3 && meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2 && bounce != btScalar(0.0f))
         {
-            return luaL_error(L, "Linear bounce is only supported by Bullet 3.25 Spring2 constraints such as hinge2.");
+            return luaL_error(L, "Linear bounce is only supported by hinge2 constraints.");
         }
 
         CheckConstraintUnlocked(L, meta);
@@ -1473,7 +1473,7 @@ namespace dmGameSystem
         }
         if (meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2 && damping > btScalar(1.0f))
         {
-            return luaL_error(L, "Legacy 6-DOF spring damping must be between 0 and 1.");
+            return luaL_error(L, "Generic 6-DOF spring damping must be between 0 and 1.");
         }
         CheckConstraintUnlocked(L, meta);
         if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
@@ -2129,10 +2129,9 @@ namespace dmGameSystem
 /*# Create a generic six-degree-of-freedom constraint
  *
  * The params table requires local frame A and, for a two-body constraint,
- * local frame B. It optionally accepts
- * `collide_connected`. The world is derived from `body_a`. Bullet's active legacy
- * 6-DOF solver ignores its linear-reference-frame selector, so that field is
- * rejected rather than silently accepted.
+ * local frame B. It optionally accepts `collide_connected`. The world is
+ * derived from `body_a`. The generic 6-DOF solver ignores its
+ * linear-reference-frame selector, so that field is rejected.
  *
  * @name bullet3d.constraint.create_generic_6dof
  * @param body_a [type:btRigidBody] first body
@@ -2144,9 +2143,9 @@ namespace dmGameSystem
 /*# Create a generic spring six-degree-of-freedom constraint
  *
  * Both bodies and both local frames are required. The params table optionally
- * accepts `collide_connected`. The world is derived from `body_a`. Bullet's active
- * legacy spring 6-DOF solver ignores its linear-reference-frame selector, so
- * that field is rejected rather than silently accepted.
+ * accepts `collide_connected`. The world is derived from `body_a`. The generic
+ * spring 6-DOF solver ignores its linear-reference-frame selector, so that
+ * field is rejected.
  *
  * @name bullet3d.constraint.create_generic_6dof_spring
  * @param body_a [type:btRigidBody] first body
@@ -2517,9 +2516,9 @@ namespace dmGameSystem
 
 /*# Get 6-DOF motor settings
  *
- * Axes 1-3 are linear and axes 4-6 are angular. Legacy 6-DOF constraints only
- * support bounce on angular axes; Bullet 3.25 Spring2 constraints such as
- * hinge2 support it on every axis. Linear target velocity uses Defold units per
+ * Axes 1-3 are linear and axes 4-6 are angular. Generic 6-DOF, generic spring
+ * 6-DOF, and universal constraints support bounce only on angular axes; hinge2
+ * supports it on every axis. Linear target velocity uses Defold units per
  * second and angular target velocity uses radians per second. `max_force` is a
  * force for linear axes and a torque in Defold squared units for angular axes.
  *
@@ -2565,10 +2564,9 @@ namespace dmGameSystem
 
 /*# Set spring damping
  *
- * Generic spring 6-DOF constraints use Bullet's legacy damping factor from 0
- * to 1, where 1 means no damping. Hinge2 constraints use Bullet 3.25's
- * Spring2 damping coefficient, where 0 means no damping and any non-negative
- * value is accepted.
+ * Generic spring 6-DOF constraints use a damping factor from 0 to 1, where 1
+ * means no damping. Hinge2 constraints use a damping coefficient where 0 means
+ * no damping and any non-negative value is accepted.
  *
  * @name bullet3d.constraint.set_spring_damping
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint

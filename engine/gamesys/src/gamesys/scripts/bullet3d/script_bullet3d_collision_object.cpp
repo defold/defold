@@ -1010,11 +1010,6 @@ namespace dmGameSystem
  */
 
 /*# Get the Bullet collision object type
- *
- * The numeric `CO_*` values mirror the bundled Bullet 3.25 API and are
- * version-specific. Compare against the constants instead of hard-coding or
- * persisting their numeric values.
- *
  * @name bullet3d.collision_object.get_internal_type
  * @param object [type:btCollisionObject] collision object
  * @return type [type:number] one of the `CO_*` constants
