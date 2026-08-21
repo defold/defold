@@ -899,6 +899,11 @@
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "project/custom_resources" "foo/../assets"
+        (project-build! project game-project)
+        (check-file-contents workspace
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]]))
       (with-setting "project/custom_resources" "assets, root.stuff"
         (project-build! project game-project)
         (check-file-contents workspace

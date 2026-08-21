@@ -35,7 +35,8 @@
             [util.path :as path])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Result]
            [com.fasterxml.jackson.databind ObjectMapper]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -170,6 +171,7 @@
         (comp
           (map string/trim)
           (remove string/blank?)
+          (map #(FilenameUtils/normalize % true))
           (map (comp strip-trailing-slash fs/with-leading-slash)))
         (string/split (or custom-resources-setting "") #",")))
 
