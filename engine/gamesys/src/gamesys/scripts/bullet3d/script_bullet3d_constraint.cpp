@@ -633,6 +633,11 @@ namespace dmGameSystem
         RejectIneffectiveField(L, 3, "use_linear_reference_frame_a", "generic spring 6-DOF");
 
         btGeneric6DofSpringConstraint* constraint = new btGeneric6DofSpringConstraint(*input.m_BodyA, *input.m_BodyB, frame_a, frame_b, true);
+        btScalar                       physics_scale = GetBullet3DPhysicsScale();
+        btScalar                       angular_damping = btScalar(1.0f) / (physics_scale * physics_scale);
+        // Keep the default damping factor scale-independent when angular stiffness is set later.
+        for (int axis = 3; axis < 6; ++axis)
+            constraint->setDamping(axis, angular_damping);
         PushConstraint(L, RegisterConstraint(L, input, constraint, BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING));
         return 1;
     }
@@ -1468,13 +1473,7 @@ namespace dmGameSystem
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         CheckSpring6Dof(L, meta);
         int      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar damping_scale = btScalar(1.0f);
-        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 && axis >= 3)
-        {
-            btScalar physics_scale = GetBullet3DPhysicsScale();
-            damping_scale = physics_scale * physics_scale;
-        }
-        btScalar damping = CheckBullet3DScalar(L, 3, damping_scale, "damping");
+        btScalar damping = CheckBullet3DScalar(L, 3, 1.0f, "damping");
         if (damping < btScalar(0.0f))
         {
             return luaL_error(L, "damping must not be negative.");
@@ -1482,6 +1481,18 @@ namespace dmGameSystem
         if (meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2 && damping > btScalar(1.0f))
         {
             return luaL_error(L, "Generic 6-DOF spring damping must be between 0 and 1.");
+        }
+        if (axis >= 3)
+        {
+            btScalar physics_scale = GetBullet3DPhysicsScale();
+            btScalar physics_scale_squared = physics_scale * physics_scale;
+            btScalar damping_scale = physics_scale_squared;
+            if (meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2)
+            {
+                // Generic springs multiply damping by stiffness to derive target velocity.
+                damping_scale = btScalar(1.0f) / physics_scale_squared;
+            }
+            damping = CheckBullet3DScalar(L, 3, damping_scale, "damping");
         }
         CheckConstraintUnlocked(L, meta);
         if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
@@ -2572,10 +2583,10 @@ namespace dmGameSystem
 
 /*# Set spring damping
  *
- * Generic spring 6-DOF constraints use a damping factor from 0 to 1, where 1
- * means no damping. Hinge2 constraints use a damping coefficient where 0 means
- * no damping and any non-negative value is accepted. Hinge2 angular damping is
- * automatically converted using `physics.scale` squared.
+ * Generic spring 6-DOF constraints use a scale-independent damping factor from
+ * 0 to 1, where 1 means no damping. Hinge2 constraints use a damping coefficient
+ * where 0 means no damping and any non-negative value is accepted. Hinge2
+ * angular damping is automatically converted using `physics.scale` squared.
  *
  * @name bullet3d.constraint.set_spring_damping
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint

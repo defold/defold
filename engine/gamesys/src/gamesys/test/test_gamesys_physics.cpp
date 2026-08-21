@@ -402,10 +402,10 @@ TEST_F(Bullet3DComponentTest, Bullet3DAngularSpringScaleConversionTest)
     /* Intent: verify spring coefficients at the native Bullet boundary.
     ** Setup: two dynamic bodies are connected by generic spring 6-DOF and
     ** hinge2 constraints while the fixture uses physics scale 0.1.
-    ** Expected: linear coefficients and generic dimensionless damping remain
-    ** unchanged, while angular stiffness and hinge2 angular damping use scale squared.
-    ** Why: angles are scale-independent, but the resulting torque and angular
-    ** impulse must use the same scale-squared convention as rotational inertia.
+    ** Expected: linear coefficients remain unchanged, angular stiffness and hinge2
+    ** angular damping use scale squared, and generic angular damping uses its inverse.
+    ** Why: rotational torque and impulse scale squared, while generic damping
+    ** also multiplies stiffness to produce a scale-independent angular velocity.
     */
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_a"), 0, Point3(-1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_b"), 0, Point3(1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -451,31 +451,37 @@ TEST_F(Bullet3DComponentTest, Bullet3DAngularSpringScaleConversionTest)
                                         "    frame_b_rotation = vmath.quat(),\n"
                                         "}\n"
                                         "bullet3d_spring_scale_generic = bullet3d.constraint.create_generic_6dof_spring(body_a, body_b, frames)\n"
-                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_generic, 1, 4)\n"
-                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_generic, 4, 4)\n"
-                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_generic, 1, 0.5)\n"
-                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_generic, 4, 0.5)\n"
                                         "bullet3d_spring_scale_hinge2 = bullet3d.constraint.create_hinge2(body_a, body_b, {\n"
                                         "    anchor = vmath.vector3(),\n"
                                         "    axis1 = vmath.vector3(1, 0, 0),\n"
                                         "    axis2 = vmath.vector3(0, 1, 0),\n"
-                                        "})\n"
-                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_hinge2, 1, 6)\n"
-                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_hinge2, 4, 6)\n"
-                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_hinge2, 1, 0.75)\n"
-                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_hinge2, 4, 0.75)"));
+                                        "})"));
 
     ASSERT_EQ(2, world->getNumConstraints());
     ASSERT_EQ(D6_SPRING_CONSTRAINT_TYPE, world->getConstraint(0)->getConstraintType());
     ASSERT_EQ(D6_SPRING_2_CONSTRAINT_TYPE, world->getConstraint(1)->getConstraintType());
 
     btGeneric6DofSpringConstraint* generic = (btGeneric6DofSpringConstraint*)world->getConstraint(0);
+    ASSERT_NEAR(1.0f, generic->getDamping(0), 0.0001f);
+    ASSERT_NEAR(100.0f, generic->getDamping(3), 0.0001f);
+
+    btHinge2Constraint* hinge2 = (btHinge2Constraint*)world->getConstraint(1);
+    ASSERT_TRUE(dmScriptTest::RunString(L,
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_generic, 1, 4)\n"
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_generic, 4, 4)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_generic, 1, 0.5)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_generic, 4, 0.5)\n"
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_hinge2, 1, 6)\n"
+                                        "bullet3d.constraint.set_spring_stiffness(bullet3d_spring_scale_hinge2, 4, 6)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_hinge2, 1, 0.75)\n"
+                                        "bullet3d.constraint.set_spring_damping(bullet3d_spring_scale_hinge2, 4, 0.75)"));
+
     ASSERT_NEAR(4.0f, generic->getStiffness(0), 0.0001f);
     ASSERT_NEAR(0.04f, generic->getStiffness(3), 0.0001f);
     ASSERT_NEAR(0.5f, generic->getDamping(0), 0.0001f);
-    ASSERT_NEAR(0.5f, generic->getDamping(3), 0.0001f);
+    ASSERT_NEAR(50.0f, generic->getDamping(3), 0.0001f);
+    ASSERT_NEAR(2.0f, generic->getStiffness(3) * generic->getDamping(3), 0.0001f);
 
-    btHinge2Constraint* hinge2 = (btHinge2Constraint*)world->getConstraint(1);
     ASSERT_NEAR(6.0f, hinge2->getTranslationalLimitMotor()->m_springStiffness[0], 0.0001f);
     ASSERT_NEAR(0.06f, hinge2->getRotationalLimitMotor(0)->m_springStiffness, 0.0001f);
     ASSERT_NEAR(0.75f, hinge2->getTranslationalLimitMotor()->m_springDamping[0], 0.0001f);
