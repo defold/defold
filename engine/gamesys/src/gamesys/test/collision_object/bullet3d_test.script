@@ -53,8 +53,8 @@ local function world_contains_object(world, object)
     return false
 end
 
--- Verifies exported collision-object, rigid-body and shape constants. Stable
--- numeric values matter because scripts pass them back through the native API.
+-- Verifies exported collision-object, rigid-body and shape constants. These
+-- numeric values mirror Bullet 3.25 and are passed back through the native API.
 local function test_constants()
     local constants = {
         { bullet3d.collision_object.ACTIVE_TAG, 1 },
@@ -71,9 +71,9 @@ local function test_constants()
         { bullet3d.collision_object.CF_DISABLE_SPU_COLLISION_PROCESSING, 64 },
         { bullet3d.collision_object.CO_COLLISION_OBJECT, 1 },
         { bullet3d.collision_object.CO_RIGID_BODY, 2 },
-        { bullet3d.collision_object.CO_GHOST_OBJECT, 3 },
-        { bullet3d.collision_object.CO_SOFT_BODY, 4 },
-        { bullet3d.collision_object.CO_HF_FLUID, 5 },
+        { bullet3d.collision_object.CO_GHOST_OBJECT, 4 },
+        { bullet3d.collision_object.CO_SOFT_BODY, 8 },
+        { bullet3d.collision_object.CO_HF_FLUID, 16 },
         { bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY, 1 },
         { bullet3d.shape.SHAPE_TYPE_SPHERE, 0 },
         { bullet3d.shape.SHAPE_TYPE_BOX, 1 },
@@ -546,10 +546,10 @@ function init(self)
     test_constants()
 
     local version = bullet3d.get_version()
-    assert(version.version == "2.77")
-    assert(version.number == 277)
-    assert(version.major == 2)
-    assert(version.minor == 77)
+    assert(version.version == "3.25")
+    assert(version.number == 325)
+    assert(version.major == 3)
+    assert(version.minor == 25)
 
     local world = bullet3d.get_world()
     assert(world ~= nil)
