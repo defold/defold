@@ -344,7 +344,7 @@ namespace dmGameSystem
         lua_pop(L, 1);
         if (present)
         {
-            luaL_error(L, "Field '%s' is ineffective for Bullet 2.77 %s constraints.", name, constraint_type);
+            luaL_error(L, "Field '%s' is ineffective for %s constraints with the bundled Bullet solver.", name, constraint_type);
         }
     }
 
@@ -571,7 +571,7 @@ namespace dmGameSystem
         btHingeConstraint* constraint = input.m_BodyB ? new btHingeConstraint(*input.m_BodyA, *input.m_BodyB, frame_a, frame_b, use_reference_frame_a) : new btHingeConstraint(*input.m_BodyA, frame_a, use_reference_frame_a);
         if (!input.m_BodyB)
         {
-            // Bullet 2.77 only transforms the origin of the fixed body's frame.
+            // Bullet's one-body constructor only transforms the origin of the fixed body's frame.
             constraint->getBFrame() = input.m_BodyA->getCenterOfMassTransform() * frame_a;
         }
         constraint->setAngularOnly(angular_only);
@@ -596,7 +596,7 @@ namespace dmGameSystem
         btConeTwistConstraint* constraint = input.m_BodyB ? new btConeTwistConstraint(*input.m_BodyA, *input.m_BodyB, frame_a, frame_b) : new btConeTwistConstraint(*input.m_BodyA, frame_a);
         if (!input.m_BodyB)
         {
-            // Bullet 2.77 copies the body-A-local frame into the fixed body's frame.
+            // Bullet's one-body constructor copies the body-A-local frame into the fixed body's frame.
             const_cast<btTransform&>(constraint->getBFrame()) = input.m_BodyA->getCenterOfMassTransform() * frame_a;
         }
         constraint->setMotorTargetInConstraintSpace(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f));
@@ -1973,7 +1973,7 @@ namespace dmGameSystem
  *
  * `CONSTRAINT_TYPE_*` values identify the concrete constraint exposed by this
  * binding. This deliberately distinguishes universal, hinge2, and spring 6-DOF
- * constraints even though Bullet 2.77 reports their native base type as 6-DOF.
+ * constraints independently of Bullet's internal constraint type hierarchy.
  *
  * @document
  * @name bullet3d.constraint
@@ -2117,8 +2117,8 @@ namespace dmGameSystem
  *
  * The params table requires local frame A and, for a two-body constraint,
  * local frame B. It optionally accepts
- * `collide_connected`. The world is derived from `body_a`. Bullet 2.77's active 6-DOF
- * solver ignores its legacy linear-reference-frame selector, so that field is
+ * `collide_connected`. The world is derived from `body_a`. Bullet's active legacy
+ * 6-DOF solver ignores its linear-reference-frame selector, so that field is
  * rejected rather than silently accepted.
  *
  * @name bullet3d.constraint.create_generic_6dof
@@ -2131,8 +2131,8 @@ namespace dmGameSystem
 /*# Create a generic spring six-degree-of-freedom constraint
  *
  * Both bodies and both local frames are required. The params table optionally
- * accepts `collide_connected`. The world is derived from `body_a`. Bullet 2.77's active
- * spring 6-DOF solver ignores its legacy linear-reference-frame selector, so
+ * accepts `collide_connected`. The world is derived from `body_a`. Bullet's active
+ * legacy spring 6-DOF solver ignores its linear-reference-frame selector, so
  * that field is rejected rather than silently accepted.
  *
  * @name bullet3d.constraint.create_generic_6dof_spring

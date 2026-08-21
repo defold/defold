@@ -1957,7 +1957,7 @@ namespace dmGameSystem
  *
  * Casts immediately from `origin` to `origin + translation` and returns all
  * matching hits sorted by fraction. Translation must be non-zero.
- * Bullet 2.77 normally does not report a ray whose start and end are both inside
+ * Bullet's convex ray test normally does not report a ray whose start and end are both inside
  * the same convex hull. Set `filter.report_initial_overlaps = true` to perform
  * an exact point-overlap test at the origin and synthesize one deduplicated hit
  * per initially touching or overlapping object with `fraction = 0`, zero `normal`,
