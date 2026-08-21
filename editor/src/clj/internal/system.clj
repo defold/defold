@@ -426,8 +426,7 @@
       (if (and (not (identical? initial-invalidate-counters invalidate-counters))
                (full-invalidation-since? initial-invalidate-counters invalidate-counters))
         system
-        (let [system-basis (basis system)
-              evaluation-context-hits @(:hits evaluation-context)
+        (let [evaluation-context-hits @(:hits evaluation-context)
               evaluation-context-misses @(:local evaluation-context)]
           (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
             (cond-> system
@@ -436,13 +435,11 @@
 
               (coll/not-empty evaluation-context-misses)
               (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
-            (let [unsafe-cache-entry? (fn [endpoint]
-                                        (or (nil? (gt/node-by-id-at system-basis (gt/endpoint-node-id endpoint)))
-                                            (endpoint-invalidated-since? endpoint initial-invalidate-counters invalidate-counters)))
+            (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
                   safe-cache-hits (coll/into-> evaluation-context-hits []
-                                    (remove unsafe-cache-entry?))
+                                    (remove invalidated-during-node-value?))
                   safe-cache-misses (coll/into-> evaluation-context-misses []
-                                      (remove (comp unsafe-cache-entry? first)))]
+                                      (remove (comp invalidated-during-node-value? first)))]
               (cond-> system
                 (coll/not-empty safe-cache-hits)
                 (update :cache c/cache-hit safe-cache-hits)
