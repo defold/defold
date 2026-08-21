@@ -155,35 +155,55 @@
               (recur end in-quote false false
                      (case tok
                        ;; Closes the previous branch and opens a new one.
-                       "else" (conj tokens :close :open)
+                       "else" (conj tokens [:close nil] [:open nil])
                        ;; The `then` on the same line supplies the :open.
-                       "elseif" (conj tokens :close)
+                       "elseif" (conj tokens [:close nil])
                        (cond-> tokens
-                         (contains? lua-open-keywords tok) (conj :open)
-                         (contains? lua-close-keywords tok) (conj :close)))))
+                         (contains? lua-open-keywords tok) (conj [:open nil])
+                         (contains? lua-close-keywords tok) (conj [:close nil])))))
 
             ;; Non-word character
             :else
             (let [tokens (cond-> tokens
-                           (contains? #{\{ \( \[} ch) (conj :open)
-                           (contains? #{\} \) \]} ch) (conj :close))]
+                           (contains? #{\{ \( \[} ch) (conj [:open i])
+                           (contains? #{\} \) \]} ch) (conj [:close i]))]
               (recur (inc i) in-quote false false tokens))))))))
+
+(defn- code-after-column?
+  "True if anything but whitespace follows the character at col."
+  [^String line ^long col]
+  (let [len (.length line)]
+    (loop [i (inc col)]
+      (cond
+        (>= i len) false
+        (Character/isWhitespace (.charAt line i)) (recur (inc i))
+        :else true))))
 
 (defn lua-indent-counts [^String line in-long-string]
   (let [[tokens in-long-string] (lua-lex-line line in-long-string)
         leftover (reduce (fn [stack t]
-                           (if (and (= t :close) (= (peek stack) :open))
+                           (if (and (= :close (t 0))
+                                    (when-some [top (peek stack)] (= :open (top 0))))
                              (pop stack)
                              (conj stack t)))
                          []
                          tokens)
+        n (count leftover)
         closes (loop [i 0
                       closes 0]
-                 (if (or (= i (count leftover)) (= :open (leftover i)))
+                 (if (or (= i n) (= :open ((leftover i) 0)))
                    closes
-                   (recur (inc i) (inc closes))))]
+                   (recur (inc i) (inc closes))))
+        opens (loop [i closes
+                     opens []]
+                (if (= i n)
+                  opens
+                  (recur (inc i)
+                         (conj opens (when-some [col ((leftover i) 1)]
+                                       (when (code-after-column? line col)
+                                         (inc ^long col)))))))]
     {:closes closes
-     :opens (- (count leftover) closes)
+     :opens opens
      :leading (if (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line) closes 0)
      :in-long-string in-long-string}))
 

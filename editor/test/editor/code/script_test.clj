@@ -262,14 +262,14 @@
      "    print(id)"
      "end"]
 
-    ;; Function signature split over two lines.
+    ;; Function signature split over two lines, aligned under the first parameter.
     ["function foo(a,"
-     "    b)"
+     "             b)"
      "    print(a)"
      "end"]
 
     ["local function on_msg(self,"
-     "    message_id, message)"
+     "                      message_id, message)"
      "    print(message_id)"
      "end"]
 
@@ -318,6 +318,12 @@
      "    print(k)"
      "end"]
 
+    ;; Nested alignment columns unwind one at a time.
+    ["local x = foo(bar(a,"
+     "                  b),"
+     "              c)"
+     "print(x)"]
+
     ;; Single brackets still nest, even though doubled ones delimit strings.
     ["local x = t["
      "    key"
@@ -362,10 +368,10 @@
      "1, 2, 3)"
      "        print(pos)"]
 
-    ;; Arguments continued after a trailing comma.
+    ;; Arguments continued after a trailing comma align under the first argument.
     ["function update(self, dt)"
      "    local ax, ay = steering.combine_axes(dx, dy,"
-     "        self.gamepad_axis.x, self.gamepad_axis.y)"
+     "                                         self.gamepad_axis.x, self.gamepad_axis.y)"
      "    print(ax)"
      "end"]
     ["function update(self, dt)"
@@ -400,7 +406,7 @@
 
     ;; Condition split over two lines, block keyword on the closing line.
     ["if check(a,"
-     "    b) then"
+     "         b) then"
      "    print(a)"
      "end"]
     ["if check(a,"
@@ -413,6 +419,17 @@
      "print(pos)"]
     ["local pos = vmath.vector3(1, 2, 3)"
      "        print(pos)"]
+
+    ;; The alignment column is read off the line as it will look after the fix,
+    ;; not as it looks now.
+    ["if a then"
+     "    print(foo(1,"
+     "              2))"
+     "end"]
+    ["if a then"
+     "print(foo(1,"
+     "2))"
+     "end"]
 
     ;; A trailing comment after the closing parenthesis is ignored.
     ["local pos = vmath.vector3("

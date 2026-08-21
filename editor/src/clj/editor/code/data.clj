@@ -2071,30 +2071,37 @@
           indent-level)))))
 
 (defn- indent-step [stack {:keys [leading closes opens]}]
-  (let [level (if (zero? leading)
-                (if (coll/empty? stack) 0 (inc (peek stack)))
-                (loop [n leading
-                       s stack
-                       level 0]
-                  (if (or (zero? n) (coll/empty? s))
-                    level
-                    (recur (dec n) (pop s) (peek s)))))
+  (let [[level col] (if (zero? leading)
+                      (if (coll/empty? stack)
+                        [0 nil]
+                        (let [top (peek stack)]
+                          [(inc ^long (:level top)) (:col top)]))
+                      [(loop [n leading
+                              s stack
+                              level 0]
+                         (if (or (zero? n) (coll/empty? s))
+                           level
+                           (recur (dec n) (pop s) (:level (peek s)))))
+                       nil])
         stack (loop [n closes
                      s stack]
                 (if (or (zero? n) (coll/empty? s))
                   s
                   (recur (dec n) (pop s))))
-        stack (let [line-indent (if (coll/empty? stack) 0 (inc (peek stack)))]
-                (loop [n opens
+        stack (let [line-indent (if (coll/empty? stack) 0 (inc ^long (:level (peek stack))))
+                    n (count opens)]
+                (loop [i 0
                        s stack]
-                  (if (zero? n)
+                  (if (= i n)
                     s
-                    (recur (dec n) (conj s line-indent)))))]
-    [stack level]))
+                    (recur (inc i) (conj s {:level line-indent :col (opens i)})))))]
+    [stack level col]))
 
 (defn- indent-line
-  ^String [unindented-line indent-string ^long indent-level]
-  (string/join (concat (repeat indent-level indent-string) [unindented-line])))
+  ^String [unindented-line indent-string ^long indent-level indent-col]
+  (if (and (some? indent-col) (not= "\t" indent-string))
+    (string/join (concat (repeat indent-col \space) [unindented-line]))
+    (string/join (concat (repeat indent-level indent-string) [unindented-line]))))
 
 (defn- length-difference-by-row [indentation-splices]
   (into {}
@@ -2144,7 +2151,7 @@
           open? (boolean (begins-indentation? grammar line))]
       {:leading (if close? 1 0)
        :closes (if close? 1 0)
-       :opens (if open? 1 0)
+       :opens (if open? [nil] [])
        :in-long-string false})))
 
 (defn- find-indent-state [indent-level-pattern grammar lines ^long queried-row]
@@ -2158,7 +2165,7 @@
                         stack []]
                    (if (zero? n)
                      stack
-                     (recur (dec n) (conj stack (long (count stack))))))
+                     (recur (dec n) (conj stack {:level (long (count stack)) :col nil}))))
            in-long-string false]
       (if (< queried-row row)
         {:stack stack
@@ -2187,9 +2194,9 @@
                       line (lines row)
                       counts (line-indent-counts grammar line in-long-string)
                       next-in-long-string (:in-long-string counts)
-                      [next-stack line-indent-level] (indent-step stack counts)]
+                      [unfixed-stack line-indent-level line-indent-col] (indent-step stack counts)]
                   (if (contains? @fixed-rows row)
-                    (recur next-row next-stack next-in-long-string splices)
+                    (recur next-row unfixed-stack next-in-long-string splices)
                     (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
                           typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
                           line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
@@ -2208,14 +2215,15 @@
                             ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
                             (= end-row next-row)
                             (let [unindented-line (str (string/triml (subs line 0 (.col end))) (subs line (.col end)))]
-                              (indent-line unindented-line indent-string line-indent-level))
+                              (indent-line unindented-line indent-string line-indent-level line-indent-col))
 
                             ;; On in-between lines, we only want to keep whitespace that comes before code.
                             :else
                             (let [unindented-line (string/triml line)]
                               (if (seq unindented-line)
-                                (indent-line unindented-line indent-string line-indent-level)
+                                (indent-line unindented-line indent-string line-indent-level line-indent-col)
                                 "")))
+                          [next-stack] (indent-step stack (line-indent-counts grammar indented-line in-long-string))
                           splices (if (= line indented-line)
                                     splices
                                     (conj! splices [line-cursor-range [indented-line]]))]
