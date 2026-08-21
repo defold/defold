@@ -15,6 +15,8 @@
 #include <gameobject/gameobject.h>
 #include <script/script.h>
 
+#include <BulletCollision/CollisionDispatch/btCollisionObjectWrapper.h>
+
 #include "components/comp_collision_object.h"
 #include "components/bullet3d/comp_collision_object_bullet3d.h"
 #include "script_bullet3d.h"
@@ -653,7 +655,7 @@ namespace dmGameSystem
                 return m_closestHitFraction;
             }
             Bullet3DCastResult result;
-            result.m_Object = ray_result.m_collisionObject;
+            result.m_Object = (btCollisionObject*)ray_result.m_collisionObject;
             result.m_Point.setInterpolate3(m_Origin, m_Target, ray_result.m_hitFraction);
             result.m_Normal = normal_in_world_space ? ray_result.m_hitNormalLocal : result.m_Object->getWorldTransform().getBasis() * ray_result.m_hitNormalLocal;
             result.m_Fraction = ray_result.m_hitFraction;
@@ -709,7 +711,7 @@ namespace dmGameSystem
                 return m_closestHitFraction;
             }
             Bullet3DCastResult result;
-            result.m_Object = convex_result.m_hitCollisionObject;
+            result.m_Object = (btCollisionObject*)convex_result.m_hitCollisionObject;
             result.m_Point = convex_result.m_hitPointLocal;
             result.m_Normal = normal_in_world_space ? convex_result.m_hitNormalLocal : result.m_Object->getWorldTransform().getBasis() * convex_result.m_hitNormalLocal;
             result.m_Fraction = convex_result.m_hitFraction;
@@ -757,7 +759,7 @@ namespace dmGameSystem
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObject* col_obj_0, int part_id_0, int index_0, const btCollisionObject* col_obj_1, int part_id_1, int index_1)
+        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
         {
             (void)part_id_0;
             (void)index_0;
@@ -768,7 +770,9 @@ namespace dmGameSystem
                 return 0.0f;
             }
 
-            btCollisionObject* other = (btCollisionObject*)(col_obj_0 == m_QueryObject ? col_obj_1 : col_obj_0);
+            const btCollisionObject* col_obj_0 = col_obj_0_wrapper->getCollisionObject();
+            const btCollisionObject* col_obj_1 = col_obj_1_wrapper->getCollisionObject();
+            btCollisionObject*       other = (btCollisionObject*)(col_obj_0 == m_QueryObject ? col_obj_1 : col_obj_0);
             if (other != m_QueryObject && !ContainsObject(*m_Results, other) && GetCollisionObjectOwner(other, 0, 0))
             {
                 Bullet3DQueryObjectResult result = { other };
@@ -802,7 +806,7 @@ namespace dmGameSystem
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObject* col_obj_0, int part_id_0, int index_0, const btCollisionObject* col_obj_1, int part_id_1, int index_1)
+        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
         {
             (void)part_id_0;
             (void)index_0;
@@ -813,6 +817,8 @@ namespace dmGameSystem
                 return 0.0f;
             }
 
+            const btCollisionObject* col_obj_0 = col_obj_0_wrapper->getCollisionObject();
+            const btCollisionObject* col_obj_1 = col_obj_1_wrapper->getCollisionObject();
             bool                     requested_is_object_0 = col_obj_0 == m_ObjectA;
             const btCollisionObject* object_a = requested_is_object_0 ? col_obj_0 : col_obj_1;
             const btCollisionObject* object_b = requested_is_object_0 ? col_obj_1 : col_obj_0;
