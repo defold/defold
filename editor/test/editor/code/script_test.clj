@@ -292,7 +292,64 @@
      "print(text)"]
 
     ["print(pos) -- ("
-     "print(1)"]))
+     "print(1)"]
+
+    ;; A block closed one bracket at a time. `end` pays off the callback and
+    ;; `)` the call, so neither line may unwind both.
+    ["msg.post(\"#\", \"hello\", function(self)"
+     "    print(\"cb\")"
+     "end"
+     ")"
+     "print(\"done\")"]
+
+    ;; `else` closes a branch and opens one; `elseif` leaves the `then` to open.
+    ["if a then"
+     "    x()"
+     "elseif b then"
+     "    y()"
+     "else"
+     "    z()"
+     "end"]
+
+    ;; Two closers and an opener on the same line.
+    ["for k in pairs({"
+     "    a = 1"
+     "}) do"
+     "    print(k)"
+     "end"]
+
+    ;; Single brackets still nest, even though doubled ones delimit strings.
+    ["local x = t["
+     "    key"
+     "]"
+     "print(x)"]))
+
+(deftest reindent-long-string-test
+  ;; Nothing between [[ and ]] is code, however many lines it spans.
+  (are [lines] (= lines (reindent lines))
+
+    ["function f()"
+     "    local s = [[ see the note (below"
+     "    this is a test thing("
+     "    ]]"
+     "    print(s)"
+     "end"]
+
+    ;; Same for a block comment.
+    ["function f()"
+     "    local s = --[[ see the note"
+     "    this is a test thing("
+     "    ]]"
+     "    print(s)"
+     "end"]
+
+    ;; A block keyword inside one closes nothing.
+    ["function f()"
+     "    local s = [[ note"
+     "    end"
+     "    ]]"
+     "    print(s)"
+     "end"]))
 
 (deftest reindent-parentheses-test
   (are [expected lines] (= expected (reindent lines))
