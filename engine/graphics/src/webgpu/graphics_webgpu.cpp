@@ -3324,6 +3324,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
     rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
     rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ? params.m_DepthBufferParams : params.m_StencilBufferParams;
+    rt->m_Base.m_SampleCount               = ConformRenderTargetSampleCount(params.m_SampleCount, 1, "WebGPU");
 
     // colors
     const BufferType color_buffer_flags[] = {

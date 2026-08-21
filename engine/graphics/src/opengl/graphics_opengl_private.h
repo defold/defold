@@ -83,6 +83,11 @@ namespace dmGraphics
         OpenGLRenderTargetAttachment m_StencilAttachment;
         OpenGLRenderTargetAttachment m_DepthStencilAttachment;
         HOpenglID                    m_Id;
+        HOpenglID                    m_ResolveId;
+        HOpenglID                    m_MultisampleColorBuffers[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HOpenglID                    m_MultisampleDepthBuffer;
+        HOpenglID                    m_MultisampleStencilBuffer;
+        HOpenglID                    m_MultisampleDepthStencilBuffer;
         uint32_t                     m_BufferTypeFlags;
     };
 
@@ -170,6 +175,7 @@ namespace dmGraphics
         OpenGLProgram*          m_CurrentProgram;
         OpenGLUniformBuffer*    m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         OpenGLTextureBinding    m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
+        HRenderTarget           m_CurrentRenderTarget;
 
         OpenGLHandlesData                  m_GLHandlesData;
 
