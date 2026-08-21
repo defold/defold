@@ -169,17 +169,29 @@
                            (contains? #{\} \) \]} ch) (conj [:close i]))]
               (recur (inc i) in-quote false false tokens))))))))
 
-(defn- code-after-column?
-  "True if anything but whitespace follows the character at col."
-  [^String line ^long col]
+(defn- code-after-index?
+  "True if anything but whitespace follows the character at index."
+  [^String line ^long index]
   (let [len (.length line)]
-    (loop [i (inc col)]
+    (loop [i (inc index)]
       (cond
         (>= i len) false
         (Character/isWhitespace (.charAt line i)) (recur (inc i))
         :else true))))
 
-(defn lua-indent-counts [^String line in-long-string]
+(defn- visual-column
+  "The column the character at index is drawn in, with tabs expanded."
+  ^long [^String line ^long index ^long tab-spaces]
+  (loop [i 0
+         column 0]
+    (if (= i index)
+      column
+      (recur (inc i)
+             (if (= \tab (.charAt line i))
+               (+ column (- tab-spaces (mod column tab-spaces)))
+               (inc column))))))
+
+(defn lua-indent-counts [^String line in-long-string tab-spaces]
   (let [[tokens in-long-string] (lua-lex-line line in-long-string)
         leftover (reduce (fn [stack t]
                            (if (and (= :close (t 0))
@@ -199,9 +211,9 @@
                 (if (= i n)
                   opens
                   (recur (inc i)
-                         (conj opens (when-some [col ((leftover i) 1)]
-                                       (when (code-after-column? line col)
-                                         (inc ^long col)))))))]
+                         (conj opens (when-some [index ((leftover i) 1)]
+                                       (when (code-after-index? line index)
+                                         (inc (visual-column line index tab-spaces))))))))]
     {:closes closes
      :opens opens
      :leading (if (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line) closes 0)
@@ -215,7 +227,7 @@
    ;; Wrapped so the var is resolved per call, letting REPL redefs of
    ;; lua-opens-block? take effect without rebuilding this map.
    :indent {:begin #(lua-opens-block? %)
-            :counts #(lua-indent-counts %1 %2)
+            :counts #(lua-indent-counts %1 %2 %3)
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
    :auto-insert {:characters {\" \"

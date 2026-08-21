@@ -234,13 +234,16 @@
     ["    s = 'will end something'"
      "    |"]))
 
-(defn- reindent [lines]
+(defn- reindent-with [indent-string tab-spaces lines]
   (let [last-row (dec (count lines))
         cursor-range (data/->CursorRange (data/->Cursor 0 0)
                                          (data/->Cursor last-row (count (lines last-row))))]
-    (or (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar lines
-                               [cursor-range] nil (layout-info lines)))
+    (or (:lines (data/reindent (data/indent-level-pattern tab-spaces) indent-string script/lua-grammar
+                               lines [cursor-range] nil (layout-info lines)))
         lines)))
+
+(defn- reindent [lines]
+  (reindent-with indent-string (count indent-string) lines))
 
 (deftest reindent-preserves-correct-indentation-test
   ;; Correctly indented code must come back unchanged.
@@ -329,6 +332,34 @@
      "    key"
      "]"
      "print(x)"]))
+
+(deftest reindent-tab-alignment-test
+  ;; An alignment column is where the text is drawn, so tabs both in the
+  ;; indentation and inside the line count for their full width.
+  (are [lines] (= lines (reindent-with "\t" 4 lines))
+
+    ;; Column 13: three tabs reach column 12, a space covers the rest.
+    ["function foo(a,"
+     "\t\t\t b)"
+     "\tprint(a)"
+     "end"]
+
+    ["function f()"
+     "\tif a then"
+     "\t\tprint(foo(1,"
+     "\t\t\t\t  2))"
+     "\tend"
+     "end"]
+
+    ;; A tab inside the line moves the parenthesis to column 15.
+    ["local x =\tfoo(a,"
+     "\t\t\t\tb)"])
+
+  ;; The same line indented with spaces aligns to the same column.
+  (is (= ["local x =\tfoo(a,"
+          "                b)"]
+         (reindent-with "    " 4 ["local x =\tfoo(a,"
+                                  "b)"]))))
 
 (deftest reindent-long-string-test
   ;; Nothing between [[ and ]] is code, however many lines it spans.

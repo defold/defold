@@ -2097,11 +2097,22 @@
                     (recur (inc i) (conj s {:level line-indent :col (opens i)})))))]
     [stack level col]))
 
+(defn- indent-string->tab-spaces
+  ^long [^String indent-string]
+  (if (= "\t" indent-string)
+    (indent-type->tab-spaces :tabs)
+    (.length indent-string)))
+
 (defn- indent-line
   ^String [unindented-line indent-string ^long indent-level indent-col]
-  (if (and (some? indent-col) (not= "\t" indent-string))
-    (string/join (concat (repeat indent-col \space) [unindented-line]))
-    (string/join (concat (repeat indent-level indent-string) [unindented-line]))))
+  (if (nil? indent-col)
+    (string/join (concat (repeat indent-level indent-string) [unindented-line]))
+    (let [tab-spaces (indent-string->tab-spaces indent-string)
+          units (quot ^long indent-col tab-spaces)
+          padding (- ^long indent-col (* units tab-spaces))]
+      (string/join (concat (repeat units indent-string)
+                           (repeat padding \space)
+                           [unindented-line])))))
 
 (defn- length-difference-by-row [indentation-splices]
   (into {}
@@ -2144,9 +2155,9 @@
               (not= regions regions')
               (assoc :regions regions')))))
 
-(defn- line-indent-counts [grammar line in-long-string]
+(defn- line-indent-counts [grammar line in-long-string ^long tab-spaces]
   (if-let [counts (:counts (:indent grammar))]
-    (counts line in-long-string)
+    (counts line in-long-string tab-spaces)
     (let [close? (boolean (ends-indentation? grammar line))
           open? (boolean (begins-indentation? grammar line))]
       {:leading (if close? 1 0)
@@ -2154,7 +2165,7 @@
        :opens (if open? [nil] [])
        :in-long-string false})))
 
-(defn- find-indent-state [indent-level-pattern grammar lines ^long queried-row]
+(defn- find-indent-state [indent-level-pattern grammar lines ^long queried-row ^long tab-spaces]
   (let [^long start-row (loop [row queried-row]
                           (cond (not (pos? row)) 0
                                 (string/blank? (get lines row)) (recur (dec row))
@@ -2170,12 +2181,13 @@
       (if (< queried-row row)
         {:stack stack
          :in-long-string in-long-string}
-        (let [counts (line-indent-counts grammar (get lines row) in-long-string)
+        (let [counts (line-indent-counts grammar (get lines row) in-long-string tab-spaces)
               [next-stack] (indent-step stack counts)]
           (recur (inc row) next-stack (:in-long-string counts)))))))
 
 (defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
   (let [fixed-rows (volatile! #{})
+        tab-spaces (indent-string->tab-spaces indent-string)
         mapcat-fn
         (fn [^CursorRange cursor-range]
           (let [start (cursor-range-start cursor-range)
@@ -2183,7 +2195,7 @@
                 start-row (.row start)
                 end-row (inc (.row end))
                 prev-row (dec start-row)
-                prev-state (find-indent-state indent-level-pattern grammar lines prev-row)]
+                prev-state (find-indent-state indent-level-pattern grammar lines prev-row tab-spaces)]
             (loop [row start-row
                    stack (:stack prev-state)
                    in-long-string (:in-long-string prev-state)
@@ -2192,7 +2204,7 @@
                 (persistent! splices)
                 (let [next-row (inc row)
                       line (lines row)
-                      counts (line-indent-counts grammar line in-long-string)
+                      counts (line-indent-counts grammar line in-long-string tab-spaces)
                       next-in-long-string (:in-long-string counts)
                       [unfixed-stack line-indent-level line-indent-col] (indent-step stack counts)]
                   (if (contains? @fixed-rows row)
@@ -2223,7 +2235,7 @@
                               (if (seq unindented-line)
                                 (indent-line unindented-line indent-string line-indent-level line-indent-col)
                                 "")))
-                          [next-stack] (indent-step stack (line-indent-counts grammar indented-line in-long-string))
+                          [next-stack] (indent-step stack (line-indent-counts grammar indented-line in-long-string tab-spaces))
                           splices (if (= line indented-line)
                                     splices
                                     (conj! splices [line-cursor-range [indented-line]]))]
