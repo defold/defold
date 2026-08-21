@@ -165,34 +165,21 @@
 (defn- file-resource? [resource]
   (= (resource/source-type resource) :file))
 
-(defn- parse-custom-resource-paths [cr-setting]
-  (let [paths (remove string/blank? (map string/trim (string/split (or cr-setting "")  #",")))]
-    (map (comp strip-trailing-slash fs/with-leading-slash) paths)))
+(defn- parse-custom-resource-paths [custom-resources-setting]
+  (into []
+        (comp
+          (map string/trim)
+          (remove string/blank?)
+          (map (comp strip-trailing-slash fs/with-leading-slash)))
+        (string/split (or custom-resources-setting "") #",")))
 
-(defn- merge-custom-resource-path-settings [& settings]
+(defn- merge-custom-resource-path-settings [settings]
   (->> settings
-       (mapcat parse-custom-resource-paths)
-       distinct
-       (string/join ", ")))
-
-(defn- ext-properties-proj-path? [proj-path]
-  (or (= "/ext.properties" proj-path)
-      (string/ends-with? proj-path "/ext.properties")))
-
-(defn- game-properties-proj-path? [proj-path]
-  (= "/game.properties" proj-path))
-
-(defn- meta-info-resource? [proj-path]
-  (or (ext-properties-proj-path? proj-path)
-      (game-properties-proj-path? proj-path)))
-
-(defn- load-meta-info-resource [resource]
-  (with-open [rdr (io/reader resource)]
-    (settings-core/load-meta-properties rdr)))
-
-(defn- meta-info-custom-resources-default [meta-info]
-  (some->> (settings-core/get-default-setting (:settings meta-info) ["project" "custom_resources"])
-           str))
+       (into []
+             (comp
+               (mapcat parse-custom-resource-paths)
+               (distinct)))
+       (coll/join-to-string ", ")))
 
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
@@ -291,25 +278,15 @@
   (input build-errors g/Any :array)
 
   (output custom-resources-setting g/Any :cached
-          (g/fnk [_node-id raw-settings resource-map resource-snapshot]
-            ;; Depend on the resource-snapshot so edits to ext.properties contents
-            ;; invalidate this cached value even when the resource-map shape is unchanged.
-            resource-snapshot
-            (let [meta-resource-defaults
-                  (coll/into-> resource-map []
-                    (keep (fn [[proj-path resource]]
-                            (when (meta-info-resource? proj-path)
-                              (try
-                                (meta-info-custom-resources-default (load-meta-info-resource resource))
-                                (catch Throwable error
-                                  (g/map->error
-                                    {:_node-id _node-id
-                                     :severity :fatal
-                                     :message (ex-message error)})))))))]
-              (g/precluding-errors meta-resource-defaults
-                (apply merge-custom-resource-path-settings
-                       (concat meta-resource-defaults
-                               [(settings-core/get-setting raw-settings ["project" "custom_resources"])]))))))
+          (g/fnk [meta-info raw-settings]
+            (merge-custom-resource-path-settings
+              (conj
+                (settings-core/get-default-setting-values
+                  (:settings meta-info)
+                  ["project" "custom_resources"])
+                (settings-core/get-setting
+                  raw-settings
+                  ["project" "custom_resources"])))))
 
   (output ssl-certificates-directory-resource g/Any
           (g/fnk [_node-id settings-map]
