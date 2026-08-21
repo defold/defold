@@ -4076,27 +4076,24 @@ namespace dmGraphics
     static HRenderTarget MetalNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         MetalContext* context = (MetalContext*)_context;
-        RenderTargetCreationParams rt_params = params;
-        rt_params.m_SampleCount = ConformRenderTargetSampleCount(rt_params.m_SampleCount, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
-
         // allocate the render target object (ID helper reused from your Vulkan path)
         MetalRenderTarget* rt = new MetalRenderTarget(GetNextRenderTargetId());
 
         // copy params into RT object
-        memcpy(rt->m_ColorBufferLoadOps, rt_params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        memcpy(rt->m_ColorBufferStoreOps, rt_params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        memcpy(rt->m_ColorAttachmentClearValue, rt_params.m_ColorBufferClearValue, sizeof(float) * MAX_BUFFER_COLOR_ATTACHMENTS * 4);
-        memcpy(rt->m_ColorTextureParams, rt_params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        memcpy(rt->m_Base.m_ColorTextureParams, rt_params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        rt->m_Base.m_DepthBufferParams   = rt_params.m_DepthBufferParams;
-        rt->m_Base.m_StencilBufferParams = rt_params.m_StencilBufferParams;
+        memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorBufferClearValue, sizeof(float) * MAX_BUFFER_COLOR_ATTACHMENTS * 4);
+        memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        rt->m_Base.m_DepthBufferParams   = params.m_DepthBufferParams;
+        rt->m_Base.m_StencilBufferParams = params.m_StencilBufferParams;
         // depth/stencil choice as in Vulkan
         rt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
-            rt_params.m_DepthBufferParams :
-            rt_params.m_StencilBufferParams;
+            params.m_DepthBufferParams :
+            params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = rt->m_DepthStencilTextureParams;
-        rt->m_Base.m_SampleCount = rt_params.m_SampleCount;
-        rt->m_SampleCount = rt_params.m_SampleCount;
+        rt->m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
+        rt->m_Base.m_SampleCount = rt->m_SampleCount;
         uint32_t scissor_width  = rt->m_DepthStencilTextureParams.m_Width;
         uint32_t scissor_height = rt->m_DepthStencilTextureParams.m_Height;
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS && scissor_width == 0 && scissor_height == 0; ++i)
@@ -4153,7 +4150,7 @@ namespace dmGraphics
 
             // Create engine texture object using your NewTexture helper (keeps bookkeeping consistent)
             // The Vulkan path used params.m_ColorBufferCreationParams[i]; mirror that here.
-            HTexture new_texture_color_handle = NewTexture(_context, rt_params.m_ColorBufferCreationParams[i]);
+            HTexture new_texture_color_handle = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
             MetalTexture* new_texture_color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
             assert(new_texture_color);
 
@@ -4163,7 +4160,7 @@ namespace dmGraphics
             texture_color[color_index] = new_texture_color_handle;
             if (has_msaa)
             {
-                HTexture resolve_handle = NewTexture(_context, rt_params.m_ColorBufferCreationParams[i]);
+                HTexture resolve_handle = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
                 MetalTexture* resolve_texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, resolve_handle);
                 assert(resolve_texture);
                 CreateMetalTexture(context, resolve_texture, color_buffer_params, MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
@@ -4175,8 +4172,8 @@ namespace dmGraphics
         // create depth/stencil attachment if requested
         if (has_depth || has_stencil)
         {
-            const TextureCreationParams& ds_create_params = has_depth ? rt_params.m_DepthBufferCreationParams : rt_params.m_StencilBufferCreationParams;
-            const TextureParams& ds_params = has_depth ? rt_params.m_DepthBufferParams : rt_params.m_StencilBufferParams;
+            const TextureCreationParams& ds_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
+            const TextureParams& ds_params = has_depth ? params.m_DepthBufferParams : params.m_StencilBufferParams;
 
             // create engine texture wrapper for depth/stencil
             texture_depth_stencil = NewTexture(_context, ds_create_params);

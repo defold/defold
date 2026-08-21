@@ -3317,16 +3317,14 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
-    RenderTargetCreationParams rt_params = params;
-    rt_params.m_SampleCount = ConformRenderTargetSampleCount(rt_params.m_SampleCount, 1, "WebGPU");
     WebGPURenderTarget* rt = new WebGPURenderTarget();
     rt->m_Multisample      = 1;
     rt->m_Width = rt->m_Height = 0;
-    memcpy(rt->m_Base.m_ColorTextureParams, rt_params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
-    rt->m_Base.m_DepthBufferParams         = rt_params.m_DepthBufferParams;
-    rt->m_Base.m_StencilBufferParams       = rt_params.m_StencilBufferParams;
-    rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ? rt_params.m_DepthBufferParams : rt_params.m_StencilBufferParams;
-    rt->m_Base.m_SampleCount = rt_params.m_SampleCount;
+    memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+    rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
+    rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
+    rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ? params.m_DepthBufferParams : params.m_StencilBufferParams;
+    rt->m_Base.m_SampleCount               = ConformRenderTargetSampleCount(params.m_SampleCount, 1, "WebGPU");
 
     // colors
     const BufferType color_buffer_flags[] = {
@@ -3340,11 +3338,11 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         const BufferType buffer_type = color_buffer_flags[i];
         if (buffer_type_flags & buffer_type)
         {
-            rt->m_ColorBufferLoadOps[rt->m_Base.m_ColorAttachmentCount]  = rt_params.m_ColorBufferLoadOps[i];
-            rt->m_ColorBufferStoreOps[rt->m_Base.m_ColorAttachmentCount] = rt_params.m_ColorBufferStoreOps[i];
-            memcpy(rt->m_ColorBufferClearValue + rt->m_Base.m_ColorAttachmentCount, rt_params.m_ColorBufferClearValue + i, sizeof(rt_params.m_ColorBufferClearValue[i]));
+            rt->m_ColorBufferLoadOps[rt->m_Base.m_ColorAttachmentCount]  = params.m_ColorBufferLoadOps[i];
+            rt->m_ColorBufferStoreOps[rt->m_Base.m_ColorAttachmentCount] = params.m_ColorBufferStoreOps[i];
+            memcpy(rt->m_ColorBufferClearValue + rt->m_Base.m_ColorAttachmentCount, params.m_ColorBufferClearValue + i, sizeof(params.m_ColorBufferClearValue[i]));
             {
-                WebGPUTexture* texture    = WebGPUNewTextureInternal(rt_params.m_ColorBufferCreationParams[i]);
+                WebGPUTexture* texture    = WebGPUNewTextureInternal(params.m_ColorBufferCreationParams[i]);
                 texture->m_Base.m_Format = rt->m_Base.m_ColorTextureParams[i].m_Format;
                 WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(rt->m_Base.m_ColorTextureParams[i].m_Format), 1, 1, g_rendertarget_usage);
                 SetTextureResourceSize(&texture->m_Base, sizeof(WebGPUTexture));
@@ -3368,7 +3366,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         WebGPUTexture* texture = NULL;
         if (has_depth)
         {
-            texture                   = WebGPUNewTextureInternal(rt_params.m_DepthBufferCreationParams);
+            texture                   = WebGPUNewTextureInternal(params.m_DepthBufferCreationParams);
             texture->m_Base.m_Format = rt->m_Base.m_DepthStencilTextureParams.m_Format;
             if (has_stencil)
                 format = WGPUTextureFormat_Depth24PlusStencil8;
@@ -3377,7 +3375,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         }
         else if (has_stencil)
         {
-            texture                   = WebGPUNewTextureInternal(rt_params.m_StencilBufferCreationParams);
+            texture                   = WebGPUNewTextureInternal(params.m_StencilBufferCreationParams);
             texture->m_Base.m_Format = rt->m_Base.m_DepthStencilTextureParams.m_Format;
             format                    = WGPUTextureFormat_Stencil8;
         }
