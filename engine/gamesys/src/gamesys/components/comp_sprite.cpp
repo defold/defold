@@ -1053,10 +1053,13 @@ namespace dmGameSystem
         xs[0] = ys[0] = 0;
         xs[3] = ys[3] = 1;
 
-        xs[1] = sx * slice9.getX();
-        xs[2] = 1 - sx * slice9.getZ();
-        ys[1] = sy * slice9.getW();
-        ys[2] = 1 - sy * slice9.getY();
+        // Flipping the UV grid also moves the fixed-size slice borders to the
+        // opposite side of the sprite. Keep the geometry subdivisions aligned
+        // with the reversed UV subdivisions for asymmetric slice values.
+        xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
+        xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
+        ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
+        ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
 
         if (has_world_position_attribute)
         {

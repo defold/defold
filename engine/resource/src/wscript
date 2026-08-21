@@ -27,7 +27,7 @@ def build(bld):
     else:
          resource.source.append('async/load_queue_threaded.cpp');
 
-    if bld.env.PLATFORM in ('armv7-android','arm64-android'):
+    if bld.env.PLATFORM in ('armv7-android','arm64-android','x86_64-android'):
         resource.source.append('mount/mount_android.cpp');
     elif bld.env.PLATFORM in ('x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios'):
         resource.source.append('mount/mount_mmap.cpp');

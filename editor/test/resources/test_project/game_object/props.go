@@ -48,6 +48,11 @@ components {
     type: PROPERTY_TYPE_BOOLEAN
   }
   properties {
+    id: "text"
+    value: "game object text å\nsecond line"
+    type: PROPERTY_TYPE_TEXT
+  }
+  properties {
     id: "atlas"
     value: "/script/resources/from_props_game_object.atlas"
     type: PROPERTY_TYPE_HASH

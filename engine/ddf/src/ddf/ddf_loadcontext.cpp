@@ -31,8 +31,6 @@ namespace dmDDF
         {
             memset(buffer, 0, buffer_size);
         }
-        m_ArrayCount.SetCapacity(2048, 2048);
-
         m_DynamicOffsetCursor = 0;
         m_DynamicTypeMemoryTotal = 0;
     }
@@ -125,28 +123,44 @@ namespace dmDDF
 
     uint32_t LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
+        return AddArrayCount(buffer_pos, field_number, 1);
+    }
+
+    uint32_t LoadContext::AddArrayCount(uint32_t buffer_pos, uint32_t field_number, uint32_t count)
+    {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
-        if(m_ArrayCount.Full())
+
+        if (m_ArrayCount.Capacity() != 0)
         {
-            m_ArrayCount.SetCapacity(2048, m_ArrayCount.Capacity() + 1024);
+            uint32_t* value = m_ArrayCount.Get(hash);
+            if (value)
+            {
+                *value += count;
+                return hash;
+            }
         }
 
-        uint32_t* value_p = m_ArrayCount.Get(hash);
-        if(value_p)
+        if (m_ArrayCount.Capacity() == 0)
         {
-            (*value_p)++;
+            m_ArrayCount.SetCapacity(16, 16);
         }
-        else
+        else if (m_ArrayCount.Full())
         {
-            m_ArrayCount.Put(hash, 1);
+            uint32_t capacity = m_ArrayCount.Capacity() * 2;
+            m_ArrayCount.SetCapacity(capacity, capacity);
         }
+
+        m_ArrayCount.Put(hash, count);
 
         return hash;
     }
 
     uint32_t LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
+        if (m_ArrayCount.Capacity() == 0)
+            return 0;
+
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
         uint32_t *info_ptr = m_ArrayCount.Get(hash);

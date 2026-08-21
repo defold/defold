@@ -2179,10 +2179,12 @@ namespace dmGameSystem
                 vs[vI[3]] = tc[3];
             }
 
-            xs[1] = sx * slice9.getX();
-            xs[2] = 1 - sx * slice9.getZ();
-            ys[1] = sy * slice9.getW();
-            ys[2] = 1 - sy * slice9.getY();
+            // Keep the geometry subdivisions aligned with the reversed UV
+            // subdivisions when an asymmetric 9-slice is flipped.
+            xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
+            xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
+            ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
+            ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
 
             const Matrix4* transform = &node_transforms[i];
             Vector4 pts[4][4];
