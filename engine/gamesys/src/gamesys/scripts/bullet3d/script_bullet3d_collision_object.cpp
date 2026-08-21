@@ -646,6 +646,7 @@ namespace dmGameSystem
         SetIntegerConstant(L, "DISABLE_DEACTIVATION", DISABLE_DEACTIVATION);
         SetIntegerConstant(L, "DISABLE_SIMULATION", DISABLE_SIMULATION);
 
+        SetIntegerConstant(L, "CF_DYNAMIC_OBJECT", btCollisionObject::CF_DYNAMIC_OBJECT);
         SetIntegerConstant(L, "CF_STATIC_OBJECT", btCollisionObject::CF_STATIC_OBJECT);
         SetIntegerConstant(L, "CF_KINEMATIC_OBJECT", btCollisionObject::CF_KINEMATIC_OBJECT);
         SetIntegerConstant(L, "CF_NO_CONTACT_RESPONSE", btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -707,6 +708,15 @@ namespace dmGameSystem
  */
 /*# Disable simulation
  * @name bullet3d.collision_object.DISABLE_SIMULATION
+ * @constant
+ */
+/*# Dynamic collision object flag
+ *
+ * This is the zero-valued default. Compare the complete collision-flags value
+ * with this constant; do not pass it to `has_collision_flag`, since zero is
+ * not a bit that can be tested.
+ *
+ * @name bullet3d.collision_object.CF_DYNAMIC_OBJECT
  * @constant
  */
 
@@ -857,8 +867,8 @@ namespace dmGameSystem
  *
  * This exposes Bullet's native `btCollisionObject::isActive` result. It is
  * `false` for `ISLAND_SLEEPING` and `DISABLE_SIMULATION`, and `true` for the
- * other activation states. It is unrelated to whether the Defold component is
- * enabled.
+ * other activation states available to Defold collision objects. It is
+ * unrelated to whether the Defold component is enabled.
  *
  * @name bullet3d.collision_object.is_active
  * @param object [type:btCollisionObject] collision object

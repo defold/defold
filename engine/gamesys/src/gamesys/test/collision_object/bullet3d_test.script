@@ -63,6 +63,7 @@ local function test_constants()
         { bullet3d.collision_object.WANTS_DEACTIVATION, 3 },
         { bullet3d.collision_object.DISABLE_DEACTIVATION, 4 },
         { bullet3d.collision_object.DISABLE_SIMULATION, 5 },
+        { bullet3d.collision_object.CF_DYNAMIC_OBJECT, 0 },
         { bullet3d.collision_object.CF_STATIC_OBJECT, 1 },
         { bullet3d.collision_object.CF_KINEMATIC_OBJECT, 2 },
         { bullet3d.collision_object.CF_NO_CONTACT_RESPONSE, 4 },

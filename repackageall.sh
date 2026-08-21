@@ -2,7 +2,7 @@
 
 # ./packages/repack.sh MoltenVK-1.0.41-x86_64-macos.tar.gz
 # ./packages/repack.sh apkc-0.1.0-x86_64-macos.tar.gz
-# ./packages/repack.sh bullet-2.77-x86_64-macos.tar.gz
+# ./packages/repack.sh bullet-3.25-x86_64-macos.tar.gz
 # ./packages/repack.sh cg-3.1-x86_64-macos.tar.gz
 # ./packages/repack.sh gitsrv-0.1.0-x86_64-macos.tar.gz
 # ./packages/repack.sh glslc-v2018.0-x86_64-macos.tar.gz
@@ -15,7 +15,7 @@
 # ./packages/repack.sh vpx-1.7.0-x86_64-macos.tar.gz
 
 # ./packages/repack.sh MoltenVK-1.0.41-arm64-ios.tar.gz
-# ./packages/repack.sh bullet-2.77-arm64-ios.tar.gz
+# ./packages/repack.sh bullet-3.25-arm64-ios.tar.gz
 
 # ./packages/repack.sh luajit-2.1.0-beta3-arm64-ios.tar.gz
 # ./packages/repack.sh protobuf-2.3.0-arm64-ios.tar.gz
