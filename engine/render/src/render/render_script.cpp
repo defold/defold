@@ -1077,7 +1077,6 @@ namespace dmRender
             p->m_Height = (uint32_t) height;
             cp->m_Width = p->m_Width;
             cp->m_Height = p->m_Height;
-
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
