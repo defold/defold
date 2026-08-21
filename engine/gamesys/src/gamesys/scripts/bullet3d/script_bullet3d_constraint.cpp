@@ -1311,6 +1311,7 @@ namespace dmGameSystem
                 enabled = motor->m_enableMotor[axis];
                 target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
                 max_force = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+                bounce = motor->m_bounce[axis];
             }
             else
             {
@@ -1366,9 +1367,9 @@ namespace dmGameSystem
             return luaL_error(L, "max_force must not be negative.");
         }
         btScalar bounce = lua_isnoneornil(L, 6) ? btScalar(0.0f) : CheckBullet3DScalarInRange(L, 6, 1.0f, "bounce", 0.0f, 1.0f);
-        if (axis < 3 && bounce != btScalar(0.0f))
+        if (axis < 3 && meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2 && bounce != btScalar(0.0f))
         {
-            return luaL_error(L, "bounce is only supported by angular 6-DOF motors.");
+            return luaL_error(L, "Linear bounce is only supported by Bullet 3.25 Spring2 constraints such as hinge2.");
         }
 
         CheckConstraintUnlocked(L, meta);
@@ -1381,6 +1382,7 @@ namespace dmGameSystem
                 motor->m_enableMotor[axis] = enabled;
                 motor->m_targetVelocity[axis] = target_velocity;
                 motor->m_maxMotorForce[axis] = max_force;
+                motor->m_bounce[axis] = bounce;
             }
             else
             {
@@ -2482,8 +2484,9 @@ namespace dmGameSystem
 
 /*# Get 6-DOF motor settings
  *
- * Axes 1-3 are linear and axes 4-6 are angular. Bounce is zero for linear
- * motors because Bullet only implements it for angular motors.
+ * Axes 1-3 are linear and axes 4-6 are angular. Legacy 6-DOF constraints only
+ * support bounce on angular axes; Bullet 3.25 Spring2 constraints such as
+ * hinge2 support it on every axis.
  *
  * @name bullet3d.constraint.get_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
@@ -2491,7 +2494,7 @@ namespace dmGameSystem
  * @return enabled [type:boolean] motor state
  * @return target_velocity [type:number] target velocity
  * @return max_force [type:number] maximum motor force for linear axes or torque for angular axes
- * @return bounce [type:number] angular bounce from 0 to 1
+ * @return bounce [type:number] bounce from 0 to 1
  */
 
 /*# Set 6-DOF motor settings
@@ -2501,7 +2504,7 @@ namespace dmGameSystem
  * @param enabled [type:boolean] motor state
  * @param target_velocity [type:number] target velocity
  * @param max_force [type:number] non-negative maximum motor force for linear axes or torque for angular axes
- * @param bounce [type:number|nil] optional angular bounce from 0 to 1
+ * @param bounce [type:number|nil] optional bounce from 0 to 1
  */
 
 /*# Enable or disable a spring axis
