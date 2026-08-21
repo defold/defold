@@ -563,7 +563,7 @@ public class ExtenderUtil {
     }
 
     private static boolean isAndroidPlatform(Platform platform) {
-        return platform != null && "android".equals(platform.getOs());
+        return "android".equals(platform.getOs());
     }
 
 
