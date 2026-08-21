@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.script
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-annotations :as script-annotations]
@@ -39,70 +38,31 @@
 (def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
 (def lua-close-keywords #{"end" "until"})
 
-;; This function replicates the behavior of the regex:
-;;   ^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$
+;; These two functions decide what a line does to the indentation around it.
+;; lua-lex-line scans it, lua-indent-counts folds the result into a summary.
 ;;
-;; It performs the following checks:
-;; - Skips full-line comments (equivalent to ^([^-]|-(?!-))* for avoiding -- comments)
-;; - Ignores anything inside string literals (quoted "..." or '...')
-;; - Skips trailing inline comments (-- outside of string)
-;; - After cleaning, checks for:
-;;     * Ending with `{` (equivalent to (\{\s*)$)
-;;     * Presence of open block keywords (else, function, then, do, repeat)
-;;       not followed by closing keywords (end, until)
-(defn lua-opens-block? [^String line]
-  (let [len (.length line)]
-    (if (or (zero? len)
-            (.startsWith (string/triml line) "--"))
-      false
-      (loop [i 0
-             token (StringBuilder.)
-             in-quote nil
-             escaped false
-             skip-rest false
-             last-non-space nil
-             tokens #{}]
-        (if (>= i len)
-          (let [tokens (if (pos? (.length token)) (conj tokens (.toString token)) tokens)]
-            (or (= last-non-space \{)
-                (and (coll/some lua-open-keywords tokens)
-                     (not (coll/some lua-close-keywords tokens)))))
-          (let [ch (.charAt line (long i))]
-            (cond
-              skip-rest
-              (recur (inc i) token in-quote false true last-non-space tokens)
-
-              in-quote
-              (cond
-                escaped (recur (inc i) token in-quote false skip-rest last-non-space tokens)
-                (= ch \\) (recur (inc i) token in-quote true skip-rest last-non-space tokens)
-                (= ch (.charValue ^Character in-quote)) (recur (inc i) token nil false skip-rest last-non-space tokens)
-                :else (recur (inc i) token in-quote false skip-rest last-non-space tokens))
-
-              ;; Inline comment
-              (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
-              (recur len token in-quote false true last-non-space tokens)
-
-              ;; Start of quote
-              (or (= ch \") (= ch \'))
-              (recur (inc i) token ch false skip-rest last-non-space tokens)
-
-              ;; Word character
-              (or (Character/isLetter ch) (Character/isDigit ch) (= ch \_))
-              (do (.append token ch)
-                  (recur (inc i) token in-quote false skip-rest ch tokens))
-
-              ;; Non-word character
-              :else
-              (let [tokens (if (pos? (.length token))
-                             (let [tok (.toString token)]
-                               (.setLength token 0)
-                               (conj tokens tok))
-                             tokens)]
-                (recur (inc i) token in-quote false skip-rest
-                       (if (Character/isWhitespace ch) last-non-space ch)
-                       tokens)))))))))
-
+;; The scan emits one token per bracket or block keyword, as [kind index]:
+;; - Ignores anything inside string literals (quoted "..." or '...') and
+;;   trailing inline comments (-- outside of a string)
+;; - Threads in-long-string in and out, because a line cannot tell on its own
+;;   whether it starts inside a [[ ]] string or a --[[ ]] block comment
+;; - Records the index of a bracket, so that its contents can be aligned under
+;;   it. Block keywords carry nil, as their bodies always indent by a level
+;; - Reads `else` as a close and an open, and `elseif` as a close alone,
+;;   leaving the `then` on the same line to supply the open
+;;
+;; The fold cancels matching pairs and describes what is left over:
+;; - :closes, the closers with no opener on this line. They pop enclosing
+;;   blocks, and so decide the indentation of the lines that follow
+;; - :leading, which is :closes when the line begins with one and 0 otherwise.
+;;   Only a closer standing before any code pulls this line itself back; a
+;;   trailing one is punctuation on a continuation line
+;; - :opens, one entry per thing still open at the end of the line, holding:
+;;     * the visual column its contents align to, taken from just past the
+;;       bracket with tabs expanded, so that it is where the text is drawn
+;;       rather than an offset into the string
+;;     * nil when nothing follows the bracket on its line, or when it is a
+;;       block keyword, which indents its contents by a level instead
 (defn lua-lex-line [^String line in-long-string]
   (let [len (.length line)]
     (loop [i 0
@@ -169,9 +129,7 @@
                            (contains? #{\} \) \]} ch) (conj [:close i]))]
               (recur (inc i) in-quote false false tokens))))))))
 
-(defn- code-after-index?
-  "True if anything but whitespace follows the character at index."
-  [^String line ^long index]
+(defn- code-after-index? [^String line ^long index]
   (let [len (.length line)]
     (loop [i (inc index)]
       (cond
@@ -180,7 +138,6 @@
         :else true))))
 
 (defn- visual-column
-  "The column the character at index is drawn in, with tabs expanded."
   ^long [^String line ^long index ^long tab-spaces]
   (loop [i 0
          column 0]
@@ -222,12 +179,9 @@
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
-   ;; indent patterns shamelessly stolen from textmate:
+   ;; The :end pattern is shamelessly stolen from textmate:
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
-   ;; Wrapped so the var is resolved per call, letting REPL redefs of
-   ;; lua-opens-block? take effect without rebuilding this map.
-   :indent {:begin #(lua-opens-block? %)
-            :counts #(lua-indent-counts %1 %2 %3)
+   :indent {:counts #(lua-indent-counts %1 %2 %3)
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
    :auto-insert {:characters {\" \"

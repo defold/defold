@@ -2165,8 +2165,10 @@
        :opens (if open? [nil] [])
        :in-long-string false})))
 
-(defn- find-indent-state [indent-level-pattern grammar lines ^long queried-row ^long tab-spaces]
-  (let [^long start-row (loop [row queried-row]
+(defn- find-indent-state [indent-level-pattern grammar lines queried-row tab-spaces]
+  (let [queried-row (long queried-row)
+        tab-spaces (long tab-spaces)
+        ^long start-row (loop [row queried-row]
                           (cond (not (pos? row)) 0
                                 (string/blank? (get lines row)) (recur (dec row))
                                 (pos? (parse-indent-level indent-level-pattern (get lines row))) (recur (dec row))
