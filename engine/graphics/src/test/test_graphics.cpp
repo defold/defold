@@ -2004,19 +2004,9 @@ TEST_F(dmGraphicsTest, TestRenderTargetSampleCountConformance)
     ASSERT_EQ(4u, dmGraphics::GetClosestSupportedSampleCount(8, 1 | 4));
 
     dmGraphics::RenderTargetCreationParams params = {};
-    params.m_ColorBufferSampleCounts[0] = 3;
-    params.m_DepthBufferSampleCount = 8;
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-
-    dmGraphics::ConformRenderTargetCreationSampleCounts(&params, flags, 1 | 2 | 4, false, "Test");
-    ASSERT_EQ(4u, params.m_ColorBufferSampleCounts[0]);
-    ASSERT_EQ(4u, params.m_DepthBufferSampleCount);
-
-    params.m_ColorBufferSampleCounts[0] = 3;
-    params.m_DepthBufferSampleCount = 8;
-    dmGraphics::ConformRenderTargetCreationSampleCounts(&params, flags, 1 | 2 | 4, true, "Test");
-    ASSERT_EQ(2u, params.m_ColorBufferSampleCounts[0]);
-    ASSERT_EQ(4u, params.m_DepthBufferSampleCount);
+    params.m_SampleCount = 3;
+    dmGraphics::ConformRenderTargetCreationSampleCount(&params, 1 | 2 | 4, "Test");
+    ASSERT_EQ(2u, params.m_SampleCount);
 }
 
 TEST_F(dmGraphicsTest, TestRenderTarget)
@@ -2029,15 +2019,11 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params.m_DepthBufferParams.m_Format    = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params.m_StencilBufferParams.m_Format  = dmGraphics::TEXTURE_FORMAT_STENCIL;
-    params.m_ColorBufferSampleCounts[0]    = 4;
-    params.m_DepthBufferSampleCount        = 2;
-    params.m_StencilBufferSampleCount      = 2;
+    params.m_SampleCount                   = 4;
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
-    ASSERT_EQ(2u, dmGraphics::GetRenderTargetSampleCount(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT));
-    ASSERT_EQ(2u, dmGraphics::GetRenderTargetSampleCount(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT));
+    ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
@@ -2065,9 +2051,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
-    ASSERT_EQ(2u, dmGraphics::GetRenderTargetSampleCount(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT));
-    ASSERT_EQ(2u, dmGraphics::GetRenderTargetSampleCount(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT));
+    ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
 
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     ASSERT_EQ(0, memcmp(data, m_NullContext->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));

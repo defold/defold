@@ -111,33 +111,13 @@ namespace dmGraphics
         HTexture      m_TextureDepthStencilResolve;
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
-        uint32_t      m_ColorSampleCounts[MAX_BUFFER_COLOR_ATTACHMENTS];
-        uint32_t      m_DepthSampleCount;
-        uint32_t      m_StencilSampleCount;
-        uint32_t      m_DepthStencilSampleCount;
+        uint32_t      m_SampleCount;
         uint8_t       m_IsBound;
     };
 
     static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)
     {
         return sample_count == 0 ? 1 : sample_count;
-    }
-
-    static inline uint32_t GetRenderTargetCreationSampleCount(const RenderTargetCreationParams& params, BufferType buffer_type)
-    {
-        if (IsColorBufferType(buffer_type))
-        {
-            return GetDefaultSampleCount(params.m_ColorBufferSampleCounts[GetBufferTypeIndex(buffer_type)]);
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            return GetDefaultSampleCount(params.m_DepthBufferSampleCount);
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            return GetDefaultSampleCount(params.m_StencilBufferSampleCount);
-        }
-        return 1;
     }
 
     static inline HTexture GetRenderTargetAttachmentTexture(const RenderTarget* rt, BufferType buffer_type)
@@ -212,45 +192,8 @@ namespace dmGraphics
         }
     }
 
-    static inline void SetRenderTargetAttachmentSampleCount(RenderTarget* rt, BufferType buffer_type, uint32_t sample_count)
-    {
-        sample_count = GetDefaultSampleCount(sample_count);
-        if (IsColorBufferType(buffer_type))
-        {
-            rt->m_ColorSampleCounts[GetBufferTypeIndex(buffer_type)] = sample_count;
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            rt->m_DepthSampleCount = sample_count;
-            rt->m_DepthStencilSampleCount = sample_count;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            rt->m_StencilSampleCount = sample_count;
-            rt->m_DepthStencilSampleCount = sample_count;
-        }
-    }
-
-    static inline uint32_t GetRenderTargetAttachmentSampleCount(const RenderTarget* rt, BufferType buffer_type)
-    {
-        if (IsColorBufferType(buffer_type))
-        {
-            return GetDefaultSampleCount(rt->m_ColorSampleCounts[GetBufferTypeIndex(buffer_type)]);
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            return GetDefaultSampleCount(rt->m_DepthSampleCount ? rt->m_DepthSampleCount : rt->m_DepthStencilSampleCount);
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            return GetDefaultSampleCount(rt->m_StencilSampleCount ? rt->m_StencilSampleCount : rt->m_DepthStencilSampleCount);
-        }
-        return 1;
-    }
-
     uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts);
-    void ConformRenderTargetCreationSampleCounts(RenderTargetCreationParams* params, uint32_t buffer_type_flags, uint32_t supported_sample_counts, bool mixed_sample_counts_supported, const char* adapter_name);
-    void SetRenderTargetBaseSampleCounts(RenderTarget* rt, uint32_t buffer_type_flags, const RenderTargetCreationParams& params);
+    void ConformRenderTargetCreationSampleCount(RenderTargetCreationParams* params, uint32_t supported_sample_counts, const char* adapter_name);
 
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;

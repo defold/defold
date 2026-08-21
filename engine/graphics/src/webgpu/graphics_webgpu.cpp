@@ -3318,7 +3318,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     RenderTargetCreationParams rt_params = params;
-    ConformRenderTargetCreationSampleCounts(&rt_params, buffer_type_flags, 1, false, "WebGPU");
+    ConformRenderTargetCreationSampleCount(&rt_params, 1, "WebGPU");
     WebGPURenderTarget* rt = new WebGPURenderTarget();
     rt->m_Multisample      = 1;
     rt->m_Width = rt->m_Height = 0;
@@ -3326,7 +3326,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     rt->m_Base.m_DepthBufferParams         = rt_params.m_DepthBufferParams;
     rt->m_Base.m_StencilBufferParams       = rt_params.m_StencilBufferParams;
     rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ? rt_params.m_DepthBufferParams : rt_params.m_StencilBufferParams;
-    SetRenderTargetBaseSampleCounts(&rt->m_Base, buffer_type_flags, rt_params);
+    rt->m_Base.m_SampleCount = rt_params.m_SampleCount;
 
     // colors
     const BufferType color_buffer_flags[] = {

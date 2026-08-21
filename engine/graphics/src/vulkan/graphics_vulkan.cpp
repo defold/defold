@@ -71,7 +71,6 @@ namespace dmGraphics
     static void           CopyToTexture(VulkanContext* context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut);
     static VkFormat       GetVulkanFormatFromTextureFormat(TextureFormat format);
     static VkSampleCountFlagBits VulkanGetRenderTargetSampleCountFlag(const VulkanRenderTarget* rt);
-    static VkSampleCountFlagBits VulkanGetRenderTargetCreationSampleCountFlag(const RenderTargetCreationParams& params, uint32_t buffer_type_flags);
     static bool           EndRenderPass(VulkanContext* context);
     static void           BeginRenderPass(VulkanContext* context, HRenderTarget render_target);
 
@@ -4098,45 +4097,7 @@ bail:
 
     static VkSampleCountFlagBits VulkanGetRenderTargetSampleCountFlag(const VulkanRenderTarget* rt)
     {
-        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            if (rt->m_Base.m_TextureColor[i])
-            {
-                return (VkSampleCountFlagBits) rt->m_Base.m_ColorSampleCounts[i];
-            }
-        }
-        if (rt->m_Base.m_TextureDepthStencil)
-        {
-            return (VkSampleCountFlagBits) rt->m_Base.m_DepthStencilSampleCount;
-        }
-        return VK_SAMPLE_COUNT_1_BIT;
-    }
-
-    static VkSampleCountFlagBits VulkanGetRenderTargetCreationSampleCountFlag(const RenderTargetCreationParams& params, uint32_t buffer_type_flags)
-    {
-        const BufferType color_buffer_flags[] = {
-            BUFFER_TYPE_COLOR0_BIT,
-            BUFFER_TYPE_COLOR1_BIT,
-            BUFFER_TYPE_COLOR2_BIT,
-            BUFFER_TYPE_COLOR3_BIT,
-        };
-
-        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            if (buffer_type_flags & color_buffer_flags[i])
-            {
-                return (VkSampleCountFlagBits) GetRenderTargetCreationSampleCount(params, color_buffer_flags[i]);
-            }
-        }
-        if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
-        {
-            return (VkSampleCountFlagBits) GetRenderTargetCreationSampleCount(params, BUFFER_TYPE_DEPTH_BIT);
-        }
-        if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
-        {
-            return (VkSampleCountFlagBits) GetRenderTargetCreationSampleCount(params, BUFFER_TYPE_STENCIL_BIT);
-        }
-        return VK_SAMPLE_COUNT_1_BIT;
+        return (VkSampleCountFlagBits) GetDefaultSampleCount(rt->m_Base.m_SampleCount);
     }
 
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, HTexture* color_resolve_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, VkSampleCountFlagBits vk_sample_count, uint32_t width, uint32_t height, VulkanRenderTarget* rtOut)
@@ -4324,7 +4285,7 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         RenderTargetCreationParams rt_params = params;
         VkSampleCountFlags vk_supported_sample_counts = GetSupportedSampleCountFlags(&context->m_PhysicalDevice, buffer_type_flags);
-        ConformRenderTargetCreationSampleCounts(&rt_params, buffer_type_flags, (uint32_t) vk_supported_sample_counts, false, "Vulkan");
+        ConformRenderTargetCreationSampleCount(&rt_params, (uint32_t) vk_supported_sample_counts, "Vulkan");
         VulkanRenderTarget* rt = new VulkanRenderTarget(GetNextRenderTargetId());
 
         memcpy(rt->m_Base.m_ColorTextureParams, rt_params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
@@ -4334,7 +4295,7 @@ bail:
         rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             rt_params.m_DepthBufferParams :
             rt_params.m_StencilBufferParams;
-        SetRenderTargetBaseSampleCounts(&rt->m_Base, buffer_type_flags, rt_params);
+        rt->m_Base.m_SampleCount = rt_params.m_SampleCount;
 
         // don't save the data
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
@@ -4371,7 +4332,7 @@ bail:
                 TextureParams& color_buffer_params = rt->m_Base.m_ColorTextureParams[i];
                 fb_width                           = color_buffer_params.m_Width;
                 fb_height                          = color_buffer_params.m_Height;
-                VkSampleCountFlagBits vk_sample_count = (VkSampleCountFlagBits) GetRenderTargetCreationSampleCount(rt_params, buffer_type);
+                VkSampleCountFlagBits vk_sample_count = (VkSampleCountFlagBits) rt_params.m_SampleCount;
                 const bool has_msaa = vk_sample_count > VK_SAMPLE_COUNT_1_BIT;
 
                 VkFormat vk_color_format;
@@ -4488,7 +4449,7 @@ bail:
             // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_depth_tiling,
-                fb_width, fb_height, (VkSampleCountFlagBits) GetRenderTargetCreationSampleCount(rt_params, has_depth ? BUFFER_TYPE_DEPTH_BIT : BUFFER_TYPE_STENCIL_BIT),
+                fb_width, fb_height, (VkSampleCountFlagBits) rt_params.m_SampleCount,
                 GetDefaultDepthAndStencilAspectFlags(vk_depth_stencil_format),
                 texture_depth_stencil_ptr);
             CHECK_VK_ERROR(res);
@@ -4496,7 +4457,7 @@ bail:
 
         if (color_index > 0 || has_depth || has_stencil)
         {
-            VkResult res = CreateRenderTarget(context, texture_color, texture_color_resolve, buffer_types, color_index, texture_depth_stencil, VulkanGetRenderTargetCreationSampleCountFlag(rt_params, buffer_type_flags), fb_width, fb_height, rt);
+            VkResult res = CreateRenderTarget(context, texture_color, texture_color_resolve, buffer_types, color_index, texture_depth_stencil, (VkSampleCountFlagBits) rt_params.m_SampleCount, fb_width, fb_height, rt);
             CHECK_VK_ERROR(res);
         }
 
@@ -4575,7 +4536,7 @@ bail:
             if (brt->m_TextureColor[i])
             {
                 VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
-                VkSampleCountFlagBits vk_sample_count = (VkSampleCountFlagBits) GetRenderTargetAttachmentSampleCount(brt, rt->m_ColorAttachmentBufferTypes[i]);
+                VkSampleCountFlagBits vk_sample_count = (VkSampleCountFlagBits) brt->m_SampleCount;
                 const bool has_msaa = vk_sample_count > VK_SAMPLE_COUNT_1_BIT;
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -4667,7 +4628,7 @@ bail:
 
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_image_tiling,
-                width, height, (VkSampleCountFlagBits) GetRenderTargetAttachmentSampleCount(brt, BUFFER_TYPE_DEPTH_BIT),
+                width, height, (VkSampleCountFlagBits) brt->m_SampleCount,
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 depth_stencil_texture);
             CHECK_VK_ERROR(res);

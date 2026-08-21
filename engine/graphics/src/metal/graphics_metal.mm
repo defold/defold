@@ -4077,7 +4077,7 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*)_context;
         RenderTargetCreationParams rt_params = params;
-        ConformRenderTargetCreationSampleCounts(&rt_params, buffer_type_flags, MetalGetSupportedSampleCounts(context->m_Device), false, "Metal");
+        ConformRenderTargetCreationSampleCount(&rt_params, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
 
         // allocate the render target object (ID helper reused from your Vulkan path)
         MetalRenderTarget* rt = new MetalRenderTarget(GetNextRenderTargetId());
@@ -4095,24 +4095,8 @@ namespace dmGraphics
             rt_params.m_DepthBufferParams :
             rt_params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = rt->m_DepthStencilTextureParams;
-        SetRenderTargetBaseSampleCounts(&rt->m_Base, buffer_type_flags, rt_params);
-        rt->m_SampleCount = 1;
-        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            if (buffer_type_flags & (BUFFER_TYPE_COLOR0_BIT << i))
-            {
-                rt->m_SampleCount = rt_params.m_ColorBufferSampleCounts[i];
-                break;
-            }
-        }
-        if (rt->m_SampleCount == 1 && (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT))
-        {
-            rt->m_SampleCount = rt_params.m_DepthBufferSampleCount;
-        }
-        if (rt->m_SampleCount == 1 && (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT))
-        {
-            rt->m_SampleCount = rt_params.m_StencilBufferSampleCount;
-        }
+        rt->m_Base.m_SampleCount = rt_params.m_SampleCount;
+        rt->m_SampleCount = rt_params.m_SampleCount;
         uint32_t scissor_width  = rt->m_DepthStencilTextureParams.m_Width;
         uint32_t scissor_height = rt->m_DepthStencilTextureParams.m_Height;
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS && scissor_width == 0 && scissor_height == 0; ++i)

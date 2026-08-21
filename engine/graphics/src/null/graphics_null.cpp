@@ -1194,7 +1194,7 @@ namespace dmGraphics
     {
         NullContext* context = (NullContext*) _context;
         RenderTargetCreationParams rt_params = params;
-        ConformRenderTargetCreationSampleCounts(&rt_params, buffer_type_flags, 255, true, "Null");
+        ConformRenderTargetCreationSampleCount(&rt_params, 255, "Null");
         NullRenderTarget* rt = new NullRenderTarget();
 
         BufferType color_buffer_flags[] = {
@@ -1287,7 +1287,7 @@ namespace dmGraphics
                 rt->m_FrameBuffer.m_StencilBuffer = new char[GetBufferSize(rt_params.m_StencilBufferParams)];
             }
         }
-        SetRenderTargetBaseSampleCounts(&rt->m_Base, buffer_type_flags, rt_params);
+        rt->m_Base.m_SampleCount = rt_params.m_SampleCount;
 
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }

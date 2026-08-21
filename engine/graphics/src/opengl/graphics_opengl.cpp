@@ -4672,7 +4672,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context        = (OpenGLContext*) _context;
         RenderTargetCreationParams rt_params = params;
-        ConformRenderTargetCreationSampleCounts(&rt_params, buffer_type_flags, OpenGLGetSupportedSampleCounts(context), false, "OpenGL");
+        ConformRenderTargetCreationSampleCount(&rt_params, OpenGLGetSupportedSampleCounts(context), "OpenGL");
         bool any_color_attachment_set = false;
         bool use_depth_attachment     = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
         bool use_stencil_attachment   = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
@@ -4717,24 +4717,8 @@ static void LogFrameBufferError(GLenum status)
         rt->m_Base.m_DepthBufferParams         = rt_params.m_DepthBufferParams;
         rt->m_Base.m_StencilBufferParams       = rt_params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = use_depth_attachment ? rt_params.m_DepthBufferParams : rt_params.m_StencilBufferParams;
-        SetRenderTargetBaseSampleCounts(&rt->m_Base, buffer_type_flags, rt_params);
-        rt->m_SampleCount = 1;
-        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            if (buffer_type_flags & (BUFFER_TYPE_COLOR0_BIT << i))
-            {
-                rt->m_SampleCount = rt_params.m_ColorBufferSampleCounts[i];
-                break;
-            }
-        }
-        if (rt->m_SampleCount == 1 && use_depth_attachment)
-        {
-            rt->m_SampleCount = rt_params.m_DepthBufferSampleCount;
-        }
-        if (rt->m_SampleCount == 1 && use_stencil_attachment)
-        {
-            rt->m_SampleCount = rt_params.m_StencilBufferSampleCount;
-        }
+        rt->m_Base.m_SampleCount = rt_params.m_SampleCount;
+        rt->m_SampleCount = rt_params.m_SampleCount;
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);

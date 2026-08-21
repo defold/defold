@@ -55,115 +55,15 @@ namespace dmGraphics
         return closest_sample_count;
     }
 
-    static uint32_t ConformAttachmentSampleCount(uint32_t requested, uint32_t supported_sample_counts, const char* adapter_name, const char* attachment_name, uint32_t attachment_index)
+    void ConformRenderTargetCreationSampleCount(RenderTargetCreationParams* params, uint32_t supported_sample_counts, const char* adapter_name)
     {
-        requested = GetDefaultSampleCount(requested);
+        uint32_t requested = GetDefaultSampleCount(params->m_SampleCount);
         uint32_t conformed = GetClosestSupportedSampleCount(requested, supported_sample_counts);
         if (requested != conformed)
         {
-            if (attachment_index == 0xffffffff)
-            {
-                dmLogWarning("%s render target %s attachment requested sample_count %u, using supported sample_count %u.", adapter_name, attachment_name, requested, conformed);
-            }
-            else
-            {
-                dmLogWarning("%s render target %s attachment %u requested sample_count %u, using supported sample_count %u.", adapter_name, attachment_name, attachment_index, requested, conformed);
-            }
+            dmLogWarning("%s render target requested sample_count %u, using supported sample_count %u.", adapter_name, requested, conformed);
         }
-        return conformed;
-    }
-
-    void ConformRenderTargetCreationSampleCounts(RenderTargetCreationParams* params, uint32_t buffer_type_flags, uint32_t supported_sample_counts, bool mixed_sample_counts_supported, const char* adapter_name)
-    {
-        supported_sample_counts |= 1;
-
-        BufferType color_buffer_flags[] = {
-            BUFFER_TYPE_COLOR0_BIT,
-            BUFFER_TYPE_COLOR1_BIT,
-            BUFFER_TYPE_COLOR2_BIT,
-            BUFFER_TYPE_COLOR3_BIT,
-        };
-
-        uint32_t highest_conformed = 1;
-        uint32_t first_conformed = 0;
-        bool mixed_conformed = false;
-
-        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            if (buffer_type_flags & color_buffer_flags[i])
-            {
-                uint32_t conformed = ConformAttachmentSampleCount(params->m_ColorBufferSampleCounts[i], supported_sample_counts, adapter_name, "color", i);
-                highest_conformed = dmMath::Max(highest_conformed, conformed);
-                mixed_conformed |= first_conformed != 0 && first_conformed != conformed;
-                first_conformed = first_conformed == 0 ? conformed : first_conformed;
-                params->m_ColorBufferSampleCounts[i] = conformed;
-            }
-        }
-
-        if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
-        {
-            uint32_t conformed = ConformAttachmentSampleCount(params->m_DepthBufferSampleCount, supported_sample_counts, adapter_name, "depth", 0xffffffff);
-            highest_conformed = dmMath::Max(highest_conformed, conformed);
-            mixed_conformed |= first_conformed != 0 && first_conformed != conformed;
-            first_conformed = first_conformed == 0 ? conformed : first_conformed;
-            params->m_DepthBufferSampleCount = conformed;
-        }
-
-        if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
-        {
-            uint32_t conformed = ConformAttachmentSampleCount(params->m_StencilBufferSampleCount, supported_sample_counts, adapter_name, "stencil", 0xffffffff);
-            highest_conformed = dmMath::Max(highest_conformed, conformed);
-            mixed_conformed |= first_conformed != 0 && first_conformed != conformed;
-            params->m_StencilBufferSampleCount = conformed;
-        }
-
-        if (!mixed_sample_counts_supported && mixed_conformed)
-        {
-            uint32_t conformed_sample_count = highest_conformed;
-            dmLogWarning("%s render targets do not support mixed attachment sample counts. Conforming all attachments to sample_count %u.", adapter_name, conformed_sample_count);
-
-            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-            {
-                if (buffer_type_flags & color_buffer_flags[i])
-                {
-                    params->m_ColorBufferSampleCounts[i] = conformed_sample_count;
-                }
-            }
-            if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
-            {
-                params->m_DepthBufferSampleCount = conformed_sample_count;
-            }
-            if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
-            {
-                params->m_StencilBufferSampleCount = conformed_sample_count;
-            }
-        }
-    }
-
-    void SetRenderTargetBaseSampleCounts(RenderTarget* rt, uint32_t buffer_type_flags, const RenderTargetCreationParams& params)
-    {
-        BufferType color_buffer_flags[] = {
-            BUFFER_TYPE_COLOR0_BIT,
-            BUFFER_TYPE_COLOR1_BIT,
-            BUFFER_TYPE_COLOR2_BIT,
-            BUFFER_TYPE_COLOR3_BIT,
-        };
-
-        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            if (buffer_type_flags & color_buffer_flags[i])
-            {
-                SetRenderTargetAttachmentSampleCount(rt, color_buffer_flags[i], GetRenderTargetCreationSampleCount(params, color_buffer_flags[i]));
-            }
-        }
-        if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
-        {
-            SetRenderTargetAttachmentSampleCount(rt, BUFFER_TYPE_DEPTH_BIT, GetRenderTargetCreationSampleCount(params, BUFFER_TYPE_DEPTH_BIT));
-        }
-        if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
-        {
-            SetRenderTargetAttachmentSampleCount(rt, BUFFER_TYPE_STENCIL_BIT, GetRenderTargetCreationSampleCount(params, BUFFER_TYPE_STENCIL_BIT));
-        }
+        params->m_SampleCount = conformed;
     }
 
     static GraphicsAdapter*             g_adapter_list = 0;
@@ -2050,12 +1950,12 @@ namespace dmGraphics
         width  = params ? params->m_Width : 0;
         height = params ? params->m_Height : 0;
     }
-    uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target, BufferType buffer_type)
+    uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target)
     {
         GraphicsContext* gc = (GraphicsContext*)context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
         const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
-        return rt ? GetRenderTargetAttachmentSampleCount(rt, buffer_type) : 0;
+        return rt ? GetDefaultSampleCount(rt->m_SampleCount) : 0;
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
