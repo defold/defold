@@ -2104,15 +2104,19 @@
     (.length indent-string)))
 
 (defn- indent-line
-  ^String [unindented-line indent-string ^long indent-level indent-col]
-  (if (nil? indent-col)
-    (string/join (concat (repeat indent-level indent-string) [unindented-line]))
-    (let [tab-spaces (indent-string->tab-spaces indent-string)
-          units (quot ^long indent-col tab-spaces)
-          padding (- ^long indent-col (* units tab-spaces))]
-      (string/join (concat (repeat units indent-string)
-                           (repeat padding \space)
-                           [unindented-line])))))
+  ^String [^String unindented-line ^String indent-string ^long indent-level indent-col]
+  (let [[units padding] (if-not indent-col
+                          [indent-level 0]
+                          (let [tab-spaces (indent-string->tab-spaces indent-string)
+                                units (quot ^long indent-col tab-spaces)]
+                            [units (- ^long indent-col (* units tab-spaces))]))
+        builder (StringBuilder.)]
+    (dotimes [_ units]
+      (.append builder indent-string))
+    (dotimes [_ padding]
+      (.append builder \space))
+    (.append builder unindented-line)
+    (.toString builder)))
 
 (defn- length-difference-by-row [indentation-splices]
   (into {}
@@ -2158,11 +2162,11 @@
 (defn- line-indent-counts [grammar line in-long-string ^long tab-spaces]
   (if-let [counts (:counts (:indent grammar))]
     (counts line in-long-string tab-spaces)
-    (let [close? (boolean (ends-indentation? grammar line))
-          open? (boolean (begins-indentation? grammar line))]
-      {:leading (if close? 1 0)
-       :closes (if close? 1 0)
-       :opens (if open? [nil] [])
+    (let [close (boolean (ends-indentation? grammar line))
+          open (boolean (begins-indentation? grammar line))]
+      {:leading (if close 1 0)
+       :closes (if close 1 0)
+       :opens (if open [nil] [])
        :in-long-string false})))
 
 (defn- find-indent-state [indent-level-pattern grammar lines queried-row tab-spaces]
@@ -2184,7 +2188,7 @@
                                   (recur row nil)
                                   (recur (dec row) long-bracket-level))
 
-                                (and (some? close-level) (not= close-level open-level))
+                                (and close-level (not= close-level open-level))
                                 (recur (dec row) close-level)
 
                                 (string/blank? line) (recur (dec row) nil)
@@ -2255,16 +2259,17 @@
                             ;; On in-between lines, we only want to keep whitespace that comes before code.
                             :else
                             (let [unindented-line (string/triml line)]
-                              (if (seq unindented-line)
-                                (indent-line unindented-line indent-string line-indent-level line-indent-col)
-                                "")))
+                              (if (string/blank? unindented-line)
+                                ""
+                                (indent-line unindented-line indent-string line-indent-level line-indent-col))))
                           [next-stack] (indent-step stack (line-indent-counts grammar indented-line in-long-string tab-spaces))
                           splices (if (= line indented-line)
                                     splices
                                     (conj! splices [line-cursor-range [indented-line]]))]
                       (vswap! fixed-rows conj row)
                       (recur next-row next-stack next-in-long-string splices))))))))]
-    (splice-indentation lines cursor-ranges regions (into [] (mapcat mapcat-fn) affected-cursor-ranges))))
+    (splice-indentation lines cursor-ranges regions
+                        (into [] (mapcat mapcat-fn) affected-cursor-ranges))))
 
 (defn- transform-indentation [rows lines cursor-ranges regions line-fn]
   (splice-indentation lines cursor-ranges regions

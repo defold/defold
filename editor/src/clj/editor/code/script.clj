@@ -184,7 +184,7 @@
   (let [[tokens in-long-string] (lua-lex-line line in-long-string)
         leftover (reduce (fn [stack t]
                            (if (and (= :close (t 0))
-                                    (when-some [top (peek stack)] (= :open (top 0))))
+                                    (when-let [top (peek stack)] (= :open (top 0))))
                              (pop stack)
                              (conj stack t)))
                          []
@@ -200,7 +200,7 @@
                 (if (= i n)
                   opens
                   (recur (inc i)
-                         (conj opens (when-some [index ((leftover i) 1)]
+                         (conj opens (when-let [index ((leftover i) 1)]
                                        (when (code-after-index? line index)
                                          (inc (visual-column line index tab-spaces))))))))]
     {:closes closes

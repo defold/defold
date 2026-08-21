@@ -357,8 +357,8 @@
   (let [lines (code-util/split-lines (slurp (io/resource "lua/indent_test_cases.lua")))
         reindented (reindent lines)]
     (is (= (count lines) (count reindented)))
-    (doseq [[row expected actual] (map vector (range) lines reindented)]
-      (is (= expected actual) (str "row " row)))))
+    (dotimes [row (count lines)]
+      (is (= (lines row) (reindented row)) (str "row " row)))))
 
 (deftest reindent-below-long-string-test
   ;; Reindenting part of a buffer replays from the nearest unindented line above
