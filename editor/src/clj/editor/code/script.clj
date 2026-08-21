@@ -103,30 +103,45 @@
                        (if (Character/isWhitespace ch) last-non-space ch)
                        tokens)))))))))
 
-(defn lua-lex-line [^String line]
+(defn lua-lex-line [^String line in-long-string]
   (let [len (.length line)]
     (loop [i 0
            in-quote nil
            escaped false
+           in-long-string in-long-string
            tokens []]
       (if (>= i len)
-        tokens
+        [tokens in-long-string]
         (let [ch (.charAt line i)]
           (cond
+            in-long-string
+            (let [close (.indexOf line "]]" (int i))]
+              (if (neg? close)
+                [tokens true]
+                (recur (+ close 2) in-quote false false tokens)))
+
             in-quote
             (cond
-              escaped (recur (inc i) in-quote false tokens)
-              (= ch \\) (recur (inc i) in-quote true tokens)
-              (= ch in-quote) (recur (inc i) nil false tokens)
-              :else (recur (inc i) in-quote false tokens))
+              escaped (recur (inc i) in-quote false false tokens)
+              (= ch \\) (recur (inc i) in-quote true false tokens)
+              (= ch in-quote) (recur (inc i) nil false false tokens)
+              :else (recur (inc i) in-quote false false tokens))
 
-            ;; Inline comment
+            ;; Comment, which is a block comment when written --[[.
             (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
-            (recur len in-quote false tokens)
+            (if (and (< (+ i 3) len)
+                     (= (.charAt line (+ i 2)) \[)
+                     (= (.charAt line (+ i 3)) \[))
+              (recur (+ i 4) in-quote false true tokens)
+              (recur len in-quote false false tokens))
 
             ;; Start of quote
             (or (= ch \") (= ch \'))
-            (recur (inc i) ch false tokens)
+            (recur (inc i) ch false false tokens)
+
+            ;; Start of a long string.
+            (and (= ch \[) (< (inc i) len) (= (.charAt line (inc i)) \[))
+            (recur (+ i 2) in-quote false true tokens)
 
             ;; Word character, with peek
             (or (Character/isLetter ch) (= ch \_))
@@ -137,7 +152,7 @@
                           (recur (inc j))
                           j))
                   tok (.substring line i end)]
-              (recur end in-quote false
+              (recur end in-quote false false
                      (case tok
                        ;; Closes the previous branch and opens a new one.
                        "else" (conj tokens :close :open)
@@ -147,78 +162,73 @@
                          (contains? lua-open-keywords tok) (conj :open)
                          (contains? lua-close-keywords tok) (conj :close)))))
 
-            ;; Long string or block comment. Doubled brackets are delimiters
-            ;; rather than index brackets, so neither they nor anything between
-            ;; them is code. An unterminated one runs to the end of the line.
-            (and (= ch \[) (< (inc i) len) (= (.charAt line (inc i)) \[))
-            (let [close (.indexOf line "]]" (int (+ i 2)))]
-              (recur (if (neg? close) len (+ close 2)) in-quote false tokens))
-
-            ;; The tail of one whose opener was on an earlier line.
-            (and (= ch \]) (< (inc i) len) (= (.charAt line (inc i)) \]))
-            (recur (+ i 2) in-quote false tokens)
-
             ;; Non-word character
             :else
             (let [tokens (cond-> tokens
                            (contains? #{\{ \( \[} ch) (conj :open)
                            (contains? #{\} \) \]} ch) (conj :close))]
-              (recur (inc i) in-quote false tokens))))))))
+              (recur (inc i) in-quote false false tokens))))))))
 
-(defn lua-indent-counts [^String line]
-  (let [leftover (reduce (fn [stack t]
+(defn lua-indent-counts [^String line in-long-string]
+  (let [[tokens in-long-string] (lua-lex-line line in-long-string)
+        leftover (reduce (fn [stack t]
                            (if (and (= t :close) (= (peek stack) :open))
                              (pop stack)
                              (conj stack t)))
                          []
-                         (lua-lex-line line))
-        closes (count (filter #{:close} leftover))]
+                         tokens)
+        closes (loop [i 0
+                      closes 0]
+                 (if (or (= i (count leftover)) (= :open (leftover i)))
+                   closes
+                   (recur (inc i) (inc closes))))]
     {:closes closes
      :opens (- (count leftover) closes)
-     :leading (if (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line) closes 0)}))
+     :leading (if (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line) closes 0)
+     :in-long-string in-long-string}))
 
-(lua-indent-counts "local x = 1")        ;; 0 0 0
-(lua-indent-counts "foo(")               ;; leading 0 closes 0 opens 1
-(lua-indent-counts "function foo()")     ;; 0 0 1
-(lua-indent-counts "function foo(a,")    ;; 0 0 2
-(lua-indent-counts "    1, 2)")          ;; 0 1 0
-(lua-indent-counts ")")                  ;; 1 1 0
-(lua-indent-counts "end")                ;; 1 1 0
-(lua-indent-counts "    end)")           ;; 2 2 0
-(lua-indent-counts "        2, 3))")     ;; 0 2 0
-(lua-indent-counts "    b) then")        ;; 0 1 1
-(lua-indent-counts "else")               ;; 1 1 1
-(lua-indent-counts "elseif x then")      ;; 1 1 1
-(lua-indent-counts "until done(i)")      ;; 1 1 0
-(lua-indent-counts "}) do")              ;; 2 2 1
-(lua-indent-counts "print(pos) -- (")    ;; 0 0 0
-(lua-indent-counts "local text = \"(\"") ;; 0 0 0
-(lua-indent-counts "foo(bar(")           ;; 0 0 2
-(lua-indent-counts "))")                 ;; 2 2 0
+;; (lua-indent-counts "local x = 1")        ;; 0 0 0
+;; (lua-indent-counts "foo(")               ;; leading 0 closes 0 opens 1
+;; (lua-indent-counts "function foo()")     ;; 0 0 1
+;; (lua-indent-counts "function foo(a,")    ;; 0 0 2
+;; (lua-indent-counts "    1, 2)")          ;; 0 1 0
+;; (lua-indent-counts ")")                  ;; 1 1 0
+;; (lua-indent-counts "end")                ;; 1 1 0
+;; (lua-indent-counts "    end)")           ;; 2 2 0
+;; (lua-indent-counts "        2, 3))")     ;; 0 2 0
+;; (lua-indent-counts "    b) then")        ;; 0 1 1
+;; (lua-indent-counts "else")               ;; 1 1 1
+;; (lua-indent-counts "elseif x then")      ;; 1 1 1
+;; (lua-indent-counts "until done(i)")      ;; 1 1 0
+;; (lua-indent-counts "}) do")              ;; 2 2 1
+;; (lua-indent-counts "print(pos) -- (")    ;; 0 0 0
+;; (lua-indent-counts "local text = \"(\"") ;; 0 0 0
+;; (lua-indent-counts "foo(bar(")           ;; 0 0 2
+;; (lua-indent-counts "))")                 ;; 2 2 0
 
-(lua-indent-counts "function a()")
-(lua-indent-counts "    function b()")
-(lua-indent-counts "        function c()")
-(lua-indent-counts "            x()")
-(lua-indent-counts "        end")
-(lua-indent-counts "    end")
-(lua-indent-counts "end")
+;; (lua-indent-counts "function a()")
+;; (lua-indent-counts "    function b()")
+;; (lua-indent-counts "        function c()")
+;; (lua-indent-counts "            x()")
+;; (lua-indent-counts "        end")
+;; (lua-indent-counts "    end")
+;; (lua-indent-counts "end")
 
-(lua-indent-counts "function case_05_call_closed_later()")       ;; => {:closes 0, :opens 1, :leading 0}
-(lua-indent-counts "    local pos = vmath.vector3(\"testing\",") ;; => {:closes 0, :opens 1, :leading 0}
-(lua-indent-counts "        1,")                                 ;; => {:closes 0, :opens 0, :leading 0}
-(lua-indent-counts "        2, 3)")                              ;; => {:closes 1, :opens 0, :leading 0}
-(lua-indent-counts "    print(pos)")                             ;; => {:closes 0, :opens 0, :leading 0}
-(lua-indent-counts "end")                                        ;; => {:closes 1, :opens 0, :leading 1}
+;; (lua-indent-counts "function case_05_call_closed_later()")       ;; => {:closes 0, :opens 1, :leading 0}
+;; (lua-indent-counts "    local pos = vmath.vector3(\"testing\",") ;; => {:closes 0, :opens 1, :leading 0}
+;; (lua-indent-counts "        1,")                                 ;; => {:closes 0, :opens 0, :leading 0}
+;; (lua-indent-counts "        2, 3)")                              ;; => {:closes 1, :opens 0, :leading 0}
+;; (lua-indent-counts "    print(pos)")                             ;; => {:closes 0, :opens 0, :leading 0}
+;; (lua-indent-counts "end")                                        ;; => {:closes 1, :opens 0, :leading 1}
 
-(lua-indent-counts "function case_05_call_closed_later()")       ;; => {:closes 0, :opens 1, :leading 0}
-(lua-indent-counts "    local pos = vmath.vector3(\"testing\",") ;; => {:closes 0, :opens 1, :leading 0}
-(lua-indent-counts "        1,")                                 ;; => {:closes 0, :opens 0, :leading 0}
-(lua-indent-counts "        2,")                                 ;; => {:closes 0, :opens 0, :leading 0}
-(lua-indent-counts "        3")                                  ;; => {:closes 0, :opens 0, :leading 0}
-(lua-indent-counts "        )")                                  ;; => {:closes 1, :opens 0, :leading 1}
-(lua-indent-counts "    print(pos)")                             ;; => {:closes 0, :opens 0, :leading 0}
-(lua-indent-counts "end")                                        ;; => {:closes 1, :opens 0, :leading 1}
+;; (lua-indent-counts "function case_05_call_closed_later()")       ;; => {:closes 0, :opens 1, :leading 0}
+;; (lua-indent-counts "    local pos = vmath.vector3(\"testing\",") ;; => {:closes 0, :opens 1, :leading 0}
+;; (lua-indent-counts "        1,")                                 ;; => {:closes 0, :opens 0, :leading 0}
+;; (lua-indent-counts "        2,")                                 ;; => {:closes 0, :opens 0, :leading 0}
+;; (lua-indent-counts "        3")                                  ;; => {:closes 0, :opens 0, :leading 0}
+;; (lua-indent-counts "        )")                                  ;; => {:closes 1, :opens 0, :leading 1}
+;; (lua-indent-counts "    print(pos)")                             ;; => {:closes 0, :opens 0, :leading 0}
+;; (lua-indent-counts "end")                                        ;; => {:closes 1, :opens 0, :leading 1}
 
 ;; function a()            -- level 0, push → [0]
 ;;     function b()        -- level 1, push → [0 1]
@@ -236,7 +246,7 @@
    ;; Wrapped so the var is resolved per call, letting REPL redefs of
    ;; lua-opens-block? take effect without rebuilding this map.
    :indent {:begin #(lua-opens-block? %)
-            :counts #(lua-indent-counts %)
+            :counts #(lua-indent-counts %1 %2)
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
    :auto-insert {:characters {\" \"
