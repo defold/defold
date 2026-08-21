@@ -2176,12 +2176,12 @@
 
                               ;; Nothing between ]] and [[ is code, so it cannot anchor the replay.
                               in-long-string?
-                              (if (string/includes? line "[[")
+                              (if (re-find #"\[=*\[" line)
                                 (recur row false)
                                 (recur (dec row) true))
 
-                              (and (string/includes? line "]]")
-                                   (not (string/includes? line "[[")))
+                              (and (re-find #"\]=*\]" line)
+                                   (not (re-find #"\[=*\[" line)))
                               (recur (dec row) true)
 
                               (string/blank? line) (recur (dec row) false)

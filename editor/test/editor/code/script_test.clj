@@ -420,6 +420,24 @@
      "    print(s)"
      "end"]))
 
+(deftest reindent-equals-delimited-long-brackets-test
+  ;; Whitespace and code-like text inside equals-delimited long strings and
+  ;; block comments must not participate in indentation.
+  (are [lines] (= lines (reindent lines))
+    ["function f()"
+     "    local s = [=[ note"
+     "  end("
+     "]=]"
+     "    print(s)"
+     "end"]
+
+    ["function f()"
+     "    --[==[ note"
+     " end("
+     "]==]"
+     "    print('done')"
+     "end"]))
+
 (deftest reindent-parentheses-test
   (are [expected lines] (= expected (reindent lines))
 

@@ -38,6 +38,29 @@
 (def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
 (def lua-close-keywords #{"end" "until"})
 
+(defn- long-bracket-level
+  "The number of = signs in the long bracket at index, or -1 if there is none.
+  bracket is \\[ to open and \\] to close."
+  ^long [^String line ^long index ^long len bracket]
+  (loop [j (inc index)]
+    (cond
+      (>= j len) -1
+      (= \= (.charAt line j)) (recur (inc j))
+      (= bracket (.charAt line j)) (- j index 1)
+      :else -1)))
+
+(defn- long-bracket-end
+  "The index just past the next closing bracket of the given level, or -1."
+  ^long [^String line ^long from ^long level]
+  (let [len (.length line)]
+    (loop [i from]
+      (cond
+        (>= i len) -1
+        (and (= \] (.charAt line i))
+             (== level (long-bracket-level line i len \])))
+        (+ i level 2)
+        :else (recur (inc i))))))
+
 ;; lua-lex-line scans a line, lua-indent-counts summarizes it.
 ;;
 ;; The scanner emits one token per bracket or block keyword, as [kind index]:
@@ -72,10 +95,10 @@
         (let [ch (.charAt line i)]
           (cond
             in-long-string
-            (let [close (.indexOf line "]]" (int i))]
+            (let [close (long-bracket-end line i (long in-long-string))]
               (if (neg? close)
-                [tokens true]
-                (recur (+ close 2) in-quote false false tokens)))
+                [tokens in-long-string]
+                (recur close in-quote false nil tokens)))
 
             in-quote
             (cond
@@ -86,19 +109,22 @@
 
             ;; Comment, which is a block comment when written --[[.
             (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
-            (if (and (< (+ i 3) len)
-                     (= (.charAt line (+ i 2)) \[)
-                     (= (.charAt line (+ i 3)) \[))
-              (recur (+ i 4) in-quote false true tokens)
-              (recur len in-quote false false tokens))
+            (let [open (+ i 2)
+                  level (if (and (< open len) (= \[ (.charAt line open)))
+                          (long-bracket-level line open len \[)
+                          -1)]
+              (if (neg? level)
+                (recur len in-quote false nil tokens)
+                (recur (+ open level 2) in-quote false level tokens)))
 
             ;; Start of quote
             (or (= ch \") (= ch \'))
             (recur (inc i) ch false false tokens)
 
             ;; Start of a long string.
-            (and (= ch \[) (< (inc i) len) (= (.charAt line (inc i)) \[))
-            (recur (+ i 2) in-quote false true tokens)
+            (and (= ch \[) (<= 0 (long-bracket-level line i len \[)))
+            (let [level (long-bracket-level line i len \[)]
+              (recur (+ i level 2) in-quote false level tokens))
 
             ;; Word character, with peek
             (or (Character/isLetter ch) (= ch \_))
