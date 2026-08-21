@@ -19,6 +19,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
+            [editor.code.lang.json :as json]
             [editor.code.script :as script])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
@@ -409,6 +410,45 @@
   (is (= {:lines ["\t  {"]
           :indent-type :tabs}
          (convert-indentation :four-spaces :tabs ["      {"]))))
+
+(deftest reindent-without-counts-test
+  ;; Grammars with no :indent :counts fall back to their :begin and :end
+  ;; regexes, coerced into the same shape as one open or one close.
+  (letfn [(reindent [lines]
+            (let [last-row (dec (count lines))
+                  cursor-range (->CursorRange (->Cursor 0 0)
+                                              (->Cursor last-row (count (lines last-row))))]
+              (:lines (data/reindent (data/indent-level-pattern 4) "    " json/grammar
+                                     lines [cursor-range] nil (layout-info lines)))))]
+    (is (= ["{"
+            "    \"a\": ["
+            "        1"
+            "    ],"
+            "    \"b\": 2"
+            "}"]
+           (reindent ["{"
+                      "\"a\": ["
+                      "1"
+                      "],"
+                      "\"b\": 2"
+                      "}"])))
+
+    (is (= ["{"
+            "    \"a\": {"
+            "        \"b\": ["
+            "            1,"
+            "            2"
+            "        ]"
+            "    }"
+            "}"]
+           (reindent ["{"
+                      "        \"a\": {"
+                      "\"b\": ["
+                      "1,"
+                      "2"
+                      "]"
+                      "}"
+                      "}"])))))
 
 (deftest move-cursors-test
   (testing "Basic movement"
