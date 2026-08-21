@@ -43,7 +43,7 @@ def build(bld):
         includes = '../.. ..',
         source = 'ddf_extensions.proto ddf_math.proto ddf_struct.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
         proto_gen_cc = True,
-        proto_compile_cc = True,
+        proto_compile_cc = False,
         protoc_includes = '..',
         target = 'ddf')
 
