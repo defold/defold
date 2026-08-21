@@ -311,7 +311,6 @@ namespace dmRender
         HLightPrototype m_LightPrototype;
         uint16_t        m_LightBufferIndex;
         uint16_t        m_Version;
-        bool            m_ShadowEligible;
     };
 
     const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
@@ -354,6 +353,7 @@ namespace dmRender
         dmIndexPool16                          m_RenderLightsIndices;
         dmArray<uint16_t>                      m_LightShadowSlots[2];
         dmArray<uint32_t>                      m_LightShadowRevisions;
+        dmArray<uint8_t>                       m_LightShadowEligibility;
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
