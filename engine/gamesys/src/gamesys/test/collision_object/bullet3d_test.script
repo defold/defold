@@ -79,6 +79,7 @@ local function test_constants()
         { bullet3d.shape.SHAPE_TYPE_BOX, 1 },
         { bullet3d.shape.SHAPE_TYPE_CAPSULE, 2 },
         { bullet3d.shape.SHAPE_TYPE_HULL, 3 },
+        { bullet3d.shape.SHAPE_TYPE_MESH, 4 },
     }
     for _, entry in ipairs(constants) do
         assert(entry[1] == entry[2])

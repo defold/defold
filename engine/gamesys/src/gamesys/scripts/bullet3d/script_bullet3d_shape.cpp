@@ -279,6 +279,9 @@ namespace dmGameSystem
                 return dmPhysicsDDF::CollisionShape::TYPE_CAPSULE;
             case CONVEX_HULL_SHAPE_PROXYTYPE:
                 return dmPhysicsDDF::CollisionShape::TYPE_HULL;
+            case TRIANGLE_MESH_SHAPE_PROXYTYPE:
+            case GIMPACT_SHAPE_PROXYTYPE:
+                return dmPhysicsDDF::CollisionShape::TYPE_MESH;
             default:
                 luaL_error(L, "Unsupported Defold Bullet3D shape type %d.", shape->getShapeType());
                 return -1;
@@ -435,6 +438,9 @@ namespace dmGameSystem
             case CONVEX_HULL_SHAPE_PROXYTYPE:
                 PushHullVertices(L, (btConvexHullShape*)shape);
                 lua_setfield(L, -2, "vertices");
+                break;
+            case TRIANGLE_MESH_SHAPE_PROXYTYPE:
+            case GIMPACT_SHAPE_PROXYTYPE:
                 break;
             default:
                 return luaL_error(L, "Unsupported Defold Bullet3D shape type %d.", shape->getShapeType());
@@ -652,6 +658,7 @@ namespace dmGameSystem
         SetIntegerConstant(L, "SHAPE_TYPE_BOX", dmPhysicsDDF::CollisionShape::TYPE_BOX);
         SetIntegerConstant(L, "SHAPE_TYPE_CAPSULE", dmPhysicsDDF::CollisionShape::TYPE_CAPSULE);
         SetIntegerConstant(L, "SHAPE_TYPE_HULL", dmPhysicsDDF::CollisionShape::TYPE_HULL);
+        SetIntegerConstant(L, "SHAPE_TYPE_MESH", dmPhysicsDDF::CollisionShape::TYPE_MESH);
         lua_setfield(L, -2, "shape");
     }
 
@@ -719,6 +726,14 @@ namespace dmGameSystem
  * @constant
  */
 
+/*# Triangle mesh shape type
+ *
+ * Value `4`. Shape data contains only the `type`; triangle geometry is read-only.
+ *
+ * @name bullet3d.shape.SHAPE_TYPE_MESH
+ * @constant
+ */
+
 /*# Get the number of shapes attached to a collision object.
  * @name bullet3d.collision_object.get_shape_count
  * @param object [type:btCollisionObject] collision object
@@ -781,9 +796,10 @@ namespace dmGameSystem
  * The returned table always contains `type`, one of `bullet3d.shape.SHAPE_TYPE_*`.
  * A sphere also contains numeric `diameter`; a box contains vector3
  * `dimensions`; a capsule contains numeric `diameter` and cylindrical-section
- * `height`; and a hull contains a `vertices` array of vector3 values. The table
- * uses Defold units and can be passed to a `bullet3d.world` shape query after
- * adding the desired `position` and optional `rotation` fields.
+ * `height`; a hull contains a `vertices` array of vector3 values; and a triangle
+ * mesh contains only `type`. Primitive and hull tables use Defold units and can
+ * be passed to a `bullet3d.world` shape query after adding the desired `position`
+ * and optional `rotation` fields.
  *
  * @name bullet3d.shape.get_shape
  * @param shape [type:btCollisionShape] shape handle
@@ -795,7 +811,7 @@ namespace dmGameSystem
  * The table uses the same format as `get_shape`. Its `type` must match the
  * existing shape because changing native shape type is not supported. Primitive
  * dimensions must be finite and greater than zero. Hulls require at least four
- * finite vertices.
+ * finite vertices. Triangle mesh geometry cannot be changed with this function.
  *
  * @name bullet3d.shape.set_shape
  * @param shape [type:btCollisionShape] shape handle

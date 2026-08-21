@@ -73,6 +73,12 @@ namespace dmPhysics
         return 0;
     }
 
+    HCollisionShape3D NewTriangleMeshShape3D(HContext3D context, const float* vertices, uint32_t vertex_count,
+                                              const uint32_t* indices, uint32_t index_count, CollisionObjectType object_type)
+    {
+        return 0;
+    }
+
     void DeleteCollisionShape3D(HCollisionShape3D shape)
     {
     }
@@ -189,6 +195,11 @@ namespace dmPhysics
     float GetMass3D(HCollisionObject3D collision_object)
     {
         return 0;
+    }
+
+    bool SetMass3D(HCollisionObject3D collision_object, float mass)
+    {
+        return false;
     }
 
     uint16_t GetGroup3D(HCollisionObject3D collision_object)

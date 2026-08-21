@@ -719,7 +719,15 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MASS)
         {
-            return dmGameObject::PROPERTY_RESULT_READ_ONLY;
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+            if (!dmPhysics::SetMass3D(component->m_Object3D, params.m_Value.m_Number))
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
@@ -952,6 +960,9 @@ namespace dmGameSystem
                 shape_info->m_CapsuleDiameterHeight[0] = radius * 2.0f;
                 shape_info->m_CapsuleDiameterHeight[1] = half_height * 2.0f;
             } break;
+            case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+            case dmPhysicsDDF::CollisionShape::TYPE_MESH:
+                break;
             default: assert(0);
         }
         return true;
@@ -1034,6 +1045,9 @@ namespace dmGameSystem
                     return false;
                 }
             } break;
+            case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+            case dmPhysicsDDF::CollisionShape::TYPE_MESH:
+                return false;
             default: assert(0);
         }
 
