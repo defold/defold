@@ -2192,6 +2192,11 @@
                                 (recur (dec row) close-level)
 
                                 (string/blank? line) (recur (dec row) nil)
+
+                                (when-let [^String line-comment (:line-comment grammar)]
+                                  (.startsWith (string/triml line) line-comment))
+                                (recur (dec row) nil)
+
                                 (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row) nil)
                                 :else row))))]
     (loop [row start-row
