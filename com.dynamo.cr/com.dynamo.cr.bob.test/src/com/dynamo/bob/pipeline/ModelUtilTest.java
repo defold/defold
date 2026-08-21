@@ -329,6 +329,69 @@ public class ModelUtilTest {
         assertEquals(2, mesh.getMorphBaseWeightsCount());
     }
 
+    @Test
+    public void testEquivalentSourceMeshesShareMorphTargetTexture() throws Exception {
+        Modelimporter.Mesh sceneSourceMesh = createMorphTextureTestMesh();
+        Modelimporter.Mesh rawSourceMesh = createMorphTextureTestMesh();
+        ModelUtil.MorphTargetTextureCollector textures = ModelUtil.createMorphTargetTextureCollector();
+
+        Rig.Mesh sceneMesh = ModelUtil.loadMesh(sceneSourceMesh, 4, 4, textures);
+        Rig.Mesh rawMesh = ModelUtil.loadMesh(rawSourceMesh, 4, 4, textures);
+
+        assertEquals(sceneMesh.getMorphTargetTexture(), rawMesh.getMorphTargetTexture());
+        assertEquals(1, textures.getTextures().size());
+    }
+
+    @Test
+    public void testGeneratedRawMeshMorphTexturesAreNotCounted() {
+        Modelimporter.Model sceneModel = new Modelimporter.Model();
+        sceneModel.name = "Named";
+        sceneModel.meshes = new Modelimporter.Mesh[] { createMorphTextureTestMesh() };
+
+        Modelimporter.Model namedModel = new Modelimporter.Model();
+        namedModel.name = "Named";
+        namedModel.meshes = new Modelimporter.Mesh[] { createMorphTextureTestMesh() };
+
+        Modelimporter.Model generatedNameModel = new Modelimporter.Model();
+        generatedNameModel.name = "model1";
+        generatedNameModel.nameIsGenerated = true;
+        generatedNameModel.meshes = new Modelimporter.Mesh[] { createMorphTextureTestMesh() };
+
+        Modelimporter.Scene scene = new Modelimporter.Scene();
+        Modelimporter.Node modelNode = new Modelimporter.Node();
+        modelNode.model = sceneModel;
+        modelNode.children = new Modelimporter.Node[0];
+        scene.rootNodes = new Modelimporter.Node[] { modelNode };
+        scene.models = new Modelimporter.Model[] { namedModel, generatedNameModel };
+
+        assertEquals(1, ModelUtil.getNumMorphTargetTextures(scene));
+    }
+
+    @Test
+    public void testGeneratedNamesAreNotAddedToRawModels() throws Exception {
+        Modelimporter.Model namedModel = new Modelimporter.Model();
+        namedModel.name = "Named";
+        namedModel.meshes = new Modelimporter.Mesh[0];
+
+        Modelimporter.Model generatedNameModel = new Modelimporter.Model();
+        generatedNameModel.name = "model1";
+        generatedNameModel.nameIsGenerated = true;
+        generatedNameModel.index = 1;
+        generatedNameModel.meshes = new Modelimporter.Mesh[0];
+
+        Modelimporter.Scene scene = new Modelimporter.Scene();
+        scene.rootNodes = new Modelimporter.Node[0];
+        scene.models = new Modelimporter.Model[] { namedModel, generatedNameModel };
+        scene.skins = new Modelimporter.Skin[0];
+        scene.materials = new Modelimporter.Material[0];
+
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModels(scene, meshSetBuilder, 0, 0, null);
+
+        assertEquals(1, meshSetBuilder.getRawModelsCount());
+        assertEquals(0, meshSetBuilder.getRawModels(0).getMeshIndex());
+    }
+
     private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder,
                                          Rig.AnimationSet.Builder animSetBuilder,

@@ -315,6 +315,7 @@ message Model // E.g. the Node in the Scene
     repeated Mesh               meshes      = 3;
     // If set, then this model should be transformed as a child of the bone
     optional uint64             bone_id     = 4 [default = 0]; // hash of bone id
+    optional uint32             mesh_index  = 5 [default = 0xffffffff]; // raw source meshes[] index
 }
 
 message MeshSet
@@ -327,6 +328,9 @@ message MeshSet
     repeated uint64         bone_list      = 3;
     // Max number of bones used in any of the meshes (in the bone_indices list)
     optional uint32         max_bone_count = 4;
+
+    // Source meshes without scene node transforms, indexed by Model.mesh_index.
+    repeated Model          raw_models     = 5;
 }
 
 // Public api (dmSDK)

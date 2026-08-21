@@ -21,9 +21,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.ModelProto.Material;
+import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.google.protobuf.Message;
 
@@ -33,6 +36,16 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
     @Before
     public void setup() {
         addTestFiles();
+    }
+
+    private static int countInputs(Task task, String path) {
+        int count = 0;
+        for (IResource input : task.getInputs()) {
+            if (path.equals(input.getPath())) {
+                ++count;
+            }
+        }
+        return count;
     }
 
     @Test(expected=CompileExceptionError.class)
@@ -90,6 +103,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals("/test.rigscenec", model.getRigScene());
         assertEquals("test_animation", model.getDefaultAnimation());
+        assertEquals(-1, model.getMeshIndex());
 
         assertEquals(1, materials.size());
         assertEquals("default", materials.get(0).getName());
@@ -100,6 +114,53 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
         assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
+    }
+
+    @Test
+    public void testModelGltfMeshSelection() throws Exception {
+        String namedGltf = GLTF
+                .replace("\"nodes\":[{\"mesh\":0,\"name\":\"Node0\"}]", "\"nodes\":[{\"name\":\"Node0\"}]")
+                .replace("\"meshes\":[{", "\"meshes\":[{\"name\":\"SelectedMesh\",");
+        addFile("/selected_mesh.gltf", namedGltf);
+
+        List<Message> outputs = build("/selected.model",
+                "mesh: \"/selected_mesh.gltf\"\n" +
+                "mesh_name: \"SelectedMesh\"\n" +
+                "mesh_index: 0\n");
+
+        Model model = getMessage(outputs, Model.class);
+        assertEquals(0, model.getMeshIndex());
+
+        MeshSet meshSet = getMessage(outputs, MeshSet.class);
+        assertEquals(0, meshSet.getModelsCount());
+        assertEquals(1, meshSet.getRawModelsCount());
+        assertEquals(0, meshSet.getRawModels(0).getMeshIndex());
+        assertEquals(0.0f, meshSet.getRawModels(0).getLocal().getTranslation().getX(), 0.0f);
+        assertEquals(0.0f, meshSet.getRawModels(0).getLocal().getTranslation().getY(), 0.0f);
+        assertEquals(0.0f, meshSet.getRawModels(0).getLocal().getTranslation().getZ(), 0.0f);
+    }
+
+    @Test
+    public void testSelectedMeshSceneIsDirectTaskInput() throws Exception {
+        String namedGltf = GLTF.replace("\"meshes\":[{", "\"meshes\":[{\"name\":\"SelectedMesh\",");
+        addFile("/selected_mesh.gltf", namedGltf);
+        addFile("/selected.model",
+                "mesh: \"/selected_mesh.gltf\"\n" +
+                "mesh_name: \"SelectedMesh\"\n" +
+                "mesh_index: 0\n");
+
+        Task task = getProject().createTask(getProject().getResource("/selected.model"), ModelBuilder.class);
+
+        assertEquals(1, countInputs(task, "selected_mesh.gltf"));
+    }
+
+    @Test(expected=CompileExceptionError.class)
+    public void testModelGltfMissingMeshSelection() throws Exception {
+        addFile("/missing_mesh.gltf", GLTF);
+        build("/missing.model",
+                "mesh: \"/missing_mesh.gltf\"\n" +
+                "mesh_name: \"MissingMesh\"\n" +
+                "mesh_index: 0\n");
     }
 
     @Test

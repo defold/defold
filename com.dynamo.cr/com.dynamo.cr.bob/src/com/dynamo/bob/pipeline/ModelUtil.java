@@ -69,6 +69,34 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
+    public static Model resolveNamedMesh(Scene scene, String meshName, int meshIndex) {
+        Model uniqueModel = null;
+        int matchingModels = 0;
+
+        for (Model model : scene.models) {
+            if (!model.nameIsGenerated && meshName.equals(model.name)) {
+                uniqueModel = model;
+                matchingModels++;
+            }
+        }
+
+        if (matchingModels == 0) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' was not found in the scene", meshName));
+        }
+        if (matchingModels == 1) {
+            return uniqueModel;
+        }
+        if (meshIndex < 0 || meshIndex >= scene.models.length) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' is ambiguous and raw index %d is out of range", meshName, meshIndex));
+        }
+
+        Model indexedModel = scene.models[meshIndex];
+        if (indexedModel.nameIsGenerated || !meshName.equals(indexedModel.name)) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' is ambiguous and does not exist at raw index %d", meshName, meshIndex));
+        }
+        return indexedModel;
+    }
+
     public static class PackedMorphTargetTexture {
         public final int width;
         public final int height;
@@ -125,6 +153,84 @@ public class ModelUtil {
         }
     }
 
+    private static class MorphTargetTextureKey {
+        private final int baseVertexCount;
+        private final int maxVertexCount;
+        private final MorphTarget[] morphTargets;
+        private final int hashCode;
+
+        MorphTargetTextureKey(Mesh mesh) {
+            baseVertexCount = mesh.positions != null ? mesh.positions.length / 3 : 0;
+            int maxCount = baseVertexCount;
+            int hash = 31 + baseVertexCount;
+            morphTargets = mesh.morphTargets;
+            if (morphTargets != null) {
+                hash = 31 * hash + morphTargets.length;
+                for (MorphTarget morphTarget : morphTargets) {
+                    if (morphTarget == null) {
+                        hash = 31 * hash;
+                        continue;
+                    }
+                    if (morphTarget.positions != null) {
+                        maxCount = Math.max(maxCount, morphTarget.positions.length / 3);
+                    }
+                    if (morphTarget.normals != null) {
+                        maxCount = Math.max(maxCount, morphTarget.normals.length / 3);
+                    }
+                    if (morphTarget.tangents != null) {
+                        maxCount = Math.max(maxCount, morphTarget.tangents.length / 4);
+                    }
+                    hash = 31 * hash + Arrays.hashCode(morphTarget.positions);
+                    hash = 31 * hash + Arrays.hashCode(morphTarget.normals);
+                    hash = 31 * hash + Arrays.hashCode(morphTarget.tangents);
+                }
+            }
+            maxVertexCount = maxCount;
+            hashCode = 31 * hash + maxVertexCount;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+            if (!(object instanceof MorphTargetTextureKey)) {
+                return false;
+            }
+            MorphTargetTextureKey other = (MorphTargetTextureKey) object;
+            if (baseVertexCount != other.baseVertexCount || maxVertexCount != other.maxVertexCount) {
+                return false;
+            }
+            if (morphTargets == null || other.morphTargets == null) {
+                return morphTargets == other.morphTargets;
+            }
+            if (morphTargets.length != other.morphTargets.length) {
+                return false;
+            }
+            for (int i = 0; i < morphTargets.length; ++i) {
+                MorphTarget morphTarget = morphTargets[i];
+                MorphTarget otherMorphTarget = other.morphTargets[i];
+                if (morphTarget == null || otherMorphTarget == null) {
+                    if (morphTarget != otherMorphTarget) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (!Arrays.equals(morphTarget.positions, otherMorphTarget.positions) ||
+                        !Arrays.equals(morphTarget.normals, otherMorphTarget.normals) ||
+                        !Arrays.equals(morphTarget.tangents, otherMorphTarget.tangents)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
     /**
      * Receives packed morph target textures produced while loading meshes and
      * returns the resource path that should be stored in the generated meshset.
@@ -133,11 +239,27 @@ public class ModelUtil {
      */
     public static class MorphTargetTextureCollector {
         private final ArrayList<CollectedMorphTargetTexture> textures = new ArrayList<CollectedMorphTargetTexture>();
+        private final HashMap<MorphTargetTextureKey, String> meshResourcePaths = new HashMap<MorphTargetTextureKey, String>();
 
         public String add(PackedMorphTargetTexture texture) {
             String resourcePath = getMorphTargetTextureResourcePath(textures.size(), texture);
             textures.add(new CollectedMorphTargetTexture(resourcePath, texture));
             return resourcePath;
+        }
+
+        public String add(Mesh mesh, PackedMorphTargetTexture texture) {
+            MorphTargetTextureKey key = new MorphTargetTextureKey(mesh);
+            String resourcePath = meshResourcePaths.get(key);
+            if (resourcePath != null || meshResourcePaths.containsKey(key)) {
+                return resourcePath;
+            }
+            resourcePath = add(texture);
+            meshResourcePaths.put(key, resourcePath);
+            return resourcePath;
+        }
+
+        public String get(Mesh mesh) {
+            return meshResourcePaths.get(new MorphTargetTextureKey(mesh));
         }
 
         protected String getMorphTargetTextureResourcePath(int index, PackedMorphTargetTexture texture) {
@@ -1154,11 +1276,15 @@ public class ModelUtil {
         if (mesh.morphTargets != null) {
             int morphN = mesh.morphTargets.length;
             meshBuilder.setMorphTargetCount(morphN);
-            PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
-            if (packedMorphTargetTexture != null) {
-                if (morphTextureCollector != null) {
-                    meshBuilder.setMorphTargetTexture(morphTextureCollector.add(packedMorphTargetTexture));
+            String morphTargetTexture = morphTextureCollector != null ? morphTextureCollector.get(mesh) : null;
+            if (morphTargetTexture == null) {
+                PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
+                if (packedMorphTargetTexture != null && morphTextureCollector != null) {
+                    morphTargetTexture = morphTextureCollector.add(mesh, packedMorphTargetTexture);
                 }
+            }
+            if (morphTargetTexture != null) {
+                meshBuilder.setMorphTargetTexture(morphTargetTexture);
             }
 
             float[] base = new float[morphN];
@@ -1181,6 +1307,7 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
+        modelBuilder.setMeshIndex(model.index);
         // Preserve local transforms only for meshes that rely on the bone hierarchy at runtime.
         // Other rigid meshes in a skinned scene should keep their flattened world placement
         // to match the authored scene preview.
@@ -1192,6 +1319,19 @@ public class ModelUtil {
         }
         modelBuilder.setBoneId(MurmurHash.hash64(model.parentBone != null ? model.parentBone.name : ""));
 
+        return modelBuilder.build();
+    }
+
+    private static Rig.Model loadRawModel(Model model, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+        Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
+
+        for (Mesh mesh : model.meshes) {
+            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+        }
+
+        modelBuilder.setLocal(MathUtil.vecmathIdentityTransform());
+        modelBuilder.setId(MurmurHash.hash64(model.name));
+        modelBuilder.setMeshIndex(model.index);
         return modelBuilder.build();
     }
 
@@ -1207,28 +1347,36 @@ public class ModelUtil {
         }
     }
 
-    private static int getNumMorphTargetTextures(Node node) {
-        int count = 0;
+    private static void collectMorphTargetMeshes(Node node, HashMap<MorphTargetTextureKey, Boolean> meshes) {
         if (node.model != null && node.model.meshes != null) {
             for (Mesh mesh : node.model.meshes) {
                 if (mesh.morphTargets != null && mesh.morphTargets.length > 0) {
-                    ++count;
+                    meshes.put(new MorphTargetTextureKey(mesh), Boolean.TRUE);
                 }
             }
         }
 
         for (Node child : node.children) {
-            count += getNumMorphTargetTextures(child);
+            collectMorphTargetMeshes(child, meshes);
         }
-        return count;
     }
 
     public static int getNumMorphTargetTextures(Scene scene) {
-        int count = 0;
+        HashMap<MorphTargetTextureKey, Boolean> meshes = new HashMap<MorphTargetTextureKey, Boolean>();
         for (Node root : scene.rootNodes) {
-            count += getNumMorphTargetTextures(root);
+            collectMorphTargetMeshes(root, meshes);
         }
-        return count;
+        for (Model model : scene.models) {
+            if (model.nameIsGenerated) {
+                continue;
+            }
+            for (Mesh mesh : model.meshes) {
+                if (mesh.morphTargets != null && mesh.morphTargets.length > 0) {
+                    meshes.put(new MorphTargetTextureKey(mesh), Boolean.TRUE);
+                }
+            }
+        }
+        return meshes.size();
     }
 
     private static Scene loadInternal(Scene scene) {
@@ -1247,6 +1395,15 @@ public class ModelUtil {
             loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector);
         }
         meshSetBuilder.addAllModels(models);
+
+        ArrayList<Rig.Model> rawModels = new ArrayList<>();
+        for (Model model : scene.models) {
+            if (model.nameIsGenerated) {
+                continue;
+            }
+            rawModels.add(loadRawModel(model, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector));
+        }
+        meshSetBuilder.addAllRawModels(rawModels);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
 
         for (Modelimporter.Bone bone : skeleton) {

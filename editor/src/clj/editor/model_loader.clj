@@ -13,18 +13,24 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.model-loader
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll])
   (:import [com.dynamo.bob.pipeline ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$PackedMorphTargetTexture]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
+           [com.dynamo.bob.pipeline Modelimporter$Mesh Modelimporter$Model Modelimporter$PrimitiveType]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
-           [java.io InputStream]))
+           [java.io InputStream]
+           [java.nio ByteBuffer ByteOrder]
+           [java.nio.charset StandardCharsets]
+           [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -43,6 +49,65 @@
   (let [packed-texture (.-texture texture)]
     {:token (.-resourcePath texture)
      :packed-texture (packed-morph-target-texture->map packed-texture)}))
+
+(defn- model-mesh->collision-primitive [^Modelimporter$Mesh mesh]
+  {:indices (.-indices mesh)
+   :positions (.-positions mesh)
+   :triangles (= Modelimporter$PrimitiveType/PRIMITIVE_TYPE_TRIANGLES
+                 (.-primitiveType mesh))})
+
+(defn- model->collision-mesh [^Modelimporter$Model model]
+  {:index (.-index model)
+   :name (.-name model)
+   :name-generated (.-nameIsGenerated model)
+   :primitives (mapv model-mesh->collision-primitive (.-meshes model))})
+
+(defn named-meshes [meshes]
+  (into []
+        (remove #(or (:name-generated %)
+                     (string/blank? (:name %))))
+        meshes))
+
+(defn resolve-named-mesh [meshes mesh-name mesh-index]
+  (let [matching-meshes (into []
+                              (filter #(= mesh-name (:name %)))
+                              (named-meshes meshes))]
+    (case (count matching-meshes)
+      0 nil
+      1 (nth matching-meshes 0)
+      (coll/first-where #(= mesh-index (:index %)) matching-meshes))))
+
+(defn read-external-buffer-uris [^InputStream input-stream]
+  (try
+    (let [bytes (IOUtils/toByteArray input-stream)
+          byte-count (alength bytes)
+          json-string
+          (if (and (<= 20 byte-count)
+                   (= (int \g) (bit-and 0xff (aget bytes 0)))
+                   (= (int \l) (bit-and 0xff (aget bytes 1)))
+                   (= (int \T) (bit-and 0xff (aget bytes 2)))
+                   (= (int \F) (bit-and 0xff (aget bytes 3))))
+            (let [byte-buffer (doto (ByteBuffer/wrap bytes)
+                                (.order ByteOrder/LITTLE_ENDIAN))
+                  json-byte-count (.getInt byte-buffer 12)
+                  json-chunk-type (.getInt byte-buffer 16)]
+              (when (and (= 0x4e4f534a json-chunk-type)
+                         (<= 0 json-byte-count (- byte-count 20)))
+                (String. bytes 20 json-byte-count StandardCharsets/UTF_8)))
+            (String. bytes StandardCharsets/UTF_8))]
+      (if-not json-string
+        []
+        (let [gltf (json/read-str json-string)]
+          (into []
+                (comp (keep #(get % "uri"))
+                      (remove string/blank?)
+                      (remove #(string/starts-with? % "data:"))
+                      (distinct))
+                (get gltf "buffers")))))
+    (catch Exception _
+      ;; Scene validation reports malformed glTF data when the content output is
+      ;; evaluated. Dependency discovery must not replace that detailed error.
+      [])))
 
 (defn- load-model-scene
   [resource ^InputStream stream morph-tex-w morph-tex-h]
@@ -67,6 +132,7 @@
        :skeleton skeleton
        :bones bones
        :buffers (.buffers scene)
+       :collision-meshes (mapv model->collision-mesh (.models scene))
        :morph-target-textures (mapv collected-morph-target-texture->map (.getTextures morph-target-texture-collector))
        :animation-ids animation-ids
        :material-ids material-ids})))

@@ -83,6 +83,31 @@
                      (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
                    (set (map :id (:animations (g/node-value node-id :animation-set))))))))))))
 
+(deftest mesh-selection
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/mesh_selection.model")]
+      (testing "loads and saves a selected raw glTF mesh"
+        (is (= "LooseMesh" (test-util/prop node-id :mesh-name)))
+        (is (= 2 (test-util/prop node-id :mesh-index)))
+        (is (= [[-1 ""] [0 "LeftMesh"] [1 "RightMesh"] [2 "LooseMesh"]]
+               (get-in (g/node-value node-id :_properties) [:properties :mesh-index :edit-type :options])))
+        (is (= "LooseMesh" (:mesh-name (g/node-value node-id :save-value))))
+        (is (= 2 (:mesh-index (g/node-value node-id :save-value))))
+        (let [scene (g/node-value node-id :scene)]
+          (is (= 2 (count (:children scene))))
+          (is (= [0.0 0.0 0.0] (:translation (:pose (nth (:children scene) 1))))))
+        (is (not (g/error-value? (g/node-value node-id :build-targets)))))
+
+      (testing "an empty selection renders the entire scene and omits the fields"
+        (test-util/with-prop [node-id :mesh-name ""]
+          (test-util/with-prop [node-id :mesh-index -1]
+            (let [save-value (g/node-value node-id :save-value)]
+              (is (= "" (test-util/prop node-id :mesh-name)))
+              (is (not (contains? save-value :mesh-name)))
+              (is (not (contains? save-value :mesh-index)))
+              (is (= 3 (count (:children (g/node-value node-id :scene)))))
+              (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))))
+
 (deftest model-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/test.model")]

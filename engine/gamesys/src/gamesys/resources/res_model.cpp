@@ -78,9 +78,22 @@ namespace dmGameSystem
     // Flattens the meshes into a list, sorted on material
     static void FlattenMeshes(ModelResource* resource, dmRigDDF::MeshSet* mesh_set)
     {
-        for (uint32_t i = 0; i < mesh_set->m_Models.m_Count; ++i)
+        uint32_t selected_mesh_index = resource->m_Model->m_MeshIndex;
+        dmRigDDF::Model* models = mesh_set->m_Models.m_Data;
+        uint32_t model_count = mesh_set->m_Models.m_Count;
+        if (selected_mesh_index != ~0u)
         {
-            dmRigDDF::Model* model = &mesh_set->m_Models[i];
+            models = mesh_set->m_RawModels.m_Data;
+            model_count = mesh_set->m_RawModels.m_Count;
+        }
+
+        for (uint32_t i = 0; i < model_count; ++i)
+        {
+            dmRigDDF::Model* model = &models[i];
+            if (selected_mesh_index != ~0u && model->m_MeshIndex != selected_mesh_index)
+            {
+                continue;
+            }
 
             if (resource->m_Meshes.Remaining() < model->m_Meshes.m_Count)
             {
