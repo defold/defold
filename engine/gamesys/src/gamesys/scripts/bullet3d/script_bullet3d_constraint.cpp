@@ -133,6 +133,13 @@ namespace dmGameSystem
         kind == BULLET3D_CONSTRAINT_HINGE2;
     }
 
+    static bool IsLegacy6DofKind(uint8_t kind)
+    {
+        return kind == BULLET3D_CONSTRAINT_GENERIC_6DOF ||
+        kind == BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING ||
+        kind == BULLET3D_CONSTRAINT_UNIVERSAL;
+    }
+
     static void EnsureConstraintCapacity()
     {
         if (g_Bullet3DConstraints.Full())
@@ -796,9 +803,13 @@ namespace dmGameSystem
             case BULLET3D_CONSTRAINT_GENERIC_6DOF:
             case BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING:
             case BULLET3D_CONSTRAINT_UNIVERSAL:
-            case BULLET3D_CONSTRAINT_HINGE2:
             {
                 btGeneric6DofConstraint* constraint = (btGeneric6DofConstraint*)meta->m_Constraint;
+                return native_a ? &constraint->getFrameOffsetA() : &constraint->getFrameOffsetB();
+            }
+            case BULLET3D_CONSTRAINT_HINGE2:
+            {
+                btHinge2Constraint* constraint = (btHinge2Constraint*)meta->m_Constraint;
                 return native_a ? &constraint->getFrameOffsetA() : &constraint->getFrameOffsetB();
             }
             case BULLET3D_CONSTRAINT_SLIDER:
@@ -874,7 +885,7 @@ namespace dmGameSystem
         }
         CheckConstraintUnlocked(L, meta);
         *frame = btTransform(rotation, position);
-        if (Is6DofKind(meta->m_Kind))
+        if (IsLegacy6DofKind(meta->m_Kind))
         {
             ((btGeneric6DofConstraint*)meta->m_Constraint)->calculateTransforms();
         }
@@ -1131,40 +1142,81 @@ namespace dmGameSystem
         return 0;
     }
 
-    static btGeneric6DofConstraint* Check6Dof(lua_State* L, Bullet3DConstraintMeta* meta)
+    static void Check6DofKind(lua_State* L, Bullet3DConstraintMeta* meta)
     {
         if (!Is6DofKind(meta->m_Kind))
         {
             luaL_error(L, "Expected a 6-DOF-derived constraint.");
         }
+    }
+
+    static btGeneric6DofConstraint* GetLegacy6DofConstraint(Bullet3DConstraintMeta* meta)
+    {
         return (btGeneric6DofConstraint*)meta->m_Constraint;
     }
 
-    static void Get6DofLimit(btGeneric6DofConstraint* constraint, int axis, btScalar* lower, btScalar* upper)
+    static btHinge2Constraint* GetHinge2Constraint(Bullet3DConstraintMeta* meta)
     {
-        if (axis < 3)
+        return (btHinge2Constraint*)meta->m_Constraint;
+    }
+
+    static void Calculate6DofTransforms(Bullet3DConstraintMeta* meta)
+    {
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
         {
-            btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
-            *lower = motor->m_lowerLimit[axis];
-            *upper = motor->m_upperLimit[axis];
+            GetHinge2Constraint(meta)->calculateTransforms();
         }
         else
         {
-            btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
-            *lower = motor->m_loLimit;
-            *upper = motor->m_hiLimit;
+            GetLegacy6DofConstraint(meta)->calculateTransforms();
+        }
+    }
+
+    static void Get6DofLimit(Bullet3DConstraintMeta* meta, int axis, btScalar* lower, btScalar* upper)
+    {
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+        {
+            btHinge2Constraint* constraint = GetHinge2Constraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
+                *lower = motor->m_lowerLimit[axis];
+                *upper = motor->m_upperLimit[axis];
+            }
+            else
+            {
+                btRotationalLimitMotor2* motor = constraint->getRotationalLimitMotor(axis - 3);
+                *lower = motor->m_loLimit;
+                *upper = motor->m_hiLimit;
+            }
+        }
+        else
+        {
+            btGeneric6DofConstraint* constraint = GetLegacy6DofConstraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
+                *lower = motor->m_lowerLimit[axis];
+                *upper = motor->m_upperLimit[axis];
+            }
+            else
+            {
+                btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
+                *lower = motor->m_loLimit;
+                *upper = motor->m_hiLimit;
+            }
         }
     }
 
     static int Constraint_GetLimit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 2);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                 lower;
-        btScalar                 upper;
-        Get6DofLimit(constraint, axis, &lower, &upper);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar lower;
+        btScalar upper;
+        Get6DofLimit(meta, axis, &lower, &upper);
         btScalar output_scale = axis < 3 ? GetBullet3DInvPhysicsScale() : btScalar(1.0f);
         lua_pushnumber(L, lower * output_scale);
         lua_pushnumber(L, upper * output_scale);
@@ -1174,14 +1226,21 @@ namespace dmGameSystem
     static int Constraint_SetLimit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                 input_scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
-        btScalar                 lower = CheckBullet3DScalar(L, 3, input_scale, "lower");
-        btScalar                 upper = CheckBullet3DScalar(L, 4, input_scale, "upper");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar input_scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
+        btScalar lower = CheckBullet3DScalar(L, 3, input_scale, "lower");
+        btScalar upper = CheckBullet3DScalar(L, 4, input_scale, "upper");
         CheckConstraintUnlocked(L, meta);
-        constraint->setLimit(axis, lower, upper);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+        {
+            GetHinge2Constraint(meta)->setLimit(axis, lower, upper);
+        }
+        else
+        {
+            GetLegacy6DofConstraint(meta)->setLimit(axis, lower, upper);
+        }
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1190,66 +1249,98 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
-        int                     axis = CheckAxis(L, 2, 6, "axis");
-        lua_pushboolean(L, Check6Dof(L, meta)->isLimited(axis));
+        Check6DofKind(L, meta);
+        int  axis = CheckAxis(L, 2, 6, "axis");
+        bool limited = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetHinge2Constraint(meta)->isLimited(axis) : GetLegacy6DofConstraint(meta)->isLimited(axis);
+        lua_pushboolean(L, limited);
         return 1;
     }
 
     static int Constraint_Get6DofAxis(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, CheckConstraintMeta(L, 1));
-        int                      axis = CheckAxis(L, 2, 3, "axis");
-        constraint->calculateTransforms();
-        PushBullet3DVector3(L, constraint->getAxis(axis), 1.0f);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int axis = CheckAxis(L, 2, 3, "axis");
+        Calculate6DofTransforms(meta);
+        btVector3 value = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetHinge2Constraint(meta)->getAxis(axis) : GetLegacy6DofConstraint(meta)->getAxis(axis);
+        PushBullet3DVector3(L, value, 1.0f);
         return 1;
     }
 
     static int Constraint_Get6DofAngle(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, CheckConstraintMeta(L, 1));
-        int                      axis = CheckAxis(L, 2, 3, "axis");
-        constraint->calculateTransforms();
-        lua_pushnumber(L, constraint->getAngle(axis));
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int axis = CheckAxis(L, 2, 3, "axis");
+        Calculate6DofTransforms(meta);
+        btScalar value = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetHinge2Constraint(meta)->getAngle(axis) : GetLegacy6DofConstraint(meta)->getAngle(axis);
+        lua_pushnumber(L, value);
         return 1;
     }
 
     static int Constraint_Get6DofPosition(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, CheckConstraintMeta(L, 1));
-        int                      axis = CheckAxis(L, 2, 3, "axis");
-        constraint->calculateTransforms();
-        lua_pushnumber(L, constraint->getRelativePivotPosition(axis) * GetBullet3DInvPhysicsScale());
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int axis = CheckAxis(L, 2, 3, "axis");
+        Calculate6DofTransforms(meta);
+        btScalar value = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetHinge2Constraint(meta)->getRelativePivotPosition(axis) : GetLegacy6DofConstraint(meta)->getRelativePivotPosition(axis);
+        lua_pushnumber(L, value * GetBullet3DInvPhysicsScale());
         return 1;
     }
 
     static int Constraint_Get6DofMotor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 4);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        bool                     enabled;
-        btScalar                 target_velocity;
-        btScalar                 max_impulse;
-        btScalar                 bounce = 0.0f;
-        if (axis < 3)
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        bool     enabled;
+        btScalar target_velocity;
+        btScalar max_impulse;
+        btScalar bounce = 0.0f;
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
         {
-            btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
-            enabled = motor->m_enableMotor[axis];
-            target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
-            max_impulse = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+            btHinge2Constraint* constraint = GetHinge2Constraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
+                enabled = motor->m_enableMotor[axis];
+                target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
+                max_impulse = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+            }
+            else
+            {
+                btRotationalLimitMotor2* motor = constraint->getRotationalLimitMotor(axis - 3);
+                enabled = motor->m_enableMotor;
+                target_velocity = motor->m_targetVelocity;
+                btScalar inv_scale = GetBullet3DInvPhysicsScale();
+                max_impulse = motor->m_maxMotorForce * inv_scale * inv_scale;
+                bounce = motor->m_bounce;
+            }
         }
         else
         {
-            btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
-            enabled = motor->m_enableMotor;
-            target_velocity = motor->m_targetVelocity;
-            btScalar inv_scale = GetBullet3DInvPhysicsScale();
-            max_impulse = motor->m_maxMotorForce * inv_scale * inv_scale;
-            bounce = motor->m_bounce;
+            btGeneric6DofConstraint* constraint = GetLegacy6DofConstraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
+                enabled = motor->m_enableMotor[axis];
+                target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
+                max_impulse = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+            }
+            else
+            {
+                btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
+                enabled = motor->m_enableMotor;
+                target_velocity = motor->m_targetVelocity;
+                btScalar inv_scale = GetBullet3DInvPhysicsScale();
+                max_impulse = motor->m_maxMotorForce * inv_scale * inv_scale;
+                bounce = motor->m_bounce;
+            }
         }
         lua_pushboolean(L, enabled);
         lua_pushnumber(L, target_velocity);
@@ -1261,13 +1352,13 @@ namespace dmGameSystem
     static int Constraint_Set6DofMotor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        bool                     enabled = CheckBoolean(L, 3, "enabled");
-        btScalar                 scale = GetBullet3DPhysicsScale();
-        btScalar                 target_scale = axis < 3 ? scale : btScalar(1.0f);
-        btScalar                 target_velocity = CheckBullet3DScalar(L, 4, target_scale, "target_velocity");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        bool     enabled = CheckBoolean(L, 3, "enabled");
+        btScalar scale = GetBullet3DPhysicsScale();
+        btScalar target_scale = axis < 3 ? scale : btScalar(1.0f);
+        btScalar target_velocity = CheckBullet3DScalar(L, 4, target_scale, "target_velocity");
         btScalar max_scale = axis < 3 ? scale : scale * scale;
         btScalar max_impulse = CheckBullet3DScalar(L, 5, max_scale, "max_impulse");
         if (max_impulse < btScalar(0.0f))
@@ -1281,43 +1372,68 @@ namespace dmGameSystem
         }
 
         CheckConstraintUnlocked(L, meta);
-        if (axis < 3)
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
         {
-            btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
-            motor->m_enableMotor[axis] = enabled;
-            motor->m_targetVelocity[axis] = target_velocity;
-            motor->m_maxMotorForce[axis] = max_impulse;
+            btHinge2Constraint* constraint = GetHinge2Constraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
+                motor->m_enableMotor[axis] = enabled;
+                motor->m_targetVelocity[axis] = target_velocity;
+                motor->m_maxMotorForce[axis] = max_impulse;
+            }
+            else
+            {
+                btRotationalLimitMotor2* motor = constraint->getRotationalLimitMotor(axis - 3);
+                motor->m_enableMotor = enabled;
+                motor->m_targetVelocity = target_velocity;
+                motor->m_maxMotorForce = max_impulse;
+                motor->m_bounce = bounce;
+            }
         }
         else
         {
-            btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
-            motor->m_enableMotor = enabled;
-            motor->m_targetVelocity = target_velocity;
-            motor->m_maxMotorForce = max_impulse;
-            motor->m_bounce = bounce;
+            btGeneric6DofConstraint* constraint = GetLegacy6DofConstraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
+                motor->m_enableMotor[axis] = enabled;
+                motor->m_targetVelocity[axis] = target_velocity;
+                motor->m_maxMotorForce[axis] = max_impulse;
+            }
+            else
+            {
+                btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
+                motor->m_enableMotor = enabled;
+                motor->m_targetVelocity = target_velocity;
+                motor->m_maxMotorForce = max_impulse;
+                motor->m_bounce = bounce;
+            }
         }
         ActivateConstraintBodies(meta);
         return 0;
     }
 
-    static btGeneric6DofSpringConstraint* CheckSpring6Dof(lua_State* L, Bullet3DConstraintMeta* meta)
+    static void CheckSpring6Dof(lua_State* L, Bullet3DConstraintMeta* meta)
     {
         if (meta->m_Kind != BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING && meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2)
         {
             luaL_error(L, "Expected a spring 6-DOF or hinge2 constraint.");
         }
-        return (btGeneric6DofSpringConstraint*)meta->m_Constraint;
     }
 
     static int Constraint_EnableSpring(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
-        int                            axis = CheckAxis(L, 2, 6, "axis");
-        bool                           enabled = CheckBoolean(L, 3, "enabled");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
+        int  axis = CheckAxis(L, 2, 6, "axis");
+        bool enabled = CheckBoolean(L, 3, "enabled");
         CheckConstraintUnlocked(L, meta);
-        constraint->enableSpring(axis, enabled);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+            GetHinge2Constraint(meta)->enableSpring(axis, enabled);
+        else
+            ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->enableSpring(axis, enabled);
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1325,16 +1441,19 @@ namespace dmGameSystem
     static int Constraint_SetSpringStiffness(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
-        int                            axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                       stiffness = CheckBullet3DScalar(L, 3, 1.0f, "stiffness");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar stiffness = CheckBullet3DScalar(L, 3, 1.0f, "stiffness");
         if (stiffness < btScalar(0.0f))
         {
             return luaL_error(L, "stiffness must not be negative.");
         }
         CheckConstraintUnlocked(L, meta);
-        constraint->setStiffness(axis, stiffness);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+            GetHinge2Constraint(meta)->setStiffness(axis, stiffness);
+        else
+            ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setStiffness(axis, stiffness);
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1342,12 +1461,15 @@ namespace dmGameSystem
     static int Constraint_SetSpringDamping(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
-        int                            axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                       damping = CheckBullet3DScalarInRange(L, 3, 1.0f, "damping", 0.0f, 1.0f);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar damping = CheckBullet3DScalarInRange(L, 3, 1.0f, "damping", 0.0f, 1.0f);
         CheckConstraintUnlocked(L, meta);
-        constraint->setDamping(axis, damping);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+            GetHinge2Constraint(meta)->setDamping(axis, damping);
+        else
+            ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setDamping(axis, damping);
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1355,13 +1477,16 @@ namespace dmGameSystem
     static int Constraint_SetSpringEquilibriumPoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
 
         if (lua_isnoneornil(L, 2))
         {
             CheckConstraintUnlocked(L, meta);
-            constraint->setEquilibriumPoint();
+            if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+                GetHinge2Constraint(meta)->setEquilibriumPoint();
+            else
+                ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setEquilibriumPoint();
         }
         else
         {
@@ -1369,14 +1494,20 @@ namespace dmGameSystem
             if (lua_isnoneornil(L, 3))
             {
                 CheckConstraintUnlocked(L, meta);
-                constraint->setEquilibriumPoint(axis);
+                if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+                    GetHinge2Constraint(meta)->setEquilibriumPoint(axis);
+                else
+                    ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setEquilibriumPoint(axis);
             }
             else
             {
                 btScalar scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
                 btScalar value = CheckBullet3DScalar(L, 3, scale, "value");
                 CheckConstraintUnlocked(L, meta);
-                constraint->setEquilibriumPoint(axis, value);
+                if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+                    GetHinge2Constraint(meta)->setEquilibriumPoint(axis, value);
+                else
+                    ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setEquilibriumPoint(axis, value);
             }
         }
         ActivateConstraintBodies(meta);
@@ -1518,7 +1649,7 @@ namespace dmGameSystem
         {
             return luaL_error(L, "Expected a universal or hinge2 constraint.");
         }
-        ((btGeneric6DofConstraint*)meta->m_Constraint)->calculateTransforms();
+        Calculate6DofTransforms(meta);
         if (meta->m_Kind == BULLET3D_CONSTRAINT_UNIVERSAL)
         {
             btUniversalConstraint* constraint = (btUniversalConstraint*)meta->m_Constraint;
@@ -1565,7 +1696,7 @@ namespace dmGameSystem
         {
             return luaL_error(L, "Expected a universal or hinge2 constraint.");
         }
-        ((btGeneric6DofConstraint*)meta->m_Constraint)->calculateTransforms();
+        Calculate6DofTransforms(meta);
         if (meta->m_Kind == BULLET3D_CONSTRAINT_UNIVERSAL)
         {
             btUniversalConstraint* constraint = (btUniversalConstraint*)meta->m_Constraint;
