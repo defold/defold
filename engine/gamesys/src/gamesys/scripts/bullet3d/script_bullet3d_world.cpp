@@ -609,7 +609,7 @@ namespace dmGameSystem
         {
         }
 
-        virtual bool process(const btBroadphaseProxy* proxy)
+        bool process(const btBroadphaseProxy* proxy) override
         {
             if (!HasResultCapacity(m_Results->Size(), m_MaxResults))
             {
@@ -639,16 +639,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_Closest(closest)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& ray_result, bool normal_in_world_space)
+        btScalar addSingleResult(btCollisionWorld::LocalRayResult& ray_result, bool normal_in_world_space) override
         {
             if (ray_result.m_hitFraction <= 0.0f)
             {
@@ -695,16 +695,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_Closest(closest)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult& convex_result, bool normal_in_world_space)
+        btScalar addSingleResult(btCollisionWorld::LocalConvexResult& convex_result, bool normal_in_world_space) override
         {
             if (convex_result.m_hitFraction <= 0.0f)
             {
@@ -750,16 +750,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_MaxResults(max_results)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
+        btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1) override
         {
             (void)part_id_0;
             (void)index_0;
@@ -797,16 +797,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_MaxResults(max_results)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
+        btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1) override
         {
             (void)part_id_0;
             (void)index_0;

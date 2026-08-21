@@ -84,12 +84,12 @@ namespace dmPhysics
         {
         }
 
-        virtual ~MotionState()
+        ~MotionState() override
         {
 
         }
 
-        virtual void getWorldTransform(btTransform& world_trans) const
+        void getWorldTransform(btTransform& world_trans) const override
         {
             if (m_GetWorldTransform != 0x0)
             {
@@ -108,7 +108,7 @@ namespace dmPhysics
             }
         }
 
-        virtual void setWorldTransform(const btTransform &worldTrans)
+        void setWorldTransform(const btTransform &worldTrans) override
         {
             if (m_SetWorldTransform != 0x0)
             {
@@ -225,7 +225,7 @@ namespace dmPhysics
             m_collisionFilterMask = mask;
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
+        btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace) override
         {
             if (rayResult.m_collisionObject->getUserPointer() == m_IgnoredUserData)
                 return 1.0f;
@@ -239,48 +239,10 @@ namespace dmPhysics
         RayCastResponse m_Response;
     };
 
-    // Grabbed from a more recent Bullet version for now
-    /// BULLET (do not modify) ->
-    struct AllHitsRayResultCallback : public btCollisionWorld::RayResultCallback
-    {
-        AllHitsRayResultCallback(const btVector3& rayFromWorld, const btVector3& rayToWorld)
-            : m_rayFromWorld(rayFromWorld)
-            , m_rayToWorld(rayToWorld)
-        {
-        }
-        btAlignedObjectArray<const btCollisionObject*> m_collisionObjects;
-        btAlignedObjectArray<btVector3> m_hitNormalWorld;
-        btAlignedObjectArray<btVector3> m_hitPointWorld;
-        btAlignedObjectArray<btScalar> m_hitFractions;
-        btVector3 m_rayFromWorld;//used to calculate hitPointWorld from hitFraction
-        btVector3 m_rayToWorld;
-
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
-        {
-                m_collisionObject = rayResult.m_collisionObject;
-                m_collisionObjects.push_back(rayResult.m_collisionObject);
-                btVector3 hitNormalWorld;
-                if (normalInWorldSpace)
-                {
-                    hitNormalWorld = rayResult.m_hitNormalLocal;
-                } else
-                {
-                    hitNormalWorld = m_collisionObject->getWorldTransform().getBasis()*rayResult.m_hitNormalLocal;
-                }
-                m_hitNormalWorld.push_back(hitNormalWorld);
-                btVector3 hitPointWorld;
-                hitPointWorld.setInterpolate3(m_rayFromWorld,m_rayToWorld,rayResult.m_hitFraction);
-                m_hitPointWorld.push_back(hitPointWorld);
-                m_hitFractions.push_back(rayResult.m_hitFraction);
-                return m_closestHitFraction;
-        }
-    };
-    /// <- END BULLET
-
-    struct RayCastResultAllCallback3D : public AllHitsRayResultCallback
+    struct RayCastResultAllCallback3D : public btCollisionWorld::AllHitsRayResultCallback
     {
         RayCastResultAllCallback3D(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
-            : AllHitsRayResultCallback(from, to)
+            : btCollisionWorld::AllHitsRayResultCallback(from, to)
             , m_IgnoredUserData(ignored_user_data)
         {
             // *all* groups for now, bullet will test this against the colliding object's mask
@@ -288,14 +250,14 @@ namespace dmPhysics
             m_collisionFilterMask = mask;
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
+        btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace) override
         {
             if (rayResult.m_collisionObject->getUserPointer() == m_IgnoredUserData)
                 return 1.0f;
             else if (!rayResult.m_collisionObject->hasContactResponse())
                 return 1.0f;
             else
-                return AllHitsRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
+                return btCollisionWorld::AllHitsRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
         }
 
         void* m_IgnoredUserData;
