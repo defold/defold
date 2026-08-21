@@ -781,7 +781,7 @@ namespace dmGameSystem
  * @name bullet3d.collision_object.set_world_transform
  * @param object [type:btCollisionObject] collision object
  * @param position [type:vector3] finite world position in Defold units
- * @param rotation [type:quaternion] world rotation
+ * @param rotation [type:quaternion] finite, non-zero world rotation; normalized by the binding
  * @examples
  *
  * Move a collision object while preserving its rotation:
@@ -826,7 +826,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.set_rotation
  * @param object [type:btCollisionObject] collision object
- * @param rotation [type:quaternion] world rotation
+ * @param rotation [type:quaternion] finite, non-zero world rotation; normalized by the binding
  */
 
 /*# Get the activation state
@@ -1010,6 +1010,11 @@ namespace dmGameSystem
  */
 
 /*# Get the Bullet collision object type
+ *
+ * The numeric `CO_*` values mirror the bundled Bullet 3.25 API and are
+ * version-specific. Compare against the constants instead of hard-coding or
+ * persisting their numeric values.
+ *
  * @name bullet3d.collision_object.get_internal_type
  * @param object [type:btCollisionObject] collision object
  * @return type [type:number] one of the `CO_*` constants

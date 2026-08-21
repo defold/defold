@@ -1857,6 +1857,11 @@ namespace dmGameSystem
  */
 
 /*# Set world gravity
+ *
+ * Bullet propagates the new value to active dynamic bodies unless they have
+ * `bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY` set. Such bodies retain their
+ * custom body gravity.
+ *
  * @name bullet3d.world.set_gravity
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param gravity [type:vector3] finite gravity in Defold units per second squared

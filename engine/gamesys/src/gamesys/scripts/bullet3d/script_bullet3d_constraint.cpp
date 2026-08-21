@@ -1979,7 +1979,10 @@ namespace dmGameSystem
  * Creator positions and all other linear values use Defold units and are
  * converted with `physics.scale`. Angles are radians. Axes are one-based in
  * Lua: axes 1-3 are linear and axes 4-6 are angular. Mutating functions cannot
- * be called while the physics world is stepping.
+ * be called while the physics world is stepping. Floating-point and vector
+ * inputs must be finite. Axis vectors must be non-zero and are normalized.
+ * Input rotations must be finite, non-zero quaternions and are normalized by
+ * the binding.
  *
  * `CONSTRAINT_TYPE_*` values identify the concrete constraint exposed by this
  * binding. This deliberately distinguishes universal, hinge2, and spring 6-DOF
@@ -2292,6 +2295,10 @@ namespace dmGameSystem
 
 /*# Get local frame A
  *
+ * Supported constraint types are hinge, cone-twist, generic 6-DOF, generic
+ * spring 6-DOF, slider, universal, and hinge2. Point-to-point constraints use
+ * `get_pivots` instead.
+ *
  * Returns position and rotation. For one-body generic 6-DOF and slider
  * constraints this is the user-body frame, despite Bullet storing it as its
  * native frame B.
@@ -2303,6 +2310,10 @@ namespace dmGameSystem
  */
 
 /*# Get local frame B
+ *
+ * Supports the same constraint types as `get_frame_a`. For a one-body
+ * constraint, this is the frame attached to the fixed world body.
+ *
  * @name bullet3d.constraint.get_frame_b
  * @param constraint [type:btTypedConstraint] framed constraint
  * @return position [type:vector3] local position or world frame position
@@ -2310,17 +2321,26 @@ namespace dmGameSystem
  */
 
 /*# Set local frame A
+ *
+ * Frame mutation is supported for hinge, generic 6-DOF, generic spring 6-DOF,
+ * and slider constraints. Cone-twist, universal, and hinge2 frames are
+ * read-only through this API.
+ *
  * @name bullet3d.constraint.set_frame_a
  * @param constraint [type:btTypedConstraint] mutable framed constraint
- * @param position [type:vector3] local position
- * @param rotation [type:quaternion] local rotation
+ * @param position [type:vector3] finite local position
+ * @param rotation [type:quaternion] finite, non-zero local rotation; normalized by the binding
  */
 
 /*# Set local frame B
+ *
+ * Supports the same constraint types as `set_frame_a`. For a one-body
+ * constraint, this changes the frame attached to the fixed world body.
+ *
  * @name bullet3d.constraint.set_frame_b
  * @param constraint [type:btTypedConstraint] mutable framed constraint
- * @param position [type:vector3] local position or world frame position
- * @param rotation [type:quaternion] local rotation or world frame rotation
+ * @param position [type:vector3] finite local position or world frame position
+ * @param rotation [type:quaternion] finite, non-zero local or world frame rotation; normalized by the binding
  */
 
 /*# Test angular-only mode
@@ -2353,24 +2373,24 @@ namespace dmGameSystem
  * @param constraint [type:btTypedConstraint] hinge constraint
  * @param lower [type:number] lower angle in radians
  * @param upper [type:number] upper angle in radians
- * @param bias [type:number|nil] optional limit bias from 0 to 1
- * @param relaxation [type:number|nil] optional relaxation from 0 to 1
+ * @param [bias] [type:number] limit bias from 0 to 1; defaults to `0.3`
+ * @param [relaxation] [type:number] relaxation from 0 to 1; defaults to `1`
  */
 
 /*# Get hinge motor settings
  * @name bullet3d.constraint.get_hinge_motor
  * @param constraint [type:btTypedConstraint] hinge constraint
  * @return enabled [type:boolean] motor state
- * @return target_velocity [type:number] angular target velocity
- * @return max_impulse [type:number] maximum angular motor impulse
+ * @return target_velocity [type:number] angular target velocity in radians per second
+ * @return max_impulse [type:number] maximum angular motor impulse in Defold squared units
  */
 
 /*# Set hinge motor settings
  * @name bullet3d.constraint.set_hinge_motor
  * @param constraint [type:btTypedConstraint] hinge constraint
  * @param enabled [type:boolean] motor state
- * @param target_velocity [type:number] angular target velocity
- * @param max_impulse [type:number] non-negative maximum angular motor impulse
+ * @param target_velocity [type:number] angular target velocity in radians per second
+ * @param max_impulse [type:number] non-negative maximum angular motor impulse in Defold squared units
  */
 
 /*# Set a hinge motor angle target
@@ -2401,12 +2421,12 @@ namespace dmGameSystem
 /*# Set cone-twist angular spans
  * @name bullet3d.constraint.set_cone_twist_limits
  * @param constraint [type:btTypedConstraint] cone-twist constraint
- * @param swing_span_1 [type:number] non-negative first swing span
- * @param swing_span_2 [type:number] non-negative second swing span
- * @param twist_span [type:number] non-negative twist span
- * @param softness [type:number|nil] optional softness from 0 to 1
- * @param bias [type:number|nil] optional bias from 0 to 1
- * @param relaxation [type:number|nil] optional relaxation from 0 to 1
+ * @param swing_span_1 [type:number] non-negative first swing span in radians
+ * @param swing_span_2 [type:number] non-negative second swing span in radians
+ * @param twist_span [type:number] non-negative twist span in radians
+ * @param [softness] [type:number] softness from 0 to 1; defaults to `1`
+ * @param [bias] [type:number] bias from 0 to 1; defaults to `0.3`
+ * @param [relaxation] [type:number] relaxation from 0 to 1; defaults to `1`
  */
 
 /*# Get the current cone-twist twist angle
@@ -2428,10 +2448,15 @@ namespace dmGameSystem
  */
 
 /*# Set the cone-twist motor target
+ *
+ * By default, `target` is the desired rotation of body A relative to body B.
+ * With `constraint_space` set, it is the desired rotation of frame A relative
+ * to frame B in constraint space.
+ *
  * @name bullet3d.constraint.set_cone_twist_motor_target
  * @param constraint [type:btTypedConstraint] cone-twist constraint
- * @param target [type:quaternion] target orientation
- * @param constraint_space [type:boolean|nil] target is already in constraint space
+ * @param target [type:quaternion] finite, non-zero target orientation; normalized by the binding
+ * @param [constraint_space] [type:boolean] target is already in constraint space; defaults to `false`
  */
 
 /*# Get a 6-DOF axis limit
@@ -2447,6 +2472,11 @@ namespace dmGameSystem
  */
 
 /*# Set a 6-DOF axis limit
+ *
+ * Axes 1-3 use Defold units and axes 4-6 use radians. A lower value less than
+ * the upper value creates a limited range, equal values lock the axis, and a
+ * lower value greater than the upper value makes the axis free.
+ *
  * @name bullet3d.constraint.set_limit
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based axis from 1 to 6
@@ -2455,6 +2485,9 @@ namespace dmGameSystem
  */
 
 /*# Test whether a 6-DOF axis is limited
+ *
+ * Both a ranged and a locked axis are considered limited; a free axis is not.
+ *
  * @name bullet3d.constraint.is_limited
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based axis from 1 to 6
@@ -2486,25 +2519,30 @@ namespace dmGameSystem
  *
  * Axes 1-3 are linear and axes 4-6 are angular. Legacy 6-DOF constraints only
  * support bounce on angular axes; Bullet 3.25 Spring2 constraints such as
- * hinge2 support it on every axis.
+ * hinge2 support it on every axis. Linear target velocity uses Defold units per
+ * second and angular target velocity uses radians per second. `max_force` is a
+ * force for linear axes and a torque in Defold squared units for angular axes.
  *
  * @name bullet3d.constraint.get_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based axis from 1 to 6
  * @return enabled [type:boolean] motor state
- * @return target_velocity [type:number] target velocity
+ * @return target_velocity [type:number] linear or angular target velocity
  * @return max_force [type:number] maximum motor force for linear axes or torque for angular axes
  * @return bounce [type:number] bounce from 0 to 1
  */
 
 /*# Set 6-DOF motor settings
+ *
+ * Linear and angular values use the units described by `get_6dof_motor`.
+ *
  * @name bullet3d.constraint.set_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
  * @param axis [type:number] one-based axis from 1 to 6
  * @param enabled [type:boolean] motor state
- * @param target_velocity [type:number] target velocity
+ * @param target_velocity [type:number] linear or angular target velocity
  * @param max_force [type:number] non-negative maximum motor force for linear axes or torque for angular axes
- * @param bounce [type:number|nil] optional bounce from 0 to 1
+ * @param [bounce] [type:number] bounce from 0 to 1; defaults to `0`
  */
 
 /*# Enable or disable a spring axis
@@ -2546,8 +2584,8 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.set_spring_equilibrium_point
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number|nil] optional one-based axis from 1 to 6
- * @param value [type:number|nil] optional explicit equilibrium value
+ * @param [axis] [type:number] one-based axis from 1 to 6
+ * @param [value] [type:number] explicit equilibrium value
  */
 
 /*# Get slider limits
@@ -2560,6 +2598,11 @@ namespace dmGameSystem
  */
 
 /*# Set slider limits
+ *
+ * Each lower/upper pair follows Bullet's limit convention: lower less than
+ * upper creates a limited range, equal values lock that axis, and lower greater
+ * than upper makes it free. Bullet normalizes the angular limits.
+ *
  * @name bullet3d.constraint.set_slider_limits
  * @param constraint [type:btTypedConstraint] slider constraint
  * @param lower_linear [type:number] lower linear limit in Defold units
@@ -2575,21 +2618,28 @@ namespace dmGameSystem
  */
 
 /*# Get slider motor settings
+ *
+ * The linear motor uses Defold units per second and maximum force. The angular
+ * motor uses radians per second and maximum torque in Defold squared units.
+ *
  * @name bullet3d.constraint.get_slider_motor
  * @param constraint [type:btTypedConstraint] slider constraint
  * @param motor [type:string] `linear` or `angular`
  * @return enabled [type:boolean] motor state
- * @return target_velocity [type:number] target velocity
- * @return max_force [type:number] maximum motor force
+ * @return target_velocity [type:number] linear or angular target velocity
+ * @return max_force [type:number] maximum linear force or angular torque
  */
 
 /*# Set slider motor settings
+ *
+ * Linear and angular values use the units described by `get_slider_motor`.
+ *
  * @name bullet3d.constraint.set_slider_motor
  * @param constraint [type:btTypedConstraint] slider constraint
  * @param motor [type:string] `linear` or `angular`
  * @param enabled [type:boolean] motor state
- * @param target_velocity [type:number] target velocity
- * @param max_force [type:number] non-negative maximum motor force
+ * @param target_velocity [type:number] linear or angular target velocity
+ * @param max_force [type:number] non-negative maximum linear force or angular torque
  */
 
 /*# Get the slider linear reference-frame choice

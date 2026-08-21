@@ -735,7 +735,7 @@ namespace dmGameSystem
  * @name bullet3d.rigid_body.set_mass_properties
  * @param body [type:btRigidBody] dynamic rigid body
  * @param mass [type:number] finite mass greater than zero
- * @param local_inertia [type:vector3] finite non-negative diagonal local inertia in Defold units
+ * @param local_inertia [type:vector3] finite non-negative diagonal local inertia in Defold mass-times-distance-squared units
  */
 
 /*# Get linear velocity
@@ -861,6 +861,12 @@ namespace dmGameSystem
  */
 
 /*# Set rigid body flags
+ *
+ * This replaces the complete flag mask. Bullet 3.25 enables
+ * `BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY` on newly constructed bodies, and
+ * evaluates every enabled gyroscopic mode independently. Clear existing
+ * gyroscopic mode bits before selecting a different mode.
+ *
  * @name bullet3d.rigid_body.set_flags
  * @param body [type:btRigidBody] rigid body
  * @param flags [type:number] rigid body flags
