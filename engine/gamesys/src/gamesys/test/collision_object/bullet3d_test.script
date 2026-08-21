@@ -54,7 +54,8 @@ local function world_contains_object(world, object)
 end
 
 -- Verifies exported collision-object, rigid-body and shape constants. These
--- numeric values mirror Bullet 3.25 and are passed back through the native API.
+-- numeric values mirror the bundled Bullet headers and are passed back through
+-- the native API.
 local function test_constants()
     local constants = {
         { bullet3d.collision_object.ACTIVE_TAG, 1 },
@@ -232,7 +233,7 @@ local function test_rigid_body(world, rigid_body)
         vmath.vector3(-9, 2, 3))
 
     -- The local-point helper rotates the input into world axes, unlike Bullet's
-    -- legacy get_velocity_in_local_point relative-offset convention.
+    -- Bullet get_velocity_in_local_point relative-offset convention.
     local body_rotation = bullet3d.collision_object.get_rotation(rigid_body)
     bullet3d.collision_object.set_rotation(rigid_body, vmath.quat_rotation_z(math.pi * 0.5))
     assert_vec3_near(

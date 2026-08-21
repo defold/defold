@@ -57,22 +57,6 @@ namespace dmPhysics
         return ((CollisionObject3D*)co)->m_CollisionObject;
     }
 
-    class DefoldDynamicsWorld : public btDiscreteDynamicsWorld
-    {
-    public:
-        DefoldDynamicsWorld(btDispatcher* dispatcher,
-                            btBroadphaseInterface* pair_cache,
-                            btConstraintSolver* constraint_solver,
-                            btCollisionConfiguration* collision_configuration)
-        : btDiscreteDynamicsWorld(dispatcher, pair_cache, constraint_solver, collision_configuration)
-        {
-            // Defold's Bullet 2.77 integration kept one fixed step buffered so
-            // motion-state interpolation presents the first simulated frame.
-            m_localTime = btScalar(1.0f) / btScalar(60.0f);
-            setLatencyMotionStateInterpolation(false);
-        }
-    };
-
     class MotionState : public btMotionState
     {
     public:
@@ -164,7 +148,8 @@ namespace dmPhysics
 
         m_Solver = new btSequentialImpulseConstraintSolver;
 
-        m_DynamicsWorld = new DefoldDynamicsWorld(m_Dispatcher, m_OverlappingPairCache, m_Solver, m_CollisionConfiguration);
+        m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_OverlappingPairCache, m_Solver, m_CollisionConfiguration);
+        m_DynamicsWorld->setLatencyMotionStateInterpolation(false);
         m_DynamicsWorld->setGravity(btVector3(context->m_Gravity.getX(), context->m_Gravity.getY(), context->m_Gravity.getZ()));
         m_DynamicsWorld->setDebugDrawer(&m_DebugDraw);
 
