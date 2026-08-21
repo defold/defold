@@ -37,9 +37,24 @@
 ;; Lua block open/close keywords for indentation, and what closes what. A
 ;; closer only pops a frame of its own kind, so a stray `end` inside a table
 ;; constructor cannot close the `{`.
-(def lua-open-keyword-kinds {"do" :block "then" :block "function" :block "else" :block "repeat" :repeat})
-(def lua-close-keyword-kinds {"end" :block "until" :repeat})
-(def lua-bracket-kinds {\( :paren \) :paren \{ :brace \} :brace \[ :bracket \] :bracket})
+(def lua-open-keyword-kinds
+  {"do" :block
+   "then" :block
+   "function" :block
+   "else" :block
+   "repeat" :repeat})
+
+(def lua-close-keyword-kinds
+  {"end" :block
+   "until" :repeat})
+
+(def lua-bracket-kinds
+  {\( :paren
+   \) :paren
+   \{ :brace
+   \} :brace
+   \[ :bracket
+   \] :bracket})
 
 (defn- long-bracket-level
   "The number of = signs in the long bracket at index, or -1 if there is none.
@@ -152,12 +167,11 @@
                        "else" (conj tokens [:close :block nil] [:open :block nil])
                        ;; The `then` on the same line supplies the :open.
                        "elseif" (conj tokens [:close :block nil])
-                       (cond-> tokens
-                         (contains? lua-open-keyword-kinds tok)
-                         (conj [:open (lua-open-keyword-kinds tok) nil])
-
-                         (contains? lua-close-keyword-kinds tok)
-                         (conj [:close (lua-close-keyword-kinds tok) nil])))))
+                       (if-let [kind (lua-open-keyword-kinds tok)]
+                         (conj tokens [:open kind nil])
+                         (if-let [kind (lua-close-keyword-kinds tok)]
+                           (conj tokens [:close kind nil])
+                           tokens)))))
 
             ;; Non-word character
             :else

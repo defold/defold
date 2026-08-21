@@ -2077,21 +2077,22 @@
 
 (defn- indent-step [stack {:keys [leading closes opens]}]
   (let [top (peek stack)
-        ;; A leading closer that closes nothing leaves the line where any other
-        ;; line would go, rather than dedenting it out of an unrelated block.
-        [level col] (if (and leading
-                             (some? top)
-                             (not (coll/empty? closes))
-                             (frame-closed-by? top (closes 0)))
+        [level col] (cond
+                      (nil? top)
+                      [0 nil]
+
+                      (and leading
+                           (coll/not-empty closes)
+                           (frame-closed-by? top (closes 0)))
                       [(:level top) nil]
-                      (if (coll/empty? stack)
-                        [0 nil]
-                        [(inc ^long (:level top)) (:col top)]))
+
+                      :else
+                      [(inc ^long (:level top)) (:col top)])
         stack (reduce (fn [s kind]
-                        (if (and (not (coll/empty? s))
-                                 (frame-closed-by? (peek s) kind))
-                          (pop s)
-                          s))
+                        (let [top (peek s)]
+                          (if (and top (frame-closed-by? top kind))
+                            (pop s)
+                            s)))
                       stack
                       closes)
         stack (let [line-indent (if (coll/empty? stack) 0 (inc ^long (:level (peek stack))))
