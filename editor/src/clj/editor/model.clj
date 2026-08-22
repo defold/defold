@@ -80,6 +80,7 @@
   (into (project/resource-setter evaluation-context self old-value new-value
                                  [:resource :mesh-resource]
                                  [:mesh-set-build-target :mesh-set-build-target]
+                                 [:content :mesh-content]
                                  [:material-ids :mesh-material-ids]
                                  [:collision-meshes :collision-meshes]
                                  [:scene :scene])
@@ -198,7 +199,7 @@
           materials
           material-binding-infos)))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh mesh-name mesh-index collision-meshes skeleton create-go-bones]
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-content mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh mesh-name mesh-index collision-meshes skeleton create-go-bones]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh scene-message)
                       (prop-resource-format-error _node-id :mesh mesh scene-message model-scene/model-file-types)
                       (model-mesh-selection-error _node-id mesh mesh-name mesh-index collision-meshes)
@@ -218,6 +219,16 @@
                not-empty
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
+            mesh-set-build-target
+            (if (str/blank? mesh-name)
+              mesh-set-build-target
+              (let [selected-mesh-set (update (:mesh-set mesh-content) :raw-models
+                                              #(into [] (filter (fn [raw-model]
+                                                                  (= mesh-index (:mesh-index raw-model)))) %))]
+                (rig/make-mesh-set-build-target workspace
+                                                _node-id
+                                                selected-mesh-set
+                                                (:morph-target-textures mesh-content))))
             animation-set-build-target (if (nil? animation-set-build-target-single) animation-set-build-target animation-set-build-target-single)
             rig-scene-dep-build-targets {:animation-set animation-set-build-target
                                          :mesh-set mesh-set-build-target
@@ -618,6 +629,7 @@
             (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
   (input mesh-resource resource/Resource)
+  (input mesh-content g/Any)
   (input mesh-set-build-target g/Any)
   (input mesh-material-ids g/Any)
   (input collision-meshes g/Any)

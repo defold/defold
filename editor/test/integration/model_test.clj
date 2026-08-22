@@ -20,9 +20,16 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto ModelProto$ModelDesc]
            [javax.vecmath Point3d]))
+
+(defn- find-mesh-set-build-target
+  [build-targets]
+  (coll/first-where #(contains? (:user-data %) :mesh-set)
+                    (eduction (coll/tree-xf #(coll/not-empty (:deps %)) :deps)
+                              build-targets)))
 
 (deftest aabb
   (test-util/with-loaded-project
@@ -85,7 +92,8 @@
 
 (deftest mesh-selection
   (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/model/mesh_selection.model")]
+    (let [node-id (test-util/resource-node project "/model/mesh_selection.model")
+          mesh-scene-node-id (test-util/resource-node project "/mesh/two_meshes.gltf")]
       (testing "loads and saves a selected raw glTF mesh"
         (is (= "LooseMesh" (test-util/prop node-id :mesh-name)))
         (is (= 2 (test-util/prop node-id :mesh-index)))
@@ -96,7 +104,10 @@
         (let [scene (g/node-value node-id :scene)]
           (is (= 2 (count (:children scene))))
           (is (= [0.0 0.0 0.0] (:translation (:pose (nth (:children scene) 1))))))
-        (is (not (g/error-value? (g/node-value node-id :build-targets)))))
+        (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
+          (is (= [2] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))
+        (is (coll/empty? (get-in (g/node-value mesh-scene-node-id :mesh-set-build-target)
+                                 [:user-data :mesh-set :raw-models]))))
 
       (testing "an empty selection renders the entire scene and omits the fields"
         (test-util/with-prop [node-id :mesh-name ""]
@@ -106,12 +117,13 @@
               (is (not (contains? save-value :mesh-name)))
               (is (not (contains? save-value :mesh-index)))
               (is (= 3 (count (:children (g/node-value node-id :scene)))))
-              (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))))
+              (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
+                (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))))))
 
 (deftest model-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/test.model")]
-      
+
       (testing "mesh is required"
         (is (nil? (test-util/prop-error node-id :mesh)))
         (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.gltf")]]

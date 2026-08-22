@@ -55,14 +55,26 @@
                           (fn [{:keys [resource]}]
                             (resource/proj-path (get dep-resources resource resource)))
                           morph-target-textures)]
-    (update mesh-set :models coll/mapv->
-            update :meshes coll/mapv->
-            (fn [mesh]
-              (if-let [morph-target-texture (coll/not-empty (:morph-target-texture mesh))]
-                (cond-> mesh
-                  (string/starts-with? morph-target-texture "__morph_target_texture_")
-                  (assoc :morph-target-texture (token->texture-resource-path morph-target-texture)))
-                mesh)))))
+    (reduce (fn [mesh-set model-key]
+              (update mesh-set model-key coll/mapv->
+                      update :meshes coll/mapv->
+                      (fn [mesh]
+                        (if-let [morph-target-texture (coll/not-empty (:morph-target-texture mesh))]
+                          (cond-> mesh
+                            (string/starts-with? morph-target-texture "__morph_target_texture_")
+                            (assoc :morph-target-texture (token->texture-resource-path morph-target-texture)))
+                          mesh))))
+            mesh-set
+            [:models :raw-models])))
+
+(defn- referenced-morph-target-texture-tokens
+  [mesh-set]
+  (into #{}
+        (comp (mapcat mesh-set)
+              (mapcat :meshes)
+              (keep :morph-target-texture)
+              (remove string/blank?))
+        [:models :raw-models]))
 
 (defn- build-morph-target-texture
   [resource _dep-resources {:keys [packed-texture] :as _user-data}]
@@ -89,7 +101,11 @@
 
 (defn make-mesh-set-build-target
   [workspace node-id mesh-set morph-target-textures]
-  (let [morph-target-texture-build-targets
+  (let [referenced-texture-tokens (referenced-morph-target-texture-tokens mesh-set)
+        morph-target-textures (into []
+                                    (filter #(contains? referenced-texture-tokens (:token %)))
+                                    morph-target-textures)
+        morph-target-texture-build-targets
         (mapv (partial make-morph-target-texture-build-target workspace node-id)
               morph-target-textures)
         morph-target-textures
@@ -103,8 +119,8 @@
                :build-fn build-mesh-set
                :user-data {:mesh-set mesh-set
                            :morph-target-textures morph-target-textures}}
-              (coll/not-empty morph-target-texture-build-targets)
-              (assoc :deps morph-target-texture-build-targets)))))
+        (coll/not-empty morph-target-texture-build-targets)
+        (assoc :deps morph-target-texture-build-targets)))))
 
 (defn make-rig-scene-build-target
   ([workspace node-id pb dep-build-targets]

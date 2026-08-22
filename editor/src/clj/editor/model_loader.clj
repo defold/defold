@@ -122,10 +122,15 @@
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ModelUtil/getAnimationNames scene) ; sorted on duration (largest first)
+        raw-model-indices (into #{}
+                                (keep (fn [^Modelimporter$Model model]
+                                        (when-not (.-nameIsGenerated model)
+                                          (.-index model))))
+                                (.models scene))
         morph-target-texture-collector (ModelUtil/createMorphTargetTextureCollector)]
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
+    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector raw-model-indices)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
