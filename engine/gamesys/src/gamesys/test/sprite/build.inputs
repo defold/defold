@@ -1,5 +1,7 @@
 /sprite/default.texture_profiles
 /sprite/atlas_valid_64x64.atlas
+/sprite/attribute_stride.go
+/sprite/attribute_stride_mat4.material
 /sprite/cursor.go
 /sprite/flipbook_cursor.script
 /sprite/frame_count_sprite_frame_count.go

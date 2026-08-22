@@ -118,6 +118,7 @@ namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
+    extern uint32_t GetSpriteWorldVertexBufferCapacity(void* sprite_world);
     extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
     extern void GetSpriteComponentScale(void* sprite_component, dmVMath::Vector3* scale_out);
     extern uint16_t GetSpriteComponentAnimationIndex(void* sprite_component);
@@ -1770,6 +1771,23 @@ static void PostSpritePlayAnimation(dmGameObject::HCollection collection, dmhash
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&msg, &msg_url, &msg_url, (uintptr_t)go_id, 0, 0));
 }
 
+static void PostSpriteFlip(dmGameObject::HCollection collection, dmhash_t go_id, dmhash_t component_id, bool horizontal, bool vertical)
+{
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(&msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = component_id;
+
+    dmGameSystemDDF::SetFlipHorizontal horizontal_msg;
+    horizontal_msg.m_Flip = horizontal;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&horizontal_msg, &msg_url, &msg_url, 0, 0, 0));
+
+    dmGameSystemDDF::SetFlipVertical vertical_msg;
+    vertical_msg.m_Flip = vertical;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&vertical_msg, &msg_url, &msg_url, 0, 0, 0));
+}
+
 static void RenderCollection(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
 {
     dmRender::RenderListBegin(render_context);
@@ -2393,6 +2411,150 @@ TEST_F(SpriteTest, GetSetSliceProperty)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, Slice9FlipGeometry)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t sprite_id = dmHashString64("sprite");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Run script init before replacing the slice value used by its property test.
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyVar slice(Vector4(10.0f, 20.0f, 30.0f, 40.0f));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("slice"), options, slice));
+    PostSpriteFlip(m_Collection, go_id, sprite_id, true, true);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+
+    dmGameSystem::MaterialResource* material_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/sprite.materialc", (void**)&material_resource));
+    dmGraphics::HVertexDeclaration vertex_declaration = dmRender::GetVertexDeclaration(material_resource->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    const uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vertex_declaration);
+    const uint32_t position_offset = dmGraphics::GetVertexStreamOffset(vertex_declaration, dmHashString64("position"));
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, position_offset);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*)0, sprite_world);
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    ASSERT_NE((void*)0, vertex_buffer);
+    ASSERT_EQ(1u, vertex_buffer->m_Buffers.Size());
+
+    const uint32_t vertex_count = 16;
+    dmGraphics::HVertexBuffer vertex_buffer_handle = vertex_buffer->m_Buffers[0];
+    ASSERT_EQ(vertex_count * vertex_stride, dmGraphics::GetVertexBufferSize(vertex_buffer_handle));
+    const char* vertex_data = ((dmGraphics::VertexBuffer*)vertex_buffer_handle)->m_Buffer;
+
+    // Original margins are left=10, top=20, right=30, bottom=40. Both
+    // flips move the right/bottom margins to the left/top respectively.
+    const float expected_x[4] = {-128.0f, -98.0f, 118.0f, 128.0f};
+    const float expected_y[4] = {-128.0f, -108.0f, 88.0f, 128.0f};
+    for (uint32_t i = 0; i < vertex_count; ++i)
+    {
+        const char* position = vertex_data + i * vertex_stride + position_offset;
+        ASSERT_NEAR(expected_x[i % 4], ReadUnalignedFloat(position), EPSILON);
+        ASSERT_NEAR(expected_y[i / 4], ReadUnalignedFloat(position + sizeof(float)), EPSILON);
+    }
+
+    dmResource::Release(m_Factory, material_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+/*
+ * Intent:
+ * Verify that sprite vertex staging memory is grown using the active render
+ * material's vertex stride before vertex data is generated.
+ *
+ * Setup:
+ * Create a sprite whose component material has a scalar custom attribute,
+ * then draw it through a render script that overrides the material with one
+ * where the same attribute is a mat4. Confirm that the staging buffer was
+ * initially sized from the smaller component-material stride.
+ *
+ * Expected results:
+ * Rendering grows the staging buffer to fit four vertices using the larger
+ * override-material stride, and the complete vertex data is uploaded without
+ * writing beyond the allocated staging memory.
+ */
+TEST_F(SpriteTest, RenderScriptMaterialOverrideGrowsVertexBuffer)
+{
+    dmHashEnableReverseHash(true);
+
+    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*) m_RenderContext;
+    render_context_ptr->m_MultiBufferingRequired = 1;
+
+    dmGameSystem::MaterialResource* mat4_material_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/attribute_stride_mat4.materialc", (void**) &mat4_material_resource));
+
+    const char* render_script_source =
+        "function init(self)\n"
+        "    self.predicate = render.predicate({\"tile\"})\n"
+        "end\n"
+        "function update(self)\n"
+        "    render.enable_material(\"attribute_stride_mat4\")\n"
+        "    render.draw(self.predicate)\n"
+        "    render.disable_material()\n"
+        "end\n";
+    dmLuaDDF::LuaSource lua_source;
+    memset(&lua_source, 0, sizeof(lua_source));
+    lua_source.m_Script.m_Data = (uint8_t*) render_script_source;
+    lua_source.m_Script.m_Count = strlen(render_script_source);
+    lua_source.m_Bytecode.m_Data = (uint8_t*) render_script_source;
+    lua_source.m_Bytecode.m_Count = strlen(render_script_source);
+    lua_source.m_Bytecode64.m_Data = (uint8_t*) render_script_source;
+    lua_source.m_Bytecode64.m_Count = strlen(render_script_source);
+    lua_source.m_Filename = "sprite-attribute-stride-render-script";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_RenderContext, &lua_source);
+    ASSERT_NE((dmRender::HRenderScript) 0, render_script);
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_RenderContext, render_script);
+    ASSERT_NE((dmRender::HRenderScriptInstance) 0, render_script_instance);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "attribute_stride_mat4", (uint64_t) mat4_material_resource->m_Material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/attribute_stride.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*) 0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    dmRender::RenderListEnd(m_RenderContext);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*) 0, sprite_world);
+
+    const uint32_t vertex_count = 4;
+    dmGraphics::HVertexDeclaration mat4_vertex_declaration = dmRender::GetVertexDeclaration(mat4_material_resource->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    const uint32_t mat4_vertex_stride = dmGraphics::GetVertexDeclarationStride(mat4_vertex_declaration);
+    const uint32_t required_capacity = vertex_count * mat4_vertex_stride;
+    ASSERT_LT(dmGameSystem::GetSpriteWorldVertexBufferCapacity(sprite_world), required_capacity);
+
+    dmGraphics::BeginFrame(m_GraphicsContext);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, m_UpdateContext.m_DT));
+    ASSERT_EQ(required_capacity, dmGameSystem::GetSpriteWorldVertexBufferCapacity(sprite_world));
+
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    ASSERT_EQ(1u, vertex_buffer->m_Buffers.Size());
+    ASSERT_EQ(required_capacity, dmGraphics::GetVertexBufferSize(vertex_buffer->m_Buffers[0]));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_RenderContext, render_script);
+    dmResource::Release(m_Factory, mat4_material_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -7036,23 +7198,23 @@ BoxRenderParams box_render_params[] =
         6,
         {0, 2, 1, 0, 3, 2}
     },
-    // 9-slice params: on | Use geometries: 8 | Flip uv: uv | Texture: tilesource animation
+    // 9-slice params: asymmetric | Use geometries: 8 | Flip uv: uv | Texture: tilesource animation
     {
         "/gui/render_box_test6.goc",
         {
             dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, -16.000000, 0.0, 0.0), 0.437500, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, -13.000000, 0.0, 0.0), 0.437500, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -13.000000, 0.0, 0.0), 0.500000, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -13.000000, 0.0, 0.0), 0.031250, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -13.000000, 0.0, 0.0), 0.000000, 0.953125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, 11.000000, 0.0, 0.0), 0.437500, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 11.000000, 0.0, 0.0), 0.500000, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 11.000000, 0.0, 0.0), 0.031250, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 11.000000, 0.0, 0.0), 0.000000, 0.578125, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-12.000000, 16.000000, 0.0, 0.0), 0.437500, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
             dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)

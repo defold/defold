@@ -351,7 +351,7 @@ public class BundleHelper {
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
         List<ExtenderResource> resources = new ArrayList<>();
 
-        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
+        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android) || platform.equals(Platform.X86_64Android)) {
             File platformDir = new File(buildDir, platform.toString());
             if (!platformDir.exists()) {
                 platformDir.mkdirs();
