@@ -81,7 +81,7 @@
    :type-mesh    {:label "Mesh"
                   :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.mesh")
                   :icon "icons/32/Icons_27-AT-Mesh.png"
-                  :physics-types #{"2D" "3D"}}})
+                  :physics-types #{"3D"}}})
 
 (defn- mesh-source-shape-type?
   [shape-type]

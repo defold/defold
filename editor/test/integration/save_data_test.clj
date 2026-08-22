@@ -102,10 +102,7 @@
    {"[PROPERTY_TYPE_MATRIX4]" :unimplemented} ; There's currently no way to edit matrix script properties. But they can be declared and used at runtime.
 
    'dmGuiDDF.NodeDesc.Type
-   {"[TYPE_SPINE]" :deprecated} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
-
-   'dmPhysicsDDF.CollisionShape.Type
-   {"[TYPE_HULL]" :runtime-only}}) ; If the .collisionobject file specifies a .convexshape for its collision_shape, it gets embedded as a TYPE_HULL in the compiled binary. We don't have any way of creating these from the editor yet.
+   {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
 (def ^:private pb-ignored-fields
   "This structure is used to exclude certain fields in protobuf-based file
@@ -543,9 +540,32 @@
    {:default
     {"index" :allowed-default}}
 
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_BOX]"]
+   {:default
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_CAPSULE]"]
+   {:default
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_HULL]"]
+   {:default
+    {"count" :allowed-default}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_MESH]"]
+   {:default
+    {"count" :allowed-default}}
+
    ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_SPHERE]"]
    {:default
-    {"shape_type" :allowed-default}}
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused
+     "shape_type" :allowed-default}}
 
    ['dmPhysicsDDF.ConvexShape "[TYPE_SPHERE]"]
    {:default

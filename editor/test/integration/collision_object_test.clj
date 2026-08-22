@@ -77,7 +77,7 @@
       (with-open [_ (test-util/make-system-reverter)]
         (test-util/set-setting! game-project ["physics" "type"] "2D")
         (is (not (contains? (shape-types) :type-hull)))
-        (is (contains? (shape-types) :type-mesh))))))
+        (is (not (contains? (shape-types) :type-mesh)))))))
 
 (deftest validation
   (test-util/with-loaded-project

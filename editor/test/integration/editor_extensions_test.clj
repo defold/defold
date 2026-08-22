@@ -1821,7 +1821,7 @@ After transaction (clear):
   shapes: 0
 Expected errors:
   missing type => type is required
-  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+  wrong type => box is not shape-type-box, shape-type-capsule, shape-type-mesh or shape-type-sphere
 GUI initial state:
   layers: 0
   materials: 0
