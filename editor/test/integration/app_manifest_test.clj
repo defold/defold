@@ -399,7 +399,8 @@
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
-        (is (= :web-gl (g/node-value manifest :graphics-web)))))
+        (is (= :web-gl (g/node-value manifest :graphics-web)))
+        (is (true? (g/node-value manifest :use-rich-text)))))
     (testing "/app_manifest/exclude_physics_2d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_2d.appmanifest")]
         (is (= :none (g/node-value manifest :physics-2d)))
@@ -632,4 +633,9 @@
       (g/set-property! manifest :exclude-tilemap false)
       (is (false? (string/includes? (text) "gui_null")))
       (is (false? (string/includes? (text) "particle_null")))
-      (is (false? (string/includes? (text) "ResourceTypeTileMap"))))))
+      (is (false? (string/includes? (text) "ResourceTypeTileMap")))
+
+      (testing "indeterminate rich-text settings remain indeterminate"
+        (g/set-property! manifest :manifest
+                         {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
+        (is (nil? (g/node-value manifest :use-rich-text)))))))

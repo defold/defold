@@ -859,6 +859,7 @@ static bool LayoutText(LayoutContext* ctx,
                 glyph.m_Width           = bounds.width;
                 glyph.m_Height          = bounds.height;
                 glyph.m_RenderScale     = font_size / settings->m_Size;
+                glyph.m_Advance         = skbglyph->advance_x;
                 glyph.m_Font            = object_run ? FontCollectionGetFont(font_collection, 0) : FontCollectionGetFontFromHandle(font_collection, source_run->font_handle);
                 glyph.m_Flags           = object_run ? TEXT_GLYPH_FLAG_OBJECT : 0;
                 glyph.m_MarkupSpanIndex = resolved_span_indices.Empty() ? MARKUP_INVALID_INDEX : resolved_span_indices[codepoint_index];
@@ -962,6 +963,8 @@ void TextLayoutSkribidiFree(TextLayout* layout)
     layout->m_SpanEffects.SetCapacity(0);
     layout->m_ResolvedSpans.SetCapacity(0);
     layout->m_Decorations.SetCapacity(0);
+    layout->m_DecorationGeometry.SetCapacity(0);
+    layout->m_DecorationGeometryOffsets.SetCapacity(0);
     delete layout;
 }
 
@@ -1025,6 +1028,7 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     else
     {
         TextLayoutInitializeObjectStyles(layout);
+        TextLayoutInitializeDecorationGeometry(layout);
     }
 
     *outlayout = layout;

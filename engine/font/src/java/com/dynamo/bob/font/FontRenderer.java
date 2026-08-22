@@ -122,6 +122,7 @@ public final class FontRenderer implements AutoCloseable {
         public float[] faceColor;
         public float[] outlineColor;
         public float[] shadowColor;
+        public float baseShadowAlpha = 1.0f;
         public float sdfScale;
     }
 
@@ -468,6 +469,7 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_FaceColor(values, arena.allocateFrom(JAVA_FLOAT, properties.faceColor));
             FontcProperties.m_OutlineColor(values, arena.allocateFrom(JAVA_FLOAT, properties.outlineColor));
             FontcProperties.m_ShadowColor(values, arena.allocateFrom(JAVA_FLOAT, properties.shadowColor));
+            FontcProperties.m_BaseShadowAlpha(values, properties.baseShadowAlpha);
             FontcProperties.m_Width(values, properties.width);
             FontcProperties.m_Height(values, properties.height);
             FontcProperties.m_Leading(values, properties.leading);

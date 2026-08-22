@@ -730,6 +730,10 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
+    }
+
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
     {
         memset(out_text_layout, 0, sizeof(*out_text_layout));

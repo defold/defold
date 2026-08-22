@@ -727,6 +727,7 @@ namespace dmGui
         scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
         scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
+        scene->m_PrepareNodeTextLayoutCallback = params->m_PrepareNodeTextLayoutCallback;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
@@ -2584,6 +2585,10 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
+                if (node->m_Node.m_TextLayout.m_Handle)
+                {
+                    TextLayoutUpdate(node->m_Node.m_TextLayout.m_Handle, dt);
+                }
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -3959,6 +3964,14 @@ namespace dmGui
 
         scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, leading, tracking, metrics);
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
+        if (scene->m_PrepareNodeTextLayoutCallback)
+        {
+            scene->m_PrepareNodeTextLayoutCallback(scene, node);
+        }
     }
 
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)

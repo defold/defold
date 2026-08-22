@@ -5,6 +5,7 @@ in mediump vec4 var_face_color;
 in mediump vec4 var_outline_color;
 in mediump vec4 var_shadow_color;
 in mediump vec4 var_layer_mask;
+in mediump float var_shadow_uses_face_coverage;
 in highp vec2 var_decoration;
 
 out vec4 out_fragColor;
@@ -26,7 +27,8 @@ void main()
     float max_outline_alpha    = (1.0 - face_alpha * is_single_layer);
     float outline_alpha        = min(raw_outline_alpha, max_outline_alpha);
 
-    float raw_shadow_alpha     = var_shadow_color.w * t.z;
+    float shadow_coverage      = mix(t.z, t.x, var_shadow_uses_face_coverage);
+    float raw_shadow_alpha     = var_shadow_color.w * shadow_coverage;
     float max_shadow_alpha     = (1.0 - (face_alpha + outline_alpha) * is_single_layer);
     float shadow_alpha         = min(raw_shadow_alpha, max_shadow_alpha);
 

@@ -64,6 +64,13 @@ struct FontDecorationPattern
     float m_Duty;
 };
 
+struct FontDecorationSegment
+{
+    uint32_t m_GlyphIndex;
+    float m_X;
+    float m_Length;
+};
+
 // Converts a final unit RGBA color to the normalized byte format used by font
 // vertices. Call this after applying all styles and animated effects.
 static inline uint32_t FontPackColor(const dmVMath::Vector4& color)
@@ -149,8 +156,12 @@ bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoratio
 // Returns the number of quads required to preserve the decoration's styling.
 uint32_t FontGetDecorationQuadCount(HTextLayout layout, const TextDecoration& decoration);
 
+// Resolves one decoration segment from shaped glyph positions and advances.
+// Pass the value returned by FontGetDecorationQuadCount as segment_count.
+void FontGetDecorationSegment(HTextLayout layout, const TextDecoration& decoration, uint32_t segment_index, uint32_t segment_count, FontDecorationSegment* segment);
+
 // Resolves shader pattern coordinates for one of the decoration's segments.
-void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment_index, uint32_t segment_count, FontDecorationPattern* pattern);
+void FontGetDecorationPattern(const TextDecoration& decoration, const FontDecorationSegment& segment, FontDecorationPattern* pattern);
 
 // Resolves decoration corner colors from its geometrically outermost glyphs.
 void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors);

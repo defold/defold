@@ -152,6 +152,11 @@ namespace dmGui
     typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
 
     /**
+     * Callback to prepare a text layout for a node
+     */
+    typedef void (*PrepareNodeTextLayoutCallback)(dmGui::HScene scene, dmGui::HNode node);
+
+    /**
      * Callback to get custom resource data
      */
     typedef void* (*GetResourceCallback)(void* ctx, dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot);
@@ -222,6 +227,7 @@ namespace dmGui
         CloneCustomNodeCallback        m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
         void*                          m_CreateCustomNodeCallbackContext;
+        PrepareNodeTextLayoutCallback  m_PrepareNodeTextLayoutCallback;
         GetResourceCallback            m_GetResourceCallback;
         void*                          m_GetResourceCallbackContext;
         GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;
@@ -1090,6 +1096,8 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Invokes the scene callback that prepares the current text layout for a node.
+    void PrepareNodeTextLayout(HScene scene, HNode node);
     // Returns the node-owned text layout as a borrowed handle.
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
     // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.

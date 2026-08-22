@@ -16,6 +16,7 @@
 #include "text_layout.h"
 
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/log.h>
 #include <math.h>
 #include <stdlib.h>
@@ -453,15 +454,30 @@ static bool StyleEquals(const TextRenderStyle& a, const TextRenderStyle& b)
     return memcmp(&a, &b, sizeof(a)) == 0;
 }
 
-static bool AddStyle(ResolvedMarkup* resolved, const TextRenderStyle& style, uint16_t* style_index)
+static bool AddStyle(ResolvedMarkup* resolved, dmHashTable64<uint16_t>* style_indices, const TextRenderStyle& style, uint16_t* style_index)
 {
-    for (uint32_t i = 0; i < resolved->m_Styles.Size(); ++i)
-    {
-        if (StyleEquals(resolved->m_Styles[i], style))
-        {
-            *style_index = (uint16_t)i;
+    const dmhash_t hash = dmHashBuffer64(&style, sizeof(style));
+    uint16_t*      cached_index = style_indices->Get(hash);
 
-            return true;
+    if (cached_index && StyleEquals(resolved->m_Styles[*cached_index], style))
+    {
+        *style_index = *cached_index;
+
+        return true;
+    }
+
+    // Hash collisions are exceptionally rare, but retain exact style
+    // equality semantics instead of treating the hash as an identity.
+    if (cached_index)
+    {
+        for (uint32_t i = 0; i < resolved->m_Styles.Size(); ++i)
+        {
+            if (StyleEquals(resolved->m_Styles[i], style))
+            {
+                *style_index = (uint16_t)i;
+
+                return true;
+            }
         }
     }
 
@@ -473,6 +489,17 @@ static bool AddStyle(ResolvedMarkup* resolved, const TextRenderStyle& style, uin
     EnsurePushCapacity(resolved->m_Styles);
     resolved->m_Styles.Push(style);
     *style_index = (uint16_t)(resolved->m_Styles.Size() - 1);
+
+    if (!cached_index)
+    {
+        if (style_indices->Full())
+        {
+            const uint32_t capacity = style_indices->Capacity();
+            style_indices->SetCapacity(capacity > MARKUP_INVALID_INDEX / 2 ? MARKUP_INVALID_INDEX : capacity * 2);
+        }
+
+        style_indices->Put(hash, *style_index);
+    }
 
     return true;
 }
@@ -1200,6 +1227,43 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
     return valid;
 }
 
+// Markup nodes are stored parent-first, so each effective state can be copied
+// from its already-resolved parent instead of replaying the full chain per span.
+struct ResolvedMarkupNodeState
+{
+    TextRenderStyle m_Style;
+    uint16_t        m_EffectNode;
+    uint16_t        m_EffectCount;
+    uint8_t         m_DecorationFlags;
+    uint8_t         m_UnderlinePattern;
+    uint8_t         m_StrikePattern;
+    uint8_t         m_Invalid;
+};
+
+static bool SetSpanEffectSize(dmArray<uint16_t>* effects, uint32_t size)
+{
+    if (size > MARKUP_INVALID_INDEX)
+    {
+        return false;
+    }
+
+    if (effects->Capacity() < size)
+    {
+        uint32_t capacity = effects->Capacity() > 8 ? effects->Capacity() : 8;
+
+        while (capacity < size)
+        {
+            capacity = capacity > MARKUP_INVALID_INDEX / 2 ? MARKUP_INVALID_INDEX : capacity * 2;
+        }
+
+        effects->SetCapacity(capacity);
+    }
+
+    effects->SetSize(size);
+
+    return true;
+}
+
 bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved)
 {
     const float            base_font_size = settings->m_Size;
@@ -1208,7 +1272,7 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
     uint32_t               node_count = MarkupGetStyleNodeCount(markup);
     uint32_t               span_count = MarkupGetSpanCount(markup);
 
-    if (span_count > MARKUP_INVALID_INDEX)
+    if (node_count == 0 || node_count > MARKUP_INVALID_INDEX || span_count > MARKUP_INVALID_INDEX)
     {
         return false;
     }
@@ -1217,31 +1281,47 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
     resolved->m_SpanEffects.SetCapacity(span_count);
     resolved->m_Spans.SetCapacity(span_count);
 
-    dmArray<uint16_t> node_effects;
-    dmArray<uint8_t>  node_invalid;
+    dmArray<ResolvedMarkupNodeState> node_states;
+    dmArray<uint16_t>                node_effects;
+    dmArray<uint16_t>                node_effect_parents;
+    node_states.SetCapacity(node_count);
+    node_states.SetSize(node_count);
     node_effects.SetCapacity(node_count);
     node_effects.SetSize(node_count);
-    node_invalid.SetCapacity(node_count);
-    node_invalid.SetSize(node_count);
+    node_effect_parents.SetCapacity(node_count);
+    node_effect_parents.SetSize(node_count);
 
     for (uint32_t i = 0; i < node_count; ++i)
     {
         node_effects[i] = MARKUP_INVALID_INDEX;
-        node_invalid[i] = 0;
+        node_effect_parents[i] = MARKUP_INVALID_INDEX;
     }
+
+    ResolvedMarkupNodeState root = {};
+    root.m_Style.m_FaceColor[0] = root.m_Style.m_FaceColor[1] = root.m_Style.m_FaceColor[2] = root.m_Style.m_FaceColor[3] = 1.0f;
+    root.m_Style.m_OutlineColor[0] = root.m_Style.m_OutlineColor[1] = root.m_Style.m_OutlineColor[2] = root.m_Style.m_OutlineColor[3] = 1.0f;
+    root.m_Style.m_ShadowColor[0] = root.m_Style.m_ShadowColor[1] = root.m_Style.m_ShadowColor[2] = root.m_Style.m_ShadowColor[3] = 1.0f;
+    root.m_Style.m_FontSize = base_font_size;
+    root.m_EffectNode = MARKUP_INVALID_INDEX;
+    root.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
+    root.m_StrikePattern = TEXT_DECORATION_PATTERN_SOLID;
+    node_states[0] = root;
 
     for (uint32_t i = 1; i < node_count; ++i)
     {
+        const uint16_t parent = nodes[i].m_Parent;
+        ResolvedMarkupNodeState state = parent == MARKUP_INVALID_INDEX ? root : node_states[parent];
+        node_effect_parents[i] = state.m_EffectNode;
+
         if (nodes[i].m_TextLength == 0)
         {
+            node_states[i] = state;
             continue;
         }
 
-        const uint16_t parent = nodes[i].m_Parent;
-
-        if (parent != MARKUP_INVALID_INDEX && node_invalid[parent])
+        if (state.m_Invalid)
         {
-            node_invalid[i] = 1;
+            node_states[i] = state;
             continue;
         }
 
@@ -1251,8 +1331,9 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
 
             if (!CreateEffect(markup, nodes[i], nodes[i].m_TextOffset, nodes[i].m_TextLength, &effect))
             {
-                node_invalid[i] = 1;
+                state.m_Invalid = 1;
                 LogInvalidNode(markup, nodes[i]);
+                node_states[i] = state;
                 continue;
             }
 
@@ -1264,15 +1345,21 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
             EnsurePushCapacity(resolved->m_Effects);
             resolved->m_Effects.Push(effect);
             node_effects[i] = (uint16_t)(resolved->m_Effects.Size() - 1);
+            state.m_EffectNode = (uint16_t)i;
+            ++state.m_EffectCount;
         }
         else if (IsStyleNode(nodes[i]))
         {
-            TextRenderStyle style = {};
+            TextRenderStyle style = state.m_Style;
 
             if (!ApplyStyleNode(markup, nodes[i], base_font_size, &style))
             {
-                node_invalid[i] = 1;
+                state.m_Invalid = 1;
                 LogInvalidNode(markup, nodes[i]);
+            }
+            else
+            {
+                state.m_Style = style;
             }
         }
         else if (IsDecorationNode(nodes[i]))
@@ -1281,110 +1368,87 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
 
             if (!ParseDecorationNode(markup, nodes[i], &pattern))
             {
-                node_invalid[i] = 1;
+                state.m_Invalid = 1;
                 LogInvalidNode(markup, nodes[i]);
             }
-        }
-    }
-
-    dmArray<uint16_t> chain;
-    chain.SetCapacity(node_count);
-
-    for (uint32_t i = 0; i < span_count; ++i)
-    {
-        chain.SetSize(0);
-        uint16_t node_index = spans[i].m_StyleNodeIndex;
-
-        while (node_index != 0 && node_index != MARKUP_INVALID_INDEX)
-        {
-            chain.Push(node_index);
-            node_index = nodes[node_index].m_Parent;
-        }
-
-        TextRenderStyle style = {};
-        style.m_FaceColor[0] = style.m_FaceColor[1] = style.m_FaceColor[2] = style.m_FaceColor[3] = 1.0f;
-        style.m_OutlineColor[0] = style.m_OutlineColor[1] = style.m_OutlineColor[2] = style.m_OutlineColor[3] = 1.0f;
-        style.m_ShadowColor[0] = style.m_ShadowColor[1] = style.m_ShadowColor[2] = style.m_ShadowColor[3] = 1.0f;
-        style.m_FontSize = base_font_size;
-        uint16_t effect_index = MARKUP_INVALID_INDEX;
-        uint16_t effect_count = 0;
-        uint8_t  decoration_flags = 0;
-        uint8_t  underline_pattern = TEXT_DECORATION_PATTERN_SOLID;
-        uint8_t  strike_pattern = TEXT_DECORATION_PATTERN_SOLID;
-
-        for (uint32_t j = chain.Size(); j > 0; --j)
-        {
-            uint16_t current = chain[j - 1];
-
-            if (node_invalid[current])
+            else if (nodes[i].m_Type == MARKUP_TAG_UNDERLINE)
             {
-                break;
+                state.m_DecorationFlags |= TEXT_RESOLVED_DECORATION_UNDERLINE;
+                state.m_UnderlinePattern = pattern;
             }
+            else
+            {
+                state.m_DecorationFlags |= TEXT_RESOLVED_DECORATION_STRIKE;
+                state.m_StrikePattern = pattern;
+            }
+        }
 
-            ApplyStyleNode(markup, nodes[current], base_font_size, &style);
-
-            const dmhash_t                  object_style = GetObjectDefaultStyle(markup, nodes[current]);
+        if (!state.m_Invalid)
+        {
+            const dmhash_t                  object_style = GetObjectDefaultStyle(markup, nodes[i]);
             const TextNamedStyleDecoration* decoration = FontCollectionGetNamedStyleDecoration(collection, object_style);
 
             if (decoration)
             {
-                decoration_flags |= decoration->m_Flags;
+                state.m_DecorationFlags |= decoration->m_Flags;
 
                 if (decoration->m_Flags & TEXT_RESOLVED_DECORATION_UNDERLINE)
                 {
-                    underline_pattern = decoration->m_UnderlinePattern;
+                    state.m_UnderlinePattern = decoration->m_UnderlinePattern;
                 }
 
                 if (decoration->m_Flags & TEXT_RESOLVED_DECORATION_STRIKE)
                 {
-                    strike_pattern = decoration->m_StrikePattern;
+                    state.m_StrikePattern = decoration->m_StrikePattern;
                 }
             }
+        }
 
-            if (IsDecorationNode(nodes[current]))
+        node_states[i] = state;
+    }
+
+    dmHashTable64<uint16_t> style_indices;
+
+    if (span_count > 0)
+    {
+        style_indices.SetCapacity(span_count < 32 ? span_count : 32);
+    }
+
+    for (uint32_t i = 0; i < span_count; ++i)
+    {
+        const uint16_t node_index = spans[i].m_StyleNodeIndex;
+        const ResolvedMarkupNodeState& state = node_index == MARKUP_INVALID_INDEX ? root : node_states[node_index];
+        uint16_t effect_index = MARKUP_INVALID_INDEX;
+
+        if (state.m_EffectCount > 0)
+        {
+            const uint32_t span_effect_size = resolved->m_SpanEffects.Size();
+            const uint32_t new_span_effect_size = span_effect_size + state.m_EffectCount;
+
+            if (!SetSpanEffectSize(&resolved->m_SpanEffects, new_span_effect_size))
             {
-                uint8_t pattern;
-                ParseDecorationNode(markup, nodes[current], &pattern);
-
-                if (nodes[current].m_Type == MARKUP_TAG_UNDERLINE)
-                {
-                    decoration_flags |= TEXT_RESOLVED_DECORATION_UNDERLINE;
-                    underline_pattern = pattern;
-                }
-                else
-                {
-                    decoration_flags |= TEXT_RESOLVED_DECORATION_STRIKE;
-                    strike_pattern = pattern;
-                }
+                return false;
             }
 
-            if (node_effects[current] != MARKUP_INVALID_INDEX)
+            effect_index = (uint16_t)span_effect_size;
+            uint16_t effect_node = state.m_EffectNode;
+
+            for (uint32_t j = state.m_EffectCount; j > 0; --j)
             {
-                if (resolved->m_SpanEffects.Size() == MARKUP_INVALID_INDEX)
-                {
-                    return false;
-                }
-
-                if (effect_count == 0)
-                {
-                    effect_index = (uint16_t)resolved->m_SpanEffects.Size();
-                }
-
-                EnsurePushCapacity(resolved->m_SpanEffects);
-                resolved->m_SpanEffects.Push(node_effects[current]);
-                ++effect_count;
+                resolved->m_SpanEffects[effect_index + j - 1] = node_effects[effect_node];
+                effect_node = node_effect_parents[effect_node];
             }
         }
 
         uint16_t style_index;
 
-        if (!AddStyle(resolved, style, &style_index))
+        if (!AddStyle(resolved, &style_indices, state.m_Style, &style_index))
         {
             return false;
         }
 
-        TextResolvedSpan resolved_span = { spans[i].m_TextOffset, spans[i].m_TextLength, style_index, effect_index, effect_count,
-                                           decoration_flags, underline_pattern, strike_pattern };
+        TextResolvedSpan resolved_span = { spans[i].m_TextOffset, spans[i].m_TextLength, style_index, effect_index, state.m_EffectCount,
+                                           state.m_DecorationFlags, state.m_UnderlinePattern, state.m_StrikePattern };
         EnsurePushCapacity(resolved->m_Spans);
         resolved->m_Spans.Push(resolved_span);
     }

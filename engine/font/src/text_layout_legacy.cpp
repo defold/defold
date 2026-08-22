@@ -498,6 +498,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     // metrics->m_MaxDescent = descent;
     layout->m_Width = max_line_width;
     TextLayoutInitializeObjectStyles(layout);
+    TextLayoutInitializeDecorationGeometry(layout);
 
     *outlayout = layout;
     return TEXT_RESULT_OK;

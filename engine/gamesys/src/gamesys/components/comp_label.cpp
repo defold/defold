@@ -92,7 +92,6 @@ namespace dmGameSystem
         uint32_t                    m_TextLayoutFontVersion;
         uint32_t                    m_HoveredLayoutObject;
         uint32_t                    m_PressedLayoutObject;
-        uint32_t                    m_Index;
 
         uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
@@ -108,6 +107,11 @@ namespace dmGameSystem
     {
         dmObjectPool<LabelComponent>    m_Components;
     };
+
+    static LabelComponent* GetLabelComponent(LabelWorld* world, uintptr_t user_data)
+    {
+        return &world->m_Components.Get((uint32_t)user_data);
+    }
 
     DM_GAMESYS_PROP_VECTOR3(LABEL_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(LABEL_PROP_SIZE, size, false);
@@ -150,6 +154,7 @@ namespace dmGameSystem
         LabelContext* label_context = (LabelContext*)params.m_Context;
         LabelWorld*   world = new LabelWorld();
         uint32_t      comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
+        label_context->m_ComponentTypeIndex = params.m_ComponentIndex;
         world->m_Components.SetCapacity(comp_count);
         memset(world->m_Components.GetRawObjects().Begin(), 0, sizeof(LabelComponent) * comp_count);
 
@@ -397,7 +402,6 @@ namespace dmGameSystem
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
-        component->m_Index = index;
         component->m_Enabled = 1;
         component->m_UserAllocatedText = 0;
         component->m_HoveredLayoutObject = UINT32_MAX;
@@ -405,15 +409,15 @@ namespace dmGameSystem
 
         InitParametersFromDescription(component, ddf);
 
-        *params.m_UserData = (uintptr_t)component;
+        *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompLabelDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
-        LabelComponent& component = *(LabelComponent*)*params.m_UserData;
-        uint32_t index = component.m_Index;
+        uint32_t index = (uint32_t)*params.m_UserData;
+        LabelComponent& component = *GetLabelComponent(world, index);
         InvalidateTextLayout(&component);
         if (component.m_UserAllocatedText)
         {
@@ -477,7 +481,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLabelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
     {
-        LabelComponent* component = (LabelComponent*)*params.m_UserData;
+        LabelWorld* world = (LabelWorld*)params.m_World;
+        LabelComponent* component = GetLabelComponent(world, *params.m_UserData);
         component->m_AddedToUpdate = true;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -674,7 +679,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        LabelComponent* component = (LabelComponent*)*params.m_UserData;
+        LabelWorld* world = (LabelWorld*)params.m_World;
+        LabelComponent* component = GetLabelComponent(world, *params.m_UserData);
 
         if (params.m_Message->m_Descriptor != 0)
         {
@@ -802,7 +808,11 @@ namespace dmGameSystem
 
     dmGameObject::InputResult CompLabelOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
-        LabelComponent* component = (LabelComponent*)*params.m_UserData;
+        LabelContext* label_context = (LabelContext*)params.m_Context;
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(params.m_Instance);
+        LabelWorld* world = (LabelWorld*)dmGameObject::GetWorld(collection, label_context->m_ComponentTypeIndex);
+        assert(world);
+        LabelComponent* component = GetLabelComponent(world, *params.m_UserData);
         const dmGameObject::InputAction& action = *params.m_InputAction;
 
         if (!component->m_Enabled || !action.m_PositionSet)
@@ -861,14 +871,16 @@ namespace dmGameSystem
         LabelResource*              resource = (LabelResource*)params.m_Resource;
         dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
 
-        LabelComponent*             component = (LabelComponent*)*params.m_UserData;
+        LabelWorld*                 world = (LabelWorld*)params.m_World;
+        LabelComponent*             component = GetLabelComponent(world, *params.m_UserData);
         InvalidateTextLayout(component);
         InitParametersFromDescription(component, ddf);
     }
 
     dmGameObject::HComponent CompLabelGetComponent(const dmGameObject::ComponentGetParams& params)
     {
-        return (dmGameObject::HComponent)params.m_UserData;
+        LabelWorld* world = (LabelWorld*)params.m_World;
+        return (dmGameObject::HComponent)GetLabelComponent(world, params.m_UserData);
     }
 
     // For testing
@@ -892,7 +904,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
-        LabelComponent* component = (LabelComponent*)*params.m_UserData;
+        LabelWorld* world = (LabelWorld*)params.m_World;
+        LabelComponent* component = GetLabelComponent(world, *params.m_UserData);
         dmhash_t get_property = params.m_PropertyId;
 
         if (IsReferencingProperty(LABEL_PROP_SCALE, get_property))
@@ -950,7 +963,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompLabelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
-        LabelComponent* component = (LabelComponent*)*params.m_UserData;
+        LabelWorld* world = (LabelWorld*)params.m_World;
+        LabelComponent* component = GetLabelComponent(world, *params.m_UserData);
         dmhash_t set_property = params.m_PropertyId;
 
         if (IsReferencingProperty(LABEL_PROP_SCALE, set_property))
@@ -1037,7 +1051,8 @@ namespace dmGameSystem
 
     static bool CompLabelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
-        LabelComponent* component = (LabelComponent*)pit->m_Node->m_Component;
+        LabelWorld* world = (LabelWorld*)pit->m_Node->m_ComponentWorld;
+        LabelComponent* component = GetLabelComponent(world, pit->m_Node->m_Component);
 
         uint64_t index = pit->m_Next++;
 

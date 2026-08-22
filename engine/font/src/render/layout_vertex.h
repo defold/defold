@@ -49,6 +49,7 @@ struct FontLayoutVertexConfig
     float                  m_ShadowX;
     float                  m_ShadowY;
     float                  m_ShadowBlur;
+    float                  m_BaseShadowAlpha;
     float                  m_MonospacePadding;
     uint32_t               m_CacheCellMaxAscent;
     uint32_t               m_CacheCellPadding;
@@ -57,6 +58,8 @@ struct FontLayoutVertexConfig
     uint32_t               m_VerticalAlign;
     uint8_t                m_BaseLayerMask;
     bool                   m_MetricsFromTtf;
+    bool                   m_IsBMFont;
+    bool                   m_ShadowUsesFaceCoverage;
     bool                   m_RenderDecorations;
     bool                   m_RenderObjectOutlines;
     bool                   m_ResolveGlyphsForMetrics;

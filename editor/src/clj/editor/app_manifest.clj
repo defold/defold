@@ -1024,7 +1024,7 @@
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-rich-text))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (g/fnk [manifest]
-                     (not (true? (get-setting-value manifest rich-text-setting)))))
+                     (some-> (get-setting-value manifest rich-text-setting) not)))
             (set (setting-property-updater rich-text-setting (fn [_ enabled]
                                                                (not enabled))))))
 

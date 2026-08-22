@@ -5291,6 +5291,19 @@ TEST_F(GuiTest, GuiPreparedRichTextLayout)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiLayoutObjectsAreCurrentOnDemand)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_layout_objects_on_demand.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool tests_done = false;
+    // Rendering would populate the cache and hide failures in the on-demand script path.
+    WaitForTestsDone(10, false, &tests_done);
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiRichTextLinkInteraction)
 {
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -5470,6 +5483,65 @@ TEST_F(LabelComponentTest, LabelTextProperty)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar("")));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
     ASSERT_STREQ("", desc.m_Variant.m_Text);
+}
+
+TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
+{
+    const dmhash_t victim_go_id = dmHashString64("/victim");
+    const dmhash_t target_go_id = dmHashString64("/target");
+    const dmhash_t label_id = dmHashString64("label");
+    const dmhash_t text_id = dmHashString64("text");
+    const char* link_text = "<link id=docs>Link</link>";
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance victim = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", victim_go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, victim);
+    dmGameObject::HInstance target = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", target_go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, target);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* target_before = GetLabelComponent(target, label_id);
+    ASSERT_NE((void*)0, target_before);
+
+    DeleteInstance(m_Collection, victim);
+
+    dmGameSystem::LabelComponent* target_after = GetLabelComponent(target, label_id);
+    ASSERT_NE((void*)0, target_after);
+    ASSERT_NE(target_before, target_after);
+
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(target, label_id, text_id, options, dmGameObject::PropertyVar(link_text)));
+
+    dmGameObject::PropertyDesc desc;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(target, label_id, text_id, options, desc));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_TEXT, desc.m_Variant.m_Type);
+    ASSERT_STREQ(link_text, desc.m_Variant.m_Text);
+
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(target_after);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+
+    dmGameObject::AcquireInputFocus(m_Collection, target);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = -13.0f;
+    input_action.m_Y = 82.96361f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData hovered = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+
+    DeleteInstance(m_Collection, target);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)

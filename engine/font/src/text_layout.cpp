@@ -16,6 +16,7 @@
 #include "fontcollection.h"
 #include <assert.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/utf8.h>
@@ -60,6 +61,215 @@ uint32_t TextLayoutGetDecorationCount(HTextLayout layout)
 const TextDecoration* TextLayoutGetDecorations(HTextLayout layout)
 {
     return layout->m_Decorations.Begin();
+}
+
+static int CompareDecorationGeometry(const void* left, const void* right)
+{
+    const TextDecorationGeometry& left_geometry = *(const TextDecorationGeometry*)left;
+    const TextDecorationGeometry& right_geometry = *(const TextDecorationGeometry*)right;
+
+    if (left_geometry.m_X < right_geometry.m_X)
+    {
+        return -1;
+    }
+
+    if (left_geometry.m_X > right_geometry.m_X)
+    {
+        return 1;
+    }
+
+    if (left_geometry.m_Length > right_geometry.m_Length)
+    {
+        return -1;
+    }
+
+    if (left_geometry.m_Length < right_geometry.m_Length)
+    {
+        return 1;
+    }
+
+    return left_geometry.m_GlyphIndex < right_geometry.m_GlyphIndex ? -1 : left_geometry.m_GlyphIndex > right_geometry.m_GlyphIndex;
+}
+
+// A decoration can use one quad when its color is constant or varies only
+// across the complete span. Split it at glyph boundaries when glyphs refer to
+// different styles/spans, or when a glyph-fitted gradient must be preserved.
+static bool DecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration)
+{
+    if (decoration.m_GlyphCount <= 1)
+    {
+        return false;
+    }
+
+    const TextGlyph* glyphs = layout->m_Glyphs.Begin();
+    const TextGlyph& first = glyphs[decoration.m_GlyphStart];
+
+    for (uint32_t i = 1; i < decoration.m_GlyphCount; ++i)
+    {
+        const TextGlyph& glyph = glyphs[decoration.m_GlyphStart + i];
+
+        if (glyph.m_StyleIndex != first.m_StyleIndex || glyph.m_MarkupSpanIndex != first.m_MarkupSpanIndex)
+        {
+            return true;
+        }
+    }
+
+    if (first.m_MarkupSpanIndex == UINT16_MAX || first.m_MarkupSpanIndex >= layout->m_ResolvedSpans.Size())
+    {
+        return false;
+    }
+
+    const TextResolvedSpan& span = layout->m_ResolvedSpans[first.m_MarkupSpanIndex];
+
+    for (uint32_t i = 0; i < span.m_EffectCount; ++i)
+    {
+        const TextEffect& effect = layout->m_Effects[layout->m_SpanEffects[span.m_EffectIndex + i]];
+
+        if (effect.m_Type == TEXT_EFFECT_GRADIENT && effect.m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static uint32_t GetDecorationIndex(HTextLayout layout, const TextDecoration& decoration)
+{
+    const TextDecoration* decorations = layout->m_Decorations.Begin();
+    assert(&decoration >= decorations && &decoration < decorations + layout->m_Decorations.Size());
+
+    return (uint32_t)(&decoration - decorations);
+}
+
+void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
+{
+    const uint32_t decoration_count = layout->m_Decorations.Size();
+    uint32_t       segment_count = 0;
+
+    layout->m_DecorationGeometryOffsets.SetSize(0);
+    layout->m_DecorationGeometryOffsets.SetCapacity(decoration_count);
+    layout->m_DecorationGeometryOffsets.SetSize(decoration_count);
+
+    for (uint32_t i = 0; i < decoration_count; ++i)
+    {
+        const TextDecoration& decoration = layout->m_Decorations[i];
+
+        if (DecorationRequiresGlyphSegments(layout, decoration))
+        {
+            layout->m_DecorationGeometryOffsets[i] = segment_count;
+            segment_count += decoration.m_GlyphCount;
+        }
+        else
+        {
+            layout->m_DecorationGeometryOffsets[i] = UINT32_MAX;
+        }
+    }
+
+    layout->m_DecorationGeometry.SetSize(0);
+    layout->m_DecorationGeometry.SetCapacity(segment_count);
+
+    for (uint32_t decoration_index = 0; decoration_index < decoration_count; ++decoration_index)
+    {
+        const TextDecoration& decoration = layout->m_Decorations[decoration_index];
+        const uint32_t        geometry_start = layout->m_DecorationGeometryOffsets[decoration_index];
+
+        if (geometry_start == UINT32_MAX)
+        {
+            continue;
+        }
+
+        const float decoration_end = decoration.m_X + decoration.m_Length;
+        assert(geometry_start == layout->m_DecorationGeometry.Size());
+
+        for (uint32_t glyph_offset = 0; glyph_offset < decoration.m_GlyphCount; ++glyph_offset)
+        {
+            const uint32_t   glyph_index = decoration.m_GlyphStart + glyph_offset;
+            const TextGlyph& glyph = layout->m_Glyphs[glyph_index];
+            const float      glyph_end = glyph.m_X + glyph.m_Advance;
+            const float      glyph_x0 = fminf(glyph.m_X, glyph_end);
+            const float      glyph_x1 = fmaxf(glyph.m_X, glyph_end);
+            TextDecorationGeometry geometry;
+            geometry.m_GlyphIndex = glyph_index;
+            geometry.m_X = fmaxf(decoration.m_X, fminf(decoration_end, glyph_x0));
+            geometry.m_Length = fmaxf(geometry.m_X, fminf(decoration_end, glyph_x1)) - geometry.m_X;
+            layout->m_DecorationGeometry.Push(geometry);
+        }
+
+        if (decoration.m_GlyphCount == 0)
+        {
+            continue;
+        }
+
+        TextDecorationGeometry* geometry = layout->m_DecorationGeometry.Begin() + geometry_start;
+        qsort(geometry, decoration.m_GlyphCount, sizeof(TextDecorationGeometry), CompareDecorationGeometry);
+        uint32_t first_nonempty = 0;
+
+        while (first_nonempty < decoration.m_GlyphCount && geometry[first_nonempty].m_Length == 0.0f)
+        {
+            ++first_nonempty;
+        }
+
+        if (first_nonempty == decoration.m_GlyphCount)
+        {
+            geometry[0].m_X = decoration.m_X;
+            geometry[0].m_Length = decoration.m_Length;
+
+            continue;
+        }
+
+        float partition_x = decoration.m_X;
+
+        for (uint32_t i = first_nonempty; i < decoration.m_GlyphCount; ++i)
+        {
+            if (geometry[i].m_Length == 0.0f)
+            {
+                continue;
+            }
+
+            uint32_t next_nonempty = i + 1;
+
+            while (next_nonempty < decoration.m_GlyphCount && geometry[next_nonempty].m_Length == 0.0f)
+            {
+                ++next_nonempty;
+            }
+
+            float next_partition_x = decoration_end;
+
+            if (next_nonempty < decoration.m_GlyphCount)
+            {
+                const float current_end = geometry[i].m_X + geometry[i].m_Length;
+                const float next_start = geometry[next_nonempty].m_X;
+                next_partition_x = (current_end + next_start) * 0.5f;
+                next_partition_x = fmaxf(partition_x, fminf(decoration_end, next_partition_x));
+            }
+
+            geometry[i].m_X = partition_x;
+            geometry[i].m_Length = next_partition_x - partition_x;
+            partition_x = next_partition_x;
+        }
+    }
+}
+
+bool TextLayoutDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration)
+{
+    const uint32_t decoration_index = GetDecorationIndex(layout, decoration);
+    assert(decoration_index < layout->m_DecorationGeometryOffsets.Size());
+
+    return layout->m_DecorationGeometryOffsets[decoration_index] != UINT32_MAX;
+}
+
+const TextDecorationGeometry* TextLayoutGetDecorationGeometry(HTextLayout layout, const TextDecoration& decoration, uint32_t segment_index)
+{
+    const uint32_t decoration_index = GetDecorationIndex(layout, decoration);
+    assert(decoration_index < layout->m_DecorationGeometryOffsets.Size());
+    assert(segment_index < decoration.m_GlyphCount);
+    const uint32_t geometry_offset = layout->m_DecorationGeometryOffsets[decoration_index];
+    assert(geometry_offset != UINT32_MAX);
+    const uint32_t geometry_index = geometry_offset + segment_index;
+    assert(geometry_index < layout->m_DecorationGeometry.Size());
+
+    return &layout->m_DecorationGeometry[geometry_index];
 }
 
 uint32_t TextLayoutGetObjectCount(HTextLayout layout)
@@ -487,7 +697,14 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
 
 bool TextLayoutRefreshObjectStyles(HTextLayout layout)
 {
-    return RefreshObjectStyles(layout, true);
+    const bool changed = RefreshObjectStyles(layout, true);
+
+    if (changed)
+    {
+        TextLayoutInitializeDecorationGeometry(layout);
+    }
+
+    return changed;
 }
 
 void TextLayoutInitializeObjectStyles(HTextLayout layout)
@@ -638,31 +855,75 @@ static uint32_t TextLayoutResolveAlign(uint32_t align, TextDirection direction)
     return align;
 }
 
-uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestParams& params)
+// Layout objects are source-ordered nested intervals. Resolve the highest-
+// priority matching object once per visible text offset, then test each glyph
+// only once even when a layout contains thousands of links.
+struct TextLayoutObjectSweepEntry
 {
-    if (!layout)
+    uint32_t m_TextEnd;
+    uint16_t m_HitObject;
+};
+
+static const uint32_t HIT_TEST_FEW_OBJECT_LIMIT = 2;
+
+static bool TextLayoutBuildHitTestObjects(HTextLayout layout, dmhash_t tag, uint32_t text_length, dmArray<uint16_t>* text_objects)
+{
+    const TextLayoutObject* objects = layout->m_Objects.Begin();
+    const uint32_t          object_count = layout->m_Objects.Size();
+
+    text_objects->SetCapacity(text_length);
+    text_objects->SetSize(text_length);
+
+    dmArray<TextLayoutObjectSweepEntry> active_objects;
+    active_objects.SetCapacity(object_count);
+    uint32_t object_index = 0;
+
+    for (uint32_t text_offset = 0; text_offset < text_length; ++text_offset)
     {
-        return UINT32_MAX;
+        while (!active_objects.Empty() && active_objects.Back().m_TextEnd <= text_offset)
+        {
+            active_objects.Pop();
+        }
+
+        while (object_index < object_count && objects[object_index].m_TextOffset <= text_offset)
+        {
+            const TextLayoutObject& object = objects[object_index];
+            const uint16_t inherited_object = active_objects.Empty() ? MARKUP_INVALID_INDEX : active_objects.Back().m_HitObject;
+
+            if (object.m_TextLength != 0)
+            {
+                TextLayoutObjectSweepEntry entry;
+                entry.m_TextEnd = object.m_TextOffset + object.m_TextLength;
+                entry.m_HitObject = tag == 0 || object.m_Tag == tag ? (uint16_t)object_index : inherited_object;
+                active_objects.Push(entry);
+            }
+
+            ++object_index;
+        }
+
+        (*text_objects)[text_offset] = active_objects.Empty() ? MARKUP_INVALID_INDEX : active_objects.Back().m_HitObject;
     }
 
-    TextLayoutRefreshObjectStyles(layout);
+    return true;
+}
 
+static uint32_t TextLayoutHitTestFewObjects(HTextLayout layout, const TextLayoutHitTestParams& params,
+                                            const uint16_t* object_indices, uint32_t object_count)
+{
     TextGlyph*              glyphs = layout->m_Glyphs.Begin();
     TextLine*               lines = layout->m_Lines.Begin();
     TextParagraph*          paragraphs = layout->m_Paragraphs.Begin();
     const TextLayoutObject* objects = layout->m_Objects.Begin();
     const float             layout_y = TextLayoutOffsetY(params.m_VAlign, params.m_Height, layout->m_Height);
 
-    for (uint32_t object_index = layout->m_Objects.Size(); object_index-- > 0;)
+    // Preserve the original object-first traversal for the common case. It
+    // avoids allocating the sweep map and returns as soon as the topmost
+    // matching object is hit.
+    for (uint32_t object = object_count; object-- > 0;)
     {
-        const TextLayoutObject& object = objects[object_index];
-
-        if ((params.m_Tag && object.m_Tag != params.m_Tag) || object.m_TextLength == 0)
-        {
-            continue;
-        }
-
-        const uint32_t object_end = object.m_TextOffset + object.m_TextLength;
+        const uint32_t          object_index = object_indices[object];
+        const TextLayoutObject& layout_object = objects[object_index];
+        const uint32_t          object_end = layout_object.m_TextOffset + layout_object.m_TextLength;
 
         for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
         {
@@ -689,7 +950,7 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
             {
                 const TextGlyph& glyph = glyphs[i];
 
-                if (glyph.m_Cluster < object.m_TextOffset || glyph.m_Cluster >= object_end)
+                if (glyph.m_Cluster < layout_object.m_TextOffset || glyph.m_Cluster >= object_end)
                 {
                     continue;
                 }
@@ -730,6 +991,138 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
     }
 
     return UINT32_MAX;
+}
+
+uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestParams& params)
+{
+    if (!layout)
+    {
+        return UINT32_MAX;
+    }
+
+    TextLayoutRefreshObjectStyles(layout);
+
+    const TextLayoutObject* objects = layout->m_Objects.Begin();
+    const uint32_t          object_count = layout->m_Objects.Size();
+    uint16_t                few_objects[HIT_TEST_FEW_OBJECT_LIMIT];
+    uint32_t                matching_object_count = 0;
+    uint32_t                text_length = 0;
+
+    for (uint32_t object_index = 0; object_index < object_count; ++object_index)
+    {
+        const TextLayoutObject& object = objects[object_index];
+
+        if (object.m_TextLength == 0)
+        {
+            continue;
+        }
+
+        const uint32_t object_end = object.m_TextOffset + object.m_TextLength;
+        text_length = text_length > object_end ? text_length : object_end;
+
+        if (params.m_Tag == 0 || object.m_Tag == params.m_Tag)
+        {
+            if (matching_object_count < HIT_TEST_FEW_OBJECT_LIMIT)
+            {
+                few_objects[matching_object_count] = (uint16_t)object_index;
+            }
+
+            ++matching_object_count;
+        }
+    }
+
+    if (matching_object_count == 0 || text_length == 0)
+    {
+        return UINT32_MAX;
+    }
+
+    if (matching_object_count <= HIT_TEST_FEW_OBJECT_LIMIT)
+    {
+        return TextLayoutHitTestFewObjects(layout, params, few_objects, matching_object_count);
+    }
+
+    dmArray<uint16_t> text_objects;
+
+    if (!TextLayoutBuildHitTestObjects(layout, params.m_Tag, text_length, &text_objects))
+    {
+        return UINT32_MAX;
+    }
+
+    TextGlyph*     glyphs = layout->m_Glyphs.Begin();
+    TextLine*      lines = layout->m_Lines.Begin();
+    TextParagraph* paragraphs = layout->m_Paragraphs.Begin();
+    const float    layout_y = TextLayoutOffsetY(params.m_VAlign, params.m_Height, layout->m_Height);
+    uint32_t       hit_object = UINT32_MAX;
+
+    for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
+    {
+        const TextLine& line = lines[line_index];
+
+        if (line.m_Length == 0)
+        {
+            continue;
+        }
+
+        float       first_x = glyphs[line.m_Index].m_X;
+        const float first_y = glyphs[line.m_Index].m_Y;
+
+        for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
+        {
+            first_x = fminf(first_x, glyphs[i].m_X);
+        }
+
+        const uint32_t align = TextLayoutResolveAlign(params.m_Align, paragraphs[line.m_ParagraphIndex].m_Direction);
+        const float    line_x = TextLayoutOffsetX(align, params.m_Width) - TextLayoutOffsetX(align, line.m_Width) - params.m_MonospacePadding * 0.5f;
+        const float    line_y = layout_y + line.m_Baseline;
+
+        for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
+        {
+            const TextGlyph& glyph = glyphs[i];
+
+            const uint16_t object_index = glyph.m_Cluster < text_objects.Size()
+                                            ? text_objects[glyph.m_Cluster]
+                                            : MARKUP_INVALID_INDEX;
+
+            if (object_index == MARKUP_INVALID_INDEX || (hit_object != UINT32_MAX && object_index <= hit_object))
+            {
+                continue;
+            }
+
+            const float x = line_x + glyph.m_X - first_x;
+
+            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+            {
+                const float y = line_y - glyph.m_Height * 0.2f;
+
+                if (params.m_X >= x && params.m_X <= x + glyph.m_Width &&
+                    params.m_Y >= y && params.m_Y <= y + glyph.m_Height)
+                {
+                    hit_object = object_index;
+                }
+
+                continue;
+            }
+
+            const float         glyph_size = params.m_FontSize * glyph.m_RenderScale;
+            const float         scale = FontGetScaleFromSize(glyph.m_Font, glyph_size);
+            const float         ascent = FontGetAscent(glyph.m_Font, scale);
+            const float         descent = fabsf(FontGetDescent(glyph.m_Font, scale));
+            const float         white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+            TextGlyphRenderData render_data;
+            TextLayoutGetGlyphRenderData(layout, glyph, white, &render_data);
+            const float glyph_x = x + render_data.m_OffsetX;
+            const float y = line_y + glyph.m_Y - first_y + render_data.m_OffsetY;
+            const float width = fmaxf(glyph.m_Width, glyph_size * 0.35f);
+
+            if (params.m_X >= glyph_x && params.m_X <= glyph_x + width &&
+                params.m_Y >= y - descent && params.m_Y <= y + ascent)
+            {
+                hit_object = object_index;
+            }
+        }
+    }
+
+    return hit_object;
 }
 
 void TextLayoutAcquire(HTextLayout layout)

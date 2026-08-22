@@ -25,7 +25,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
-  (:import [com.dynamo.bob.font FontRenderer$Params]
+  (:import [com.dynamo.bob.font FontRenderer$Params FontRenderer$Properties]
            [com.dynamo.render.proto Font$FontDesc]
            [javax.vecmath Matrix4d]))
 
@@ -63,6 +63,44 @@
       (is (= 1.0 (effective-sdf-scale 0.0 identity-transform)))
       (is (= 2.0 (effective-sdf-scale 0.0 scaled-transform))))))
 
+(deftest native-entry-preserves-shadow-alpha-components
+  (let [make-native-entry-state (ns-resolve 'editor.font 'make-native-entry-state)
+        identity-transform (doto (Matrix4d.)
+                             (.setIdentity))
+        native-entry-state (make-native-entry-state
+                             {:alpha 1.0
+                              :outline-alpha 1.0
+                              :shadow-alpha 0.0}
+                             {:color [1.0 1.0 1.0 1.0]
+                              :outline [0.0 0.0 0.0 1.0]
+                              :shadow [0.0 0.0 0.0 0.5]
+                              :text-layout {:layout-width 100.0
+                                            :line-break false
+                                            :max-ascent 20.0
+                                            :native-text "A"
+                                            :text-leading 1.0
+                                            :text-tracking 0.0
+                                            :use-rich-text true}
+                              :world-transform identity-transform})
+        ^FontRenderer$Properties properties (:properties native-entry-state)]
+    (is (= 0.5 (double (aget ^floats (.-shadowColor properties) 3))))
+    (is (zero? (double (.-baseShadowAlpha properties))))))
+
+(deftest rich-text-shadow-capability-validation
+  (let [bm-font-error (font/markup-error 0 :text
+                                         {:rich-text-render-kind :bitmap
+                                          :use-rich-text true}
+                                         "<shadow x=1>Text</shadow>")
+        unreserved-blur-error (font/markup-error 0 :text
+                                                {:rich-text-render-kind :distance-field
+                                                 :rich-text-shadow-blur-capacity 0.0
+                                                 :use-rich-text true}
+                                                "<shadow blur='2'>Text</shadow>")]
+    (is (g/error-warning? bm-font-error))
+    (is (s/includes? (test-util/localization (g/error-message bm-font-error)) "not supported by BMFont"))
+    (is (g/error-warning? unreserved-blur-error))
+    (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))))
+
 (deftest native-sdf-limit-test
   (let [native-sdf-limit (ns-resolve 'editor.font 'native-sdf-limit)]
     (is (= 0.75 (native-sdf-limit 3.0 0.0)))
@@ -82,6 +120,32 @@
         (is (= "A" (:native-text restricted-layout)))
         (is (= (:width expected-layout) (:width restricted-layout)))
         (is (= (:height expected-layout) (:height restricted-layout)))))))
+
+(deftest static-native-preview-filters-rich-text-content
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")])
+      (let [font-map (g/node-value font-node :font-map)
+            markup-layout (font/layout-text font-map "<color=#FF0000>A</color>B" false 0 0 1)
+            invalid-layout (font/layout-text font-map "<color=#FF0000>A</size>B" false 0 0 1)]
+        (is (= "<color=#FF0000>A</color>" (:native-text markup-layout)))
+        (is (true? (:use-rich-text markup-layout)))
+        (is (= "A" (:native-text invalid-layout)))
+        (is (false? (:use-rich-text invalid-layout)))))))
+
+(deftest static-native-preview-preserves-markup-attributes-and-entities
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A&")])
+      (let [font-map (g/node-value font-node :font-map)
+            text "<link id='A>B'>A&amp;B</link>"
+            text-layout (font/layout-text font-map text false 0 0 1)]
+        (is (= "<link id='A>B'>A&amp;</link>" (:native-text text-layout)))
+        (is (true? (:use-rich-text text-layout)))))))
 
 (deftest static-native-preview-preserves-row-separators
   (test-util/with-loaded-project

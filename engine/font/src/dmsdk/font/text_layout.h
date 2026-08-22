@@ -221,7 +221,7 @@ struct TextGlyph
     uint16_t m_Flags;
 
     // private
-    float m_Advance;     // LEGACY SHAPING ONLY! TODO: See if we can remove these
+    float m_Advance;     // Signed shaped advance in layout coordinates
     float m_LeftBearing; // LEGACY SHAPING ONLY!
 };
 

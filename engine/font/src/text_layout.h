@@ -143,6 +143,13 @@ struct ResolvedMarkup
     dmArray<TextLayoutObjectAttribute> m_ObjectAttributes;
 };
 
+struct TextDecorationGeometry
+{
+    uint32_t m_GlyphIndex;
+    float m_X;
+    float m_Length;
+};
+
 struct TextLayout
 {
     FTextLayoutDestroy m_Destroy;
@@ -157,6 +164,8 @@ struct TextLayout
     dmArray<uint16_t>                  m_SpanEffects;
     dmArray<TextResolvedSpan>          m_ResolvedSpans;
     dmArray<TextDecoration>            m_Decorations;
+    dmArray<TextDecorationGeometry>    m_DecorationGeometry;
+    dmArray<uint32_t>                  m_DecorationGeometryOffsets;
     dmArray<char>                      m_ObjectSource;
     dmArray<TextLayoutObject>          m_Objects;
     dmArray<TextLayoutObjectAttribute> m_ObjectAttributes;
@@ -210,6 +219,15 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
 
 // Transfers resolved markup storage and object callbacks into a layout.
 void TextLayoutAdoptResolvedMarkup(HTextLayout layout, ResolvedMarkup* resolved, TextLayoutSettings* settings);
+
+// Precomputes physically ordered, gap-free per-glyph decoration geometry.
+void TextLayoutInitializeDecorationGeometry(HTextLayout layout);
+
+// Reports whether a decoration has cached per-glyph geometry.
+bool TextLayoutDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration);
+
+// Returns one precomputed glyph segment for a decoration.
+const TextDecorationGeometry* TextLayoutGetDecorationGeometry(HTextLayout layout, const TextDecoration& decoration, uint32_t segment_index);
 
 // Releases resources acquired for the layout's sprite objects.
 void TextLayoutReleaseObjects(HTextLayout layout);

@@ -1850,6 +1850,7 @@ namespace dmGui
         HNode node;
         LuaCheckNodeInternal(L, 1, &node);
         HScene scene = GuiScriptInstance_Check(L);
+        PrepareNodeTextLayout(scene, node);
         TextLayout text_layout = {};
         GetNodeTextLayout(scene, node, &text_layout);
         HTextLayout layout = text_layout.m_Handle;

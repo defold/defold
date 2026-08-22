@@ -37,6 +37,7 @@ import org.junit.runner.Result;
 public class FontRendererTest {
     private static final int VERTEX_STRIDE = 56;
     private static final int VERTEX_FACE_COLOR_OFFSET = 16;
+    private static final int VERTEX_SHADOW_COLOR_OFFSET = 24;
     private static final float[] IDENTITY = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
@@ -249,6 +250,23 @@ public class FontRendererTest {
             assertNotNull(unknownConstant);
             assertEquals(10, unknownConstant.byteOffset);
             assertTrue(unknownConstant.message.contains("unknown value for attribute"));
+        }
+    }
+
+    @Test
+    public void testMarkupShadowAlphaDoesNotDependOnBaseShadowAlpha() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+            properties.shadowColor = new float[] {1.0f, 1.0f, 1.0f, 0.5f};
+            properties.baseShadowAlpha = 0.0f;
+            renderer.setProperties(properties);
+            renderer.setMarkup("<shadow x=1 color=#00000080>A</shadow>");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertEquals(12, vertices.vertexCount);
+            assertEquals(64, Byte.toUnsignedInt(vertices.vertices.get(VERTEX_SHADOW_COLOR_OFFSET + 3)));
         }
     }
 

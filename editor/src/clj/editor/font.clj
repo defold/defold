@@ -52,6 +52,7 @@
            [java.io InputStream]
            [java.nio ByteBuffer]
            [java.nio.file Paths]
+           [java.util.regex Matcher]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
@@ -418,6 +419,12 @@
 
 (defonce/record NativeRendererSpec [name font-bytes render-params measure-params supported-codepoints use-rich-text])
 
+(defn- native-preview-codepoint-supported?
+  [supported-codepoints codepoint]
+  (or (contains? supported-codepoints codepoint)
+      (= (int \newline) codepoint)
+      (= (int \return) codepoint)))
+
 (defn- restrict-native-preview-text
   ^String [^NativeRendererSpec renderer-spec ^String text]
   (if-let [supported-codepoints (.-supported-codepoints renderer-spec)]
@@ -425,11 +432,62 @@
           result (StringBuilder. (.length text))]
       (dotimes [index (alength codepoints)]
         (let [codepoint (aget codepoints index)]
-          (when (or (contains? supported-codepoints codepoint)
-                    (= (int \newline) codepoint)
-                    (= (int \return) codepoint))
+          (when (native-preview-codepoint-supported? supported-codepoints codepoint)
             (.appendCodePoint result codepoint))))
       (.toString result))
+    text))
+
+(defn- restrict-native-preview-markup
+  ^String [^NativeRendererSpec renderer-spec ^String text]
+  (if-let [supported-codepoints (.-supported-codepoints renderer-spec)]
+    (let [length (.length text)
+          result (StringBuilder. length)]
+      (loop [index 0
+             in-tag false
+             quote nil]
+        (if (= index length)
+          (.toString result)
+          (let [ch (.charAt text index)]
+            (cond
+              in-tag
+              (do
+                (.append result ch)
+                (cond
+                  quote
+                  (recur (inc index) true (when-not (= quote ch) quote))
+
+                  (or (= \' ch) (= \" ch))
+                  (recur (inc index) true ch)
+
+                  (= \> ch)
+                  (recur (inc index) false nil)
+
+                  :else
+                  (recur (inc index) true nil)))
+
+              (= \< ch)
+              (do
+                (.append result ch)
+                (recur (inc index) true nil))
+
+              (= \& ch)
+              (let [entity-end (.indexOf text ";" index)
+                    entity-name (.substring text (inc index) entity-end)
+                    codepoint (case entity-name
+                                "amp" (int \&)
+                                "apos" (int \')
+                                "gt" (int \>)
+                                "lt" (int \<)
+                                "quot" (int \"))]
+                (when (native-preview-codepoint-supported? supported-codepoints codepoint)
+                  (.append result (.substring text index (inc entity-end))))
+                (recur (inc entity-end) false nil))
+
+              :else
+              (let [codepoint (.codePointAt text index)]
+                (when (native-preview-codepoint-supported? supported-codepoints codepoint)
+                  (.appendCodePoint result codepoint))
+                (recur (+ index (Character/charCount codepoint)) false nil)))))))
     text))
 
 (defn- create-native-renderer
@@ -448,14 +506,19 @@
   [font-map text line-break? max-width text-tracking text-leading]
   (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
-        native-text (restrict-native-preview-text renderer-spec text)
-        [^FontRenderer$Layout layout use-rich-text]
+        [^FontRenderer$Layout layout use-rich-text native-text]
         (if-not (.-use-rich-text renderer-spec)
-          [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false]
-          (let [^FontRenderer$Layout markup-layout (.measureMarkup renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))]
-            (if-not (.-markupError markup-layout)
-              [markup-layout true]
-              [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false])))]
+          (let [native-text (restrict-native-preview-text renderer-spec text)]
+            [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false native-text])
+          (let [^FontRenderer$Layout markup-layout (.measureMarkup renderer text line-break? (float max-width) (float text-leading) (float text-tracking))]
+            (if (.-markupError markup-layout)
+              (let [native-text (restrict-native-preview-text renderer-spec text)]
+                [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false native-text])
+              (let [native-text (restrict-native-preview-markup renderer-spec text)
+                    ^FontRenderer$Layout layout (if (= text native-text)
+                                                  markup-layout
+                                                  (.measureMarkup renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)))]
+                [layout true native-text]))))]
     {:width (double (.-width layout))
      :height (double (.-height layout))
      :line-count (long (.-lineCount layout))
@@ -469,22 +532,68 @@
      :text-tracking text-tracking
      :text-leading text-leading}))
 
+(def ^:private markup-layer-tag-pattern #"<(?:outline|shadow)(?:\s[^>]*)?>")
+(def ^:private markup-shadow-tag-pattern #"<shadow(?:\s[^>]*)?>")
+(def ^:private markup-shadow-blur-pattern #"(?:^|\s)blur=(?:'([^']*)'|\"([^\"]*)\"|([^\s>]+))")
+
+(defn- markup-shadow-info
+  [^String text]
+  (let [has-layer-tag (boolean (re-find markup-layer-tag-pattern text))
+        ^Matcher shadow-matcher (re-matcher markup-shadow-tag-pattern text)]
+    (loop [has-shadow-tag false
+           max-shadow-blur 0.0]
+      (if (.find shadow-matcher)
+        (let [^Matcher blur-matcher (re-matcher markup-shadow-blur-pattern (.group shadow-matcher))
+              shadow-blur (if (.find blur-matcher)
+                            (try
+                              (Double/parseDouble (or (.group blur-matcher 1)
+                                                      (.group blur-matcher 2)
+                                                      (.group blur-matcher 3)))
+                              (catch NumberFormatException _
+                                0.0))
+                            0.0)]
+          (recur true (double (max max-shadow-blur shadow-blur))))
+        {:has-layer-tag has-layer-tag
+         :has-shadow-tag has-shadow-tag
+         :max-shadow-blur max-shadow-blur}))))
+
+(defn- markup-shadow-capability-error
+  [node-id property font-map text]
+  (let [{:keys [has-layer-tag has-shadow-tag max-shadow-blur]} (markup-shadow-info text)
+        render-kind (:rich-text-render-kind font-map)
+        blur-capacity (double (:rich-text-shadow-blur-capacity font-map 0.0))]
+    (cond
+      (and (= :bitmap render-kind) has-layer-tag)
+      (g/->error node-id property :warning text
+                 "Rich-text outline and shadow tags are not supported by BMFont fonts.")
+
+      (and (= :defold render-kind) has-shadow-tag (pos? max-shadow-blur))
+      (g/->error node-id property :warning text
+                 "Per-span shadow blur is not supported by bitmap fonts; the shadow uses the available bitmap coverage.")
+
+      (and (= :distance-field render-kind) (pos? max-shadow-blur) (zero? blur-capacity))
+      (g/->error node-id property :warning text
+                 "This font has no reserved distance-field data for rich-text shadow blur; the shadow renders crisp."))))
+
 (defn markup-error
   [node-id property font-map text]
-  (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)]
-    (when (and renderer-spec
-               (.-use-rich-text renderer-spec)
-               (not (s/blank? text)))
-      (let [^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
-            ^FontRenderer$Layout layout (.measureMarkup renderer text false 0.0 1.0 0.0)]
-        (when-let [^FontRenderer$MarkupError error (.-markupError layout)]
-          (let [line (.-line error)
-                column (.-column error)]
-            (g/->error node-id property :warning text (.-message error)
-                       {:byte-offset (.-byteOffset error)
-                        :column column
-                        :cursor-range (code.data/line-number->CursorRange line column)
-                        :line line})))))))
+  (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
+        use-rich-text (if renderer-spec
+                        (.-use-rich-text renderer-spec)
+                        (:use-rich-text font-map))]
+    (when (and use-rich-text (not (s/blank? text)))
+      (or (when renderer-spec
+            (let [^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
+                  ^FontRenderer$Layout layout (.measureMarkup renderer text false 0.0 1.0 0.0)]
+              (when-let [^FontRenderer$MarkupError error (.-markupError layout)]
+                (let [line (.-line error)
+                      column (.-column error)]
+                  (g/->error node-id property :warning text (.-message error)
+                             {:byte-offset (.-byteOffset error)
+                              :column column
+                              :cursor-range (code.data/line-number->CursorRange line column)
+                              :line line})))))
+          (markup-shadow-capability-error node-id property font-map text)))))
 
 (defn measure
   ([font-map text]
@@ -731,7 +840,7 @@
         vertical-align (int (if box-height vertical-align 0))
         face-color (mapv #(float (* alpha %)) (:color entry))
         outline-color (mapv float (update (:outline entry) 3 #(* outline-alpha %)))
-        shadow-color (mapv float (update (:shadow entry) 3 #(* shadow-alpha %)))
+        shadow-color (mapv float (:shadow entry))
         sdf-scale (float (effective-sdf-scale (double (:sdf-screen-scale entry 0.0))
                                                (:world-transform entry)))
         ^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
@@ -753,6 +862,7 @@
     (set! (.-faceColor properties) (float-array face-color))
     (set! (.-outlineColor properties) (float-array outline-color))
     (set! (.-shadowColor properties) (float-array shadow-color))
+    (set! (.-baseShadowAlpha properties) (float shadow-alpha))
     (set! (.-sdfScale properties) sdf-scale)
     {:properties properties
      :text text
@@ -760,7 +870,7 @@
      :transform transform
      :atlas-key [use-rich-text line-break width tracking text]
      :state-key [use-rich-text line-break width height leading tracking align vertical-align
-                 face-color outline-color shadow-color sdf-scale text]}))
+                 face-color outline-color shadow-color shadow-alpha sdf-scale text]}))
 
 (defn- apply-native-entry-state!
   [^FontRenderer native-renderer native-entry-state]
@@ -1066,7 +1176,13 @@
                              (not-empty))]
         (g/error-aggregate errors))
       (try
-        (let [font-map (compile-font pb-msg font font-resource-map)]
+        (let [shadow-blur-capacity (double (if (pos? ^double (:shadow-alpha pb-msg))
+                                             (:shadow-blur pb-msg)
+                                             0.0))
+              font-map (assoc (compile-font pb-msg font font-resource-map)
+                              :rich-text-render-kind type
+                              :rich-text-shadow-blur-capacity shadow-blur-capacity
+                              :use-rich-text use-rich-text)]
           (cond-> font-map
             (or (= :defold type)
                 (= :distance-field type))

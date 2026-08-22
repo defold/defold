@@ -597,6 +597,26 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     ASSERT_EQ(6u,  metrics.m_QuadCount);
     ASSERT_EQ(36u, metrics.m_VertexCount);
 
+    config.m_SdfSpread = 0.0f;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    ASSERT_EQ(4u,  metrics.m_FaceQuadCount);
+    ASSERT_EQ(0u,  metrics.m_OutlineQuadCount);
+    ASSERT_EQ(1u,  metrics.m_ShadowQuadCount);
+    ASSERT_EQ(5u,  metrics.m_QuadCount);
+    ASSERT_EQ(30u, metrics.m_VertexCount);
+    config.m_SdfSpread = 6.0f;
+
+    config.m_IsBMFont = true;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    ASSERT_EQ(4u,  metrics.m_GlyphQuadCount);
+    ASSERT_EQ(4u,  metrics.m_FaceQuadCount);
+    ASSERT_EQ(0u,  metrics.m_OutlineQuadCount);
+    ASSERT_EQ(0u,  metrics.m_ShadowQuadCount);
+    ASSERT_EQ(4u,  metrics.m_QuadCount);
+    ASSERT_EQ(24u, metrics.m_VertexCount);
+    config.m_IsBMFont = false;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+
     FontGlyphVertex vertices[36];
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
@@ -615,6 +635,22 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     {
         ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[0]);
     }
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
+    {
+        ASSERT_GE(vertices[i].m_SdfParams[3], 0.0f);
+    }
+
+    config.m_ShadowUsesFaceCoverage = true;
+    memset(vertices, 0, sizeof(vertices));
+    ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
+    {
+        ASSERT_EQ(-1.0f, vertices[i].m_SdfParams[3]);
+    }
+
+    config.m_ShadowUsesFaceCoverage = false;
 
     config.m_MaxVertexCount = 24;
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
@@ -2218,6 +2254,8 @@ static void AssertDecorationSpanBounds(HFontCollection collection, CreateMarkupL
     MarkupDestroy(markup);
 
     ASSERT_EQ(expected_decoration_count, TextLayoutGetDecorationCount(layout));
+    TextLayout* internal = (TextLayout*)layout;
+    ASSERT_EQ(expected_decoration_count, internal->m_DecorationGeometryOffsets.Size());
     const TextDecoration* decorations = TextLayoutGetDecorations(layout);
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     const TextLine* lines = TextLayoutGetLines(layout);
@@ -2249,7 +2287,7 @@ static void AssertDecorationSpanBounds(HFontCollection collection, CreateMarkupL
         ASSERT_EQ(expected_glyph_start, decoration.m_GlyphStart);
         ASSERT_EQ(expected_glyph_end - expected_glyph_start, decoration.m_GlyphCount);
         const TextGlyph& last_glyph = glyphs[expected_glyph_end - 1];
-        // Full-layout glyphs have zero m_Advance, so their shaped end is the next glyph position or line width.
+        // Zero-advance marks use the next glyph position or line width as the shaped end.
         const float glyph_end = last_glyph.m_Advance != 0.0f
                               ? fmaxf(last_glyph.m_X, last_glyph.m_X + last_glyph.m_Advance)
                               : expected_glyph_end < line.m_Index + line.m_Length
@@ -2261,7 +2299,20 @@ static void AssertDecorationSpanBounds(HFontCollection collection, CreateMarkupL
         ASSERT_NEAR(glyph_length, decoration.m_Length, 0.001f);
         ASSERT_NEAR(glyph_end + inset, decoration.m_X + decoration.m_Length, 0.001f);
         ASSERT_NEAR(decoration.m_X, decoration.m_PatternOffset, 0.001f);
+
+        if (!FontDecorationRequiresGlyphSegments(layout, decoration))
+        {
+            ASSERT_EQ(UINT32_MAX, internal->m_DecorationGeometryOffsets[decoration_index]);
+            ASSERT_EQ(1u, FontGetDecorationQuadCount(layout, decoration));
+            FontDecorationSegment segment;
+            FontGetDecorationSegment(layout, decoration, 0, 1, &segment);
+            ASSERT_NEAR(decoration.m_X, segment.m_X, 0.001f);
+            ASSERT_NEAR(decoration.m_Length, segment.m_Length, 0.001f);
+        }
     }
+
+    ASSERT_EQ(0u, internal->m_DecorationGeometry.Size());
+    ASSERT_EQ(0u, internal->m_DecorationGeometry.Capacity());
 
     TextLayoutRelease(layout);
 }
@@ -2307,6 +2358,264 @@ TEST_F(FontTest, FullDecorationSpanBoundsMatchGlyphAdvances)
 }
 #endif
 
+static void AssertProportionalDecorationSegments(HFontCollection collection, CreateMarkupLayoutFn create_layout,
+                                                 float tracking, uint32_t padding, bool expect_tracking_gap)
+{
+    const char source[] = "<strike pattern=dashed><gradient left=#FF0000 right=#0000FF fit=glyph>Wi</gradient></strike>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Width = 1000.0f;
+    settings.m_Size = 64.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = tracking;
+    settings.m_Padding = padding;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, create_layout(collection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+    const TextDecoration& decoration = TextLayoutGetDecorations(layout)[0];
+    const TextGlyph*      glyphs = TextLayoutGetGlyphs(layout);
+    ASSERT_EQ(2u, decoration.m_GlyphCount);
+    ASSERT_EQ(2u, FontGetDecorationQuadCount(layout, decoration));
+
+    FontDecorationSegment source_segments[2];
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        const uint32_t   glyph_index = decoration.m_GlyphStart + i;
+        const TextGlyph& glyph = glyphs[glyph_index];
+        const float      glyph_end = glyph.m_X + glyph.m_Advance;
+        source_segments[i].m_GlyphIndex = glyph_index;
+        source_segments[i].m_X = fmaxf(decoration.m_X, fminf(decoration.m_X + decoration.m_Length, fminf(glyph.m_X, glyph_end)));
+        source_segments[i].m_Length = fmaxf(source_segments[i].m_X, fminf(decoration.m_X + decoration.m_Length, fmaxf(glyph.m_X, glyph_end))) - source_segments[i].m_X;
+    }
+
+    const bool second_is_left = source_segments[1].m_X < source_segments[0].m_X ||
+                                (source_segments[1].m_X == source_segments[0].m_X &&
+                                 (source_segments[1].m_Length > source_segments[0].m_Length ||
+                                  (source_segments[1].m_Length == source_segments[0].m_Length &&
+                                   source_segments[1].m_GlyphIndex < source_segments[0].m_GlyphIndex)));
+
+    if (second_is_left)
+    {
+        const FontDecorationSegment swap = source_segments[0];
+        source_segments[0] = source_segments[1];
+        source_segments[1] = swap;
+    }
+
+    const float decoration_end = decoration.m_X + decoration.m_Length;
+    const float source_boundary = (source_segments[0].m_X + source_segments[0].m_Length + source_segments[1].m_X) * 0.5f;
+    const float shaped_boundary = fmaxf(decoration.m_X, fminf(decoration_end, source_boundary));
+    FontDecorationSegment first;
+    FontDecorationSegment second;
+    FontGetDecorationSegment(layout, decoration, 0, 2, &first);
+    FontGetDecorationSegment(layout, decoration, 1, 2, &second);
+    ASSERT_EQ(source_segments[0].m_GlyphIndex, first.m_GlyphIndex);
+    ASSERT_EQ(source_segments[1].m_GlyphIndex, second.m_GlyphIndex);
+    ASSERT_NEAR(decoration.m_X, first.m_X, 0.001f);
+    ASSERT_NEAR(shaped_boundary, first.m_X + first.m_Length, 0.001f);
+    ASSERT_NEAR(shaped_boundary, second.m_X, 0.001f);
+    ASSERT_NEAR(decoration_end, second.m_X + second.m_Length, 0.001f);
+
+    const float first_source_end = source_segments[0].m_X + source_segments[0].m_Length;
+    const float second_source_end = source_segments[1].m_X + source_segments[1].m_Length;
+
+    if (expect_tracking_gap)
+    {
+        ASSERT_GT(source_segments[1].m_X, first_source_end);
+        ASSERT_GT(shaped_boundary, first_source_end);
+        ASSERT_LT(shaped_boundary, source_segments[1].m_X);
+    }
+    else
+    {
+        ASSERT_NEAR(first_source_end, source_segments[1].m_X, 0.001f);
+        ASSERT_NEAR(source_segments[1].m_X, shaped_boundary, 0.001f);
+    }
+
+    if (padding != 0)
+    {
+        ASSERT_GT(decoration_end, second_source_end);
+    }
+
+    FontDecorationPattern first_pattern;
+    FontDecorationPattern second_pattern;
+    FontGetDecorationPattern(decoration, first, &first_pattern);
+    FontGetDecorationPattern(decoration, second, &second_pattern);
+    ASSERT_NEAR(first_pattern.m_End, second_pattern.m_Start, 0.0001f);
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, DecorationSegmentsFollowProportionalGlyphPositions)
+{
+    HFont proportional_font;
+    LoadFont("src/test/data/WorkSans.ttf", &proportional_font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, proportional_font));
+
+    AssertProportionalDecorationSegments(collection, TextLayoutLegacyCreateMarkup, 0.0f, 0, false);
+#if defined(FONT_USE_SKRIBIDI)
+    AssertProportionalDecorationSegments(collection, TextLayoutCreateMarkup, 0.0f, 0, false);
+#endif
+
+    FontCollectionDestroy(collection);
+    FontDestroy(proportional_font);
+}
+
+TEST_F(FontTest, DecorationSegmentsPartitionTrackingAndTrailingPadding)
+{
+    HFont proportional_font;
+    LoadFont("src/test/data/WorkSans.ttf", &proportional_font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, proportional_font));
+
+    AssertProportionalDecorationSegments(collection, TextLayoutLegacyCreateMarkup, 0.25f, 12, true);
+#if defined(FONT_USE_SKRIBIDI)
+    AssertProportionalDecorationSegments(collection, TextLayoutCreateMarkup, 0.25f, 12, false);
+#endif
+
+    FontCollectionDestroy(collection);
+    FontDestroy(proportional_font);
+}
+
+#if defined(FONT_USE_SKRIBIDI)
+TEST_F(FontTest, DecorationSegmentsFollowRightToLeftGlyphPositions)
+{
+    HFont arabic_font;
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &arabic_font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, arabic_font));
+
+    const char source[] = "<strike pattern=dashed><gradient left=#FF0000 right=#0000FF fit=glyph>وي</gradient></strike>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Width = 1000.0f;
+    settings.m_Size = 64.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    ASSERT_EQ(TEXT_DIRECTION_RTL, TextLayoutGetParagraphs(layout)[0].m_Direction);
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+    const TextDecoration& decoration = TextLayoutGetDecorations(layout)[0];
+    const TextGlyph*      glyphs = TextLayoutGetGlyphs(layout);
+    ASSERT_GT(decoration.m_GlyphCount, 1u);
+    ASSERT_EQ(decoration.m_GlyphCount, FontGetDecorationQuadCount(layout, decoration));
+
+    dmArray<FontDecorationSegment> segments;
+    segments.SetCapacity(decoration.m_GlyphCount);
+    segments.SetSize(decoration.m_GlyphCount);
+
+    dmArray<FontDecorationSegment> source_segments;
+    source_segments.SetCapacity(decoration.m_GlyphCount);
+    source_segments.SetSize(decoration.m_GlyphCount);
+    const float decoration_end = decoration.m_X + decoration.m_Length;
+
+    for (uint32_t i = 0; i < decoration.m_GlyphCount; ++i)
+    {
+        const uint32_t   glyph_index = decoration.m_GlyphStart + i;
+        const TextGlyph& glyph = glyphs[glyph_index];
+        const float      glyph_end = glyph.m_X + glyph.m_Advance;
+        source_segments[i].m_GlyphIndex = glyph_index;
+        source_segments[i].m_X = fmaxf(decoration.m_X, fminf(decoration_end, fminf(glyph.m_X, glyph_end)));
+        source_segments[i].m_Length = fmaxf(source_segments[i].m_X, fminf(decoration_end, fmaxf(glyph.m_X, glyph_end))) - source_segments[i].m_X;
+        FontGetDecorationSegment(layout, decoration, i, decoration.m_GlyphCount, &segments[i]);
+    }
+
+    for (uint32_t i = 0; i < decoration.m_GlyphCount; ++i)
+    {
+        for (uint32_t j = i + 1; j < decoration.m_GlyphCount; ++j)
+        {
+            const bool j_is_before = source_segments[j].m_X < source_segments[i].m_X ||
+                                     (source_segments[j].m_X == source_segments[i].m_X &&
+                                      (source_segments[j].m_Length > source_segments[i].m_Length ||
+                                       (source_segments[j].m_Length == source_segments[i].m_Length &&
+                                        source_segments[j].m_GlyphIndex < source_segments[i].m_GlyphIndex)));
+
+            if (j_is_before)
+            {
+                const FontDecorationSegment swap = source_segments[i];
+                source_segments[i] = source_segments[j];
+                source_segments[j] = swap;
+            }
+        }
+    }
+
+    const float dash = fmaxf(1.0f, decoration.m_Thickness * 3.0f);
+    const float gap = fmaxf(1.0f, decoration.m_Thickness * 2.0f);
+    const float pattern_cycle = dash + gap;
+    float covered_x0 = FLT_MAX;
+    float covered_x1 = -FLT_MAX;
+    float partition_x = decoration.m_X;
+    float previous_segment_end = decoration.m_X;
+    uint32_t positive_segment_count = 0;
+    uint32_t zero_segment_count = 0;
+
+    for (uint32_t i = 0; i < decoration.m_GlyphCount; ++i)
+    {
+        ASSERT_EQ(source_segments[i].m_GlyphIndex, segments[i].m_GlyphIndex);
+
+        if (source_segments[i].m_Length == 0.0f)
+        {
+            ASSERT_NEAR(source_segments[i].m_X, segments[i].m_X, 0.001f);
+            ASSERT_NEAR(0.0f, segments[i].m_Length, 0.001f);
+            ++zero_segment_count;
+        }
+        else
+        {
+            uint32_t next_nonempty = i + 1;
+
+            while (next_nonempty < decoration.m_GlyphCount && source_segments[next_nonempty].m_Length == 0.0f)
+            {
+                ++next_nonempty;
+            }
+
+            float next_partition_x = decoration_end;
+
+            if (next_nonempty < decoration.m_GlyphCount)
+            {
+                const float source_end = source_segments[i].m_X + source_segments[i].m_Length;
+                next_partition_x = (source_end + source_segments[next_nonempty].m_X) * 0.5f;
+                next_partition_x = fmaxf(partition_x, fminf(decoration_end, next_partition_x));
+            }
+
+            ASSERT_NEAR(partition_x, segments[i].m_X, 0.001f);
+            ASSERT_NEAR(next_partition_x, segments[i].m_X + segments[i].m_Length, 0.001f);
+
+            if (positive_segment_count != 0)
+            {
+                ASSERT_NEAR(previous_segment_end, segments[i].m_X, 0.001f);
+            }
+
+            covered_x0 = fminf(covered_x0, segments[i].m_X);
+            covered_x1 = fmaxf(covered_x1, segments[i].m_X + segments[i].m_Length);
+            previous_segment_end = next_partition_x;
+            partition_x = next_partition_x;
+            ++positive_segment_count;
+        }
+
+        FontDecorationPattern pattern;
+        FontGetDecorationPattern(decoration, segments[i], &pattern);
+        ASSERT_NEAR(decoration.m_PatternOffset + segments[i].m_X - decoration.m_X,
+                    pattern.m_Start * pattern_cycle, 0.0001f);
+        ASSERT_NEAR(decoration.m_PatternOffset + segments[i].m_X - decoration.m_X + segments[i].m_Length,
+                    pattern.m_End * pattern_cycle, 0.0001f);
+    }
+
+    ASSERT_NEAR(decoration.m_X, covered_x0, 0.001f);
+    ASSERT_NEAR(decoration_end, covered_x1, 0.001f);
+    ASSERT_GT(positive_segment_count, 1u);
+    ASSERT_GT(zero_segment_count, 0u);
+
+    TextLayoutRelease(layout);
+    FontCollectionDestroy(collection);
+    FontDestroy(arabic_font);
+}
+#endif
+
 TEST_F(FontTest, DashedDecorationUsesOneQuadWithStablePatternCoordinates)
 {
     TextDecoration decoration = {};
@@ -2315,10 +2624,12 @@ TEST_F(FontTest, DashedDecorationUsesOneQuadWithStablePatternCoordinates)
     decoration.m_PatternOffset = 3.0f;
     decoration.m_Pattern = TEXT_DECORATION_PATTERN_DASHED;
 
+    FontDecorationSegment first_segment = { 0, 0.0f, 10.0f };
+    FontDecorationSegment second_segment = { 1, 10.0f, 10.0f };
     FontDecorationPattern first;
     FontDecorationPattern second;
-    FontGetDecorationPattern(decoration, 0, 2, &first);
-    FontGetDecorationPattern(decoration, 1, 2, &second);
+    FontGetDecorationPattern(decoration, first_segment, &first);
+    FontGetDecorationPattern(decoration, second_segment, &second);
     ASSERT_NEAR(0.3f, first.m_Start, 0.0001f);
     ASSERT_NEAR(1.3f, first.m_End, 0.0001f);
     ASSERT_NEAR(0.6f, first.m_Duty, 0.0001f);
@@ -2427,6 +2738,10 @@ TEST_F(FontTest, DecorationGeometryPreservesPerGlyphGradient)
     const TextDecoration& decoration = TextLayoutGetDecorations(layout)[0];
     ASSERT_TRUE(FontDecorationRequiresGlyphSegments(layout, decoration));
     ASSERT_EQ(decoration.m_GlyphCount, FontGetDecorationQuadCount(layout, decoration));
+    TextLayout* internal = (TextLayout*)layout;
+    ASSERT_EQ(1u, internal->m_DecorationGeometryOffsets.Size());
+    ASSERT_NE(UINT32_MAX, internal->m_DecorationGeometryOffsets[0]);
+    ASSERT_EQ(decoration.m_GlyphCount, internal->m_DecorationGeometry.Size());
     TextLayoutRelease(layout);
 }
 

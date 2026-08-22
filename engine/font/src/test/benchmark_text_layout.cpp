@@ -17,6 +17,7 @@
 #include <string.h>
 #include <math.h>
 
+#include <dlib/hash.h>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 #include <dlib/vmath.h>
@@ -58,6 +59,7 @@ struct BenchmarkOptions
     uint32_t    m_WarmupMilliseconds;
     uint32_t    m_OrderSeed;
     uint32_t    m_TagCountFilter;
+    bool        m_HitTestMiss;
 };
 
 struct Measurement
@@ -125,6 +127,7 @@ enum MarkupStyleType
     MARKUP_STYLE_STRIKE_DASHED,
     MARKUP_STYLE_LINK,
     MARKUP_STYLE_SPRITE,
+    MARKUP_STYLE_NESTED_COLOR,
 };
 
 struct MarkupSource
@@ -154,6 +157,12 @@ struct MarkupEndToEndContext
     uint32_t                 m_SourceLength;
     TextLayoutSettings       m_Settings;
     VertexGenerationContext* m_Vertices;
+};
+
+struct HitTestContext
+{
+    HTextLayout             m_Layout;
+    TextLayoutHitTestParams m_Params;
 };
 #endif
 
@@ -605,6 +614,8 @@ static const char* GetStyleName(MarkupStyleType style)
             return "link";
         case MARKUP_STYLE_SPRITE:
             return "sprite";
+        case MARKUP_STYLE_NESTED_COLOR:
+            return "nested_color";
         default:
             return "none";
     }
@@ -615,6 +626,7 @@ static const char* GetOpeningTag(MarkupStyleType style)
     switch (style)
     {
         case MARKUP_STYLE_COLOR:
+        case MARKUP_STYLE_NESTED_COLOR:
             return "<color=#FF8040>";
         case MARKUP_STYLE_SIZE:
             return "<size=120%>";
@@ -654,6 +666,7 @@ static const char* GetClosingTag(MarkupStyleType style)
     switch (style)
     {
         case MARKUP_STYLE_COLOR:
+        case MARKUP_STYLE_NESTED_COLOR:
             return "</color>";
         case MARKUP_STYLE_SIZE:
             return "</size>";
@@ -690,8 +703,41 @@ static void AppendBytes(dmArray<char>& destination, const char* source, uint32_t
     }
 }
 
+static void BuildNestedMarkupSource(const dmArray<char>& plain_text, MarkupStyleType style, uint32_t depth, MarkupSource* source)
+{
+    const char* opening_tag = GetOpeningTag(style);
+    const char* closing_tag = GetClosingTag(style);
+    const uint32_t opening_tag_length = (uint32_t)strlen(opening_tag);
+    const uint32_t closing_tag_length = (uint32_t)strlen(closing_tag);
+    source->m_Bytes.SetCapacity(BENCHMARK_TEXT_LENGTH + depth * (opening_tag_length + closing_tag_length) + 1);
+    source->m_Bytes.SetSize(0);
+    source->m_SelectedWordCount = depth;
+    source->m_WordCount = CountWords(plain_text);
+
+    for (uint32_t i = 0; i < depth; ++i)
+    {
+        AppendBytes(source->m_Bytes, opening_tag, opening_tag_length);
+        source->m_Bytes.Push(plain_text[i]);
+    }
+
+    for (uint32_t i = 0; i < depth; ++i)
+    {
+        AppendBytes(source->m_Bytes, closing_tag, closing_tag_length);
+    }
+
+    AppendBytes(source->m_Bytes, plain_text.Begin() + depth, BENCHMARK_TEXT_LENGTH - depth);
+    source->m_Bytes.Push(0);
+}
+
 static void BuildMarkupSource(const dmArray<char>& plain_text, MarkupStyleType style, uint32_t tag_count, MarkupSource* source)
 {
+    if (style == MARKUP_STYLE_NESTED_COLOR)
+    {
+        BuildNestedMarkupSource(plain_text, style, tag_count, source);
+
+        return;
+    }
+
     const char* opening_tag = GetOpeningTag(style);
     const char* closing_tag = GetClosingTag(style);
     const uint32_t tag_bytes = (uint32_t)strlen(opening_tag) + (uint32_t)strlen(closing_tag);
@@ -754,6 +800,15 @@ static uint8_t ResolveBenchmarkObject(void*, const char*, const TextLayoutObject
 
 static void ReleaseBenchmarkObject(void*, const TextLayoutObject*)
 {
+}
+
+static bool RunHitTestMiss(void* context)
+{
+    HitTestContext* hit_test = (HitTestContext*)context;
+    uint32_t        object_index = TextLayoutHitTestObject(hit_test->m_Layout, hit_test->m_Params);
+    g_BenchmarkChecksum += object_index == UINT32_MAX ? TextLayoutGetObjectCount(hit_test->m_Layout) : object_index;
+
+    return object_index == UINT32_MAX;
 }
 
 static bool RunMarkupLayout(void* context)
@@ -888,6 +943,40 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         MarkupDestroy(markup);
 
         return false;
+    }
+
+    if (options.m_HitTestMiss && style == MARKUP_STYLE_LINK)
+    {
+        const uint32_t object_count = TextLayoutGetObjectCount(vertex_layout);
+
+        if (object_count != source.m_SelectedWordCount)
+        {
+            TextLayoutRelease(vertex_layout);
+            MarkupDestroy(markup);
+            FreeCachedGlyphs(glyph_cache);
+
+            return false;
+        }
+
+        HitTestContext hit_test_context = {};
+        hit_test_context.m_Layout = vertex_layout;
+        hit_test_context.m_Params.m_Tag = dmHashString64("link");
+        hit_test_context.m_Params.m_X = -1000000.0f;
+        hit_test_context.m_Params.m_Y = -1000000.0f;
+        hit_test_context.m_Params.m_Width = settings.m_Width;
+        hit_test_context.m_Params.m_FontSize = settings.m_Size;
+        Measurement hit_test_measurement;
+
+        if (!Measure(RunHitTestMiss, &hit_test_context, options, &hit_test_measurement))
+        {
+            TextLayoutRelease(vertex_layout);
+            MarkupDestroy(markup);
+            FreeCachedGlyphs(glyph_cache);
+
+            return false;
+        }
+
+        PrintResult("hit_test_miss", GetStyleName(style), object_count, source_length, source.m_WordCount, span_count, style_node_count, 0, hit_test_measurement);
     }
 
     Measurement         layout_measurement;
@@ -1025,6 +1114,7 @@ static bool ParseOptions(int argc, char** argv, BenchmarkOptions* options)
     options->m_WarmupMilliseconds = DEFAULT_WARMUP_MILLISECONDS;
     options->m_OrderSeed = 1;
     options->m_TagCountFilter = 0;
+    options->m_HitTestMiss = false;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -1078,10 +1168,19 @@ static bool ParseOptions(int argc, char** argv, BenchmarkOptions* options)
                 return false;
             }
         }
+        else if (strcmp(argv[i], "--hit-test-miss") == 0)
+        {
+            options->m_HitTestMiss = true;
+        }
         else
         {
             return false;
         }
+    }
+
+    if (options->m_HitTestMiss && (!options->m_StyleFilter || strcmp(options->m_StyleFilter, "link") != 0))
+    {
+        return false;
     }
 
     return true;
@@ -1093,7 +1192,7 @@ int main(int argc, char** argv)
 
     if (!ParseOptions(argc, argv, &options))
     {
-        fprintf(stderr, "Usage: %s [--font=PATH] [--style=NAME] [--tag-count=N] [--iterations=N] [--samples=N] [--target-ms=N] [--warmup-ms=N] [--order-seed=N]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [--font=PATH] [--style=NAME] [--tag-count=N] [--hit-test-miss] [--iterations=N] [--samples=N] [--target-ms=N] [--warmup-ms=N] [--order-seed=N]\n", argv[0]);
 
         return 1;
     }
@@ -1256,6 +1355,7 @@ int main(int argc, char** argv)
         MARKUP_STYLE_STRIKE_DASHED,
         MARKUP_STYLE_LINK,
         MARKUP_STYLE_SPRITE,
+        MARKUP_STYLE_NESTED_COLOR,
     };
     struct BenchmarkCase
     {
@@ -1267,6 +1367,11 @@ int main(int argc, char** argv)
 
     for (uint32_t style_index = 0; style_index < DM_ARRAY_SIZE(styles); ++style_index)
     {
+        if (styles[style_index] == MARKUP_STYLE_NESTED_COLOR && !options.m_StyleFilter)
+        {
+            continue;
+        }
+
         for (uint32_t tag_count_index = 0; tag_count_index < DM_ARRAY_SIZE(tag_counts); ++tag_count_index)
         {
             if (options.m_StyleFilter && strcmp(options.m_StyleFilter, GetStyleName(styles[style_index])) != 0)

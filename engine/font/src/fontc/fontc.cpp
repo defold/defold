@@ -46,7 +46,7 @@ static_assert(sizeof(FontcLayout) == 28, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
 static_assert(sizeof(FontcGlyphMetrics) == 32, "Unexpected FontcGlyphMetrics ABI layout");
-static_assert(sizeof(FontcProperties) == 80, "Unexpected FontcProperties ABI layout");
+static_assert(sizeof(FontcProperties) == 84, "Unexpected FontcProperties ABI layout");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
 static_assert(offsetof(FontcTexture, m_AtlasVersion) == 8, "Unexpected FontcTexture ABI layout");
 
@@ -1054,12 +1054,14 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_ShadowX = renderer->m_ShadowX;
     config->m_ShadowY = renderer->m_ShadowY;
     config->m_ShadowBlur = renderer->m_ShadowBlur;
+    config->m_BaseShadowAlpha = properties.m_BaseShadowAlpha;
     config->m_CacheCellMaxAscent = renderer->m_CellMaxAscent;
     config->m_CacheCellPadding = renderer->m_CellPadding;
     config->m_Align = properties.m_Align;
     config->m_VerticalAlign = properties.m_VerticalAlign;
     config->m_BaseLayerMask = renderer->m_LayerMask;
     config->m_MetricsFromTtf = true;
+    config->m_ShadowUsesFaceCoverage = renderer->m_OutputBitmap && !renderer->m_HasShadow;
     config->m_RenderDecorations = true;
     config->m_RenderObjectOutlines = true;
     config->m_ResolveGlyphsForMetrics = true;

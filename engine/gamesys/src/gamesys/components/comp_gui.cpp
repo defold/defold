@@ -86,6 +86,7 @@ namespace dmGameSystem
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+    static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
@@ -1384,6 +1385,7 @@ namespace dmGameSystem
         scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
         scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
         scene_params.m_CreateCustomNodeCallbackContext = gui_component;
+        scene_params.m_PrepareNodeTextLayoutCallback = &PrepareGuiNodeTextLayout;
         scene_params.m_GetResourceCallback = GetSceneResourceByHash;
         scene_params.m_GetResourceCallbackContext = gui_component;
         scene_params.m_GetMaterialPropertyCallback = GetMaterialPropertyCallback;
@@ -1737,6 +1739,22 @@ namespace dmGameSystem
         dmGui::SetNodeTextLayout(scene, node, new_text_layout);
         TextLayoutRelease(layout);
         return new_text_layout.m_Handle;
+    }
+
+    static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node)
+    {
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_TEXT)
+        {
+            return;
+        }
+
+        FontResource* font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
+        dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
+        const char* text = dmGui::GetNodeText(scene, node);
+        Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+        dmArray<uint32_t> text_codepoints;
+        GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, text, size.getX(), dmGui::GetNodeLineBreak(scene, node),
+                                  dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node), text_codepoints);
     }
 
     static void RenderTextNodes(dmGui::HScene scene,
@@ -3130,22 +3148,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
-    static void UpdateNodeTextLayouts(dmGui::HScene scene, dmGui::HNode parent, float dt)
-    {
-        for (dmGui::HNode node = dmGui::GetFirstChildNode(scene, parent); node; node = dmGui::GetNextNode(scene, node))
-        {
-            dmGui::TextLayout text_layout = {};
-            dmGui::GetNodeTextLayout(scene, node, &text_layout);
-
-            if (text_layout.m_Handle)
-            {
-                TextLayoutUpdate(text_layout.m_Handle, dt);
-            }
-
-            UpdateNodeTextLayouts(scene, node, dt);
-        }
-    }
-
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         DM_PROFILE("Update");
@@ -3164,7 +3166,6 @@ namespace dmGameSystem
             if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)
             {
                 dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
-                UpdateNodeTextLayouts(gui_component->m_Scene, 0, params.m_UpdateContext->m_DT);
             }
         }
 

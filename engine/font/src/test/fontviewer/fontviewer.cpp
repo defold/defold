@@ -1286,7 +1286,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
 
             const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
             const bool glyph_has_markup_shadow = (glyph_render_data.m_StyleFlags & shadow_flags) != 0;
-            const float glyph_shadow_alpha = glyph_has_markup_shadow ? overall_alpha * viewer->m_Properties.m_ShadowAlpha * glyph_render_data.m_ShadowColor[3]
+            const float glyph_shadow_alpha = glyph_has_markup_shadow ? overall_alpha * glyph_render_data.m_ShadowColor[3]
                                                                       : shadow_color.getW() * glyph_render_data.m_ShadowColor[3];
             const bool glyph_has_markup_shadow_color = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
             const Vector4 glyph_shadow_color(glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[0] : shadow_color.getX(),
@@ -1408,7 +1408,6 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
         const float line_y = paragraph_top - layout_height + line.m_Baseline;
         const bool glyph_segments = FontDecorationRequiresGlyphSegments(layout, decoration);
         const uint32_t segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
-        const float segment_length = decoration.m_Length / segment_count;
         TextGlyphFaceColors decoration_colors;
 
         if (!glyph_segments)
@@ -1418,12 +1417,14 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
 
         for (uint32_t segment = 0; segment < segment_count; ++segment)
         {
+            FontDecorationSegment decoration_segment;
+            FontGetDecorationSegment(layout, decoration, segment, segment_count, &decoration_segment);
             TextGlyphFaceColors segment_colors;
 
             if (glyph_segments)
             {
                 TextGlyphRenderData render_data;
-                TextLayoutGetGlyphRenderData(layout, glyphs[decoration.m_GlyphStart + segment], base_face_color, &render_data);
+                TextLayoutGetGlyphRenderData(layout, glyphs[decoration_segment.m_GlyphIndex], base_face_color, &render_data);
                 segment_colors = render_data.m_FaceColors;
             }
             else
@@ -1431,11 +1432,11 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
                 segment_colors = decoration_colors;
             }
 
-            const float piece_x0 = line_x + decoration.m_X - first_x + segment_length * segment;
-            const float piece_x1 = piece_x0 + segment_length;
+            const float piece_x0 = line_x + decoration_segment.m_X - first_x;
+            const float piece_x1 = piece_x0 + decoration_segment.m_Length;
             const float piece_y = line_y + decoration.m_Y;
             FontDecorationPattern pattern;
-            FontGetDecorationPattern(decoration, segment, segment_count, &pattern);
+            FontGetDecorationPattern(decoration, decoration_segment, &pattern);
             PushTransformedClippedGradientRectangle(viewer, transform, clip_box, piece_x0, piece_y - decoration.m_Thickness * 0.5f,
                                                     piece_x1 - piece_x0, decoration.m_Thickness, segment_colors,
                                                     pattern.m_Start, pattern.m_End, pattern.m_Duty);

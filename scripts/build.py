@@ -405,7 +405,7 @@ PACKAGES_ANDROID_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[

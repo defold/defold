@@ -102,49 +102,9 @@ static uint16_t PackTexelCoordinate(float coordinate, float packed_reciprocal)
     return (uint16_t)(coordinate * packed_reciprocal + 0.5f);
 }
 
-// A decoration can use one quad when its color is constant or varies only
-// across the complete span. Split it at glyph boundaries when glyphs refer to
-// different styles/spans, or when a glyph-fitted gradient must be preserved.
 bool FontDecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration)
 {
-    TextLayout* internal = (TextLayout*)layout;
-
-    if (decoration.m_GlyphCount <= 1)
-    {
-        return false;
-    }
-
-    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    const TextGlyph& first = glyphs[decoration.m_GlyphStart];
-
-    for (uint32_t i = 1; i < decoration.m_GlyphCount; ++i)
-    {
-        const TextGlyph& glyph = glyphs[decoration.m_GlyphStart + i];
-
-        if (glyph.m_StyleIndex != first.m_StyleIndex || glyph.m_MarkupSpanIndex != first.m_MarkupSpanIndex)
-        {
-            return true;
-        }
-    }
-
-    if (first.m_MarkupSpanIndex == UINT16_MAX || first.m_MarkupSpanIndex >= internal->m_ResolvedSpans.Size())
-    {
-        return false;
-    }
-
-    const TextResolvedSpan& span = internal->m_ResolvedSpans[first.m_MarkupSpanIndex];
-
-    for (uint32_t i = 0; i < span.m_EffectCount; ++i)
-    {
-        const TextEffect& effect = internal->m_Effects[internal->m_SpanEffects[span.m_EffectIndex + i]];
-
-        if (effect.m_Type == TEXT_EFFECT_GRADIENT && effect.m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return TextLayoutDecorationRequiresGlyphSegments(layout, decoration);
 }
 
 // Returns the number of six-vertex quads needed for the decoration. Most
@@ -154,10 +114,34 @@ uint32_t FontGetDecorationQuadCount(HTextLayout layout, const TextDecoration& de
     return FontDecorationRequiresGlyphSegments(layout, decoration) ? decoration.m_GlyphCount : 1;
 }
 
+// Copies geometry that was physically sorted and partitioned when the layout
+// was created. Keeping this lookup constant-time avoids sorting or allocating
+// while producing metrics and vertices every frame.
+void FontGetDecorationSegment(HTextLayout layout, const TextDecoration& decoration, uint32_t segment_index, uint32_t segment_count, FontDecorationSegment* segment)
+{
+    const bool glyph_segments = segment_count > 1;
+    assert(segment_index < segment_count);
+    assert(segment_count == 1 || segment_count == decoration.m_GlyphCount);
+
+    segment->m_GlyphIndex = decoration.m_GlyphStart + (glyph_segments ? segment_index : 0);
+    segment->m_X = decoration.m_X;
+    segment->m_Length = decoration.m_Length;
+
+    if (!glyph_segments)
+    {
+        return;
+    }
+
+    const TextDecorationGeometry* geometry = TextLayoutGetDecorationGeometry(layout, decoration, segment_index);
+    segment->m_GlyphIndex = geometry->m_GlyphIndex;
+    segment->m_X = geometry->m_X;
+    segment->m_Length = geometry->m_Length;
+}
+
 // Converts the dashed pattern from layout units to repeating shader
 // coordinates. Start and end are measured in cycles and duty is the visible
 // fraction of each cycle. A zero duty identifies a solid decoration.
-void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment_index, uint32_t segment_count, FontDecorationPattern* pattern)
+void FontGetDecorationPattern(const TextDecoration& decoration, const FontDecorationSegment& segment, FontDecorationPattern* pattern)
 {
     pattern->m_Start = 0.0f;
     pattern->m_End = 0.0f;
@@ -168,13 +152,12 @@ void FontGetDecorationPattern(const TextDecoration& decoration, uint32_t segment
         return;
     }
 
-    const float segment_length = decoration.m_Length / segment_count;
     const float dash = fmaxf(1.0f, decoration.m_Thickness * 3.0f);
     const float gap = fmaxf(1.0f, decoration.m_Thickness * 2.0f);
     const float cycle = dash + gap;
-    const float pattern_position = decoration.m_PatternOffset + segment_length * segment_index;
+    const float pattern_position = decoration.m_PatternOffset + segment.m_X - decoration.m_X;
     pattern->m_Start = pattern_position / cycle;
-    pattern->m_End = (pattern_position + segment_length) / cycle;
+    pattern->m_End = (pattern_position + segment.m_Length) / cycle;
     pattern->m_Duty = dash / cycle;
 }
 

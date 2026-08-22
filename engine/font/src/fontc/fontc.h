@@ -108,6 +108,7 @@ extern "C"
         float    m_FaceColor[4];
         float    m_OutlineColor[4];
         float    m_ShadowColor[4];
+        float    m_BaseShadowAlpha;
         float    m_Width;
         float    m_Height;
         float    m_Leading;
