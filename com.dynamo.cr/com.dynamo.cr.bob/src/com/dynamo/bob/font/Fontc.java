@@ -158,8 +158,7 @@ public class Fontc {
     }
 
     private static float getNativeSdfPadding(FontDesc fontDesc) {
-        float shadowBlur = fontDesc.getShadowAlpha() > 0.0f ? fontDesc.getShadowBlur() : 0.0f;
-        return FontRenderer.DEFAULT_SDF_BASE_PADDING + fontDesc.getOutlineWidth() + shadowBlur;
+        return FontRenderer.DEFAULT_SDF_BASE_PADDING + fontDesc.getOutlineWidth() + fontDesc.getShadowBlur();
     }
 
     private static float calculateNativeSdfLimit(float padding, float width) {
@@ -255,7 +254,7 @@ public class Fontc {
     private void buildNativeTTF(FontRenderer renderer, boolean copyPixels, byte[] fontBytes, FontRenderer.Params params) throws IOException {
         ArrayList<Integer> characters = getRequestedCharacters();
         int nativeGlyphChannels = params.outputBitmap
-                                  ? (params.hasOutline || params.hasShadow ? 3 : 1)
+                                  ? (params.outlineWidth > 0.0f || params.hasShadow ? 3 : 1)
                                   : (params.shadowBlur > 0.0f ? 3 : 1);
         GlyphMetrics[] supportedMetrics;
         try {
@@ -509,11 +508,11 @@ public class Fontc {
         params.sdfBasePadding = FontRenderer.DEFAULT_SDF_BASE_PADDING;
         params.sdfEdgeValue = FontRenderer.DEFAULT_SDF_EDGE_VALUE;
         params.outlineWidth = fontDesc.getOutlineWidth();
-        params.shadowBlur = fontDesc.getShadowAlpha() > 0.0f ? fontDesc.getShadowBlur() : 0.0f;
+        params.shadowBlur = fontDesc.getShadowBlur();
         params.outputBitmap = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP;
         params.antialias = fontDesc.getAntialias() != 0;
         params.hasOutline = fontDesc.getOutlineWidth() > 0.0f && fontDesc.getOutlineAlpha() > 0.0f;
-        params.hasShadow = fontDesc.getShadowAlpha() > 0.0f;
+        params.hasShadow = fontDesc.getShadowAlpha() > 0.0f || fontDesc.getShadowBlur() > 0.0f;
         try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
             buildNativeTTF(renderer, !metadataOnly, fontBytes, params);
         }

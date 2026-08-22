@@ -395,14 +395,14 @@ public class FontTest {
     }
 
     @Test
-    public void testCompileForEditorAllCharsPreservesNativeGlyphChannels() throws Exception {
+    public void testCompileForEditorAllCharsPreservesShadowBlurCapacityChannels() throws Exception {
         FontDesc fontDesc = FontDesc.newBuilder()
             .setFont("Tuffy.ttf")
             .setMaterial("font.material")
             .setSize(24)
             .setAllChars(true)
             .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
-            .setShadowAlpha(1.0f)
+            .setShadowAlpha(0.0f)
             .setShadowBlur(4)
             .build();
 
@@ -413,6 +413,29 @@ public class FontTest {
 
         assertEquals(3, editorFontMap.glyphBank.getGlyphChannels());
         assertEquals(0, editorFontMap.glyphBank.getGlyphData().size());
+    }
+
+    @Test
+    public void testBitmapOutlineWidthReservesGlyphChannelsWhenAlphaIsZero() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("A")
+            .setOutputFormat(FontTextureFormat.TYPE_BITMAP)
+            .setOutlineWidth(2.0f)
+            .setOutlineAlpha(0.0f)
+            .build();
+
+        Fontc fontc = new Fontc();
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            fontc.compile(input, fontDesc, false);
+        }
+
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        assertEquals(3, glyphBank.getGlyphChannels());
+        assertEquals(1, glyphBank.getGlyphsCount());
+        assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 1);
     }
 
     @Test

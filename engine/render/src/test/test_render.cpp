@@ -201,6 +201,7 @@ protected:
         font_map_params.m_CacheCellHeight = 8;
         font_map_params.m_MaxAscent = 2;
         font_map_params.m_MaxDescent = 1;
+        font_map_params.m_OutlineWidth = 4.0f;
         font_map_params.m_FontCollection = font_collection;
 
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
@@ -2064,24 +2065,17 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
 
 TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
 {
-    const char* text = "AB";
+    const char source[] = "<outline size=1>A</outline>B";
+    const char text[] = "AB";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
     TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
     settings.m_Width = 128.0f;
     settings.m_Leading = 1.0f;
-
-    HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
-    ASSERT_NE((HTextLayout)0, layout);
-    TextLayout* internal = (TextLayout*)layout;
-    internal->m_Styles.SetCapacity(2);
-    internal->m_Styles.SetSize(2);
-    memset(internal->m_Styles.Begin(), 0, internal->m_Styles.Size() * sizeof(TextRenderStyle));
-    internal->m_Styles[1].m_Flags = TEXT_RENDER_STYLE_OUTLINE_WIDTH;
-    internal->m_Styles[1].m_OutlineWidth = 1.0f;
-
-    TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    ASSERT_EQ(2u, TextLayoutGetGlyphCount(layout));
-    glyphs[0].m_StyleIndex = 1;
-    glyphs[1].m_StyleIndex = 0;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
 
     dmRender::TextEntry te = {};
     te.m_Transform = Matrix4::identity();
@@ -2107,11 +2101,90 @@ TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
     }
 
     TextLayoutRelease(layout);
+    MarkupDestroy(markup);
+}
+
+TEST_F(dmRenderTest, MarkupWithoutEffectTagsSuppressesBaseEffects)
+{
+    const char source[] = "A";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Width = 128.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout legacy_layout = CreateTextLayout(m_SystemFontMap, source, settings);
+    HTextLayout rich_layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &rich_layout));
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 0.5f));
+    te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 0.5f));
+    te.m_Width = settings.m_Width;
+    te.m_Leading = settings.m_Leading;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+
+    const float old_shadow_alpha = m_SystemFontMap->m_ShadowAlpha;
+    const float old_outline_width = m_SystemFontMap->m_OutlineWidth;
+    const float old_sdf_outline = m_SystemFontMap->m_SdfOutline;
+    const uint8_t old_layer_mask = m_SystemFontMap->m_LayerMask;
+    m_SystemFontMap->m_ShadowAlpha = 0.5f;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+
+    FontGlyphVertex legacy_vertices[6];
+    memset(legacy_vertices, 0, sizeof(legacy_vertices));
+    te.m_TextLayout = legacy_layout;
+    ASSERT_EQ(DM_ARRAY_SIZE(legacy_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, source, te, 1.0f, 1.0f, 1.0f, legacy_vertices, DM_ARRAY_SIZE(legacy_vertices)));
+
+    // Preserve compatibility with FontMapParams callers that provide the
+    // legacy layer mask and SDF threshold without the new capacity field.
+    m_SystemFontMap->m_OutlineWidth = 0.0f;
+    m_SystemFontMap->m_SdfOutline = 0.5f;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+    FontGlyphVertex fallback_vertices[18];
+    memset(fallback_vertices, 0, sizeof(fallback_vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(fallback_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, source, te, 1.0f, 1.0f, 1.0f, fallback_vertices, DM_ARRAY_SIZE(fallback_vertices)));
+
+    m_SystemFontMap->m_OutlineWidth = old_outline_width;
+    m_SystemFontMap->m_SdfOutline = old_sdf_outline;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    FontGlyphVertex rich_vertices[6];
+    memset(rich_vertices, 0, sizeof(rich_vertices));
+    te.m_TextLayout = rich_layout;
+    ASSERT_EQ(DM_ARRAY_SIZE(rich_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, source, te, 1.0f, 1.0f, 1.0f, rich_vertices, DM_ARRAY_SIZE(rich_vertices)));
+
+    m_SystemFontMap->m_ShadowAlpha = old_shadow_alpha;
+    m_SystemFontMap->m_LayerMask = old_layer_mask;
+
+    ASSERT_EQ(127u, legacy_vertices[0].m_OutlineColor[3]);
+    ASSERT_EQ(63u, legacy_vertices[0].m_ShadowColor[3]);
+    ASSERT_EQ(1.0f, legacy_vertices[0].m_LayerMasks[0]);
+    ASSERT_EQ(1.0f, legacy_vertices[0].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, legacy_vertices[0].m_LayerMasks[2]);
+    ASSERT_EQ(127u, fallback_vertices[6].m_OutlineColor[3]);
+    ASSERT_EQ(63u, fallback_vertices[0].m_ShadowColor[3]);
+    ASSERT_EQ(0.5f, fallback_vertices[0].m_SdfParams[1]);
+    ASSERT_EQ(1.0f, fallback_vertices[0].m_LayerMasks[2]);
+    ASSERT_EQ(1.0f, fallback_vertices[6].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, fallback_vertices[12].m_LayerMasks[0]);
+    ASSERT_EQ(0u, rich_vertices[0].m_OutlineColor[3]);
+    ASSERT_EQ(0u, rich_vertices[0].m_ShadowColor[3]);
+    ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[0]);
+    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[1]);
+    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[2]);
+
+    TextLayoutRelease(legacy_layout);
+    TextLayoutRelease(rich_layout);
+    MarkupDestroy(markup);
 }
 
 TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
 {
-    const char source[] = "<outline size=3 color=#FFFFFF>Outlined text</outline>";
+    const char source[] = "<outline color=#FFFFFF>Outlined text</outline>";
     const char text[] = "Outlined text";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -2137,6 +2210,7 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
     FontGlyphVertex vertices[256];
     const uint32_t vertex_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices));
     ASSERT_GT(vertex_count, 0u);
+    ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[1]);
     ASSERT_EQ(255u, vertices[0].m_OutlineColor[0]);
     ASSERT_EQ(255u, vertices[0].m_OutlineColor[1]);
     ASSERT_EQ(255u, vertices[0].m_OutlineColor[2]);
@@ -2146,26 +2220,76 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
     MarkupDestroy(markup);
 }
 
-TEST_F(dmRenderTest, MarkupShadowLayerOnlyCoversSpan)
+TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
 {
-    const char* text = "AB";
+    const char zero_source[] = "<outline size=0>A</outline>";
+    const char oversize_source[] = "<outline size=8>A</outline>";
+    HMarkup zero_markup = 0;
+    HMarkup oversize_markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(zero_source, sizeof(zero_source) - 1, &zero_markup, 0));
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(oversize_source, sizeof(oversize_source) - 1, &oversize_markup, 0));
+
     TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
     settings.m_Width = 128.0f;
     settings.m_Leading = 1.0f;
+    HTextLayout zero_layout = 0;
+    HTextLayout oversize_layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), zero_markup, &settings, &zero_layout));
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), oversize_markup, &settings, &oversize_layout));
 
-    HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
-    ASSERT_NE((HTextLayout)0, layout);
-    TextLayout* internal = (TextLayout*)layout;
-    internal->m_Styles.SetCapacity(2);
-    internal->m_Styles.SetSize(2);
-    memset(internal->m_Styles.Begin(), 0, internal->m_Styles.Size() * sizeof(TextRenderStyle));
-    internal->m_Styles[1].m_Flags = TEXT_RENDER_STYLE_SHADOW_X;
-    internal->m_Styles[1].m_ShadowX = 3.0f;
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_OutlineColor = COLOR_WHITE_RGBA;
+    te.m_ShadowColor = COLOR_TRANSPARENT_RGBA;
+    te.m_Width = settings.m_Width;
+    te.m_Leading = settings.m_Leading;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
 
-    TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    ASSERT_EQ(2u, TextLayoutGetGlyphCount(layout));
-    glyphs[0].m_StyleIndex = 1;
-    glyphs[1].m_StyleIndex = 0;
+    const float old_sdf_spread = m_SystemFontMap->m_SdfSpread;
+    const bool  old_is_sdf = m_SystemFontMap->m_IsSdf;
+    m_SystemFontMap->m_SdfSpread = 8.0f;
+    m_SystemFontMap->m_IsSdf = true;
+
+    FontGlyphVertex zero_vertices[6];
+    memset(zero_vertices, 0, sizeof(zero_vertices));
+    te.m_TextLayout = zero_layout;
+    ASSERT_EQ(DM_ARRAY_SIZE(zero_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f, zero_vertices, DM_ARRAY_SIZE(zero_vertices)));
+
+    FontGlyphVertex oversize_vertices[12];
+    memset(oversize_vertices, 0, sizeof(oversize_vertices));
+    te.m_TextLayout = oversize_layout;
+    ASSERT_EQ(DM_ARRAY_SIZE(oversize_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f, oversize_vertices, DM_ARRAY_SIZE(oversize_vertices)));
+
+    m_SystemFontMap->m_SdfSpread = old_sdf_spread;
+    m_SystemFontMap->m_IsSdf = old_is_sdf;
+
+    ASSERT_EQ(1.0f, zero_vertices[0].m_LayerMasks[0]);
+    ASSERT_EQ(0.0f, zero_vertices[0].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, oversize_vertices[0].m_LayerMasks[1]);
+    ASSERT_NEAR(0.75f - (191.0f / 255.0f) * 4.0f / 8.0f, oversize_vertices[0].m_SdfParams[1], EPSILON);
+
+    TextLayoutRelease(zero_layout);
+    TextLayoutRelease(oversize_layout);
+    MarkupDestroy(zero_markup);
+    MarkupDestroy(oversize_markup);
+}
+
+TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
+{
+    const char source[] = "<shadow x=0 y=0 blur=0 color=#FFFFFFFF>A</shadow>B";
+    const char text[] = "AB";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Width = 128.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
 
     dmRender::TextEntry te = {};
     te.m_Transform = Matrix4::identity();
@@ -2178,34 +2302,90 @@ TEST_F(dmRenderTest, MarkupShadowLayerOnlyCoversSpan)
     te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
     te.m_TextLayout = layout;
 
-    const float   old_shadow_alpha = m_SystemFontMap->m_ShadowAlpha;
-    const uint8_t old_cache_channels = m_SystemFontMap->m_CacheChannels;
+    const float old_shadow_alpha = m_SystemFontMap->m_ShadowAlpha;
+    const bool  old_is_sdf = m_SystemFontMap->m_IsSdf;
     m_SystemFontMap->m_ShadowAlpha = 0.0f;
+    m_SystemFontMap->m_IsSdf = true;
 
     FontGlyphVertex vertices[18];
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
-
-    FontGlyphVertex baked_shadow_vertices[18];
-    m_SystemFontMap->m_CacheChannels = 3;
-    m_SystemFontMap->m_ShadowAlpha = 1.0f;
-    memset(baked_shadow_vertices, 0, sizeof(baked_shadow_vertices));
-    ASSERT_EQ(DM_ARRAY_SIZE(baked_shadow_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, baked_shadow_vertices, DM_ARRAY_SIZE(baked_shadow_vertices)));
-    m_SystemFontMap->m_CacheChannels = old_cache_channels;
     m_SystemFontMap->m_ShadowAlpha = old_shadow_alpha;
+    m_SystemFontMap->m_IsSdf = old_is_sdf;
 
     for (uint32_t i = 0; i < 6; ++i)
     {
         ASSERT_EQ(127u, vertices[i].m_ShadowColor[3]);
         ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[2]);
-        ASSERT_EQ(-1.0f, vertices[i].m_SdfParams[3]);
-        ASSERT_GE(baked_shadow_vertices[i].m_SdfParams[3], 0.0f);
-        ASSERT_EQ(vertices[6 + i].m_Position[0] + 3.0f, vertices[i].m_Position[0]);
+        ASSERT_EQ(1.875f, vertices[i].m_SdfParams[3]);
+        ASSERT_EQ(vertices[6 + i].m_Position[0], vertices[i].m_Position[0]);
+        ASSERT_EQ(vertices[6 + i].m_Position[1], vertices[i].m_Position[1]);
         ASSERT_EQ(0u, vertices[12 + i].m_ShadowColor[3]);
         ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[2]);
     }
 
     TextLayoutRelease(layout);
+    MarkupDestroy(markup);
+}
+
+TEST_F(dmRenderTest, MarkupBitmapShadowDoesNotRevealUntaggedOutline)
+{
+    const char source[] = "<shadow blur=2>A</shadow>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Width = 128.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_OutlineColor = COLOR_WHITE_RGBA;
+    te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_Width = settings.m_Width;
+    te.m_Leading = settings.m_Leading;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    te.m_TextLayout = layout;
+
+    const bool    old_is_sdf = m_SystemFontMap->m_IsSdf;
+    const uint8_t old_cache_channels = m_SystemFontMap->m_CacheChannels;
+    const float   old_outline_alpha = m_SystemFontMap->m_OutlineAlpha;
+    const float   old_shadow_alpha = m_SystemFontMap->m_ShadowAlpha;
+    const float   old_shadow_blur = m_SystemFontMap->m_ShadowBlur;
+    const float   old_sdf_spread = m_SystemFontMap->m_SdfSpread;
+    m_SystemFontMap->m_IsSdf = false;
+    m_SystemFontMap->m_CacheChannels = 3;
+    m_SystemFontMap->m_OutlineAlpha = 1.0f;
+    m_SystemFontMap->m_ShadowAlpha = 1.0f;
+    m_SystemFontMap->m_ShadowBlur = 4.0f;
+    m_SystemFontMap->m_SdfSpread = 8.0f;
+
+    FontGlyphVertex outlined_shadow_vertices[12];
+    memset(outlined_shadow_vertices, 0, sizeof(outlined_shadow_vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(outlined_shadow_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f, outlined_shadow_vertices, DM_ARRAY_SIZE(outlined_shadow_vertices)));
+
+    m_SystemFontMap->m_OutlineAlpha = 0.0f;
+    FontGlyphVertex face_shadow_vertices[12];
+    memset(face_shadow_vertices, 0, sizeof(face_shadow_vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(face_shadow_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f, face_shadow_vertices, DM_ARRAY_SIZE(face_shadow_vertices)));
+
+    m_SystemFontMap->m_IsSdf = old_is_sdf;
+    m_SystemFontMap->m_CacheChannels = old_cache_channels;
+    m_SystemFontMap->m_OutlineAlpha = old_outline_alpha;
+    m_SystemFontMap->m_ShadowAlpha = old_shadow_alpha;
+    m_SystemFontMap->m_ShadowBlur = old_shadow_blur;
+    m_SystemFontMap->m_SdfSpread = old_sdf_spread;
+
+    ASSERT_EQ(1.875f, outlined_shadow_vertices[0].m_SdfParams[3]);
+    ASSERT_NEAR(0.75f - (191.0f / 255.0f) * 2.0f / 8.0f, face_shadow_vertices[0].m_SdfParams[3], EPSILON);
+
+    TextLayoutRelease(layout);
+    MarkupDestroy(markup);
 }
 
 TEST_F(dmRenderTest, DrawTextPreservesNodeShadowAlpha)
@@ -2227,22 +2407,106 @@ TEST_F(dmRenderTest, DrawTextPreservesNodeShadowAlpha)
     m_SystemFontMap->m_ShadowAlpha = old_shadow_alpha;
 }
 
-TEST_F(dmRenderTest, MarkupShadowBlurCanReduceBakedBlur)
+TEST_F(dmRenderTest, DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText)
 {
-    const char* text = "A";
+    const char source[] = "<outline color=#FFFFFFFF>A</outline>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
     TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
     settings.m_Width = 128.0f;
     settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
 
-    HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
-    ASSERT_NE((HTextLayout)0, layout);
-    TextLayout* internal = (TextLayout*)layout;
-    internal->m_Styles.SetCapacity(1);
-    internal->m_Styles.SetSize(1);
-    memset(internal->m_Styles.Begin(), 0, sizeof(TextRenderStyle));
-    internal->m_Styles[0].m_Flags = TEXT_RENDER_STYLE_SHADOW_BLUR;
-    internal->m_Styles[0].m_ShadowBlur = 2.0f;
-    TextLayoutGetGlyphs(layout)[0].m_StyleIndex = 0;
+    const float old_outline_alpha = m_SystemFontMap->m_OutlineAlpha;
+    m_SystemFontMap->m_OutlineAlpha = 0.0f;
+
+    dmRender::DrawTextParams params;
+    params.m_Text = "A";
+    params.m_TextLayout = layout;
+    params.m_OutlineColor = Vector4(1.0f, 1.0f, 1.0f, 0.5f);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    Vector4 queued_outline_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_OutlineColor);
+    ASSERT_NEAR(0.5f, queued_outline_color.getW(), 1.0f / 255.0f);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    params.m_TextLayout = 0;
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    queued_outline_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_OutlineColor);
+    ASSERT_EQ(0.0f, queued_outline_color.getW());
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    m_SystemFontMap->m_OutlineAlpha = old_outline_alpha;
+    TextLayoutRelease(layout);
+    MarkupDestroy(markup);
+}
+
+TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
+{
+    const char source[] = "<shadow x=1>A</shadow>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Width = 128.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_OutlineColor = COLOR_TRANSPARENT_RGBA;
+    te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_Width = settings.m_Width;
+    te.m_Leading = settings.m_Leading;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    te.m_TextLayout = layout;
+
+    const float old_shadow_blur = m_SystemFontMap->m_ShadowBlur;
+    const float old_sdf_spread = m_SystemFontMap->m_SdfSpread;
+    const bool  old_is_sdf = m_SystemFontMap->m_IsSdf;
+    m_SystemFontMap->m_ShadowBlur = 4.0f;
+    m_SystemFontMap->m_SdfSpread = 8.0f;
+    m_SystemFontMap->m_IsSdf = true;
+
+    FontGlyphVertex vertices[12];
+    memset(vertices, 0, sizeof(vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+
+    m_SystemFontMap->m_ShadowBlur = old_shadow_blur;
+    m_SystemFontMap->m_SdfSpread = old_sdf_spread;
+    m_SystemFontMap->m_IsSdf = old_is_sdf;
+
+    ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 4.0f / 8.0f), vertices[0].m_SdfParams[3], EPSILON);
+    ASSERT_EQ(vertices[6].m_Position[0] + 1.0f, vertices[0].m_Position[0]);
+
+    TextLayoutRelease(layout);
+    MarkupDestroy(markup);
+}
+
+TEST_F(dmRenderTest, MarkupShadowBlurClampsToBakedCapacity)
+{
+    const char source[] = "<shadow blur=2>A</shadow>";
+    const char text[] = "A";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Width = 128.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
 
     dmRender::TextEntry te = {};
     te.m_Transform = Matrix4::identity();
@@ -2271,10 +2535,18 @@ TEST_F(dmRenderTest, MarkupShadowBlurCanReduceBakedBlur)
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
     const float reduced_sdf_shadow = vertices[0].m_SdfParams[3];
 
-    internal->m_Styles[0].m_ShadowBlur = 8.0f;
+    TextLayout* internal = (TextLayout*)layout;
+    TextRenderStyle& style = internal->m_Styles[TextLayoutGetGlyphs(layout)[0].m_StyleIndex];
+    ASSERT_NE(0u, style.m_Flags & TEXT_RENDER_STYLE_SHADOW_BLUR);
+    style.m_ShadowBlur = 8.0f;
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
-    const float unavailable_sdf_shadow = vertices[0].m_SdfParams[3];
+    const float clamped_sdf_shadow = vertices[0].m_SdfParams[3];
+
+    m_SystemFontMap->m_ShadowBlur = 0.0f;
+    memset(vertices, 0, sizeof(vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+    const float no_capacity_sdf_shadow = vertices[0].m_SdfParams[3];
 
     m_SystemFontMap->m_LayerMask = old_layer_mask;
     m_SystemFontMap->m_ShadowBlur = old_shadow_blur;
@@ -2282,10 +2554,12 @@ TEST_F(dmRenderTest, MarkupShadowBlurCanReduceBakedBlur)
     m_SystemFontMap->m_SdfShadow = old_sdf_shadow;
     m_SystemFontMap->m_IsSdf = old_is_sdf;
 
-    ASSERT_NEAR(0.75f - (191.0f / 255.0f) * 2.0f / 8.0f, reduced_sdf_shadow, EPSILON);
-    ASSERT_EQ(0.25f, unavailable_sdf_shadow);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 2.0f / 8.0f), reduced_sdf_shadow, EPSILON);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 4.0f / 8.0f), clamped_sdf_shadow, EPSILON);
+    ASSERT_EQ(1.875f, no_capacity_sdf_shadow);
 
     TextLayoutRelease(layout);
+    MarkupDestroy(markup);
 }
 
 TEST_F(dmRenderTest, MarkupFontSizeScalesFinalGlyphVertices)
@@ -2443,12 +2717,15 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
     te.m_TextLayout = layout;
 
     const uint8_t old_layer_mask = m_SystemFontMap->m_LayerMask;
+    const bool    old_is_sdf = m_SystemFontMap->m_IsSdf;
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    m_SystemFontMap->m_IsSdf = true;
     FontGlyphVertex vertices[36];
     memset(vertices, 0, sizeof(vertices));
     const uint32_t vertex_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f,
                                                                  vertices, DM_ARRAY_SIZE(vertices));
     m_SystemFontMap->m_LayerMask = old_layer_mask;
+    m_SystemFontMap->m_IsSdf = old_is_sdf;
 
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), vertex_count);
     const FontGlyphVertex& shadow = vertices[6];
@@ -2456,13 +2733,13 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
     const FontGlyphVertex& face = vertices[30];
     ASSERT_EQ(3.0f, shadow.m_LayerMasks[0]);
     ASSERT_LT(shadow.m_LayerMasks[2], 0.0f);
-    ASSERT_EQ(-1.0f, shadow.m_SdfParams[3]);
+    ASSERT_EQ(1.875f, shadow.m_SdfParams[3]);
     ASSERT_EQ(2.0f, outline.m_LayerMasks[0]);
     ASSERT_LT(outline.m_LayerMasks[2], 0.0f);
-    ASSERT_EQ(-1.0f, outline.m_SdfParams[3]);
+    ASSERT_EQ(1.875f, outline.m_SdfParams[3]);
     ASSERT_EQ(1.0f, face.m_LayerMasks[0]);
     ASSERT_LT(face.m_LayerMasks[2], 0.0f);
-    ASSERT_EQ(-1.0f, face.m_SdfParams[3]);
+    ASSERT_EQ(1.875f, face.m_SdfParams[3]);
     ASSERT_NEAR(face.m_Position[0] + 2.0f, shadow.m_Position[0], 0.0001f);
     ASSERT_NEAR(face.m_Position[1] - 3.0f, shadow.m_Position[1], 0.0001f);
     ASSERT_NEAR(face.m_Position[0] - 2.0f, outline.m_Position[0], 0.0001f);

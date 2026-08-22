@@ -418,6 +418,7 @@ namespace dmGameSystem
         params->m_ShadowX            = ddf->m_ShadowX;
         params->m_ShadowY            = ddf->m_ShadowY;
         params->m_ShadowBlur         = ddf->m_ShadowBlur;
+        params->m_OutlineWidth       = ddf->m_OutlineWidth;
         params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
         params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
         params->m_Alpha              = ddf->m_Alpha;
@@ -458,7 +459,7 @@ namespace dmGameSystem
 
     static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, HFont hfont, dmRender::FontMapParams* params)
     {
-        if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
+        if (ddf->m_ShadowBlur > 0.0f) {
             params->m_GlyphChannels = 3;
         }
         else {

@@ -990,6 +990,7 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     layout->m_BaseSpanEffectCount = 0;
     layout->m_BaseResolvedSpanCount = 0;
     layout->m_NumValidGlyphs = 0;
+    layout->m_UseRichText = resolved != 0;
     layout->m_MaxGlyphWidth = 0.0f;
     layout->m_MaxGlyphHeight = 0.0f;
     layout->m_Width = 0.0f;

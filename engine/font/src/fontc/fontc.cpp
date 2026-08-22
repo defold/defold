@@ -92,6 +92,7 @@ struct FontcContext
         , m_Properties()
         , m_HasProperties(false)
         , m_HasText(false)
+        , m_TextIsMarkup(false)
         , m_CellWidth(1)
         , m_CellHeight(1)
         , m_CellMaxAscent(0)
@@ -113,6 +114,7 @@ struct FontcContext
     dmArray<uint32_t>    m_Codepoints;
     dmArray<char>        m_Markup;
     bool                 m_HasText;
+    bool                 m_TextIsMarkup;
 
     float                m_Size;
     float                m_SdfBasePadding;
@@ -490,7 +492,7 @@ static TextResult GetRetainedLayout(HFontRenderer renderer, HTextLayout* layout)
     const FontcProperties& properties = renderer->m_Properties;
     TextResult             result;
 
-    if (!renderer->m_Markup.Empty())
+    if (renderer->m_TextIsMarkup)
     {
         result = CreateMarkupLayout(renderer,
                                     renderer->m_Markup.Begin(),
@@ -549,7 +551,8 @@ static void UpdateStateHash(FontcContext* renderer)
     dmHashUpdateBuffer64(&hash_state, &renderer->m_HasText, sizeof(renderer->m_HasText));
     if (renderer->m_HasText)
     {
-        if (!renderer->m_Markup.Empty())
+        dmHashUpdateBuffer64(&hash_state, &renderer->m_TextIsMarkup, sizeof(renderer->m_TextIsMarkup));
+        if (renderer->m_TextIsMarkup)
         {
             const uint32_t markup_byte_count = renderer->m_Markup.Size();
             dmHashUpdateBuffer64(&hash_state, &markup_byte_count, sizeof(markup_byte_count));
@@ -583,7 +586,7 @@ FontRendererResult FontcCreate(const char*        name,
                                const FontcParams* params,
                                HFontRenderer*     renderer)
 {
-    const uint32_t channels = params ? FontGetGlyphChannelCount(params->m_OutputBitmap, params->m_HasOutline, params->m_HasShadow, params->m_ShadowBlur) : 1;
+    const uint32_t channels = params ? FontGetGlyphChannelCount(params->m_OutputBitmap, params->m_OutlineWidth > 0.0f, params->m_HasShadow, params->m_ShadowBlur) : 1;
     const uint64_t atlas_pixel_count = params ? (uint64_t)params->m_AtlasWidth * params->m_AtlasHeight * channels : 0;
     if (!name || !font_bytes || font_byte_count == 0 || !params || !renderer ||
         params->m_Size <= 0.0f || params->m_AtlasWidth == 0 || params->m_AtlasWidth > UINT16_MAX ||
@@ -894,6 +897,7 @@ FontRendererResult FontcSetText(HFontRenderer renderer, const uint32_t* codepoin
         memcpy(renderer->m_Codepoints.Begin(), codepoints, (size_t)codepoint_count * sizeof(uint32_t));
     renderer->m_Markup.SetSize(0);
     renderer->m_HasText = true;
+    renderer->m_TextIsMarkup = false;
     UpdateStateHash(renderer);
 
     return FONT_RENDERER_RESULT_OK;
@@ -920,6 +924,7 @@ FontRendererResult FontcSetMarkup(HFontRenderer renderer, const char* markup, ui
 
     renderer->m_Codepoints.SetSize(0);
     renderer->m_HasText = true;
+    renderer->m_TextIsMarkup = true;
     UpdateStateHash(renderer);
     return FONT_RENDERER_RESULT_OK;
 }
@@ -1051,6 +1056,7 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_SdfSmoothing = 0.25f / (renderer->m_SdfSpread * dmMath::Max(0.000001f, properties.m_SdfScale));
     config->m_SdfShadow = renderer->m_SdfShadow;
     config->m_SdfSpread = renderer->m_SdfSpread;
+    config->m_OutlineWidth = renderer->m_OutlineWidth;
     config->m_ShadowX = renderer->m_ShadowX;
     config->m_ShadowY = renderer->m_ShadowY;
     config->m_ShadowBlur = renderer->m_ShadowBlur;
@@ -1061,7 +1067,9 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_VerticalAlign = properties.m_VerticalAlign;
     config->m_BaseLayerMask = renderer->m_LayerMask;
     config->m_MetricsFromTtf = true;
+    config->m_IsSdf = !renderer->m_OutputBitmap;
     config->m_ShadowUsesFaceCoverage = renderer->m_OutputBitmap && !renderer->m_HasShadow;
+    config->m_ShadowIncludesOutline = renderer->m_OutputBitmap && renderer->m_HasShadow && renderer->m_HasOutline;
     config->m_RenderDecorations = true;
     config->m_RenderObjectOutlines = true;
     config->m_ResolveGlyphsForMetrics = true;

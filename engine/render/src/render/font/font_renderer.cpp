@@ -324,7 +324,8 @@ namespace dmRender
         te.m_Tail = -1;
 
         te.m_FaceColor = dmGraphics::PackRGBA(Vector4(params.m_FaceColor.getXYZ(), params.m_FaceColor.getW() * font_map->m_Alpha));
-        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), params.m_OutlineColor.getW() * font_map->m_OutlineAlpha));
+        const float outline_alpha = params.m_OutlineColor.getW() * (text_layout && text_layout->m_UseRichText ? 1.0f : font_map->m_OutlineAlpha);
+        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), outline_alpha));
         te.m_ShadowColor = dmGraphics::PackRGBA(params.m_ShadowColor);
         te.m_RenderOrder = params.m_RenderOrder;
         te.m_Width = params.m_Width;
@@ -452,6 +453,7 @@ namespace dmRender
         config.m_SdfSmoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
         config.m_SdfShadow = font_map->m_SdfShadow;
         config.m_SdfSpread = font_map->m_SdfSpread;
+        config.m_OutlineWidth = font_map->m_OutlineWidth;
         config.m_ShadowX = font_map->m_ShadowX;
         config.m_ShadowY = font_map->m_ShadowY;
         config.m_ShadowBlur = font_map->m_ShadowBlur;
@@ -464,10 +466,14 @@ namespace dmRender
         config.m_VerticalAlign = te.m_VAlign;
         config.m_BaseLayerMask = font_map->m_LayerMask;
         config.m_MetricsFromTtf = font_map->m_IsDynamic;
+        config.m_IsSdf = font_map->m_IsSdf;
         // Authored BMFont atlases are RGBA and use a shader without separate outline or shadow layers.
         config.m_IsBMFont = !font_map->m_IsSdf && font_map->m_CacheChannels == 4;
-        config.m_ShadowUsesFaceCoverage = !font_map->m_IsSdf && !config.m_IsBMFont &&
-                                          (font_map->m_CacheChannels == 1 || font_map->m_ShadowAlpha <= 0.0f);
+        config.m_ShadowUsesFaceCoverage = !font_map->m_IsSdf && !config.m_IsBMFont && font_map->m_CacheChannels == 1;
+        config.m_ShadowIncludesOutline = !font_map->m_IsSdf && !config.m_IsBMFont &&
+                                         font_map->m_CacheChannels == 3 && font_map->m_OutlineWidth > 0.0f &&
+                                         font_map->m_OutlineAlpha > 0.0f &&
+                                         (font_map->m_ShadowAlpha > 0.0f || font_map->m_ShadowBlur > 0.0f);
         config.m_RenderDecorations = decoration_cache != 0;
         config.m_RenderObjectOutlines = false;
         config.m_ResolveGlyphsForMetrics = false;

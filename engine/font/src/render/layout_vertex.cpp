@@ -78,25 +78,46 @@ static float GetLineStartX(const FontLayoutVertexConfig& config, const TextLine&
 }
 
 static const uint32_t SHADOW_STYLE_FLAGS = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
+static const uint32_t OUTLINE_STYLE_FLAGS = TEXT_RENDER_STYLE_OUTLINE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH;
+static const float    FACE_SHADOW_THRESHOLD_BASE = 1.5f;
+static const float    FACE_SHADOW_THRESHOLD_SCALE = 0.5f;
+
+static float EncodeFaceShadowThreshold(float threshold)
+{
+    return FACE_SHADOW_THRESHOLD_BASE + FACE_SHADOW_THRESHOLD_SCALE * threshold;
+}
 
 static const TextRenderStyle* GetGlyphStyle(HTextLayout layout, const TextGlyph& glyph)
 {
     return glyph.m_StyleIndex < layout->m_Styles.Size() ? &layout->m_Styles[glyph.m_StyleIndex] : 0;
 }
 
+static bool HasMarkupOutline(const TextRenderStyle* style)
+{
+    return style &&
+           (style->m_Flags & OUTLINE_STYLE_FLAGS) != 0 &&
+           ((style->m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) == 0 || style->m_OutlineWidth > 0.0f);
+}
+
+static bool HasMarkupShadow(const TextRenderStyle* style)
+{
+    return style && (style->m_Flags & SHADOW_STYLE_FLAGS) != 0;
+}
+
 static uint8_t GetGlyphLayerMask(const FontLayoutVertexConfig& config, const TextGlyph& glyph)
 {
     const TextRenderStyle* style = GetGlyphStyle(config.m_Layout, glyph);
     uint8_t                mask = FONT_RENDER_LAYER_FACE;
+    const bool             use_rich_text = config.m_Layout->m_UseRichText;
 
-    if ((config.m_BaseLayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 ||
-        (!config.m_IsBMFont && config.m_SdfSpread > 0.0f && style && (style->m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) && style->m_OutlineWidth > 0.0f))
+    if ((!use_rich_text && (config.m_BaseLayerMask & FONT_RENDER_LAYER_OUTLINE) != 0) ||
+        (use_rich_text && !config.m_IsBMFont && config.m_OutlineWidth > 0.0f && HasMarkupOutline(style)))
     {
         mask |= FONT_RENDER_LAYER_OUTLINE;
     }
 
-    if ((config.m_BaseLayerMask & FONT_RENDER_LAYER_SHADOW) != 0 ||
-        (!config.m_IsBMFont && style && (style->m_Flags & SHADOW_STYLE_FLAGS)))
+    if ((!use_rich_text && (config.m_BaseLayerMask & FONT_RENDER_LAYER_SHADOW) != 0) ||
+        (use_rich_text && !config.m_IsBMFont && HasMarkupShadow(style)))
     {
         mask |= FONT_RENDER_LAYER_SHADOW;
     }
@@ -320,6 +341,7 @@ static void PackObjectOutlineLine(const FontLayoutVertexConfig& config,
     layers.m_SdfSmoothing = 0.01f;
     layers.m_SdfShadow = 0.75f;
     layers.m_LayerCount = 1;
+    layers.m_FaceOnly = true;
     FontPackDecorationVertices(decoration, layers);
 }
 
@@ -464,11 +486,18 @@ static void ResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
                                         const TextGlyphRenderData&    render_data,
                                         GlyphLayerRenderData*         layer_data)
 {
-    const bool    has_base_outline = (config.m_BaseLayerMask & FONT_RENDER_LAYER_OUTLINE) != 0;
-    const bool    has_base_shadow = (config.m_BaseLayerMask & FONT_RENDER_LAYER_SHADOW) != 0;
-    const bool    markup_outline = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0 && render_data.m_OutlineWidth > 0.0f;
+    const bool    use_rich_text = config.m_Layout->m_UseRichText;
+    const bool    has_base_outline = !use_rich_text &&
+                                     ((config.m_BaseLayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 || config.m_OutlineWidth > 0.0f);
+    const bool    has_base_shadow = !use_rich_text &&
+                                    ((config.m_BaseLayerMask & FONT_RENDER_LAYER_SHADOW) != 0 || config.m_BaseShadowAlpha > 0.0f);
+    const bool    has_explicit_outline_width = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0;
+    const bool    markup_outline = use_rich_text &&
+                                   (render_data.m_StyleFlags & OUTLINE_STYLE_FLAGS) != 0 &&
+                                   (!has_explicit_outline_width || render_data.m_OutlineWidth > 0.0f) &&
+                                   config.m_OutlineWidth > 0.0f;
     const float   outline_alpha = !has_base_outline && !markup_outline ? 0.0f : config.m_OutlineColor.getW() * render_data.m_OutlineColor[3];
-    const bool    markup_outline_color = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
+    const bool    markup_outline_color = markup_outline && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
     const Vector4 outline_color(markup_outline_color ? render_data.m_OutlineColor[0] : config.m_OutlineColor.getX(),
                                 markup_outline_color ? render_data.m_OutlineColor[1] : config.m_OutlineColor.getY(),
                                 markup_outline_color ? render_data.m_OutlineColor[2] : config.m_OutlineColor.getZ(),
@@ -476,18 +505,27 @@ static void ResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
     layer_data->m_SdfOutline = config.m_SdfOutline;
     layer_data->m_OutlineWidth = 0.0f;
 
-    if ((render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) && config.m_SdfSpread > 0.0f)
+    if (markup_outline)
     {
-        const float width = dmMath::Min(render_data.m_OutlineWidth / glyph.m_RenderScale, config.m_SdfSpread);
-        layer_data->m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * width / config.m_SdfSpread;
-        layer_data->m_OutlineWidth = render_data.m_OutlineWidth;
+        const float requested_width = has_explicit_outline_width ? render_data.m_OutlineWidth / glyph.m_RenderScale : config.m_OutlineWidth;
+        const float width = config.m_IsSdf ? dmMath::Min(requested_width, config.m_OutlineWidth) : config.m_OutlineWidth;
+        if (config.m_SdfSpread > 0.0f)
+        {
+            layer_data->m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * width / config.m_SdfSpread;
+        }
+        layer_data->m_OutlineWidth = width * glyph.m_RenderScale;
     }
-    else if (has_base_outline && config.m_SdfSpread > 0.0f)
+    else if (has_base_outline)
     {
-        layer_data->m_OutlineWidth = dmMath::Max(0.0f, config.m_SdfEdge - config.m_SdfOutline) * config.m_SdfSpread * glyph.m_RenderScale / (191.0f / 255.0f);
+        float width = config.m_OutlineWidth;
+        if (width <= 0.0f && config.m_SdfSpread > 0.0f)
+        {
+            width = dmMath::Max(0.0f, config.m_SdfEdge - config.m_SdfOutline) * config.m_SdfSpread / (191.0f / 255.0f);
+        }
+        layer_data->m_OutlineWidth = width * glyph.m_RenderScale;
     }
 
-    const bool    markup_shadow = (render_data.m_StyleFlags & SHADOW_STYLE_FLAGS) != 0;
+    const bool    markup_shadow = use_rich_text && (render_data.m_StyleFlags & SHADOW_STYLE_FLAGS) != 0;
     float         shadow_alpha = 0.0f;
     if (markup_shadow)
     {
@@ -497,24 +535,37 @@ static void ResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
     {
         shadow_alpha = config.m_ShadowColor.getW() * config.m_BaseShadowAlpha * render_data.m_ShadowColor[3];
     }
-    const bool    markup_shadow_color = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
+    const bool    markup_shadow_color = markup_shadow && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
     const Vector4 shadow_color(markup_shadow_color ? render_data.m_ShadowColor[0] : config.m_ShadowColor.getX(),
                                markup_shadow_color ? render_data.m_ShadowColor[1] : config.m_ShadowColor.getY(),
                                markup_shadow_color ? render_data.m_ShadowColor[2] : config.m_ShadowColor.getZ(),
                                shadow_alpha);
-    layer_data->m_SdfShadow = !has_base_shadow && markup_shadow ? 1.0f : config.m_SdfShadow;
+    layer_data->m_SdfShadow = config.m_SdfShadow;
 
-    if (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR)
+    if (markup_shadow)
     {
-        const float blur = render_data.m_ShadowBlur / glyph.m_RenderScale;
+        const bool  has_explicit_blur = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR) != 0;
+        const float requested_blur = has_explicit_blur ? render_data.m_ShadowBlur / glyph.m_RenderScale : config.m_ShadowBlur;
 
-        if (blur <= 0.0f)
+        const bool shadow_has_hidden_outline = config.m_ShadowIncludesOutline && !markup_outline;
+        const bool use_face_coverage = requested_blur <= 0.0f || config.m_ShadowBlur <= 0.0f || shadow_has_hidden_outline;
+        if (use_face_coverage)
         {
-            layer_data->m_SdfShadow = 1.0f;
+            layer_data->m_SdfShadow = config.m_SdfEdge;
         }
-        else if (has_base_shadow && config.m_ShadowBlur > 0.0f && blur < config.m_ShadowBlur && config.m_SdfSpread > 0.0f)
+        else if (config.m_SdfSpread > 0.0f)
         {
+            const float blur = dmMath::Min(requested_blur, config.m_ShadowBlur);
             layer_data->m_SdfShadow = config.m_SdfEdge - (191.0f / 255.0f) * blur / config.m_SdfSpread;
+        }
+
+        // Rich distance-field shadows are derived from face distance, not the
+        // remapped shadow channel, which can include the configured outline.
+        // Bitmap fonts can only select face coverage for crisp shadows because
+        // their positive blur is already baked into the shadow channel.
+        if (config.m_IsSdf || use_face_coverage)
+        {
+            layer_data->m_SdfShadow = EncodeFaceShadowThreshold(layer_data->m_SdfShadow);
         }
     }
 
@@ -546,13 +597,14 @@ static void SetVertexLayerParams(const FontLayoutVertexConfig& config,
     params->m_SdfEdge = config.m_SdfEdge;
     params->m_SdfOutline = render_data.m_SdfOutline;
     params->m_SdfSmoothing = config.m_SdfSmoothing / render_scale;
-    // Bitmap shaders do not otherwise use this value. A negative value tells
-    // the built-in shader that the atlas has no baked shadow channel and that
-    // shadow layers should reuse the face coverage instead.
-    params->m_SdfShadow = config.m_ShadowUsesFaceCoverage ? -1.0f : render_data.m_SdfShadow;
+    // Values above the legacy [0, 1] range tell the built-in shaders to reuse
+    // face coverage. Keeping the encoding positive makes old custom shaders
+    // fall back to their previous outline-shaped shadow instead of overfilling.
+    params->m_SdfShadow = config.m_ShadowUsesFaceCoverage ? EncodeFaceShadowThreshold(config.m_SdfEdge) : render_data.m_SdfShadow;
     params->m_ShadowX = render_data.m_ShadowX;
     params->m_ShadowY = render_data.m_ShadowY;
     params->m_LayerCount = layer_count;
+    params->m_FaceOnly = config.m_Layout->m_UseRichText;
 }
 
 uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,

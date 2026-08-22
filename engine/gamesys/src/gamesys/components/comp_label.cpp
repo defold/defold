@@ -247,6 +247,7 @@ namespace dmGameSystem
         HTextLayout  layout = 0;
         HMarkup      markup = 0;
         MarkupResult markup_result = MarkupCreate(component->m_Text, strlen(component->m_Text), &markup, 0);
+        const bool   use_rich_text = markup_result != MARKUP_RESULT_UNSUPPORTED;
         TextResult   result = TEXT_RESULT_ERROR;
 
         if (markup_result == MARKUP_RESULT_OK)
@@ -275,6 +276,8 @@ namespace dmGameSystem
                 TextLayoutRelease(layout);
             return 0;
         }
+
+        ((TextLayout*)layout)->m_UseRichText = use_rich_text;
 
         component->m_TextLayout = layout;
         component->m_TextLayoutFontVersion = font_version;

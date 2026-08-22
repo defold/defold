@@ -73,6 +73,7 @@ namespace dmRender
         float                   m_ShadowX;
         float                   m_ShadowY;
         float                   m_ShadowBlur;
+        float                   m_OutlineWidth;
         float                   m_MaxAscent;
         float                   m_MaxDescent;
         float                   m_SdfSpread;

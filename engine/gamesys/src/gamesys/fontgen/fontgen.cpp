@@ -367,12 +367,8 @@ static bool GenerateGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t j
     float stbtt_padding = ctx->m_StbttDefaultSdfPadding + font_info->m_OutlineWidth;
 
     // See Fontc.java. If we have shadow blur, we need 3 channels
-    bool has_shadow = font_info->m_ShadowAlpha > 0.0f && font_info->m_ShadowBlur > 0.0f;
-
-    if (dmRenderDDF::MODE_MULTI_LAYER == font_info->m_RenderMode)
-    {
-        stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
-    }
+    bool has_shadow = font_info->m_ShadowBlur > 0.0f;
+    stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
 
     JobItem* item = &jobdata->m_Items[jobindex];
 

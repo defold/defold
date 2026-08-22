@@ -1343,6 +1343,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             layers.m_ShadowX = glyph_shadow_x;
             layers.m_ShadowY = glyph_shadow_y;
             layers.m_LayerCount = layer_count;
+            layers.m_FaceOnly = false;
             FontPackGlyphVertices(glyph_params, layers);
             for (uint32_t layer = 0; layer < layer_count; ++layer)
                 ClipPackedQuad(viewer, *vertex_index + layer * layer_stride, clip_box);

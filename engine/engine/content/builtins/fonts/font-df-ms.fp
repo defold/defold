@@ -46,8 +46,13 @@ void main()
     mediump float distance        = df_sample.x;
     mediump float distance_shadow = df_sample.z;
 
-    // If there is no blur, the shadow should behave in the same way as the outline.
-    mediump float sdf_shadow_as_outline = floor(sdf_shadow);
+    // Values above the legacy [0, 1] range select face distance. The encoded
+    // threshold is 1.5 + 0.5 * threshold.
+    mediump float shadow_uses_face_coverage = step(1.25, sdf_shadow);
+    distance_shadow = mix(distance_shadow, distance, shadow_uses_face_coverage);
+    sdf_shadow = mix(sdf_shadow, (sdf_shadow - 1.5) * 2.0, shadow_uses_face_coverage);
+    // Legacy crisp shadows use the outline threshold.
+    mediump float sdf_shadow_as_outline = floor(sdf_shadow) * (1.0 - shadow_uses_face_coverage);
     // If this is a single layer font, we must make sure to not mix alpha between layers.
     mediump float sdf_is_single_layer   = var_layer_mask.a;
 

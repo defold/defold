@@ -340,7 +340,7 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
         }
     }
 
-    const uint8_t one_layer = layer_count == 1 ? 1 : 0;
+    const uint8_t one_layer = layer_count == 1 && !layers.m_FaceOnly ? 1 : 0;
     for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
     {
         SET_MASK(face_vertices[i], 1, one_layer, one_layer)
@@ -458,8 +458,9 @@ void FontPackDecorationVertices(const FontDecorationVertexParams& params, const 
     const float layer_pattern_start[3] = { pattern_start, pattern_start - outline_width * cycles_per_unit, pattern_start };
     const float layer_pattern_end[3] = { pattern_end, pattern_end + outline_width * cycles_per_unit, pattern_end };
     FontGlyphVertex* layer_vertices[3] = { face_vertices, outline_vertices, shadow_vertices };
+    const float      single_layer_effects = layer_count == 1 && !layers.m_FaceOnly ? 1.0f : 0.0f;
     const float      solid_masks[3][3] = {
-        { 1.0f, layer_count == 1 ? 1.0f : 0.0f, layer_count == 1 ? 1.0f : 0.0f },
+        { 1.0f, single_layer_effects, single_layer_effects },
         { 0.0f, 1.0f, 0.0f },
         { 0.0f, 0.0f, 1.0f },
     };

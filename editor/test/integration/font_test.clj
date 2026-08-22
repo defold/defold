@@ -63,41 +63,89 @@
       (is (= 1.0 (effective-sdf-scale 0.0 identity-transform)))
       (is (= 2.0 (effective-sdf-scale 0.0 scaled-transform))))))
 
-(deftest native-entry-preserves-shadow-alpha-components
+(deftest native-entry-preserves-rich-effect-alpha
   (let [make-native-entry-state (ns-resolve 'editor.font 'make-native-entry-state)
         identity-transform (doto (Matrix4d.)
                              (.setIdentity))
-        native-entry-state (make-native-entry-state
-                             {:alpha 1.0
-                              :outline-alpha 1.0
-                              :shadow-alpha 0.0}
-                             {:color [1.0 1.0 1.0 1.0]
-                              :outline [0.0 0.0 0.0 1.0]
-                              :shadow [0.0 0.0 0.0 0.5]
-                              :text-layout {:layout-width 100.0
-                                            :line-break false
-                                            :max-ascent 20.0
-                                            :native-text "A"
-                                            :text-leading 1.0
-                                            :text-tracking 0.0
-                                            :use-rich-text true}
-                              :world-transform identity-transform})
-        ^FontRenderer$Properties properties (:properties native-entry-state)]
-    (is (= 0.5 (double (aget ^floats (.-shadowColor properties) 3))))
-    (is (zero? (double (.-baseShadowAlpha properties))))))
+        font-map {:alpha 1.0
+                  :outline-alpha 0.0
+                  :shadow-alpha 0.0}
+        entry {:color [1.0 1.0 1.0 1.0]
+               :outline [0.0 0.0 0.0 0.5]
+               :shadow [0.0 0.0 0.0 0.5]
+               :text-layout {:layout-width 100.0
+                             :line-break false
+                             :max-ascent 20.0
+                             :native-text "A"
+                             :text-leading 1.0
+                             :text-tracking 0.0
+                             :use-rich-text true}
+               :world-transform identity-transform}
+        rich-entry-state (make-native-entry-state font-map entry)
+        legacy-entry-state (make-native-entry-state font-map (assoc-in entry [:text-layout :use-rich-text] false))
+        ^FontRenderer$Properties rich-properties (:properties rich-entry-state)
+        ^FontRenderer$Properties legacy-properties (:properties legacy-entry-state)]
+    (is (= 0.5 (double (aget ^floats (.-outlineColor rich-properties) 3))))
+    (is (= 0.5 (double (aget ^floats (.-shadowColor rich-properties) 3))))
+    (is (zero? (double (.-baseShadowAlpha rich-properties))))
+    (is (zero? (double (aget ^floats (.-outlineColor legacy-properties) 3))))))
 
-(deftest rich-text-shadow-capability-validation
+(deftest rich-text-layer-capability-validation
   (let [bm-font-error (font/markup-error 0 :text
                                          {:rich-text-render-kind :bitmap
                                           :use-rich-text true}
                                          "<shadow x=1>Text</shadow>")
-        unreserved-blur-error (font/markup-error 0 :text
-                                                {:rich-text-render-kind :distance-field
-                                                 :rich-text-shadow-blur-capacity 0.0
+        bitmap-outline-error (font/markup-error 0 :text
+                                                {:outline-width 3.0
+                                                 :rich-text-render-kind :defold
                                                  :use-rich-text true}
-                                                "<shadow blur='2'>Text</shadow>")]
+                                                "<outline size='2'>Text</outline>")
+        bitmap-hidden-outline-shadow-error (font/markup-error 0 :text
+                                                               {:outline-alpha 1.0
+                                                                :outline-width 3.0
+                                                                :rich-text-render-kind :defold
+                                                                :rich-text-shadow-blur-capacity 4.0
+                                                                :shadow-alpha 1.0
+                                                                :use-rich-text true}
+                                                               "<shadow x='2'>Text</shadow>")
+        unreserved-outline-error (font/markup-error 0 :text
+                                                    {:outline-width 0.0
+                                                     :rich-text-render-kind :distance-field
+                                                     :use-rich-text true}
+                                                    "<outline color=#FFFFFFFF>Text</outline>")
+        disabled-outline-error (font/markup-error 0 :text
+                                                  {:outline-width 0.0
+                                                   :rich-text-render-kind :distance-field
+                                                   :use-rich-text true}
+                                                  "<outline size='0'>Text</outline>")
+        mixed-outline-error (font/markup-error 0 :text
+                                               {:outline-width 0.0
+                                                :rich-text-render-kind :distance-field
+                                                :use-rich-text true}
+                                               "<outline color=#FFFFFFFF>A</outline><outline size='0'>B</outline>")
+        distance-field-outline-error (font/markup-error 0 :text
+                                                        {:outline-width 2.0
+                                                         :rich-text-render-kind :distance-field
+                                                         :use-rich-text true}
+                                                        "<outline size='4'>Text</outline>")
+        unreserved-blur-error (font/markup-error 0 :text
+                                                 {:rich-text-render-kind :distance-field
+                                                  :rich-text-shadow-blur-capacity 0.0
+                                                  :use-rich-text true}
+                                                 "<shadow blur='2'>Text</shadow>")]
     (is (g/error-warning? bm-font-error))
     (is (s/includes? (test-util/localization (g/error-message bm-font-error)) "not supported by BMFont"))
+    (is (g/error-warning? bitmap-outline-error))
+    (is (s/includes? (test-util/localization (g/error-message bitmap-outline-error)) "fixed for bitmap fonts"))
+    (is (g/error-warning? bitmap-hidden-outline-shadow-error))
+    (is (s/includes? (test-util/localization (g/error-message bitmap-hidden-outline-shadow-error)) "spans without an outline tag render crisp"))
+    (is (g/error-warning? unreserved-outline-error))
+    (is (s/includes? (test-util/localization (g/error-message unreserved-outline-error)) "will not be rendered"))
+    (is (nil? disabled-outline-error))
+    (is (g/error-warning? mixed-outline-error))
+    (is (s/includes? (test-util/localization (g/error-message mixed-outline-error)) "will not be rendered"))
+    (is (g/error-warning? distance-field-outline-error))
+    (is (s/includes? (test-util/localization (g/error-message distance-field-outline-error)) "will be clamped"))
     (is (g/error-warning? unreserved-blur-error))
     (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))))
 
@@ -133,7 +181,8 @@
         (is (= "<color=#FF0000>A</color>" (:native-text markup-layout)))
         (is (true? (:use-rich-text markup-layout)))
         (is (= "A" (:native-text invalid-layout)))
-        (is (false? (:use-rich-text invalid-layout)))))))
+        (is (= "A" (:native-markup invalid-layout)))
+        (is (true? (:use-rich-text invalid-layout)))))))
 
 (deftest static-native-preview-preserves-markup-attributes-and-entities
   (test-util/with-loaded-project
@@ -161,14 +210,16 @@
         (is (= preview-text (:native-text text-layout)))
         (is (< 1 (:line-count text-layout)))))))
 
-(deftest native-preview-invalid-markup-falls-back-to-plain-text
+(deftest native-preview-invalid-markup-remains-rich-text
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")
           font-map (g/node-value font-node :font-map)
           markup-layout (font/layout-text font-map "<color=#ff0000>red</color>" false 0 0 1)
           plain-layout (font/layout-text font-map "<>" false 0 0 1)]
       (is (true? (:use-rich-text markup-layout)))
-      (is (false? (:use-rich-text plain-layout))))))
+      (is (= "<>" (:native-text plain-layout)))
+      (is (= "&lt;&gt;" (:native-markup plain-layout)))
+      (is (true? (:use-rich-text plain-layout))))))
 
 (defn- font-map-uses-text-shaping? [font-node]
   (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
@@ -253,16 +304,17 @@
         (is (s/includes? (test-util/localization (g/error-message unknown-constant-error))
                          "unknown value for attribute"))))))
 
-(deftest native-shadow-blur-does-not-depend-on-face-alpha
+(deftest native-shadow-blur-capacity-does-not-depend-on-alpha
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")]
       (g/transact {:undoable false}
         [(g/set-property font-node :alpha 0.0)
-         (g/set-property font-node :shadow-alpha 1.0)
+         (g/set-property font-node :shadow-alpha 0.0)
          (g/set-property font-node :shadow-blur 4.0)])
       (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
                                                        [:native-renderer-spec :render-params])]
-        (is (= 4.0 (double (.-shadowBlur render-params))))))))
+        (is (= 4.0 (double (.-shadowBlur render-params))))
+        (is (true? (.-hasShadow render-params)))))))
 
 (deftest load-material-render-data
   (test-util/with-loaded-project

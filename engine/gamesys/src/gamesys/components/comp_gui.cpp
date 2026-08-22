@@ -1698,6 +1698,7 @@ namespace dmGameSystem
         HTextLayout  layout = 0;
         HMarkup      markup = 0;
         MarkupResult markup_result = MarkupCreate(safe_text, strlen(safe_text), &markup, 0);
+        const bool   use_rich_text = markup_result != MARKUP_RESULT_UNSUPPORTED;
         TextResult   result = TEXT_RESULT_ERROR;
 
         if (markup_result == MARKUP_RESULT_OK)
@@ -1730,6 +1731,8 @@ namespace dmGameSystem
             dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
             return 0;
         }
+
+        ((TextLayout*)layout)->m_UseRichText = use_rich_text;
 
         dmGui::TextLayout new_text_layout = {};
         new_text_layout.m_Handle = layout;

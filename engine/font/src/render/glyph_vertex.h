@@ -110,6 +110,7 @@ struct FontVertexLayerParams
     float                   m_ShadowX;
     float                   m_ShadowY;
     uint32_t                m_LayerCount;
+    bool                    m_FaceOnly;
 };
 
 // Atlas placement and local-space geometry for one glyph quad.

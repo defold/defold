@@ -1009,12 +1009,14 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
 bool TextLayoutHasMarkupOutline(HTextLayout layout)
 {
     TextLayout* internal = (TextLayout*)layout;
+    const uint32_t outline_flags = TEXT_RENDER_STYLE_OUTLINE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH;
 
     for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
     {
         const TextRenderStyle& style = internal->m_Styles[i];
 
-        if ((style.m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) && style.m_OutlineWidth > 0.0f)
+        if ((style.m_Flags & outline_flags) != 0 &&
+            ((style.m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) == 0 || style.m_OutlineWidth > 0.0f))
         {
             return true;
         }

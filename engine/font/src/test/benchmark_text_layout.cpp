@@ -397,10 +397,12 @@ static bool PrepareVertexGeneration(HTextLayout layout, const TextLayoutSettings
     context->m_Config.m_SdfSmoothing = 0.25f / 6.0f;
     context->m_Config.m_SdfShadow = 1.0f;
     context->m_Config.m_SdfSpread = 6.0f;
+    context->m_Config.m_OutlineWidth = 6.0f;
     context->m_Config.m_CacheCellMaxAscent = max_ascent;
     context->m_Config.m_CacheCellPadding = 1;
     context->m_Config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
     context->m_Config.m_MetricsFromTtf = true;
+    context->m_Config.m_IsSdf = true;
     context->m_Config.m_RenderDecorations = true;
     context->m_Config.m_RenderObjectOutlines = false;
     context->m_Config.m_ResolveGlyphsForMetrics = false;

@@ -41,6 +41,7 @@
             [editor.workspace :as workspace]
             [schema.core :as schema]
             [service.log :as log]
+            [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Layout FontRenderer$MarkupError FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
@@ -506,19 +507,24 @@
   [font-map text line-break? max-width text-tracking text-leading]
   (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
-        [^FontRenderer$Layout layout use-rich-text native-text]
+        [^FontRenderer$Layout layout use-rich-text native-text native-markup]
         (if-not (.-use-rich-text renderer-spec)
           (let [native-text (restrict-native-preview-text renderer-spec text)]
-            [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false native-text])
+            [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false native-text nil])
           (let [^FontRenderer$Layout markup-layout (.measureMarkup renderer text line-break? (float max-width) (float text-leading) (float text-tracking))]
             (if (.-markupError markup-layout)
               (let [native-text (restrict-native-preview-text renderer-spec text)]
-                [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false native-text])
+                [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))
+                 true
+                 native-text
+                 (s/escape native-text {\& "&amp;"
+                                        \< "&lt;"
+                                        \> "&gt;"})])
               (let [native-text (restrict-native-preview-markup renderer-spec text)
                     ^FontRenderer$Layout layout (if (= text native-text)
                                                   markup-layout
                                                   (.measureMarkup renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)))]
-                [layout true native-text]))))]
+                [layout true native-text native-text]))))]
     {:width (double (.-width layout))
      :height (double (.-height layout))
      :line-count (long (.-lineCount layout))
@@ -526,6 +532,7 @@
      :max-descent (double (.-maxDescent layout))
      :text text
      :native-text native-text
+     :native-markup native-markup
      :use-rich-text use-rich-text
      :line-break line-break?
      :layout-width max-width
@@ -533,6 +540,8 @@
      :text-leading text-leading}))
 
 (def ^:private markup-layer-tag-pattern #"<(?:outline|shadow)(?:\s[^>]*)?>")
+(def ^:private markup-outline-tag-pattern #"<outline(?:\s[^>]*)?>")
+(def ^:private markup-outline-size-pattern #"(?:^|\s)size=(?:'([^']*)'|\"([^\"]*)\"|([^\s>]+))")
 (def ^:private markup-shadow-tag-pattern #"<shadow(?:\s[^>]*)?>")
 (def ^:private markup-shadow-blur-pattern #"(?:^|\s)blur=(?:'([^']*)'|\"([^\"]*)\"|([^\s>]+))")
 
@@ -541,10 +550,16 @@
   (let [has-layer-tag (boolean (re-find markup-layer-tag-pattern text))
         ^Matcher shadow-matcher (re-matcher markup-shadow-tag-pattern text)]
     (loop [has-shadow-tag false
+           has-default-shadow-blur false
            max-shadow-blur 0.0]
-      (if (.find shadow-matcher)
+      (if-not (.find shadow-matcher)
+        {:has-layer-tag has-layer-tag
+         :has-shadow-tag has-shadow-tag
+         :has-default-shadow-blur has-default-shadow-blur
+         :max-shadow-blur max-shadow-blur}
         (let [^Matcher blur-matcher (re-matcher markup-shadow-blur-pattern (.group shadow-matcher))
-              shadow-blur (if (.find blur-matcher)
+              has-blur (.find blur-matcher)
+              shadow-blur (if has-blur
                             (try
                               (Double/parseDouble (or (.group blur-matcher 1)
                                                       (.group blur-matcher 2)
@@ -552,24 +567,82 @@
                               (catch NumberFormatException _
                                 0.0))
                             0.0)]
-          (recur true (double (max max-shadow-blur shadow-blur))))
-        {:has-layer-tag has-layer-tag
-         :has-shadow-tag has-shadow-tag
-         :max-shadow-blur max-shadow-blur}))))
+          (recur true
+                 (or has-default-shadow-blur (not has-blur))
+                 (double (max max-shadow-blur shadow-blur))))))))
 
-(defn- markup-shadow-capability-error
+(defn- markup-outline-info
+  [^String text]
+  (let [^Matcher outline-matcher (re-matcher markup-outline-tag-pattern text)]
+    (loop [has-outline-tag false
+           has-default-outline false
+           outline-sizes []]
+      (if-not (.find outline-matcher)
+        {:has-outline-tag has-outline-tag
+         :has-default-outline has-default-outline
+         :outline-sizes outline-sizes}
+        (let [^Matcher size-matcher (re-matcher markup-outline-size-pattern (.group outline-matcher))
+              has-size (.find size-matcher)
+              outline-size (when has-size
+                             (try
+                               (Double/parseDouble (or (.group size-matcher 1)
+                                                       (.group size-matcher 2)
+                                                       (.group size-matcher 3)))
+                               (catch NumberFormatException _
+                                 nil)))]
+          (recur true
+                 (or has-default-outline (not has-size))
+                 (cond-> outline-sizes
+                   (some? outline-size) (conj outline-size))))))))
+
+(defn- markup-layer-capability-error
   [node-id property font-map text]
-  (let [{:keys [has-layer-tag has-shadow-tag max-shadow-blur]} (markup-shadow-info text)
+  (let [{:keys [has-layer-tag has-shadow-tag has-default-shadow-blur max-shadow-blur]} (markup-shadow-info text)
+        {:keys [has-outline-tag has-default-outline outline-sizes]} (markup-outline-info text)
+        requests-outline (and has-outline-tag
+                              (or has-default-outline
+                                  (coll/any? #(pos? (double %)) outline-sizes)))
         render-kind (:rich-text-render-kind font-map)
-        blur-capacity (double (:rich-text-shadow-blur-capacity font-map 0.0))]
+        outline-capacity (double (:outline-width font-map 0.0))
+        outline-alpha (double (:outline-alpha font-map 0.0))
+        shadow-alpha (double (:shadow-alpha font-map 0.0))
+        blur-capacity (double (:rich-text-shadow-blur-capacity font-map 0.0))
+        bitmap-shadow-includes-outline (and (pos? outline-capacity)
+                                            (pos? outline-alpha)
+                                            (or (pos? shadow-alpha)
+                                                (pos? blur-capacity)))
+        requests-blurred-shadow (and has-shadow-tag
+                                     (or (pos? max-shadow-blur)
+                                         (and has-default-shadow-blur
+                                              (pos? blur-capacity))))]
     (cond
       (and (= :bitmap render-kind) has-layer-tag)
       (g/->error node-id property :warning text
                  "Rich-text outline and shadow tags are not supported by BMFont fonts.")
 
+      (and (#{:defold :distance-field} render-kind) requests-outline (zero? outline-capacity))
+      (g/->error node-id property :warning text
+                 "This font has no reserved data for rich-text outlines; the outline will not be rendered.")
+
+      (and (= :defold render-kind) bitmap-shadow-includes-outline requests-blurred-shadow)
+      (g/->error node-id property :warning text
+                 "This bitmap font's shadow blur includes its outline; rich-text shadow spans without an outline tag render crisp.")
+
       (and (= :defold render-kind) has-shadow-tag (pos? max-shadow-blur))
       (g/->error node-id property :warning text
                  "Per-span shadow blur is not supported by bitmap fonts; the shadow uses the available bitmap coverage.")
+
+      (and (= :defold render-kind)
+           (coll/any? #(and (pos? (double %))
+                            (not= outline-capacity (double %)))
+                      outline-sizes))
+      (g/->error node-id property :warning text
+                 "Per-span outline size is fixed for bitmap fonts; the outline uses the width reserved by the font resource.")
+
+      (and (= :distance-field render-kind)
+           (coll/any? #(> (double %) outline-capacity) outline-sizes))
+      (g/->error node-id property :warning text
+                 "The requested rich-text outline exceeds the width reserved by the font resource and will be clamped.")
 
       (and (= :distance-field render-kind) (pos? max-shadow-blur) (zero? blur-capacity))
       (g/->error node-id property :warning text
@@ -593,7 +666,7 @@
                               :column column
                               :cursor-range (code.data/line-number->CursorRange line column)
                               :line line})))))
-          (markup-shadow-capability-error node-id property font-map text)))))
+          (markup-layer-capability-error node-id property font-map text)))))
 
 (defn measure
   ([font-map text]
@@ -826,6 +899,7 @@
 (defn- make-native-entry-state
   [font-map entry]
   (let [text-layout (:text-layout entry)
+        use-rich-text (:use-rich-text text-layout)
         alpha (double (:alpha font-map 1.0))
         outline-alpha (double (:outline-alpha font-map 1.0))
         shadow-alpha (double (:shadow-alpha font-map 1.0))
@@ -839,14 +913,16 @@
         tracking (float (:text-tracking text-layout))
         vertical-align (int (if box-height vertical-align 0))
         face-color (mapv #(float (* alpha %)) (:color entry))
-        outline-color (mapv float (update (:outline entry) 3 #(* outline-alpha %)))
+        outline-color (mapv float (if use-rich-text
+                                    (:outline entry)
+                                    (update (:outline entry) 3 #(* outline-alpha %))))
         shadow-color (mapv float (:shadow entry))
         sdf-scale (float (effective-sdf-scale (double (:sdf-screen-scale entry 0.0))
-                                               (:world-transform entry)))
+                                              (:world-transform entry)))
         ^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         text (or (:native-text text-layout)
                  (restrict-native-preview-text renderer-spec (:text text-layout)))
-        use-rich-text (:use-rich-text text-layout)
+        markup (:native-markup text-layout)
         transform (matrix->float-array (entry-transform entry))
         properties (FontRenderer$Properties.)]
     (set! (.-lineBreak properties) ^boolean line-break)
@@ -866,17 +942,18 @@
     (set! (.-sdfScale properties) sdf-scale)
     {:properties properties
      :text text
+     :markup markup
      :use-rich-text use-rich-text
      :transform transform
-     :atlas-key [use-rich-text line-break width tracking text]
+     :atlas-key [use-rich-text line-break width tracking text markup]
      :state-key [use-rich-text line-break width height leading tracking align vertical-align
-                 face-color outline-color shadow-color shadow-alpha sdf-scale text]}))
+                 face-color outline-color shadow-color shadow-alpha sdf-scale text markup]}))
 
 (defn- apply-native-entry-state!
   [^FontRenderer native-renderer native-entry-state]
   (.setProperties native-renderer ^FontRenderer$Properties (:properties native-entry-state))
-  (if (:use-rich-text native-entry-state)
-    (.setMarkup native-renderer ^String (:text native-entry-state))
+  (if-let [markup (:markup native-entry-state)]
+    (.setMarkup native-renderer ^String markup)
     (.setText native-renderer ^String (:text native-entry-state))))
 
 (defn- generate-native-texture!
@@ -1105,9 +1182,7 @@
   (let [render-params (FontRenderer$Params.)
         measure-params (FontRenderer$Params.)
         output-bitmap (= :defold type)
-        shadow-blur (double (if (pos? ^double (:shadow-alpha font-desc))
-                              (:shadow-blur font-desc)
-                              0.0))
+        shadow-blur (double (:shadow-blur font-desc))
         outline-width (double (:outline-width font-desc))
         sdf-padding (+ (double FontRenderer/DEFAULT_SDF_BASE_PADDING)
                        outline-width
@@ -1130,7 +1205,8 @@
     (set! (.-antialias render-params) (protobuf/int->boolean (:antialias font-desc)))
     (set! (.-hasOutline render-params) (boolean (and (pos? ^double (:outline-width font-desc))
                                                       (pos? ^double (:outline-alpha font-desc)))))
-    (set! (.-hasShadow render-params) (boolean (pos? ^double (:shadow-alpha font-desc))))
+    (set! (.-hasShadow render-params) (boolean (or (pos? ^double (:shadow-alpha font-desc))
+                                                   (pos? shadow-blur))))
     (set! (.-useTextShaping render-params) (boolean (and use-font-layout runtime-generation)))
     (set! (.-size measure-params) (.-size render-params))
     (set! (.-cacheWidth measure-params) 1)
@@ -1176,13 +1252,11 @@
                              (not-empty))]
         (g/error-aggregate errors))
       (try
-        (let [shadow-blur-capacity (double (if (pos? ^double (:shadow-alpha pb-msg))
-                                             (:shadow-blur pb-msg)
-                                             0.0))
+        (let [shadow-blur-capacity (double (:shadow-blur pb-msg))
               font-map (assoc (compile-font pb-msg font font-resource-map)
-                              :rich-text-render-kind type
-                              :rich-text-shadow-blur-capacity shadow-blur-capacity
-                              :use-rich-text use-rich-text)]
+                         :rich-text-render-kind type
+                         :rich-text-shadow-blur-capacity shadow-blur-capacity
+                         :use-rich-text use-rich-text)]
           (cond-> font-map
             (or (= :defold type)
                 (= :distance-field type))

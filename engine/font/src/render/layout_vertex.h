@@ -46,6 +46,7 @@ struct FontLayoutVertexConfig
     float                  m_SdfSmoothing;
     float                  m_SdfShadow;
     float                  m_SdfSpread;
+    float                  m_OutlineWidth;
     float                  m_ShadowX;
     float                  m_ShadowY;
     float                  m_ShadowBlur;
@@ -58,8 +59,10 @@ struct FontLayoutVertexConfig
     uint32_t               m_VerticalAlign;
     uint8_t                m_BaseLayerMask;
     bool                   m_MetricsFromTtf;
+    bool                   m_IsSdf;
     bool                   m_IsBMFont;
     bool                   m_ShadowUsesFaceCoverage;
+    bool                   m_ShadowIncludesOutline;
     bool                   m_RenderDecorations;
     bool                   m_RenderObjectOutlines;
     bool                   m_ResolveGlyphsForMetrics;

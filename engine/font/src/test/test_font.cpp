@@ -431,6 +431,38 @@ TEST_F(FontTest, GenerateBitmapGlyphWithBlurredOutlineShadow)
     FontFreeGlyph(m_Font, &blurred_glyph);
 }
 
+TEST_F(FontTest, GenerateBitmapGlyphReservesInvisibleOutlineWithoutInflatingShadow)
+{
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    params.m_SdfPadding = 8.0f;
+    params.m_OutlineWidth = 2.0f;
+    params.m_OutputBitmap = true;
+    params.m_HasOutline = false;
+    params.m_HasShadow = true;
+
+    FontGlyph glyph;
+    const uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
+    ASSERT_EQ(3u, glyph.m_Bitmap.m_Channels);
+
+    bool found_reserved_outline = false;
+    const uint32_t pixel_count = glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height;
+    for (uint32_t i = 0; i < pixel_count; ++i)
+    {
+        const uint32_t offset = i * 3;
+        const uint8_t  face = glyph.m_Bitmap.m_Data[offset + 0];
+        const uint8_t  outline = glyph.m_Bitmap.m_Data[offset + 1];
+        const uint8_t  shadow = glyph.m_Bitmap.m_Data[offset + 2];
+        ASSERT_EQ(face, shadow);
+        ASSERT_GE(outline, face);
+        found_reserved_outline |= outline > face;
+    }
+    ASSERT_TRUE(found_reserved_outline);
+
+    FontFreeGlyph(m_Font, &glyph);
+}
+
 TEST_F(FontTest, GlyphChannelCountMatchesOutputMode)
 {
     ASSERT_EQ(1u, FontGetGlyphChannelCount(false, false, false, 0.0f));
@@ -581,11 +613,15 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_Width = settings.m_Width;
     config.m_RecipAtlasWidth = 1.0f / 256.0f;
     config.m_RecipAtlasHeight = 1.0f / 256.0f;
+    config.m_SdfEdge = 0.75f;
     config.m_SdfSpread = 6.0f;
+    config.m_OutlineWidth = 2.0f;
+    config.m_ShadowBlur = 2.0f;
     config.m_CacheCellMaxAscent = (uint32_t)glyph.m_Ascent;
     config.m_CacheCellPadding = 1;
     config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
     config.m_MetricsFromTtf = true;
+    config.m_IsSdf = true;
     config.m_ResolveGlyphsForMetrics = true;
 
     FontLayoutVertexMetrics metrics;
@@ -597,14 +633,14 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     ASSERT_EQ(6u,  metrics.m_QuadCount);
     ASSERT_EQ(36u, metrics.m_VertexCount);
 
-    config.m_SdfSpread = 0.0f;
+    config.m_OutlineWidth = 0.0f;
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
     ASSERT_EQ(4u,  metrics.m_FaceQuadCount);
     ASSERT_EQ(0u,  metrics.m_OutlineQuadCount);
     ASSERT_EQ(1u,  metrics.m_ShadowQuadCount);
     ASSERT_EQ(5u,  metrics.m_QuadCount);
     ASSERT_EQ(30u, metrics.m_VertexCount);
-    config.m_SdfSpread = 6.0f;
+    config.m_OutlineWidth = 2.0f;
 
     config.m_IsBMFont = true;
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
@@ -647,7 +683,7 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
 
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
     {
-        ASSERT_EQ(-1.0f, vertices[i].m_SdfParams[3]);
+        ASSERT_EQ(1.875f, vertices[i].m_SdfParams[3]);
     }
 
     config.m_ShadowUsesFaceCoverage = false;
@@ -3513,7 +3549,8 @@ TEST_F(FontTest, SkribidiLayoutResolvesMarkupOutlineColorOnly)
     settings.m_Leading = 1.0f;
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
-    ASSERT_FALSE(TextLayoutHasMarkupOutline(layout));
+    ASSERT_TRUE(TextLayoutHasMarkupOutline(layout));
+    ASSERT_EQ(0.0f, TextLayoutGetMaxMarkupOutlineWidth(layout));
 
     TextLayout* internal = (TextLayout*)layout;
     const TextRenderStyle& style = internal->m_Styles[TextLayoutGetGlyphs(layout)[0].m_StyleIndex];

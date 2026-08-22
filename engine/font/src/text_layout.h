@@ -180,6 +180,7 @@ struct TextLayout
     uint16_t                           m_BaseResolvedSpanCount;
 
     uint16_t                           m_NumValidGlyphs; // TODO: Remove non renderable glyphs
+    bool                               m_UseRichText;
 
     // Used for creating a cell in the glyph image cache texture
     float m_MaxGlyphWidth;

@@ -351,6 +351,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     layout->m_BaseSpanEffectCount = 0;
     layout->m_BaseResolvedSpanCount = 0;
     layout->m_NumValidGlyphs = 0;
+    layout->m_UseRichText = resolved != 0;
     layout->m_ElapsedTime = 0.0;
     layout->m_ReleaseObject = 0;
     layout->m_ObjectContext = 0;

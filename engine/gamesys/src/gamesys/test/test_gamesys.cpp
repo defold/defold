@@ -5284,9 +5284,22 @@ TEST_F(GuiTest, GuiPreparedRichTextLayout)
     ASSERT_NE((HTextLayout)0, rich_text.m_TextLayout);
     ASSERT_EQ(0u, rich_text.m_TextBufferSize);
     ASSERT_EQ(23u, TextLayoutGetGlyphCount(rich_text.m_TextLayout));
+    ASSERT_TRUE(((TextLayout*)rich_text.m_TextLayout)->m_UseRichText);
     const TextGlyph* glyphs = TextLayoutGetGlyphs(rich_text.m_TextLayout);
     ASSERT_NE(glyphs[0].m_MarkupSpanIndex, glyphs[6].m_MarkupSpanIndex);
     ASSERT_GT(glyphs[17].m_RenderScale, glyphs[0].m_RenderScale);
+
+    const char malformed_source[] = "<color=#ff8040>A</size>";
+    dmGui::SetNodeText(scene, node, malformed_source);
+    GuiTextSubmitResult malformed_text = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, malformed_text.m_TextEntryCount);
+    ASSERT_NE((HTextLayout)0, malformed_text.m_TextLayout);
+    ASSERT_EQ(0u, malformed_text.m_TextBufferSize);
+    ASSERT_EQ(sizeof(malformed_source) - 1, TextLayoutGetGlyphCount(malformed_text.m_TextLayout));
+    ASSERT_TRUE(((TextLayout*)malformed_text.m_TextLayout)->m_UseRichText);
+    const TextGlyph* malformed_glyphs = TextLayoutGetGlyphs(malformed_text.m_TextLayout);
+    ASSERT_EQ((uint32_t)'<', malformed_glyphs[0].m_Codepoint);
+    ASSERT_EQ((uint32_t)'>', malformed_glyphs[TextLayoutGetGlyphCount(malformed_text.m_TextLayout) - 1].m_Codepoint);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -5566,6 +5579,13 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
     ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
 
     dmGameObject::PropertyOptions options;
+    const char malformed_text[] = "<color=#ff8040>A</size>";
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar(malformed_text)));
+    HTextLayout malformed_layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, malformed_layout);
+    ASSERT_EQ(sizeof(malformed_text) - 1, TextLayoutGetGlyphCount(malformed_layout));
+    ASSERT_TRUE(((TextLayout*)malformed_layout)->m_UseRichText);
+
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar("Label Label Label")));
 
     dmRender::TextMetrics text_metrics = {};

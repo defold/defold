@@ -38,6 +38,7 @@ public class FontRendererTest {
     private static final int VERTEX_STRIDE = 56;
     private static final int VERTEX_FACE_COLOR_OFFSET = 16;
     private static final int VERTEX_SHADOW_COLOR_OFFSET = 24;
+    private static final int VERTEX_SDF_SHADOW_OFFSET = 40;
     private static final float[] IDENTITY = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
@@ -204,7 +205,10 @@ public class FontRendererTest {
             assertEquals(0,   Byte.toUnsignedInt(vertices.vertices.get(VERTEX_FACE_COLOR_OFFSET + 2)));
 
             assertEquals(0.0f, renderer.measureMarkup("", false, 0.0f, 1.0f, 0.0f).width, 0.001f);
+            renderer.setText("");
+            long emptyTextHash = renderer.hash();
             renderer.setMarkup("");
+            assertTrue(emptyTextHash != renderer.hash());
             assertEquals(0, getVertices(renderer, IDENTITY).vertexCount);
 
             FontRenderer.Layout inlineObject = renderer.measureMarkup("A<sprite/>B", false, 0.0f, 1.0f, 0.0f);
@@ -267,6 +271,7 @@ public class FontRendererTest {
             TestVertices vertices = getVertices(renderer, IDENTITY);
             assertEquals(12, vertices.vertexCount);
             assertEquals(64, Byte.toUnsignedInt(vertices.vertices.get(VERTEX_SHADOW_COLOR_OFFSET + 3)));
+            assertEquals(1.875f, vertices.vertices.getFloat(VERTEX_SDF_SHADOW_OFFSET), 0.0f);
         }
     }
 
