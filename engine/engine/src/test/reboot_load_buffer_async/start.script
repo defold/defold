@@ -36,7 +36,7 @@ function update(self)
         sys.load_buffer_async("/reboot_load_buffer_async/does_not_exist", function()
             exit(1)
         end)
-        timer.delay(0, false, reboot)
+        reboot()
     elseif sys.get_config_string("test.reboot_load_buffer_async_phase") == "second" then
         sys.load_buffer_async("/reboot_load_buffer_async/start.scriptc", function(_, _, result)
             if result.status == sys.REQUEST_STATUS_FINISHED and result.buffer ~= nil then
