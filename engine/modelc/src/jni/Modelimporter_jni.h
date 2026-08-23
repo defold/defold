@@ -291,6 +291,8 @@ struct SceneJNI {
 struct OptionsJNI {
     jclass cls;
     jfieldID dummy;
+    jfieldID loadMaterialsOnly;
+    jfieldID loadMeshMetadata;
 };
 struct TypeInfos {
     Vector3JNI m_Vector3JNI;
