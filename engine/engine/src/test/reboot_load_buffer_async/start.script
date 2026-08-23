@@ -33,11 +33,16 @@ function update(self)
     self.started = true
 
     if sys.get_config_string("test.reboot_load_buffer_async_phase") == "first" then
+        -- load something significantly large that it is not immediately completed
         sys.load_buffer_async("/def-3086/def-3086.texturec", function()
             exit(1)
         end)
+        -- make sure the load request had a chance to start before rebooting
         timer.delay(0, false, reboot)
     elseif sys.get_config_string("test.reboot_load_buffer_async_phase") == "second" then
+        -- load a second resource which is expected to finish loading successfully
+        -- prior to issue-13001 the load crashed because of a lingering job from
+        -- before the reboot
         sys.load_buffer_async("/reboot_load_buffer_async/start.scriptc", function(_, _, result)
             if result.status == sys.REQUEST_STATUS_FINISHED and result.buffer ~= nil then
                 exit(7)
