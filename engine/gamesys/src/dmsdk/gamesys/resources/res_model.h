@@ -21,6 +21,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
+#include <rig/rig_ddf.h>
 
 namespace dmRigDDF
 {
