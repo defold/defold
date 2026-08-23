@@ -17,14 +17,19 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.gltf :as gltf]
             [editor.library :as library]
             [editor.resource :as resource]
             [editor.system :as system]
+            [service.log :as log]
             [util.coll :as coll :refer [pair]]
+            [util.digest :as digest]
             [util.fn :as fn]
             [util.path :as path])
-  (:import [com.dynamo.bob.util Library$Archive Library$Result]
-           [java.io File]))
+  (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
+           [com.dynamo.bob.util Library$Archive Library$Result]
+           [java.io File]
+           [java.util Map]))
 
 (set! *warn-on-reflection* true)
 
@@ -197,21 +202,222 @@
   (assert (every? file-resource-status-map-entry? file-resource-status-map-entries))
   (update snapshot :status-map into file-resource-status-map-entries))
 
-(defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
-  (resource/with-defignore-pred project-directory
-    (let [lib-results (library/cached project-directory library-uris)
-          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)]
-      {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                           (make-directory-snapshot workspace project-directory)
-                                           (make-debugger-snapshot workspace)
-                                           (make-library-snapshots new-library-snapshot-cache lib-results)))
-       :snapshot-cache new-library-snapshot-cache})))
-
 (defn make-resource-map [snapshot]
   (into {}
         (comp resource/xform-recursive-resources
               (coll/pair-map-by resource/proj-path))
         (:resources snapshot)))
+
+(def ^:private gltf-snapshot-cache-key ::gltf-snapshot-cache)
+
+(defn- gltf-source-resource? [resource]
+  (and (= :file (resource/source-type resource))
+       (#{"gltf" "glb"} (resource/type-ext resource))
+       (resource/loaded? resource)))
+
+(defn- resource-statuses [status-map proj-paths]
+  (into {}
+        (map (fn [proj-path]
+               (pair proj-path (get status-map proj-path))))
+        proj-paths))
+
+(defn- gltf-cache-entry-valid? [cache-entry status-map]
+  (and cache-entry
+       (contains? cache-entry :gltf-container-info)
+       (= (:dependency-statuses cache-entry)
+          (resource-statuses status-map (coll/keys (:dependency-statuses cache-entry))))))
+
+(defn- make-gltf-data-resolver [resources-by-proj-path dependency-proj-paths]
+  (gltf/make-data-resolver resources-by-proj-path #(swap! dependency-proj-paths conj %)))
+
+(defn- gltf-asset-info [^GltfContainer$Asset asset]
+  (let [common-info {:index (.getIndex asset)
+                     :name (.getName asset)
+                     :path (.getPath asset)}]
+    (cond
+      (instance? GltfContainer$MaterialAsset asset)
+      (let [^GltfContainer$MaterialAsset material-asset asset
+            ^Map sampler-bindings (.getSamplerBindings material-asset)]
+        (assoc common-info
+          :kind :material
+          :sampler-bindings
+          (mapv
+            (fn [^GltfContainer$SamplerBinding sampler-binding]
+              {:sampler (.getSamplerName sampler-binding)
+               :material-index (.getMaterialIndex sampler-binding)
+               :texture-index (.getTextureIndex sampler-binding)
+               :image-index (.getImageIndex sampler-binding)
+               :image-path (.getImagePath sampler-binding)})
+            (.values sampler-bindings))))
+
+      (instance? GltfContainer$MeshMetadata asset)
+      (let [^GltfContainer$MeshMetadata mesh asset]
+        (assoc common-info
+          :kind :mesh
+          :name-generated (.isNameGenerated mesh)
+          :primitive-count (.getPrimitiveCount mesh)
+          :vertex-count (.getVertexCount mesh)))
+
+      :else
+      (let [^GltfContainer$ImageAsset image-asset asset
+            source-kind (.getSourceKind image-asset)]
+        (assoc common-info
+          :kind :image
+          :uri (when-not (= "data-uri" source-kind)
+                 (.getUri image-asset))
+          :mime-type (.getMimeType image-asset)
+          :source-kind source-kind
+          :textures
+          (mapv
+            (fn [^GltfContainer$TextureMetadata texture]
+              {:index (.getIndex texture)
+               :name (.getName texture)
+               :sampler-index (.getSamplerIndex texture)
+               :min-filter (.getMinFilter texture)
+               :mag-filter (.getMagFilter texture)
+               :wrap-s (.getWrapS texture)
+               :wrap-t (.getWrapT texture)
+               :basisu (.isBasisu texture)})
+            (.getTextures image-asset)))))))
+
+(defn- make-gltf-children+status
+  [workspace source-resource ^GltfContainer$Extraction extraction]
+  (let [source-proj-path (resource/proj-path source-resource)
+        editable (resource/editable? source-resource)
+        loaded (resource/loaded? source-resource)
+        {:keys [children-by-group status-map]}
+        (reduce
+          (fn [{:keys [children-by-group status-map]} ^GltfContainer$Asset asset]
+            (let [asset-path (.getPath asset)
+                  separator-index (.indexOf ^String asset-path "/")
+                  group-name (subs asset-path 0 separator-index)
+                  asset-proj-path (str source-proj-path "/" asset-path)
+                  content (.getContent asset)
+                  asset-info (gltf-asset-info asset)
+                  asset-resource (resource/make-gltf-resource
+                                   workspace asset-proj-path content nil editable loaded
+                                   asset-info)]
+              {:children-by-group (update children-by-group group-name (fnil conj []) asset-resource)
+               :status-map (assoc status-map asset-proj-path
+                                  {:version (if (= :mesh (:kind asset-info))
+                                              asset-info
+                                              (digest/sha1-hex content))
+                                   :source :gltf
+                                   :container source-proj-path})}))
+          {:children-by-group (sorted-map)
+           :status-map {}}
+          (.getAssets extraction))]
+    (reduce-kv
+      (fn [{:keys [children status-map]} group-name group-children]
+        (let [group-proj-path (str source-proj-path "/" group-name)
+              group-resource (resource/make-gltf-resource
+                               workspace group-proj-path nil group-children editable loaded nil)]
+          {:children (conj children group-resource)
+           :status-map (assoc status-map group-proj-path
+                              {:version :constant
+                               :source :gltf
+                               :container source-proj-path})}))
+      {:children []
+       :status-map status-map}
+      children-by-group)))
+
+(defn- gltf-container-info [^GltfContainer$Extraction extraction]
+  {:meshes
+   (mapv
+     (fn [^GltfContainer$MeshMetadata mesh]
+       (let [index (.getIndex mesh)
+             name-generated (.isNameGenerated mesh)]
+         {:index index
+          :name (if name-generated
+                  (format "Mesh %d" index)
+                  (.getName mesh))
+          :name-generated name-generated
+          :primitive-count (.getPrimitiveCount mesh)
+          :vertex-count (.getVertexCount mesh)}))
+     (.getMeshes extraction))})
+
+(defn- extract-gltf-cache-entry
+  [workspace source-resource resources-by-proj-path status-map]
+  (let [source-proj-path (resource/proj-path source-resource)
+        dependency-proj-paths (atom #{source-proj-path})
+        data-resolver (make-gltf-data-resolver resources-by-proj-path dependency-proj-paths)
+        extraction-data
+        (try
+          (let [^bytes source-content (resource/resource->bytes source-resource)
+                ^GltfContainer$Extraction extraction
+                (GltfContainer/extract source-content (resource/path source-resource) data-resolver)]
+            (run!
+              (fn [diagnostic]
+                (log/warn :message (format "Failed to expose part of glTF resource '%s': %s"
+                                           source-proj-path diagnostic)))
+              (.getDiagnostics extraction))
+            (assoc (make-gltf-children+status workspace source-resource extraction)
+              :gltf-container-info (gltf-container-info extraction)))
+          (catch Exception exception
+            (log/warn :message (format "Failed to expose glTF resources from '%s'" source-proj-path)
+                      :exception exception)
+            {:children []
+             :gltf-container-info {:meshes []}
+             :status-map {}}))]
+    (assoc extraction-data
+      :dependency-statuses (resource-statuses status-map @dependency-proj-paths))))
+
+(defn- attach-gltf-children [resource cache-entries]
+  (if-let [cache-entry (cache-entries (resource/proj-path resource))]
+    (assoc resource
+      :children (:children cache-entry)
+      :gltf-container-info (:gltf-container-info cache-entry))
+    (if-let [children (resource/children resource)]
+      (assoc resource :children (mapv #(attach-gltf-children % cache-entries) children))
+      resource)))
+
+(defn- add-gltf-resources [workspace snapshot snapshot-cache]
+  (let [status-map (:status-map snapshot)
+        resources-by-proj-path (make-resource-map snapshot)
+        gltf-source-resources
+        (into []
+              (comp resource/xform-recursive-resources
+                    (filter gltf-source-resource?))
+              (:resources snapshot))
+        old-cache (get snapshot-cache gltf-snapshot-cache-key {})
+        cache-entries
+        (reduce
+          (fn [cache source-resource]
+            (let [source-proj-path (resource/proj-path source-resource)
+                  old-cache-entry (old-cache source-proj-path)
+                  cache-entry (if (gltf-cache-entry-valid? old-cache-entry status-map)
+                                old-cache-entry
+                                (extract-gltf-cache-entry workspace source-resource resources-by-proj-path status-map))]
+              (assoc cache source-proj-path cache-entry)))
+          {}
+          gltf-source-resources)
+        virtual-status-map (reduce-kv
+                             (fn [status-map _source-proj-path cache-entry]
+                               (into status-map (:status-map cache-entry)))
+                             {}
+                             cache-entries)
+        status-map-with-gltf-resource-paths
+        (reduce-kv
+          (fn [status-map source-proj-path cache-entry]
+            (update status-map source-proj-path assoc
+                    :gltf-resource-paths (into #{} (coll/keys (:status-map cache-entry)))))
+          status-map
+          cache-entries)
+        resources (mapv #(attach-gltf-children % cache-entries) (:resources snapshot))]
+    {:snapshot (assoc snapshot
+                 :resources resources
+                 :status-map (into status-map-with-gltf-resource-paths virtual-status-map))
+     :snapshot-cache (assoc snapshot-cache gltf-snapshot-cache-key cache-entries)}))
+
+(defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
+  (resource/with-defignore-pred project-directory
+    (let [lib-results (library/cached project-directory library-uris)
+          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)
+          snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
+                                             (make-directory-snapshot workspace project-directory)
+                                             (make-debugger-snapshot workspace)
+                                             (make-library-snapshots new-library-snapshot-cache lib-results)))]
+      (add-gltf-resources workspace snapshot new-library-snapshot-cache))))
 
 (defn- resource-status [snapshot path]
   (get-in snapshot [:status-map path]))

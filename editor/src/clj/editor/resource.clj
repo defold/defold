@@ -33,6 +33,7 @@
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
+           [com.google.protobuf ByteString]
            [java.io Closeable File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
@@ -506,22 +507,24 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]}]
-      (FileResource. workspace root abs-path project-path name ext source-type editable loaded children))))
+    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children gltf-container-info]}]
+      (cond-> (FileResource. workspace root abs-path project-path name ext source-type editable loaded children)
+        gltf-container-info (assoc :gltf-container-info gltf-container-info)))))
 
 (core/register-write-handler!
- FileResource
- (transit/write-handler
-  (constantly "file-resource")
-  (fn [^FileResource r]
-    {:workspace (:workspace r)
-     :abs-path (:abs-path r)
-     :project-path (:project-path r)
-     :name (:name r)
-     :ext (:ext r)
-     :source-type (:source-type r)
-     :editable (:editable r)
-     :children (:children r)})))
+  FileResource
+  (transit/write-handler
+    (constantly "file-resource")
+    (fn [^FileResource r]
+      {:workspace (:workspace r)
+       :abs-path (:abs-path r)
+       :project-path (:project-path r)
+       :name (:name r)
+       :ext (:ext r)
+       :source-type (:source-type r)
+       :editable (:editable r)
+       :children (:children r)
+       :gltf-container-info (:gltf-container-info r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
@@ -565,6 +568,91 @@
 (defn memory-resource? [resource]
   (instance? MemoryResource resource))
 
+(defonce/record GltfResource [workspace name path ^ByteString content children editable loaded asset-info]
+  Resource
+  (children [_this] children)
+  (ext [_this]
+    (if (= :mesh (:kind asset-info))
+      ""
+      (FilenameUtils/getExtension name)))
+  (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
+  (source-type [_this] (if content :file :folder))
+  (exists? [this] (proj-path-exists? (g/unsafe-basis) workspace (proj-path this)))
+  (read-only? [_this] true)
+  (symlink? [_this] false)
+  (path [_this] path)
+  (abs-path [_this] nil)
+  (proj-path [_this] (str "/" path))
+  (resource-name [_this] name)
+  (workspace [_this] workspace)
+  (resource-hash [this] (hash (proj-path this)))
+  (openable? [this]
+    (and (not= :mesh (:kind asset-info))
+         content
+         (if (:editor-openable (resource-type this))
+           loaded
+           true)))
+  (editable? [_this] editable)
+  (loaded? [_this] loaded)
+
+  io/IOFactory
+  (make-input-stream [this opts]
+    (if-not content
+      (throw (IOException. (format "Cannot read glTF virtual folder '%s'" (proj-path this))))
+      (io/make-input-stream (.newInput content) opts)))
+  (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [_this _opts] (throw (IOException. "glTF virtual resources are read-only")))
+  (make-writer [_this _opts] (throw (IOException. "glTF virtual resources are read-only")))
+
+  http-server/ContentType
+  (content-type [resource] (content-type resource))
+
+  http-server/->Data
+  (->data [_this] (some-> content .toByteArray)))
+
+(defn make-gltf-resource
+  [workspace ^String proj-path ^bytes content children editable loaded asset-info]
+  {:pre [(string/starts-with? proj-path "/")]}
+  (let [path (subs proj-path 1)
+        name (FilenameUtils/getName path)
+        content (when content (ByteString/copyFrom content))]
+    (GltfResource. workspace name path content children editable loaded asset-info)))
+
+(defn gltf-resource? [resource]
+  (instance? GltfResource resource))
+
+(defn gltf-resource-asset-info [resource]
+  {:pre [(gltf-resource? resource)]}
+  (:asset-info resource))
+
+(defn gltf-container-info [resource]
+  (:gltf-container-info resource))
+
+(core/register-read-handler!
+  "gltf-resource"
+  (transit/read-handler
+    (fn [{:keys [workspace name path content children editable loaded asset-info]}]
+      (let [content (when content (ByteString/copyFrom ^bytes content))]
+        (GltfResource. workspace name path content children editable loaded asset-info)))))
+
+(core/register-write-handler!
+  GltfResource
+  (transit/write-handler
+    (constantly "gltf-resource")
+    (fn [^GltfResource resource]
+      (let [^ByteString content (:content resource)]
+        {:workspace (:workspace resource)
+         :name (:name resource)
+         :path (:path resource)
+         :content (when content (.toByteArray content))
+         :children (:children resource)
+         :editable (:editable resource)
+         :loaded (:loaded resource)
+         :asset-info (:asset-info resource)}))))
+
+(defmethod print-method GltfResource [gltf-resource ^java.io.Writer writer]
+  (.write writer (format "{:GltfResource %s}" (pr-str (proj-path gltf-resource)))))
+
 (defn counterpart-memory-resource
   "Given a MemoryResource, returns its editable or non-editable counterpart. We
   use this during build target fusion to ensure embedded resources from editable
@@ -589,7 +677,7 @@
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
   (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
-  (source-type [this] (if (zero? (count children)) :file :folder))
+  (source-type [_this] (if zip-entry :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
   (symlink? [this] false) ; Note: Zip archives can contain symlinks. The ZipFile class doesn't support them, but the zip FileSystem implementation does.
@@ -645,22 +733,24 @@
 (core/register-record-type! ZipResource)
 
 (core/register-read-handler!
- "zip-resource"
- (transit/read-handler
-  (fn [{:keys [workspace ^String zip-uri name path zip-entry children]}]
-    (ZipResource. workspace (URI. zip-uri) name path zip-entry children))))
+  "zip-resource"
+  (transit/read-handler
+    (fn [{:keys [workspace ^String zip-uri name path zip-entry children gltf-container-info]}]
+      (cond-> (ZipResource. workspace (URI. zip-uri) name path zip-entry children)
+        gltf-container-info (assoc :gltf-container-info gltf-container-info)))))
 
 (core/register-write-handler!
- ZipResource
- (transit/write-handler
-  (constantly "zip-resource")
-  (fn [^ZipResource r]
-    {:workspace (:workspace r)
-     :zip-uri   (.toString ^URI (:zip-uri r))
-     :name      (:name r)
-     :path      (:path r)
-     :zip-entry (:zip-entry r)
-     :children  (:children r)})))
+  ZipResource
+  (transit/write-handler
+    (constantly "zip-resource")
+    (fn [^ZipResource r]
+      {:workspace (:workspace r)
+       :zip-uri   (.toString ^URI (:zip-uri r))
+       :name      (:name r)
+       :path      (:path r)
+       :zip-entry (:zip-entry r)
+       :children  (:children r)
+       :gltf-container-info (:gltf-container-info r)})))
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))

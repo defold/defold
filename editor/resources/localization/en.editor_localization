@@ -165,6 +165,15 @@ dialog.button.cancel = Cancel
 dialog.button.delete = Delete
 dialog.button.apply = Apply
 
+# Model glTF Auto Fill Dialog
+
+dialog.model-auto-fill.title = Auto Fill Model Fields?
+dialog.model-auto-fill.header = Use materials and textures from "{file}"?
+dialog.model-auto-fill.content = This assigns the materials and referenced textures exposed by the glTF file.
+dialog.model-auto-fill.content-replace = This replaces the model's existing material and texture assignments with the resources exposed by the glTF file.
+dialog.model-auto-fill.button.keep-current = Keep Current
+dialog.model-auto-fill.button.auto-fill = Auto Fill
+
 # Error Dialog
 
 dialog.error.title = Error
@@ -1725,6 +1734,9 @@ outline.collection = Collection
 outline.collection-proxy = Collection Proxy
 outline.collision-object = Collision Object
 outline.game-object = Game Object
+outline.gltf.materials = Materials
+outline.gltf.meshes = Meshes
+outline.gltf.textures = Textures
 outline.gui.box = Box
 outline.gui.fonts = Fonts
 outline.gui.layouts = Layouts

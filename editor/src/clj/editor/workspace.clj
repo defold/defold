@@ -426,6 +426,10 @@ ordinary paths."
             (resource/resource-name resource)))
     "icons/32/Icons_03-Builtins.png"
 
+    (and (resource/gltf-resource? resource)
+         (= :mesh (:kind (resource/gltf-resource-asset-info resource))))
+    "icons/32/Icons_27-AT-Mesh.png"
+
     :else
     (case (resource/source-type resource)
       :folder "icons/32/Icons_01-Folder-closed.png"
@@ -601,6 +605,31 @@ ordinary paths."
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
     (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
+
+(defn- expand-gltf-container-moves [moved-proj-paths old-map new-map]
+  (reduce
+    (fn [expanded-moved-proj-paths [source-proj-path target-proj-path :as moved-proj-path-pair]]
+      (let [source-resource (old-map source-proj-path)
+            expanded-moved-proj-paths (conj expanded-moved-proj-paths moved-proj-path-pair)]
+        (if (and source-resource
+                 (= :file (resource/source-type source-resource))
+                 (#{"gltf" "glb"} (resource/type-ext source-resource)))
+          (into expanded-moved-proj-paths
+                (comp resource/xform-recursive-resources
+                      (filter #(and (resource/gltf-resource? %)
+                                    (= :file (resource/source-type %))))
+                      (keep (fn [source-child]
+                              (let [source-child-proj-path (resource/proj-path source-child)
+                                    child-suffix (subs source-child-proj-path (count source-proj-path))
+                                    target-child-proj-path (str target-proj-path child-suffix)
+                                    target-child (new-map target-child-proj-path)]
+                                (when (and (resource/gltf-resource? target-child)
+                                           (= :file (resource/source-type target-child)))
+                                  (pair source-child-proj-path target-child-proj-path))))))
+                (resource/children source-resource))
+          expanded-moved-proj-paths)))
+    []
+    moved-proj-paths))
 
 (defn update-snapshot-cache! [workspace snapshot-cache]
   (g/transact
@@ -856,16 +885,19 @@ ordinary paths."
      (resource-sync! workspace moved-files render-progress! new-snapshot new-map)))
   ([workspace moved-files render-progress! new-snapshot new-map]
    (let [project-directory (project-directory workspace)
-         moved-proj-paths (keep (fn [[src tgt]]
-                                  (let [src-path (resource/file->proj-path project-directory src)
-                                        tgt-path (resource/file->proj-path project-directory tgt)]
-                                    (assert (some? src-path) (str "project does not contain source " (pr-str src)))
-                                    (assert (some? tgt-path) (str "project does not contain target " (pr-str tgt)))
-                                    (when (not= src-path tgt-path)
-                                      [src-path tgt-path])))
-                                moved-files)
+         physical-moved-proj-paths
+         (into []
+               (keep (fn [[src tgt]]
+                       (let [src-path (resource/file->proj-path project-directory src)
+                             tgt-path (resource/file->proj-path project-directory tgt)]
+                         (assert (some? src-path) (str "project does not contain source " (pr-str src)))
+                         (assert (some? tgt-path) (str "project does not contain target " (pr-str tgt)))
+                         (when (not= src-path tgt-path)
+                           [src-path tgt-path]))))
+               moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
+         moved-proj-paths (expand-gltf-container-moves physical-moved-proj-paths old-map new-map)
          changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))

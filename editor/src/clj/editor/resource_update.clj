@@ -63,21 +63,31 @@
 (defn- merge-resource-change-plans [& plans]
   (apply merge-with into plans))
 
+(defn- child-resource-proj-paths [resource]
+  (into #{}
+        (comp resource/xform-recursive-resources
+              (map resource/proj-path))
+        (resource/children resource)))
+
 (defn- keep-existing-node?
   "Check if we can safely keep the existing node in the graph. Every time a file
   has an updated timestamp it will be reported as changed, but if the contents
-  are unchanged we don't need to reload the node. The old node must have
+  and child-resource topology are unchanged we don't need to reload the node.
+  The old node must have
   registered a disk-sha256 using the workspace/set-disk-sha256 function for the
   existing node to potentially be kept. Resource nodes will typically call
   workspace/set-disk-sha256 from their load-fn, but lazy-loaded resource nodes
   can use other methods."
   [old-node new-resource old-node->old-disk-sha256]
-  (if-some [old-disk-sha256 (old-node->old-disk-sha256 old-node)]
-    (if-some [new-disk-sha256 (try
-                                (resource/resource->sha256-hex new-resource)
-                                (catch Exception _
-                                  nil))]
-      (= old-disk-sha256 new-disk-sha256)
+  (if-let [old-disk-sha256 (old-node->old-disk-sha256 old-node)]
+    (if-let [new-disk-sha256 (try
+                               (resource/resource->sha256-hex new-resource)
+                               (catch Exception _
+                                 nil))]
+      (let [old-resource (resource-node/resource old-node)]
+        (and (= old-disk-sha256 new-disk-sha256)
+             (= (child-resource-proj-paths old-resource)
+                (child-resource-proj-paths new-resource))))
       false)
     false))
 
