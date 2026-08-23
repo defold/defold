@@ -27,9 +27,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -1322,11 +1325,13 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static Rig.Model loadRawModel(Model model, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+    private static Rig.Model loadRawModel(Model model, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector, boolean includeGeometry) throws LoaderException {
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
-        for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+        if (includeGeometry) {
+            for (Mesh mesh : model.meshes) {
+                modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+            }
         }
 
         modelBuilder.setLocal(MathUtil.vecmathIdentityTransform());
@@ -1386,6 +1391,10 @@ public class ModelUtil {
     }
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, Collections.emptySet());
+    }
+
+    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector, Set<Integer> forcedRawModelIndices) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
@@ -1396,12 +1405,18 @@ public class ModelUtil {
         }
         meshSetBuilder.addAllModels(models);
 
+        HashSet<Integer> instantiatedModelIndices = new HashSet<>();
+        for (Rig.Model model : models) {
+            instantiatedModelIndices.add(model.getMeshIndex());
+        }
+
         ArrayList<Rig.Model> rawModels = new ArrayList<>();
         for (Model model : scene.models) {
             if (model.nameIsGenerated) {
                 continue;
             }
-            rawModels.add(loadRawModel(model, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector));
+            boolean includeGeometry = forcedRawModelIndices.contains(model.index) || !instantiatedModelIndices.contains(model.index);
+            rawModels.add(loadRawModel(model, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, includeGeometry));
         }
         meshSetBuilder.addAllRawModels(rawModels);
         meshSetBuilder.setMaxBoneCount(skeleton.size());

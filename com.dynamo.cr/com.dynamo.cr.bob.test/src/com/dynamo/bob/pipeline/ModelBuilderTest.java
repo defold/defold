@@ -141,6 +141,27 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testInstantiatedSelectedMeshIsNotDuplicated() throws Exception {
+        String namedGltf = GLTF.replace("\"meshes\":[{", "\"meshes\":[{\"name\":\"SelectedMesh\",");
+        addFile("/selected_mesh.gltf", namedGltf);
+
+        List<Message> outputs = build("/selected.model",
+                "mesh: \"/selected_mesh.gltf\"\n" +
+                "mesh_name: \"SelectedMesh\"\n" +
+                "mesh_index: 0\n");
+
+        Model model = getMessage(outputs, Model.class);
+        assertEquals(0, model.getMeshIndex());
+
+        MeshSet meshSet = getMessage(outputs, MeshSet.class);
+        assertEquals(1, meshSet.getModelsCount());
+        assertEquals(1, meshSet.getRawModelsCount());
+        assertEquals(0, meshSet.getModels(0).getMeshIndex());
+        assertEquals(0, meshSet.getRawModels(0).getMeshIndex());
+        assertEquals(0, meshSet.getRawModels(0).getMeshesCount());
+    }
+
+    @Test
     public void testSelectedMeshSceneIsDirectTaskInput() throws Exception {
         String namedGltf = GLTF.replace("\"meshes\":[{", "\"meshes\":[{\"name\":\"SelectedMesh\",");
         addFile("/selected_mesh.gltf", namedGltf);

@@ -80,29 +80,65 @@ namespace dmGameSystem
     {
         uint32_t selected_mesh_index = resource->m_Model->m_MeshIndex;
         dmRigDDF::Model* models = mesh_set->m_Models.m_Data;
+        dmRigDDF::Model* geometry_models = models;
         uint32_t model_count = mesh_set->m_Models.m_Count;
         if (selected_mesh_index != ~0u)
         {
-            models = mesh_set->m_RawModels.m_Data;
-            model_count = mesh_set->m_RawModels.m_Count;
+            dmRigDDF::Model* selected_model = 0;
+            dmRigDDF::Model* geometry_model = 0;
+            for (uint32_t i = 0; i < mesh_set->m_RawModels.m_Count; ++i)
+            {
+                if (mesh_set->m_RawModels[i].m_MeshIndex == selected_mesh_index)
+                {
+                    selected_model = &mesh_set->m_RawModels[i];
+                    if (selected_model->m_Meshes.m_Count > 0)
+                    {
+                        geometry_model = selected_model;
+                    }
+                    break;
+                }
+            }
+            if (!geometry_model)
+            {
+                for (uint32_t i = 0; i < mesh_set->m_Models.m_Count; ++i)
+                {
+                    if (mesh_set->m_Models[i].m_MeshIndex == selected_mesh_index)
+                    {
+                        geometry_model = &mesh_set->m_Models[i];
+                        break;
+                    }
+                }
+            }
+            if (!geometry_model)
+            {
+                return;
+            }
+            if (!selected_model)
+            {
+                selected_model = geometry_model;
+            }
+
+            resource->m_SelectedModel = *selected_model;
+            resource->m_SelectedModel.m_Local.SetIdentity();
+            resource->m_SelectedModel.m_BoneId = 0;
+            models = &resource->m_SelectedModel;
+            geometry_models = geometry_model;
+            model_count = 1;
         }
 
         for (uint32_t i = 0; i < model_count; ++i)
         {
             dmRigDDF::Model* model = &models[i];
-            if (selected_mesh_index != ~0u && model->m_MeshIndex != selected_mesh_index)
+            dmRigDDF::Model* geometry_model = &geometry_models[i];
+
+            if (resource->m_Meshes.Remaining() < geometry_model->m_Meshes.m_Count)
             {
-                continue;
+                resource->m_Meshes.OffsetCapacity(geometry_model->m_Meshes.m_Count - resource->m_Meshes.Remaining());
             }
 
-            if (resource->m_Meshes.Remaining() < model->m_Meshes.m_Count)
+            for (uint32_t j = 0; j < geometry_model->m_Meshes.m_Count; ++j)
             {
-                resource->m_Meshes.OffsetCapacity(model->m_Meshes.m_Count - resource->m_Meshes.Remaining());
-            }
-
-            for (uint32_t j = 0; j < model->m_Meshes.m_Count; ++j)
-            {
-                dmRigDDF::Mesh* mesh = &model->m_Meshes[j];
+                dmRigDDF::Mesh* mesh = &geometry_model->m_Meshes[j];
 
                 MeshInfo info;
                 info.m_Model = model;

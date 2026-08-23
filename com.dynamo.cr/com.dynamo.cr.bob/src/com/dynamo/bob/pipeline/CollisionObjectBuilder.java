@@ -234,6 +234,9 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
             if(isPhysics2D && shape.getShapeType() == Type.TYPE_CAPSULE) {
                 throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Capsule", "2D" ));
             }
+            if(isPhysics2D && shape.getShapeType() == Type.TYPE_MESH) {
+                throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Mesh", "2D" ));
+            }
             if(isPhysics2D && shape.getShapeType() == Type.TYPE_HULL && isSourceMeshShape(shape)) {
                 throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Hull", "2D" ));
             }

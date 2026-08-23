@@ -92,6 +92,7 @@ namespace dmGameSystem
 
         dmArray<MeshInfo>        m_Meshes;
         dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
+        dmRigDDF::Model          m_SelectedModel;
     };
 }
 

@@ -17,6 +17,7 @@ import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.google.protobuf.Message;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -26,6 +27,11 @@ import java.util.Base64;
 import java.util.List;
 
 public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
+
+    @Before
+    public void use3DPhysics() {
+        getProject().getProjectProperties().putStringValue("physics", "type", "3D");
+    }
 
     private static byte[] makeMeshBuffer() {
         ByteBuffer buffer = ByteBuffer.allocate(86).order(ByteOrder.LITTLE_ENDIAN);
@@ -187,7 +193,6 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCompilesHullVerticesAndSharesRanges() throws Exception {
-        getProject().getProjectProperties().putStringValue("physics", "type", "3D");
         addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), true));
         CollisionObjectDesc collisionObject = buildCollisionObject(makeCollisionObject("TYPE_HULL", "Ground", 0, 2));
         CollisionShape collisionShape = collisionObject.getEmbeddedCollisionShape();
@@ -214,12 +219,26 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testSourceHullIsRejectedFor2DPhysics() throws Exception {
+        getProject().getProjectProperties().putStringValue("physics", "type", "2D");
         addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), false));
         try {
             buildCollisionObject(makeCollisionObject("TYPE_HULL", "Ground", 0, 1));
             fail("Expected the Hull shape to be rejected for 2D physics");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("Hull"));
+            assertTrue(e.getMessage().contains("2D"));
+        }
+    }
+
+    @Test
+    public void testMeshIsRejectedFor2DPhysics() throws Exception {
+        getProject().getProjectProperties().putStringValue("physics", "type", "2D");
+        addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), false));
+        try {
+            buildCollisionObject(makeCollisionObject("Ground", 0, 1));
+            fail("Expected the Mesh shape to be rejected for 2D physics");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("Mesh"));
             assertTrue(e.getMessage().contains("2D"));
         }
     }
