@@ -25,4 +25,5 @@ message RenderTargetDesc
 
     repeated ColorAttachment        color_attachments        = 1;
     optional DepthStencilAttachment depth_stencil_attachment = 2;
+    optional uint32                 sample_count              = 3 [default = 1];
 }

@@ -147,11 +147,19 @@ namespace dmGameSystem
         GetJointReactionTorqueFn m_GetJointReactionTorque;
     };
 
+    enum PhysicsMessageType
+    {
+        PHYSICS_MESSAGE_TYPE_COLLISION,
+        PHYSICS_MESSAGE_TYPE_CONTACT_POINT,
+        PHYSICS_MESSAGE_TYPE_TRIGGER,
+        PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE,
+        PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED,
+    };
+
     struct PhysicsMessage
     {
-        const dmDDF::Descriptor* m_Descriptor; // They're static, so we can store the pointer
-        uint32_t m_Offset;  // Offset into payload array
-        uint32_t m_Size;    // Size of the data
+        uint32_t           m_Offset; // Aligned offset into payload array
+        PhysicsMessageType m_Type;
     };
 
     struct CollisionWorld

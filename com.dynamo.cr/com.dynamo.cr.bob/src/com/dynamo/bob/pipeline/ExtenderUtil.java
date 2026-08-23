@@ -335,13 +335,102 @@ public class ExtenderUtil {
                 }
             }
 
-            byte[] prefixBytes = prefix.getBytes();
-            byte[] content = getResource().getContent();
+            byte[] prefixBytes = prefix.getBytes(StandardCharsets.UTF_8);
+            byte[] content = addBullet3DAppManifestCompatibility(getResource().getContent());
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
             System.arraycopy(content, 0, c, prefixBytes.length, content.length);
             return c;
         }
+    }
+
+    private static String normalizeLibraryName(String library) {
+        if (library.endsWith(".lib")) {
+            library = library.substring(0, library.length() - 4);
+        }
+        if (library.startsWith("lib")) {
+            library = library.substring(3);
+        }
+        return library;
+    }
+
+    private static boolean excludesLegacyBullet3DLibraries(List<?> excludedLibraries) {
+        Set<String> normalizedLibraries = new HashSet<String>();
+        for (Object excludedLibrary : excludedLibraries) {
+            if (excludedLibrary instanceof String) {
+                normalizedLibraries.add(normalizeLibraryName((String) excludedLibrary));
+            }
+        }
+        return normalizedLibraries.contains("LinearMath")
+                && normalizedLibraries.contains("BulletDynamics")
+                && normalizedLibraries.contains("BulletCollision");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean addBullet3DCompatibilityExclusions(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        Object excludedLibrariesValue = context.get("excludeLibs");
+        Object excludedSymbolsValue = context.get("excludeSymbols");
+        if (!(excludedLibrariesValue instanceof List<?>)
+                || (excludedSymbolsValue != null && !(excludedSymbolsValue instanceof List<?>))) {
+            return false;
+        }
+
+        List<Object> excludedLibraries = (List<Object>) excludedLibrariesValue;
+        if (!excludesLegacyBullet3DLibraries(excludedLibraries)) {
+            return false;
+        }
+
+        boolean modified = false;
+        if (!excludedLibraries.contains("script_bullet3d")) {
+            excludedLibraries = new ArrayList<Object>(excludedLibraries);
+            excludedLibraries.add("script_bullet3d");
+            context.put("excludeLibs", excludedLibraries);
+            modified = true;
+        }
+
+        List<Object> excludedSymbols = excludedSymbolsValue == null
+                ? new ArrayList<Object>()
+                : (List<Object>) excludedSymbolsValue;
+        if (!excludedSymbols.contains("ScriptBullet3DExt")) {
+            excludedSymbols = new ArrayList<Object>(excludedSymbols);
+            excludedSymbols.add("ScriptBullet3DExt");
+            context.put("excludeSymbols", excludedSymbols);
+            modified = true;
+        }
+        return modified;
+    }
+
+    // Older editor versions disabled Bullet3D without knowing about its script
+    // archive and extension symbol. Complete that exclusion before upload.
+    static byte[] addBullet3DAppManifestCompatibility(byte[] content) {
+        Object manifestValue;
+        try {
+            manifestValue = new Yaml().load(new String(content, StandardCharsets.UTF_8));
+        } catch (YAMLException e) {
+            return content;
+        }
+        if (!(manifestValue instanceof Map<?, ?>)) {
+            return content;
+        }
+
+        Map<?, ?> manifest = (Map<?, ?>) manifestValue;
+        boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
+        Object platformsValue = manifest.get("platforms");
+        if (platformsValue instanceof Map<?, ?>) {
+            for (Object platformValue : ((Map<?, ?>) platformsValue).values()) {
+                if (platformValue instanceof Map<?, ?>) {
+                    modified |= addBullet3DCompatibilityExclusions(((Map<?, ?>) platformValue).get("context"));
+                }
+            }
+        }
+        return modified
+                ? new Yaml().dump(manifestValue).getBytes(StandardCharsets.UTF_8)
+                : content;
     }
 
     private static List<ExtenderResource> listFilesRecursive(Project project, String path) {
