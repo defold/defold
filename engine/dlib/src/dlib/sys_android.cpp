@@ -25,13 +25,45 @@
 #include <dmsdk/dlib/android.h>
 
 #include <android/asset_manager.h>
+#include <fcntl.h>
 #include <sys/types.h>
+#include <unistd.h>
+
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
 
 namespace dmSys
 {
+    FILE* FileOpen64(const char* path)
+    {
+        int fd = open(path, O_RDONLY | O_LARGEFILE);
+        if (fd < 0)
+            return 0;
+
+        FILE* file = fdopen(fd, "rb");
+        if (!file)
+        {
+            close(fd);
+            return 0;
+        }
+        setvbuf(file, 0, _IONBF, 0);
+        return file;
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
+    }
+
+    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        return dmSysPosix::GetHostFileName(buffer, buffer_size, path);
     }
 
     void SetNetworkConnectivityHost(const char* host)

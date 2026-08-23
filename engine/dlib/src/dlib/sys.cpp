@@ -23,10 +23,6 @@
 #include <dlib/math.h>
 #include <dlib/path.h>
 
-#if !defined(DM_HOSTFS)
-    #define DM_HOSTFS ""
-#endif
-
 #ifdef __EMSCRIPTEN__
 // Implemented in library_sys.js
 extern "C" void dmSysPumpMessageQueue();
@@ -170,30 +166,7 @@ namespace dmSys
     #endif
     }
 
-    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
-    {
-        const char* hostfs = DM_HOSTFS;
-        size_t hostfs_len = strlen(hostfs);
-
-        if (hostfs_len == 0 || strncmp(path, hostfs, hostfs_len) == 0)
-        {
-            dmStrlCpy(buffer, path, buffer_size);
-        }
-        else
-        {
-            dmStrlCpy(buffer, hostfs, buffer_size);
-            size_t buffer_len = buffer_size > 0 ? strlen(buffer) : 0;
-            if (buffer_len > 0 && buffer[buffer_len - 1] != '/')
-            {
-                dmStrlCat(buffer, "/", buffer_size);
-            }
-            dmStrlCat(buffer, path, buffer_size);
-        }
-
-        dmPath::Normalize(buffer, buffer, buffer_size);
-        return RESULT_OK;
-    }
-
+#if !defined(DM_SYS_CUSTOM_HOST_PATHS)
     Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
     {
         dmSnPrintf(buffer, buffer_size, "%s", path);
@@ -210,6 +183,7 @@ namespace dmSys
 
         return RESULT_NOENT;
     }
+#endif
 
     void GetEngineInfo(EngineInfo* info)
     {
