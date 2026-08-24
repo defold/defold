@@ -175,22 +175,22 @@ namespace dmGameSystem
     // Called from the main thread
     static void LoadBufferCompleteCallback(HJobContext, HJob hjob, JobSystemStatus status, void* context, void* data, int result)
     {
-        if (status == JOBSYSTEM_STATUS_FINISHED && ((dmResource::Result) result) == dmResource::RESULT_OK)
+        if ((status == JOBSYSTEM_STATUS_FINISHED) && ((dmResource::Result) result) == dmResource::RESULT_OK)
         {
             DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
             HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
             LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
-            if (!request)
-                return;
+            if (request)
+            {
+                request->m_Status            = REQUEST_STATUS_FINISHED;
+                dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
+                dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
 
-            request->m_Status            = REQUEST_STATUS_FINISHED;
-            dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
-            dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
-
-            uint8_t* buffer_data     = 0;
-            uint32_t buffer_datasize = 0;
-            dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
-            memcpy(buffer_data, request->m_LoadBuffer.Begin(), request->m_LoadBuffer.Size());
+                uint8_t* buffer_data     = 0;
+                uint32_t buffer_datasize = 0;
+                dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
+                memcpy(buffer_data, request->m_LoadBuffer.Begin(), request->m_LoadBuffer.Size());
+            }
         }
     }
 
