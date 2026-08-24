@@ -234,7 +234,33 @@
      ""]
     ["    s = 'will end something'|"]
     ["    s = 'will end something'"
-     "    |"]))
+     "    |"]
+
+    ;; Typing a closing bracket dedents its line, the same as a brace or a
+    ;; parenthesis does.
+    ["]"]
+    ["local v = t["
+     "    1"
+     "    |"]
+    ["local v = t["
+     "    1"
+     "]|"]
+
+    ["}"]
+    ["local v = {"
+     "    1"
+     "    |"]
+    ["local v = {"
+     "    1"
+     "}|"]
+
+    [")"]
+    ["local v = f("
+     "    1"
+     "    |"]
+    ["local v = f("
+     "    1"
+     ")|"]))
 
 (defn- reindent-with [indent-string tab-spaces lines]
   (let [last-row (dec (count lines))
@@ -767,4 +793,14 @@
      "    1, 2, 3) -- close call|"]
     ["local pos = vmath.vector3("
      "    1, 2, 3) -- close call"
-     "|"]))
+     "|"]
+
+    ;; A comment is not a parameter, so there is nothing to align under.
+    ["function foo( -- parameters|"]
+    ["function foo( -- parameters"
+     "    |"]
+
+    ;; But code after a block comment is, and it still sets the column.
+    ["function foo( --[[ first ]] a,|"]
+    ["function foo( --[[ first ]] a,"
+     "             |"]))
