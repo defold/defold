@@ -300,103 +300,58 @@
 ;; Bob build
 ;; -----------------------------------------------------------------------------
 
-(defn- handle-bob-error! [render-error! project evaluation-context {:keys [error exception] :as _result}]
-  (cond
-    error
-    (do (render-error! error)
-        true)
-
-    exception
-    (do (render-error! (engine-build-errors/exception->error-value exception project evaluation-context))
-        true)))
-
-(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! log-output-stream task-cancelled? render-build-error! bob-commands bob-options project changes-view callback!]
+(defn bob-build! [render-reload-progress! render-save-progress! render-build-progress! log-output-stream task-cancelled? bob-commands bob-options project changes-view]
   (disk-availability/push-busy!)
-  (future
-    (try
-      (let [invoke-bundle-hooks (boolean (some #(= "bundle" %) bob-commands))
-            hook-opts {:output-directory (or (get bob-options "bundle-output")
-                                             (get bob-options "output")
-                                             "build/default")
-                       :platform (get bob-options "platform")
-                       :variant (get bob-options "variant" "release")}]
-        (render-reload-progress! (progress/make-indeterminate (localization/message "progress.executing-bundle-hook")))
-        (if-let [extension-error (when invoke-bundle-hooks
-                                   @(extensions/execute-hook! project
-                                                              :on_bundle_started
-                                                              hook-opts
-                                                              :exception-policy :as-error))]
-          (try
-            (when invoke-bundle-hooks
-              @(extensions/execute-hook! project
-                                         :on_bundle_finished
-                                         (assoc hook-opts :success false)
-                                         :exception-policy :ignore))
-            (ui/run-later
-              (try
-                (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
-                (when (some? callback!) (callback! false))
-                (finally
-                  (disk-availability/pop-busy!)
-                  (render-reload-progress! progress/done))))
-            (catch Throwable error
-              (disk-availability/pop-busy!)
-              (render-reload-progress! progress/done)
-              (throw error)))
-          (do
-            (render-reload-progress! progress/done)
-
-            ;; We need to save because bob reads from FS.
-            (async-save!
-              render-reload-progress! render-save-progress! project/dirty-save-data project changes-view
-              (fn [successful?]
-                (if-not successful?
-                  (try
-                    (when (some? callback!)
-                      (callback! false))
-                    (finally
-                      (disk-availability/pop-busy!)))
-                  (try
-                    (render-build-progress! (progress/make-cancellable-indeterminate (localization/message "progress.building")))
-                    ;; evaluation-context below is used to map
-                    ;; project paths to resource node id:s. To be
-                    ;; strictly correct, we should probably re-use
-                    ;; the ec created when saving - so the graph
-                    ;; state in the ec corresponds with the state
-                    ;; bob sees on disk.
+  (try
+    (let [invoke-bundle-hooks (coll/any? #(= "bundle" %) bob-commands)
+          hook-opts {:output-directory (or (get bob-options "bundle-output")
+                                           (get bob-options "output")
+                                           "build/default")
+                     :platform (get bob-options "platform")
+                     :variant (get bob-options "variant" "release")}]
+      (render-reload-progress! (progress/make-indeterminate (localization/message "progress.executing-bundle-hook")))
+      (let [extension-error (when invoke-bundle-hooks
+                              @(extensions/execute-hook! project
+                                                         :on_bundle_started
+                                                         hook-opts
+                                                         :exception-policy :as-error))]
+        (render-reload-progress! progress/done)
+        (let [build-results
+              (if extension-error
+                {:error extension-error}
+                ;; We need to save because bob reads from FS.
+                (let [save-completed (promise)]
+                  (async-save! render-reload-progress! render-save-progress! project/dirty-save-data project changes-view save-completed)
+                  (if-not @save-completed
+                    {:error (g/map->error {:severity :fatal
+                                           :message (localization/message "error.bob.failed-to-save-project")})}
+                    ;; Ideally we'd reuse the evaluation context from saving, so its graph
+                    ;; state corresponds to what Bob sees on disk.
                     (let [evaluation-context (g/make-evaluation-context)]
-                      (future
-                        (try
-                          (let [result (bob/invoke! project bob-options bob-commands
-                                                    :task-cancelled? task-cancelled?
-                                                    :render-progress! render-build-progress!
-                                                    :evaluation-context evaluation-context
-                                                    :log-output-stream log-output-stream)]
-                            (when invoke-bundle-hooks
-                              @(extensions/execute-hook!
-                                 project
-                                 :on_bundle_finished
-                                 (assoc hook-opts
-                                   :success (not (or (:error result)
-                                                     (:exception result))))
-                                 :exception-policy :ignore))
-                            (render-build-progress! progress/done)
-                            (ui/run-later
-                              (try
-                                (let [successful? (not (handle-bob-error! render-build-error! project evaluation-context result))]
-                                  (when (some? callback!)
-                                    (callback! successful?)))
-                                (finally
-                                  (disk-availability/pop-busy!)
-                                  (g/update-cache-from-evaluation-context! evaluation-context)))))
-                          (catch Throwable error
-                            (disk-availability/pop-busy!)
-                            (render-build-progress! progress/done)
-                            (error-reporting/report-exception! error)))))
-                    (catch Throwable error
-                      (disk-availability/pop-busy!)
-                      (throw error)))))))))
-      (catch Throwable error
-        (disk-availability/pop-busy!)
-        (render-build-progress! progress/done)
-        (error-reporting/report-exception! error)))))
+                      (try
+                        (render-build-progress! (progress/make-cancellable-indeterminate (localization/message "progress.building")))
+                        (let [{:keys [error exception]} (bob/invoke! project bob-options bob-commands
+                                                                     :task-cancelled? task-cancelled?
+                                                                     :render-progress! render-build-progress!
+                                                                     :evaluation-context evaluation-context
+                                                                     :log-output-stream log-output-stream)]
+                          (cond
+                            error {:error error}
+                            exception {:error (engine-build-errors/exception->error-value exception project evaluation-context)}
+                            :else {}))
+                        (finally
+                          (ui/run-now
+                            (g/update-cache-from-evaluation-context! evaluation-context))))))))]
+          (when invoke-bundle-hooks
+            @(extensions/execute-hook! project
+                                       :on_bundle_finished
+                                       (assoc hook-opts :success (not (:error build-results)))
+                                       :exception-policy :ignore))
+          build-results)))
+    (catch Throwable error
+      (error-reporting/report-exception! error)
+      (throw error))
+    (finally
+      (render-reload-progress! progress/done)
+      (render-build-progress! progress/done)
+      (disk-availability/pop-busy!))))
