@@ -140,19 +140,10 @@ struct NamedConstantBufferSnapshot
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
     };
 
-    uint32_t m_ConstantCount;
-    uint32_t m_ValuesOffset;
+    Constant*         m_Constants;
+    dmVMath::Vector4* m_Values;
+    uint32_t          m_ConstantCount;
 };
-
-static inline NamedConstantBufferSnapshot::Constant* GetSnapshotConstants(HNamedConstantBufferSnapshot snapshot)
-{
-    return (NamedConstantBufferSnapshot::Constant*)(snapshot + 1);
-}
-
-static inline dmVMath::Vector4* GetSnapshotValues(HNamedConstantBufferSnapshot snapshot)
-{
-    return (dmVMath::Vector4*)((uint8_t*)snapshot + snapshot->m_ValuesOffset);
-}
 
 struct FillNamedConstantBufferSnapshotContext
 {
@@ -190,16 +181,17 @@ HNamedConstantBufferSnapshot NewNamedConstantBufferSnapshot(HNamedConstantBuffer
         return 0;
 
     HNamedConstantBufferSnapshot snapshot = (HNamedConstantBufferSnapshot)memory;
+    snapshot->m_Constants = (NamedConstantBufferSnapshot::Constant*)(snapshot + 1);
+    snapshot->m_Values = (dmVMath::Vector4*)((uint8_t*)snapshot + values_offset);
     snapshot->m_ConstantCount = constant_count;
-    snapshot->m_ValuesOffset = (uint32_t)values_offset;
 
     FillNamedConstantBufferSnapshotContext context;
-    context.m_Constants = GetSnapshotConstants(snapshot);
+    context.m_Constants = snapshot->m_Constants;
     context.m_Index = 0;
     buffer->m_Constants.Iterate(FillNamedConstantBufferSnapshot, &context);
 
     if (value_count > 0)
-        memcpy(GetSnapshotValues(snapshot), buffer->m_Values.Begin(), sizeof(dmVMath::Vector4) * value_count);
+        memcpy(snapshot->m_Values, buffer->m_Values.Begin(), sizeof(dmVMath::Vector4) * value_count);
 
     return snapshot;
 }
@@ -212,12 +204,12 @@ void DeleteNamedConstantBufferSnapshot(HNamedConstantBufferSnapshot snapshot)
 
 bool GetNamedConstantSnapshot(HNamedConstantBufferSnapshot snapshot, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type)
 {
-    NamedConstantBufferSnapshot::Constant* constants = GetSnapshotConstants(snapshot);
+    NamedConstantBufferSnapshot::Constant* constants = snapshot->m_Constants;
     for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
     {
         if (constants[i].m_NameHash == name_hash)
         {
-            *values = &GetSnapshotValues(snapshot)[constants[i].m_ValueIndex];
+            *values = &snapshot->m_Values[constants[i].m_ValueIndex];
             *num_values = constants[i].m_NumValues;
             *constant_type = constants[i].m_Type;
             return true;
@@ -542,8 +534,8 @@ void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeP
 void ApplyNamedConstantBufferSnapshot(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBufferSnapshot snapshot)
 {
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-    NamedConstantBufferSnapshot::Constant* constants = GetSnapshotConstants(snapshot);
-    dmVMath::Vector4* values = GetSnapshotValues(snapshot);
+    NamedConstantBufferSnapshot::Constant* constants = snapshot->m_Constants;
+    dmVMath::Vector4* values = snapshot->m_Values;
 
     for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
     {
@@ -563,8 +555,8 @@ void ApplyNamedConstantBufferSnapshot(dmRender::HRenderContext render_context, H
 void ApplyNamedConstantBufferSnapshot(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBufferSnapshot snapshot)
 {
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-    NamedConstantBufferSnapshot::Constant* constants = GetSnapshotConstants(snapshot);
-    dmVMath::Vector4* values = GetSnapshotValues(snapshot);
+    NamedConstantBufferSnapshot::Constant* constants = snapshot->m_Constants;
+    dmVMath::Vector4* values = snapshot->m_Values;
 
     for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
     {
