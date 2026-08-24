@@ -343,7 +343,6 @@ namespace dmGameObject
     void RemoveDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
         Register* regist = hcollection->m_Collection->m_Register;
-        DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
         // Search every collection in the register to remove the actual owner's entry.
         // We need to do this to avoid the following scenario (#13002):
         //
@@ -354,6 +353,7 @@ namespace dmGameObject
         for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
         {
             Collection* collection = regist->m_Collections[collection_index];
+            DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
             for (uint32_t resource_index = 0; resource_index < collection->m_DynamicResources.Size(); ++resource_index)
             {
                 if (collection->m_DynamicResources[resource_index] == resource_hash)
