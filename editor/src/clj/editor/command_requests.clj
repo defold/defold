@@ -42,18 +42,18 @@
 
 (defn- build-response [{:keys [error warning]} localization-state]
   (let [issues (coll/into-> [error warning] []
-                            (filter some?)
-                            (mapcat #(:children (build-errors-view/build-resource-tree %)))
-                            (mapcat :children)
-                            (map (fn [{:keys [message severity parent cursor-range]}]
-                                   (let [maybe-resource (:resource parent)]
-                                     (cond-> {:message (localization-state message)
-                                              :severity (case severity
-                                                          :fatal :error
-                                                          :info :information
-                                                          severity)}
-                                       maybe-resource (assoc :resource (resource/proj-path maybe-resource))
-                                       cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
+                 (filter some?)
+                 (mapcat #(:children (build-errors-view/build-resource-tree %)))
+                 (mapcat :children)
+                 (map (fn [{:keys [message severity parent cursor-range]}]
+                        (let [maybe-resource (:resource parent)]
+                          (cond-> {:message (localization-state message)
+                                   :severity (case severity
+                                               :fatal :error
+                                               :info :information
+                                               severity)}
+                            maybe-resource (assoc :resource (resource/proj-path maybe-resource))
+                            cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
     (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))
 
 (defn- fetch-libraries-response [[lib-results reload-succeeded] localization-state]
@@ -61,12 +61,12 @@
     (http-server/json-response
       {:success success
        :libraries (coll/into-> lib-results []
-                               (map (fn [^Library$Result result]
-                                      (let [problem (.problem result)]
-                                        (cond-> {:uri (str (.uri result))
-                                                 :success (not problem)}
-                                          problem
-                                          (assoc :message (localization-state (library/result-message result))))))))}
+                    (map (fn [^Library$Result result]
+                           (let [problem (.problem result)]
+                             (cond-> {:uri (str (.uri result))
+                                      :success (not problem)}
+                               problem
+                               (assoc :message (localization-state (library/result-message result))))))))}
       (cond
         (not reload-succeeded) 500
         success 200

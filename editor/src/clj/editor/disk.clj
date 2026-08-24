@@ -325,8 +325,12 @@
                   (if-not @save-completed
                     {:error (g/map->error {:severity :fatal
                                            :message (localization/message "error.bob.failed-to-save-project")})}
-                    ;; Ideally we'd reuse the evaluation context from saving, so its graph
-                    ;; state corresponds to what Bob sees on disk.
+                    ;; evaluation-context below is used to map
+                    ;; project paths to resource node id:s. To be
+                    ;; strictly correct, we should probably re-use
+                    ;; the ec created when saving - so the graph
+                    ;; state in the ec corresponds with the state
+                    ;; bob sees on disk.
                     (let [evaluation-context (g/make-evaluation-context)]
                       (try
                         (render-build-progress! (progress/make-cancellable-indeterminate (localization/message "progress.building")))

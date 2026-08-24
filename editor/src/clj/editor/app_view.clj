@@ -1659,23 +1659,21 @@
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-        bob-args (bob/build-html5-bob-options project prefs)
-        out (start-new-log-pipe!)]
+        bob-args (bob/build-html5-bob-options project prefs)]
     (build-errors-view/clear-build-errors build-errors-view)
     (future/io
-      (try
-        (let [build-results (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                             out build-task-cancelled? bob-commands bob-args project changes-view)]
-          (ui/run-now
-            (if-let [error (:error build-results)]
-              (render-build-error! error)
-              (let [url (str (http-server/local-url web-server) "/html5")]
-                (if (prefs/get prefs [:build :open-html5-build])
-                  (ui/open-url url)
-                  (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))))
-          build-results)
-        (finally
-          (.close out))))))
+      (let [build-results
+            (with-open [out (start-new-log-pipe!)]
+              (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                               out build-task-cancelled? bob-commands bob-args project changes-view))]
+        (ui/run-now
+          (if-let [error (:error build-results)]
+            (render-build-error! error)
+            (let [url (str (http-server/local-url web-server) "/html5")]
+              (if (prefs/get prefs [:build :open-html5-build])
+                (ui/open-url url)
+                (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))))
+        build-results))))
 
 (handler/defhandler :project.clean-build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane localization]
@@ -3583,19 +3581,16 @@
                          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
                          render-reload-progress! (make-render-task-progress :resource-sync)
                          render-save-progress! (make-render-task-progress :save-all)
-                         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-                         out (start-new-log-pipe!)]
+                         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)]
                      (future/io
-                       (try
-                         (ui/run-now (build-errors-view/clear-build-errors build-errors-view))
-                         (let [{:keys [error]}
+                       (ui/run-now (build-errors-view/clear-build-errors build-errors-view))
+                       (let [{:keys [error]}
+                             (with-open [out (start-new-log-pipe!)]
                                (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                                out build-task-cancelled? commands options project changes-view)]
-                           (when error
-                             (ui/run-now (render-build-error! error))
-                             (throw (LuaError. "Bob invocation failed"))))
-                         (finally
-                           (.close out))))))
+                                                out build-task-cancelled? commands options project changes-view))]
+                         (when error
+                           (ui/run-now (render-build-error! error))
+                           (throw (LuaError. "Bob invocation failed")))))))
     :web-server web-server)
   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))
