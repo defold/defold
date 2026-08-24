@@ -59,7 +59,7 @@
 (defn- long-bracket-level
   "The number of = signs in the long bracket at index, or -1 if there is none.
   bracket is \\[ to open and \\] to close."
-  ^long [^String line ^long index ^long len bracket]
+  ^long [^String line ^long index ^long len ^Character bracket]
   (loop [j (inc index)]
     (cond
       (>= j len) -1
@@ -107,9 +107,9 @@
 ;; never happens, since a closer's opener is always the innermost one still
 ;; open; on half-typed code it keeps the mistake from disturbing the rest.
 (defn lua-lex-line [^String line in-long-string]
-  (let [len (.length line)]
+  (let [len (long (.length line))]
     (loop [i 0
-           in-quote nil
+           ^Character in-quote nil
            escaped false
            in-long-string in-long-string
            after-function false
@@ -152,12 +152,13 @@
 
             ;; Word character, with peek
             (or (Character/isLetter ch) (= ch \_))
-            (let [end (loop [j (inc i)]
-                        (if (and (< j len)
-                                 (let [c (.charAt line j)]
-                                   (or (Character/isLetterOrDigit c) (= c \_))))
-                          (recur (inc j))
-                          j))
+            (let [end (long
+                        (loop [j (inc i)]
+                          (if (and (< j len)
+                                   (let [c (.charAt line j)]
+                                     (or (Character/isLetterOrDigit c) (= c \_))))
+                            (recur (inc j))
+                            j)))
                   tok (.substring line i end)]
               (recur end in-quote false nil
                      ;; A name may sit between `function` and its parameter list.
@@ -202,7 +203,7 @@
       column
       (recur (inc i)
              (if (= \tab (.charAt line i))
-               (+ column (- tab-spaces (mod column tab-spaces)))
+               (+ column (- tab-spaces (long (mod column tab-spaces))))
                (inc column))))))
 
 (defn lua-indent-counts [^String line in-long-string tab-spaces]
