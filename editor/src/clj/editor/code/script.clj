@@ -206,6 +206,9 @@
                (+ column (- tab-spaces (long (mod column tab-spaces))))
                (inc column))))))
 
+(def ^:private lua-close-line-pattern
+  #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])")
+
 (defn lua-indent-counts [^String line in-long-string tab-spaces]
   (let [[tokens in-long-string] (lua-lex-line line in-long-string)
         leftover (reduce (fn [stack t]
@@ -239,16 +242,14 @@
                              opens)))))]
     {:closes closes
      :opens opens
-     :leading (some? (re-find #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])" line))
+     :leading (some? (re-find lua-close-line-pattern line))
      :in-long-string in-long-string}))
 
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
-   ;; The :end pattern is shamelessly stolen from textmate:
-   ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
    :indent {:counts #(lua-indent-counts %1 %2 %3)
-            :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
+            :end lua-close-line-pattern}
    :line-comment "--"
    :auto-insert {:characters {\" \"
                               \' \'
