@@ -128,6 +128,104 @@ struct NamedConstantBuffer
     dmArray<dmVMath::Vector4>   m_Values;
 };
 
+// Immutable, single-allocation representation used by queued render commands.
+// The descriptors follow the header and the aligned Vector4 data follows them.
+struct NamedConstantBufferSnapshot
+{
+    struct Constant
+    {
+        dmhash_t                                m_NameHash;
+        uint32_t                                m_ValueIndex;
+        uint32_t                                m_NumValues;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
+    };
+
+    uint32_t m_ConstantCount;
+    uint32_t m_ValuesOffset;
+};
+
+static inline NamedConstantBufferSnapshot::Constant* GetSnapshotConstants(HNamedConstantBufferSnapshot snapshot)
+{
+    return (NamedConstantBufferSnapshot::Constant*)(snapshot + 1);
+}
+
+static inline dmVMath::Vector4* GetSnapshotValues(HNamedConstantBufferSnapshot snapshot)
+{
+    return (dmVMath::Vector4*)((uint8_t*)snapshot + snapshot->m_ValuesOffset);
+}
+
+struct FillNamedConstantBufferSnapshotContext
+{
+    NamedConstantBufferSnapshot::Constant* m_Constants;
+    uint32_t                                m_Index;
+};
+
+static inline void FillNamedConstantBufferSnapshot(FillNamedConstantBufferSnapshotContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
+{
+    NamedConstantBufferSnapshot::Constant& snapshot_constant = context->m_Constants[context->m_Index++];
+    snapshot_constant.m_NameHash   = *name_hash;
+    snapshot_constant.m_ValueIndex = constant->m_ValueIndex;
+    snapshot_constant.m_NumValues  = constant->m_NumValues;
+    snapshot_constant.m_Type       = constant->m_Type;
+}
+
+HNamedConstantBufferSnapshot NewNamedConstantBufferSnapshot(HNamedConstantBuffer buffer)
+{
+    if (!buffer)
+        return 0;
+
+    const uint32_t constant_count = buffer->m_Constants.Size();
+    const uint32_t value_count = buffer->m_Values.Size();
+    const uint32_t values_alignment = alignof(dmVMath::Vector4);
+    const uint64_t constants_end = sizeof(NamedConstantBufferSnapshot) + sizeof(NamedConstantBufferSnapshot::Constant) * (uint64_t)constant_count;
+    const uint64_t values_offset = (constants_end + values_alignment - 1) & ~(uint64_t)(values_alignment - 1);
+    const uint64_t allocation_size = values_offset + sizeof(dmVMath::Vector4) * (uint64_t)value_count;
+
+    if (allocation_size > 0xffffffffU)
+        return 0;
+
+    void* memory = 0;
+    const uint32_t allocation_alignment = values_alignment > alignof(NamedConstantBufferSnapshot::Constant) ? values_alignment : alignof(NamedConstantBufferSnapshot::Constant);
+    if (dmMemory::AlignedMalloc(&memory, allocation_alignment, (uint32_t)allocation_size) != dmMemory::RESULT_OK)
+        return 0;
+
+    HNamedConstantBufferSnapshot snapshot = (HNamedConstantBufferSnapshot)memory;
+    snapshot->m_ConstantCount = constant_count;
+    snapshot->m_ValuesOffset = (uint32_t)values_offset;
+
+    FillNamedConstantBufferSnapshotContext context;
+    context.m_Constants = GetSnapshotConstants(snapshot);
+    context.m_Index = 0;
+    buffer->m_Constants.Iterate(FillNamedConstantBufferSnapshot, &context);
+
+    if (value_count > 0)
+        memcpy(GetSnapshotValues(snapshot), buffer->m_Values.Begin(), sizeof(dmVMath::Vector4) * value_count);
+
+    return snapshot;
+}
+
+void DeleteNamedConstantBufferSnapshot(HNamedConstantBufferSnapshot snapshot)
+{
+    if (snapshot)
+        dmMemory::AlignedFree(snapshot);
+}
+
+bool GetNamedConstantSnapshot(HNamedConstantBufferSnapshot snapshot, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type)
+{
+    NamedConstantBufferSnapshot::Constant* constants = GetSnapshotConstants(snapshot);
+    for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
+    {
+        if (constants[i].m_NameHash == name_hash)
+        {
+            *values = &GetSnapshotValues(snapshot)[constants[i].m_ValueIndex];
+            *num_values = constants[i].m_NumValues;
+            *constant_type = constants[i].m_Type;
+            return true;
+        }
+    }
+    return false;
+}
+
 HNamedConstantBuffer NewNamedConstantBuffer()
 {
     HNamedConstantBuffer buffer = new NamedConstantBuffer();
@@ -439,6 +537,48 @@ void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeP
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
     ApplyConstantContext context(graphics_context, program, buffer);
     buffer->m_Constants.Iterate(ApplyConstantCompute, &context);
+}
+
+void ApplyNamedConstantBufferSnapshot(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBufferSnapshot snapshot)
+{
+    dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+    NamedConstantBufferSnapshot::Constant* constants = GetSnapshotConstants(snapshot);
+    dmVMath::Vector4* values = GetSnapshotValues(snapshot);
+
+    for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
+    {
+        NamedConstantBufferSnapshot::Constant& constant = constants[i];
+        dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(constant.m_NameHash);
+        if (!location)
+            continue;
+
+        dmVMath::Vector4* constant_values = &values[constant.m_ValueIndex];
+        if (constant.m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+            dmGraphics::SetConstantM4(graphics_context, constant_values, constant.m_NumValues / 4, *location);
+        else
+            dmGraphics::SetConstantV4(graphics_context, constant_values, constant.m_NumValues, *location);
+    }
+}
+
+void ApplyNamedConstantBufferSnapshot(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBufferSnapshot snapshot)
+{
+    dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+    NamedConstantBufferSnapshot::Constant* constants = GetSnapshotConstants(snapshot);
+    dmVMath::Vector4* values = GetSnapshotValues(snapshot);
+
+    for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
+    {
+        NamedConstantBufferSnapshot::Constant& constant = constants[i];
+        dmGraphics::HUniformLocation* location = program->m_NameHashToLocation.Get(constant.m_NameHash);
+        if (!location)
+            continue;
+
+        dmVMath::Vector4* constant_values = &values[constant.m_ValueIndex];
+        if (constant.m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+            dmGraphics::SetConstantM4(graphics_context, constant_values, constant.m_NumValues / 4, *location);
+        else
+            dmGraphics::SetConstantV4(graphics_context, constant_values, constant.m_NumValues, *location);
+    }
 }
 
 }

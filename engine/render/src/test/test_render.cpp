@@ -2763,6 +2763,49 @@ static void IterateNameConstantsCallback(dmhash_t name_hash, void* _ctx)
     }
 }
 
+TEST(Constants, NamedConstantBufferSnapshot)
+{
+    dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
+    dmhash_t color_hash = dmHashString64("color");
+    dmhash_t matrix_hash = dmHashString64("matrix");
+    dmVMath::Vector4 colors[] = {
+        dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+        dmVMath::Vector4(0.0f, 1.0f, 0.0f, 1.0f),
+    };
+    dmVMath::Vector4 matrix[] = {
+        dmVMath::Vector4(1.0f, 2.0f, 3.0f, 4.0f),
+        dmVMath::Vector4(5.0f, 6.0f, 7.0f, 8.0f),
+        dmVMath::Vector4(9.0f, 10.0f, 11.0f, 12.0f),
+        dmVMath::Vector4(13.0f, 14.0f, 15.0f, 16.0f),
+    };
+    dmRender::SetNamedConstant(buffer, color_hash, colors, 2);
+    dmRender::SetNamedConstant(buffer, matrix_hash, matrix, 4, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+
+    dmRender::HNamedConstantBufferSnapshot snapshot = dmRender::NewNamedConstantBufferSnapshot(buffer);
+    ASSERT_NE((dmRender::HNamedConstantBufferSnapshot)0, snapshot);
+
+    colors[0] = dmVMath::Vector4(0.0f);
+    dmRender::SetNamedConstant(buffer, color_hash, colors, 2);
+    dmRender::RemoveNamedConstant(buffer, matrix_hash);
+
+    dmVMath::Vector4* snapshot_values = 0;
+    uint32_t num_values = 0;
+    dmRenderDDF::MaterialDesc::ConstantType constant_type;
+    ASSERT_TRUE(dmRender::GetNamedConstantSnapshot(snapshot, color_hash, &snapshot_values, &num_values, &constant_type));
+    ASSERT_EQ(2u, num_values);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER, constant_type);
+    ASSERT_EQ(1.0f, snapshot_values[0].getX());
+    ASSERT_EQ(1.0f, snapshot_values[1].getY());
+
+    ASSERT_TRUE(dmRender::GetNamedConstantSnapshot(snapshot, matrix_hash, &snapshot_values, &num_values, &constant_type));
+    ASSERT_EQ(4u, num_values);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4, constant_type);
+    ASSERT_EQ(16.0f, snapshot_values[3].getW());
+
+    dmRender::DeleteNamedConstantBufferSnapshot(snapshot);
+    dmRender::DeleteNamedConstantBuffer(buffer);
+}
+
 TEST(Constants, NamedConstantsArray)
 {
     dmHashEnableReverseHash(true);

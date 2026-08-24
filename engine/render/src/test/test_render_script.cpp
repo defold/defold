@@ -1476,8 +1476,8 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-// Test that constant buffers passed to render.draw() as locals survive garbage
-// collection between command creation and command parsing.
+// Test that constant buffers passed to render.draw() are snapshotted and no
+// longer depend on the Lua userdata surviving until command parsing.
 TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
 {
     // Create multiple constant buffers as locals only — no reference
@@ -1509,13 +1509,63 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
     for (uint32_t i = 0; i < commands.Size(); ++i)
     {
         ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, commands[i].m_Type);
-        dmRender::HNamedConstantBuffer cb = (dmRender::HNamedConstantBuffer)commands[i].m_Operands[1];
-        ASSERT_NE((dmRender::HNamedConstantBuffer)0, cb);
-        ASSERT_EQ(1u, dmRender::GetNamedConstantCount(cb));
+        dmRender::HNamedConstantBufferSnapshot snapshot = (dmRender::HNamedConstantBufferSnapshot)commands[i].m_Operands[1];
+        ASSERT_NE((dmRender::HNamedConstantBufferSnapshot)0, snapshot);
+        dmVMath::Vector4* values = 0;
+        uint32_t num_values = 0;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
+        ASSERT_TRUE(dmRender::GetNamedConstantSnapshot(snapshot, dmHashString64("tint"), &values, &num_values, &constant_type));
+        ASSERT_EQ(1u, num_values);
+        ASSERT_EQ((float)i + 1.0f, values[0].getX());
     }
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_SnapshotOnDraw)
+{
+    const char* script =
+        "function init(self)\n"
+        "    self.pred = render.predicate({\"tag\"})\n"
+        "    local cb = render.constant_buffer()\n"
+        "    cb.tint = vmath.vector4(1, 0, 0, 1)\n"
+        "    render.draw(self.pred, { constants = cb })\n"
+        "    cb.tint = vmath.vector4(0, 1, 0, 1)\n"
+        "    render.draw(self.pred, { constants = cb })\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(2u, commands.Size());
+    dmRender::HNamedConstantBufferSnapshot red_snapshot = (dmRender::HNamedConstantBufferSnapshot)commands[0].m_Operands[1];
+    dmRender::HNamedConstantBufferSnapshot green_snapshot = (dmRender::HNamedConstantBufferSnapshot)commands[1].m_Operands[1];
+    ASSERT_NE(red_snapshot, green_snapshot);
+
+    dmVMath::Vector4* values = 0;
+    uint32_t num_values = 0;
+    dmRenderDDF::MaterialDesc::ConstantType constant_type;
+    ASSERT_TRUE(dmRender::GetNamedConstantSnapshot(red_snapshot, dmHashString64("tint"), &values, &num_values, &constant_type));
+    ASSERT_EQ(1u, num_values);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER, constant_type);
+    ASSERT_EQ(1.0f, values[0].getX());
+    ASSERT_EQ(0.0f, values[0].getY());
+    ASSERT_EQ(0.0f, values[0].getZ());
+    ASSERT_EQ(1.0f, values[0].getW());
+
+    ASSERT_TRUE(dmRender::GetNamedConstantSnapshot(green_snapshot, dmHashString64("tint"), &values, &num_values, &constant_type));
+    ASSERT_EQ(1u, num_values);
+    ASSERT_EQ(0.0f, values[0].getX());
+    ASSERT_EQ(1.0f, values[0].getY());
+    ASSERT_EQ(0.0f, values[0].getZ());
+    ASSERT_EQ(1.0f, values[0].getW());
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }

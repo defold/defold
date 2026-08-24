@@ -942,7 +942,9 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    static Result DrawInternal(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer, HNamedConstantBufferSnapshot constant_buffer_snapshot);
+
+    static Result DrawRenderListInternal(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, HNamedConstantBufferSnapshot constant_buffer_snapshot, const FrustumOptions* frustum_options, SortOrder sort_order)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -1096,10 +1098,20 @@ namespace dmRender
             }
         }
 
-        return Draw(context, predicate, constant_buffer);
+        return DrawInternal(context, predicate, constant_buffer, constant_buffer_snapshot);
     }
 
-    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    {
+        return DrawRenderListInternal(context, predicate, constant_buffer, 0, frustum_options, sort_order);
+    }
+
+    Result DrawRenderListSnapshot(HRenderContext context, HPredicate predicate, HNamedConstantBufferSnapshot constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    {
+        return DrawRenderListInternal(context, predicate, 0, constant_buffer, frustum_options, sort_order);
+    }
+
+    static void DispatchComputeInternal(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer, HNamedConstantBufferSnapshot constant_buffer_snapshot)
     {
         HComputeProgram compute_program = render_context->m_ComputeProgram;
 
@@ -1118,6 +1130,10 @@ namespace dmRender
         if (constant_buffer)
         {
             ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
+        }
+        else if (constant_buffer_snapshot)
+        {
+            ApplyNamedConstantBufferSnapshot(render_context, compute_program, constant_buffer_snapshot);
         }
 
         GetRenderContextTextures(render_context, compute_program->m_Samplers, render_context_textures);
@@ -1165,9 +1181,19 @@ namespace dmRender
         TrimTextureBindingTable(render_context);
     }
 
+    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
+    {
+        DispatchComputeInternal(render_context, group_count_x, group_count_y, group_count_z, constant_buffer, 0);
+    }
+
+    void DispatchComputeSnapshot(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBufferSnapshot constant_buffer)
+    {
+        DispatchComputeInternal(render_context, group_count_x, group_count_y, group_count_z, 0, constant_buffer);
+    }
+
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
-    Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
+    static Result DrawInternal(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer, HNamedConstantBufferSnapshot constant_buffer_snapshot)
     {
         if (render_context == 0x0)
         {
@@ -1224,6 +1250,8 @@ namespace dmRender
 
             if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
+            else if (constant_buffer_snapshot)
+                ApplyNamedConstantBufferSnapshot(render_context, material, constant_buffer_snapshot);
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
@@ -1306,6 +1334,11 @@ namespace dmRender
         TrimTextureBindingTable(render_context);
 
         return RESULT_OK;
+    }
+
+    Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
+    {
+        return DrawInternal(render_context, predicate, constant_buffer, 0);
     }
 
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options)
