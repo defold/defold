@@ -193,6 +193,17 @@
       (cond
         (>= i len) false
         (Character/isWhitespace (.charAt line i)) (recur (inc i))
+
+        (and (= \- (.charAt line i)) (< (inc i) len) (= \- (.charAt line (inc i))))
+        (let [open (+ i 2)
+              level (if (and (< open len) (= \[ (.charAt line open)))
+                      (long-bracket-level line open len \[)
+                      -1)
+              end (if (neg? level) -1 (long-bracket-end line (+ open level 2) level))]
+          (if (neg? end)
+            false
+            (recur end)))
+
         :else true))))
 
 (defn- visual-column

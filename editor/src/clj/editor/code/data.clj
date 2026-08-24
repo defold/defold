@@ -2205,6 +2205,14 @@
                                 (recur (dec row) nil)
 
                                 (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row) nil)
+
+                                ;; A line that leads with a bracket closer continues
+                                ;; whatever opened above, so being unindented does not
+                                ;; make it a top-level statement.
+                                (let [{:keys [leading closes]} (line-indent-counts grammar line false tab-spaces)]
+                                  (and leading (seq closes) (not= :block (first closes))))
+                                (recur (dec row) nil)
+
                                 :else row))))]
     (loop [row start-row
            stack (loop [n (parse-indent-level indent-level-pattern (get lines start-row))
