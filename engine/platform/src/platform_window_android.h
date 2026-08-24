@@ -32,6 +32,9 @@ namespace dmPlatform
     JavaVM*      GetAndroidJavaVM();
     jobject      GetAndroidActivity();
     android_app* GetAndroidApp();
+    ANativeWindow* WaitForAndroidWindow();
+    bool           IsAndroidWindowCurrent(ANativeWindow* window);
+    void           ReleaseAndroidWindow(ANativeWindow* window);
     bool         GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
 
     void         SetAndroidInputMethod(bool use_hidden_inputfield);
