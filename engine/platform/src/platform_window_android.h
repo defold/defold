@@ -24,21 +24,19 @@
 
 namespace dmPlatform
 {
-    int32_t      AndroidVerifySurface(HWindow window);
-    void         AndroidBeginFrame(HWindow window);
-
-    EGLContext   GetAndroidEGLContext();
-    EGLSurface   GetAndroidEGLSurface();
-    JavaVM*      GetAndroidJavaVM();
-    jobject      GetAndroidActivity();
-    android_app* GetAndroidApp();
+    int32_t        AndroidVerifySurface(HWindow window);
+    void           AndroidBeginFrame(HWindow window);
+    EGLContext     GetAndroidEGLContext();
+    EGLSurface     GetAndroidEGLSurface();
+    JavaVM*        GetAndroidJavaVM();
+    jobject        GetAndroidActivity();
+    android_app*   GetAndroidApp();
     ANativeWindow* WaitForAndroidWindow();
     bool           IsAndroidWindowCurrent(ANativeWindow* window);
     void           ReleaseAndroidWindow(ANativeWindow* window);
-    bool         GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
-
-    void         SetAndroidInputMethod(bool use_hidden_inputfield);
-    void         SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout);
+    bool           GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
+    void           SetAndroidInputMethod(bool use_hidden_inputfield);
+    void           SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout);
 }
 
 #endif // DM_PLATFORM_WINDOW_ANDROID_H

@@ -291,6 +291,16 @@ namespace dmGraphics
         }
 
         *vkSurfaceOut = VK_NULL_HANDLE;
+
+        // Android may destroy and replace the native window while the app is
+        // paused or resumed. WaitForAndroidWindow() blocks (and sleeps between
+        // checks) until GLFW can return an acquired reference to the current
+        // window, so this loop is not a tight busy-wait.
+        //
+        // The lifecycle may still change while the Vulkan driver is creating
+        // the surface. The loop lets us revalidate the window afterwards and,
+        // if it became stale, discard that surface and retry with the window
+        // supplied by the next lifecycle state.
         while (true)
         {
             ANativeWindow* native_window = dmPlatform::WaitForAndroidWindow();
