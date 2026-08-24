@@ -2188,11 +2188,13 @@
                                   close-level (some-> (re-find #"\](=*)\]" line) second count)]
                               (cond
                                 ;; Nothing between a long bracket and its match is
-                                ;; code, so it cannot anchor the replay. Only a
-                                ;; bracket of the same level closes one.
+                                ;; code, so it cannot anchor the replay. Long strings
+                                ;; do not nest, so an opener spotted on the way up may
+                                ;; be text inside the string; only the start of the
+                                ;; file is known to be outside one.
                                 long-bracket-level
                                 (if (= long-bracket-level open-level)
-                                  (recur row nil)
+                                  0
                                   (recur (dec row) long-bracket-level))
 
                                 (and close-level (not= close-level open-level))
