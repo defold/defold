@@ -330,11 +330,13 @@
                     (let [evaluation-context (g/make-evaluation-context)]
                       (try
                         (render-build-progress! (progress/make-cancellable-indeterminate (localization/message "progress.building")))
-                        (let [{:keys [error exception]} (bob/invoke! project bob-options bob-commands
-                                                                     :task-cancelled? task-cancelled?
-                                                                     :render-progress! render-build-progress!
-                                                                     :evaluation-context evaluation-context
-                                                                     :log-output-stream log-output-stream)]
+                        (let [{:keys [error exception]}
+                              (bob/invoke!
+                                project bob-options bob-commands
+                                :task-cancelled? task-cancelled?
+                                :render-progress! render-build-progress!
+                                :evaluation-context evaluation-context
+                                :log-output-stream log-output-stream)]
                           (cond
                             error {:error error}
                             exception {:error (engine-build-errors/exception->error-value exception project evaluation-context)}
@@ -343,10 +345,11 @@
                           (ui/run-now
                             (g/update-cache-from-evaluation-context! evaluation-context))))))))]
           (when invoke-bundle-hooks
-            @(extensions/execute-hook! project
-                                       :on_bundle_finished
-                                       (assoc hook-opts :success (not (:error build-results)))
-                                       :exception-policy :ignore))
+            @(extensions/execute-hook!
+               project
+               :on_bundle_finished
+               (assoc hook-opts :success (not (:error build-results)))
+               :exception-policy :ignore))
           build-results)))
     (catch Throwable error
       (error-reporting/report-exception! error)

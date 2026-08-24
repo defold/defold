@@ -1517,7 +1517,9 @@
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
-        (if (and (handle-build-results! workspace render-build-error! build-results) launch (or engine skip-engine))
+        (if (and (handle-build-results! workspace render-build-error! build-results)
+                 launch
+                 (or engine skip-engine))
           (do
             (show-console! main-scene tool-tab-pane)
             (let [{:keys [error]} (launch-built-project! project engine project-directory prefs web-server false focus)]
@@ -1577,7 +1579,8 @@
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
-        (if (and (handle-build-results! workspace render-build-error! build-results) (or engine skip-engine))
+        (if (and (handle-build-results! workspace render-build-error! build-results)
+                 (or engine skip-engine))
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
             (when (and target (nil? (debug-view/current-session debug-view)))
               (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
