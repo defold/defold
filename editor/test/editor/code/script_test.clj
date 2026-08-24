@@ -451,7 +451,72 @@
                          "]=]"
                          "print(s)"
                          "end"]
-                        4 5))))
+                        4 5)))
+
+  ;; Long strings do not nest, so a same-level opener inside one is just text.
+  ;; Scanning backward stops at the real opener, never at this.
+  (is (= ["function f()"
+          "    local s = [["
+          "[[ not a nested string"
+          "]]"
+          "    print(s)"
+          "end"]
+         (reindent-rows ["function f()"
+                         "    local s = [["
+                         "[[ not a nested string"
+                         "]]"
+                         "print(s)"
+                         "end"]
+                        4 5)))
+
+  ;; The replay can start inside the string, where an unindented line of prose
+  ;; is no more a top-level statement than one that looks like code.
+  (is (= ["function f()"
+          "    local s = [["
+          "just some prose"
+          "]]"
+          "    print(s)"
+          "end"]
+         (reindent-rows ["function f()"
+                         "    local s = [["
+                         "just some prose"
+                         "]]"
+                         "print(s)"
+                         "end"]
+                        3 4))))
+
+(deftest insert-indentation-below-long-string-test
+  ;; Pressing Enter fixes the row the newline was typed on as well as the new
+  ;; one, so the replay starts a row further up -- inside the string.
+  (are [inserted-lines before after]
+    (= (into [] xform-test-lines->lines after)
+       (:lines (insert-lines (into [] xform-test-lines->lines before)
+                             (into [] xform-test-lines->cursor-ranges before)
+                             inserted-lines)))
+
+    [""
+     ""]
+    ["function f()"
+     "    local s = [["
+     "just some prose"
+     "]]|"]
+    ["function f()"
+     "    local s = [["
+     "just some prose"
+     "]]"
+     "    |"]
+
+    [""
+     ""]
+    ["function f()"
+     "    local s = [["
+     "[[ not a nested string"
+     "]]|"]
+    ["function f()"
+     "    local s = [["
+     "[[ not a nested string"
+     "]]"
+     "    |"]))
 
 (deftest reindent-tab-alignment-test
   ;; An alignment column is where the text is drawn, so tabs both in the

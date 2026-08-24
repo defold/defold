@@ -2180,25 +2180,19 @@
   (let [queried-row (long queried-row)
         tab-spaces (long tab-spaces)
         ^long start-row (loop [row queried-row
-                               long-bracket-level nil]
+                               candidate nil]
                           (if-not (pos? row)
-                            0
-                            (let [^String line (get lines row)
-                                  open-level (some-> (re-find #"\[(=*)\[" line) second count)
-                                  close-level (some-> (re-find #"\](=*)\]" line) second count)]
+                            (or candidate 0)
+                            (let [^String line (get lines row)]
                               (cond
-                                ;; Nothing between a long bracket and its match is
-                                ;; code, so it cannot anchor the replay. Long strings
-                                ;; do not nest, so an opener spotted on the way up may
-                                ;; be text inside the string; only the start of the
-                                ;; file is known to be outside one.
-                                long-bracket-level
-                                (if (= long-bracket-level open-level)
-                                  0
-                                  (recur (dec row) long-bracket-level))
+                                ;; Anything between a long bracket and its match may be
+                                ;; string content, and no single line tells content from
+                                ;; code. Only the start of the file is known to be
+                                ;; outside one.
+                                (re-find #"\[=*\[|\]=*\]" line) 0
 
-                                (and close-level (not= close-level open-level))
-                                (recur (dec row) close-level)
+                                ;; Keep looking for long brackets above the anchor.
+                                (some? candidate) (recur (dec row) candidate)
 
                                 (string/blank? line) (recur (dec row) nil)
 
@@ -2215,7 +2209,7 @@
                                   (and leading (seq closes) (not= :block (first closes))))
                                 (recur (dec row) nil)
 
-                                :else row))))]
+                                :else (recur (dec row) row)))))]
     (loop [row start-row
            stack (loop [n (parse-indent-level indent-level-pattern (get lines start-row))
                         stack []]
