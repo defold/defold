@@ -84,7 +84,7 @@ defold_target_link_socket(test_input "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_glfw(test_input "${TARGET_PLATFORM}" PRIVATE)
 
 # Platform-specific libs
-if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
     # nothing extra for now
 elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
     target_link_libraries(test_input PRIVATE "-framework IOKit")

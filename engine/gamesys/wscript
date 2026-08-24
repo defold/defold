@@ -115,7 +115,7 @@ def shutdown(self):
 
     import test_script_server
 
-    local_ip = _get_local_ip(self)
+    local_ip = waf_dynamo.get_test_server_ip(test_context.env.PLATFORM, _get_local_ip(self))
 
     if test_context.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-macos', 'arm64-macos'):
         local_ip = "localhost"

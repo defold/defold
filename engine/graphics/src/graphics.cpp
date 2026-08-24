@@ -39,6 +39,33 @@ DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch
 
 namespace dmGraphics
 {
+    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts)
+    {
+        requested_sample_count = GetDefaultSampleCount(requested_sample_count);
+        supported_sample_counts |= 1;
+
+        uint32_t closest_sample_count = 1;
+        for (uint32_t sample_count = 1; sample_count != 0 && sample_count <= requested_sample_count; sample_count <<= 1)
+        {
+            if (supported_sample_counts & sample_count)
+            {
+                closest_sample_count = sample_count;
+            }
+        }
+        return closest_sample_count;
+    }
+
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name)
+    {
+        uint32_t requested = GetDefaultSampleCount(requested_sample_count);
+        uint32_t conformed = GetClosestSupportedSampleCount(requested, supported_sample_counts);
+        if (requested != conformed)
+        {
+            dmLogWarning("%s render target requested sample_count %u, using supported sample_count %u.", adapter_name, requested, conformed);
+        }
+        return conformed;
+    }
+
     static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
@@ -1897,7 +1924,8 @@ namespace dmGraphics
 
         if (IsColorBufferType(buffer_type))
         {
-            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
+            uint32_t index = GetBufferTypeIndex(buffer_type);
+            return rt->m_TextureColorResolve[index] ? rt->m_TextureColorResolve[index] : rt->m_TextureColor[index];
         }
         else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
         {
@@ -1934,6 +1962,13 @@ namespace dmGraphics
 
         width  = params ? params->m_Width : 0;
         height = params ? params->m_Height : 0;
+    }
+    uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target)
+    {
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
+        return rt ? GetDefaultSampleCount(rt->m_SampleCount) : 0;
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
