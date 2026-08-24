@@ -205,6 +205,15 @@ namespace dmGameObject
         ~Register();
     };
 
+    // Identifies the exact generation of a runtime-created resource. If an entry
+    // outlives its resource descriptor, the version distinguishes it from a resource
+    // later recreated with the same path.
+    struct DynamicResource
+    {
+        dmhash_t m_PathHash;
+        uint16_t m_Version;
+    };
+
     // Max hierarchical depth
     // depth is interpreted as up to <depth> levels of child nodes including root-nodes
     // Must be greater than zero
@@ -256,7 +265,7 @@ namespace dmGameObject
         dmArray<Instance*>       m_InputFocusStack;
 
         // Array of dynamically created resources (i.e runtime-only resources)
-        dmArray<dmhash_t>        m_DynamicResources;
+        dmArray<DynamicResource> m_DynamicResources;
 
         // Name-hash of the collection.
         dmhash_t                 m_NameHash;

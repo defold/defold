@@ -322,27 +322,64 @@ namespace dmGameObject
     void AddDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
         Collection* collection = hcollection->m_Collection;
+        HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, resource_hash);
+        if (!rd)
+        {
+            return;
+        }
+
+        DynamicResource dynamic_resource;
+        dynamic_resource.m_PathHash = resource_hash;
+        dynamic_resource.m_Version = dmResource::GetVersion(collection->m_Factory, dmResource::GetResource(rd));
+
         dmMutex::Lock(collection->m_Mutex);
+        // The creating collection tracks each dynamic resource generation once so it
+        // can release it when the collection is deleted. Avoid recording the same
+        // generation twice, since that would release it twice.
+        for (uint32_t i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        {
+            const DynamicResource& existing = collection->m_DynamicResources[i];
+            if (existing.m_PathHash == dynamic_resource.m_PathHash && existing.m_Version == dynamic_resource.m_Version)
+            {
+                dmMutex::Unlock(collection->m_Mutex);
+                return;
+            }
+        }
         if (collection->m_DynamicResources.Remaining() == 0)
         {
             collection->m_DynamicResources.OffsetCapacity(1);
         }
-        collection->m_DynamicResources.Push(resource_hash);
+        collection->m_DynamicResources.Push(dynamic_resource);
         dmMutex::Unlock(collection->m_Mutex);
     }
 
     void RemoveDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
-        Collection* collection = hcollection->m_Collection;
-        dmMutex::Lock(collection->m_Mutex);
-        for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        Register* regist = hcollection->m_Collection->m_Register;
+        DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
+        // 1. Collection A creates the resource and records its hash.
+        // 2. Collection B calls resource.release().
+        // 3. Removing the hash only from B leaves A's entry after the descriptor is deleted.
+        // 4. If the path is recreated before A unloads, A's hash resolves to the new resource.
+        // Search every collection in the register to remove the actual owner's entry.
+        for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
         {
-            if (collection->m_DynamicResources[i] == resource_hash)
+            Collection* collection = regist->m_Collections[collection_index];
+            dmMutex::Lock(collection->m_Mutex);
+            uint32_t resource_index = 0;
+            while (resource_index < collection->m_DynamicResources.Size())
             {
-                collection->m_DynamicResources.EraseSwap(i);
+                if (collection->m_DynamicResources[resource_index].m_PathHash == resource_hash)
+                {
+                    collection->m_DynamicResources.EraseSwap(resource_index);
+                }
+                else
+                {
+                    ++resource_index;
+                }
             }
+            dmMutex::Unlock(collection->m_Mutex);
         }
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     static void ReleaseDynamicResources(Collection* collection)
@@ -350,9 +387,19 @@ namespace dmGameObject
         dmMutex::Lock(collection->m_Mutex);
         for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
         {
-            HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
-            assert(rd);
+            const DynamicResource& dynamic_resource = collection->m_DynamicResources[i];
+            HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, dynamic_resource.m_PathHash);
+            if (!rd)
+            {
+                continue;
+            }
             void* resource = dmResource::GetResource(rd);
+            // The path may have been reused after the tracked resource was released.
+            // Only release the resource generation that this collection recorded.
+            if (dmResource::GetVersion(collection->m_Factory, resource) != dynamic_resource.m_Version)
+            {
+                continue;
+            }
             dmResource::Release(collection->m_Factory, resource);
         }
         collection->m_DynamicResources.SetSize(0);
