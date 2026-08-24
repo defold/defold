@@ -359,7 +359,7 @@ namespace dmGameObject
         DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
         // 1. Collection A creates the resource and records its hash.
         // 2. Collection B calls resource.release().
-        // 3. Removing the hash only from B leaves A's entry after the descriptor is deleted.
+        // 3. Searching only B finds nothing, so A's entry outlives the deleted descriptor.
         // 4. If the path is recreated before A unloads, A's hash resolves to the new resource.
         // Search every collection in the register to remove the actual owner's entry.
         for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
