@@ -1074,37 +1074,39 @@
                                    (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
                                last-launched-target))]
     (try
-      (cond
-        (or (not selected-target) (targets/all-launched-targets? selected-target))
-        (launch-new-engine!)
+      {:target
+       (cond
+         (or (not selected-target) (targets/all-launched-targets? selected-target))
+         (launch-new-engine!)
 
-        (not (targets/controllable-target? selected-target))
-        (do
-          (assert (targets/launched-target? selected-target))
-          (launch-new-engine!))
+         (not (targets/controllable-target? selected-target))
+         (do
+           (assert (targets/launched-target? selected-target))
+           (launch-new-engine!))
 
-        (target-cannot-swap-engine? selected-target)
-        (let [log-stream (engine/get-log-service-stream selected-target)]
-          (console/set-log-service-stream log-stream)
-          (reboot-engine! selected-target web-server debug focus))
+         (target-cannot-swap-engine? selected-target)
+         (let [log-stream (engine/get-log-service-stream selected-target)]
+           (console/set-log-service-stream log-stream)
+           (reboot-engine! selected-target web-server debug focus))
 
-        :else
-        (do
-          (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-          (if (= (:id engine-descriptor) (:engine-id selected-target))
-            (do
-              ;; We're running "the same" engine and can reuse the
-              ;; running process by rebooting
-              (console/reset-console-stream! (:log-stream selected-target))
-              (console/reset-remote-log-pump-thread! nil)
-              ;; Launched target log pump already
-              ;; running to keep engine process
-              ;; from halting because stdout/err is
-              ;; not consumed.
-              (reboot-engine! selected-target web-server debug focus))
-            (launch-new-engine!))))
+         :else
+         (do
+           (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
+           (if (= (:id engine-descriptor) (:engine-id selected-target))
+             (do
+               ;; We're running "the same" engine and can reuse the
+               ;; running process by rebooting
+               (console/reset-console-stream! (:log-stream selected-target))
+               (console/reset-remote-log-pump-thread! nil)
+               ;; Launched target log pump already
+               ;; running to keep engine process
+               ;; from halting because stdout/err is
+               ;; not consumed.
+               (reboot-engine! selected-target web-server debug focus))
+             (launch-new-engine!))))}
       (catch SocketTimeoutException e
-        (debug-view/show-connect-failed-info! e (project/workspace project)))
+        (debug-view/show-connect-failed-info! e (project/workspace project))
+        {:error e})
       (catch Exception e
         (log/warn :exception e)
         (let [localization (g/with-auto-evaluation-context evaluation-context
@@ -1124,7 +1126,8 @@
                                                         (localization/message "dialog.launch-failed.target.new-local-engine"))}))}
                                  {:fx/type fxui/legacy-label
                                   :text (localization (localization/message "dialog.launch-failed.detail"))}]}
-             :content (.getMessage e)}))))))
+             :content (.getMessage e)}))
+        {:error e}))))
 
 (defn- get-cycle-detected-help-message [basis node-id]
   (let [proj-path (some-> (resource-node/owner-resource basis node-id) resource/proj-path)
@@ -1495,6 +1498,9 @@
       (workspace/save-build-cache! workspace))
     (nil? error)))
 
+(defn- exception->target-error [error]
+  (g/map->error {:severity :fatal :message (or (ex-message error) (.getName (class error)))}))
+
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane launch focus]
   (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
@@ -1511,11 +1517,14 @@
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
-        (when (handle-build-results! workspace render-build-error! build-results)
-          (when (and launch (or engine skip-engine))
+        (if (and (handle-build-results! workspace render-build-error! build-results)
+                 launch
+                 (or engine skip-engine))
+          (do
             (show-console! main-scene tool-tab-pane)
-            (launch-built-project! project engine project-directory prefs web-server false focus)))
-        build-results))))
+            (let [{:keys [error]} (launch-built-project! project engine project-directory prefs web-server false focus)]
+              (cond-> build-results error (assoc :error (exception->target-error error)))))
+          build-results)))))
 
 (handler/defhandler :project.compile :global
   (enabled? [] (not (build-in-progress?)))
@@ -1570,11 +1579,13 @@
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
-        (when (handle-build-results! workspace render-build-error! build-results)
-          (when (or engine skip-engine)
-            (when-let [target (launch-built-project! project engine project-directory prefs web-server true true)]
-              (when (nil? (debug-view/current-session debug-view))
-                (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
+        (if (and (handle-build-results! workspace render-build-error! build-results)
+                 (or engine skip-engine))
+          (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
+            (when (and target (nil? (debug-view/current-session debug-view)))
+              (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
+            (cond-> build-results error (assoc :error (exception->target-error error))))
+          build-results)))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
   (let [[render-progress! task-cancelled?] (begin-task-progress! :build)]
@@ -1592,7 +1603,8 @@
         (when (handle-build-results! workspace render-build-error! build-results)
           (let [target (targets/selected-target prefs)]
             (when (targets/controllable-target? target)
-              (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
+              (debug-view/attach! debug-view project target (:artifacts build-results)))))
+        build-results))))
 
 (handler/defhandler :debugger.start :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
@@ -1602,7 +1614,9 @@
     (not (debug-view/debugging? debug-view evaluation-context)))
   (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane localization]
-    (when (debugging-supported? project localization)
+    (if-not (debugging-supported? project localization)
+      {:error (g/map->error {:severity :fatal
+                             :message (localization/message "dialog.debugging-not-supported.header")})}
       (let [main-scene (.getScene ^Stage main-stage)
             render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
         (build-errors-view/clear-build-errors build-errors-view)
@@ -1645,18 +1659,21 @@
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-        bob-args (bob/build-html5-bob-options project prefs)
-        out (start-new-log-pipe!)]
+        bob-args (bob/build-html5-bob-options project prefs)]
     (build-errors-view/clear-build-errors build-errors-view)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out build-task-cancelled?
-                           render-build-error! bob-commands bob-args project changes-view
-                           (fn [successful?]
-                             (when successful?
-                               (let [url (str (http-server/local-url web-server) "/html5")]
-                                 (if (prefs/get prefs [:build :open-html5-build])
-                                   (ui/open-url url)
-                                   (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))
-                               (.close out))))))
+    (future/io
+      (let [build-results
+            (with-open [out (start-new-log-pipe!)]
+              (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                               out build-task-cancelled? bob-commands bob-args project changes-view))]
+        (ui/run-now
+          (if-let [error (:error build-results)]
+            (render-build-error! error)
+            (let [url (str (http-server/local-url web-server) "/html5")]
+              (if (prefs/get prefs [:build :open-html5-build])
+                (ui/open-url url)
+                (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))))
+        build-results))))
 
 (handler/defhandler :project.clean-build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane localization]
@@ -1721,9 +1738,11 @@
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace)
                     :prefs prefs)
-      (fn [{:keys [error artifact-map etags]}]
+      (fn [{:keys [error artifact-map etags] :as build-results}]
         (if (some? error)
-          (render-build-error! error)
+          (do
+            (render-build-error! error)
+            build-results)
           (do
             (workspace/artifact-map! workspace artifact-map)
             (workspace/etags! workspace etags)
@@ -1737,6 +1756,7 @@
                   (doseq [launched-target (targets/all-launched-targets)]
                     (engine/reload-build-resources! launched-target updated-build-resources))
                   (engine/reload-build-resources! target updated-build-resources)))
+              build-results
               (catch Exception e
                 (dialogs/make-info-dialog
                   localization
@@ -1745,7 +1765,8 @@
                    :header (localization/message
                              "dialog.hot-reload-failed.header"
                              {"engine" (targets/target-message (targets/selected-target prefs))})
-                   :content (.getMessage e)})))))))))
+                   :content (.getMessage e)})
+                (assoc build-results :error (exception->target-error e))))))))))
 
 (handler/defhandler :run.hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
@@ -3550,37 +3571,26 @@
     :fetch-libraries! (fn fetch-libraries! []
                         (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
     :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
-                   (let [f (future/make)]
-                     (fx/on-fx-thread
-                       (let [options (cond-> options
-                                       (not (contains? options "build-server"))
-                                       (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
-                                       (not (contains? options "build-server-header"))
-                                       (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-                             main-scene (g/node-value app-view :scene evaluation-context)
-                             tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-                             render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-                             render-reload-progress! (make-render-task-progress :resource-sync)
-                             render-save-progress! (make-render-task-progress :save-all)
-                             [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-                             out (start-new-log-pipe!)]
-                         (build-errors-view/clear-build-errors build-errors-view)
-                         (disk/async-bob-build! render-reload-progress!
-                                                render-save-progress!
-                                                render-build-progress!
-                                                out
-                                                build-task-cancelled?
-                                                render-build-error!
-                                                commands
-                                                options
-                                                project
-                                                changes-view
-                                                (fn [successful]
-                                                  (if successful
-                                                    (future/complete! f nil)
-                                                    (future/fail! f (LuaError. "Bob invocation failed")))
-                                                  (.close out)))))
-                     f))
+                   (let [options (cond-> options
+                                   (not (contains? options "build-server"))
+                                   (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+                                   (not (contains? options "build-server-header"))
+                                   (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+                         main-scene (g/node-value app-view :scene evaluation-context)
+                         tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+                         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+                         render-reload-progress! (make-render-task-progress :resource-sync)
+                         render-save-progress! (make-render-task-progress :save-all)
+                         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)]
+                     (future/io
+                       (ui/run-now (build-errors-view/clear-build-errors build-errors-view))
+                       (let [{:keys [error]}
+                             (with-open [out (start-new-log-pipe!)]
+                               (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                                                out build-task-cancelled? commands options project changes-view))]
+                         (when error
+                           (ui/run-now (render-build-error! error))
+                           (throw (LuaError. "Bob invocation failed")))))))
     :web-server web-server)
   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))
