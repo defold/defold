@@ -322,7 +322,7 @@ namespace dmGameObject
     void AddDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
         Collection* collection = hcollection->m_Collection;
-        dmMutex::Lock(collection->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
         // The creating collection tracks each dynamic resource once so it can release
         // it when the collection is deleted. Avoid recording the same resource twice,
         // since that would release it twice.
@@ -330,7 +330,6 @@ namespace dmGameObject
         {
             if (collection->m_DynamicResources[i] == resource_hash)
             {
-                dmMutex::Unlock(collection->m_Mutex);
                 return;
             }
         }
@@ -339,7 +338,6 @@ namespace dmGameObject
             collection->m_DynamicResources.OffsetCapacity(1);
         }
         collection->m_DynamicResources.Push(resource_hash);
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     void RemoveDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
@@ -356,32 +354,26 @@ namespace dmGameObject
         for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
         {
             Collection* collection = regist->m_Collections[collection_index];
-            dmMutex::Lock(collection->m_Mutex);
-            uint32_t resource_index = 0;
-            while (resource_index < collection->m_DynamicResources.Size())
+            for (uint32_t resource_index = 0; resource_index < collection->m_DynamicResources.Size(); ++resource_index)
             {
                 if (collection->m_DynamicResources[resource_index] == resource_hash)
                 {
-                    // Check the swapped-in entry at this index as well.
                     collection->m_DynamicResources.EraseSwap(resource_index);
-                }
-                else
-                {
-                    ++resource_index;
+                    return;
                 }
             }
-            dmMutex::Unlock(collection->m_Mutex);
         }
     }
 
     static void ReleaseDynamicResources(Collection* collection)
     {
-        dmMutex::Lock(collection->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
         for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
         {
             HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
             if (!rd)
             {
+                dmLogError("Unable to find '%s' when releasing dynamic resources", dmHashReverseSafe64(collection->m_DynamicResources[i]));
                 continue;
             }
             void* resource = dmResource::GetResource(rd);
@@ -389,7 +381,6 @@ namespace dmGameObject
         }
         collection->m_DynamicResources.SetSize(0);
         collection->m_DynamicResources.SetCapacity(0);
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     void DeleteCollections(HRegister regist)
