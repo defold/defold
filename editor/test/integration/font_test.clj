@@ -342,10 +342,10 @@
             (is (> w'' w'))
             (is (> h'' h'))))))))
 
-(deftest text-splitting
+(deftest legacy-text-splitting
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/fonts/score.font")
-          font-map (g/node-value node-id :font-map)
+          font-map (dissoc (g/node-value node-id :font-map) :native-renderer-spec)
           {hello-width :width :keys [lines]} (font/layout-text font-map "hello" false 0 0 0)]
       (is (= ["hello"] lines))
       (testing "If the line is too long and does not have spaces, we don't wrap"

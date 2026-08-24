@@ -424,7 +424,8 @@
   [supported-codepoints codepoint]
   (or (contains? supported-codepoints codepoint)
       (= (int \newline) codepoint)
-      (= (int \return) codepoint)))
+      (= (int \return) codepoint)
+      (= (int \u200B) codepoint)))
 
 (defn- restrict-native-preview-text
   ^String [^NativeRendererSpec renderer-spec ^String text]
