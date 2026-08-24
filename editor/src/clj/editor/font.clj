@@ -455,7 +455,7 @@
                 (.append result ch)
                 (cond
                   quote
-                  (recur (inc index) true (when-not (= quote ch) quote))
+                  (recur (inc index) true (when-not (= ch (.charValue ^Character quote)) quote))
 
                   (or (= \' ch) (= \" ch))
                   (recur (inc index) true ch)
