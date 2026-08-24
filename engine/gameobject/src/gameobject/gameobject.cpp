@@ -357,11 +357,13 @@ namespace dmGameObject
     {
         Register* regist = hcollection->m_Collection->m_Register;
         DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
+        // Search every collection in the register to remove the actual owner's entry.
+        // We need to do this to avoid the following scenario (#13002):
+        //
         // 1. Collection A creates the resource and records its hash.
         // 2. Collection B calls resource.release().
-        // 3. Searching only B finds nothing, so A's entry outlives the deleted descriptor.
-        // 4. If the path is recreated before A unloads, A's hash resolves to the new resource.
-        // Search every collection in the register to remove the actual owner's entry.
+        // 3. Searching only B finds nothing, so A's entry is still in the register.
+        // 4. If B creates a resource at the same path before A unloads, A's hash resolves to it.
         for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
         {
             Collection* collection = regist->m_Collections[collection_index];
