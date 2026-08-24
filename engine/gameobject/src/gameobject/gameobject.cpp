@@ -322,24 +322,13 @@ namespace dmGameObject
     void AddDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
         Collection* collection = hcollection->m_Collection;
-        HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, resource_hash);
-        if (!rd)
-        {
-            return;
-        }
-
-        DynamicResource dynamic_resource;
-        dynamic_resource.m_PathHash = resource_hash;
-        dynamic_resource.m_Version = dmResource::GetVersion(collection->m_Factory, dmResource::GetResource(rd));
-
         dmMutex::Lock(collection->m_Mutex);
-        // The creating collection tracks each dynamic resource generation once so it
-        // can release it when the collection is deleted. Avoid recording the same
-        // generation twice, since that would release it twice.
+        // The creating collection tracks each dynamic resource once so it can release
+        // it when the collection is deleted. Avoid recording the same resource twice,
+        // since that would release it twice.
         for (uint32_t i = 0; i < collection->m_DynamicResources.Size(); ++i)
         {
-            const DynamicResource& existing = collection->m_DynamicResources[i];
-            if (existing.m_PathHash == dynamic_resource.m_PathHash && existing.m_Version == dynamic_resource.m_Version)
+            if (collection->m_DynamicResources[i] == resource_hash)
             {
                 dmMutex::Unlock(collection->m_Mutex);
                 return;
@@ -349,7 +338,7 @@ namespace dmGameObject
         {
             collection->m_DynamicResources.OffsetCapacity(1);
         }
-        collection->m_DynamicResources.Push(dynamic_resource);
+        collection->m_DynamicResources.Push(resource_hash);
         dmMutex::Unlock(collection->m_Mutex);
     }
 
@@ -363,7 +352,7 @@ namespace dmGameObject
         // 1. Collection A creates the resource and records its hash.
         // 2. Collection B calls resource.release().
         // 3. Searching only B finds nothing, so A's entry is still in the register.
-        // 4. If B creates a resource at the same path before A unloads, A's hash resolves to it.
+        // 4. When A unloads, its stale entry resolves to a deleted descriptor and asserts.
         for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
         {
             Collection* collection = regist->m_Collections[collection_index];
@@ -371,8 +360,9 @@ namespace dmGameObject
             uint32_t resource_index = 0;
             while (resource_index < collection->m_DynamicResources.Size())
             {
-                if (collection->m_DynamicResources[resource_index].m_PathHash == resource_hash)
+                if (collection->m_DynamicResources[resource_index] == resource_hash)
                 {
+                    // Check the swapped-in entry at this index as well.
                     collection->m_DynamicResources.EraseSwap(resource_index);
                 }
                 else
@@ -389,19 +379,12 @@ namespace dmGameObject
         dmMutex::Lock(collection->m_Mutex);
         for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
         {
-            const DynamicResource& dynamic_resource = collection->m_DynamicResources[i];
-            HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, dynamic_resource.m_PathHash);
+            HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
             if (!rd)
             {
                 continue;
             }
             void* resource = dmResource::GetResource(rd);
-            // The path may have been reused after the tracked resource was released.
-            // Only release the resource generation that this collection recorded.
-            if (dmResource::GetVersion(collection->m_Factory, resource) != dynamic_resource.m_Version)
-            {
-                continue;
-            }
             dmResource::Release(collection->m_Factory, resource);
         }
         collection->m_DynamicResources.SetSize(0);
