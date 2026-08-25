@@ -48,6 +48,7 @@ FUNCTIONS = (
     "FontcDestroy",
     "FontcMeasure",
     "FontcMeasureMarkup",
+    "FontcFilterMarkup",
     "FontcGenerateGlyph",
     "FontcFreeGlyph",
     "FontcGetGlyphMetrics",

@@ -220,6 +220,31 @@ extern "C"
                                                        float         tracking,
                                                        FontcLayout*  layout);
 
+    /*# Filters visible rich-text codepoints
+     *
+     * Parses UTF-8 rich-text markup with the native parser and copies it to the
+     * caller-owned output buffer, omitting visible codepoints not present in the
+     * allowed set. Markup syntax and entity spellings are preserved byte-for-byte.
+     * The output buffer must be at least `markup_byte_count` bytes.
+     *
+     * @name FontcFilterMarkup
+     * @param markup [type: const char*] UTF-8 rich-text markup.
+     * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
+     * @param allowed_codepoints [type: const uint32_t*] UTF-32 codepoints to retain.
+     * @param allowed_codepoint_count [type: uint32_t] Number of allowed codepoints.
+     * @param output [type: char*] Caller-owned output buffer.
+     * @param output_capacity [type: uint32_t] Output buffer size in bytes.
+     * @param output_byte_count [type: uint32_t*] Receives the number of bytes written.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcFilterMarkup(const char*     markup,
+                                                      uint32_t        markup_byte_count,
+                                                      const uint32_t* allowed_codepoints,
+                                                      uint32_t        allowed_codepoint_count,
+                                                      char*           output,
+                                                      uint32_t        output_capacity,
+                                                      uint32_t*       output_byte_count);
+
     /*#
      * Generates a standalone bitmap and metrics for one Unicode codepoint.
      * The generated glyph is not inserted into the context's glyph cache or atlas.

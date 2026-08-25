@@ -64,6 +64,16 @@ uint32_t MarkupGetTextLength(HMarkup)
     return 0;
 }
 
+MarkupResult MarkupFilterText(const char*, uint32_t, const uint32_t*, uint32_t, char*, uint32_t, uint32_t* output_length, MarkupError* error)
+{
+    if (output_length)
+    {
+        *output_length = 0;
+    }
+
+    return MarkupUnsupported(0, error);
+}
+
 const MarkupSpan* MarkupGetSpans(HMarkup)
 {
     return 0;

@@ -418,78 +418,21 @@
 (defn- font-map->glyphs [font-map]
   (into {} (map (fn [g] [(:character g) g])) (:glyphs font-map)))
 
-(defonce/record NativeRendererSpec [name font-bytes render-params measure-params supported-codepoints use-rich-text])
+(defonce/record NativeRendererSpec [name font-bytes render-params measure-params supported-codepoints supported-codepoint-array use-rich-text])
 
-(defn- native-preview-codepoint-supported?
-  [supported-codepoints codepoint]
-  (or (contains? supported-codepoints codepoint)
-      (= (int \newline) codepoint)
-      (= (int \return) codepoint)
-      (= (int \u200B) codepoint)))
-
-(defn- restrict-native-preview-text
+(defn- filter-native-preview-plain-text
+  "Removes codepoints unavailable to a statically generated font before plain
+  text is sent to the native preview renderer. Returns the input unchanged for
+  runtime-generated fonts and fonts configured to include all characters."
   ^String [^NativeRendererSpec renderer-spec ^String text]
   (if-let [supported-codepoints (.-supported-codepoints renderer-spec)]
     (let [codepoints (.toArray (.codePoints text))
           result (StringBuilder. (.length text))]
       (dotimes [index (alength codepoints)]
         (let [codepoint (aget codepoints index)]
-          (when (native-preview-codepoint-supported? supported-codepoints codepoint)
+          (when (contains? supported-codepoints codepoint)
             (.appendCodePoint result codepoint))))
       (.toString result))
-    text))
-
-(defn- restrict-native-preview-markup
-  ^String [^NativeRendererSpec renderer-spec ^String text]
-  (if-let [supported-codepoints (.-supported-codepoints renderer-spec)]
-    (let [length (.length text)
-          result (StringBuilder. length)]
-      (loop [index 0
-             in-tag false
-             quote nil]
-        (if (= index length)
-          (.toString result)
-          (let [ch (.charAt text index)]
-            (cond
-              in-tag
-              (do
-                (.append result ch)
-                (cond
-                  quote
-                  (recur (inc index) true (when-not (= ch (.charValue ^Character quote)) quote))
-
-                  (or (= \' ch) (= \" ch))
-                  (recur (inc index) true ch)
-
-                  (= \> ch)
-                  (recur (inc index) false nil)
-
-                  :else
-                  (recur (inc index) true nil)))
-
-              (= \< ch)
-              (do
-                (.append result ch)
-                (recur (inc index) true nil))
-
-              (= \& ch)
-              (let [entity-end (.indexOf text ";" index)
-                    entity-name (.substring text (inc index) entity-end)
-                    codepoint (case entity-name
-                                "amp" (int \&)
-                                "apos" (int \')
-                                "gt" (int \>)
-                                "lt" (int \<)
-                                "quot" (int \"))]
-                (when (native-preview-codepoint-supported? supported-codepoints codepoint)
-                  (.append result (.substring text index (inc entity-end))))
-                (recur (inc entity-end) false nil))
-
-              :else
-              (let [codepoint (.codePointAt text index)]
-                (when (native-preview-codepoint-supported? supported-codepoints codepoint)
-                  (.appendCodePoint result codepoint))
-                (recur (+ index (Character/charCount codepoint)) false nil)))))))
     text))
 
 (defn- create-native-renderer
@@ -510,18 +453,21 @@
         ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
         [^FontRenderer$Layout layout use-rich-text native-text native-markup]
         (if-not (.-use-rich-text renderer-spec)
-          (let [native-text (restrict-native-preview-text renderer-spec text)]
+          (let [native-text (filter-native-preview-plain-text renderer-spec text)]
             [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)) false native-text nil])
           (let [^FontRenderer$Layout markup-layout (.measureMarkup renderer text line-break? (float max-width) (float text-leading) (float text-tracking))]
             (if (.-markupError markup-layout)
-              (let [native-text (restrict-native-preview-text renderer-spec text)]
+              (let [native-text (filter-native-preview-plain-text renderer-spec text)]
                 [(.measure renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking))
                  true
                  native-text
                  (s/escape native-text {\& "&amp;"
                                         \< "&lt;"
                                         \> "&gt;"})])
-              (let [native-text (restrict-native-preview-markup renderer-spec text)
+              (let [^ints supported-codepoint-array (.-supported-codepoint-array renderer-spec)
+                    native-text (if supported-codepoint-array
+                                  (FontRenderer/filterMarkup text supported-codepoint-array)
+                                  text)
                     ^FontRenderer$Layout layout (if (= text native-text)
                                                   markup-layout
                                                   (.measureMarkup renderer native-text line-break? (float max-width) (float text-leading) (float text-tracking)))]
@@ -922,7 +868,7 @@
                                               (:world-transform entry)))
         ^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         text (or (:native-text text-layout)
-                 (restrict-native-preview-text renderer-spec (:text text-layout)))
+                 (filter-native-preview-plain-text renderer-spec (:text text-layout)))
         markup (:native-markup text-layout)
         transform (matrix->float-array (entry-transform entry))
         properties (FontRenderer$Properties.)]
@@ -1221,12 +1167,19 @@
           font-bytes (resource/resource->bytes font)
           supported-codepoints (when-not (or runtime-generation
                                              (:all-chars font-desc))
-                                 (into #{} (map :character) (:glyphs font-map)))]
+                                 (into #{(int \newline)
+                                         (int \return)
+                                         (int \u200B)}
+                                       (map :character)
+                                       (:glyphs font-map)))
+          supported-codepoint-array (when supported-codepoints
+                                      (int-array supported-codepoints))]
       (->NativeRendererSpec name
                             font-bytes
                             render-params
                             measure-params
                             supported-codepoints
+                            supported-codepoint-array
                             use-rich-text))))
 
 (defn- font-compilation-error [node-id font ^Exception error]

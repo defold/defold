@@ -416,6 +416,34 @@ const uint32_t* MarkupGetText(HMarkup markup);
  */
 uint32_t MarkupGetTextLength(HMarkup markup);
 
+/*# Filter visible text by codepoint
+ *
+ * Parses rich-text markup and copies the original UTF-8 source to `output`,
+ * omitting visible text codepoints that are not present in `allowed_codepoints`.
+ * Tags, attributes, and the original entity spellings are preserved byte-for-byte.
+ * Self-closing object tags are always preserved. The output buffer must be at
+ * least `text_length` bytes because filtering never increases the source size.
+ *
+ * @name MarkupFilterText
+ * @param text [type: const char*] UTF-8 rich-text markup.
+ * @param text_length [type: uint32_t] Number of bytes in the markup.
+ * @param allowed_codepoints [type: const uint32_t*] UTF-32 codepoints to retain.
+ * @param allowed_codepoint_count [type: uint32_t] Number of allowed codepoints.
+ * @param output [type: char*] Caller-owned output buffer.
+ * @param output_capacity [type: uint32_t] Output buffer size in bytes.
+ * @param output_length [type: uint32_t*] Receives the number of bytes written.
+ * @param error [type: MarkupError*] Optional parse error information.
+ * @return result [type: MarkupResult] Parsing and filtering result.
+ */
+MarkupResult MarkupFilterText(const char*     text,
+                              uint32_t        text_length,
+                              const uint32_t* allowed_codepoints,
+                              uint32_t        allowed_codepoint_count,
+                              char*           output,
+                              uint32_t        output_capacity,
+                              uint32_t*       output_length,
+                              MarkupError*    error);
+
 /*# Get visible text spans
  *
  * The returned spans are ordered by `m_TextOffset`, do not overlap, and cover

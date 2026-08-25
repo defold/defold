@@ -23,6 +23,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcBeginBatch;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcCreate;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroy;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDecodeImage;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFilterMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
@@ -364,6 +365,33 @@ public final class FontRenderer implements AutoCloseable {
                 return new Layout(result, markupError(bytes, result));
             checkResult(status, "Native rich-text shaping failed");
             return new Layout(result);
+        }
+    }
+
+    /**
+     * Removes unsupported visible codepoints from rich-text markup with the native parser.
+     * Tags, attributes, and entity spellings are preserved byte-for-byte.
+     */
+    public static String filterMarkup(String markup, int[] allowedCodepoints) {
+        if (markup == null || allowedCodepoints == null)
+            throw new NullPointerException();
+        for (int codepoint : allowedCodepoints) {
+            if (!Character.isValidCodePoint(codepoint))
+                throw new IllegalArgumentException("Invalid Unicode codepoint");
+        }
+
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment output = arena.allocate(JAVA_BYTE, Math.max(1, bytes.length));
+            MemorySegment outputByteCount = arena.allocate(JAVA_INT);
+            checkResult(FontcFilterMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
+                            arena.allocateFrom(JAVA_INT, allowedCodepoints), allowedCodepoints.length,
+                            output, bytes.length, outputByteCount),
+                    "Native rich-text filtering failed");
+            int filteredByteCount = outputByteCount.get(JAVA_INT, 0);
+            if (filteredByteCount < 0 || filteredByteCount > bytes.length)
+                throw new IllegalStateException("Invalid native filtered markup length");
+            return new String(output.asSlice(0, filteredByteCount).toArray(JAVA_BYTE), StandardCharsets.UTF_8);
         }
     }
 

@@ -35,6 +35,9 @@ struct ParseContext
     uint32_t    m_Length;
     uint32_t    m_Cursor;
     uint16_t    m_StyleNodeIndex;
+
+    // Optional one-to-one source byte ranges for the visible text codepoints.
+    dmArray<MarkupString>* m_TextSourceRanges;
 };
 
 template <typename T>
@@ -944,12 +947,18 @@ static MarkupResult ParseEntity(ParseContext* context, uint32_t* codepoint, Mark
     return MARKUP_RESULT_SYNTAX_ERROR;
 }
 
-static void PushText(ParseContext* context, uint32_t codepoint)
+static void PushText(ParseContext* context, uint32_t codepoint, MarkupString source)
 {
     Markup*        markup = context->m_Markup;
     const uint32_t text_offset = markup->m_Text.Size();
     EnsureCapacity(markup->m_Text);
     markup->m_Text.Push(codepoint);
+
+    if (context->m_TextSourceRanges)
+    {
+        EnsureCapacity(*context->m_TextSourceRanges);
+        context->m_TextSourceRanges->Push(source);
+    }
 
     if (!markup->m_Spans.Empty() && markup->m_Spans.Back().m_StyleNodeIndex == context->m_StyleNodeIndex &&
         markup->m_Spans.Back().m_TextOffset + markup->m_Spans.Back().m_TextLength == text_offset)
@@ -997,7 +1006,8 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
 
         if (node.m_Tag.m_Length == 6 && memcmp(context->m_Source + node.m_Tag.m_Offset, "sprite", 6) == 0)
         {
-            PushText(context, 0xfffc);
+            MarkupString source = { context->m_Cursor, 0 };
+            PushText(context, 0xfffc, source);
             node.m_TextLength = 1;
         }
     }
@@ -1007,6 +1017,8 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
 
 static MarkupResult ParseVisibleText(ParseContext* context, MarkupError* error)
 {
+    const uint32_t source_offset = context->m_Cursor;
+
     if (context->m_Source[context->m_Cursor] != '&')
     {
         uint32_t codepoint;
@@ -1017,7 +1029,8 @@ static MarkupResult ParseVisibleText(ParseContext* context, MarkupError* error)
             return result;
         }
 
-        PushText(context, codepoint);
+        MarkupString source = { source_offset, (uint16_t)(context->m_Cursor - source_offset) };
+        PushText(context, codepoint, source);
 
         return MARKUP_RESULT_OK;
     }
@@ -1027,13 +1040,14 @@ static MarkupResult ParseVisibleText(ParseContext* context, MarkupError* error)
 
     if (result == MARKUP_RESULT_OK)
     {
-        PushText(context, codepoint);
+        MarkupString source = { source_offset, (uint16_t)(context->m_Cursor - source_offset) };
+        PushText(context, codepoint, source);
     }
 
     return result;
 }
 
-static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error, bool style_fragment)
+static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error, bool style_fragment, dmArray<MarkupString>* text_source_ranges)
 {
     if (out_markup)
     {
@@ -1065,7 +1079,7 @@ static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length,
     EnsureCapacity(markup->m_StyleNodes);
     markup->m_StyleNodes.Push(root);
 
-    ParseContext context = { markup, markup->m_Source.Begin(), text_length, 0, 0 };
+    ParseContext context = { markup, markup->m_Source.Begin(), text_length, 0, 0, text_source_ranges };
     MarkupResult result = MARKUP_RESULT_OK;
 
     while (context.m_Cursor < context.m_Length)
@@ -1100,7 +1114,8 @@ static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length,
 
     if (result == MARKUP_RESULT_OK && style_fragment)
     {
-        PushText(&context, 0xfffd);
+        MarkupString source = { context.m_Cursor, 0 };
+        PushText(&context, 0xfffd, source);
         uint16_t node_index = context.m_StyleNodeIndex;
 
         while (node_index != 0 && node_index != MARKUP_INVALID_INDEX)
@@ -1134,12 +1149,12 @@ static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length,
 
 MarkupResult MarkupCreate(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error)
 {
-    return MarkupCreateInternal(text, text_length, out_markup, out_error, false);
+    return MarkupCreateInternal(text, text_length, out_markup, out_error, false, 0);
 }
 
 MarkupResult MarkupCreateStyleFragment(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error)
 {
-    return MarkupCreateInternal(text, text_length, out_markup, out_error, true);
+    return MarkupCreateInternal(text, text_length, out_markup, out_error, true, 0);
 }
 
 void MarkupDestroy(HMarkup markup)
@@ -1165,6 +1180,87 @@ const uint32_t* MarkupGetText(HMarkup markup)
 uint32_t MarkupGetTextLength(HMarkup markup)
 {
     return markup->m_Text.Size();
+}
+
+static bool ContainsCodepoint(const uint32_t* codepoints, uint32_t codepoint_count, uint32_t codepoint)
+{
+    for (uint32_t i = 0; i < codepoint_count; ++i)
+    {
+        if (codepoints[i] == codepoint)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+MarkupResult MarkupFilterText(const char*     text,
+                              uint32_t        text_length,
+                              const uint32_t* allowed_codepoints,
+                              uint32_t        allowed_codepoint_count,
+                              char*           output,
+                              uint32_t        output_capacity,
+                              uint32_t*       output_length,
+                              MarkupError*    error)
+{
+    if (output_length)
+    {
+        *output_length = 0;
+    }
+
+    if (!output_length || (!text && text_length != 0) || (!allowed_codepoints && allowed_codepoint_count != 0) ||
+        (!output && output_capacity != 0) || output_capacity < text_length)
+    {
+        SetError(error, MARKUP_ERROR_LIMIT_EXCEEDED, output_capacity);
+
+        return MARKUP_RESULT_LIMIT_EXCEEDED;
+    }
+
+    dmArray<MarkupString> text_source_ranges;
+    HMarkup               markup = 0;
+    MarkupResult          result = MarkupCreateInternal(text, text_length, &markup, error, false, &text_source_ranges);
+
+    if (result != MARKUP_RESULT_OK)
+    {
+        return result;
+    }
+
+    uint32_t source_cursor = 0;
+    uint32_t output_cursor = 0;
+
+    for (uint32_t i = 0; i < markup->m_Text.Size(); ++i)
+    {
+        const MarkupString& source = text_source_ranges[i];
+        const uint32_t gap_length = source.m_Offset - source_cursor;
+
+        if (gap_length)
+        {
+            memcpy(output + output_cursor, markup->m_Source.Begin() + source_cursor, gap_length);
+            output_cursor += gap_length;
+        }
+
+        if (source.m_Length && ContainsCodepoint(allowed_codepoints, allowed_codepoint_count, markup->m_Text[i]))
+        {
+            memcpy(output + output_cursor, markup->m_Source.Begin() + source.m_Offset, source.m_Length);
+            output_cursor += source.m_Length;
+        }
+
+        source_cursor = source.m_Offset + source.m_Length;
+    }
+
+    const uint32_t tail_length = text_length - source_cursor;
+
+    if (tail_length)
+    {
+        memcpy(output + output_cursor, markup->m_Source.Begin() + source_cursor, tail_length);
+        output_cursor += tail_length;
+    }
+
+    *output_length = output_cursor;
+    MarkupDestroy(markup);
+
+    return MARKUP_RESULT_OK;
 }
 
 const MarkupSpan* MarkupGetSpans(HMarkup markup)

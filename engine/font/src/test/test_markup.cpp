@@ -130,6 +130,25 @@ TEST(Markup, EntitiesAndUtf8)
     MarkupDestroy(markup);
 }
 
+TEST(Markup, FilterTextPreservesSyntax)
+{
+    const char source[] = "<link id=\"<shadow blur=2>\">A&amp;B\xE4\xB8\xAD<sprite/></link>C";
+    const uint32_t allowed[] = { 'A', '&', 'C' };
+    const char expected[] = "<link id=\"<shadow blur=2>\">A&amp;<sprite/></link>C";
+    char output[sizeof(source) - 1];
+    uint32_t output_length = 0;
+    MarkupError error = {};
+
+    ASSERT_EQ(MARKUP_RESULT_OK,
+              MarkupFilterText(source, sizeof(source) - 1,
+                               allowed, DM_ARRAY_SIZE(allowed),
+                               output, sizeof(output),
+                               &output_length, &error));
+    ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+    ASSERT_EQ(sizeof(expected) - 1, output_length);
+    ASSERT_EQ(0, memcmp(expected, output, output_length));
+}
+
 struct InvalidMarkupCase
 {
     const char*     m_Text;

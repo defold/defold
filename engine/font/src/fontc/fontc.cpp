@@ -712,6 +712,29 @@ FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
     return FONT_RENDERER_RESULT_OK;
 }
 
+FontRendererResult FontcFilterMarkup(const char*     markup,
+                                     uint32_t        markup_byte_count,
+                                     const uint32_t* allowed_codepoints,
+                                     uint32_t        allowed_codepoint_count,
+                                     char*           output,
+                                     uint32_t        output_capacity,
+                                     uint32_t*       output_byte_count)
+{
+    if ((!markup && markup_byte_count != 0) || (!allowed_codepoints && allowed_codepoint_count != 0) ||
+        (!output && output_capacity != 0) || output_capacity < markup_byte_count || !output_byte_count)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    MarkupError error = {};
+    const MarkupResult result = MarkupFilterText(markup, markup_byte_count,
+                                                 allowed_codepoints, allowed_codepoint_count,
+                                                 output, output_capacity,
+                                                 output_byte_count, &error);
+
+    return result == MARKUP_RESULT_OK ? FONT_RENDERER_RESULT_OK : FONT_RENDERER_RESULT_TEXT_ERROR;
+}
+
 FontRendererResult FontcGenerateGlyph(HFontRenderer renderer, uint32_t codepoint, FontcGlyph* output)
 {
     if (!renderer || !output)

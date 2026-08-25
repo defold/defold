@@ -258,6 +258,13 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testFilterMarkupPreservesNativeSyntax() {
+        assertEquals("<link id=\"<shadow blur=2>\">A&amp;<sprite/></link>C",
+                FontRenderer.filterMarkup("<link id=\"<shadow blur=2>\">A&amp;B中<sprite/></link>C",
+                        new int[] {'A', '&', 'C'}));
+    }
+
+    @Test
     public void testMarkupShadowAlphaDoesNotDependOnBaseShadowAlpha() throws Exception {
         try (FontRenderer renderer = createRenderer(32.0f)) {
             FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
