@@ -44,7 +44,7 @@
   (let [prop-kw (first path)]
     (g/clear-property node-id prop-kw)))
 
-(g/defnk produce-form-data [_node-id integer number vec4]
+(g/defnk produce-form-data [_node-id integer number vec4 color]
   (let [fields
         [{:label "Integer"
           :type :integer
@@ -54,13 +54,17 @@
           :path [:number]}
          {:label "Vec4"
           :type :vec4
-          :path [:vec4]}]]
+          :path [:vec4]}
+         {:label "Color"
+          :type :color
+          :path [:color]}]]
     {:navigation false
      :sections [{:title "Section"
                  :fields fields}]
      :values {[:integer] integer
               [:number] number
-              [:vec4] vec4}
+              [:vec4] vec4
+              [:color] color}
      :form-ops {:user-data {:node-id _node-id}
                 :set set-form-op
                 :clear clear-form-op}}))
@@ -69,27 +73,32 @@
   (property integer g/Int)
   (property number g/Num)
   (property vec4 t/Vec4)
+  (property color t/Vec4)
   (output form-data g/Any :cached produce-form-data))
 
 (def ^:private generic-32-bit-property-values
   {:integer (int 1)
    :number (float 0.1)
-   :vec4 (float-vec 0.1 0.2 0.3 0.4)})
+   :vec4 (float-vec 0.1 0.2 0.3 0.4)
+   :color (float-vec 0.1 0.2 0.3 0.4)})
 
 (def ^:private generic-64-bit-property-values
   {:integer (long 1)
    :number (double 0.1)
-   :vec4 (double-vec 0.1 0.2 0.3 0.4)})
+   :vec4 (double-vec 0.1 0.2 0.3 0.4)
+   :color (double-vec 0.1 0.2 0.3 0.4)})
 
 (def ^:private specialized-32-bit-property-values
   {:integer (int 1)
    :number (float 0.1)
-   :vec4 (vector-of :float 0.1 0.2 0.3 0.4)})
+   :vec4 (vector-of :float 0.1 0.2 0.3 0.4)
+   :color (vector-of :float 0.1 0.2 0.3 0.4)})
 
 (def ^:private specialized-64-bit-property-values
   {:integer (long 1)
    :number (double 0.1)
-   :vec4 (vector-of :double 0.1 0.2 0.3 0.4)})
+   :vec4 (vector-of :double 0.1 0.2 0.3 0.4)
+   :color (vector-of :double 0.1 0.2 0.3 0.4)})
 
 (defn- find-controls [^Parent parent]
   (->> parent
@@ -159,6 +168,10 @@
 (defmethod test-form-widget! :vec4 [resource-node field form-view-parent]
   (test-simple-form-widget! resource-node field form-view-parent [2.22 3.33 4.44 5.55]))
 
+;; The color field renders a web-string text field followed by a color picker.
+(defmethod test-form-widget! :color [resource-node field form-view-parent]
+  (test-simple-form-widget! resource-node field form-view-parent ["#4d4d4dff" 0.5]))
+
 (defn- ensure-float-form-fields-preserve-type! [original-property-values]
   (with-clean-system
     (let [original-meta {:version "original"}
@@ -184,7 +197,7 @@
                       (:fields)
                       (map-indexed (fn [row field]
                                      (assoc field :row row))))]
-      (is (= 3 (count fields)))
+      (is (= 4 (count fields)))
       (doseq [field fields]
         (testing (str "Types preserved after editing " (:path field))
           (test-form-widget! resource-node field form-view-parent))))))

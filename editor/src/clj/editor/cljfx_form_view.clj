@@ -51,6 +51,7 @@
             [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.markdown :as markdown]
+            [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
@@ -356,25 +357,42 @@
                                                          :index i}}]}))
                      value)}))
 
-(defn- clamp-unit [^double n]
+(defn- clamp-unit
+  ^double [^double n]
   (Math/min 1.0 (Math/max 0.0 n)))
 
-(defmethod handle-event :on-color-change [{:keys [on-value-changed ^Color fx/event]}]
-  {:dispatch (assoc on-value-changed :fx/event [(.getRed event)
-                                                (.getGreen event)
-                                                (.getBlue event)
-                                                (.getOpacity event)])})
+(defn- color->value
+  "Assocs the color into the old value to retain its vector and number types."
+  [value ^Color color]
+  (let [coerce (if (math/float32? (first value)) float double)]
+    (cond-> (assoc value
+              0 (coerce (.getRed color))
+              1 (coerce (.getGreen color))
+              2 (coerce (.getBlue color)))
+            (= 4 (count value))
+            (assoc 3 (coerce (.getOpacity color))))))
 
-(defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
-  (let [[r g b a] (ensure-value value field)]
+;; The color picker calls :on-value-changed directly, so we need the
+;; map-event-handler to dispatch the form event ourselves.
+(ui/defc form-color-picker-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}]}
+  [{:keys [value on-value-changed map-event-handler]}]
+  (let [[r g b a] value]
     {:fx/type fxui/color-picker
      :max-width normal-field-width
+     :ignore-alpha (not= 4 (count value))
      :value (Color. (clamp-unit (double r))
                     (clamp-unit (double g))
                     (clamp-unit (double b))
                     (clamp-unit (double (or a 1.0))))
-     :on-value-changed {:event-type :on-color-change
-                        :on-value-changed on-value-changed}}))
+     :on-value-changed (fn [^Color color]
+                         (map-event-handler
+                           (assoc on-value-changed :fx/event (color->value value color))))}))
+
+(defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
+  {:fx/type form-color-picker-view
+   :value (ensure-value value field)
+   :on-value-changed on-value-changed})
 
 (defmethod handle-event :keep-edit [{:keys [state-path ui-state fx/event on-value-changed]}]
   [[:set-ui-state (assoc-in ui-state (conj state-path :value) event)]

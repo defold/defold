@@ -261,17 +261,15 @@
           samplers)))
 
 (defn- vector-type->form-field-type [semantic-type vector-type data-type normalize]
-  (case vector-type
-    :vector-type-scalar :vec4
-    :vector-type-vec2 :vec4
-    :vector-type-vec3 :vec4
-    :vector-type-vec4 (if (and (= :semantic-type-color semantic-type)
-                               (or (= :type-float data-type) normalize))
-                        :color
-                        :vec4)
-    :vector-type-mat2 :mat4
-    :vector-type-mat3 :mat4
-    :vector-type-mat4 :mat4))
+  (let [color (and (= :semantic-type-color semantic-type)
+                   (or (= :type-float data-type) normalize))]
+    (case vector-type
+      :vector-type-scalar :vec4
+      :vector-type-vec2 :vec4
+      (:vector-type-vec3 :vector-type-vec4) (if color :color :vec4)
+      :vector-type-mat2 :mat4
+      :vector-type-mat3 :mat4
+      :vector-type-mat4 :mat4)))
 
 (def unsupported-semantic-types
   #{:semantic-type-bone-weights
