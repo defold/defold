@@ -2206,7 +2206,7 @@
                                 ;; whatever opened above, so being unindented does not
                                 ;; make it a top-level statement.
                                 (let [{:keys [leading closes]} (line-indent-counts grammar line false tab-spaces)]
-                                  (and leading (seq closes) (not= :block (first closes))))
+                                  (and leading (coll/not-empty closes) (not= :block (first closes))))
                                 (recur (dec row) nil)
 
                                 :else (recur (dec row) row)))))]
@@ -2234,8 +2234,7 @@
                 end (cursor-range-end cursor-range)
                 start-row (.row start)
                 end-row (inc (.row end))
-                prev-row (dec start-row)
-                prev-state (find-indent-state indent-level-pattern grammar lines prev-row tab-spaces)]
+                prev-state (find-indent-state indent-level-pattern grammar lines (dec start-row) tab-spaces)]
             (loop [row start-row
                    stack (:stack prev-state)
                    in-long-string (:in-long-string prev-state)
