@@ -17,7 +17,6 @@
 #include "android_log.h"
 
 #include <stdbool.h>
-#include <pthread.h>
 #include <unistd.h>
 
 #define EGL_RETRY_INITIAL_DELAY_US (50 * 1000)
@@ -163,60 +162,17 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
 
 static ANativeWindow* AcquireAppWindow(_GLFWwin_android* win)
 {
-    if (win == 0 || win->app == 0)
-        return 0;
-
-    int did_attach = 0;
-    JNIAttachCurrentThreadIfNeeded(&did_attach);
-    pthread_mutex_lock(&win->app->mutex);
-    ANativeWindow* window = win->app->window;
-    if (win->app->pendingWindow != window)
-        window = NULL;
-    if (window)
-        ANativeWindow_acquire(window);
-    pthread_mutex_unlock(&win->app->mutex);
-    JNIDetachCurrentThreadIfNeeded(did_attach);
-
-    return window;
+    return win && win->app ? _glfwAndroidAcquireWindow() : NULL;
 }
 
 static int IsAppWindowCurrent(_GLFWwin_android* win, ANativeWindow* window)
 {
-    if (win == 0 || win->app == 0 || window == 0 || !_glfwAndroidIsAppResumed())
-        return 0;
-
-    pthread_mutex_lock(&win->app->mutex);
-    int is_current = win->app->window == window && win->app->pendingWindow == window;
-    pthread_mutex_unlock(&win->app->mutex);
-    return is_current;
+    return win && win->app ? glfwAndroidIsWindowCurrent(window) : 0;
 }
 
 static ANativeWindow* WaitForAppAndWindow(_GLFWwin_android* win)
 {
-    const useconds_t wait_period = 50*1000;
-    int logged_wait = 0;
-    while (win != 0 && win->app != 0 && !win->app->destroyRequested)
-    {
-        if (_glfwAndroidIsAppResumed())
-        {
-            ANativeWindow* window = AcquireAppWindow(win);
-            if (window)
-            {
-                LOGI("ENGINE THREAD: Window ready!");
-                return window;
-            }
-        }
-
-        if (!logged_wait)
-        {
-            LOGI("ENGINE THREAD: Window not ready. Waiting...");
-            logged_wait = 1;
-        }
-        usleep(wait_period);
-    }
-
-    LOGI("ENGINE THREAD: App is being destroyed. Exiting!");
-    return NULL;
+    return win && win->app ? glfwWaitForAndroidWindow() : NULL;
 }
 
 void wait_for_egl_retry(uint32_t retry_count)
@@ -291,13 +247,7 @@ static GlfwAndroidEglResult GetEglFailureResult(const char* operation, EGLint er
 
 static void ReleaseWindow(ANativeWindow* window)
 {
-    if (window)
-    {
-        int did_attach = 0;
-        JNIAttachCurrentThreadIfNeeded(&did_attach);
-        ANativeWindow_release(window);
-        JNIDetachCurrentThreadIfNeeded(did_attach);
-    }
+    glfwReleaseAndroidWindow(window);
 }
 
 static void ReleaseNativeWindow(_GLFWwin_android* win)
