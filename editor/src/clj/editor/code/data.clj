@@ -2077,6 +2077,7 @@
 
 (defn- indent-step [stack {:keys [leading closes opens]}]
   (let [top (peek stack)
+        ;; Determine this line's indentation before updating the stack.
         [level col] (cond
                       (nil? top)
                       [0 nil]
@@ -2088,6 +2089,7 @@
 
                       :else
                       [(inc ^long (:level top)) (:col top)])
+        ;; Remove enclosing frames closed by this line.
         stack (reduce (fn [s kind]
                         (let [top (peek s)]
                           (if (and top (frame-closed-by? top kind))
@@ -2095,6 +2097,7 @@
                             s)))
                       stack
                       closes)
+        ;; Add frames opened on this line for subsequent lines.
         stack (let [line-indent (if (coll/empty? stack) 0 (inc ^long (:level (peek stack))))
                     n (count opens)]
                 (loop [i 0
@@ -2278,6 +2281,7 @@
                               (if (string/blank? unindented-line)
                                 ""
                                 (indent-line unindented-line indent-string line-indent-level line-indent-col))))
+                          ;; Re-lex the corrected line because indentation can change visual columns.
                           [next-stack] (indent-step stack (line-indent-counts grammar indented-line in-long-string tab-spaces))
                           splices (if (= line indented-line)
                                     splices

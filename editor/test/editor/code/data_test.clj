@@ -413,7 +413,7 @@
 
 (deftest reindent-without-counts-test
   ;; Grammars with no :indent :counts fall back to their :begin and :end
-  ;; regexes, coerced into the same shape as one open or one close.
+  ;; regexes, coerced into the same shape as up to one open and one close.
   (letfn [(reindent [lines]
             (let [last-row (dec (count lines))
                   cursor-range (->CursorRange (->Cursor 0 0)

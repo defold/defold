@@ -58,7 +58,7 @@
 
 (defn- long-bracket-level
   "The number of = signs in the long bracket at index, or -1 if there is none.
-  bracket is \\[ to open and \\] to close."
+  bracket is \\[ when finding an opener and \\] when finding a closer."
   ^long [^String line ^long index ^long len ^Character bracket]
   (loop [j (inc index)]
     (cond
@@ -81,27 +81,26 @@
 
 ;; lua-lex-line scans a line, lua-indent-counts summarizes it.
 ;;
-;; The scanner emits one token per bracket or block keyword, as [dir kind index]:
-;; - Skips over string literals ("..." or '...') and trailing -- comments
+;; The scanner emits one token per structural bracket or block keyword, as [dir kind index]:
+;; - Skips quoted strings and comments without tokenizing their contents
 ;; - Tracks whether we're inside a long string/comment, since that state
 ;;   carries across lines
-;; - Records where each bracket is, so its contents can line up under it.
-;;   Block keywords get nil instead, since their bodies just indent one level
+;; - Records the opening column of function parameter lists, so parameters can
+;;   line up under the first one. Other openers just indent by one level
 ;; - Treats `else` as closing and reopening a block, and `elseif` as just
 ;;   closing one (the `then` after it opens the new block)
 ;;
 ;; The summary cancels matched opens/closes and reports what's left:
 ;; - :closes - kinds of the closers with no matching opener on this line;
-;;   these pop enclosing blocks and affect how later lines indent
-;; - :leading - whether the line starts with a closer. Only a closer at the
-;;   start of a line should dedent it; one at the end is just punctuation on
-;;   a continuation
+;;   these may pop matching enclosing frames and affect later lines
+;; - :leading - whether the line starts with a closer. Only a matching closer
+;;   at the start should dedent it; one at the end is continuation punctuation
 ;; - :opens - one entry per still-open bracket/keyword, holding its :kind and
 ;;   its :col, which is either:
 ;;     * the column to align its contents to (just past the bracket, with
 ;;       tabs expanded, so it matches where the text actually appears)
-;;     * or nil, if nothing follows the bracket on that line, or if it's a
-;;       block keyword (which just indents contents by one level)
+;;     * or nil, if no parameter follows the opening parenthesis, or if the
+;;       opener is not a function parameter list
 ;;
 ;; A closer whose kind does not match is dropped. On well-formed code that
 ;; never happens, since a closer's opener is always the innermost one still
@@ -119,6 +118,7 @@
         (let [ch (.charAt line i)]
           (cond
             in-long-string
+            ;; Resume lexing after the matching long-bracket delimiter.
             (let [close (long-bracket-end line i (long in-long-string))]
               (if (neg? close)
                 [tokens in-long-string]
@@ -131,7 +131,7 @@
               (= ch in-quote) (recur (inc i) nil false nil after-function tokens)
               :else (recur (inc i) in-quote false nil after-function tokens))
 
-            ;; Comment, which is a block comment when written --[[.
+            ;; A comment is multiline when -- is followed by a long bracket.
             (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
             (let [open (+ i 2)
                   level (if (and (< open len) (= \[ (.charAt line open)))
@@ -150,7 +150,7 @@
             (let [level (long-bracket-level line i len \[)]
               (recur (+ i level 2) in-quote false level after-function tokens))
 
-            ;; Word character, with peek
+            ;; Scan a whole identifier so keywords match only at word boundaries.
             (or (Character/isLetter ch) (= ch \_))
             (let [end (long
                         (loop [j (inc i)]
@@ -174,7 +174,7 @@
                            (conj tokens [:close kind nil])
                            tokens)))))
 
-            ;; Non-word character
+            ;; Emit structural bracket tokens and ignore other punctuation.
             :else
             (let [tokens (cond-> tokens
                            (contains? #{\{ \( \[} ch)
@@ -222,6 +222,7 @@
 
 (defn lua-indent-counts [^String line in-long-string tab-spaces]
   (let [[tokens in-long-string] (lua-lex-line line in-long-string)
+        ;; Cancel matched pairs, leaving only structure that crosses this line.
         leftover (reduce (fn [stack t]
                            (let [top (peek stack)]
                              (if (and (= :close (t 0)) (some-> top (get 0) (= :open)))

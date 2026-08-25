@@ -496,7 +496,7 @@
                         4 5)))
 
   ;; Long strings do not nest, so a same-level opener inside one is just text.
-  ;; Scanning backward stops at the real opener, never at this.
+  ;; Replaying from the file start lets the lexer distinguish it from the opener.
   (is (= ["function f()"
           "    local s = [["
           "[[ not a nested string"
@@ -511,8 +511,7 @@
                          "end"]
                         4 5)))
 
-  ;; The replay can start inside the string, where an unindented line of prose
-  ;; is no more a top-level statement than one that looks like code.
+  ;; An unindented line of prose inside the string must not become a replay anchor.
   (is (= ["function f()"
           "    local s = [["
           "just some prose"
@@ -528,8 +527,8 @@
                         3 4))))
 
 (deftest insert-indentation-below-long-string-test
-  ;; Pressing Enter fixes the row the newline was typed on as well as the new
-  ;; one, so the replay starts a row further up -- inside the string.
+  ;; Pressing Enter can make a string-content row look like a replay anchor, so
+  ;; finding a long bracket above it must force replay from the file start.
   (are [inserted-lines before after]
     (= (into [] xform-test-lines->lines after)
        (:lines (insert-lines (into [] xform-test-lines->lines before)
