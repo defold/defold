@@ -361,15 +361,18 @@
 
 (defmethod handle-event :on-color-change [{:keys [on-value-changed ^Color fx/event]}]
   {:dispatch (assoc on-value-changed :fx/event [(.getRed event)
-                                                 (.getGreen event)
-                                                 (.getBlue event)
-                                                 (.getOpacity event)])})
+                                                (.getGreen event)
+                                                (.getBlue event)
+                                                (.getOpacity event)])})
 
 (defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
   (let [[r g b a] (ensure-value value field)]
     {:fx/type fxui/color-picker
      :max-width normal-field-width
-     :value (Color. (clamp-unit (double r)) (clamp-unit (double g)) (clamp-unit (double b)) (clamp-unit (double (or a 1.0))))
+     :value (Color. (clamp-unit (double r))
+                    (clamp-unit (double g))
+                    (clamp-unit (double b))
+                    (clamp-unit (double (or a 1.0))))
      :on-value-changed {:event-type :on-color-change
                         :on-value-changed on-value-changed}}))
 

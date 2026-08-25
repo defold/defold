@@ -5,7 +5,7 @@ fragment_program: "/checked.fp"
 vertex_space: VERTEX_SPACE_LOCAL
 vertex_constants {
   name: "screensize"
-  type: CONSTANT_TYPE_USER_COLOR
+  type: CONSTANT_TYPE_USER
   value {
     x: 1920.0
     y: 1080.0
@@ -19,7 +19,7 @@ vertex_constants {
 }
 fragment_constants {
   name: "screensize"
-  type: CONSTANT_TYPE_USER_COLOR
+  type: CONSTANT_TYPE_USER
   value {
     x: 1920.0
     y: 1080.0

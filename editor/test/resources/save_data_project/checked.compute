@@ -1,7 +1,7 @@
 compute_program: "/checked.cp"
 constants {
   name: "constant_1"
-  type: CONSTANT_TYPE_USER_COLOR
+  type: CONSTANT_TYPE_USER
   value {
     x: 1.0
     y: 2.0

@@ -19,11 +19,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- constant-type->form-field-type [constant-type]
-  (case constant-type
-    :constant-type-user-color :color
-    :vec4))
-
 (defn gen-form-data-constants [localization-key path-key]
   {:path [path-key]
    :localization-key localization-key
@@ -44,7 +39,9 @@
             :default (ffirst constant-values)}
            {:path [:value]
             :localization-key (str localization-key ".value")
-            :type (constant-type->form-field-type constant-type)}]}]}))})
+            :type (case constant-type
+                    :constant-type-user-color :color
+                    :vec4)}]}]}))})
 
 (defn gen-form-data-samplers [localization-key path-key]
   {:path [path-key]
