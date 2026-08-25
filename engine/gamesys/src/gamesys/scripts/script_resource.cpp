@@ -202,6 +202,7 @@ namespace dmGameSystem
  * @struct
  * @name resource.render_target_info
  * @member handle [type:render_target] Opaque render-target handle.
+ * @member sample_count [type:integer] Effective sample count shared by all render-target attachments.
  * @member attachments [type:resource.render_target_attachment_info[]] Render-target attachments.
  */
 
@@ -1861,7 +1862,7 @@ static int GetTextureInfo(lua_State* L)
  * : [type:render_target] the opaque handle to the render target
  *
  * `sample_count`
- * : [type:number] effective sample count shared by all render target attachments
+ * : [type:integer] effective sample count shared by all render target attachments
  *
  * `attachments`
  * : [type:resource.render_target_attachment_info[]] a table of attachments, where each attachment contains the following entries:

@@ -940,7 +940,7 @@ namespace dmRender
      * ```
      *
      * @name render.render_target
-     * @param parameters [type:table<graphics.BUFFER_TYPE, { format:graphics.TEXTURE_FORMAT, width:integer, height:integer, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:render.RENDER_TARGET_FLAG }>] table of buffer parameters, see the description for available keys and values
+     * @param parameters [type:{ sample_count?:integer, [graphics.BUFFER_TYPE]:{ format:graphics.TEXTURE_FORMAT, width:integer, height:integer, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:render.RENDER_TARGET_FLAG } }] table of buffer parameters, see the description for available keys and values
      * @return render_target [type:render_target] new render target
      * @examples
      *
