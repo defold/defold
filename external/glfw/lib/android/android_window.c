@@ -32,6 +32,7 @@
 
 #include <limits.h>
 #include <jni.h>
+#include <unistd.h>
 
 //************************************************************************
 //****               Platform implementation functions                ****
@@ -641,6 +642,77 @@ GLFWAPI jobject glfwGetAndroidActivity()
 GLFWAPI struct android_app* glfwGetAndroidApp(void)
 {
     return g_AndroidApp;
+}
+
+ANativeWindow* _glfwAndroidAcquireWindow(void)
+{
+    struct android_app* app = g_AndroidApp;
+    if (app == NULL)
+        return NULL;
+
+    int did_attach = 0;
+    JNIAttachCurrentThreadIfNeeded(&did_attach);
+    pthread_mutex_lock(&app->mutex);
+    ANativeWindow* window = app->window;
+    if (app->pendingWindow != window)
+        window = NULL;
+    if (window)
+        ANativeWindow_acquire(window);
+    pthread_mutex_unlock(&app->mutex);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
+
+    return window;
+}
+
+GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void)
+{
+    const useconds_t wait_period = 50 * 1000;
+    int logged_wait = 0;
+    while (g_AndroidApp != NULL && !g_AndroidApp->destroyRequested)
+    {
+        if (_glfwAndroidIsAppResumed())
+        {
+            ANativeWindow* window = _glfwAndroidAcquireWindow();
+            if (window)
+            {
+                LOGI("ENGINE THREAD: Window ready!");
+                return window;
+            }
+        }
+
+        if (!logged_wait)
+        {
+            LOGI("ENGINE THREAD: Window not ready. Waiting...");
+            logged_wait = 1;
+        }
+        usleep(wait_period);
+    }
+
+    LOGI("ENGINE THREAD: App is being destroyed. Exiting!");
+    return NULL;
+}
+
+GLFWAPI int glfwAndroidIsWindowCurrent(ANativeWindow* window)
+{
+    struct android_app* app = g_AndroidApp;
+    if (app == NULL || window == NULL || !_glfwAndroidIsAppResumed())
+        return 0;
+
+    pthread_mutex_lock(&app->mutex);
+    int is_current = app->window == window && app->pendingWindow == window;
+    pthread_mutex_unlock(&app->mutex);
+    return is_current;
+}
+
+GLFWAPI void glfwReleaseAndroidWindow(ANativeWindow* window)
+{
+    if (window)
+    {
+        int did_attach = 0;
+        JNIAttachCurrentThreadIfNeeded(&did_attach);
+        ANativeWindow_release(window);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
+    }
 }
 
 //========================================================================
