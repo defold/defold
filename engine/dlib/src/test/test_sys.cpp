@@ -38,6 +38,10 @@
 #include <dlib/log.h>
 #include <dlib/testutil.h>
 
+#if !defined(DM_HOSTFS)
+    #define DM_HOSTFS ""
+#endif
+
 #define SUPPORT_RMTREE
 #if defined(__EMSCRIPTEN__)
     #undef SUPPORT_RMTREE

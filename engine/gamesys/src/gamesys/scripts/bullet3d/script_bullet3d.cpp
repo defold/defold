@@ -335,7 +335,7 @@ namespace dmGameSystem
  * Native-style access to the Bullet 3D world and collision objects owned by
  * Defold. World creation, destruction and stepping remain controlled by Defold.
  * The backend name refers to three-dimensional physics; this Defold version
- * bundles Bullet 2.77, reported by `bullet3d.get_version()`.
+ * bundles Bullet 3.25, reported by `bullet3d.get_version()`.
  *
  * World, collision-object and rigid-body userdata are borrowed handles to
  * Defold-owned objects. Shape userdata are borrowed logical child-slot handles
@@ -430,5 +430,5 @@ namespace dmGameSystem
 
 /*# Get the bundled Bullet version
  * @name bullet3d.get_version
- * @return info [type:bullet3d.version_info] version information
+ * @return info [type:bullet3d.version_info] version fields: `version` is the string `"3.25"`, `number` is the integer `325`, `major` is `3`, and `minor` is `25`
  */

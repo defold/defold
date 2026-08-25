@@ -981,7 +981,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 3);
         btHingeConstraint* constraint = CheckHinge(L, CheckConstraintMeta(L, 1));
         lua_pushboolean(L, constraint->getEnableAngularMotor());
-        lua_pushnumber(L, constraint->getMotorTargetVelosity());
+        lua_pushnumber(L, constraint->getMotorTargetVelocity());
         btScalar inv_scale = GetBullet3DInvPhysicsScale();
         lua_pushnumber(L, constraint->getMaxMotorImpulse() * inv_scale * inv_scale);
         return 3;

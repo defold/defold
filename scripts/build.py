@@ -112,6 +112,11 @@ class build_private(object):
         return cls._call(platform, 'get_install_target_packages', [], platform)
 
     @classmethod
+    def get_external_package_name(cls, platform, library, default_name):
+        return cls._call(platform, 'get_external_package_name', default_name,
+                         platform, library, default_name)
+
+    @classmethod
     def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
         return cls._call(platform, 'install_sdk', None, configuration, platform)
 
@@ -158,7 +163,7 @@ PACKAGES_ALL=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
-    "bullet-2.77",
+    "bullet-3.25",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.14",
     "vulkan-v1.4.307",
@@ -179,7 +184,7 @@ PACKAGES_HOST=[
 PACKAGES_IOS_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -192,7 +197,7 @@ PACKAGES_IOS_X86_64=[
 PACKAGES_IOS_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "moltenvk-1474891",
     "glfw-2.7.1",
     "box2d-3.1.0",
@@ -208,7 +213,7 @@ PACKAGES_MACOS_X86_64=[
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -238,7 +243,7 @@ PACKAGES_MACOS_ARM64=[
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -266,7 +271,7 @@ PACKAGES_WIN32=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
-    "bullet-2.77",
+    "bullet-3.25",
     "vulkan-v1.4.307",
     "glfw-3.4",
     "box2d-3.1.0",
@@ -282,7 +287,7 @@ PACKAGES_WIN32_64=[
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "bullet-2.77",
+    "bullet-3.25",
     "glslang-42d9adf5",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -309,7 +314,7 @@ PACKAGES_WIN32_64=[
 PACKAGES_LINUX_X86_64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-2.77",
+    "bullet-3.25",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -339,7 +344,7 @@ PACKAGES_LINUX_X86_64=[
 PACKAGES_LINUX_ARM64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-2.77",
+    "bullet-3.25",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -362,7 +367,7 @@ PACKAGES_LINUX_ARM64=[
 PACKAGES_ANDROID=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -377,7 +382,7 @@ PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -392,7 +397,7 @@ PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -405,7 +410,7 @@ PACKAGES_ANDROID_X86_64=[
 PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "wagyu-69",
     "box2d-3.1.0",
@@ -494,11 +499,21 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
-EXTERNAL_CMAKE_LIBS = "vkquality".split()
+EXTERNAL_WAF_LIBS = "glfw opus".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 bullet3d vkquality".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
+    "box2d": "3.1.0",
+    "box2d_v2": "2.2.1",
+    "bullet3d": "3.25",
     "vkquality": "1.1-2642a0d",
+}
+EXTERNAL_PACKAGE_NAMES = {
+    "box2d_v2": "box2d_defold",
+    "bullet3d": "bullet",
+}
+EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
+    "bullet3d",
 }
 
 def get_host_platform():
@@ -2368,6 +2383,29 @@ class Configuration(object):
         if not os.path.exists(build_ninja):
             return True
 
+        # CMake's detected target system is immutable within an existing build
+        # tree. If a Windows build directory is later reused for a Generic
+        # console target, updating CMAKE_SYSTEM_NAME in the cache is not enough:
+        # generated link rules keep Windows image flags and system libraries.
+        # Force a clean configure when that generated platform metadata is stale.
+        if platform in ('x86_64-ps4', 'x86_64-ps5', 'arm64-nx64'):
+            cmake_files_dir = join(configure_state.get('builddir', ''), 'CMakeFiles')
+            system_files = []
+            if os.path.isdir(cmake_files_dir):
+                for entry in os.listdir(cmake_files_dir):
+                    system_file = join(cmake_files_dir, entry, 'CMakeSystem.cmake')
+                    if os.path.isfile(system_file):
+                        system_files.append(system_file)
+            for system_file in system_files:
+                try:
+                    with open(system_file, 'r') as f:
+                        system_content = f.read()
+                except OSError:
+                    continue
+                if 'set(CMAKE_SYSTEM_NAME "Generic")' not in system_content:
+                    self._log('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform))
+                    return False
+
         try:
             with open(build_ninja, 'r') as f:
                 content = f.read().replace('\\', '/')
@@ -2647,7 +2685,13 @@ class Configuration(object):
             reuse_builddir = host == target_platform
             target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir, use_existing_bob_light = True)
+            self._build_engine_libs_cmake(
+                'engine_libs',
+                target_lib_set,
+                target_platform,
+                skip_tests = self.skip_tests,
+                reuse_builddir = reuse_builddir,
+                use_existing_bob_light = True)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
@@ -2699,12 +2743,16 @@ class Configuration(object):
 
     def _build_external_lib_cmake(self, lib, platform):
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
-        package_name = '%s-%s' % (lib, version)
+        product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
+        default_package_name = '%s-%s' % (product_name, version)
+        package_name = build_private.get_external_package_name(
+            platform, lib, default_package_name)
         source_dir = join(self.defold_root, 'external', lib)
         build_dir = join(source_dir, 'build', platform)
         install_dir = join(self.dynamo_home, package_name)
         package_dir = join(self.defold_root, 'packages')
         package_path = join(package_dir, '%s-%s.tar.gz' % (package_name, platform))
+        common_package_path = join(package_dir, '%s-common.tar.gz' % package_name)
 
         if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
             self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
@@ -2743,13 +2791,23 @@ class Configuration(object):
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
-            package_command = ['tar', 'zcvf', os.path.normpath(package_path), 'include', 'lib', 'share']
+            package_directories = ['include', 'lib', 'share']
+            if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                package_directories = ['lib']
+            package_directories = [name for name in package_directories
+                                   if os.path.exists(join(install_dir, name))]
+            package_command = ['tar', 'zcvf', os.path.normpath(package_path)] + package_directories
             self.build_tracker.start_command('Package external %s' % lib)
             try:
                 run.command(package_command, cwd=install_dir)
+                if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                    common_package_command = ['tar', 'zcvf', os.path.normpath(common_package_path), 'include', 'share']
+                    run.command(common_package_command, cwd=install_dir)
             finally:
                 self.build_tracker.end_command('Package external %s' % lib)
             print("Installed to", package_path)
+            if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                print("Installed to", common_package_path)
         finally:
             self.build_tracker.end_component(lib, platform)
 

@@ -118,6 +118,7 @@ namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
+    extern uint32_t GetSpriteWorldVertexBufferCapacity(void* sprite_world);
     extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
     extern void GetSpriteComponentScale(void* sprite_component, dmVMath::Vector3* scale_out);
     extern uint16_t GetSpriteComponentAnimationIndex(void* sprite_component);
@@ -1440,6 +1441,28 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     lua_pop(L, 1);
 }
 
+TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection)
+{
+    // The proxy collection creates the resource, while this parent collection
+    // releases it. Unloading the proxy must not leave stale resource bookkeeping.
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collection_proxy/release_dynamic_resource_root.goc", dmHashString64("/go"), 0,
+                                       Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool proxy_unloaded = false;
+    for (uint32_t i = 0; i < 64 && !proxy_unloaded; ++i)
+    {
+        UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+        lua_getglobal(L, "issue_13002_proxy_unloaded");
+        proxy_unloaded = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(proxy_unloaded);
+}
+
 TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -2467,6 +2490,93 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
     }
 
     dmResource::Release(m_Factory, material_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+/*
+ * Intent:
+ * Verify that sprite vertex staging memory is grown using the active render
+ * material's vertex stride before vertex data is generated.
+ *
+ * Setup:
+ * Create a sprite whose component material has a scalar custom attribute,
+ * then draw it through a render script that overrides the material with one
+ * where the same attribute is a mat4. Confirm that the staging buffer was
+ * initially sized from the smaller component-material stride.
+ *
+ * Expected results:
+ * Rendering grows the staging buffer to fit four vertices using the larger
+ * override-material stride, and the complete vertex data is uploaded without
+ * writing beyond the allocated staging memory.
+ */
+TEST_F(SpriteTest, RenderScriptMaterialOverrideGrowsVertexBuffer)
+{
+    dmHashEnableReverseHash(true);
+
+    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*) m_RenderContext;
+    render_context_ptr->m_MultiBufferingRequired = 1;
+
+    dmGameSystem::MaterialResource* mat4_material_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/attribute_stride_mat4.materialc", (void**) &mat4_material_resource));
+
+    const char* render_script_source =
+        "function init(self)\n"
+        "    self.predicate = render.predicate({\"tile\"})\n"
+        "end\n"
+        "function update(self)\n"
+        "    render.enable_material(\"attribute_stride_mat4\")\n"
+        "    render.draw(self.predicate)\n"
+        "    render.disable_material()\n"
+        "end\n";
+    dmLuaDDF::LuaSource lua_source;
+    memset(&lua_source, 0, sizeof(lua_source));
+    lua_source.m_Script.m_Data = (uint8_t*) render_script_source;
+    lua_source.m_Script.m_Count = strlen(render_script_source);
+    lua_source.m_Bytecode.m_Data = (uint8_t*) render_script_source;
+    lua_source.m_Bytecode.m_Count = strlen(render_script_source);
+    lua_source.m_Bytecode64.m_Data = (uint8_t*) render_script_source;
+    lua_source.m_Bytecode64.m_Count = strlen(render_script_source);
+    lua_source.m_Filename = "sprite-attribute-stride-render-script";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_RenderContext, &lua_source);
+    ASSERT_NE((dmRender::HRenderScript) 0, render_script);
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_RenderContext, render_script);
+    ASSERT_NE((dmRender::HRenderScriptInstance) 0, render_script_instance);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "attribute_stride_mat4", (uint64_t) mat4_material_resource->m_Material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/attribute_stride.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*) 0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    dmRender::RenderListEnd(m_RenderContext);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*) 0, sprite_world);
+
+    const uint32_t vertex_count = 4;
+    dmGraphics::HVertexDeclaration mat4_vertex_declaration = dmRender::GetVertexDeclaration(mat4_material_resource->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    const uint32_t mat4_vertex_stride = dmGraphics::GetVertexDeclarationStride(mat4_vertex_declaration);
+    const uint32_t required_capacity = vertex_count * mat4_vertex_stride;
+    ASSERT_LT(dmGameSystem::GetSpriteWorldVertexBufferCapacity(sprite_world), required_capacity);
+
+    dmGraphics::BeginFrame(m_GraphicsContext);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, m_UpdateContext.m_DT));
+    ASSERT_EQ(required_capacity, dmGameSystem::GetSpriteWorldVertexBufferCapacity(sprite_world));
+
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    ASSERT_EQ(1u, vertex_buffer->m_Buffers.Size());
+    ASSERT_EQ(required_capacity, dmGraphics::GetVertexBufferSize(vertex_buffer->m_Buffers[0]));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_RenderContext, render_script);
+    dmResource::Release(m_Factory, mat4_material_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

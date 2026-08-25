@@ -93,6 +93,7 @@ namespace dmRender
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
     #define RENDER_SCRIPT_FLAGS_NAME "flags"
+    #define RENDER_SCRIPT_SAMPLE_COUNT_NAME "sample_count"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
@@ -921,6 +922,9 @@ namespace dmRender
      * `v_wrap`     (optional) | `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`<br/>`graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`<br/>`graphics.TEXTURE_WRAP_MIRRORED_REPEAT`<br/>`graphics.TEXTURE_WRAP_REPEAT`
      * `flags`      (optional) | `render.TEXTURE_BIT` (only applicable to depth and stencil buffers)
      *
+     * The top-level `sample_count` key optionally specifies the multisample count for the entire render target.
+     * It defaults to 1 and the graphics adapter normalizes it to a supported power-of-two value.
+     *
      * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
      * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by graphics.BUFFER_TYPE_COLORX_BIT where 'X' is the attachment you want to create).
@@ -957,7 +961,7 @@ namespace dmRender
      *                            height = render.get_window_height(),
      *                            u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE }
-     *     self.my_render_target = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = color_params, [graphics.BUFFER_TYPE_DEPTH_BIT] = depth_params })
+     *     self.my_render_target = render.render_target({sample_count = 4, [graphics.BUFFER_TYPE_COLOR0_BIT] = color_params, [graphics.BUFFER_TYPE_DEPTH_BIT] = depth_params })
      * end
      *
      * function update(self, dt)
@@ -1027,10 +1031,24 @@ namespace dmRender
         luaL_checktype(L, table_index, LUA_TTABLE);
 
         dmGraphics::RenderTargetCreationParams params = {};
+        params.m_SampleCount = 1;
 
         lua_pushnil(L);                     // [-0,+1 = 1] first key
         while (lua_next(L, table_index))    // [-1,+2 = 2] pop key, push key-value (buffer_type and table)
         {
+            if (lua_type(L, -2) == LUA_TSTRING && strcmp(lua_tostring(L, -2), RENDER_SCRIPT_SAMPLE_COUNT_NAME) == 0)
+            {
+                lua_Integer sample_count = luaL_checkinteger(L, -1);
+                if (sample_count < 1)
+                {
+                    lua_pop(L, 2);
+                    return DM_LUA_ERROR("Invalid render target sample count: %d. Sample count must be greater than 0.", (int) sample_count);
+                }
+                params.m_SampleCount = (uint32_t) sample_count;
+                lua_pop(L, 1);
+                continue;
+            }
+
             dmGraphics::BufferType buffer_type    = CheckBufferType(L, -2);
             buffer_type_flags                    |= (uint32_t) buffer_type;
             dmGraphics::TextureParams* p          = 0;

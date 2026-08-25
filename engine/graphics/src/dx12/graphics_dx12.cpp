@@ -3395,7 +3395,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static HRenderTarget DX12NewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         DX12Context* context = (DX12Context*) _context;
-
         DX12RenderTarget* rt     = new DX12RenderTarget();
         rt->m_Format             = DXGI_FORMAT_UNKNOWN;
         rt->m_DsvFormat          = DXGI_FORMAT_UNKNOWN;
@@ -3411,6 +3410,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         brt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
+        brt->m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, 1, "DX12");
 
         const BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
