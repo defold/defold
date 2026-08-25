@@ -78,6 +78,26 @@ namespace dmHID
         dmStrlCpy(name, "null_device", MAX_GAMEPAD_NAME_LENGTH);
     }
 
+    bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)
+    {
+        memset(guid, 0, sizeof(*guid));
+        return true;
+    }
+
+    uint32_t GetGamepadMappingSupport(HContext context, HGamepad gamepad)
+    {
+        (void) context;
+        (void) gamepad;
+        return GAMEPAD_MAPPING_SUPPORT_NONE;
+    }
+
+    void SetGamepadMapping(HContext context, HGamepad gamepad, const char* mapping)
+    {
+        (void) context;
+        (void) gamepad;
+        (void) mapping;
+    }
+
     // platform implementations
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
     {

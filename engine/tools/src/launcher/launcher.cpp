@@ -88,7 +88,7 @@ static uint64_t GetTotalRAM() {
   return value;
 }
 
-static void GetThreeQuartersRAMStr(char* buf, uint64_t cap) {
+static void GetThreeQuartersRAMStr(char* buf, uint32_t buf_size, uint64_t cap) {
 #if defined(__linux__)
   const char* fmt = "-Xmx%lu";
 #else
@@ -100,7 +100,7 @@ static void GetThreeQuartersRAMStr(char* buf, uint64_t cap) {
   if(d_seventyfive_percent_ram > d_cap) {
     d_seventyfive_percent_ram = d_cap;
   }
-  sprintf(buf, fmt, (uint64_t)d_seventyfive_percent_ram);
+  snprintf(buf, buf_size, fmt, (uint64_t)d_seventyfive_percent_ram);
 }
 
 struct ReplaceContext
@@ -247,7 +247,7 @@ int Launch(int argc, char **argv) {
     }
 
     char ram_str_buf[100];
-    GetThreeQuartersRAMStr(ram_str_buf, 34359738368ull); // Max 32 gigs.
+    GetThreeQuartersRAMStr(ram_str_buf, sizeof(ram_str_buf), 34359738368ull); // Max 32 gigs.
     args[i++] = ram_str_buf;
 
     args[i++] = (char*) main;

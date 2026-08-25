@@ -199,6 +199,7 @@ namespace dmGameObject
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
+        HContextRegistry            m_ContextRegistry;
 
         Register();
         ~Register();
@@ -306,7 +307,7 @@ namespace dmGameObject
     Result SetIdentifier(Collection* collection, HInstance instance, const char* identifier);
     void ReleaseIdentifier(Collection* collection, HInstance instance);
     void UndoNewInstance(Collection* collection, HInstance instance);
-    bool CreateComponents(Collection* collection, HInstance instance);
+    CreateResult CreateComponents(Collection* collection, HInstance instance);
     void Delete(Collection* collection, HInstance instance, bool recursive);
     void UpdateTransforms(Collection* collection);
     void UpdateTransformsForInstance(Collection* collection, Instance* instance);

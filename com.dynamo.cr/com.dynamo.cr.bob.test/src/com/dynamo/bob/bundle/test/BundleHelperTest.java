@@ -40,7 +40,6 @@ import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.IResource;
@@ -344,7 +343,6 @@ public class BundleHelperTest {
 
     private void createMockFile(File dir, String name) throws IOException {
         File file = new File(dir, name);
-        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream("dummy".getBytes()), file);
     }
 

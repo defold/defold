@@ -31,6 +31,8 @@ namespace dmGameObject
                 return PROPERTY_TYPE_NUMBER;
             case LUA_TBOOLEAN:
                 return PROPERTY_TYPE_BOOLEAN;
+            case LUA_TSTRING:
+                return PROPERTY_TYPE_TEXT;
             case LUA_TUSERDATA:
                 if (dmScript::IsHash(L, index))
                 {
@@ -115,6 +117,17 @@ namespace dmGameObject
             case PROPERTY_TYPE_BOOLEAN:
                 out_var.m_Bool = (bool) lua_toboolean(L, index);
                 return PROPERTY_RESULT_OK;
+            case PROPERTY_TYPE_TEXT:
+                {
+                    size_t value_len = 0;
+                    const char* value = lua_tolstring(L, index, &value_len);
+                    if (memchr(value, '\0', value_len) != 0)
+                    {
+                        return PROPERTY_RESULT_UNSUPPORTED_VALUE;
+                    }
+                    out_var.m_Text = value;
+                }
+                return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_MATRIX4:
                 {
                     Matrix4* m  = (Matrix4*) userdata;
@@ -155,6 +168,9 @@ namespace dmGameObject
             break;
         case PROPERTY_TYPE_BOOLEAN:
             lua_pushboolean(L, var.m_Bool);
+            break;
+        case PROPERTY_TYPE_TEXT:
+            lua_pushstring(L, var.m_Text);
             break;
         case PROPERTY_TYPE_MATRIX4:
             dmScript::PushMatrix4(L, dmVMath::Matrix4(
@@ -206,6 +222,22 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         ++params.m_BoolCount;
                         break;
+                    case PROPERTY_TYPE_TEXT:
+                    {
+                        size_t value_len = 0;
+                        const char* value = lua_tolstring(L, -1, &value_len);
+                        // Text is stored as null-terminated strings with 32-bit lengths, so reject embedded nulls
+                        // and values that would overflow either the length or the accumulated storage size.
+                        // E.g "embedded\0null" would be considered an invalid property.
+                        if (value_len >= UINT32_MAX || memchr(value, '\0', value_len) != 0 || params.m_TextSize > UINT32_MAX - (uint32_t)value_len - 1)
+                        {
+                            lua_pop(L, 3);
+                            return 0x0;
+                        }
+                        ++params.m_TextCount;
+                        params.m_TextSize += (uint32_t)value_len + 1;
+                        break;
+                    }
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
                     case PROPERTY_TYPE_COUNT:
@@ -247,6 +279,13 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         PropertyContainerPushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
+                    case PROPERTY_TYPE_TEXT:
+                    {
+                        size_t value_len = 0;
+                        const char* value = lua_tolstring(L, -1, &value_len);
+                        PropertyContainerPushText(builder, id, value, (uint32_t)value_len);
+                        break;
+                    }
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
                     case PROPERTY_TYPE_COUNT:

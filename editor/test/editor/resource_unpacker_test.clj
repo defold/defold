@@ -17,7 +17,8 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.fs :as fs])
-  (:import [com.defold.libs ResourceUnpacker ResourceUnpacker$NativeLibraryLoader]
+  (:import [ch.qos.logback.classic Level Logger]
+           [com.defold.libs ResourceUnpacker ResourceUnpacker$NativeLibraryLoader]
            [com.dynamo.bob Platform]
            [com.jogamp.common.jvm JNILibLoaderBase]
            [com.jogamp.common.os DynamicLibraryBundle NativeLibrary]
@@ -25,7 +26,10 @@
            [jogamp.opengl GLDrawableFactoryImpl]
            [java.nio.file Path]
            [java.util LinkedHashMap Map$Entry]
-           [java.util.concurrent CountDownLatch TimeUnit]))
+           [java.util.concurrent CountDownLatch TimeUnit]
+           [org.slf4j LoggerFactory]))
+
+(.setLevel ^Logger (LoggerFactory/getLogger ResourceUnpacker) Level/WARN)
 
 (defn- make-temp-library! ^Path [dir name]
   (let [file (io/file dir name)]

@@ -13,6 +13,7 @@ out highp vec4 var_position;
 out mediump vec3 var_normal;
 out mediump vec2 var_texcoord0;
 out mediump vec4 var_light;
+out highp mat4 var_view;
 
 uniform vs_uniforms
 {
@@ -27,9 +28,9 @@ void main()
 {
     vec4 p = mtx_worldview * vec4(position.xyz, 1.0);
     var_light = mtx_view * vec4(light.xyz, 1.0);
+    var_view = mtx_view;
     var_position = p;
     var_texcoord0 = texcoord0;
     var_normal = normalize((mtx_normal * vec4(normal, 0.0)).xyz);
     gl_Position = mtx_proj * p;
 }
-

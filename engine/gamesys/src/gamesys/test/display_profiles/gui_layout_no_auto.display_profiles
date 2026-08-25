@@ -1,0 +1,8 @@
+profiles {
+  name: "Landscape"
+  qualifiers {
+    width: 1280
+    height: 720
+  }
+}
+auto_layout_selection: false

@@ -30,10 +30,11 @@ function assert_vec4(v_test,v_correct)
     assert_fn(v, e)
 end
 
-function assert_vec3(v_test,v_correct)
-    local v = v_test.x == v_correct.x and
-        v_test.y == v_correct.y and
-        v_test.z == v_correct.z
+function assert_vec3(v_test,v_correct,epsilon)
+    epsilon = epsilon or 0
+    local v = math.abs(v_test.x - v_correct.x) <= epsilon and
+        math.abs(v_test.y - v_correct.y) <= epsilon and
+        math.abs(v_test.z - v_correct.z) <= epsilon
     local e = v and nil or tostring(v_test) .. " and " .. tostring(v_correct) .. " are not the same!"
     assert_fn(v, e)
 end
@@ -63,4 +64,51 @@ end
 function assert_not_error(func)
     local r, err = pcall(func)
     assert_fn(r, err)
+end
+
+function make_mat4(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
+    local m4 = vmath.matrix4()
+    m4.m00 = a
+    m4.m10 = b
+    m4.m20 = c
+    m4.m30 = d
+    m4.m01 = e
+    m4.m11 = f
+    m4.m21 = g
+    m4.m31 = h
+    m4.m02 = i
+    m4.m12 = j
+    m4.m22 = k
+    m4.m32 = l
+    m4.m03 = m
+    m4.m13 = n
+    m4.m23 = o
+    m4.m33 = p
+    return m4
+end
+
+function is_mat4(v)
+    return pcall(function()
+        return v.m00 + v.m11 + v.m22 + v.m33
+    end)
+end
+
+function is_vec4(v)
+    return pcall(function()
+        return v.x + v.y + v.z + v.w
+    end)
+end
+
+function is_vec3(v)
+    return pcall(function()
+        return v.x + v.y + v.z
+    end)
+end
+
+function is_number(v)
+    return type(v) == "number"
+end
+
+function is_table(v)
+    return type(v) == "table"
 end

@@ -14,8 +14,6 @@
 
 #include <stdio.h>
 
-#include <box2d/box2d.h>
-
 #include <dlib/log.h>
 #include <gameobject/script.h>
 
@@ -40,11 +38,6 @@ namespace dmGameSystem
 
     static float g_PhysicsScale = 1.0f;
     static float g_InvPhysicsScale = 1.0f / g_PhysicsScale;
-
-    void PushWorld(struct lua_State* L, void* world)
-    {
-        lua_pushlightuserdata(L, world);
-    }
 
     void SetPhysicsScale(float scale)
     {

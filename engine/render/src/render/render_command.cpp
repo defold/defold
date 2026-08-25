@@ -208,11 +208,6 @@ namespace dmRender
                     delete frustum_options;
                     break;
                 }
-                case COMMAND_TYPE_DRAW_DEBUG2D:
-                {
-                    dmRender::DrawDebug2d(render_context); // Deprecated
-                    break;
-                }
                 case COMMAND_TYPE_ENABLE_MATERIAL:
                 {
                     render_context->m_Material = (HMaterial)c->m_Operands[0];

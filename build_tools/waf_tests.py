@@ -88,7 +88,6 @@ class LinuxTestHarness(DefaultTestHarness):
                     '--suppressions=%s/share/valgrind-python.supp' % dynamo_home,
                     '--suppressions=%s/share/valgrind-libasound.supp' % dynamo_home,
                     '--suppressions=%s/share/valgrind-libdlib.supp' % dynamo_home,
-                    '--suppressions=%s/ext/share/luajit/lj.supp' % dynamo_home,
                     '--error-exitcode=1'] + argv
         return super(LinuxTestHarness, self).run_test(program, configfile, env, argv)
 

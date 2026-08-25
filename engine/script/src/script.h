@@ -50,6 +50,7 @@ namespace dmScript
         RESULT_LUA_ERROR = -1,
         RESULT_ARGVAL = -2,
         RESULT_MODULE_NOT_LOADED = -3,
+        RESULT_MODULE_NAME_HASH_COLLISION = -4,
     };
 
     extern const char META_TABLE_RESOLVE_PATH[];

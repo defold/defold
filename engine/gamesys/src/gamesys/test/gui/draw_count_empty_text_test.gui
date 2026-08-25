@@ -1,7 +1,7 @@
 script: "/gui/valid.gui_script"
 fonts {
   name: "test_font"
-  font: "/font/valid_font.font"
+  font: "/gui/font_valid_font.font"
 }
 material: "/gui/gui.material"
 

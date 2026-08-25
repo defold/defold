@@ -227,83 +227,6 @@ namespace dmGameSystem
         delete cbctx;
     }
 
-    /*# [type:hash] model material
-     *
-     * The material used when rendering the model. The type of the property is hash.
-     *
-     * @name material
-     * @property
-     *
-     * @examples
-     *
-     * How to set material using a script property (see [ref:resource.material]):
-     *
-     * ```lua
-     * go.property("my_material", resource.material("/material.material"))
-     * function init(self)
-     *   go.set("#model", "material", self.my_material)
-     * end
-     * ```
-     */
-    static int LuaModelComp_Play(lua_State* L)
-    {
-        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, MODEL_MODULE_NAME, "play", MODEL_MODULE_NAME, "play_anim");
-
-        int top = lua_gettop(L);
-        // default values
-        float offset = 0.0f;
-        float playback_rate = 1.0f;
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
-        lua_Integer playback = luaL_checkinteger(L, 3);
-        lua_Number blend_duration = luaL_checknumber(L, 4);
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        ModelWorld* world;
-        ModelComponent* component;
-        dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
-        if (!component)
-        {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
-        }
-
-        AnimationCallbackContext* callback_ctx = new AnimationCallbackContext();
-        callback_ctx->m_LuaCallback = 0;
-        callback_ctx->m_Listener = sender;
-
-        if (top > 4)
-        {
-            if (lua_isfunction(L, 5))
-            {
-                callback_ctx->m_LuaCallback = dmScript::CreateCallback(L, 5);
-            }
-        }
-
-        FModelAnimationCallback callback = ScriptModelAnimationCallback;
-        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
-        if (dmRig::RESULT_ANIM_NOT_FOUND == result)
-        {
-            if (callback_ctx->m_LuaCallback)
-            {
-                dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
-            }
-            delete callback_ctx;
-            dmLogError("'%s:%s#%s' has no animation named '%s'",
-                    dmMessage::GetSocketName(receiver.m_Socket),
-                    dmHashReverseSafe64(receiver.m_Path),
-                    dmHashReverseSafe64(receiver.m_Fragment),
-                    dmHashReverseSafe64(anim_id));
-        }
-
-        assert(top == lua_gettop(L));
-        return 0;
-    }
-
     /*# play an animation on a model
      * Plays an animation on a model component with specified playback
      * mode and parameters.
@@ -550,53 +473,6 @@ namespace dmGameSystem
 
         assert((top + 1) == lua_gettop(L));
         return 1;
-    }
-
-    /** DEPRECATED! set a shader constant for a model
-     * Sets a shader constant for a model component.
-     * The constant must be defined in the material assigned to the model.
-     * Setting a constant through this function will override the value set for that constant in the material.
-     * The value will be overridden until model.reset_constant is called.
-     * Which model to set a constant for is identified by the URL.
-     *
-     * @name model.set_constant
-     * @param url [type:string|hash|url] the model that should have a constant set
-     * @param constant [type:string|hash] name of the constant
-     * @param value [type:vector4] value of the constant
-     * @examples
-     *
-     * The following examples assumes that the model has id "model" and that the default-material in builtins is used, which defines the constant "tint".
-     * If you assign a custom material to the model, you can set the constants defined there in the same manner.
-     *
-     * How to tint a model to red:
-     *
-     * ```lua
-     * function init(self)
-     *     model.set_constant("#model", "tint", vmath.vector4(1, 0, 0, 1))
-     * end
-     * ```
-     */
-    static int LuaModelComp_SetConstant(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-
-        dmGameSystemDDF::SetConstant msg;
-        msg.m_NameHash = name_hash;
-        msg.m_Value = *value;
-        msg.m_Index = 0; // TODO: Pass a real index here?
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
-        return 0;
     }
 
     /** DEPRECATED! reset a shader constant for a model
@@ -923,13 +799,10 @@ namespace dmGameSystem
 
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
-        {"play",    LuaModelComp_Play}, // Deprecated
         {"play_anim", LuaModelComp_PlayAnim},
         {"cancel",  LuaModelComp_Cancel},
         {"get_go",  LuaModelComp_GetGO},
-        {"set_constant",    LuaModelComp_SetConstant},
         {"reset_constant",  LuaModelComp_ResetConstant},
-
         {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
         {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
         {"get_aabb",          LuaModelComp_GetAabb},

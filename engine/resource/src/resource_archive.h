@@ -33,7 +33,13 @@ namespace dmResourceArchive
      * to check a manifest to ensure that it's compatible with the engine's
      * version of the archive format.
      */
-    const static uint32_t VERSION = 5;
+    const static uint32_t VERSION_6 = 6;
+    const static uint32_t VERSION = VERSION_6;
+    const static uint32_t ENTRY_DATA_SIZE_V6 = 16;
+    const static uint32_t ENTRY_DATA_FLAGS_BITS = 4;
+    const static uint32_t ENTRY_DATA_FLAGS_SHIFT = 64 - ENTRY_DATA_FLAGS_BITS;
+    const static uint32_t ENTRY_DATA_FLAGS_MASK = (1 << ENTRY_DATA_FLAGS_BITS) - 1;
+    const static uint64_t ENTRY_DATA_OFFSET_MASK = (1ULL << ENTRY_DATA_FLAGS_SHIFT) - 1;
 
     // Maximum hash length convention. This size should large enough.
     // If this length changes the VERSION needs to be bumped.
@@ -61,19 +67,21 @@ namespace dmResourceArchive
     };
 
     // part of the .arci file format
-    struct DM_ALIGNED(16) EntryData
+    struct EntryData
     {
         EntryData() :
-            m_ResourceDataOffset(0),
+            m_ResourceDataOffsetAndFlags(0),
             m_ResourceSize(0),
-            m_ResourceCompressedSize(0),
-            m_Flags(0) {}
+            m_ResourceCompressedSize(0) {}
 
-        uint32_t m_ResourceDataOffset;
+        uint64_t m_ResourceDataOffsetAndFlags; // Internal/64-bit layout packs 4 high flag bits and 60 low offset bits
         uint32_t m_ResourceSize;
         uint32_t m_ResourceCompressedSize;  // 0xFFFFFFFF if uncompressed
-        uint32_t m_Flags;                   // A combination of dmResourceArchive::EntryFlag
     };
+
+    uint64_t PackEntryDataOffsetAndFlags(uint64_t resource_offset, uint32_t flags);
+    uint64_t GetEntryResourceDataOffset(const EntryData* entry);
+    uint32_t GetEntryFlags(const EntryData* entry);
 
     // For memory mapped files (or files read directly into memory)
     struct DM_ALIGNED(16) ArchiveIndex
@@ -82,7 +90,7 @@ namespace dmResourceArchive
 
         uint32_t m_Version;
         uint32_t :32;
-        uint64_t m_Userdata;
+        uint64_t m_Userdata; // Runtime may overwrite this after loading.
         uint32_t m_EntryDataCount;
         uint32_t m_EntryDataOffset;
         uint32_t m_HashOffset;
@@ -102,7 +110,7 @@ namespace dmResourceArchive
         EntryData*  m_Entries;          // Indices of this list matches indices of m_Hashes
         FILE*       m_FileResourceData; // game.arcd file handle
         uint8_t*    m_ResourceData;     // mem-mapped game.arcd
-        uint32_t    m_ResourceSize;     // the size of the memory mapped region
+        uint64_t    m_ResourceSize;     // the size of the memory mapped region
         bool        m_IsMemMapped;      // Is the data memory mapped?
     };
 
@@ -133,7 +141,7 @@ namespace dmResourceArchive
     // It is written by the ArchiveBuilder.java in writeResourcePack()
     struct DM_ALIGNED(16) LiveUpdateResourceHeader {
         uint32_t    m_Size;
-        uint8_t     m_Flags;        // See dmResourceArchive::EntryData / EntryFlag
+        uint8_t     m_Flags;        // See dmResourceArchive::EntryFlag
         uint8_t     m_Padding[11];
     };
 
@@ -190,7 +198,7 @@ namespace dmResourceArchive
      * @return RESULT_OK on success
      */
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
-                             const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
+                             const void* resource_data, uint64_t resource_data_size, bool mem_mapped_data,
                              HArchiveIndexContainer* archive);
 
     /**
@@ -229,21 +237,6 @@ namespace dmResourceArchive
      * @param archive archive index handle
      */
     void Delete(HArchiveIndexContainer &archive);
-
-
-    /**
-     * Make a deep-copy of the existing archive index within archive container and return copy on successful insertion of LiveUpdate resource in the archive
-     * @param archive archive container
-     * @param path file to save to
-     * @param hash_digest hash_digest data
-     * @param hash_digest_len size in bytes of hash_digest data
-     * @param resource LiveUpdate resource to insert
-     * @param proj_id project id SHA
-     * @param out_new_index reference to HArchiveIndex that will cointain the new archive index (on success)
-     * @return RESULT_OK on success
-     */
-    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const char* path, const uint8_t* hash_digest, uint32_t hash_digest_len,
-                                            const dmResourceArchive::LiveUpdateResource* resource, HArchiveIndex& out_new_index);
 
     /**
      * Set new archive index in archive container. Replace existing archive index if set

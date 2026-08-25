@@ -6,10 +6,11 @@ APPNAME='physics'
 srcdir = '.'
 blddir = 'build'
 
-import sys
+import os, sys
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from BuildUtility import create_build_utility
 
 test_context = None
 
@@ -28,6 +29,11 @@ def configure(conf):
     waf_ddf.configure(conf)
 
     conf.recurse('src')
+
+    build_util = create_build_utility(conf.env)
+    ext_libpath = build_util.get_dynamo_ext('lib', build_util.get_target_platform())
+    ext_libpath_norm = os.path.normcase(os.path.normpath(ext_libpath))
+    conf.env['LIBPATH'] = [ext_libpath] + [p for p in conf.env['LIBPATH'] if os.path.normcase(os.path.normpath(p)) != ext_libpath_norm]
 
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_DLIB']         = 'dlib'

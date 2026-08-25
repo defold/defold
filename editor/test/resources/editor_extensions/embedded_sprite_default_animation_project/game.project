@@ -1,0 +1,5 @@
+[bootstrap]
+main_collection = /main/main.collectionc
+
+[project]
+title = embedded_sprite_default_animation_project

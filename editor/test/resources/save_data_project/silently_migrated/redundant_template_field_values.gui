@@ -676,7 +676,7 @@ nodes {
   spine_scene: "second_spinescene"
   spine_default_animation: "second_animation"
   spine_skin: "second_skin"
-  custom_type: 405028931
+  custom_type_name: "Spine"
   enabled: true
   visible: true
   material: "second_material"

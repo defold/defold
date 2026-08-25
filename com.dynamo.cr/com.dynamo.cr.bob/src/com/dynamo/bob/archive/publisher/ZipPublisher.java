@@ -15,6 +15,7 @@
 package com.dynamo.bob.archive.publisher;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.logging.Logger;
 import org.apache.commons.io.IOUtils;
@@ -39,6 +40,7 @@ public class ZipPublisher extends Publisher {
     private File tempZipFile = null;
     private File destZipFile = null;
     private String projectRoot = null;
+    private Project project = null;
     private String filename = null;
     private ZipOutputStream zipOutputStream;
     private Set<String> zipEntries = ConcurrentHashMap.newKeySet();
@@ -46,6 +48,11 @@ public class ZipPublisher extends Publisher {
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
         this.projectRoot = projectRoot;
+    }
+
+    public ZipPublisher(Project project, String projectRoot, PublisherSettings settings) {
+        this(projectRoot, settings);
+        this.project = project;
     }
 
     public void setFilename(String filename)
@@ -61,7 +68,9 @@ public class ZipPublisher extends Publisher {
     public void start() throws CompileExceptionError {
         try {
             String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
-            this.tempZipFile = File.createTempFile(tempFilePrefix, ".zip");
+            this.tempZipFile = this.project == null
+                    ? File.createTempFile(tempFilePrefix, ".zip")
+                    : this.project.createTempFile(tempFilePrefix, ".zip");
 
             String destZipName = this.tempZipFile.getName();
             if (this.filename != null) {

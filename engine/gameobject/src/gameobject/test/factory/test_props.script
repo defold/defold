@@ -19,6 +19,7 @@ go.property("vec3", vmath.vector3())
 go.property("vec4", vmath.vector4())
 go.property("quat", vmath.quat())
 go.property("bool", false)
+go.property("text", "default text")
 
 function init(self)
     assert(self.number == 3)
@@ -28,4 +29,5 @@ function init(self)
     assert(self.vec4 == vmath.vector4(14, 15, 16, 17))
     assert(self.quat == vmath.quat(18, 19, 20, 21))
     assert(self.bool == true)
+    assert(self.text == "factory text")
 end

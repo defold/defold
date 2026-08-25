@@ -1,0 +1,15 @@
+name: "issue-12703"
+scale_along_z: 0
+embedded_instances {
+  id: "go"
+  data: "components {\n"
+  "  id: \"script\"\n"
+  "  component: \"/issue-12703/issue-12703.script\"\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"proxy\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/issue-12703/level.collection\\\"\\n\"\n"
+  "}\n"
+  ""
+}

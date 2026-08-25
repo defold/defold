@@ -1,5 +1,5 @@
 images {
-  image: "/texture/valid_png.png"
+  image: "/atlas/texture_valid_png.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 margin: 0

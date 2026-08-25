@@ -18,6 +18,8 @@
 #define GLFW_EXPOSE_NATIVE_NSGL
 #include <glfw/glfw3native.h>
 
+#include <AppKit/AppKit.h>
+
 #include "platform_window_osx.h"
 
 #include "platform_window_glfw3_private.h"
@@ -50,6 +52,58 @@ namespace dmPlatform
     }
 
     void SetWindowsIconNative(HWindow window)
+    {
+        // NOP
+    }
+
+    void SetWindowedFullscreenFocusNative(HWindow window, bool focused)
+    {
+        NSWindow* ns_window = (NSWindow*) glfwGetCocoaWindow(window->m_Window);
+        if (!ns_window)
+        {
+            return;
+        }
+
+        if (focused)
+        {
+            [ns_window setLevel:NSMainMenuWindowLevel + 1];
+            [ns_window setHasShadow:NO];
+            [ns_window makeKeyAndOrderFront:nil];
+        }
+        else
+        {
+            [ns_window setLevel:NSNormalWindowLevel];
+        }
+    }
+
+    void SetWindowedSizeFromSettingsNative(HWindow window, int32_t width, int32_t height)
+    {
+        glfwSetWindowSize(window->m_Window, width, height);
+    }
+
+    // note: on win32 and linux we need to set GLFW_SCALE_TO_MONITOR to GLFW_FALSE
+    // but this is not necessary on osx because the GLFW Cocoa backend ignores
+    // GLFW_SCALE_TO_MONITOR and treats window dimensions as logical points (https://github.com/glfw/glfw/blob/3.4/src/cocoa_window.m#L734-L757).
+    void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
+    {
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwGetMonitorPos(monitor, &mode_params->m_X, &mode_params->m_Y);
+        mode_params->m_Width              = mode->width;
+        mode_params->m_Height             = mode->height;
+        mode_params->m_WindowedFullscreen = true;
+    }
+
+    bool CanSetOpenGLCoreProfileHintNative(bool)
+    {
+        return true;
+    }
+
+    void InstallWindowCloseHandlerNative(HWindow)
+    {
+        // NOP
+    }
+
+    void UninstallWindowCloseHandlerNative(HWindow)
     {
         // NOP
     }

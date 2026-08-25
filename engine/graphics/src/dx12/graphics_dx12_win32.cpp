@@ -34,6 +34,7 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
     context->m_BaseContext.m_Width                   = params.m_Width;
     context->m_BaseContext.m_Height                  = params.m_Height;
     context->m_UseValidationLayers     = params.m_UseValidationLayers;
+    SetAllContextFeaturesSupported(&context->m_BaseContext);
 
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE;
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE_ALPHA;
@@ -99,8 +100,6 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     SetupDX12Context(params, context);
 
     HRESULT hr = S_OK;
-
-    context->m_UseValidationLayers = true;
 
     // This needs to be created before the device
     if (context->m_UseValidationLayers)

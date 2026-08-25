@@ -129,35 +129,58 @@
   (let [tag-sym (symbol (.getSimpleName (class resource)))]
     (digest-tagged! tag-sym (resource/resource-hash resource) writer opts)))
 
-(defn- to-sorted-map [map]
-  {:pre [(map? map)]}
-  (if (or (sorted? map)
-          (< (count map) 2))
-    map
-    (into (sorted-map)
-          map)))
-
 (defn- digest-map! [coll writer opts]
-  (let [sorted-map (to-sorted-map coll)
-        last-index (dec (count sorted-map))]
-    (digest-raw! "{" writer)
-    (reduce-kv (fn digest-map-entry! [^long index key value]
-                 (if (ignored-key? key)
-                   index
-                   (try
-                     (digest! key writer opts)
-                     (digest-raw! " " writer)
-                     (if (node-id-entry? key value)
-                       (digest-tagged! 'Node (persistent-node-id-value value opts) writer opts)
-                       (digest! value writer opts))
-                     (when (< index last-index)
-                       (digest-raw! ", " writer))
-                     (inc index)
-                     (catch Throwable error
-                       (throw (augment-throwable-with-path error coll key))))))
-               0
-               sorted-map)
-    (digest-raw! "}" writer)))
+  {:pre [(map? coll)]}
+  (digest-raw! "{" writer)
+  (let [n (count coll)
+        last-index (dec n)]
+    (if (or (sorted? coll)
+            (< n 2))
+      (reduce-kv
+        (fn digest-map-entry! [^long index key value]
+          (if (ignored-key? key)
+            index
+            (try
+              (digest! key writer opts)
+              (digest-raw! " " writer)
+              (if (node-id-entry? key value)
+                (digest-tagged! 'Node (persistent-node-id-value value opts) writer opts)
+                (digest! value writer opts))
+              (when (< index last-index)
+                (digest-raw! ", " writer))
+              (inc index)
+              (catch Throwable error
+                (throw (augment-throwable-with-path error coll key))))))
+        0
+        coll)
+      (let [^objects keys-array (object-array n)]
+        (reduce-kv
+          (fn put-key-in-array! [^long index key _value]
+            (aset keys-array index key)
+            (unchecked-inc-int index))
+          0
+          coll)
+        (Arrays/sort keys-array compare)
+        (loop [array-index 0
+               output-index 0]
+          (when (< array-index n)
+            (let [key (aget keys-array array-index)]
+              (if (ignored-key? key)
+                (recur (unchecked-inc-int array-index) output-index)
+                (do
+                  (try
+                    (digest! key writer opts)
+                    (digest-raw! " " writer)
+                    (let [value (get coll key)]
+                      (if (node-id-entry? key value)
+                        (digest-tagged! 'Node (persistent-node-id-value value opts) writer opts)
+                        (digest! value writer opts)))
+                    (when (< output-index last-index)
+                      (digest-raw! ", " writer))
+                    (catch Throwable error
+                      (throw (augment-throwable-with-path error coll key))))
+                  (recur (unchecked-inc-int array-index) (unchecked-inc-int output-index))))))))))
+  (digest-raw! "}" writer))
 
 (defn- to-sorted-set [set]
   {:pre [(set? set)]}
@@ -283,4 +306,3 @@
                        (System/arraycopy result-bytes 0 padded (- 20 len) len)
                        padded))]
     (util.digest/bytes->hex normalized)))
-

@@ -34,6 +34,13 @@
  * @language C++
  */
 
+/*# Graphics extension context name
+ * Name used when registering the graphics context with the engine context registry.
+ * @constant
+ * @name GRAPHICS_CONTEXT_NAME
+ */
+#define GRAPHICS_CONTEXT_NAME "graphics"
+
 namespace dmGraphics
 {
     /*#
@@ -607,6 +614,7 @@ namespace dmGraphics
      * @member ADAPTER_FAMILY_VENDOR    Vendor-specific backend. A placeholder for proprietary or experimental APIs tied to a particular GPU vendor.
      * @member ADAPTER_FAMILY_WEBGPU    WebGPU backend. Modern web graphics API designed as the successor to WebGL
      * @member ADAPTER_FAMILY_DIRECTX   DirectX backend. Microsoft’s graphics API used on Windows and Xbox
+     * @member ADAPTER_FAMILY_METAL     Metal backend. Apples graphics API used on OSX and iOS
      */
     enum AdapterFamily
     {
@@ -618,6 +626,7 @@ namespace dmGraphics
         ADAPTER_FAMILY_VENDOR   = 5,
         ADAPTER_FAMILY_WEBGPU   = 6,
         ADAPTER_FAMILY_DIRECTX  = 7,
+        ADAPTER_FAMILY_METAL    = 8,
     };
 
     /*#
@@ -888,6 +897,9 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
+        // Requested render target sample count. Adapters normalize this to a supported
+        // power-of-two value shared by all attachments.
+        uint32_t              m_SampleCount;
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
@@ -1556,6 +1568,14 @@ namespace dmGraphics
      * @param height [type:uint32_t&]
      */
     void GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+
+    /*#
+     * @name GetRenderTargetSampleCount
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @return sample_count [type:uint32_t] the effective, adapter-conformed sample count
+     */
+    uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target);
 
     /*#
      * @name SetRenderTargetSize

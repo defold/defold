@@ -380,7 +380,7 @@
       :ddf-type GameObject$PrototypeDesc
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
       :sanitize-fn (partial sanitize-non-editable-game-object workspace)
-      :string-encode-fn (partial string-encode-non-editable-game-object workspace)
+      :pb-encode-fn (partial string-encode-non-editable-game-object workspace)
       :load-fn load-non-editable-game-object
       :allow-unloaded-use true
       :icon game-object-common/game-object-icon

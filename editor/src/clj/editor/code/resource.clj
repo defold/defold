@@ -150,6 +150,7 @@
     (resource-node/set-source-value! node-id source-value)
     (when disk-sha256
       (g/transact
+        {:undoable false}
         (workspace/set-disk-sha256 (resource/workspace resource) node-id disk-sha256)))))
 
 (defn- eager-load [self lines]

@@ -1,5 +1,6 @@
 /.metadata
 /tmp
+/.defold-platforms
 .DS_Store
 .lock-wscript
 .lock-waf*
@@ -29,6 +30,7 @@ __pycache__
 *.apidoc
 engine/.clang_complete
 /.vscode
+/.wrangler/
 /.vs
 /.idea
 .npm
@@ -79,6 +81,8 @@ editor/.lsp/sqlite.db
 /com.dynamo.cr/com.dynamo.cr.bob/libexec/
 /com.dynamo.cr/com.dynamo.cr.bob/lib/**/OpenAL*
 /com.dynamo.cr/com.dynamo.cr.bob/lib/**/wrap_oal*
+/com.dynamo.cr/com.dynamo.cr.bob/lib/vkquality.jar
+/com.dynamo.cr/com.dynamo.cr.bob/lib/fontrenderer.jar
 /com.dynamo.cr/out/
 /com.dynamo.cr/com.dynamo.cr.bob.test/test/proj/build/
 /com.dynamo.cr/test_resources/

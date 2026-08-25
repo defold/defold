@@ -13,8 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.settings-test
-  (:require [clojure.test :refer :all]
-            [editor.settings-core :as settings-core]))
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
+            [editor.settings-core :as settings-core]
+            [integration.test-util :as test-util]))
 
 (deftest merge-meta-infos-prefers-known-settings
   (let [known-setting {:path ["section" "key"]
@@ -32,3 +34,19 @@
            (settings-core/merge-meta-infos
              {:settings [known-setting]}
              {:settings [unknown-setting]})))))
+
+(deftest get-setting-or-default-preserves-present-nil-value
+  (let [root (io/file ".")
+        default-resource (test-util/make-fake-file-resource nil
+                                                            (.getPath root)
+                                                            (io/file root "default.resource")
+                                                            (byte-array 0))
+        meta-settings [{:path ["section" "key"]
+                        :type :resource
+                        :default default-resource}]]
+    (is (nil? (settings-core/get-setting-or-default meta-settings
+                                                    [{:path ["section" "key"]
+                                                      :value nil}]
+                                                    ["section" "key"])))
+    (is (identical? default-resource
+                    (settings-core/get-setting-or-default meta-settings [] ["section" "key"])))))

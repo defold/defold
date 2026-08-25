@@ -14,7 +14,7 @@
 
 #include <string.h>
 
-#include "http_cache.h"
+#include <dlib/http/http_cache.h>
 #include "http_cache_verify.h"
 #include "log.h"
 

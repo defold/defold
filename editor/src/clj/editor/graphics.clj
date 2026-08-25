@@ -490,7 +490,10 @@
     :semantic-type-tangent false
     :semantic-type-world-matrix false
     :semantic-type-normal-matrix false
-    :semantic-type-texture-transform-2d false))
+    :semantic-type-bone-weights false
+    :semantic-type-bone-indices false
+    :semantic-type-texture-transform-2d false
+    :semantic-type-morph-target-weights false))
 
 (defn overridable-attribute-info? [attribute-info]
   (overridable-semantic-type? (:semantic-type attribute-info default-attribute-semantic-type)))

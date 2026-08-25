@@ -1,0 +1,24 @@
+if(@DEFOLD_HOST_TOOLS_NORMALIZE_WINDOWS_PATH@)
+  set(ENV{PATH} "")
+  set(ENV{Path} [==[@DEFOLD_HOST_TOOLS_ENV_PATH@]==])
+else()
+  set(ENV{PATH} [==[@DEFOLD_HOST_TOOLS_ENV_PATH@]==])
+endif()
+
+if(NOT DEFINED DEFOLD_HOST_TOOLS_CONFIG OR DEFOLD_HOST_TOOLS_CONFIG STREQUAL "")
+  set(DEFOLD_HOST_TOOLS_CONFIG "Debug")
+endif()
+
+execute_process(
+  COMMAND "@CMAKE_COMMAND@" @DEFOLD_HOST_TOOLS_CONFIGURE_SCRIPT_ARGS@
+  RESULT_VARIABLE _defold_host_tools_result)
+if(NOT _defold_host_tools_result EQUAL 0)
+  message(FATAL_ERROR "Failed to configure Defold host tools")
+endif()
+
+execute_process(
+  COMMAND "@CMAKE_COMMAND@" --build "@DEFOLD_HOST_TOOLS_BUILD_DIR@" --config "${DEFOLD_HOST_TOOLS_CONFIG}" --target install @DEFOLD_HOST_TOOLS_BUILD_SCRIPT_ARGS@
+  RESULT_VARIABLE _defold_host_tools_result)
+if(NOT _defold_host_tools_result EQUAL 0)
+  message(FATAL_ERROR "Failed to build Defold host tools")
+endif()

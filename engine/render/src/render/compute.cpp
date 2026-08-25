@@ -58,10 +58,12 @@ namespace dmRender
         bool has_light_buffer;
         uint16_t light_buffer_set;
         uint16_t light_buffer_binding;
-        GetProgramLightBufferBinding(render_context, program->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
-        program->m_HasLightBuffer     = has_light_buffer;
-        program->m_LightBufferSet     = light_buffer_set;
-        program->m_LightBufferBinding = light_buffer_binding;
+        uint16_t light_buffer_capacity;
+        GetProgramLightBufferBinding(render_context, program->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding, &light_buffer_capacity);
+        program->m_HasLightBuffer       = has_light_buffer;
+        program->m_LightBufferSet       = light_buffer_set;
+        program->m_LightBufferBinding   = light_buffer_binding;
+        program->m_LightBufferCapacity  = light_buffer_capacity;
 
         return (HComputeProgram) program;
     }
@@ -117,6 +119,21 @@ namespace dmRender
     dmGraphics::HProgram GetComputeProgram(HComputeProgram program)
     {
         return program->m_Program;
+    }
+
+    bool GetComputeProgramConstantNameHash(HComputeProgram program, uint32_t index, dmhash_t* out_name_hash)
+    {
+        if (index < program->m_Constants.Size())
+        {
+             *out_name_hash = GetConstantName(program->m_Constants[index].m_Constant);
+            return true;
+        }
+        return false;
+    }
+
+    uint32_t GetComputeProgramConstantCount(HComputeProgram program)
+    {
+        return program->m_Constants.Size();
     }
 
     void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)

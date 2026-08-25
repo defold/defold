@@ -34,6 +34,15 @@
 
 (defn safe+ [x y] (int (or (and x (+ x y)) y)))
 
+(deftest non-undoable-eager-tx-data-test
+  (let [node-id (gt/make-node-id 0 1)
+        tx-data (g/non-undoable [[(g/set-property node-id :marker 1)]])
+        [eager-tx-data] (g/eager-tx-data tx-data)]
+    (is (it/non-undoable? eager-tx-data))
+    (is (= [:tx-step/set-property]
+           (mapv it/tx-step-type
+                 (it/non-undoable-tx-data eager-tx-data))))))
+
 (deftest low-level-transactions
   (testing "one node"
     (ts/with-clean-system
@@ -102,6 +111,31 @@
             [node]    (g/tx-nodes-added tx-result)]
         (is (= :ok (:status tx-result)))
         (is (nil?  node))))))
+
+(deftest disconnect-sources-only-disconnects-explicit-sources
+  (ts/with-clean-system
+    (let [[implicit-source explicit-source target]
+          (ts/tx-nodes (g/make-node world Resource)
+                       (g/make-node world Resource)
+                       (g/make-node world Downstream))]
+      (g/transact (g/connect implicit-source :b target :consumer))
+      (let [[override-target] (ts/tx-nodes (g/override target))]
+        (let [basis (g/now)]
+          (is (= [[implicit-source :b]]
+                 (g/sources basis override-target :consumer)))
+          (is (= []
+                 (g/tx-data-step-types (it/disconnect-sources basis override-target :consumer)))))
+
+        (g/transact (g/connect explicit-source :b override-target :consumer))
+        (let [basis (g/now)
+              disconnect-tx-data (it/disconnect-sources basis override-target :consumer)]
+          (is (= [[explicit-source :b]]
+                 (g/sources basis override-target :consumer)))
+          (is (= [:tx-step/disconnect]
+                 (g/tx-data-step-types disconnect-tx-data)))
+          (g/transact disconnect-tx-data)
+          (is (= [[implicit-source :b]]
+                 (g/sources-of override-target :consumer))))))))
 
 (g/defnode NamedThing
   (property name g/Str))
@@ -209,10 +243,10 @@
 (deftest transact-with-full-invalidation-test
   (testing "Invalidates all graph successor caches after a property update."
     (ts/with-clean-system
-      (let [graph-a (g/make-graph! :history false)
-            graph-b (g/make-graph! :history false)
+      (let [graph-a (g/make-graph!)
+            graph-b (g/make-graph!)
             [resource-a receiver-a resource-b receiver-b] (ts/tx-nodes
-                                                            (g/make-node graph-a Resource)
+                                                            (g/make-node graph-a Resource :marker (int 0))
                                                             (g/make-node graph-a Receiver)
                                                             (g/make-node graph-b Resource)
                                                             (g/make-node graph-b Receiver))]
@@ -226,9 +260,21 @@
                (set (g/successors (g/now) resource-b :b))))
 
         (let [graph-a-successors-before (graph-successors-cache graph-a)
-              graph-b-successors-before (graph-successors-cache graph-b)]
-          (g/transact {:full-invalidation true}
-            (g/set-property resource-a :marker (int 1)))
+              graph-b-successors-before (graph-successors-cache graph-b)
+              undo-stack-count-before (g/undo-stack-count :undo/global)
+              tx-result (g/transact {:full-invalidation true}
+                          (g/set-property resource-a :marker (int 1)))]
+
+          (testing "Collects undoable changes."
+            (is (= 1 (count (:undoable-changes tx-result))))
+            (is (= (inc undo-stack-count-before) (g/undo-stack-count :undo/global)))
+            (is (= 1 (g/node-value resource-a :marker)))
+
+            (g/undo! :undo/global)
+            (is (= 0 (g/node-value resource-a :marker)))
+
+            (g/redo! :undo/global)
+            (is (= 1 (g/node-value resource-a :marker))))
 
           (let [graph-a-successors-after (graph-successors-cache graph-a)
                 graph-b-successors-after (graph-successors-cache graph-b)]
@@ -242,9 +288,23 @@
             (is (= #{(g/endpoint receiver-b :passthrough)}
                    (set (g/successors (g/now) resource-b :b)))))))))
 
+  (testing "Honors :undoable false with full invalidation."
+    (ts/with-clean-system
+      (let [graph (g/make-graph!)
+            [resource] (ts/tx-nodes
+                         (g/make-node graph Resource :marker (int 0)))
+            undo-stack-count-before (g/undo-stack-count :undo/global)
+            tx-result (g/transact
+                        {:full-invalidation true
+                         :undoable false}
+                        (g/set-property resource :marker (int 1)))]
+        (is (= [] (:undoable-changes tx-result)))
+        (is (= undo-stack-count-before (g/undo-stack-count :undo/global)))
+        (is (= 1 (g/node-value resource :marker))))))
+
   (testing "Does not invalidate successors for a no-op transaction."
     (ts/with-clean-system
-      (let [graph (g/make-graph! :history false)
+      (let [graph (g/make-graph!)
             [resource receiver] (ts/tx-nodes
                                   (g/make-node graph Resource)
                                   (g/make-node graph Receiver))]
@@ -257,7 +317,7 @@
 
   (testing "Recomputes topology changes after connect and disconnect."
     (ts/with-clean-system
-      (let [graph (g/make-graph! :history false)
+      (let [graph (g/make-graph!)
             [resource receiver] (ts/tx-nodes
                                   (g/make-node graph Resource)
                                   (g/make-node graph Receiver))]
@@ -270,6 +330,97 @@
           (g/disconnect resource :b receiver :generic-input))
         (is (= #{}
                (set (g/successors (g/now) resource :b))))))))
+
+(deftest flag-successors-changed-test
+  (testing "Merges node ids and node-id+label pairs."
+    (let [ctx {:full-invalidation false
+               :successors-changed {1 #{:a}
+                                    2 nil
+                                    5 #{:e}}}
+          result (#'it/flag-successors-changed
+                   ctx
+                   [[1 :b]
+                    1
+                    [1 :c]
+                    [2 :b]
+                    [3 :c]
+                    4
+                    [5 :e]
+                    [6 :f]
+                    [6 :g]])]
+      (is (= {1 nil
+              2 nil
+              3 #{:c}
+              4 nil
+              5 #{:e}
+              6 #{:f :g}}
+             (:successors-changed result)))))
+
+  (testing "Returns the context unchanged if nothing new is flagged."
+    (let [ctx {:full-invalidation false
+               :successors-changed {1 #{:a}
+                                    2 nil}}]
+      (is (identical? ctx (#'it/flag-successors-changed ctx [[1 :a] [2 :b]])))))
+
+  (testing "Does not realize changes during full invalidation."
+    (let [ctx {:full-invalidation true
+               :successors-changed {}}
+          changes (eduction
+                    (map (fn [_]
+                           (throw (Exception. "Changes must not be realized."))))
+                    [nil])]
+      (is (identical? ctx (#'it/flag-successors-changed ctx changes))))))
+
+(deftest successor-changes-test
+  (testing "Skips arcs targeting a changed node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [source target] (ts/tx-nodes
+                              (g/make-node graph-id Resource)
+                              (g/make-node graph-id Downstream))
+            basis (g/now)
+            changed-arc (gt/->Arc source :b target :consumer)]
+        (is (= #{target}
+               (set (#'it/successor-changes basis basis #{target} #{changed-arc})))))))
+
+  (testing "Skips arcs targeting an override of a changed node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [source target] (ts/tx-nodes
+                              (g/make-node graph-id Resource)
+                              (g/make-node graph-id Downstream))
+            [override-target] (ts/tx-nodes (g/override target))
+            basis (g/now)
+            changed-arc (gt/->Arc source :b override-target :consumer)]
+        (is (= #{target}
+               (set (#'it/successor-changes basis basis #{target} #{changed-arc})))))))
+
+  (testing "Omits the direct endpoint for a changed source node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [source] (ts/tx-nodes (g/make-node graph-id Resource))
+            missing-target (gt/make-node-id graph-id 1000000)
+            basis (g/now)
+            changed-arc (gt/->Arc source :b missing-target :consumer)]
+        (is (= #{source}
+               (set (#'it/successor-changes basis basis #{source} #{changed-arc})))))))
+
+  (testing "Retains target-side arc propagation for a changed source node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+
+            [changed-source affected-source target]
+            (ts/tx-nodes
+              (g/make-node graph-id Resource)
+              (g/make-node graph-id Resource)
+              (g/make-node graph-id Downstream))
+
+            _ (g/transact (g/connect affected-source :b target :consumer))
+            basis (g/now)
+            changed-arc (gt/->Arc changed-source :b target :consumer)]
+
+        (is (= #{changed-source [affected-source :b]}
+               (set (#'it/successor-changes basis basis #{changed-source} #{changed-arc}))))))))
 
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (g/fnk [] "an-output-value")))
@@ -290,6 +441,133 @@
 
 (g/defnode Container
   (input nodes g/Any :array :cascade-delete))
+
+(deftest shadowing-arc-invalidates-old-and-new-source-successors-test
+  (ts/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [initial-source shadowing-source target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id [initial-source Resource
+                                      _shadowing-source Resource
+                                      target Receiver]
+                (g/connect initial-source :b target :generic-input))))
+
+          [first-order-override-target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override target)))
+
+          [second-order-override-target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override first-order-override-target)))
+
+          ensure-not-shadowed!
+          (fn ensure-not-shadowed! []
+            (is (= #{(g/endpoint target :passthrough)
+                     (g/endpoint first-order-override-target :passthrough)
+                     (g/endpoint second-order-override-target :passthrough)}
+                   (set (g/successors (g/now) initial-source :b))))
+            (is (= #{}
+                   (set (g/successors (g/now) shadowing-source :b)))))
+
+          ensure-shadowed!
+          (fn ensure-shadowed! []
+            (is (= #{(g/endpoint target :passthrough)}
+                   (set (g/successors (g/now) initial-source :b))))
+            (is (= #{(g/endpoint first-order-override-target :passthrough)
+                     (g/endpoint second-order-override-target :passthrough)}
+                   (set (g/successors (g/now) shadowing-source :b)))))]
+
+      (ensure-not-shadowed!)
+
+      (g/transact
+        (g/connect shadowing-source :b first-order-override-target :generic-input))
+      (ensure-shadowed!)
+
+      (g/transact
+        (g/disconnect shadowing-source :b first-order-override-target :generic-input))
+      (ensure-not-shadowed!)
+
+      (g/transact
+        (g/connect shadowing-source :b first-order-override-target :generic-input))
+      (ensure-shadowed!)
+
+      (g/transact
+        (g/delete-node shadowing-source))
+      (ensure-not-shadowed!))))
+
+(deftest changed-arc-invalidates-implicit-override-source-successors-test
+  (ts/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [owner source target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id [owner Container
+                                      source Resource
+                                      target Receiver]
+                (g/connect source :_node-id owner :nodes)
+                (g/connect target :_node-id owner :nodes)
+                (g/connect source :b target :generic-input))))
+
+          [first-order-override-owner
+           _first-order-override-source
+           _first-order-override-target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override owner)))
+
+          [_second-order-override-owner
+           second-order-override-source
+           second-order-override-target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override first-order-override-owner)))]
+
+      (is (= #{(g/endpoint second-order-override-target :passthrough)}
+             (set (g/successors (g/now) second-order-override-source :b))))
+
+      (g/transact
+        (g/disconnect source :b target :generic-input))
+      (is (= #{}
+             (set (g/successors (g/now) second-order-override-source :b)))))))
+
+(deftest changed-override-relationship-invalidates-source-successors-test
+  (ts/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [owner _source target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id [owner Container
+                                      source Resource
+                                      target Receiver]
+                (g/connect source :_node-id owner :nodes)
+                (g/connect source :b target :generic-input))))
+
+          [_override-owner override-source]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override owner)))]
+
+      (is (= #{} ; We did not create a corresponding override-target, since target was not traversed.
+             (set (g/successors (g/now) override-source :b))))
+
+      (let [[override-target]
+            (g/tx-nodes-added
+              (g/transact
+                (g/connect target :_node-id owner :nodes)))]
+
+        (is (= #{(g/endpoint override-target :passthrough)}
+               (set (g/successors (g/now) override-source :b))))
+
+        (g/transact
+          (g/disconnect target :_node-id owner :nodes))
+        (is (= #{}
+               (set (g/successors (g/now) override-source :b))))))))
 
 (deftest double-deletion-is-safe
   (testing "delete scope first"

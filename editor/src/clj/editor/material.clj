@@ -73,9 +73,9 @@
       (-> editable-attribute
           (dissoc :values)
           (protobuf/assign attribute-value-keyword
-                           (when (and (not (graphics/engine-provided-attribute? editable-attribute))
-                                      (coll/not-empty stored-values))
-                             {:v stored-values}))))))
+            (when (and (not (graphics/engine-provided-attribute? editable-attribute))
+                       (coll/not-empty stored-values))
+              {:v stored-values}))))))
 
 (defn- save-value-attributes [editable-attributes]
   (mapv editable-attribute->attribute editable-attributes))
@@ -200,7 +200,7 @@
                                      shader-resource)
                   error-cursor-range (some-> ex-data :error-line-number code.data/line-number->CursorRange)
                   user-data (cond-> {:resource error-resource}
-                                    error-cursor-range (assoc :cursor-range error-cursor-range))]
+                              error-cursor-range (assoc :cursor-range error-cursor-range))]
               (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
 
 (g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
@@ -215,11 +215,12 @@
           (shader-gen/combined-shader-info augmented-shader-infos)))))
 
 (g/defnk produce-shader-request-data [combined-shader-info]
-  (shader/make-shader-request-data
-    (:shader-type+source-pairs combined-shader-info)
-    (:location+attribute-name-pairs combined-shader-info)
-    (:array-sampler-name->slice-sampler-names combined-shader-info)
-    (:strip-resource-binding-namespace-regex-str combined-shader-info)))
+  (-> (shader/make-shader-request-data
+        (:shader-type+source-pairs combined-shader-info)
+        (:location+attribute-name-pairs combined-shader-info)
+        (:array-sampler-name->slice-sampler-names combined-shader-info)
+        (:strip-resource-binding-namespace-regex-str combined-shader-info))
+      (shader/with-preview-light-capacity (:preview-light-capacity combined-shader-info))))
 
 (g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
   (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info
@@ -504,9 +505,9 @@
                       :bytes bytes
                       :name-key name-key)
 
-                    (some? error-message)
-                    (assoc
-                      :error (g/->error _node-id :attributes :fatal nil error-message)))))
+              (some? error-message)
+              (assoc
+                :error (g/->error _node-id :attributes :fatal nil error-message)))))
         attributes))
 
 (defmulti handle-sampler-names-changed
@@ -538,20 +539,20 @@
             (dynamic visible (g/constantly false)))
 
   (property vertex-program resource/Resource ; Required protobuf field.
-    (dynamic visible (g/constantly false))
-    (value (gu/passthrough vertex-resource))
-    (set (fn [evaluation-context self old-value new-value]
-           (project/resource-setter evaluation-context self old-value new-value
-                                    [:resource :vertex-resource]
-                                    [:shader-source-info :vertex-shader-source-info]))))
+            (dynamic visible (g/constantly false))
+            (value (gu/passthrough vertex-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :vertex-resource]
+                                            [:shader-source-info :vertex-shader-source-info]))))
 
   (property fragment-program resource/Resource ; Required protobuf field.
-    (dynamic visible (g/constantly false))
-    (value (gu/passthrough fragment-resource))
-    (set (fn [evaluation-context self old-value new-value]
-           (project/resource-setter evaluation-context self old-value new-value
-                                    [:resource :fragment-resource]
-                                    [:shader-source-info :fragment-shader-source-info]))))
+            (dynamic visible (g/constantly false))
+            (value (gu/passthrough fragment-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :fragment-resource]
+                                            [:shader-source-info :fragment-shader-source-info]))))
 
   (property max-page-count g/Int (default (protobuf/default Material$MaterialDesc :max-page-count))
             (dynamic visible (g/constantly false)))
@@ -647,4 +648,4 @@
     :icon "icons/32/Icons_31-Material.png"
     :icon-class :property
     :category (localization/message "resource.category.shaders")
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

@@ -20,16 +20,23 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
+            [editor.workspace :as workspace]
             [util.coll :as coll])
   (:import [java.io BufferedReader]))
 
 (g/defnode GameProperties
   (inherits r/CodeEditorResourceNode)
   (output proj-path+meta-info g/Any :cached
-          (g/fnk [_node-id resource lines]
+          (g/fnk [^:unsafe _evaluation-context _node-id resource lines]
+            ;; Safe because the evaluation context is only used to resolve stable proj-paths for resource defaults.
             (try
               (with-open [rdr (BufferedReader. (data/lines-reader lines))]
-                (coll/pair (resource/proj-path resource) (settings-core/load-meta-properties rdr)))
+                (coll/pair (resource/proj-path resource)
+                           (update (settings-core/load-meta-properties rdr)
+                                   :settings
+                                   settings-core/resolve-resource-settings
+                                   :default
+                                   #(workspace/resolve-resource (:basis _evaluation-context) resource %))))
               (catch Exception e
                 (g/->error _node-id :meta-info :fatal resource (.getMessage e) (ex-data e)))))))
 

@@ -50,6 +50,12 @@
  */
 namespace dmGui
 {
+    struct CustomPropertyDesc
+    {
+        dmhash_t       m_Key;
+        CustomProperty m_Property;
+    };
+
     /**
      * Default layout id
      */
@@ -318,6 +324,12 @@ namespace dmGui
             SetDefaultNewContextParams(this);
         }
     };
+
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback);
 
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -904,6 +916,9 @@ namespace dmGui
     void SetNodeId(HScene scene, HNode node, dmhash_t id);
     void SetNodeId(HScene scene, HNode node, const char* id);
     dmhash_t GetNodeId(HScene scene, HNode node);
+
+    // Ownershipt of string values are transferred to the GUI node on success.
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count);
 
     HNode GetNodeById(HScene scene, const char* id);
     HNode GetNodeById(HScene scene, dmhash_t id);

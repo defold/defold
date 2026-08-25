@@ -77,13 +77,8 @@ namespace dmRender
         dmhash_t debug_tag_3d = dmHashString64(DEBUG_3D_NAME);
         SetMaterialTags(material3d, 1, &debug_tag_3d);
 
-        HMaterial material2d = NewMaterial(render_context, program);
-        SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        dmhash_t debug_tag_2d = dmHashString64(DEBUG_2D_NAME);
-        SetMaterialTags(material2d, 1, &debug_tag_2d);
-
-        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES, dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
-        HMaterial materials[MAX_DEBUG_RENDER_TYPE_COUNT] = {material3d, material3d, material2d, material2d};
+        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
+        HMaterial materials[MAX_DEBUG_RENDER_TYPE_COUNT] = {material3d, material3d};
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
@@ -100,8 +95,6 @@ namespace dmRender
 
         debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString64(DEBUG_3D_NAME);
         debug_renderer.m_3dPredicate.m_TagCount = 1;
-        debug_renderer.m_2dPredicate.m_Tags[0] = dmHashString64(DEBUG_2D_NAME);
-        debug_renderer.m_2dPredicate.m_TagCount = 1;
         debug_renderer.m_RenderBatchVersion = 0;
     }
 
@@ -116,8 +109,6 @@ namespace dmRender
         if (program != dmGraphics::INVALID_PROGRAM_HANDLE)
             dmGraphics::DeleteProgram(context->m_GraphicsContext, program);
 
-        DeleteMaterial(context, material);
-        material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D].m_RenderObject.m_Material;
         DeleteMaterial(context, material);
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
@@ -153,7 +144,7 @@ namespace dmRender
     {
         if (!context->m_DebugRenderer.m_RenderContext)
             return;
-        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D];
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 6;
         if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
@@ -204,26 +195,7 @@ namespace dmRender
 
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
     {
-        if (!context->m_DebugRenderer.m_RenderContext)
-            return;
-        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_2D];
-        RenderObject& ro = type_data.m_RenderObject;
-        const uint32_t vertex_count = 2;
-        if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
-        {
-            DebugVertex v[vertex_count];
-            v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
-            v[0].m_Color = color0;
-            v[1].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
-            v[1].m_Color = color1;
-            char* buffer = (char*)type_data.m_ClientBuffer;
-            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
-            ro.m_VertexCount += vertex_count;
-        }
-        else
-        {
-            LogVertexWarning(context);
-        }
+        Line3D(context, Point3(x0, y0, 0.f), Point3(x1, y1, 0.f), color0, color1);
     }
 
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color)

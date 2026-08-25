@@ -489,13 +489,28 @@ var LibraryGLFW = {
       GLFW.onFocusChanged(0);
     },
 
+    isDocumentFullscreen: function() {
+      return !!(document["fullscreenElement"] || document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"]);
+    },
+
+    addFullScreenEventListeners: function() {
+      document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+    },
+
+    removeFullScreenEventListeners: function() {
+      document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+    },
+
     onFullScreenEventChange: function(event) {
-      GLFW.isFullscreen = document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"];
+      GLFW.isFullscreen = GLFW.isDocumentFullscreen();
       if (!GLFW.isFullscreen) {
-        document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
-        document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
-        document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
-        document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+        GLFW.removeFullScreenEventListeners();
       }
       //reset previous values for updating size in glfwSwapBuffers()
       GLFW.prevWidth = 0;
@@ -507,10 +522,7 @@ var LibraryGLFW = {
       if (!element) {
         return;
       }
-      document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+      GLFW.addFullScreenEventListeners();
       var RFS = element['requestFullscreen'] ||
                 element['requestFullScreen'] ||
                 element['mozRequestFullScreen'] ||
@@ -563,9 +575,96 @@ var LibraryGLFW = {
       var EPL = document.exitPointerLock || (function() {});
       EPL.apply(document, []);
     },
+
+    updateCRC16: function(crc, string) {
+      for (var i = 0; i < string.length; ++i) {
+        var r = (crc ^ (string.charCodeAt(i) & 0xff)) & 0xff;
+        var byte_crc = 0;
+
+        for (var bit = 0; bit < 8; ++bit) {
+          byte_crc = (((byte_crc ^ r) & 1) ? 0xA001 : 0) ^ (byte_crc >> 1);
+          r >>= 1;
+        }
+
+        crc = (byte_crc ^ (crc >> 8)) & 0xffff;
+      }
+
+      return crc;
+    },
+
+    writeGUID16: function(guid, offset, value) {
+      guid[offset] = value & 0xff;
+      guid[offset + 1] = (value >> 8) & 0xff;
+    },
+
+    formatGUID: function(guid) {
+      var hex = "0123456789abcdef";
+      var result = "";
+      for (var i = 0; i < guid.length; ++i) {
+        result += hex[(guid[i] >> 4) & 0x0f];
+        result += hex[guid[i] & 0x0f];
+      }
+      return result;
+    },
+
+    createJoystickGUID: function(vendor, product, name, is_xinput) {
+      var guid = new Array(16).fill(0);
+      var crc = GLFW.updateCRC16(0, name);
+
+      GLFW.writeGUID16(guid, 0, 0);
+      GLFW.writeGUID16(guid, 2, crc);
+
+      if (vendor && product) {
+        GLFW.writeGUID16(guid, 4, vendor);
+        GLFW.writeGUID16(guid, 8, product);
+        GLFW.writeGUID16(guid, 12, 0);
+      } else {
+        for (var i = 0; i < Math.min(name.length, 11); ++i) {
+          guid[4 + i] = name.charCodeAt(i) & 0xff;
+        }
+      }
+
+      if (is_xinput) {
+        guid[14] = "x".charCodeAt(0);
+      }
+
+      return GLFW.formatGUID(guid);
+    },
+
+    getJoystickVendor: function(raw_gamepad_id) {
+      var vendor_str = "Vendor: ";
+      var vendor_str_index = raw_gamepad_id.indexOf(vendor_str);
+      if (vendor_str_index >= 0) {
+        return parseInt(raw_gamepad_id.substr(vendor_str_index + vendor_str.length, 4), 16) || 0;
+      }
+
+      var id_split = raw_gamepad_id.split("-");
+      if (id_split.length > 1 && !isNaN(parseInt(id_split[0], 16))) {
+        return parseInt(id_split[0], 16) || 0;
+      }
+
+      return 0;
+    },
+
+    getJoystickProduct: function(raw_gamepad_id) {
+      var product_str = "Product: ";
+      var product_str_index = raw_gamepad_id.indexOf(product_str);
+      if (product_str_index >= 0) {
+        return parseInt(raw_gamepad_id.substr(product_str_index + product_str.length, 4), 16) || 0;
+      }
+
+      var id_split = raw_gamepad_id.split("-");
+      if (id_split.length > 1 && !isNaN(parseInt(id_split[1], 16))) {
+        return parseInt(id_split[1], 16) || 0;
+      }
+
+      return 0;
+    },
+
     disconnectJoystick: function (joy) {
       if (GLFW.gamepadFunc) {
         _free(GLFW.joys[joy].id);
+        _free(GLFW.joys[joy].guid);
         delete GLFW.joys[joy];
         {{{ makeDynCall('vii', 'GLFW.gamepadFunc') }}}(joy, 0);
       }
@@ -588,15 +687,26 @@ var LibraryGLFW = {
               var gamepad = GLFW.lastGamepadState[joy];
 
               if (gamepad) {
-                var gamepad_id = (gamepad.mapping == "standard") ? "Standard Gamepad" : gamepad.id;
-                if (!GLFW.joys[joy] || GLFW.joys[joy].id_string != gamepad_id) {
+                var raw_gamepad_id = gamepad.id || "";
+                var gamepad_id = (gamepad.mapping == "standard") ? "Standard Gamepad" : raw_gamepad_id;
+                if (!GLFW.joys[joy] || GLFW.joys[joy].id_string != gamepad_id || GLFW.joys[joy].raw_id_string != raw_gamepad_id) {
                   if (GLFW.joys[joy]) {
                     //In case when user change gamepad while browser in background (minimized)
                     GLFW.disconnectJoystick(joy);
                   }
+                  var vendor = GLFW.getJoystickVendor(raw_gamepad_id);
+                  var product = GLFW.getJoystickProduct(raw_gamepad_id);
+                  var is_xinput = raw_gamepad_id.toLowerCase().indexOf("xinput") >= 0;
+                  if (!vendor && !product && is_xinput) {
+                    vendor = 0x045e;
+                    product = 0x028e;
+                  }
+                  var gamepad_guid = GLFW.createJoystickGUID(vendor, product, gamepad_id, is_xinput);
                   GLFW.joys[joy] = {
                     id: stringToNewUTF8(gamepad_id),
+                    guid: stringToNewUTF8(gamepad_guid),
                     id_string: gamepad_id,
+                    raw_id_string: raw_gamepad_id,
                     axesCount: gamepad.axes.length,
                     buttonsCount: gamepad.buttons.length
                   };
@@ -640,6 +750,23 @@ var LibraryGLFW = {
     GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
     GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
+
+    // The browser can still be in fullscreen or pointer lock from a previous
+    // engine instance, since a reboot keeps the canvas and glfwTerminate leaves
+    // the browser state alone. Recompute the cached state from the document and
+    // listen for changes again while it is active.
+    GLFW.isFullscreen = false;
+    GLFW.isPointerLocked = false;
+    if (typeof document !== 'undefined') {
+        GLFW.isFullscreen = GLFW.isDocumentFullscreen();
+        if (GLFW.isFullscreen) {
+            GLFW.addFullScreenEventListeners();
+        }
+        GLFW.isPointerLocked = !!document["pointerLockElement"];
+        if (GLFW.isPointerLocked) {
+            document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        }
+    }
 
     //TODO: Init with correct values
     GLFW.params = new Array();
@@ -691,6 +818,7 @@ var LibraryGLFW = {
   },
 
   glfwTerminate: () => {
+    GLFW.removeEventListener("unload", GLFW.onWindowClose, true);
     GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
@@ -703,15 +831,37 @@ var LibraryGLFW = {
     GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
     GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
+    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
     GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
 
-    var canvas = Module["canvas"];
-    if (typeof canvas !== 'undefined') {
-        Module["canvas"].width = Module["canvas"].height = 1;
+    // Fullscreen and pointer lock listeners are otherwise only removed by their
+    // own change handlers, so they survive termination if we exit while active.
+    // The browser state itself is left as it is, glfwInitJS recomputes the
+    // cached flags from the document when a new window is opened.
+    // The document is guarded like window/canvas above, since glfwTerminate is
+    // also reachable from embeddings without a DOM.
+    if (typeof document !== 'undefined') {
+        GLFW.removeFullScreenEventListeners();
+        document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
     }
+
+    // The callbacks point into the engine that is being destroyed. They are set
+    // again when a new window is opened.
+    GLFW.keyFunc = null;
+    GLFW.charFunc = null;
+    GLFW.markedTextFunc = null;
+    GLFW.gamepadFunc = null;
+    GLFW.mouseButtonFunc = null;
+    GLFW.mousePosFunc = null;
+    GLFW.mouseWheelFunc = null;
+    GLFW.resizeFunc = null;
+    GLFW.closeFunc = null;
+    GLFW.refreshFunc = null;
+    GLFW.focusFunc = null;
+    GLFW.iconifyFunc = null;
+    GLFW.touchFunc = null;
   },
 
   glfwGetVersion: function(major, minor, rev) {
@@ -753,7 +903,8 @@ var LibraryGLFW = {
             antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
             depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
             stencil: (GLFW.params[0x0002000A] > 0), // GLFW_STENCIL_BITS
-            alpha: (GLFW.params[0x00020008] > 0) // GLFW_ALPHA_BITS
+            alpha: (GLFW.params[0x00020008] > 0), // GLFW_ALPHA_BITS
+            majorVersion: GLFW.params[0x0002001B] // GLFW_WEBGL_VERSION
         };
 
         // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.
@@ -1003,6 +1154,81 @@ var LibraryGLFW = {
     } else {
       return 0;
     }
+  },
+
+  glfwGetJoystickDeviceGuid: function(joy, device_guid) {
+    if (GLFW.joys[joy]) {
+      setValue(device_guid, GLFW.joys[joy].guid, '*');
+      return 1;
+    } else {
+      return 0;
+    }
+  },
+
+  glfwCreateJoystickDeviceGuid: function(bus, vendor, product, version, vendor_name, product_name, driver_signature, driver_data, guid) {
+    function crc16ForByte(value) {
+      var crc = 0;
+      for (var bit = 0; bit < 8; ++bit) {
+        crc = ((((crc ^ value) & 1) ? 0xA001 : 0) ^ (crc >> 1)) & 0xffff;
+        value >>= 1;
+      }
+      return crc;
+    }
+    function crc16(crc, string) {
+      if (string) {
+        for (var i = 0; i < string.length; ++i) {
+          crc = (crc16ForByte((crc & 0xff) ^ string.charCodeAt(i)) ^ (crc >> 8)) & 0xffff;
+        }
+      }
+      return crc;
+    }
+    function setGuidWord(guidData, offset, value) {
+      guidData[offset + 0] = value & 0xff;
+      guidData[offset + 1] = (value >> 8) & 0xff;
+    }
+
+    var vendorName = vendor_name ? UTF8ToString(vendor_name) : null;
+    var productName = product_name ? UTF8ToString(product_name) : null;
+    var guidData = new Array(16).fill(0);
+    var crc = 0;
+
+    if (vendorName && vendorName.length && productName && productName.length) {
+      crc = crc16(crc, vendorName);
+      crc = crc16(crc, ' ');
+      crc = crc16(crc, productName);
+    } else if (productName) {
+      crc = crc16(crc, productName);
+    }
+
+    setGuidWord(guidData, 0, bus);
+    setGuidWord(guidData, 2, crc);
+
+    if (vendor) {
+      setGuidWord(guidData, 4, vendor);
+      setGuidWord(guidData, 8, product);
+      setGuidWord(guidData, 12, version);
+      guidData[14] = driver_signature;
+      guidData[15] = driver_data;
+    } else {
+      var availableSpace = guidData.length - 4;
+      if (driver_signature) {
+        availableSpace -= 2;
+        guidData[14] = driver_signature;
+        guidData[15] = driver_data;
+      }
+      if (productName) {
+        for (var j = 0; j + 1 < availableSpace && j < productName.length; ++j) {
+          guidData[4 + j] = productName.charCodeAt(j);
+        }
+      }
+    }
+
+    var hex = '0123456789abcdef';
+    for (var k = 0; k < guidData.length; ++k) {
+      setValue(guid + k * 2 + 0, hex.charCodeAt((guidData[k] >> 4) & 0x0f), 'i8');
+      setValue(guid + k * 2 + 1, hex.charCodeAt(guidData[k] & 0x0f), 'i8');
+    }
+    setValue(guid + 32, 0, 'i8');
   },
 
   /* Time */

@@ -404,11 +404,22 @@ namespace dmGameSystem
     {
         if (!value_ptr)
             return;
+
         dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(info->m_DataType);
         uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
         for (uint32_t i = 0; i < info->m_ElementCount; ++i)
         {
-            out[i] = VertexAttributeDataTypeToFloat(info->m_DataType, value_ptr + bytes_per_element * i);
+            out[i] = dmGraphics::VertexAttributeDataTypeToFloat(info->m_DataType, value_ptr + bytes_per_element * i);
+        }
+    }
+
+    void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
+    {
+        dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
+        uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
+        for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
+        {
+            out[i] = dmGraphics::VertexAttributeDataTypeToFloat(attribute->m_DataType, value_ptr + bytes_per_element * i);
         }
     }
 
@@ -428,7 +439,7 @@ namespace dmGameSystem
         {
             for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
             {
-                WriteVertexAttributeFromFloat(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
+                dmGraphics::WriteVertexAttributeFromFloat(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
             }
         }
     }

@@ -130,6 +130,82 @@ TEST_F(ScriptJsonTest, TestLuaToJson)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptJsonTest, TestLuaToJsonWithStackIndex)
+{
+    int top = lua_gettop(L);
+
+    {
+        lua_newtable(L);
+            lua_pushstring(L, "first");
+            lua_setfield(L, -2, "name");
+
+        lua_newtable(L);
+            lua_pushstring(L, "second");
+            lua_setfield(L, -2, "name");
+            lua_newtable(L);
+            lua_setfield(L, -2, "empty");
+
+        lua_newtable(L);
+            lua_pushboolean(L, 0);
+            lua_setfield(L, -2, "encode_empty_table_as_object");
+
+        char* json = 0;
+        size_t json_length;
+        int ret = dmScript::LuaToJson(L, 2, 3, &json, &json_length);
+        ASSERT_EQ(1, ret);
+        ASSERT_TRUE(strstr(json, "\"name\":\"second\"") != 0);
+        ASSERT_TRUE(strstr(json, "\"empty\":[]") != 0);
+        free((void*)json);
+
+        json = 0;
+        json_length = 0;
+        ret = dmScript::LuaToJson(L, 1, 3, &json, &json_length);
+        ASSERT_EQ(1, ret);
+        ASSERT_EQ(16u, (uint32_t)json_length);
+        ASSERT_STREQ("{\"name\":\"first\"}", json);
+        free((void*)json);
+
+        lua_pop(L, 3);
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptJsonTest, TestLuaToJsonWithOptionsIndex)
+{
+    int top = lua_gettop(L);
+
+    {
+        lua_newtable(L);
+            lua_newtable(L);
+            lua_setfield(L, -2, "empty");
+
+        lua_newtable(L);
+            lua_pushboolean(L, 0);
+            lua_setfield(L, -2, "encode_empty_table_as_object");
+
+        char* json = 0;
+        size_t json_length = 0;
+        int ret = dmScript::LuaToJson(L, 1, 2, &json, &json_length);
+        ASSERT_EQ(1, ret);
+        ASSERT_EQ(12u, (uint32_t)json_length);
+        ASSERT_STREQ("{\"empty\":[]}", json);
+        free((void*)json);
+
+        json = 0;
+        json_length = 0;
+        ret = dmScript::LuaToJson(L, 1, 3, &json, &json_length);
+        ASSERT_EQ(1, ret);
+        ASSERT_EQ(12u, (uint32_t)json_length);
+        ASSERT_STREQ("{\"empty\":{}}", json);
+        free((void*)json);
+
+        lua_pop(L, 2);
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

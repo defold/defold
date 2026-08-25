@@ -36,6 +36,8 @@ namespace dmGraphics
 
     struct WebGPUBuffer
     {
+        Buffer                     m_Base = {};
+
 #if defined(DM_GRAPHICS_WEBGPU2)
         WebGPUBuffer(WGPUBufferUsage usage) : m_Usage(usage) { }
         const WGPUBufferUsage m_Usage; // uint32_t
@@ -45,9 +47,6 @@ namespace dmGraphics
 #endif
 
         WGPUBuffer                 m_Buffer = NULL;
-
-
-        size_t                     m_Size = 0;
         size_t                     m_Used = 0;
         size_t                     m_LastRenderPass = 0;
     };
@@ -140,19 +139,15 @@ namespace dmGraphics
             memset(this, 0, sizeof(*this));
         }
 
+        RenderTarget m_Base;
         AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-
         HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture     m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture     m_TextureDepthStencil;
-
         float        m_Scissor[4];
         uint32_t     m_Width;
         uint32_t     m_Height;
         uint8_t      m_Multisample;
-        uint32_t     m_ColorBufferCount : 7;
     };
 
     struct WebGPUComputePass
@@ -165,6 +160,7 @@ namespace dmGraphics
     {
         WGPUBindGroup         m_BindGroups[MAX_SET_COUNT];
         WGPUBuffer            m_VertexBuffers[MAX_VERTEX_BUFFERS];
+        uint64_t              m_VertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPURenderTarget*   m_Target;
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
@@ -192,11 +188,14 @@ namespace dmGraphics
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_VertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
+        uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         WebGPUTexture*                     m_DefaultTexture2D;
@@ -234,7 +233,6 @@ namespace dmGraphics
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
 
-        uint32_t            m_ContextFeatures : 9;
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;
 

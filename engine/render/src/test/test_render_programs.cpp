@@ -251,7 +251,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
 
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     // Turn off all context features manually
-    null_context->m_ContextFeatures = 0;
+    null_context->m_BaseContext.m_ContextFeatureSupport = 0;
 
     dmGraphics::ShaderDescBuilder shader_desc_builder;
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vs_src, strlen(vs_src));

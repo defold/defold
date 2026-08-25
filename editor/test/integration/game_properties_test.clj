@@ -14,6 +14,7 @@
 
 (ns integration.game-properties-test
   (:require [clojure.test :refer :all]
+            [editor.resource :as resource]
             [integration.test-util :as test-util]))
 
 (set! *warn-on-reflection* true)
@@ -25,4 +26,8 @@
       (is (true? (test-util/get-setting game-project ["project" "subtitles"])))
       (is (true? (test-util/get-setting game-project ["tv" "show_ads"])))
       (is (= 128 (test-util/get-setting game-project ["spine" "max_count"])))
+      (is (= "/game.project" (resource/proj-path (test-util/get-setting game-project ["defaults" "proj_path"]))))
+      (is (= "/game.project" (resource/proj-path (test-util/get-setting game-project ["defaults" "relative"]))))
+      (is (nil? (test-util/get-setting game-project ["defaults" "none"])))
+      (is (nil? (test-util/get-setting game-project ["defaults" "empty"])))
       (is (thrown-with-msg? Throwable #"Invalid setting path." (test-util/get-setting game-project ["unrelated" "unexpected"]))))))

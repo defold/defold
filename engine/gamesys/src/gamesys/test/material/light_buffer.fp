@@ -14,7 +14,7 @@ struct Light
 };
 uniform LightBuffer
 {
-    vec4  lights_count; // x: number of active lights
+    vec4  light_info; // xyz: accumulated ambient color, w: number of active lights
     Light lights[MAX_LIGHTS];
 };
 
@@ -22,8 +22,8 @@ out vec4 out_fragColor;
 
 void main()
 {
-    vec4 light_accum = vec4(0.0);
-    for (int i=0; i < int(lights_count.x); i++)
+    vec4 light_accum = vec4(light_info.xyz, 0.0);
+    for (int i=0; i < int(light_info.w); i++)
     {
         light_accum += lights[i].color;
     }

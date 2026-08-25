@@ -15,8 +15,8 @@
 #ifndef DM_HTTP_CACHE_VERIFY_H
 #define DM_HTTP_CACHE_VERIFY_H
 
-#include <dlib/http_client.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_client.h>
+#include <dlib/http/http_cache.h>
 #include <dlib/uri.h>
 
 namespace dmHttpCacheVerify

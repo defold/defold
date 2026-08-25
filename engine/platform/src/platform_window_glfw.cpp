@@ -163,6 +163,10 @@ namespace dmPlatform
 
     static WindowResult OpenWindowOpenGL(dmWindow* wnd, const WindowCreateParams& params)
     {
+#if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_OPENGL_API);
+#endif
+
         if (params.m_HighDPI)
         {
             glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
@@ -177,6 +181,8 @@ namespace dmPlatform
 #elif defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
+#elif defined(__EMSCRIPTEN__)
+        glfwOpenWindowHint(GLFW_WEBGL_VERSION, params.m_GraphicsApiVersionHint);
 #endif
 
         bool is_desktop = false;
@@ -186,10 +192,10 @@ namespace dmPlatform
         if (is_desktop)
         {
             uint32_t major = 3, minor = 3;
-            if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+            if (!OpenGLGetVersion(params.m_GraphicsApiVersionHint, &major, &minor))
             {
                 dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
-                    params.m_OpenGLVersionHint, major, minor);
+                    params.m_GraphicsApiVersionHint, major, minor);
             }
 
             // Use specific OpenGL version.
@@ -251,6 +257,10 @@ namespace dmPlatform
 
     static WindowResult OpenWindowNoAPI(dmWindow* wnd, const WindowCreateParams& params)
     {
+#if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_NO_API);
+#endif
+
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
 
@@ -287,6 +297,7 @@ namespace dmPlatform
                 break;
             case WINDOW_GRAPHICS_API_WEBGPU:
             case WINDOW_GRAPHICS_API_VULKAN:
+            case WINDOW_GRAPHICS_API_METAL:
                 res = OpenWindowNoAPI(window, params);
                 break;
             default: assert(0);
@@ -630,6 +641,18 @@ namespace dmPlatform
         char* device_name;
         glfwGetJoystickDeviceId(joystick_index, &device_name);
         return (const char*) device_name;
+    }
+
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+#if defined(__EMSCRIPTEN__) || defined(ANDROID)
+        char* device_guid = 0;
+        if (glfwGetJoystickDeviceGuid(joystick_index, &device_guid)) // Defold addition
+        {
+            return (const char*) device_guid;
+        }
+#endif
+        return 0; // unsupported
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

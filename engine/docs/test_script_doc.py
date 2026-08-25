@@ -12,6 +12,8 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+import os
+import tempfile
 import unittest
 import script_doc
 import script_doc_ddf_pb2
@@ -166,17 +168,51 @@ foobar
 
 
     def test_all_lua_types(self):
-        doc= """
+        doc = """
 /*#
  * MY_DESC
  * @name MY_NAME
  * @param param_x [type:string|number|boolean|function|nil|userdata|thread|file] DOCX
  * @param param_y [type:vector|vector3|vector4|matrix4|quaternion|hash|url|node|resource|buffer] DOCY
  * @param param_z [type:constant|any] DOCZ
+ * @param param_b2 [type:b2World|b2Body|b2BodyType|b2Shape|b2Chain] DOCB2
+ * @param param_bullet3d [type:btDiscreteDynamicsWorld|btCollisionObject|btRigidBody|btCollisionShape|btTypedConstraint] DOCBULLET3D
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEqual(True, True) # make sure it doesn't crash
+        self.assertEqual(1, len(elements))
+        # Bullet3D userdata types must remain valid documentation inputs so the
+        # public Lua API can be generated without dropping typed parameters.
+        self.assertEqual(['btDiscreteDynamicsWorld', 'btCollisionObject', 'btRigidBody', 'btCollisionShape', 'btTypedConstraint'], elements[0].parameters[4].types)
+
+    # Verifies that generated Lua annotations mark only bracketed parameters as
+    # optional. This prevents required Bullet3D userdata from becoming nullable
+    # when protobuf booleans are converted through the annotation template.
+    def test_optional_parameter_lua_annotation(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name test
+ * @namespace test
+ * @language Lua
+ * @path test
+ */
+/*# Activate
+ * @name test.activate
+ * @param body [type:btRigidBody] body
+ * @param [force] [type:boolean] force activation
+ */
+"""
+        message = script_doc.parse_document(doc)
+        with tempfile.TemporaryDirectory() as temp_directory:
+            output_path = os.path.join(temp_directory, 'test.lua')
+            script_doc.write_lua_annotation(message, output_path)
+            with open(output_path, encoding='utf-8') as output_file:
+                annotation = output_file.read()
+
+        self.assertIn('---@param body btRigidBody body', annotation)
+        self.assertNotIn('---@param body? btRigidBody body', annotation)
+        self.assertIn('---@param force? boolean force activation', annotation)
 
 
     def test_wrong_type(self):
@@ -327,6 +363,25 @@ foobar
         self.assertEqual(u'MY_DESC @test', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'example:\nMY_EXAMPLE @test', elements[0].examples)
+
+    def test_detection(self):
+        doc1= """
+/*#
+ * @name MY_MESSAGE1
+ */
+"""
+        doc2= """
+/*#
+ * @name MY_MESSAGE2
+ */
+"""
+        elements = script_doc.parse_document(doc1).elements
+        self.assertEqual(1, len(elements))
+        self.assertEqual('MY_MESSAGE1', elements[0].name)
+
+        elements = script_doc.parse_document(doc2).elements
+        self.assertEqual(1, len(elements))
+        self.assertEqual('MY_MESSAGE2', elements[0].name)
 
 if __name__ == '__main__':
     unittest.main()

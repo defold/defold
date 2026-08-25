@@ -316,6 +316,12 @@ public class ComponentsCounter {
         return name.equals("modelc") || name.equals("spinemodelc") || name.equals("rivemodelc");
     }
 
+    private static String getComponentTypeName(String inputTypeName) {
+        String outputExt = ResourceUtil.getOutputExt("." + inputTypeName);
+        int extIndex = outputExt.lastIndexOf('.');
+        return extIndex == -1 ? outputExt : outputExt.substring(extIndex + 1);
+    }
+
     public static void copyDataToBuilder(Storage storage, Project project, CollectionDesc.Builder builder) {
         //Do not copy values for collections with dynamic factories
         if (storage.isDynamic()) {
@@ -327,7 +333,7 @@ public class ComponentsCounter {
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
             // for example wav and sound both are soundc
-            String name = ResourceUtil.getOutputExt("." + entry.getKey()).substring(1);
+            String name = getComponentTypeName(entry.getKey());
             Integer value = entry.getValue();
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);

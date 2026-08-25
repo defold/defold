@@ -28,7 +28,6 @@
 #include <ddf/ddf.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
-#include <gamesys/components/comp_gui.h> 
 #include "engine_service.h"
 #include "engine_service_private.h"
 #include "engine_service_discovery.h"
@@ -564,32 +563,6 @@ namespace dmEngineService
         return SendResourceData(request, name, extension, resource.m_Size, resource.m_SizeOnDisc, resource.m_RefCount);
     }
 
-    static void OutputGuiDynamicTextures(dmGameObject::SceneNode* node, dmWebServer::Request* request)
-    {
-        static const dmhash_t s_PropertyResource = dmHashString64("resource");
-        static const dmhash_t s_PropertyType = dmHashString64("type");
-
-        if (node->m_Type == dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT)
-            return;
-
-        dmhash_t resource_id = 0;
-        dmhash_t type = 0;
-        dmGameObject::SceneNodePropertyIterator pit = TraverseIterateProperties(node);
-        while(dmGameObject::TraverseIteratePropertiesNext(&pit))
-        {
-           if (pit.m_Property.m_NameHash == s_PropertyResource)
-                resource_id = pit.m_Property.m_Value.m_Hash;
-            else if (pit.m_Property.m_NameHash == s_PropertyType)
-                type = pit.m_Property.m_Value.m_Hash;
-        }
-
-        dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(node);
-        while(dmGameObject::TraverseIterateNext(&it))
-        {
-            OutputGuiDynamicTextures( &it.m_Node, request );
-        }
-    }
-
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
     {
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
@@ -610,14 +583,6 @@ namespace dmEngineService
             return;
         }
         dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, (void*)request);
-
-        // Collect dynamic textures from gui
-        dmGameObject::SceneNode root;
-        if (!dmGameObject::TraverseGetRoot(params->m_Regist, &root))
-        {
-            return;
-        }
-        OutputGuiDynamicTextures(&root, request);
     }
 
     //

@@ -29,6 +29,13 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/align.h> // DM_ALIGNED
 
+/*# Resource factory extension context name
+ * Name used when registering the resource factory with the engine context registry.
+ * @constant
+ * @name RESOURCE_FACTORY_CONTEXT_NAME
+ */
+#define RESOURCE_FACTORY_CONTEXT_NAME "factory"
+
 /*#
 * Resource factory handle. Holds references to all currently loaded resources.
 * @name HResourceFactory
@@ -98,6 +105,7 @@ struct ResourceRecreateParams;
  * @member RESOURCE_RESULT_VERSION_MISMATCH
  * @member RESOURCE_RESULT_SIGNATURE_MISMATCH
  * @member RESOURCE_RESULT_UNKNOWN_ERROR
+ * @member RESOURCE_RESULT_TOO_MANY_COMPONENTS
  */
 typedef enum ResourceResult
 {
@@ -123,6 +131,7 @@ typedef enum ResourceResult
     RESOURCE_RESULT_VERSION_MISMATCH          = -19,
     RESOURCE_RESULT_SIGNATURE_MISMATCH        = -20,
     RESOURCE_RESULT_UNKNOWN_ERROR             = -21,
+    RESOURCE_RESULT_TOO_MANY_COMPONENTS       = -22,
 } ResourceResult;
 
 

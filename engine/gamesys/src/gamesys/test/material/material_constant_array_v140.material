@@ -1,6 +1,6 @@
 name: "sprite"
 tags: "tile"
-vertex_program: "/vertex_program/valid.vp"
+vertex_program: "/material/vertex_program_valid.vp"
 fragment_program: "/material/material_constant_array_v140.fp"
 vertex_space: VERTEX_SPACE_WORLD
 fragment_constants {

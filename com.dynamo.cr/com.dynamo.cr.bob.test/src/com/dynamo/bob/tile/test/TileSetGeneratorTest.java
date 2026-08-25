@@ -208,7 +208,7 @@ public class TileSetGeneratorTest {
         // bottom right, bottom left, top left, top right
         List<Float> expectedVertices = Arrays.asList(0.5f, -0.5f, -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f);
         List<Float> expectedUVs = Arrays.asList(maxU, minV, minU, minV, minU, maxV, maxU, maxV);
-        List<Integer> expectedIndices = Arrays.asList(0, 1, 2, 0, 2, 3);
+        List<Integer> expectedIndices = Arrays.asList(0, 2, 1, 0, 3, 2);
 
         assertThat(geometry.getVerticesList(), is(expectedVertices));
         assertThat(geometry.getUvsList(), is(expectedUVs));

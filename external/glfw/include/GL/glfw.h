@@ -367,6 +367,7 @@ extern "C" {
 #define GLFW_OPENGL_PROFILE       0x00020018
 #define GLFW_WINDOW_HIGH_DPI      0x00020019
 #define GLFW_CLIENT_API           0x0002001A
+#define GLFW_WEBGL_VERSION        0x0002001B
 
 /* GLFW_OPENGL_PROFILE tokens */
 #define GLFW_OPENGL_CORE_PROFILE  0x00050001
@@ -521,11 +522,15 @@ GLFWAPI int  GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun );
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);
 
 /* Joystick input */
+#define GLFW_JOYSTICK_DEVICE_GUID_LENGTH 32
+
+GLFWAPI void GLFWAPIENTRY glfwCreateJoystickDeviceGuid( unsigned short bus, unsigned short vendor, unsigned short product, unsigned short version, const char* vendor_name, const char* product_name, unsigned char driver_signature, unsigned char driver_data, char guid[GLFW_JOYSTICK_DEVICE_GUID_LENGTH + 1] );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickParam( int joy, int param );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy, unsigned char *hats, int numhats );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id );
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceGuid( int joy, char** device_guid );
 
 /* Time */
 GLFWAPI double GLFWAPIENTRY glfwGetTime( void );

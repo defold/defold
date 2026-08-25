@@ -1,0 +1,1644 @@
+{
+    "issues": [
+        {
+            "author": "JCash",
+            "body": "\u26a0\ufe0f This removes the deprecated feature of LiveUpdate auto mounts.\r\nFrom now on, developers must always choose their mounts when starting the game.\r\n\r\nNote that the returned mount names now also are hashes (previously strings):\r\n```lua\r\n pprint(\"MOUNTS\", liveupdate.get_mounts())\r\n```\r\nreturns\r\n```lua\r\nDEBUG:SCRIPT: MOUNTS,\r\n{ --[[0x119667bf0]]\r\n  1 = { --[[0x119667c50]]\r\n    name = hash: [liveupdate],\r\n    uri = \"zip:/device/path/to/acchives/liveupdate.zip\",\r\n    priority = 5\r\n  },\r\n  2 = { --[[0x119667d50]]\r\n    name = hash: [_base],\r\n    uri = \"archive:build/default/game.dmanifest\",\r\n    priority = -10\r\n  }\r\n}\r\n```",
+            "closed_issues": [
+                10667,
+                10202
+            ],
+            "duplicate": false,
+            "issue_number": 10667,
+            "labels": [
+                "task",
+                "engine",
+                "live update",
+                "breaking change"
+            ],
+            "mergecommit": "f792977b750d2a333e71b909767c21b88ed9880c",
+            "pr_number": 12367,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Remove the support for LiveUpdate auto mount",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12367"
+        },
+        {
+            "author": "JCash",
+            "body": "### Box2D v2 Lua Joint API\r\n\r\n  Added `b2d.body.get_joints`.\r\n\r\n  Added `b2d.joint` functions:\r\n  - `destroy`\r\n  - `get_type`\r\n  - `get_body_a`\r\n  - `get_body_b`\r\n  - `get_local_anchor_a`\r\n  - `get_local_anchor_b`\r\n  - `get_anchor_a`\r\n  - `get_anchor_b`\r\n  - `is_active`\r\n  - `get_collide_connected`\r\n  - `get_reaction_force`\r\n  - `get_reaction_torque`\r\n\r\n  Added v2 joint creation:\r\n  - `create_distance`\r\n  - `create_mouse`\r\n  - `create_prismatic`\r\n  - `create_revolute`\r\n  - `create_weld`\r\n  - `create_wheel`\r\n  - `create_friction`\r\n  - `create_rope`\r\n  - `create_pulley`\r\n  - `create_gear`\r\n\r\n  Added v2 joint property access:\r\n  - `set_mouse_target`, `get_mouse_target`\r\n  - `set_length`, `get_length`\r\n  - `set_frequency`, `get_frequency`\r\n  - `set_hertz`, `get_hertz`\r\n  - `set_damping_ratio`, `get_damping_ratio`\r\n  - `set_spring_damping_ratio`, `get_spring_damping_ratio`\r\n  - `get_local_axis_a`\r\n  - `get_reference_angle`\r\n  - `get_joint_translation`\r\n  - `get_joint_speed`\r\n  - `get_joint_angle`\r\n  - `enable_limit`, `is_limit_enabled`\r\n  - `set_limits`, `get_lower_limit`, `get_upper_limit`\r\n  - `enable_motor`, `is_motor_enabled`\r\n  - `set_motor_speed`, `get_motor_speed`\r\n  - `set_max_motor_force`, `get_max_motor_force`, `get_motor_force`\r\n  - `set_max_motor_torque`, `get_max_motor_torque`, `get_motor_torque`\r\n  - `set_max_force`, `get_max_force`\r\n  - `set_max_torque`, `get_max_torque`\r\n  - `set_max_length`, `get_max_length`\r\n  - `get_limit_state`\r\n  - `get_ground_anchor_a`, `get_ground_anchor_b`\r\n  - `get_length_a`, `get_length_b`\r\n  - `set_ratio`, `get_ratio`\r\n  - `get_joint1`, `get_joint2`\r\n\r\n  ### Box2D v3 Lua Joint API\r\n\r\n  Added `b2d.body.get_joints`.\r\n\r\n  Added `b2d.joint` functions:\r\n  - `destroy`\r\n  - `get_type`\r\n  - `get_body_a`\r\n  - `get_body_b`\r\n  - `get_local_anchor_a`\r\n  - `get_local_anchor_b`\r\n  - `get_anchor_a`\r\n  - `get_anchor_b`\r\n  - `get_collide_connected`\r\n  - `set_collide_connected`\r\n  - `wake_bodies`\r\n  - `get_reaction_force`\r\n  - `get_reaction_torque`\r\n\r\n  Added v3 joint creation:\r\n  - `create_distance`\r\n  - `create_mouse`\r\n  - `create_prismatic`\r\n  - `create_revolute`\r\n  - `create_weld`\r\n  - `create_wheel`\r\n  - `create_motor`\r\n  - `create_filter`\r\n\r\n  Added v3 joint property access:\r\n  - `set_mouse_target`, `get_mouse_target`\r\n  - `set_length`, `get_length`\r\n  - `enable_spring`, `is_spring_enabled`\r\n  - `set_spring_hertz`, `get_spring_hertz`\r\n  - `set_hertz`, `get_hertz`\r\n  - `set_frequency`, `get_frequency`\r\n  - `set_spring_damping_ratio`, `get_spring_damping_ratio`\r\n  - `set_damping_ratio`, `get_damping_ratio`\r\n  - `set_length_range`\r\n  - `set_min_length`, `get_min_length`\r\n  - `set_max_length`, `get_max_length`\r\n  - `get_current_length`\r\n  - `enable_limit`, `is_limit_enabled`\r\n  - `set_limits`, `get_lower_limit`, `get_upper_limit`\r\n  - `enable_motor`, `is_motor_enabled`\r\n  - `set_motor_speed`, `get_motor_speed`\r\n  - `set_max_motor_force`, `get_max_motor_force`, `get_motor_force`\r\n  - `set_max_motor_torque`, `get_max_motor_torque`, `get_motor_torque`\r\n  - `set_max_force`, `get_max_force`\r\n  - `set_max_torque`, `get_max_torque`\r\n  - `set_linear_offset`, `get_linear_offset`\r\n  - `set_angular_offset`, `get_angular_offset`\r\n  - `set_correction_factor`, `get_correction_factor`\r\n  - `get_joint_translation`\r\n  - `get_joint_speed`\r\n  - `get_joint_angle`\r\n  - `set_reference_angle`, `get_reference_angle`\r\n  - `set_linear_hertz`, `get_linear_hertz`\r\n  - `set_linear_damping_ratio`, `get_linear_damping_ratio`\r\n  - `set_angular_hertz`, `get_angular_hertz`\r\n  - `set_angular_damping_ratio`, `get_angular_damping_ratio`",
+            "closed_issues": [
+                8753
+            ],
+            "duplicate": false,
+            "issue_number": 8753,
+            "labels": [
+                "task",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "629d4566c68ff6ce60664556f3e8b40f05a29be6",
+            "pr_number": 12351,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added Box2D script functions for joints",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12351"
+        },
+        {
+            "author": "JCash",
+            "body": "### Gamepad identification\r\n\r\nThis is a first part of updating how our gamepads are identified.\r\nWith this update, it's easier to identify the type of controller that was connected.\r\nThe gamepad connected event now also contains:\r\n* `gamepad_guid` -- the 32 character guid\r\n* `gamepad_guid_info`:\r\n\r\n Field     | Description\r\n --------- | ----------------------------------------------------------\r\n `vendor`  | USB vendor id. E.g. Nintendo 0x057e, Sony 0x054c, or Microsoft 0x045e\r\n `product` | USB product id\r\n `bus`     | How device is communicating. E.g.0x0003 for USB devices and 0x0005 for Bluetooth devices.\r\n `crc`     | SDL CRC16 signature, typically used when vendor and product ids are unavailable\r\n `version` | The device or firmware version\r\n\r\n### New macOS/iOS gamepad backend\r\n \r\nAlso updated macOS/iOS support to use the `GameController` framework for better support of gamepads (e.g. Switch Pro controller)\r\n\r\nExample project: https://github.com/defold/example-gamepad",
+            "closed_issues": [
+                11015,
+                5274
+            ],
+            "duplicate": false,
+            "issue_number": 11015,
+            "labels": [
+                "bug",
+                "engine",
+                "input",
+                "windows",
+                "android"
+            ],
+            "mergecommit": "453b7c797d9fb73fdaf023ab1fb9b43676bfd028",
+            "pr_number": 12316,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added support for reporting Sdl Guid for connected gamepads",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12316"
+        },
+        {
+            "author": "AGulev",
+            "body": "In this version, support for the js-web (asmjs) platform in the engine has been removed,[ as previously announced](https://forum.defold.com/t/removing-collada-support-and-the-asm-js-platform/82506).\r\n\r\nThis means `bob.jar` no longer supports `js-web` as a platform or architecture. Make sure your build scripts and CI have been updated accordingly.",
+            "closed_issues": [
+                11622
+            ],
+            "duplicate": false,
+            "issue_number": 11622,
+            "labels": [
+                "task",
+                "html5",
+                "breaking change"
+            ],
+            "mergecommit": "964a5853fcf66f3fb36d18c06e52871e876f8115",
+            "pr_number": 12220,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Removed support for the `js-web` (asmjs) build from the engine",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12220"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "closed_issues": [
+                12168
+            ],
+            "duplicate": false,
+            "issue_number": 12168,
+            "labels": [
+                "engine",
+                "android"
+            ],
+            "mergecommit": "e602f513d999649889b5ad498ad1c919fa27b4ab",
+            "pr_number": 12168,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added initial support for running tests on a connected Android device",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12168"
+        },
+        {
+            "author": "JCash",
+            "body": "This allows you to start an app via `adb` using extra command line arguments.\r\nIt is good for debugging different scenarios without having to build different .apk files for each one.\r\nE.g. for testing different levels in isolation when doing a commit to your CI.\r\n\r\nNote: It requires that the application is *debuggable* \r\n\r\nExample of how to launch an app with a different boot collection\r\n```bash\r\nadb shell am start \\\r\n    -n com.doman.myapp/com.dynamo.android.DefoldActivity \\\r\n    -a android.intent.action.MAIN \\\r\n    -c android.intent.category.LAUNCHER \\\r\n    --esa com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS \\\r\n    \"--config=bootstrap.main_collection=/main/levels/level1.collectionc\"\r\n```",
+            "closed_issues": [
+                12203
+            ],
+            "duplicate": false,
+            "issue_number": 12203,
+            "labels": [
+                "engine",
+                "android"
+            ],
+            "mergecommit": "a355cbee369092d1e4503c17e6064d25f272821c",
+            "pr_number": 12203,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added support for passing command line arguments to an Android app",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12203"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "glTF files with morph / blend target data are now supported for model components in the engine. Two new shader constructs are now exposed that can be used to achieve morph target rendering:\r\n\r\n```glsl\r\n// 1) a uniform / constant that holds the weights\r\nuniform vs_uniforms\r\n{\r\n\tvec4 morph_targets_weights;\r\n\r\n\t// if you need to support more than 4 weights, use an array instead:\r\n\t// vec4 morph_targets_weights[x];\r\n};\r\n\r\n// 2) an array sampler that holds the morph target data\r\nuniform sampler2DArray morph_targets;\r\n```\r\n\r\nDemo: \r\n[morph-target-testing.zip](https://github.com/user-attachments/files/28347210/morph-target-testing.zip)\r\n\r\nFuture improvements:\r\n* Instancing - a new vertex attribute semantic is needed\r\n* Mix skinning and morph animations - currently an animation can drive either a skinned animation or a morph target animation, not both\r\n* Play multiple morph animations at the same time (also applies to bone animations)",
+            "closed_issues": [
+                8024,
+                3619
+            ],
+            "duplicate": false,
+            "issue_number": 8024,
+            "labels": [
+                "feature request",
+                "engine",
+                "model",
+                "3d",
+                "animation"
+            ],
+            "mergecommit": "4a5c4aa46d54c1455a7317232d8b1044313db47a",
+            "pr_number": 12192,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support morph targets for model components",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12192"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "glTF files with morph / blend target data are now supported for model components in the engine. Two new shader constructs are now exposed that can be used to achieve morph target rendering:\r\n\r\n```glsl\r\n// 1) a uniform / constant that holds the weights\r\nuniform vs_uniforms\r\n{\r\n\tvec4 morph_targets_weights;\r\n\r\n\t// if you need to support more than 4 weights, use an array instead:\r\n\t// vec4 morph_targets_weights[x];\r\n};\r\n\r\n// 2) an array sampler that holds the morph target data\r\nuniform sampler2DArray morph_targets;\r\n```\r\n\r\nDemo: \r\n[morph-target-testing.zip](https://github.com/user-attachments/files/28347210/morph-target-testing.zip)\r\n\r\nFuture improvements:\r\n* Instancing - a new vertex attribute semantic is needed\r\n* Mix skinning and morph animations - currently an animation can drive either a skinned animation or a morph target animation, not both\r\n* Play multiple morph animations at the same time (also applies to bone animations)",
+            "closed_issues": [
+                3619
+            ],
+            "duplicate": true,
+            "issue_number": 3619,
+            "labels": [
+                "task",
+                "engine",
+                "model"
+            ],
+            "mergecommit": "4a5c4aa46d54c1455a7317232d8b1044313db47a",
+            "pr_number": 12192,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support morph targets for model components",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12192"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\n\r\nhttps://github.com/user-attachments/assets/817234c7-1193-464d-af85-f592e7ac2bda",
+            "closed_issues": [
+                12157,
+                10963,
+                10853
+            ],
+            "duplicate": false,
+            "issue_number": 12157,
+            "labels": [
+                "task",
+                "editor",
+                "gui",
+                "scene editor",
+                "ux"
+            ],
+            "mergecommit": "a6bbeb1c0750bc7d603c478dee62bc86d5b68818",
+            "pr_number": 12174,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Scene view toolbar button popup enhancements",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12174"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "The scene preview window now has an overlay in the bottom of the corner that shows the scene from the currently selected camera component.\r\n\r\n<img width=\"480\" height=\"360\" alt=\"Screen Recording 2026-04-16 at 14 27 14 (1)\" src=\"https://github.com/user-attachments/assets/25b6efda-aa23-478d-b10f-accc4b16dba7\" />",
+            "closed_issues": [
+                12231
+            ],
+            "duplicate": false,
+            "issue_number": 12231,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "2009e6e0d92bbbe1b7732ab3ba2e9d9f69cab79e",
+            "pr_number": 12231,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor camera overlay in scene view",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12231"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fix an exception that can occur in the editor while typing `go.property()`",
+            "closed_issues": [
+                12234
+            ],
+            "duplicate": false,
+            "issue_number": 12234,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "aedfa1ba59d3689736f3fe458001e9d5b77068a0",
+            "pr_number": 12238,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve the Lua parser to make it less error-prone",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12238"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Android will from now on use Vulkan as the primary graphics adapter and OpenGL as a fallback if Vulkan is not supported on the running device. This can be changed by using an app manifest where you can select either OpenGL+Vulkan (default), only OpenGL or only Vulkan as the primary graphics adapter.",
+            "closed_issues": [
+                7649
+            ],
+            "duplicate": false,
+            "issue_number": 7649,
+            "labels": [
+                "task",
+                "engine",
+                "android",
+                "vulkan"
+            ],
+            "mergecommit": "589d4949df318f894e588989856fec31c0bba589",
+            "pr_number": 12240,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Use Vulkan as the default graphics API on Android",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12240"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fix an issue where the editor could load libraries from `/Library/Java/Extensions` instead of the bundled ones, which could break loading or otherwise affect the editor.",
+            "closed_issues": [
+                11695
+            ],
+            "duplicate": false,
+            "issue_number": 11695,
+            "labels": [
+                "bug",
+                "more info",
+                "editor"
+            ],
+            "mergecommit": "22711b688972ddd353b26254363f2bcc49588589",
+            "pr_number": 12237,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Ensure the Editor loads only bundled libraries, ignoring those installed on the system",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12237"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Fixed an edge case where if the the size mode was set to manual for a sprite before having selected a default animation, the size wouldn't get serialized and then the sprite would not render at runtime.",
+            "closed_issues": [
+                12224
+            ],
+            "duplicate": false,
+            "issue_number": 12224,
+            "labels": [
+                "bug",
+                "editor",
+                "sprite"
+            ],
+            "mergecommit": "e4d3280fb65d765c77b64e846992ef4005e6f599",
+            "pr_number": 12250,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Fix manual-size-mode sprite not displaying",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12250"
+        },
+        {
+            "author": "britzl",
+            "body": "This change makes sure a model animation stays in the end pose when the animation finishes.",
+            "closed_issues": [
+                11470
+            ],
+            "duplicate": false,
+            "issue_number": 11470,
+            "labels": [
+                "bug",
+                "engine",
+                "model",
+                "quick win?"
+            ],
+            "mergecommit": "b426cd0b9b0be9a89915a9fc90ca1d726b5971d6",
+            "pr_number": 12147,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Do not reset model pose when animation finishes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12147"
+        },
+        {
+            "author": "nanaktaev",
+            "body": "New `render.set_blend_func_separate()` and `render.set_blend_equation_separate()` functions that provide separate control over color and alpha blend factors and equations. This enables advanced blending techniques such as 2D soft shadows (Slembcke technique) that require FUNC_REVERSE_SUBTRACT for the alpha channel while keeping FUNC_ADD for color.\r\n\r\n**New API:**\r\n\r\n```lua\r\n-- Set separate blend factors for color and alpha channels\r\nrender.set_blend_func_separate(source_factor_color, destination_factor_color,\r\n                               source_factor_alpha, destination_factor_alpha)\r\n\r\n-- Set separate blend equations for color and alpha channels\r\nrender.set_blend_equation_separate(equation_color, equation_alpha)\r\n```\r\n\r\n**New constants:** `graphics.BLEND_EQUATION_ADD`, `graphics.BLEND_EQUATION_SUBTRACT`, `graphics.BLEND_EQUATION_REVERSE_SUBTRACT`, `graphics.BLEND_EQUATION_MIN`, `graphics.BLEND_EQUATION_MAX`.\r\n\r\nFully backwards compatible \u2014 existing `render.set_blend_func()` continues to work identically.",
+            "closed_issues": [
+                9973
+            ],
+            "duplicate": false,
+            "issue_number": 9973,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "quick win?"
+            ],
+            "mergecommit": "462a774431167d7d8e3c386f30294f59116c8513",
+            "pr_number": 12090,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add render.set_blend_state() for separate blend factors and equations",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12090"
+        },
+        {
+            "author": "vlaaad",
+            "body": "This change improves open load time in big projects by 5% (1m12s -> 1m08s)",
+            "closed_issues": [
+                11989
+            ],
+            "duplicate": false,
+            "issue_number": 11989,
+            "labels": [
+                "task",
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "7501ee3f4c2a3047de1c62cc714f431bc5121eea",
+            "pr_number": 12257,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Parallelize directory traversal when syncing resources",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12257"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, both editor and command-line bob use the same parallelized code to fetch dependencies. Since the editor now also parallelizes deps download, this change comes with an open project time improvement. If a project uses high-speed CDN for serving deps, the perf improvement, as measured on an example large project, is 5% (1m14s->1m10s). For typical, smaller projects that use GitHub for deps download, the improvement can reach 28%, since most of the time is spent on deps checking when opening projects.",
+            "closed_issues": [
+                12253
+            ],
+            "duplicate": false,
+            "issue_number": 12253,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "7b94bab3dfce198933dc9859aec9fbba7e65eb9c",
+            "pr_number": 12253,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Unify deps download between editor and bob",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12253"
+        },
+        {
+            "author": "AGulev",
+            "body": "\u26a0\ufe0f Collada (`*.dae`) support has been fully removed from the engine. If you are using it in your project, please convert your models to `*.gltf`/`*.glb`",
+            "closed_issues": [
+                11749
+            ],
+            "duplicate": false,
+            "issue_number": 11749,
+            "labels": [
+                "task",
+                "engine",
+                "editor",
+                "bob",
+                "model",
+                "3d",
+                "breaking change"
+            ],
+            "mergecommit": "dc1425e12da424b63d4b01bb9d16b4ae0b110a3c",
+            "pr_number": 12276,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Removed support for Collada (`*.dae`)",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12276"
+        },
+        {
+            "author": "JCash",
+            "body": "By adding \"dead stripping\" flags to macOS/Android builds, we manage to make them a little bit smaller:\r\n\r\n* Android:\r\n  * New size: `4362208` bytes\r\n  * -354kb\r\n  * ~7.7% savings\r\n* macOS:\r\n  * New size: `6708016` bytes\r\n  * -576kb \r\n  * ~8% savings",
+            "closed_issues": [
+                12280
+            ],
+            "duplicate": false,
+            "issue_number": 12280,
+            "labels": [
+                "engine",
+                "extender"
+            ],
+            "mergecommit": "0a2e68d971a52436aa594905676632b936edc029",
+            "pr_number": 12280,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Minimize final engine build sizes for macOS and Android builds",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12280"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, the editor exposes a local, authenticated `/eval` endpoint for evaluating Lua code in the editor Lua runtime.\r\n\r\nSimplest example:\r\n\r\n```sh\r\ncurl \\\r\n  \"http://localhost:$(cat .internal/editor.port)/eval\" \\\r\n  -H \"Authorization: Bearer $(cat .internal/editor.token)\" \\\r\n  --data \"print('Hello from Lua') return 1, 'two', true\"\r\n# Hello from Lua\r\n# => 1\r\n# => two\r\n# => true\r\n```\r\n\r\nBecause `/eval` can run commands through `editor.execute`, requests must include the token from `.internal/editor.token`. This limits access to clients that also have filesystem access.\r\n\r\n```sh\r\ncurl \\\r\n  \"http://localhost:$(cat .internal/editor.port)/eval\" \\\r\n  -H \"Authorization: Bearer $(cat .internal/editor.token)\" \\\r\n  --data \"editor.execute('git', 'status', '--short', { reload_resources = false })\"\r\n#  M game.project\r\n```\r\n\r\nSecurity is documented in `openapi.json`, so the only URL your coding agent needs is still `http://localhost:$(cat .internal/editor.port)/openapi.json`. For example:\r\n```md\r\n\u203a use /eval endpoint and make a short report about the available functionality\r\n\u2022 Thinking...\r\n\u2022 Short Report\r\n\r\n  `/eval` evaluates raw Lua in the Defold editor extension runtime.\r\n\r\n  Available runtime functionality includes:\r\n\r\n  - Standard Lua globals: `assert`, `pcall`, `load`, `require`, `io`, `os`, \r\n    `math`, `string`, `table`, `coroutine`, etc.\r\n  - Defold editor API via `editor`, including:\r\n      - resource inspection: `editor.resource_attributes`,\r\n        `editor.properties`, `editor.get`\r\n      - resource/project mutation APIs: `editor.transact`, \r\n        `editor.tx.set`/`add`/`remove`/`reorder`/`reset`/`clear`, `editor.save`\r\n      - filesystem helpers: `editor.create_directory`, `editor.delete_directory`, \r\n       `editor.create_resources`\r\n      - external command execution: `editor.execute`\r\n      - browser/file helpers: `editor.browse`, `editor.open_external_file`,\r\n        `editor.external_file_attributes`\r\n      - UI construction/dialog APIs under `editor.ui`\r\n      - preferences via `editor.prefs.get`/`set`/`is_set`\r\n  - HTTP APIs via `http`, including `http.request` and `http.server.route`/`response`\r\n  - Utility modules: `json.encode`/`decode`, `zip.pack`/`unpack`, \r\n    `zlib.deflate`/`inflate`, `localization`.\r\n```",
+            "closed_issues": [
+                11995
+            ],
+            "duplicate": false,
+            "issue_number": 11995,
+            "labels": [
+                "task",
+                "editor",
+                "editor scripts",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "9697bb4fb54dd7d7536a40990e0843e4b0c0081c",
+            "pr_number": 12285,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `/eval` endpoint to editor server",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12285"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "ParticleFX emitters are now subject to frustum culling, either via [render.draw](https://defold.com/ref/render-lua/index.html#render.draw:predicate-options) or by setting an active camera via [render.set_camera](https://defold.com/ref/render-lua/index.html#render.set_camera:camera-options).",
+            "closed_issues": [
+                6936
+            ],
+            "duplicate": false,
+            "issue_number": 6936,
+            "labels": [
+                "feature request",
+                "engine",
+                "particlefx",
+                "render",
+                "performance"
+            ],
+            "mergecommit": "2385febceb71e6ee13fc32fbb3984440ec822c09",
+            "pr_number": 12288,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Frustum culling for Particle FX components",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12288"
+        },
+        {
+            "author": "britzl",
+            "body": "The default behaviour of the HTML5 splash image has changed to be contained within the canvas area. It was already configured to be centered in the canvas and set to not repeat, and containing it will likely make sense in the majority of use cases. Should this not be the case it is possible to change by copying the css file from builtins.",
+            "closed_issues": [
+                7882
+            ],
+            "duplicate": false,
+            "issue_number": 7882,
+            "labels": [
+                "feature request",
+                "engine",
+                "html5"
+            ],
+            "mergecommit": "6330f24c4d7980b4b79f3cd7b8dd85adb6edc694",
+            "pr_number": 12294,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Contain the html5 splash image to the canvas ",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12294"
+        },
+        {
+            "author": "britzl",
+            "body": "Updated builtins/ca-certificates/cacert.pem",
+            "closed_issues": [
+                12259
+            ],
+            "duplicate": false,
+            "issue_number": 12259,
+            "labels": [
+                "bug",
+                "more info",
+                "engine",
+                "network"
+            ],
+            "mergecommit": "801cbb0f748850aea9b6dcc0143936ed04fb5f97",
+            "pr_number": 12289,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Updated to latest SSL certificates",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12289"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Constant buffers created by render scripts are more robust in terms of garbage collection. Previously, a constant buffer could be deallocated between the `render.draw` call and its consumption by the renderer.",
+            "closed_issues": [
+                3557
+            ],
+            "duplicate": false,
+            "issue_number": 3557,
+            "labels": [
+                "bug",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "4f0f6c7c76fd7268aeae498e5c833bdfec537ab7",
+            "pr_number": 12298,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add a LUA reference for constant buffers involved in a render.draw command",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12298"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "New shader constants have been added. These are inverse variants of the already existing matrix constants, and can be used to avoid manually inverting matrices in shaders.\r\n\r\n```\r\nCONSTANT_TYPE_WORLD_INV\r\nCONSTANT_TYPE_VIEW_INV\r\nCONSTANT_TYPE_PROJECTION_INV\r\nCONSTANT_TYPE_VIEWPROJ_INV\r\nCONSTANT_TYPE_WORLDVIEW_INV\r\nCONSTANT_TYPE_WORLDVIEWPROJ\r\nCONSTANT_TYPE_WORLDVIEWPROJ_INV\r\n```",
+            "closed_issues": [
+                3789
+            ],
+            "duplicate": false,
+            "issue_number": 3789,
+            "labels": [
+                "feature request",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "5112bd05a00e04ca613ae0dcae0b695157de82fa",
+            "pr_number": 12310,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add more shader constants",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12310"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                10510
+            ],
+            "duplicate": false,
+            "issue_number": 10510,
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "11dfe11d3ebce78433d3395e680207b640e277e9",
+            "pr_number": 12299,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show error notification when custom editor could not be opened",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12299"
+        },
+        {
+            "author": "JCash",
+            "body": "This avoids the \"duplicate symbol\" error that might otherwise arise when building with your own version of Lua or Luau.\r\n\r\nNote that you will still use the `lua.h`/`lauxlib.h` includes, and the regular function names and types. No changes to your existing extensions are required.",
+            "closed_issues": [
+                12300
+            ],
+            "duplicate": false,
+            "issue_number": 12300,
+            "labels": [
+                "engine"
+            ],
+            "mergecommit": "ac46fa101b9a7c816cd5c2c90b60d5449d8356e1",
+            "pr_number": 12300,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Renamed all Lua+LuaJIT symbols to avoid 3rd party symbol clashes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12300"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where, in certain cases, the Lua garbage collector could cause hashes with the same values to behave as unequal, leading to unexpected bugs that are difficult to debug.",
+            "closed_issues": [
+                11128,
+                12252
+            ],
+            "duplicate": false,
+            "issue_number": 11128,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "9cb0ab0667432364ad0e201fd9f3eba5c93f50e9",
+            "pr_number": 12304,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed an issue where equal hashes could behave as if they were not equal in certain cases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12304"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where, in certain cases, the Lua garbage collector could cause hashes with the same values to behave as unequal, leading to unexpected bugs that are difficult to debug.",
+            "closed_issues": [
+                12252
+            ],
+            "duplicate": true,
+            "issue_number": 12252,
+            "labels": [
+                "bug",
+                "engine",
+                "lua"
+            ],
+            "mergecommit": "9cb0ab0667432364ad0e201fd9f3eba5c93f50e9",
+            "pr_number": 12304,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed an issue where equal hashes could behave as if they were not equal in certain cases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12304"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Collision shape improvements:\r\n- Scrubbers in the properties UI no longer allow negative dimensions.\r\n- Manually entered invalid values now cause the build to fail instead of crashing at runtime.\r\n- Clearer error message when a shape's computed area is too small due to tiny dimensions and/or scale.",
+            "closed_issues": [
+                8957,
+                12111
+            ],
+            "duplicate": false,
+            "issue_number": 8957,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "78106b90a5dc579a79655652a5f59a4534121688",
+            "pr_number": 12256,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Prevent editor from making invalid collision shapes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12256"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Collision shape improvements:\r\n- Scrubbers in the properties UI no longer allow negative dimensions.\r\n- Manually entered invalid values now cause the build to fail instead of crashing at runtime.\r\n- Clearer error message when a shape's computed area is too small due to tiny dimensions and/or scale.",
+            "closed_issues": [
+                12111
+            ],
+            "duplicate": true,
+            "issue_number": 12111,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?",
+                "ux"
+            ],
+            "mergecommit": "78106b90a5dc579a79655652a5f59a4534121688",
+            "pr_number": 12256,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Prevent editor from making invalid collision shapes",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12256"
+        },
+        {
+            "author": "AGulev",
+            "body": "Now the orthographic zoom set by the user in the editor or via code is applied on top of the automatically calculated zoom, giving more control over the camera. Additionally, a new function `get_orthographic_auto_zoom()` and a read-only property `orthographic_auto_zoom` have been added. They return the automatically calculated zoom for Fit or Cover mode.",
+            "closed_issues": [
+                12158
+            ],
+            "duplicate": false,
+            "issue_number": 12158,
+            "labels": [
+                "feature request",
+                "engine",
+                "camera"
+            ],
+            "mergecommit": "bd42fbc6dfa4c2c65292565bb853f004247d5dc2",
+            "pr_number": 12313,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Allow changing zoom even when a camera component uses Fit or Cover mode",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12313"
+        },
+        {
+            "author": "JCash",
+            "body": "We've improved the Box2D V2 scripting, adding support for mass data, fixtures and shape info.\r\nWhile the full set of features isn't there just yet, this is a good step forward.\r\n\r\n## Added for Box2D V2\r\n\r\n### `b2d`\r\n\r\n- `get_version`\r\n\r\n### `b2d.body`\r\n\r\n- `create_fixture`\r\n- `get_transform`\r\n- `get_mass_data`\r\n- `set_mass_data`\r\n- `reset_mass_data`\r\n- `get_fixtures`\r\n- `destroy_fixture`\r\n\r\n### `b2d.fixture`\r\n\r\n- `get_shape`\r\n- `get_type`\r\n- `is_sensor`\r\n- `set_sensor`\r\n- `get_density`\r\n- `set_density`\r\n- `get_friction`\r\n- `set_friction`\r\n- `get_restitution`\r\n- `set_restitution`\r\n- `get_filter_data`\r\n- `set_filter_data`\r\n- `refilter`\r\n- `test_point`\r\n- `get_aabb`\r\n\r\n### `b2d.shape` constants\r\n\r\n- `SHAPE_TYPE_CIRCLE`\r\n- `SHAPE_TYPE_EDGE`\r\n- `SHAPE_TYPE_POLYGON`\r\n- `SHAPE_TYPE_BOX`\r\n- `SHAPE_TYPE_CHAIN`\r\n- `SHAPE_TYPE_GRID`\r\n\r\n\r\n## Added for Box2d V3\r\n\r\n### `b2d`\r\n\r\n- `get_version`\r\n\r\n### `b2d.body`\r\n\r\n- `create_shape`\r\n- `get_transform`\r\n- `get_inertia`\r\n- `get_mass_data`\r\n- `set_mass_data`\r\n- `reset_mass_data`\r\n- `get_shapes`\r\n- `destroy_shape`\r\n- `is_sleeping_allowed`\r\n- `set_sleeping_allowed`\r\n- `get_world_center`\r\n- `get_local_center`\r\n- `get_force`\r\n\r\n### `b2d.shape`\r\n\r\n- `get_shape`\r\n- `get_type`\r\n- `is_sensor`\r\n- `set_sensor`\r\n- `get_density`\r\n- `set_density`\r\n- `get_friction`\r\n- `set_friction`\r\n- `get_restitution`\r\n- `set_restitution`\r\n- `get_filter_data`\r\n- `set_filter_data`\r\n- `refilter`\r\n- `test_point`\r\n- `get_aabb`\r\n\r\n### `b2d.shape` constants\r\n\r\n- `SHAPE_TYPE_CIRCLE`\r\n- `SHAPE_TYPE_CAPSULE`\r\n- `SHAPE_TYPE_EDGE`\r\n- `SHAPE_TYPE_SEGMENT`\r\n- `SHAPE_TYPE_POLYGON`\r\n- `SHAPE_TYPE_BOX`",
+            "closed_issues": [
+                11172
+            ],
+            "duplicate": false,
+            "issue_number": 11172,
+            "labels": [
+                "feature request",
+                "engine",
+                "physics",
+                "box2d"
+            ],
+            "mergecommit": "a6106720cbc3ab563a00607768665569bc2906aa",
+            "pr_number": 12216,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improved support for Box2d scripting api",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12216"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue when users tried to remove the `image` library from their builds.",
+            "closed_issues": [
+                12318
+            ],
+            "duplicate": false,
+            "issue_number": 12318,
+            "labels": [
+                "engine",
+                "extender"
+            ],
+            "mergecommit": "b7050ca770b2ddd6bc59d6a532695bf50bd250c3",
+            "pr_number": 12318,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed image_null library linker issues.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12318"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "closed_issues": [
+                12320
+            ],
+            "duplicate": false,
+            "issue_number": 12320,
+            "labels": [
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "2b8fadb1ace0fe7758b3e88b7c59a014edc773b1",
+            "pr_number": 12320,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added endian.h/endian.hpp to dmSdk",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12320"
+        },
+        {
+            "author": "AGulev",
+            "body": "The Editor now opens `jpg`, `jpeg`, and `png` images for preview without using external applications.",
+            "closed_issues": [
+                11495
+            ],
+            "duplicate": false,
+            "issue_number": 11495,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "b109a21078f649ad7b5d872be33b7a7a1cb75823",
+            "pr_number": 12315,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Images supported by the engine now open directly in the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12315"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where the `DM_DEBUG` define did not work in debug builds from the editor.",
+            "closed_issues": [
+                8669
+            ],
+            "duplicate": false,
+            "issue_number": 8669,
+            "labels": [
+                "bug",
+                "editor",
+                "extender"
+            ],
+            "mergecommit": "ea1c731c4d39d5ee1f405ec10b31ba677e066711",
+            "pr_number": 12323,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Ensure that builds from the editor include the `DM_DEBUG` define",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12323"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where symbols for `wasm` and `pthread.wasm` vanilla builds were not uploaded as part of the engine artifacts during engine builds",
+            "closed_issues": [
+                11387
+            ],
+            "duplicate": false,
+            "issue_number": 11387,
+            "labels": [
+                "bug",
+                "html5",
+                "pipeline"
+            ],
+            "mergecommit": "df9f51641596b0614e8bf9ebac84f8f5e89c26eb",
+            "pr_number": 12325,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Symbols for both vanilla `wasm` and `pthread.wasm` bundles are now available",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12325"
+        },
+        {
+            "author": "AGulev",
+            "body": "Improve game object transform dirty tracking.\r\n\r\nPreviously script/message updates conservatively marked collection transforms dirty every frame. This changes transform invalidation to happen only when game object transform state actually changes, including direct setters, property writes, animations, parenting changes, bone transforms, and delete/reparent paths.",
+            "closed_issues": [
+                12327
+            ],
+            "duplicate": false,
+            "issue_number": 12327,
+            "labels": [
+                "performance"
+            ],
+            "mergecommit": "263cd5d2affd10b1eee8478afe75cb8bf700dac7",
+            "pr_number": 12327,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Ensure `UpdateTransforms` runs only after actual transform changes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12327"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes a crash that could happen when playing particle effects that use runtime emitter overrides for material, image, or animation. Games using overlapping overridden particlefx instances should now continue updating safely.",
+            "closed_issues": [
+                12338
+            ],
+            "duplicate": false,
+            "issue_number": 12338,
+            "labels": [
+                "bug",
+                "particlefx"
+            ],
+            "mergecommit": "0ae8c7c85ae599ce3f15ec729367c8e707930f69",
+            "pr_number": 12338,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix particlefx crash when playing effects with emitter overrides",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12338"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "New functions have been added to the `graphics` script module:\r\n```lua\r\n-- returns a list of all the available graphics adapters that the engine has been linked with\r\n-- e.g { \"directx12\", \"vulkan\", \"opengl\" }\r\nlocal adapters = graphics.get_engine_adapters()\r\n\r\n-- returns a table of metadata about the graphics API the engine is currently running with\r\nlocal info = graphics.get_adapter_info()\r\n\r\n-- info table contents:\r\ninfo = {\r\n    family = \"vulkan\",\r\n    version_major = 1,\r\n    version_minor = 4,\r\n    limits = {\r\n        -- texture limits\r\n        max_texture_size_2d = 16384,\r\n        max_texture_size_3d = 2048,\r\n        max_texture_size_cube = 16384,\r\n        max_texture_array_layers = 2048,\r\n        -- framebuffer limits\r\n        max_framebuffer_width = 16384,\r\n        max_framebuffer_height = 16384,\r\n        max_color_attachments = 8,\r\n        -- per-stage binding limits\r\n        max_samplers_per_stage = 16,\r\n        max_textures_per_stage = 32,\r\n        max_vertex_attributes = 16,\r\n        max_vertex_buffers = 16,\r\n        -- compute limits\r\n        max_compute_workgroup_size_x = 1024,\r\n        max_compute_workgroup_size_y = 1024,\r\n        max_compute_workgroup_size_z = 64,\r\n        max_compute_workgroup_invocations = 1024,\r\n        max_compute_shared_memory_size = 32768,\r\n        -- buffer limits\r\n        max_uniform_buffer_range = 65536,\r\n        max_storage_buffer_range = 134217728,\r\n    },\r\n    features = {\r\n        graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING,\r\n        graphics.CONTEXT_FEATURE_TEXTURE_ARRAY,\r\n        graphics.CONTEXT_FEATURE_COMPUTE_SHADER,\r\n        graphics.CONTEXT_FEATURE_STORAGE_BUFFER,\r\n        graphics.CONTEXT_FEATURE_VSYNC,\r\n        graphics.CONTEXT_FEATURE_INSTANCING,\r\n        graphics.CONTEXT_FEATURE_3D_TEXTURES,\r\n        graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES,\r\n        graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX,\r\n        -- only supported features are included in the array\r\n    },\r\n    extensions = {\r\n        \"VK_IMG_FORMAT_PVRTC_EXTENSION_NAME\",\r\n        \"VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME\",\r\n        -- driver-reported extension strings\r\n    },\r\n}\r\n```",
+            "closed_issues": [
+                3790,
+                10831
+            ],
+            "duplicate": false,
+            "issue_number": 3790,
+            "labels": [
+                "feature request",
+                "engine",
+                "graphics",
+                "render",
+                "vulkan",
+                "opengl"
+            ],
+            "mergecommit": "a8f6cdb9a9cb40aa7b83b249848868a9e7b43502",
+            "pr_number": 12348,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add new graphics script functions",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12348"
+        },
+        {
+            "author": "JCash",
+            "body": "\u26a0\ufe0f This removes the deprecated feature of LiveUpdate auto mounts.\r\nFrom now on, developers must always choose their mounts when starting the game.\r\n\r\nNote that the returned mount names now also are hashes (previously strings):\r\n```lua\r\n pprint(\"MOUNTS\", liveupdate.get_mounts())\r\n```\r\nreturns\r\n```lua\r\nDEBUG:SCRIPT: MOUNTS,\r\n{ --[[0x119667bf0]]\r\n  1 = { --[[0x119667c50]]\r\n    name = hash: [liveupdate],\r\n    uri = \"zip:/device/path/to/acchives/liveupdate.zip\",\r\n    priority = 5\r\n  },\r\n  2 = { --[[0x119667d50]]\r\n    name = hash: [_base],\r\n    uri = \"archive:build/default/game.dmanifest\",\r\n    priority = -10\r\n  }\r\n}\r\n```",
+            "closed_issues": [
+                10202
+            ],
+            "duplicate": true,
+            "issue_number": 10202,
+            "labels": [
+                "bug",
+                "engine",
+                "live update",
+                "breaking change"
+            ],
+            "mergecommit": "f792977b750d2a333e71b909767c21b88ed9880c",
+            "pr_number": 12367,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Remove the support for LiveUpdate auto mount",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12367"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                12337
+            ],
+            "duplicate": false,
+            "issue_number": 12337,
+            "labels": [
+                "feature request",
+                "editor",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "2680dd6718c0f00ca755026a4620bb07bcf31451",
+            "pr_number": 12368,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve /command/clean-build doc and behavior",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12368"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Some native extensions add project settings with default file references. Opening game.project could crash when those defaults were shown in the editor. These defaults are now handled correctly.",
+            "closed_issues": [
+                12365
+            ],
+            "duplicate": false,
+            "issue_number": 12365,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "a3497356ed6c82f7dd2b1c6356444d81cf353a6b",
+            "pr_number": 12370,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Resolve game.project resource defaults before rendering the form",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12370"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "New functions have been added to the `graphics` script module:\r\n```lua\r\n-- returns a list of all the available graphics adapters that the engine has been linked with\r\n-- e.g { \"directx12\", \"vulkan\", \"opengl\" }\r\nlocal adapters = graphics.get_engine_adapters()\r\n\r\n-- returns a table of metadata about the graphics API the engine is currently running with\r\nlocal info = graphics.get_adapter_info()\r\n\r\n-- info table contents:\r\ninfo = {\r\n    family = \"vulkan\",\r\n    version_major = 1,\r\n    version_minor = 4,\r\n    limits = {\r\n        -- texture limits\r\n        max_texture_size_2d = 16384,\r\n        max_texture_size_3d = 2048,\r\n        max_texture_size_cube = 16384,\r\n        max_texture_array_layers = 2048,\r\n        -- framebuffer limits\r\n        max_framebuffer_width = 16384,\r\n        max_framebuffer_height = 16384,\r\n        max_color_attachments = 8,\r\n        -- per-stage binding limits\r\n        max_samplers_per_stage = 16,\r\n        max_textures_per_stage = 32,\r\n        max_vertex_attributes = 16,\r\n        max_vertex_buffers = 16,\r\n        -- compute limits\r\n        max_compute_workgroup_size_x = 1024,\r\n        max_compute_workgroup_size_y = 1024,\r\n        max_compute_workgroup_size_z = 64,\r\n        max_compute_workgroup_invocations = 1024,\r\n        max_compute_shared_memory_size = 32768,\r\n        -- buffer limits\r\n        max_uniform_buffer_range = 65536,\r\n        max_storage_buffer_range = 134217728,\r\n    },\r\n    features = {\r\n        graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING,\r\n        graphics.CONTEXT_FEATURE_TEXTURE_ARRAY,\r\n        graphics.CONTEXT_FEATURE_COMPUTE_SHADER,\r\n        graphics.CONTEXT_FEATURE_STORAGE_BUFFER,\r\n        graphics.CONTEXT_FEATURE_VSYNC,\r\n        graphics.CONTEXT_FEATURE_INSTANCING,\r\n        graphics.CONTEXT_FEATURE_3D_TEXTURES,\r\n        graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES,\r\n        graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX,\r\n        -- only supported features are included in the array\r\n    },\r\n    extensions = {\r\n        \"VK_IMG_FORMAT_PVRTC_EXTENSION_NAME\",\r\n        \"VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME\",\r\n        -- driver-reported extension strings\r\n    },\r\n}\r\n```",
+            "closed_issues": [
+                10831
+            ],
+            "duplicate": true,
+            "issue_number": 10831,
+            "labels": [
+                "feature request",
+                "engine",
+                "quick win?"
+            ],
+            "mergecommit": "a8f6cdb9a9cb40aa7b83b249848868a9e7b43502",
+            "pr_number": 12348,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add new graphics script functions",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12348"
+        },
+        {
+            "author": "JCash",
+            "body": "\u26a0\ufe0f This removes support for our very old mutable LiveUpdate format, which managed individual files and manifests directly.\r\nGoing forward, we recommend using our LiveUpdate with \"zip\" mounts, allowing you to mount your downloaded .zip files.\r\nIf individual files are necessary, you can also use the \"file\" mount type which mounts a folder.",
+            "closed_issues": [
+                12366
+            ],
+            "duplicate": false,
+            "issue_number": 12366,
+            "labels": [
+                "task",
+                "breaking change"
+            ],
+            "mergecommit": "35d54385188e9e9fe2120d7bbc0fc853898460dd",
+            "pr_number": 12369,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Removed support for old LiveUpdate format",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12369"
+        },
+        {
+            "author": "vlaaad",
+            "body": "On large projects with many fonts (that don't use runtime generation), build times improved by 7-15%.",
+            "closed_issues": [
+                12359
+            ],
+            "duplicate": false,
+            "issue_number": 12359,
+            "labels": [
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "4b17e27a6ac8ab6a6918a9bbe5dc12d4b11ab7da",
+            "pr_number": 12359,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Offload font map generation to a later build phase",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12359"
+        },
+        {
+            "author": "vlaaad",
+            "body": "This changes improves the build times by around 4% (on an example big project, a test run of clean, warm and hot builds went from 12:27 to 11:59).",
+            "closed_issues": [
+                12374
+            ],
+            "duplicate": false,
+            "issue_number": 12374,
+            "labels": [
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "c137504621fd70fa1f1b810a5f98e1c04e5c4f1d",
+            "pr_number": 12374,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve UI responsiveness during builds",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12374"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "\u26a0\ufe0f BREAKING CHANGE \u26a0\ufe0f\r\n\r\nThe vertices for the `sprite`, `gui`, `tilegrid` and `particle` components are now unified with the rest of the components. The engine is now using counter-clockwise ordering of the vertices so that the normal of the primitive is pointing towards the camera. This means that you can use the same face culling parameters for all components.\r\n\r\nRegarding breaking change:\r\nThis should only have an impact if you are using face culling for your components. In the default render script, we have enabled backface culling only for models but if your project is using backface culling for other components you might have to switch the front/back face using `render.set_cull_face(graphics.FACE_TYPE_BACK)`. The default cull face mode is FACE_TYPE_BACK, so you can also just remove the `render.set_cull_face` call",
+            "closed_issues": [
+                9072,
+                5666
+            ],
+            "duplicate": false,
+            "issue_number": 9072,
+            "labels": [
+                "bug",
+                "engine",
+                "breaking change"
+            ],
+            "mergecommit": "ca515d7883ac0ba8dec957010a6f26586591ea15",
+            "pr_number": 12377,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Component primitive order unification",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12377"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "\u26a0\ufe0f BREAKING CHANGE \u26a0\ufe0f\r\n\r\nThe vertices for the `sprite`, `gui`, `tilegrid` and `particle` components are now unified with the rest of the components. The engine is now using counter-clockwise ordering of the vertices so that the normal of the primitive is pointing towards the camera. This means that you can use the same face culling parameters for all components.\r\n\r\nRegarding breaking change:\r\nThis should only have an impact if you are using face culling for your components. In the default render script, we have enabled backface culling only for models but if your project is using backface culling for other components you might have to switch the front/back face using `render.set_cull_face(graphics.FACE_TYPE_BACK)`. The default cull face mode is FACE_TYPE_BACK, so you can also just remove the `render.set_cull_face` call",
+            "closed_issues": [
+                5666
+            ],
+            "duplicate": true,
+            "issue_number": 5666,
+            "labels": [
+                "bug",
+                "engine",
+                "breaking change"
+            ],
+            "mergecommit": "ca515d7883ac0ba8dec957010a6f26586591ea15",
+            "pr_number": 12377,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Component primitive order unification",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12377"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The menu bars no longer show up. Also the native system menu on macOS better reflects what options are available.",
+            "closed_issues": [
+                12156
+            ],
+            "duplicate": false,
+            "issue_number": 12156,
+            "labels": [
+                "bug",
+                "editor",
+                "gui",
+                "macos"
+            ],
+            "mergecommit": "ee9a173459c1379acb37ea80917581240f0a915f",
+            "pr_number": 12372,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Fix macOS dialog windows showing in-window menu bars",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12372"
+        },
+        {
+            "author": "JCash",
+            "body": "### Gamepad identification\r\n\r\nThis is a first part of updating how our gamepads are identified.\r\nWith this update, it's easier to identify the type of controller that was connected.\r\nThe gamepad connected event now also contains:\r\n* `gamepad_guid` -- the 32 character guid\r\n* `gamepad_guid_info`:\r\n\r\n Field     | Description\r\n --------- | ----------------------------------------------------------\r\n `vendor`  | USB vendor id. E.g. Nintendo 0x057e, Sony 0x054c, or Microsoft 0x045e\r\n `product` | USB product id\r\n `bus`     | How device is communicating. E.g.0x0003 for USB devices and 0x0005 for Bluetooth devices.\r\n `crc`     | SDL CRC16 signature, typically used when vendor and product ids are unavailable\r\n `version` | The device or firmware version\r\n\r\n### New macOS/iOS gamepad backend\r\n \r\nAlso updated macOS/iOS support to use the `GameController` framework for better support of gamepads (e.g. Switch Pro controller)\r\n\r\nExample project: https://github.com/defold/example-gamepad",
+            "closed_issues": [
+                5274
+            ],
+            "duplicate": true,
+            "issue_number": 5274,
+            "labels": [
+                "feature request",
+                "engine",
+                "input",
+                "ios"
+            ],
+            "mergecommit": "453b7c797d9fb73fdaf023ab1fb9b43676bfd028",
+            "pr_number": 12316,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added support for reporting Sdl Guid for connected gamepads",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12316"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fix crash when disabled sprite components enabled in `late_update` script function",
+            "closed_issues": [
+                12362
+            ],
+            "duplicate": false,
+            "issue_number": 12362,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "0f083e0aa3c37142035122340b720ff984a341d4",
+            "pr_number": 12381,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix sprite component crash",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12381"
+        },
+        {
+            "author": "JCash",
+            "body": "The fix is related to correctly keeping the local scaling intact. E.g. for the capsule shape.\r\nThanks to @a-daniel for the original contribution!",
+            "closed_issues": [
+                12261,
+                11246,
+                11024,
+                7738,
+                11308
+            ],
+            "duplicate": false,
+            "issue_number": 12261,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "2f53a81eda9463d707e053fd2d88a1046af35c8c",
+            "pr_number": 12386,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added fix for scaling dynamic physics objects in Bullet3D",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12386"
+        },
+        {
+            "author": "JCash",
+            "body": "The fix is related to correctly keeping the local scaling intact. E.g. for the capsule shape.\r\nThanks to @a-daniel for the original contribution!",
+            "closed_issues": [
+                11246
+            ],
+            "duplicate": true,
+            "issue_number": 11246,
+            "labels": [
+                "bug",
+                "engine",
+                "physics",
+                "bullet3d"
+            ],
+            "mergecommit": "2f53a81eda9463d707e053fd2d88a1046af35c8c",
+            "pr_number": 12386,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added fix for scaling dynamic physics objects in Bullet3D",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12386"
+        },
+        {
+            "author": "JCash",
+            "body": "The fix is related to correctly keeping the local scaling intact. E.g. for the capsule shape.\r\nThanks to @a-daniel for the original contribution!",
+            "closed_issues": [
+                11024
+            ],
+            "duplicate": true,
+            "issue_number": 11024,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "2f53a81eda9463d707e053fd2d88a1046af35c8c",
+            "pr_number": 12386,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added fix for scaling dynamic physics objects in Bullet3D",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12386"
+        },
+        {
+            "author": "JCash",
+            "body": "The fix is related to correctly keeping the local scaling intact. E.g. for the capsule shape.\r\nThanks to @a-daniel for the original contribution!",
+            "closed_issues": [
+                7738
+            ],
+            "duplicate": true,
+            "issue_number": 7738,
+            "labels": [
+                "bug",
+                "engine",
+                "physics",
+                "3d"
+            ],
+            "mergecommit": "2f53a81eda9463d707e053fd2d88a1046af35c8c",
+            "pr_number": 12386,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added fix for scaling dynamic physics objects in Bullet3D",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12386"
+        },
+        {
+            "author": "JCash",
+            "body": "The fix is related to correctly keeping the local scaling intact. E.g. for the capsule shape.\r\nThanks to @a-daniel for the original contribution!",
+            "closed_issues": [
+                11308
+            ],
+            "duplicate": true,
+            "issue_number": 11308,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "2f53a81eda9463d707e053fd2d88a1046af35c8c",
+            "pr_number": 12386,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added fix for scaling dynamic physics objects in Bullet3D",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12386"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Two new script modules have been added to the engine: `material` and `compute`.\r\n\r\nThese modules expose runtime inspection and mutation APIs for material and compute resources, making it possible to read and update constants, samplers, textures, and material vertex attributes from Lua.\r\n\r\n## Added Script Functions\r\n\r\n### `material`\r\n\r\n#### Inspect Material Resources\r\n\r\n```lua\r\nlocal attributes = material.get_vertex_attributes(\"/my_material.materialc\")\r\n-- attributes contain:\r\n-- {\r\n--     {\r\n--         name = hash(\"attribute_name\"),\r\n--         value = vmath.vector4(...), -- or vmath.vector3, vmath.matrix4, number, or table\r\n--         normalize = false,\r\n--         data_type = graphics.DATA_TYPE_FLOAT,\r\n--         coordinate_space = graphics.COORDINATE_SPACE_WORLD,\r\n--         semantic_type = graphics.SEMANTIC_TYPE_COLOR\r\n--     }\r\n-- }\r\n\r\nlocal samplers = material.get_samplers(\"/my_material.materialc\")\r\n-- samplers contain:\r\n-- {\r\n--     {\r\n--         name = hash(\"sampler_name\"),\r\n--         type = graphics.TEXTURE_TYPE_2D,\r\n--         u_wrap = graphics.TEXTURE_WRAP_REPEAT,\r\n--         v_wrap = graphics.TEXTURE_WRAP_REPEAT,\r\n--         min_filter = graphics.TEXTURE_FILTER_LINEAR,\r\n--         mag_filter = graphics.TEXTURE_FILTER_LINEAR,\r\n--         max_anisotropy = 1\r\n--     }\r\n-- }\r\n\r\nlocal constants = material.get_constants(\"/my_material.materialc\")\r\n-- constants contain:\r\n-- {\r\n--     {\r\n--         name = hash(\"constant_name\"),\r\n--         type = material.CONSTANT_TYPE_USER,\r\n--         value = vmath.vector4(...) -- only for user constants; arrays return a table of values\r\n--     }\r\n-- }\r\n\r\nlocal textures = material.get_textures(\"/my_material.materialc\")\r\n-- textures contain:\r\n-- {\r\n--     {\r\n--         path = hash(\"/some_texture.texturec\"), -- only when resource-backed\r\n--         handle = hash(...),\r\n--         width = 128,\r\n--         height = 128,\r\n--         depth = 1,\r\n--         mipmaps = 1,\r\n--         type = graphics.TEXTURE_TYPE_2D,\r\n--         flags = graphics.TEXTURE_USAGE_FLAG_SAMPLE,\r\n--         page_count = 1\r\n--     }\r\n-- }\r\n```\r\n\r\n#### Update Material Resources\r\n\r\n```lua\r\nmaterial.set_vertex_attributes(\"/my_material.materialc\", {\r\n    attribute_name = {\r\n        value = vmath.vector4(1, 0, 0, 1),\r\n        data_type = graphics.DATA_TYPE_FLOAT,\r\n        semantic_type = graphics.SEMANTIC_TYPE_COLOR,\r\n        coordinate_space = graphics.COORDINATE_SPACE_WORLD,\r\n        normalize = false\r\n    },\r\n    attribute_a = { value = vmath.vector4(1, 0, 0, 1) },\r\n    attribute_b = { value = vmath.vector3(0, 1, 0) }\r\n})\r\n\r\nmaterial.set_samplers(\"/my_material.materialc\", {\r\n    sampler_name = {\r\n        min_filter = graphics.TEXTURE_FILTER_LINEAR,\r\n        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\r\n        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\r\n        v_wrap = graphics.TEXTURE_WRAP_REPEAT,\r\n        max_anisotropy = 1\r\n    }\r\n})\r\n\r\nmaterial.set_constants(\"/my_material.materialc\", {\r\n    constant_name = {\r\n        value = vmath.vector4(1, 2, 3, 4),\r\n        type = material.CONSTANT_TYPE_USER\r\n    }\r\n})\r\n\r\nmaterial.set_textures(\"/my_material.materialc\", {\r\n    sampler_name = \"/some_texture.texturec\"\r\n})\r\n```\r\n\r\n### `compute`\r\n\r\nCompute resources expose the same sampler, constant, and texture APIs as materials. They do not expose vertex attribute APIs.\r\n\r\n#### Inspect Compute Resources\r\n\r\n```lua\r\nlocal samplers = compute.get_samplers(\"/my_compute.computec\")\r\n-- samplers contain the same shape of data as material.get_samplers()\r\n\r\nlocal constants = compute.get_constants(\"/my_compute.computec\")\r\n-- constants contain the same shape of data as material.get_constants()\r\n\r\nlocal textures = compute.get_textures(\"/my_compute.computec\")\r\n-- textures contain the same shape of data as material.get_textures()\r\n```\r\n\r\n#### Update Compute Resources\r\n\r\n```lua\r\ncompute.set_samplers(\"/my_compute.computec\", { ... })\r\n-- set sampler data using the same table shape as material.set_samplers()\r\n\r\ncompute.set_constants(\"/my_compute.computec\", { ... })\r\n-- set constant data using the same table shape as material.set_constants()\r\n\r\ncompute.set_textures(\"/my_compute.computec\", { ... })\r\n-- set texture data using the same table shape as material.set_textures()\r\n```\r\n\r\n### `graphics`\r\n\r\nThe PR also exposes additional graphics constants used by these APIs, including vertex attribute data types, vertex semantic types, coordinate spaces, texture usage flags, texture types, texture formats, texture filters, texture wrap modes, and context feature flags.",
+            "closed_issues": [
+                9100
+            ],
+            "duplicate": false,
+            "issue_number": 9100,
+            "labels": [
+                "feature request",
+                "engine",
+                "graphics",
+                "render"
+            ],
+            "mergecommit": "f3334688c679bd079a62c00f0fdfde5f5e334360",
+            "pr_number": 9208,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Material and compute script modules",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/9208"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\n\r\nhttps://github.com/user-attachments/assets/817234c7-1193-464d-af85-f592e7ac2bda",
+            "closed_issues": [
+                10963
+            ],
+            "duplicate": true,
+            "issue_number": 10963,
+            "labels": [
+                "bug",
+                "editor",
+                "linux",
+                "javafx"
+            ],
+            "mergecommit": "a6bbeb1c0750bc7d603c478dee62bc86d5b68818",
+            "pr_number": 12174,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Scene view toolbar button popup enhancements",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12174"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\n\r\nhttps://github.com/user-attachments/assets/817234c7-1193-464d-af85-f592e7ac2bda",
+            "closed_issues": [
+                10853
+            ],
+            "duplicate": true,
+            "issue_number": 10853,
+            "labels": [
+                "bug",
+                "editor",
+                "linux",
+                "javafx"
+            ],
+            "mergecommit": "a6bbeb1c0750bc7d603c478dee62bc86d5b68818",
+            "pr_number": 12174,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Scene view toolbar button popup enhancements",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12174"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where `gui.set_screen_position()` and `gui.screen_to_local()` calculated incorrect positions for nodes with scaled parents.",
+            "closed_issues": [
+                12412
+            ],
+            "duplicate": false,
+            "issue_number": 12412,
+            "labels": [
+                "bug",
+                "triage"
+            ],
+            "mergecommit": "eee46852c15a22bab65c474f6b32433274e80b1d",
+            "pr_number": 12415,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix `gui.set_screen_position()` for nodes with scale",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12415"
+        },
+        {
+            "author": "singhvishalkr",
+            "body": "When decoding base64 strings that lack padding characters, `dmCrypt::Base64Decode` returns nil. This happens because mbedTLS's base64 decoder strictly requires padding, but many systems (particularly JWT implementations) omit padding per RFC 4648 section 3.2 which states that padding is not always required.\r\n\r\nThis issue can be observed while using the crypt extension with Nakama's JWT tokens. The server sends tokens without padding, and the decode fails silently.\r\n\r\nThe fix adds the missing `=` characters before passing the input to mbedTLS when the input length is not a multiple of 4. In addition, a test cases covering strings with and without padding was added to prevent regression.\r\n\r\nThe change should not affect consoles since it only modifies the mbedTLS path.",
+            "closed_issues": [
+                11197
+            ],
+            "duplicate": false,
+            "issue_number": 11197,
+            "labels": [
+                "bug",
+                "engine",
+                "good first issue",
+                "quick win?"
+            ],
+            "mergecommit": "09b21ed65a5efb2feddc5ebf7b87db27ccf1c4a8",
+            "pr_number": 12394,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix Base64Decode to handle input without padding",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12394"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue when SSL sockets for macOS/iOS would stall for a very long time.",
+            "closed_issues": [
+                65
+            ],
+            "duplicate": false,
+            "issue_number": 65,
+            "labels": [
+                "engine",
+                "ios",
+                "macos",
+                "network"
+            ],
+            "mergecommit": "02d633e434aca156dff379f2ed543c33bd35654d",
+            "pr_number": 12418,
+            "referencecommits": [],
+            "repository": "extension-websocket",
+            "title": "Fix for handling when macOS/iOS blocks while creating a SSL socket",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12418"
+        },
+        {
+            "author": "britzl",
+            "body": "It is now possible to provide a Lua stack index to the dmSDK function `LuaToJson()` to specify which stack value to encode, as well as the index at which the option table is located. Previously the default was to always encode the value at stack index 1 and to read the options from index 2, which required workarounds for most use-cases. Also `JsonToLua()` now has a version which takes the stack index of the options table.\r\n\r\n```cpp\r\nint JsonToLua(lua_State* L, const char* json, size_t json_len, int options_index);\r\nint LuaToJson(lua_State* L, int index, int options_index, char** json, size_t* json_len);\r\n```",
+            "closed_issues": [
+                9446
+            ],
+            "duplicate": false,
+            "issue_number": 9446,
+            "labels": [
+                "bug",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "02e906e566abdafc27b8a60a7fe195ca2f98a823",
+            "pr_number": 12424,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add Lua stack index arguments to dmSDK functions LuaToJson and JsonToLua",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12424"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "",
+            "closed_issues": [
+                12423
+            ],
+            "duplicate": false,
+            "issue_number": 12423,
+            "labels": [
+                "bug",
+                "editor",
+                "particlefx"
+            ],
+            "mergecommit": "4e3f12601a93222772f1461a7d892ba76d579fac",
+            "pr_number": 12430,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix assertion error when deleting last particle emitter",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12430"
+        },
+        {
+            "author": "AGulev",
+            "body": "Prevents pending dynamic font glyph jobs from using freed font job data during resource reload or destruction. Adds a regression test for canceling pending dynamic font jobs.",
+            "closed_issues": [
+                12437
+            ],
+            "duplicate": false,
+            "issue_number": 12437,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "228638d632edf03bd9fcc3787e0ac48deeacb48c",
+            "pr_number": 12459,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix runtime font job teardown crash",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12459"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "",
+            "closed_issues": [
+                12439
+            ],
+            "duplicate": false,
+            "issue_number": 12439,
+            "labels": [
+                "feature request",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "683f46d631e2234020356a6b9b435b1cde302dd7",
+            "pr_number": 12445,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Skip disabled menu items in context menus",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12445"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "#### Model re-centering during import \u26a0\ufe0f BREAKING CHANGE \u26a0\ufe0f\r\nWe have removed the automatic model re-centering step from the Bob model import pipeline so imported glTF model positions are not altered. It also adjusts model transform handling so skinned/bone-parented meshes preserve local transforms while rigid meshes keep their flattened world placement. Both of these changes takes Defold closer to a \"what you see is what you get\" approach for 3D content.\r\n\r\nThe re-centering means that If your 3D content suddenly changes positions / orientation, this means that the content needs to be modified in an authoring package (e.g Blender) and then re-exported to .glb again. Most projects should be unaffected by this change, but there _is_ a change in behaviour when importing models now in order to fix other incorrectly placed objects.\r\n\r\n#### Editor vs runtime preview inconsitency\r\nThe editor preview now mirrors the runtime transform behaviour more closely: models with assigned skeletons use skeleton-relative transforms, while models without skeleton resources use their local model transforms, with bounds updated to match the selected transform path.\r\n\r\n#### Runtime GPU skinning fixes\r\nRuntime rig/model handling was also adjusted so parentless root bones keep the inherited ancestor transform from the imported skeleton, and skinning matrices are only applied when the model is actually animating.",
+            "closed_issues": [
+                12414
+            ],
+            "duplicate": false,
+            "issue_number": 12414,
+            "labels": [
+                "bug",
+                "engine",
+                "editor",
+                "breaking change"
+            ],
+            "mergecommit": "a86f4836361a8981c50d8245531663bc8e207150",
+            "pr_number": 12414,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixes model transform inconsistencies between the editor and runtime for imported glTF/glb models",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12414"
+        },
+        {
+            "author": "AGulev",
+            "body": "HTML5 debug builds now avoid expensive detailed memory sampling in automatic profiler output by default. The existing `profiler.get_memory_usage()` API still returns detailed memory usage, and a new `profiler.track_detailed_memory` project setting can opt automatic profiler memory reporting back into detailed sampling.",
+            "closed_issues": [
+                12409
+            ],
+            "duplicate": false,
+            "issue_number": 12409,
+            "labels": [
+                "bug",
+                "engine",
+                "html5",
+                "profiler"
+            ],
+            "mergecommit": "e3cbaf8aad0ab5bc623e361a85cefc7794e6f8b7",
+            "pr_number": 12448,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix HTML5 profiler memory sampling slowdown",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12448"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Current versions:\r\n* Microsoft Visual Studio 2026 - 14.51.36231\r\n* WinSDK - 10.0.28000.0",
+            "closed_issues": [
+                12449
+            ],
+            "duplicate": false,
+            "issue_number": 12449,
+            "labels": [],
+            "mergecommit": "bbd0f278ba8d0e5e06efde12155fc0f8f71896cb",
+            "pr_number": 12449,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Update msvc to 2026",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12449"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Several fixes and improvements related to the new Scene View Free Camera\r\n\r\n- Added new FOV slider to the Scene Toolbar Camera Popup\r\n- Fixed 2D button not turning off when starting the Free Camera mode\r\n- Block zooming while holding middle-mouse button to avoid janky behavior  \r\n- Fixed incorrect mouse cursor position when exiting free camera mode\r\n- Fixed camera matrix inversion related exception\r\n- Fixed cursor bug with free mode command on macOS\r\n\r\n<img width=\"390\" height=\"340\" alt=\"image\" src=\"https://github.com/user-attachments/assets/5aaacbaa-7294-4c25-848a-af74a4b612d5\" />",
+            "closed_issues": [
+                12361,
+                12360,
+                12226
+            ],
+            "duplicate": false,
+            "issue_number": 12361,
+            "labels": [
+                "bug",
+                "editor",
+                "camera",
+                "scene editor"
+            ],
+            "mergecommit": "3588ef88d1da020db8bc60f9795ad73665efb36d",
+            "pr_number": 12380,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor camera fov slider and bug fixes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12380"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Several fixes and improvements related to the new Scene View Free Camera\r\n\r\n- Added new FOV slider to the Scene Toolbar Camera Popup\r\n- Fixed 2D button not turning off when starting the Free Camera mode\r\n- Block zooming while holding middle-mouse button to avoid janky behavior  \r\n- Fixed incorrect mouse cursor position when exiting free camera mode\r\n- Fixed camera matrix inversion related exception\r\n- Fixed cursor bug with free mode command on macOS\r\n\r\n<img width=\"390\" height=\"340\" alt=\"image\" src=\"https://github.com/user-attachments/assets/5aaacbaa-7294-4c25-848a-af74a4b612d5\" />",
+            "closed_issues": [
+                12360
+            ],
+            "duplicate": true,
+            "issue_number": 12360,
+            "labels": [
+                "bug",
+                "editor",
+                "camera",
+                "scene editor"
+            ],
+            "mergecommit": "3588ef88d1da020db8bc60f9795ad73665efb36d",
+            "pr_number": 12380,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor camera fov slider and bug fixes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12380"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Several fixes and improvements related to the new Scene View Free Camera\r\n\r\n- Added new FOV slider to the Scene Toolbar Camera Popup\r\n- Fixed 2D button not turning off when starting the Free Camera mode\r\n- Block zooming while holding middle-mouse button to avoid janky behavior  \r\n- Fixed incorrect mouse cursor position when exiting free camera mode\r\n- Fixed camera matrix inversion related exception\r\n- Fixed cursor bug with free mode command on macOS\r\n\r\n<img width=\"390\" height=\"340\" alt=\"image\" src=\"https://github.com/user-attachments/assets/5aaacbaa-7294-4c25-848a-af74a4b612d5\" />",
+            "closed_issues": [
+                12226
+            ],
+            "duplicate": true,
+            "issue_number": 12226,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "3588ef88d1da020db8bc60f9795ad73665efb36d",
+            "pr_number": 12380,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor camera fov slider and bug fixes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12380"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "\u26a0\ufe0f Removed deprecated Lua APIs and constants. Here a tables for migration:\r\n\r\n| Old API | New API |\r\n|---------|---------|\r\n| go.get_scale_vector() | go.get_scale() |\r\n| go.delete_all() | go.delete() |\r\n| camera.acquire_focus() | \u26a0\ufe0f  removed |\r\n| camera.release_focus() | \u26a0\ufe0f  removed |\r\n| label.get_text_metrics() | resource.get_text_metrics() |\r\n| model.play() | model.play_anim() |\r\n| model.set_constant() | go.set() |\r\n| physics.set_listener() |  physics.set_event_listener() |\r\n| physics.ray_cast() | physics.raycast_async() |\r\n| sprite.set_constant() | go.set() |\r\n| tilemap.set_constant() | go.set() |\r\n| gui.get_text_metrics() | resource.get_text_metrics() |\r\n| gui.get_text_metrics_from_node() | resource.get_text_metrics() |\r\n| render.enable_render_target() | render.set_render_target() |\r\n| render.disable_render_target() | render.set_render_target() |\r\n| render.draw_debug2d() | render.draw_debug3d() |\r\n| vmath.matrix4_from_quat() | vmath.matrix4_quat() |\r\n| sys.get_config() | sys.get_config_string() |\r\n\r\n\r\n| Old constant | New constant |\r\n|--------------|---------------|\r\n| render.STATE_DEPTH_TEST | graphics.STATE_DEPTH_TEST |\r\n| render.STATE_STENCIL_TEST | graphics.STATE_STENCIL_TEST |\r\n| render.STATE_ALPHA_TEST | graphics.STATE_ALPHA_TEST |\r\n| render.STATE_BLEND | graphics.STATE_BLEND |\r\n| render.STATE_CULL_FACE | graphics.STATE_CULL_FACE |\r\n| render.STATE_POLYGON_OFFSET_FILL | graphics.STATE_POLYGON_OFFSET_FILL |\r\n| render.FORMAT_LUMINANCE | graphics.TEXTURE_FORMAT_LUMINANCE |\r\n| render.FORMAT_RGBA | graphics.TEXTURE_FORMAT_RGBA |\r\n| render.FORMAT_DEPTH | graphics.TEXTURE_FORMAT_DEPTH |\r\n| render.FORMAT_STENCIL | graphics.TEXTURE_FORMAT_STENCIL |\r\n| render.RGB | graphics.TEXTURE_FORMAT_RGB |\r\n| render.RGB16F | graphics.TEXTURE_FORMAT_RGB16F |\r\n| render.RGB32F | graphics.TEXTURE_FORMAT_RGB32F |\r\n| render.RGBA16F | graphics.TEXTURE_FORMAT_RGBA16F |\r\n| render.RGBA32F | graphics.TEXTURE_FORMAT_RGBA32F |\r\n| render.R16F | graphics.TEXTURE_FORMAT_R16F |\r\n| render.RG16F | graphics.TEXTURE_FORMAT_RG16F |\r\n| render.R32F | graphics.TEXTURE_FORMAT_R32F |\r\n| render.RG32F | graphics.TEXTURE_FORMAT_RG32F |\r\n| render.FILTER_LINEAR | graphics.TEXTURE_FILTER_LINEAR |\r\n| render.FILTER_NEAREST | graphics.TEXTURE_FILTER_NEAREST |\r\n| render.WRAP_CLAMP_TO_BORDER | graphics.TEXTURE_WRAP_CLAMP_TO_BORDER |\r\n| render.WRAP_CLAMP_TO_EDGE | graphics.TEXTURE_WRAP_CLAMP_TO_EDGE |\r\n| render.WRAP_MIRRORED_REPEAT | graphics.TEXTURE_WRAP_MIRRORED_REPEAT |\r\n| render.WRAP_REPEAT | graphics.TEXTURE_WRAP_REPEAT |\r\n| render.BLEND_ZERO | graphics.BLEND_FACTOR_ZERO |\r\n| render.BLEND_ONE | graphics.BLEND_FACTOR_ONE |\r\n| render.BLEND_SRC_COLOR | graphics.BLEND_FACTOR_SRC_COLOR |\r\n| render.BLEND_ONE_MINUS_SRC_COLOR | graphics.BLEND_FACTOR_ONE_MINUS_SRC_COLOR |\r\n| render.BLEND_DST_COLOR | graphics.BLEND_FACTOR_DST_COLOR |\r\n| render.BLEND_ONE_MINUS_DST_COLOR | graphics.BLEND_FACTOR_ONE_MINUS_DST_COLOR |\r\n| render.BLEND_SRC_ALPHA | graphics.BLEND_FACTOR_SRC_ALPHA |\r\n| render.BLEND_ONE_MINUS_SRC_ALPHA | graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA |\r\n| render.BLEND_DST_ALPHA | graphics.BLEND_FACTOR_DST_ALPHA |\r\n| render.BLEND_ONE_MINUS_DST_ALPHA | graphics.BLEND_FACTOR_ONE_MINUS_DST_ALPHA |\r\n| render.BLEND_SRC_ALPHA_SATURATE | graphics.BLEND_FACTOR_SRC_ALPHA_SATURATE |\r\n| render.BLEND_CONSTANT_COLOR | graphics.BLEND_FACTOR_CONSTANT_COLOR |\r\n| render.BLEND_ONE_MINUS_CONSTANT_COLOR | graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR |\r\n| render.BLEND_CONSTANT_ALPHA | graphics.BLEND_FACTOR_CONSTANT_ALPHA |\r\n| render.BLEND_ONE_MINUS_CONSTANT_ALPHA | graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA |\r\n| render.BLEND_EQUATION_ADD | graphics.BLEND_EQUATION_ADD |\r\n| render.BLEND_EQUATION_SUBTRACT | graphics.BLEND_EQUATION_SUBTRACT |\r\n| render.BLEND_EQUATION_REVERSE_SUBTRACT | graphics.BLEND_EQUATION_REVERSE_SUBTRACT |\r\n| render.BLEND_EQUATION_MIN | graphics.BLEND_EQUATION_MIN |\r\n| render.BLEND_EQUATION_MAX | graphics.BLEND_EQUATION_MAX |\r\n| render.COMPARE_FUNC_NEVER | graphics.COMPARE_FUNC_NEVER |\r\n| render.COMPARE_FUNC_LESS | graphics.COMPARE_FUNC_LESS |\r\n| render.COMPARE_FUNC_LEQUAL | graphics.COMPARE_FUNC_LEQUAL |\r\n| render.COMPARE_FUNC_GREATER | graphics.COMPARE_FUNC_GREATER |\r\n| render.COMPARE_FUNC_GEQUAL | graphics.COMPARE_FUNC_GEQUAL |\r\n| render.COMPARE_FUNC_EQUAL | graphics.COMPARE_FUNC_EQUAL |\r\n| render.COMPARE_FUNC_NOTEQUAL | graphics.COMPARE_FUNC_NOTEQUAL |\r\n| render.COMPARE_FUNC_ALWAYS | graphics.COMPARE_FUNC_ALWAYS |\r\n| render.STENCIL_OP_KEEP | graphics.STENCIL_OP_KEEP |\r\n| render.STENCIL_OP_ZERO | graphics.STENCIL_OP_ZERO |\r\n| render.STENCIL_OP_REPLACE | graphics.STENCIL_OP_REPLACE |\r\n| render.STENCIL_OP_INCR | graphics.STENCIL_OP_INCR |\r\n| render.STENCIL_OP_INCR_WRAP | graphics.STENCIL_OP_INCR_WRAP |\r\n| render.STENCIL_OP_DECR | graphics.STENCIL_OP_DECR |\r\n| render.STENCIL_OP_DECR_WRAP | graphics.STENCIL_OP_DECR_WRAP |\r\n| render.STENCIL_OP_INVERT | graphics.STENCIL_OP_INVERT |\r\n| render.FACE_FRONT | graphics.FACE_TYPE_FRONT |\r\n| render.FACE_BACK | graphics.FACE_TYPE_BACK |\r\n| render.FACE_FRONT_AND_BACK | graphics.FACE_TYPE_FRONT_AND_BACK |\r\n| render.BUFFER_COLOR_BIT | graphics.BUFFER_TYPE_COLOR0_BIT |\r\n| render.BUFFER_COLOR0_BIT | graphics.BUFFER_TYPE_COLOR0_BIT |\r\n| render.BUFFER_COLOR1_BIT | graphics.BUFFER_TYPE_COLOR1_BIT |\r\n| render.BUFFER_COLOR2_BIT | graphics.BUFFER_TYPE_COLOR2_BIT |\r\n| render.BUFFER_COLOR3_BIT | graphics.BUFFER_TYPE_COLOR3_BIT |\r\n| render.BUFFER_DEPTH_BIT | graphics.BUFFER_TYPE_DEPTH_BIT |\r\n| render.BUFFER_STENCIL_BIT | graphics.BUFFER_TYPE_STENCIL_BIT |\r\n| resource.TEXTURE_TYPE_2D | graphics.TEXTURE_TYPE_2D |\r\n| resource.TEXTURE_TYPE_CUBE_MAP | graphics.TEXTURE_TYPE_CUBE_MAP |\r\n| resource.TEXTURE_TYPE_2D_ARRAY | graphics.TEXTURE_TYPE_2D_ARRAY |\r\n| resource.TEXTURE_TYPE_IMAGE_2D | graphics.TEXTURE_TYPE_IMAGE_2D |\r\n| resource.BUFFER_TYPE_COLOR0_BIT | graphics.BUFFER_TYPE_COLOR0_BIT |\r\n| resource.BUFFER_TYPE_COLOR1_BIT | graphics.BUFFER_TYPE_COLOR1_BIT |\r\n| resource.BUFFER_TYPE_COLOR2_BIT | graphics.BUFFER_TYPE_COLOR2_BIT |\r\n| resource.BUFFER_TYPE_COLOR3_BIT | graphics.BUFFER_TYPE_COLOR3_BIT |\r\n| resource.BUFFER_TYPE_DEPTH_BIT | graphics.BUFFER_TYPE_DEPTH_BIT |\r\n| resource.BUFFER_TYPE_STENCIL_BIT | graphics.BUFFER_TYPE_STENCIL_BIT |\r\n| resource.TEXTURE_USAGE_FLAG_SAMPLE | graphics.TEXTURE_USAGE_FLAG_SAMPLE |\r\n| resource.TEXTURE_USAGE_FLAG_MEMORYLESS | graphics.TEXTURE_USAGE_FLAG_MEMORYLESS |\r\n| resource.TEXTURE_USAGE_FLAG_STORAGE | graphics.TEXTURE_USAGE_FLAG_STORAGE |\r\n| resource.TEXTURE_FORMAT_LUMINANCE | graphics.TEXTURE_FORMAT_LUMINANCE |\r\n| resource.TEXTURE_FORMAT_RGB | graphics.TEXTURE_FORMAT_RGB |\r\n| resource.TEXTURE_FORMAT_RGBA | graphics.TEXTURE_FORMAT_RGBA |\r\n| resource.TEXTURE_FORMAT_DEPTH | graphics.TEXTURE_FORMAT_DEPTH |\r\n| resource.TEXTURE_FORMAT_STENCIL | graphics.TEXTURE_FORMAT_STENCIL |\r\n| resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 | graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 | graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 | graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 | graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGB_ETC1 | graphics.TEXTURE_FORMAT_RGB_ETC1 |\r\n| resource.TEXTURE_FORMAT_RGBA_ETC2 | graphics.TEXTURE_FORMAT_RGBA_ETC2 |\r\n| resource.TEXTURE_FORMAT_RGBA_ASTC_4x4 | graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4 |\r\n| resource.TEXTURE_FORMAT_RGB_BC1 | graphics.TEXTURE_FORMAT_RGB_BC1 |\r\n| resource.TEXTURE_FORMAT_RGBA_BC3 | graphics.TEXTURE_FORMAT_RGBA_BC3 |\r\n| resource.TEXTURE_FORMAT_R_BC4 | graphics.TEXTURE_FORMAT_R_BC4 |\r\n| resource.TEXTURE_FORMAT_RG_BC5 | graphics.TEXTURE_FORMAT_RG_BC5 |\r\n| resource.TEXTURE_FORMAT_RGBA_BC7 | graphics.TEXTURE_FORMAT_RGBA_BC7 |\r\n| resource.TEXTURE_FORMAT_RGB16F | graphics.TEXTURE_FORMAT_RGB16F |\r\n| resource.TEXTURE_FORMAT_RGB32F | graphics.TEXTURE_FORMAT_RGB32F |\r\n| resource.TEXTURE_FORMAT_RGBA16F | graphics.TEXTURE_FORMAT_RGBA16F |\r\n| resource.TEXTURE_FORMAT_RGBA32F | graphics.TEXTURE_FORMAT_RGBA32F |\r\n| resource.TEXTURE_FORMAT_R16F | graphics.TEXTURE_FORMAT_R16F |\r\n| resource.TEXTURE_FORMAT_RG16F | graphics.TEXTURE_FORMAT_RG16F |\r\n| resource.TEXTURE_FORMAT_R32F | graphics.TEXTURE_FORMAT_R32F |\r\n| resource.TEXTURE_FORMAT_RG32F | graphics.TEXTURE_FORMAT_RG32F |\r\n| resource.COMPRESSION_TYPE_DEFAULT | graphics.COMPRESSION_TYPE_DEFAULT |\r\n| resource.COMPRESSION_TYPE_BASIS_UASTC | graphics.COMPRESSION_TYPE_BASIS_UASTC |",
+            "closed_issues": [
+                10455
+            ],
+            "duplicate": false,
+            "issue_number": 10455,
+            "labels": [
+                "task",
+                "engine",
+                "breaking change"
+            ],
+            "mergecommit": "9595a70355d50042cd905d710440902d89f6b4ee",
+            "pr_number": 12441,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Remove deprecated Lua APIs",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12441"
+        },
+        {
+            "author": "JCash",
+            "body": "Adds Box2D v3 chain support, typed world/shape handles, and a new b2d.world Lua module.\r\n\r\nBox2D v3 added/changed APIs:\r\n- b2d.body.create_chain\r\n- b2d.body.is_valid\r\n- b2d.body.get_name\r\n- b2d.body.set_name\r\n- b2d.body.set_target_transform\r\n- b2d.body.apply_linear_impulse_to_center\r\n- b2d.body.get_sleep_threshold\r\n- b2d.body.set_sleep_threshold\r\n- b2d.body.enable_contact_events\r\n- b2d.body.enable_hit_events\r\n- b2d.body.get_contact_data\r\n- b2d.body.compute_aabb\r\n- b2d.body.create_shape changed to expose material data\r\n- b2d.body.get_shapes changed to expose shape_id and material data\r\n- b2d.chain.destroy\r\n- b2d.chain.is_valid\r\n- b2d.chain.get_world\r\n- b2d.chain.get_segment_count\r\n- b2d.chain.get_segments\r\n- b2d.chain.get_geometry\r\n- b2d.chain.from_shape\r\n- b2d.chain.get_friction\r\n- b2d.chain.set_friction\r\n- b2d.chain.get_restitution\r\n- b2d.chain.set_restitution\r\n- b2d.chain.get_material\r\n- b2d.chain.set_material\r\n- b2d.shape.SHAPE_TYPE_SEGMENT\r\n- b2d.shape.get_shape changed to report chain segments as SHAPE_TYPE_SEGMENT\r\n- b2d.shape.is_valid\r\n- b2d.shape.get_body\r\n- b2d.shape.get_world\r\n- b2d.shape.get_material\r\n- b2d.shape.set_material\r\n- b2d.shape.enable_sensor_events\r\n- b2d.shape.are_sensor_events_enabled\r\n- b2d.shape.enable_contact_events\r\n- b2d.shape.are_contact_events_enabled\r\n- b2d.shape.enable_pre_solve_events\r\n- b2d.shape.are_pre_solve_events_enabled\r\n- b2d.shape.enable_hit_events\r\n- b2d.shape.are_hit_events_enabled\r\n- b2d.shape.ray_cast\r\n- b2d.shape.get_contact_capacity\r\n- b2d.shape.get_contact_data\r\n- b2d.shape.get_sensor_capacity\r\n- b2d.shape.get_sensor_overlaps\r\n- b2d.shape.get_mass_data\r\n- b2d.shape.get_closest_point\r\n- b2d.joint.is_valid\r\n- b2d.joint.get_world\r\n- b2d.world.is_valid\r\n- b2d.world.is_locked\r\n- b2d.world.get_gravity\r\n- b2d.world.set_gravity\r\n- b2d.world.enable_sleeping\r\n- b2d.world.is_sleeping_enabled\r\n- b2d.world.enable_continuous\r\n- b2d.world.is_continuous_enabled\r\n- b2d.world.set_restitution_threshold\r\n- b2d.world.get_restitution_threshold\r\n- b2d.world.set_hit_event_threshold\r\n- b2d.world.get_hit_event_threshold\r\n- b2d.world.set_maximum_linear_speed\r\n- b2d.world.get_maximum_linear_speed\r\n- b2d.world.enable_warm_starting\r\n- b2d.world.is_warm_starting_enabled\r\n- b2d.world.get_awake_body_count\r\n- b2d.world.set_contact_tuning\r\n- b2d.world.set_joint_tuning\r\n- b2d.world.get_profile\r\n- b2d.world.get_counters\r\n- b2d.world.explode\r\n- b2d.world.rebuild_static_tree\r\n- b2d.world.enable_speculative\r\n- b2d.world.overlap_aabb\r\n- b2d.world.overlap_shape\r\n- b2d.world.cast_ray\r\n- b2d.world.cast_ray_closest\r\n- b2d.world.cast_shape\r\n- b2d.world.cast_mover\r\n- b2d.world.collide_mover\r\n\r\nBox2D v2 added APIs:\r\n- b2d.world.overlap_aabb\r\n- b2d.world.overlap_shape\r\n- b2d.world.cast_ray\r\n- b2d.world.cast_ray_closest\r\n- b2d.world.cast_shape\r\n\r\nSee current example: https://github.com/JCash/example-box2d",
+            "closed_issues": [
+                12500
+            ],
+            "duplicate": false,
+            "issue_number": 12500,
+            "labels": [],
+            "mergecommit": "c9151ef0b35e17de1f3063520b36660016232d68",
+            "pr_number": 12500,
+            "referencecommits": [
+                "82faafac629aa3e5f98d196dcc1ca020822914bc"
+            ],
+            "repository": "defold",
+            "title": "Updated Box2d v3 api with chain an other missing functions",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12500"
+        }
+    ],
+    "timestamp": 1780329863.357315,
+    "version": "1.13.0"
+}

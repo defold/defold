@@ -366,3 +366,82 @@
     (handler/register-menu! ::scene-end tile-map-data)
     (let [m (handler/realize-menu ::menubar)]
       (is (some? (get-in m [2 :children]))))))
+
+(deftest add-remove-listener
+  (let [calls (atom [])
+        cb-1 (fn [] (swap! calls conj :cb-1))
+        cb-2 (fn [] (swap! calls conj :cb-2))]
+    (testing "Listeners are stored under [:listeners command listener-id]."
+      (handler/add-listener! ::l1 :some.command cb-1)
+      (is (identical? cb-1 (get-in @handler/state-atom [:listeners :some.command ::l1]))))
+    (testing "Multiple listeners coexist under the same command."
+      (handler/add-listener! ::l2 :some.command cb-2)
+      (is (= #{::l1 ::l2}
+             (set (keys (get-in @handler/state-atom [:listeners :some.command]))))))
+    (testing "Re-adding the same listener-id replaces the callback (no accumulation)."
+      (let [cb-1b (fn [] (swap! calls conj :cb-1b))]
+        (handler/add-listener! ::l1 :some.command cb-1b)
+        (is (= 2 (count (get-in @handler/state-atom [:listeners :some.command]))))
+        (is (identical? cb-1b (get-in @handler/state-atom [:listeners :some.command ::l1])))))
+    (testing "Removing one listener leaves the other intact."
+      (handler/remove-listener! ::l1 :some.command)
+      (is (nil? (get-in @handler/state-atom [:listeners :some.command ::l1])))
+      (is (some? (get-in @handler/state-atom [:listeners :some.command ::l2]))))
+    (testing "Removing the last listener cleans up the command entry."
+      (handler/remove-listener! ::l2 :some.command)
+      (is (nil? (get-in @handler/state-atom [:listeners :some.command]))))
+    (testing "Removing a non-existent listener is a no-op."
+      (handler/remove-listener! ::nope :some.command)
+      (handler/remove-listener! ::nope :no.such.command)
+      (is (nil? (get-in @handler/state-atom [:listeners :no.such.command]))))))
+
+(deftest run-invokes-listeners
+  (with-clean-system
+    (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
+          calls (atom [])
+          cb-a (fn [] (swap! calls conj :a))
+          cb-b (fn [] (swap! calls conj :b))]
+      (handler/defhandler :listened-command :global (run [selection] :done))
+      (handler/defhandler :other-command :global (run [selection] :done))
+      (handler/add-listener! ::a :listened-command cb-a)
+      (handler/add-listener! ::b :listened-command cb-b)
+      (testing "All listeners for the command are invoked."
+        (test-util/handler-run :listened-command [global] {})
+        (is (= #{:a :b} (set @calls))))
+      (testing "Listeners registered for other commands are not invoked."
+        (reset! calls [])
+        (test-util/handler-run :other-command [global] {})
+        (is (= [] @calls)))
+      (testing "Removed listeners stop firing."
+        (reset! calls [])
+        (handler/add-listener! ::a :other-command cb-a)
+        (handler/remove-listener! ::a :listened-command)
+        (test-util/handler-run :listened-command [global] {})
+        (is (= [:b] @calls)))
+      (testing "Re-registering for another command fires."
+        (test-util/handler-run :other-command [global] {})
+        (is (= #{:a :b} (set @calls)))))))
+
+(deftest run-skips-listeners-on-failure
+  (with-clean-system
+    (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
+          calls (atom [])
+          cb (fn [] (swap! calls conj :called))]
+      (handler/defhandler :throwing-run-command :global (run [selection] (throw (Exception. "boom"))))
+      (handler/add-listener! ::l :throwing-run-command cb)
+      (log/without-logging
+        (is (nil? (test-util/handler-run :throwing-run-command [global] {})))
+        (is (= [] @calls))))))
+
+(deftest listener-exceptions-are-isolated
+  (with-clean-system
+    (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
+          calls (atom [])
+          cb-throw-1 (fn [] (swap! calls conj :throw-1) (throw (Exception. "boom 1")))
+          cb-throw-2 (fn [] (swap! calls conj :throw-2) (throw (Exception. "boom 2")))]
+      (handler/defhandler :isolated-command :global (run [selection] :done))
+      (handler/add-listener! ::a :isolated-command cb-throw-1)
+      (handler/add-listener! ::b :isolated-command cb-throw-2)
+      (log/without-logging
+        (is (= :done (test-util/handler-run :isolated-command [global] {})))
+        (is (= #{:throw-1 :throw-2} (set @calls)))))))

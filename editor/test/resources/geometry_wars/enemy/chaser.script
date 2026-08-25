@@ -32,8 +32,8 @@ local spawn_bob_mag = 0.5
 function init(self)
 	self.timer = 0
 	self.velocity = vmath.vector3(0, 0, 0)
-	sprite.set_constant("#sprite", "tint", color)
-	sprite.set_constant("#light_mask", "tint", color)
+	go.set("#sprite", "tint", color)
+	go.set("#light_mask", "tint", color)
 	self.target = go.get_world_position("/player/player")
 	self.spawning = true
 	self.spawn_timer = spawn_duration
