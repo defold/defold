@@ -1,3 +1,4 @@
+type: TYPE_CUBEMAP
 sample_count: 4
 color_attachments {
   width: 128
