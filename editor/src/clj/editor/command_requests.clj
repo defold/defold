@@ -20,8 +20,10 @@
             [editor.disk :as disk]
             [editor.future :as future]
             [editor.library :as library]
+            [editor.localization :as localization]
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
+            [editor.targets :as targets]
             [editor.ui :as ui]
             [util.coll :as coll]
             [util.http-server :as http-server])
@@ -40,21 +42,43 @@
     "false" {:focus false}
     (throw (http-server/error (http-server/response 400 "Invalid focus value; expected true or false\n")))))
 
-(defn- build-response [{:keys [error warning]} localization-state]
-  (let [issues (coll/into-> [error warning] []
-                 (filter some?)
-                 (mapcat #(:children (build-errors-view/build-resource-tree %)))
-                 (mapcat :children)
-                 (map (fn [{:keys [message severity parent cursor-range]}]
-                        (let [maybe-resource (:resource parent)]
-                          (cond-> {:message (localization-state message)
-                                   :severity (case severity
-                                               :fatal :error
-                                               :info :information
-                                               severity)}
-                            maybe-resource (assoc :resource (resource/proj-path maybe-resource))
-                            cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
-    (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))
+(defn- build-response [{:keys [error target warning]} localization-state]
+  (let [target-url-result (when target
+                            (if-let [url (:url target)]
+                              url
+                              (let [url-promise (promise)
+                                    cancel! (targets/when-url-or-removed (:id target) url-promise)]
+                                (or (try
+                                      (deref url-promise 15000 ::timeout)
+                                      (finally
+                                        (cancel!)))
+                                    ::target-removed))))
+        success (and (not error) (not= ::target-removed target-url-result))
+        issues (-> [error warning]
+                   (coll/into-> []
+                     (filter some?)
+                     (mapcat #(:children (build-errors-view/build-resource-tree %)))
+                     (mapcat :children)
+                     (map (fn [{:keys [message severity parent cursor-range]}]
+                            (let [maybe-resource (:resource parent)]
+                              (cond-> {:message (localization-state message)
+                                       :severity (case severity
+                                                   :fatal :error
+                                                   :info :information
+                                                   severity)}
+                                maybe-resource (assoc :resource (resource/proj-path maybe-resource))
+                                cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))
+                   (cond->
+                     (= ::target-removed target-url-result)
+                     (conj {:message (localization-state (localization/message "error.engine.url-not-reported-before-exit"))
+                            :severity :error})
+
+                     (= ::timeout target-url-result)
+                     (conj {:message (localization-state (localization/message "error.engine.url-not-reported-in-time"))
+                            :severity :warning})))]
+    (http-server/json-response
+      (cond-> {:success success :issues issues} (string? target-url-result) (assoc :target {:url target-url-result}))
+      (if success 200 422))))
 
 (defn- fetch-libraries-response [[lib-results reload-succeeded] localization-state]
   (let [success (and reload-succeeded (coll/not-any? Library$Result/.problem lib-results))]
