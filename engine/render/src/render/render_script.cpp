@@ -668,6 +668,18 @@ namespace dmRender
         return true;
     }
 
+    static bool InsertDrawCommand(RenderScriptInstance* i, HPredicate predicate, HNamedConstantBuffer constant_buffer, FrustumOptions* frustum_options, SortOrder sort_order)
+    {
+        HNamedConstantBuffer constant_buffer_clone = PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer_clone, (uint64_t)frustum_options, (uint64_t)sort_order));
+    }
+
+    static bool InsertDispatchComputeCommand(RenderScriptInstance* i, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
+    {
+        HNamedConstantBuffer constant_buffer_clone = PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer_clone));
+    }
+
     /*# enables a render state
      *
      * Enables a particular render state. The state will be enabled until disabled.
@@ -1660,18 +1672,6 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    static void AddConstantBufferSnapshot(RenderScriptInstance* instance, HNamedConstantBufferSnapshot snapshot)
-    {
-        if (!snapshot)
-            return;
-
-        if (instance->m_ConstantBufferSnapshots.Full())
-        {
-            instance->m_ConstantBufferSnapshots.OffsetCapacity(16);
-        }
-        instance->m_ConstantBufferSnapshots.Push(snapshot);
-    }
-
     /*# draws all objects matching a predicate
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
@@ -1794,18 +1794,8 @@ namespace dmRender
             frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        HNamedConstantBufferSnapshot constant_buffer_snapshot = NewNamedConstantBufferSnapshot(constant_buffer);
-        if (constant_buffer && !constant_buffer_snapshot)
+        if (InsertDrawCommand(i, predicate, constant_buffer, frustum_options, sort_order))
         {
-            delete frustum_options;
-            if (has_options_table)
-                lua_pop(L, 2);
-            return luaL_error(L, "Failed to allocate constant buffer snapshot.");
-        }
-
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer_snapshot, (uint64_t) frustum_options, (uint64_t) sort_order)))
-        {
-            AddConstantBufferSnapshot(i, constant_buffer_snapshot);
             if (has_options_table)
             {
                 lua_pop(L, 2);
@@ -1813,7 +1803,6 @@ namespace dmRender
             return 0;
         }
 
-        DeleteNamedConstantBufferSnapshot(constant_buffer_snapshot);
         delete frustum_options;
         if (has_options_table)
         {
@@ -2999,24 +2988,14 @@ namespace dmRender
             }
         }
 
-        HNamedConstantBufferSnapshot constant_buffer_snapshot = NewNamedConstantBufferSnapshot(constant_buffer);
-        if (constant_buffer && !constant_buffer_snapshot)
+        if (InsertDispatchComputeCommand(i, p_x, p_y, p_z, constant_buffer))
         {
-            if (has_options_table)
-                lua_pop(L, 2);
-            return DM_LUA_ERROR("Failed to allocate constant buffer snapshot.");
-        }
-
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, p_x, p_y, p_z, (uint64_t) constant_buffer_snapshot)))
-        {
-            AddConstantBufferSnapshot(i, constant_buffer_snapshot);
             if (has_options_table)
             {
                 lua_pop(L, 2);
             }
             return 0;
         }
-        DeleteNamedConstantBufferSnapshot(constant_buffer_snapshot);
         if (has_options_table)
         {
             lua_pop(L, 2);
@@ -3371,16 +3350,6 @@ bail:
         return i;
     }
 
-    static void ReleaseConstantBufferSnapshots(HRenderScriptInstance instance)
-    {
-        uint32_t snapshot_count = instance->m_ConstantBufferSnapshots.Size();
-        for (uint32_t i = 0; i < snapshot_count; ++i)
-        {
-            DeleteNamedConstantBufferSnapshot(instance->m_ConstantBufferSnapshots[i]);
-        }
-        instance->m_ConstantBufferSnapshots.SetSize(0);
-    }
-
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
         lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
@@ -3397,8 +3366,6 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
-
-        ReleaseConstantBufferSnapshots(render_script_instance);
 
         assert(top == lua_gettop(L));
 
@@ -3590,7 +3557,6 @@ bail:
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
     {
         DM_PROFILE("UpdateRSI");
-        ReleaseConstantBufferSnapshots(instance);
         instance->m_CommandBuffer.SetSize(0);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
@@ -3600,7 +3566,6 @@ bail:
         if (instance->m_CommandBuffer.Size() > 0)
         {
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
-            ReleaseConstantBufferSnapshots(instance);
         }
         return result;
     }

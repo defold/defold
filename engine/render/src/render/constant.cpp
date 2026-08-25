@@ -124,104 +124,24 @@ struct NamedConstantBuffer
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
     };
 
-    dmHashTable64<Constant>     m_Constants;
+    dmArray<Constant>           m_Constants;
     dmArray<dmVMath::Vector4>   m_Values;
 };
 
-// Immutable, single-allocation representation used by queued render commands.
-// The descriptors follow the header and the aligned Vector4 data follows them.
-struct NamedConstantBufferSnapshot
+static inline NamedConstantBuffer::Constant* FindNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
 {
-    struct Constant
+    for (uint32_t i = 0; i < buffer->m_Constants.Size(); ++i)
     {
-        dmhash_t                                m_NameHash;
-        uint32_t                                m_ValueIndex;
-        uint32_t                                m_NumValues;
-        dmRenderDDF::MaterialDesc::ConstantType m_Type;
-    };
-
-    Constant*         m_Constants;
-    dmVMath::Vector4* m_Values;
-    uint32_t          m_ConstantCount;
-};
-
-struct FillNamedConstantBufferSnapshotContext
-{
-    NamedConstantBufferSnapshot::Constant* m_Constants;
-    uint32_t                                m_Index;
-};
-
-static inline void FillNamedConstantBufferSnapshot(FillNamedConstantBufferSnapshotContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
-{
-    NamedConstantBufferSnapshot::Constant& snapshot_constant = context->m_Constants[context->m_Index++];
-    snapshot_constant.m_NameHash   = *name_hash;
-    snapshot_constant.m_ValueIndex = constant->m_ValueIndex;
-    snapshot_constant.m_NumValues  = constant->m_NumValues;
-    snapshot_constant.m_Type       = constant->m_Type;
-}
-
-HNamedConstantBufferSnapshot NewNamedConstantBufferSnapshot(HNamedConstantBuffer buffer)
-{
-    if (!buffer)
-        return 0;
-
-    const uint32_t constant_count = buffer->m_Constants.Size();
-    const uint32_t value_count = buffer->m_Values.Size();
-    const uint32_t values_alignment = alignof(dmVMath::Vector4);
-    const uint64_t constants_end = sizeof(NamedConstantBufferSnapshot) + sizeof(NamedConstantBufferSnapshot::Constant) * (uint64_t)constant_count;
-    const uint64_t values_offset = (constants_end + values_alignment - 1) & ~(uint64_t)(values_alignment - 1);
-    const uint64_t allocation_size = values_offset + sizeof(dmVMath::Vector4) * (uint64_t)value_count;
-
-    if (allocation_size > 0xffffffffU)
-        return 0;
-
-    void* memory = 0;
-    const uint32_t allocation_alignment = values_alignment > alignof(NamedConstantBufferSnapshot::Constant) ? values_alignment : alignof(NamedConstantBufferSnapshot::Constant);
-    if (dmMemory::AlignedMalloc(&memory, allocation_alignment, (uint32_t)allocation_size) != dmMemory::RESULT_OK)
-        return 0;
-
-    HNamedConstantBufferSnapshot snapshot = (HNamedConstantBufferSnapshot)memory;
-    snapshot->m_Constants = (NamedConstantBufferSnapshot::Constant*)(snapshot + 1);
-    snapshot->m_Values = (dmVMath::Vector4*)((uint8_t*)snapshot + values_offset);
-    snapshot->m_ConstantCount = constant_count;
-
-    FillNamedConstantBufferSnapshotContext context;
-    context.m_Constants = snapshot->m_Constants;
-    context.m_Index = 0;
-    buffer->m_Constants.Iterate(FillNamedConstantBufferSnapshot, &context);
-
-    if (value_count > 0)
-        memcpy(snapshot->m_Values, buffer->m_Values.Begin(), sizeof(dmVMath::Vector4) * value_count);
-
-    return snapshot;
-}
-
-void DeleteNamedConstantBufferSnapshot(HNamedConstantBufferSnapshot snapshot)
-{
-    if (snapshot)
-        dmMemory::AlignedFree(snapshot);
-}
-
-bool GetNamedConstantSnapshot(HNamedConstantBufferSnapshot snapshot, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type)
-{
-    NamedConstantBufferSnapshot::Constant* constants = snapshot->m_Constants;
-    for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
-    {
-        if (constants[i].m_NameHash == name_hash)
-        {
-            *values = &snapshot->m_Values[constants[i].m_ValueIndex];
-            *num_values = constants[i].m_NumValues;
-            *constant_type = constants[i].m_Type;
-            return true;
-        }
+        if (buffer->m_Constants[i].m_NameHash == name_hash)
+            return &buffer->m_Constants[i];
     }
-    return false;
+    return 0;
 }
 
 HNamedConstantBuffer NewNamedConstantBuffer()
 {
     HNamedConstantBuffer buffer = new NamedConstantBuffer();
-    buffer->m_Constants.SetCapacity(9, 16);
+    buffer->m_Constants.SetCapacity(16);
     return buffer;
 }
 
@@ -232,8 +152,30 @@ void DeleteNamedConstantBuffer(HNamedConstantBuffer buffer)
 
 void ClearNamedConstantBuffer(HNamedConstantBuffer buffer)
 {
-    buffer->m_Constants.Clear();
+    buffer->m_Constants.SetSize(0);
     buffer->m_Values.SetSize(0);
+}
+
+void CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source)
+{
+    if (destination == source)
+        return;
+
+    const uint32_t constant_count = source->m_Constants.Size();
+    const uint32_t value_count = source->m_Values.Size();
+
+    if (destination->m_Constants.Capacity() < constant_count)
+        destination->m_Constants.SetCapacity(constant_count);
+    if (destination->m_Values.Capacity() < value_count)
+        destination->m_Values.SetCapacity(value_count);
+
+    destination->m_Constants.SetSize(constant_count);
+    destination->m_Values.SetSize(value_count);
+
+    if (constant_count > 0)
+        memcpy(destination->m_Constants.Begin(), source->m_Constants.Begin(), constant_count * sizeof(NamedConstantBuffer::Constant));
+    if (value_count > 0)
+        memcpy(destination->m_Values.Begin(), source->m_Values.Begin(), value_count * sizeof(dmVMath::Vector4));
 }
 
 struct ShiftConstantsContext
@@ -243,21 +185,21 @@ struct ShiftConstantsContext
     uint32_t m_Direction : 1; // 0: left, 1: right
 };
 
-static inline void ShiftConstantIndices(ShiftConstantsContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
+static inline void ShiftConstantIndices(HNamedConstantBuffer buffer, const ShiftConstantsContext& context)
 {
-    if (context->m_Direction == 0 && constant->m_ValueIndex > context->m_Index)
+    for (uint32_t i = 0; i < buffer->m_Constants.Size(); ++i)
     {
-        constant->m_ValueIndex -= context->m_NumValues;
-    }
-    else if (context->m_Direction == 1 && constant->m_ValueIndex > context->m_Index)
-    {
-        constant->m_ValueIndex += context->m_NumValues;
+        NamedConstantBuffer::Constant& constant = buffer->m_Constants[i];
+        if (context.m_Direction == 0 && constant.m_ValueIndex > context.m_Index)
+            constant.m_ValueIndex -= context.m_NumValues;
+        else if (context.m_Direction == 1 && constant.m_ValueIndex > context.m_Index)
+            constant.m_ValueIndex += context.m_NumValues;
     }
 }
 
 void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
 {
-    NamedConstantBuffer::Constant* c = buffer->m_Constants.Get(name_hash);
+    NamedConstantBuffer::Constant* c = FindNamedConstant(buffer, name_hash);
     if (!c)
         return;
 
@@ -271,30 +213,28 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     dmVMath::Vector4* p_next = p_current + num_values;
     memmove(p_current, p_next, remaining * sizeof(dmVMath::Vector4)); // if it's the last item, then "remaining" will be 0
 
-    buffer->m_Constants.Erase(name_hash);
+    uint32_t constant_index = (uint32_t)(c - buffer->m_Constants.Begin());
+    buffer->m_Constants.EraseSwap(constant_index);
     buffer->m_Values.SetSize(buffer->m_Values.Size() - num_values);
 
     ShiftConstantsContext shift_context;
     shift_context.m_Index     = values_index;
     shift_context.m_NumValues = num_values;
     shift_context.m_Direction = 0;
-    buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
+    ShiftConstantIndices(buffer, shift_context);
 }
 
 Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values,
     uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type)
 {
-    dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
-    NamedConstantBuffer::Constant* c = constants.Get(name_hash);
+    dmArray<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
+    NamedConstantBuffer::Constant* c = FindNamedConstant(buffer, name_hash);
 
     uint32_t value_size = value_index + num_values;
     if (c == 0)
     {
         if (constants.Full())
-        {
-            uint32_t capacity = constants.Capacity() + 8;
-            constants.SetCapacity(capacity, capacity * 2);
-        }
+            constants.OffsetCapacity(8);
 
         if (buffer->m_Values.Remaining() < value_size)
         {
@@ -309,10 +249,8 @@ Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, 
         constant.m_NumValues   = value_size;
         constant.m_ValueIndex  = values_index;
         constant.m_Type        = constant_type;
-        constants.Put(name_hash, constant);
-
-        // Get the pointer
-        c = constants.Get(name_hash);
+        constants.Push(constant);
+        c = &constants.Back();
     }
     else if (c->m_NumValues > 0 && c->m_Type != constant_type)
     {
@@ -349,7 +287,7 @@ Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, 
         shift_context.m_Index     = values_index;
         shift_context.m_NumValues = num_values_expand;
         shift_context.m_Direction = 1;
-        buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
+        ShiftConstantIndices(buffer, shift_context);
     }
 
     dmVMath::Vector4* values_start = &buffer->m_Values[c->m_ValueIndex];
@@ -360,9 +298,9 @@ Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, 
 
 void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, dmRenderDDF::MaterialDesc::ConstantType type)
 {
-    dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
+    dmArray<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
 
-    NamedConstantBuffer::Constant* c = constants.Get(name_hash);
+    NamedConstantBuffer::Constant* c = FindNamedConstant(buffer, name_hash);
     if (c && c->m_NumValues != num_values)
     {
         RemoveNamedConstant(buffer, name_hash);
@@ -372,10 +310,7 @@ void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
     if (c == 0)
     {
         if (constants.Full())
-        {
-            uint32_t capacity = constants.Capacity() + 8;
-            constants.SetCapacity(capacity, capacity * 2);
-        }
+            constants.OffsetCapacity(8);
 
         if (buffer->m_Values.Remaining() < num_values)
             buffer->m_Values.OffsetCapacity(num_values - buffer->m_Values.Remaining());
@@ -389,10 +324,8 @@ void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
         constant.m_NumValues   = num_values;
         constant.m_ValueIndex  = values_index;
         constant.m_Type        = type;
-        constants.Put(name_hash, constant);
-
-        // Get the pointer
-        c = constants.Get(name_hash);
+        constants.Push(constant);
+        c = &constants.Back();
     }
 
     dmVMath::Vector4* p = &buffer->m_Values[c->m_ValueIndex];
@@ -421,7 +354,7 @@ bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
 
 bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type)
 {
-    NamedConstantBuffer::Constant* c = buffer->m_Constants.Get(name_hash);
+    NamedConstantBuffer::Constant* c = FindNamedConstant(buffer, name_hash);
     if (!c)
         return false;
 
@@ -436,136 +369,41 @@ uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer)
     return buffer->m_Constants.Size();
 }
 
-struct IterateConstantCtx
-{
-    void (*m_Callback)(dmhash_t name_hash, void* ctx);
-    void* m_Ctx;
-};
-
-static inline void IterateConstants(IterateConstantCtx* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
-{
-    context->m_Callback(constant->m_NameHash, context->m_Ctx);
-}
-
 void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn callback, void* ctx)
 {
-    IterateConstantCtx context;
-    context.m_Ctx = ctx;
-    context.m_Callback = callback;
-    buffer->m_Constants.Iterate(IterateConstants, &context);
-}
-
-struct ApplyConstantContext
-{
-    dmGraphics::HContext m_GraphicsContext;
-    HNamedConstantBuffer m_ConstantBuffer;
-
-    union
-    {
-        HMaterial       m_Material;
-        HComputeProgram m_ComputeProgram;
-    };
-
-    ApplyConstantContext(dmGraphics::HContext graphics_context, HMaterial material, HNamedConstantBuffer constant_buffer)
-    {
-        m_GraphicsContext = graphics_context;
-        m_Material        = material;
-        m_ConstantBuffer  = constant_buffer;
-    }
-
-    ApplyConstantContext(dmGraphics::HContext graphics_context, HComputeProgram program, HNamedConstantBuffer constant_buffer)
-    {
-        m_GraphicsContext = graphics_context;
-        m_ComputeProgram  = program;
-        m_ConstantBuffer  = constant_buffer;
-    }
-};
-
-static inline void ApplyConstant(ApplyConstantContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
-{
-    dmGraphics::HUniformLocation* location = context->m_Material->m_NameHashToLocation.Get(*name_hash);
-    if (location)
-    {
-        dmVMath::Vector4* values = &context->m_ConstantBuffer->m_Values[constant->m_ValueIndex];
-
-        if (constant->m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
-        {
-            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
-        }
-        else
-        {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, *location);
-        }
-    }
+    for (uint32_t i = 0; i < buffer->m_Constants.Size(); ++i)
+        callback(buffer->m_Constants[i].m_NameHash, ctx);
 }
 
 void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer)
 {
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-    ApplyConstantContext context(graphics_context, material, buffer);
-    buffer->m_Constants.Iterate(ApplyConstant, &context);
-}
-
-static inline void ApplyConstantCompute(ApplyConstantContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
-{
-    dmGraphics::HUniformLocation* location = context->m_ComputeProgram->m_NameHashToLocation.Get(*name_hash);
-    if (location)
+    for (uint32_t i = 0; i < buffer->m_Constants.Size(); ++i)
     {
-        dmVMath::Vector4* values = &context->m_ConstantBuffer->m_Values[constant->m_ValueIndex];
+        NamedConstantBuffer::Constant& constant = buffer->m_Constants[i];
+        dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(constant.m_NameHash);
+        if (!location)
+            continue;
 
-        if (constant->m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
-        {
-            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
-        }
+        dmVMath::Vector4* values = &buffer->m_Values[constant.m_ValueIndex];
+        if (constant.m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+            dmGraphics::SetConstantM4(graphics_context, values, constant.m_NumValues / 4, *location);
         else
-        {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, *location);
-        }
+            dmGraphics::SetConstantV4(graphics_context, values, constant.m_NumValues, *location);
     }
 }
 
 void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer)
 {
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-    ApplyConstantContext context(graphics_context, program, buffer);
-    buffer->m_Constants.Iterate(ApplyConstantCompute, &context);
-}
-
-void ApplyNamedConstantBufferSnapshot(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBufferSnapshot snapshot)
-{
-    dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-    NamedConstantBufferSnapshot::Constant* constants = snapshot->m_Constants;
-    dmVMath::Vector4* values = snapshot->m_Values;
-
-    for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
+    for (uint32_t i = 0; i < buffer->m_Constants.Size(); ++i)
     {
-        NamedConstantBufferSnapshot::Constant& constant = constants[i];
-        dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(constant.m_NameHash);
-        if (!location)
-            continue;
-
-        dmVMath::Vector4* constant_values = &values[constant.m_ValueIndex];
-        if (constant.m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
-            dmGraphics::SetConstantM4(graphics_context, constant_values, constant.m_NumValues / 4, *location);
-        else
-            dmGraphics::SetConstantV4(graphics_context, constant_values, constant.m_NumValues, *location);
-    }
-}
-
-void ApplyNamedConstantBufferSnapshot(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBufferSnapshot snapshot)
-{
-    dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-    NamedConstantBufferSnapshot::Constant* constants = snapshot->m_Constants;
-    dmVMath::Vector4* values = snapshot->m_Values;
-
-    for (uint32_t i = 0; i < snapshot->m_ConstantCount; ++i)
-    {
-        NamedConstantBufferSnapshot::Constant& constant = constants[i];
+        NamedConstantBuffer::Constant& constant = buffer->m_Constants[i];
         dmGraphics::HUniformLocation* location = program->m_NameHashToLocation.Get(constant.m_NameHash);
         if (!location)
             continue;
 
-        dmVMath::Vector4* constant_values = &values[constant.m_ValueIndex];
+        dmVMath::Vector4* constant_values = &buffer->m_Values[constant.m_ValueIndex];
         if (constant.m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
             dmGraphics::SetConstantM4(graphics_context, constant_values, constant.m_NumValues / 4, *location);
         else

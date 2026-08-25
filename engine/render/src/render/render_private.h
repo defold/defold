@@ -37,14 +37,7 @@ extern "C"
 
 namespace dmRender
 {
-    struct NamedConstantBufferSnapshot;
-    typedef NamedConstantBufferSnapshot* HNamedConstantBufferSnapshot;
-
-    HNamedConstantBufferSnapshot NewNamedConstantBufferSnapshot(HNamedConstantBuffer buffer);
-    void DeleteNamedConstantBufferSnapshot(HNamedConstantBufferSnapshot snapshot);
-    bool GetNamedConstantSnapshot(HNamedConstantBufferSnapshot snapshot, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type);
-    void ApplyNamedConstantBufferSnapshot(HRenderContext render_context, HMaterial material, HNamedConstantBufferSnapshot snapshot);
-    void ApplyNamedConstantBufferSnapshot(HRenderContext render_context, HComputeProgram program, HNamedConstantBufferSnapshot snapshot);
+    void CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);
 
     using namespace dmVMath;
 
@@ -328,6 +321,8 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
+        dmArray<HNamedConstantBuffer> m_ConstantBufferClones;
+        uint32_t                      m_ConstantBufferCloneCursor;
         //dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
@@ -414,9 +409,8 @@ namespace dmRender
     bool    GetCanBindTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
 
-    Result  DrawRenderListSnapshot(HRenderContext context, HPredicate predicate, HNamedConstantBufferSnapshot constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order);
+    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer);
     void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
-    void    DispatchComputeSnapshot(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBufferSnapshot constant_buffer);
     void    ApplyComputeProgramConstants(HRenderContext render_context, HComputeProgram compute_program);
     int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash);
 

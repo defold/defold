@@ -57,7 +57,6 @@ namespace dmRender
     struct RenderScriptInstance
     {
         dmArray<Command>              m_CommandBuffer;
-        dmArray<HNamedConstantBufferSnapshot> m_ConstantBufferSnapshots; // Owns immutable constant data referenced by queued commands
         dmHashTable64<RenderResource> m_RenderResources;
         Predicate*                    m_Predicates[MAX_PREDICATE_COUNT];
         RenderContext*                m_RenderContext;

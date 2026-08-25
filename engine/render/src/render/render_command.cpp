@@ -194,10 +194,10 @@ namespace dmRender
                 {
                     FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[2];
                     dmRender::SortOrder sort_order = (dmRender::SortOrder)c->m_Operands[3];
-                    dmRender::DrawRenderListSnapshot(render_context, (dmRender::Predicate*)c->m_Operands[0],
-                                                                      (dmRender::HNamedConstantBufferSnapshot)c->m_Operands[1],
-                                                                      frustum_options,
-                                                                      sort_order);
+                    dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
+                                                             (dmRender::HNamedConstantBuffer)c->m_Operands[1],
+                                                             frustum_options,
+                                                             sort_order);
                     delete frustum_options;
                     break;
                 }
@@ -225,9 +225,9 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DISPATCH_COMPUTE:
                 {
-                    dmRender::DispatchComputeSnapshot(render_context,
+                    dmRender::DispatchCompute(render_context,
                         c->m_Operands[0], c->m_Operands[1], c->m_Operands[2], // group x,y,z
-                        (dmRender::HNamedConstantBufferSnapshot) c->m_Operands[3]);
+                        (dmRender::HNamedConstantBuffer) c->m_Operands[3]);
                     break;
                 }
                 case COMMAND_TYPE_SET_RENDER_CAMERA:

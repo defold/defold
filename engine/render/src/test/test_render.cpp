@@ -2763,7 +2763,7 @@ static void IterateNameConstantsCallback(dmhash_t name_hash, void* _ctx)
     }
 }
 
-TEST(Constants, NamedConstantBufferSnapshot)
+TEST(Constants, NamedConstantBufferCopy)
 {
     dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
     dmhash_t color_hash = dmHashString64("color");
@@ -2781,28 +2781,65 @@ TEST(Constants, NamedConstantBufferSnapshot)
     dmRender::SetNamedConstant(buffer, color_hash, colors, 2);
     dmRender::SetNamedConstant(buffer, matrix_hash, matrix, 4, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
 
-    dmRender::HNamedConstantBufferSnapshot snapshot = dmRender::NewNamedConstantBufferSnapshot(buffer);
-    ASSERT_NE((dmRender::HNamedConstantBufferSnapshot)0, snapshot);
+    dmRender::HNamedConstantBuffer copy = dmRender::NewNamedConstantBuffer();
+    dmRender::CopyNamedConstantBuffer(copy, buffer);
 
     colors[0] = dmVMath::Vector4(0.0f);
     dmRender::SetNamedConstant(buffer, color_hash, colors, 2);
     dmRender::RemoveNamedConstant(buffer, matrix_hash);
 
-    dmVMath::Vector4* snapshot_values = 0;
+    dmVMath::Vector4* copied_values = 0;
     uint32_t num_values = 0;
     dmRenderDDF::MaterialDesc::ConstantType constant_type;
-    ASSERT_TRUE(dmRender::GetNamedConstantSnapshot(snapshot, color_hash, &snapshot_values, &num_values, &constant_type));
+    ASSERT_TRUE(dmRender::GetNamedConstant(copy, color_hash, &copied_values, &num_values, &constant_type));
     ASSERT_EQ(2u, num_values);
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER, constant_type);
-    ASSERT_EQ(1.0f, snapshot_values[0].getX());
-    ASSERT_EQ(1.0f, snapshot_values[1].getY());
+    ASSERT_EQ(1.0f, copied_values[0].getX());
+    ASSERT_EQ(1.0f, copied_values[1].getY());
 
-    ASSERT_TRUE(dmRender::GetNamedConstantSnapshot(snapshot, matrix_hash, &snapshot_values, &num_values, &constant_type));
+    ASSERT_TRUE(dmRender::GetNamedConstant(copy, matrix_hash, &copied_values, &num_values, &constant_type));
     ASSERT_EQ(4u, num_values);
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4, constant_type);
-    ASSERT_EQ(16.0f, snapshot_values[3].getW());
+    ASSERT_EQ(16.0f, copied_values[3].getW());
 
-    dmRender::DeleteNamedConstantBufferSnapshot(snapshot);
+    dmRender::DeleteNamedConstantBuffer(copy);
+    dmRender::DeleteNamedConstantBuffer(buffer);
+}
+
+TEST(Constants, NamedConstantBufferFlatGrowth)
+{
+    const uint32_t constant_count = 32;
+    dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
+
+    for (uint32_t i = 0; i < constant_count; ++i)
+    {
+        dmVMath::Vector4 value((float)i, 0.0f, 0.0f, 1.0f);
+        dmRender::SetNamedConstant(buffer, i + 1, &value, 1);
+    }
+    ASSERT_EQ(constant_count, dmRender::GetNamedConstantCount(buffer));
+
+    dmRender::HNamedConstantBuffer copy = dmRender::NewNamedConstantBuffer();
+    dmRender::CopyNamedConstantBuffer(copy, buffer);
+
+    for (uint32_t i = 0; i < constant_count; i += 2)
+        dmRender::RemoveNamedConstant(buffer, i + 1);
+    ASSERT_EQ(constant_count / 2, dmRender::GetNamedConstantCount(buffer));
+
+    for (uint32_t i = 0; i < constant_count; ++i)
+    {
+        dmVMath::Vector4* values = 0;
+        uint32_t num_values = 0;
+        ASSERT_TRUE(dmRender::GetNamedConstant(copy, i + 1, &values, &num_values));
+        ASSERT_EQ(1u, num_values);
+        ASSERT_EQ((float)i, values[0].getX());
+
+        bool retained = dmRender::GetNamedConstant(buffer, i + 1, &values, &num_values);
+        ASSERT_EQ(i % 2 == 1, retained);
+        if (retained)
+            ASSERT_EQ((float)i, values[0].getX());
+    }
+
+    dmRender::DeleteNamedConstantBuffer(copy);
     dmRender::DeleteNamedConstantBuffer(buffer);
 }
 
