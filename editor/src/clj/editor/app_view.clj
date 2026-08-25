@@ -1522,8 +1522,10 @@
                  (or engine skip-engine))
           (do
             (show-console! main-scene tool-tab-pane)
-            (let [{:keys [error]} (launch-built-project! project engine project-directory prefs web-server false focus)]
-              (cond-> build-results error (assoc :error (exception->target-error error)))))
+            (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server false focus)]
+              (cond-> build-results
+                error (assoc :error (exception->target-error error))
+                target (assoc :target target))))
           build-results)))))
 
 (handler/defhandler :project.compile :global
@@ -1584,7 +1586,9 @@
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
             (when (and target (nil? (debug-view/current-session debug-view)))
               (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
-            (cond-> build-results error (assoc :error (exception->target-error error))))
+            (cond-> build-results
+              error (assoc :error (exception->target-error error))
+              target (assoc :target target)))
           build-results)))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
@@ -1600,11 +1604,14 @@
                     :old-artifact-map (workspace/artifact-map workspace)
                     :prefs prefs)
       (fn [build-results]
-        (when (handle-build-results! workspace render-build-error! build-results)
+        (if-not (handle-build-results! workspace render-build-error! build-results)
+          build-results
           (let [target (targets/selected-target prefs)]
-            (when (targets/controllable-target? target)
-              (debug-view/attach! debug-view project target (:artifacts build-results)))))
-        build-results))))
+            (if-not (targets/controllable-target? target)
+              build-results
+              (do
+                (debug-view/attach! debug-view project target (:artifacts build-results))
+                (assoc build-results :target target)))))))))
 
 (handler/defhandler :debugger.start :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
@@ -1756,7 +1763,7 @@
                   (doseq [launched-target (targets/all-launched-targets)]
                     (engine/reload-build-resources! launched-target updated-build-resources))
                   (engine/reload-build-resources! target updated-build-resources)))
-              build-results
+              (cond-> build-results (targets/controllable-target? target) (assoc :target target))
               (catch Exception e
                 (dialogs/make-info-dialog
                   localization
