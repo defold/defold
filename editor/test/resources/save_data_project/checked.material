@@ -5,14 +5,13 @@ fragment_program: "/checked.fp"
 vertex_space: VERTEX_SPACE_LOCAL
 vertex_constants {
   name: "screensize"
-  type: CONSTANT_TYPE_USER
+  type: CONSTANT_TYPE_USER_COLOR
   value {
     x: 1920.0
     y: 1080.0
     z: 10.0
     w: 1.0
   }
-  semantic_type: CONSTANT_SEMANTIC_TYPE_COLOR
 }
 vertex_constants {
   name: "viewproj"
@@ -20,14 +19,13 @@ vertex_constants {
 }
 fragment_constants {
   name: "screensize"
-  type: CONSTANT_TYPE_USER
+  type: CONSTANT_TYPE_USER_COLOR
   value {
     x: 1920.0
     y: 1080.0
     z: 10.0
     w: 1.0
   }
-  semantic_type: CONSTANT_SEMANTIC_TYPE_COLOR
 }
 fragment_constants {
   name: "proj"

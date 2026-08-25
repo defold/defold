@@ -1,14 +1,13 @@
 compute_program: "/checked.cp"
 constants {
   name: "constant_1"
-  type: CONSTANT_TYPE_USER
+  type: CONSTANT_TYPE_USER_COLOR
   value {
     x: 1.0
     y: 2.0
     z: 13.0
     w: 99.0
   }
-  semantic_type: CONSTANT_SEMANTIC_TYPE_COLOR
 }
 constants {
   name: "constant_2"
