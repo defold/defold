@@ -223,12 +223,12 @@
 (defn lua-indent-counts [^String line in-long-string tab-spaces]
   (let [[tokens in-long-string] (lua-lex-line line in-long-string)
         leftover (reduce (fn [stack t]
-                           (if (and (= :close (t 0))
-                                    (when-let [top (peek stack)]
-                                      (and (= :open (top 0))
-                                           (= (t 1) (top 1)))))
-                             (pop stack)
-                             (conj stack t)))
+                           (let [top (peek stack)]
+                             (if (and (= :close (t 0)) (some-> top (get 0) (= :open)))
+                               (if (= (t 1) (top 1))
+                                 (pop stack)
+                                 stack)
+                               (conj stack t))))
                          []
                          tokens)
         n (count leftover)
@@ -237,20 +237,14 @@
                  (if (or (= i n) (= :open ((leftover i) 0)))
                    closes
                    (recur (inc i) (conj closes ((leftover i) 1)))))
-        ;; Anything still closing past this point had an opener of another kind
-        ;; before it, so it closes nothing at all.
-        opens (loop [i (count closes)
-                     opens []]
-                (if (= i n)
-                  opens
-                  (let [t (leftover i)]
-                    (recur (inc i)
-                           (if (= :open (t 0))
-                             (conj opens {:kind (t 1)
-                                          :col (when-let [index (t 2)]
-                                                 (when (code-after-index? line index)
-                                                   (inc (visual-column line index tab-spaces))))})
-                             opens)))))]
+        ;; Everything past the leading closers is an opener, since a closer only
+        ;; survives the reduce while nothing is open.
+        opens (mapv (fn [t]
+                      {:kind (t 1)
+                       :col (when-let [index (t 2)]
+                              (when (code-after-index? line index)
+                                (inc (visual-column line index tab-spaces))))})
+                    (subvec leftover (count closes)))]
     {:closes closes
      :opens opens
      :leading (some? (re-find lua-close-line-pattern line))

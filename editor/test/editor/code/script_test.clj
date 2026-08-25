@@ -427,7 +427,23 @@
           "}"]
          (reindent ["local t = {"
                     "a = 1,"
-                    "        }"]))))
+                    "        }"])))
+
+  ;; A stray closer must not hide the opener from the closer that does match it,
+  ;; which happens while a bracket is being typed into a finished table.
+  (is (= ["local t = { ) }"
+          "print(t)"]
+         (reindent ["local t = { ) }"
+                    "        print(t)"])))
+
+  (is (= ["function f()"
+          "    foo(} ) bar"
+          "    print(1)"
+          "end"]
+         (reindent ["function f()"
+                    "foo(} ) bar"
+                    "print(1)"
+                    "end"]))))
 
 (deftest reindent-matches-checked-in-fixture-test
   ;; The fixture is checked in already formatted by the bundled Lua language
