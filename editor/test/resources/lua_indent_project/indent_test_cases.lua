@@ -347,3 +347,51 @@ function case_34_escaped_quote()
     local text = "say \"(\" now"
     print(text)
 end
+
+-- ---------------------------------------------------------------------------
+-- Cases 35-39: conditions, comments in signatures, and long-string traps
+-- ---------------------------------------------------------------------------
+
+-- 35. Parenthesized subexpressions in a condition.
+function case_35_parens_in_condition(x, y)
+    if (x == 2) and (y == 2) then
+        print("both")
+        return true
+    end
+    return false
+end
+
+-- 36. Index expression spanning lines, closed with a lone `]`.
+-- Commented out: we disagree with LuaLS here. We indent what an open bracket
+-- holds, the same as a brace or a parenthesis; LuaLS leaves it flush with the
+-- line that opened it. Its shape was:
+--     local v = t[
+--     key(1)
+--     ]
+
+-- 37. Comment as the only thing after the open parenthesis. It is not a
+-- parameter, so there is nothing to align the parameters under.
+function case_37_comment_after_open_paren( -- [[ hint
+    a,
+    b
+)
+    print(a, b)
+end
+
+-- 38. A literal `[[` inside a long string. Long strings do not nest, so this
+-- is text, not an opener.
+function case_38_long_string_fake_opener()
+    local s = [[
+[[ not a nested string
+but this is normal
+]]
+    print(s)
+end
+
+-- 39. The same, with the literal indented.
+function case_39_long_string_fake_opener_indented()
+    local s = [[
+    [[ not a nested string
+]]
+    print(s)
+end
