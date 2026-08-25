@@ -89,8 +89,14 @@
     (workspace->extensions workspace evaluation-context)))
 
 (defn script-property-edit-type [workspace prop-type resource-kind script-property-type evaluation-context]
-  (let [base-map (if (= resource/Resource prop-type)
+  (let [base-map (cond
+                   (= resource/Resource prop-type)
                    {:type prop-type :ext (resource-kind-extensions workspace resource-kind evaluation-context)}
+
+                   (= :script-property-type-text script-property-type)
+                   {:type :multi-line-text}
+
+                   :else
                    {:type prop-type})]
     (assoc base-map :script-property-type script-property-type)))
 
@@ -115,7 +121,15 @@
                                           "resource" (resource/proj-path resource)}))))))
 
 (defn validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
-  (when (= resource/Resource (:type edit-type))
+  (cond
+    (and (= :script-property-type-text (:script-property-type edit-type))
+         (string? value)
+         (not= -1 (.indexOf ^String value (int \u0000))))
+    (g/->error node-id prop-kw :fatal value
+               (localization/message "error.property-cannot-contain-nul"
+                                     {"property" (validation/format-name prop-name)}))
+
+    (= resource/Resource (:type edit-type))
     (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
 
 (defn lua-info->script-properties [lua-info]

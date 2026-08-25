@@ -462,7 +462,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
         b2Vec2 impulse = CheckVec2(L, 2, GetPhysicsScale());
-        b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale()); // position relative center of body
+        b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale()); // world-space application point
         b2Body_ApplyLinearImpulse(*body, impulse, position, true);
         return 0;
     }

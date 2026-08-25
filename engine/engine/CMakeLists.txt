@@ -110,9 +110,17 @@ endif()
 
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-file(GLOB ENGINE_BOB_PLUGIN_JARS CONFIGURE_DEPENDS "${DEFOLD_SDK_ROOT}/share/java/plugins/*.jar")
+set(ENGINE_BOB_PLUGIN_JARS)
+if(COMMAND defold_append_platform_bob_plugin_jars)
+  defold_append_platform_bob_plugin_jars(ENGINE_BOB_PLUGIN_JARS)
+endif()
 set(ENGINE_BOB_CLASSPATH_LIST "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS})
 cmake_path(CONVERT "${ENGINE_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST ENGINE_BOB_CLASSPATH)
+
+set(ENGINE_SHADER_ENV)
+if(COMMAND defold_get_platform_shader_env)
+  defold_get_platform_shader_env(ENGINE_SHADER_ENV)
+endif()
 
 file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/builtins/*"
@@ -136,9 +144,11 @@ if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
 if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
-    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios|x86_64-win32|x86-win32|x86_64-linux|arm64-linux|armv7-android|arm64-android)$")
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios|x86_64-win32|x86-win32|x86_64-linux|arm64-linux|armv7-android|arm64-android|x86_64-android)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
+# App manifests can relink web engines to WebGPU even when the default
+# CMake graphics symbols only include the WebGL adapter.
 if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output wgsl)
@@ -157,7 +167,7 @@ add_custom_command(
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
     "${ENGINE_BUILTINS_STAMP}"
-  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}" ${ENGINE_SHADER_ENV}
     "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
     --font-content-root "${ENGINE_FONT_CONTENT_DIR}"
@@ -180,12 +190,16 @@ add_custom_target(engine_builtins
 if(TARGET bob_light)
   add_dependencies(engine_builtins bob_light)
 endif()
+if(COMMAND defold_add_platform_bob_plugin_dependencies)
+  defold_add_platform_bob_plugin_dependencies(engine_builtins)
+endif()
 
 set(ENGINE_DEBUG_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/materials/debug.spc")
 add_custom_command(
   OUTPUT "${ENGINE_DEBUG_SPC}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/content/materials"
-  COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
+  COMMAND "${CMAKE_COMMAND}" -E env ${ENGINE_SHADER_ENV}
+    "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
     com.dynamo.bob.pipeline.ShaderProgramBuilder
     "${ENGINE_CONTENT_DIR}/materials/debug.fp"
     "${ENGINE_CONTENT_DIR}/materials/debug.vp"
@@ -380,7 +394,7 @@ set(ENGINE_COMPONENT_SYMBOLS
   ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
   ScriptLibParticleFX ScriptLibTileMap)
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
@@ -438,7 +452,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   if(graphics_mode STREQUAL "null")
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
       ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
-    if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+    if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
     endif()
   else()
@@ -468,12 +482,12 @@ function(engine_configure_executable target variant engine_lib engine_service_li
 endfunction()
 
 set(ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/main.cpp")
-if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
   list(APPEND ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/android_main.cpp")
 endif()
 
 function(engine_add_binary target)
-  if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+  if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
     # NativeActivity loads Android engines with dlopen/dlsym, so these must be
     # true shared libraries rather than PIE executables renamed to .so files.
     defold_add_library(${target} SHARED ${ARGN})
@@ -492,6 +506,9 @@ set(ENGINE_DMENGINE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_DMENGINE_EXPORTS}" "${ENGINE_DMENGINE_SYMBOLS}")
 engine_add_binary(dmengine ${ENGINE_MAIN_SOURCES} "${ENGINE_DMENGINE_EXPORTS}")
 engine_configure_executable(dmengine debug engine engine_service graphics "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+if(COMMAND defold_bundle_target)
+  defold_bundle_target(dmengine)
+endif()
 defold_xcode_configure_ios_app(dmengine
   BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
   VERSION "${ENGINE_VERSION}")
@@ -506,6 +523,9 @@ set(ENGINE_RELEASE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmeng
 defold_create_exported_symbols_file("${ENGINE_RELEASE_EXPORTS}" "${ENGINE_RELEASE_SYMBOLS}")
 engine_add_binary(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
 engine_configure_executable(dmengine_release release engine_release engine_service_null graphics "profile_null;profilerext_null" "ProfilerExt")
+if(COMMAND defold_bundle_target)
+  defold_bundle_target(dmengine_release)
+endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
@@ -521,9 +541,12 @@ set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
 engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+if(COMMAND defold_bundle_target)
+  defold_bundle_target(dmengine_headless)
+endif()
 defold_codesign_target(dmengine_headless darwin/entitlements-macos-debug.plist)
 
-if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
   set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES
     PREFIX "lib"
     SUFFIX ".so")

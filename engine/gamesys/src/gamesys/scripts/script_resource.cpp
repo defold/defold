@@ -1684,7 +1684,10 @@ static int GetTextureInfo(lua_State* L)
  * `handle`
  * : [type:number] the opaque handle to the texture resource
  *
- * 'attachments'
+ * `sample_count`
+ * : [type:number] effective sample count shared by all render target attachments
+ *
+ * `attachments`
  * : [type:table] a table of attachments, where each attachment contains the following entries:
  *
  * `width`
@@ -1789,6 +1792,9 @@ static int GetRenderTargetInfo(lua_State* L)
 
     lua_pushnumber(L, rt_handle);
     lua_setfield(L, -2, "handle");
+
+    lua_pushinteger(L, dmGraphics::GetRenderTargetSampleCount(g_ResourceModule.m_GraphicsContext, rt_handle));
+    lua_setfield(L, -2, "sample_count");
 
     lua_pushliteral(L, "attachments");
     lua_newtable(L);
