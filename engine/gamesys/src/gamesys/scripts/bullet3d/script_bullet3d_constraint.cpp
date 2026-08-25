@@ -1293,7 +1293,9 @@ namespace dmGameSystem
         int axis = CheckAxis(L, 2, 3, "axis");
         Calculate6DofTransforms(meta);
         btScalar value = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetGeneric6DofSpring2Constraint(meta)->getRelativePivotPosition(axis) : GetGeneric6DofConstraint(meta)->getRelativePivotPosition(axis);
-        lua_pushnumber(L, value * GetBullet3DInvPhysicsScale());
+        lua_pushnumber(
+            L,
+            (lua_Number)value * (lua_Number)GetBullet3DInvPhysicsScale());
         return 1;
     }
 
