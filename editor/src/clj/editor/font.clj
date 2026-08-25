@@ -619,35 +619,35 @@
     (cond
       (and (= :bitmap render-kind) has-layer-tag)
       (g/->error node-id property :warning text
-                 "Rich-text outline and shadow tags are not supported by BMFont fonts.")
+                 (localization/message "error.font.rich-text-outline-and-shadow-not-supported-by-bmfont"))
 
       (and (#{:defold :distance-field} render-kind) requests-outline (zero? outline-capacity))
       (g/->error node-id property :warning text
-                 "This font has no reserved data for rich-text outlines; the outline will not be rendered.")
+                 (localization/message "error.font.no-reserved-data-for-rich-text-outlines"))
 
       (and (= :defold render-kind) bitmap-shadow-includes-outline requests-blurred-shadow)
       (g/->error node-id property :warning text
-                 "This bitmap font's shadow blur includes its outline; rich-text shadow spans without an outline tag render crisp.")
+                 (localization/message "error.font.bitmap-shadow-blur-includes-outline"))
 
       (and (= :defold render-kind) has-shadow-tag (pos? max-shadow-blur))
       (g/->error node-id property :warning text
-                 "Per-span shadow blur is not supported by bitmap fonts; the shadow uses the available bitmap coverage.")
+                 (localization/message "error.font.per-span-shadow-blur-not-supported-by-bitmap-fonts"))
 
       (and (= :defold render-kind)
            (coll/any? #(and (pos? (double %))
                             (not= outline-capacity (double %)))
                       outline-sizes))
       (g/->error node-id property :warning text
-                 "Per-span outline size is fixed for bitmap fonts; the outline uses the width reserved by the font resource.")
+                 (localization/message "error.font.per-span-outline-size-fixed-for-bitmap-fonts"))
 
       (and (= :distance-field render-kind)
            (coll/any? #(> (double %) outline-capacity) outline-sizes))
       (g/->error node-id property :warning text
-                 "The requested rich-text outline exceeds the width reserved by the font resource and will be clamped.")
+                 (localization/message "error.font.rich-text-outline-exceeds-reserved-width"))
 
       (and (= :distance-field render-kind) (pos? max-shadow-blur) (zero? blur-capacity))
       (g/->error node-id property :warning text
-                 "This font has no reserved distance-field data for rich-text shadow blur; the shadow renders crisp."))))
+                 (localization/message "error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur")))))
 
 (defn markup-error
   [node-id property font-map text]
