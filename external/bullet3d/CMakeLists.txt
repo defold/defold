@@ -4,8 +4,18 @@ if(NOT TARGET_PLATFORM)
   message(FATAL_ERROR "TARGET_PLATFORM must be set")
 endif()
 
+set(_BULLET_USE_DEFOLD_PLATFORM OFF)
+if(TARGET_PLATFORM MATCHES "^(arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone|x86_64-xbox)$")
+  cmake_minimum_required(VERSION 4.0)
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
+  include(defold)
+  set(_BULLET_USE_DEFOLD_PLATFORM ON)
+endif()
+
 # Configure cross-compilation before project() enables the compiler.
-if(TARGET_PLATFORM STREQUAL "arm64-macos")
+if(_BULLET_USE_DEFOLD_PLATFORM)
+  message(DEBUG "Using Defold platform toolchain for ${TARGET_PLATFORM}")
+elseif(TARGET_PLATFORM STREQUAL "arm64-macos")
   set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Target architecture" FORCE)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version" FORCE)
   set(CMAKE_OSX_SYSROOT "macosx" CACHE STRING "Apple SDK" FORCE)
@@ -118,6 +128,9 @@ add_subdirectory("${BULLET_PHYSICS_SOURCE_DIR}/src/BulletDynamics" BulletDynamic
 set(_BULLET_TARGETS LinearMath BulletCollision BulletDynamics)
 foreach(_target IN LISTS _BULLET_TARGETS)
   target_compile_definitions(${_target} PRIVATE NDEBUG _USE_MATH_DEFINES)
+  if(_BULLET_USE_DEFOLD_PLATFORM)
+    target_link_libraries(${_target} PRIVATE defold_sdk)
+  endif()
   if(MSVC)
     target_compile_definitions(${_target} PRIVATE
       WINVER=0x0600

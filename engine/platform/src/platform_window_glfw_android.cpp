@@ -66,6 +66,21 @@ namespace dmPlatform
         return dmAndroid::GetAndroidApp();
     }
 
+    ANativeWindow* WaitForAndroidWindow()
+    {
+        return glfwWaitForAndroidWindow();
+    }
+
+    bool IsAndroidWindowCurrent(ANativeWindow* window)
+    {
+        return glfwAndroidIsWindowCurrent(window) != 0;
+    }
+
+    void ReleaseAndroidWindow(ANativeWindow* window)
+    {
+        glfwReleaseAndroidWindow(window);
+    }
+
     void SetAndroidInputMethod(bool use_hidden_inputfield)
     {
         _glfwAndroidSetInputMethod((int)use_hidden_inputfield);

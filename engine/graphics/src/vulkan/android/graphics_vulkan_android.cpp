@@ -290,14 +290,42 @@ namespace dmGraphics
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
-        struct android_app* app = dmAndroid::GetAndroidApp();
-        assert(app);
+        *vkSurfaceOut = VK_NULL_HANDLE;
 
-        VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
-        vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-        vk_surface_create_info.window = app->window;
+        // Android may destroy and replace the native window while the app is
+        // paused or resumed. WaitForAndroidWindow() blocks (and sleeps between
+        // checks) until GLFW can return an acquired reference to the current
+        // window, so this loop is not a tight busy-wait.
+        //
+        // The lifecycle may still change while the Vulkan driver is creating
+        // the surface. The loop lets us revalidate the window afterwards and,
+        // if it became stale, discard that surface and retry with the window
+        // supplied by the next lifecycle state.
+        while (true)
+        {
+            ANativeWindow* native_window = dmPlatform::WaitForAndroidWindow();
+            if (!native_window)
+                return VK_ERROR_SURFACE_LOST_KHR;
 
-        return vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
+            VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
+            vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+            vk_surface_create_info.window = native_window;
+
+            VkResult result = vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
+            bool is_current = dmPlatform::IsAndroidWindowCurrent(native_window);
+            dmPlatform::ReleaseAndroidWindow(native_window);
+
+            if (is_current)
+                return result;
+
+            // The lifecycle changed while Vulkan was creating the surface.
+            // Discard it and retry with the next current native window.
+            if (result == VK_SUCCESS)
+            {
+                vkDestroySurfaceKHR(vkInstance, *vkSurfaceOut, 0);
+            }
+            *vkSurfaceOut = VK_NULL_HANDLE;
+        }
     }
 
     void SyncAndroidVulkanWindowSize(VulkanContext* context)

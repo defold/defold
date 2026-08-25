@@ -322,42 +322,66 @@ namespace dmGameObject
     void AddDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
         Collection* collection = hcollection->m_Collection;
-        dmMutex::Lock(collection->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
+        // The creating collection tracks each dynamic resource once so it can release
+        // it when the collection is deleted. Avoid recording the same resource twice,
+        // since that would release it twice.
+        for (uint32_t i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        {
+            if (collection->m_DynamicResources[i] == resource_hash)
+            {
+                return;
+            }
+        }
         if (collection->m_DynamicResources.Remaining() == 0)
         {
             collection->m_DynamicResources.OffsetCapacity(1);
         }
         collection->m_DynamicResources.Push(resource_hash);
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     void RemoveDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
-        Collection* collection = hcollection->m_Collection;
-        dmMutex::Lock(collection->m_Mutex);
-        for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        Register* regist = hcollection->m_Collection->m_Register;
+        DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
+        // Search every collection in the register to remove the actual owner's entry.
+        // We need to do this to avoid the following scenario (#13002):
+        //
+        // 1. Collection A creates the resource and records its hash.
+        // 2. Collection B calls resource.release().
+        // 3. Searching only B finds nothing, so A's entry is still in the register.
+        // 4. When A unloads, its stale entry resolves to a deleted descriptor and asserts.
+        for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
         {
-            if (collection->m_DynamicResources[i] == resource_hash)
+            Collection* collection = regist->m_Collections[collection_index];
+            DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
+            for (uint32_t resource_index = 0; resource_index < collection->m_DynamicResources.Size(); ++resource_index)
             {
-                collection->m_DynamicResources.EraseSwap(i);
+                if (collection->m_DynamicResources[resource_index] == resource_hash)
+                {
+                    collection->m_DynamicResources.EraseSwap(resource_index);
+                    break;
+                }
             }
         }
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     static void ReleaseDynamicResources(Collection* collection)
     {
-        dmMutex::Lock(collection->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
         for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
         {
             HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
-            assert(rd);
+            if (!rd)
+            {
+                dmLogError("Unable to find '%s' when releasing dynamic resources", dmHashReverseSafe64(collection->m_DynamicResources[i]));
+                continue;
+            }
             void* resource = dmResource::GetResource(rd);
             dmResource::Release(collection->m_Factory, resource);
         }
         collection->m_DynamicResources.SetSize(0);
         collection->m_DynamicResources.SetCapacity(0);
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     void DeleteCollections(HRegister regist)
