@@ -556,7 +556,9 @@ namespace dmGraphics
         VkRenderPassBeginInfo vk_render_pass_begin_info;
         vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         vk_render_pass_begin_info.renderPass          = vk_render_pass;
-        vk_render_pass_begin_info.framebuffer         = rt->m_Handle.m_Framebuffer;
+        vk_render_pass_begin_info.framebuffer         = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP && brt->m_CubeMapFace != CUBEMAP_FACE_POSITIVE_X
+            ? rt->m_Handle.m_CubeMapFramebuffers[brt->m_CubeMapFace - 1]
+            : rt->m_Handle.m_Framebuffer;
         vk_render_pass_begin_info.pNext               = 0;
         vk_render_pass_begin_info.renderArea.offset.x = 0;
         vk_render_pass_begin_info.renderArea.offset.y = 0;
@@ -676,7 +678,7 @@ namespace dmGraphics
 
         VkResult res = CreateTexture(
             vk_physical_device, vk_device,
-            width, height, 1, 1, 1,
+            width, height, 1, depth_stencil_texture_out->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1, 1,
             vk_sample_count, vk_depth_format, vk_depth_tiling,
             vk_usage_flags,
             vk_memory_type,
@@ -4094,6 +4096,21 @@ bail:
         return (VkAttachmentLoadOp) -1;
     }
 
+    static VkResult CreateCubeMapAttachmentView(VkDevice device, VulkanTexture* texture, uint32_t face, VkImageAspectFlags aspect_flags, VkImageView* view_out)
+    {
+        VkImageViewCreateInfo view_create_info = {};
+        view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        view_create_info.image                           = texture->m_Handle.m_Image;
+        view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+        view_create_info.format                          = texture->m_Format;
+        view_create_info.subresourceRange.aspectMask     = aspect_flags;
+        view_create_info.subresourceRange.baseMipLevel   = 0;
+        view_create_info.subresourceRange.levelCount     = 1;
+        view_create_info.subresourceRange.baseArrayLayer = face;
+        view_create_info.subresourceRange.layerCount     = 1;
+        return vkCreateImageView(device, &view_create_info, 0, view_out);
+    }
+
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, HTexture* color_resolve_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, VkSampleCountFlagBits vk_sample_count, uint32_t width, uint32_t height, VulkanRenderTarget* rtOut)
     {
         assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPassClear == VK_NULL_HANDLE);
@@ -4224,11 +4241,49 @@ bail:
             }
         }
 
-        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_Handle.m_RenderPass,
-            fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Handle.m_Framebuffer);
-        if (res != VK_SUCCESS)
+        const bool is_cube_map = rtOut->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP;
+        if (is_cube_map)
         {
-            return res;
+            assert(!has_msaa);
+            for (uint32_t face = 0; face < CUBEMAP_FACE_COUNT; ++face)
+            {
+                uint32_t attachment_index = 0;
+                for (uint32_t color = 0; color < num_color_textures; ++color, ++attachment_index)
+                {
+                    VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, color_textures[color]);
+                    res = CreateCubeMapAttachmentView(context->m_LogicalDevice.m_Device, texture, face, VK_IMAGE_ASPECT_COLOR_BIT,
+                        &rtOut->m_Handle.m_CubeMapAttachmentViews[face][attachment_index]);
+                    if (res != VK_SUCCESS)
+                        return res;
+                    fb_attachments[attachment_index] = rtOut->m_Handle.m_CubeMapAttachmentViews[face][attachment_index];
+                }
+                if (depth_stencil_texture)
+                {
+                    VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, depth_stencil_texture);
+                    res = CreateCubeMapAttachmentView(context->m_LogicalDevice.m_Device, texture, face,
+                        GetDefaultDepthAndStencilAspectFlags(texture->m_Format),
+                        &rtOut->m_Handle.m_CubeMapAttachmentViews[face][attachment_index]);
+                    if (res != VK_SUCCESS)
+                        return res;
+                    fb_attachments[attachment_index] = rtOut->m_Handle.m_CubeMapAttachmentViews[face][attachment_index];
+                    ++attachment_index;
+                }
+
+                VkFramebuffer* framebuffer = face == CUBEMAP_FACE_POSITIVE_X
+                    ? &rtOut->m_Handle.m_Framebuffer
+                    : &rtOut->m_Handle.m_CubeMapFramebuffers[face - 1];
+                res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_Handle.m_RenderPass,
+                    fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, framebuffer);
+                if (res != VK_SUCCESS)
+                    return res;
+            }
+        }
+        else
+        {
+            res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_Handle.m_RenderPass,
+                fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Handle.m_Framebuffer);
+            if (res != VK_SUCCESS)
+                return res;
         }
 
         for (int i = 0; i < num_color_textures; ++i)
@@ -4242,6 +4297,7 @@ bail:
         rtOut->m_Base.m_TextureDepthStencil  = depth_stencil_texture;
         rtOut->m_Extent.width         = fb_width;
         rtOut->m_Extent.height        = fb_height;
+        rtOut->m_Destroyed            = 0;
 
         return VK_SUCCESS;
     }
@@ -4253,6 +4309,8 @@ bail:
         renderTarget->m_Handle.m_RenderPass                = VK_NULL_HANDLE;
         renderTarget->m_Handle.m_RenderPassClear           = VK_NULL_HANDLE;
         renderTarget->m_Handle.m_RenderPassClearColorDepth = VK_NULL_HANDLE;
+        memset(renderTarget->m_Handle.m_CubeMapFramebuffers, 0, sizeof(renderTarget->m_Handle.m_CubeMapFramebuffers));
+        memset(renderTarget->m_Handle.m_CubeMapAttachmentViews, 0, sizeof(renderTarget->m_Handle.m_CubeMapAttachmentViews));
         renderTarget->m_HasPendingClearColor               = 0;
         renderTarget->m_HasPendingClearDepth               = 0;
     }
@@ -4288,6 +4346,11 @@ bail:
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
         rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, (uint32_t) vk_supported_sample_counts, "Vulkan");
+        rt->m_Base.m_TextureType = params.m_TextureType;
+        if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(rt->m_Base.m_SampleCount, 1, "Vulkan cubemap");
+        }
 
         // don't save the data
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
@@ -4354,7 +4417,9 @@ bail:
                 VkResult res = CreateTexture(
                     context->m_PhysicalDevice.m_Device,
                     context->m_LogicalDevice.m_Device,
-                    new_texture_color->m_Base.m_Width, new_texture_color->m_Base.m_Height, 1, 1, new_texture_color->m_Base.m_MipMapCount,
+                    new_texture_color->m_Base.m_Width, new_texture_color->m_Base.m_Height, 1,
+                    rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1,
+                    new_texture_color->m_Base.m_MipMapCount,
                     vk_sample_count,
                     vk_color_format,
                     VK_IMAGE_TILING_OPTIMAL,
@@ -4463,6 +4528,9 @@ bail:
         RenderTarget* brt      = &rt->m_Base;
         context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
+        // Framebuffers and their face views must be retired before the images they reference.
+        DestroyRenderTarget(context, rt);
+
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (brt->m_TextureColor[i])
@@ -4480,18 +4548,21 @@ bail:
             DeleteTexture(_context, brt->m_TextureDepthStencil);
         }
 
-        DestroyRenderTarget(context, rt);
-
         delete rt;
     }
 
-    static void VulkanSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void VulkanSetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
-        (void) transient_buffer_types;
         VulkanContext* context = (VulkanContext*) _context;
         HRenderTarget new_rt = render_target != 0x0 ? render_target : context->m_MainRenderTarget;
+        VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        if (!rt)
+        {
+            new_rt = context->m_MainRenderTarget;
+            rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        }
 
-        if (context->m_CurrentRenderTarget == new_rt)
+        if (context->m_CurrentRenderTarget == new_rt && rt->m_Base.m_CubeMapFace == params.m_CubeMapFace)
         {
             // Same target: nothing to do. If a pass is already open on it we keep it open;
             // if not, the next Clear/DrawSetup will open it lazily.
@@ -4511,6 +4582,7 @@ bail:
         }
 
         context->m_CurrentRenderTarget = new_rt;
+        rt->m_Base.m_CubeMapFace       = params.m_CubeMapFace;
         context->m_ViewportChanged     = 1;
     }
 
@@ -4519,6 +4591,9 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         RenderTarget* brt      = &rt->m_Base;
+
+        // Queue the old framebuffers/views before replacing their attachment images.
+        DestroyRenderTarget(context, rt);
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
@@ -4545,7 +4620,8 @@ bail:
                     context->m_PhysicalDevice.m_Device,
                     context->m_LogicalDevice.m_Device,
                     width, height, 1,
-                    1, texture_color->m_Base.m_MipMapCount, vk_sample_count,
+                    brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1,
+                    texture_color->m_Base.m_MipMapCount, vk_sample_count,
                     texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL,
                     vk_usage_flags,
@@ -4629,7 +4705,6 @@ bail:
             depth_stencil_texture->m_Base.m_Height = height;
         }
 
-        DestroyRenderTarget(context, rt);
         VkResult res = CreateRenderTarget(context,
             brt->m_TextureColor,
             brt->m_TextureColorResolve,

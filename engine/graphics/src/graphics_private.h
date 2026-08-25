@@ -107,9 +107,11 @@ namespace dmGraphics
         HTexture      m_TextureStencil;
         HTexture      m_TextureDepthStencil;
         uint32_t      m_SampleCount;
+        TextureType   m_TextureType;
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
         uint8_t       m_IsBound;
+        CubeMapFace   m_CubeMapFace;
     };
 
     static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)

@@ -180,6 +180,8 @@ namespace dmGraphics
             // (which already specifies CLEAR for both). VK_NULL_HANDLE when no depth attachment.
             VkRenderPass  m_RenderPassClearColorDepth;
             VkFramebuffer m_Framebuffer;
+            VkFramebuffer m_CubeMapFramebuffers[CUBEMAP_FACE_COUNT - 1];
+            VkImageView   m_CubeMapAttachmentViews[CUBEMAP_FACE_COUNT][MAX_BUFFER_COLOR_ATTACHMENTS + 1];
             uint8_t       m_LastUsedFrame;
         };
 

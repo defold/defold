@@ -807,6 +807,57 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetSampleCount)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaCubeMapRenderTarget)
+{
+    const char* script =
+    "function update(self)\n"
+    "    self.rt = render.render_target({\n"
+    "        type = graphics.TEXTURE_TYPE_CUBE_MAP,\n"
+    "        [graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.TEXTURE_FORMAT_RGBA, width = 2, height = 2 }\n"
+    "    })\n"
+    "    render.set_render_target(self.rt, { face = graphics.CUBEMAP_FACE_NEGATIVE_Z })\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+    dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget) commands[0].m_Operands[0];
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP, dmGraphics::GetRenderTargetTextureType(m_Context->m_GraphicsContext, rt));
+    ASSERT_EQ(dmGraphics::CUBEMAP_FACE_NEGATIVE_Z, (dmGraphics::CubeMapFace) commands[0].m_Operands[2]);
+
+    dmGraphics::DeleteRenderTarget(m_Context->m_GraphicsContext, rt);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaCubeMapRenderTargetValidation)
+{
+    const char* script =
+    "function init(self)\n"
+    "    local ok = pcall(render.render_target, {\n"
+    "        type = graphics.TEXTURE_TYPE_CUBE_MAP,\n"
+    "        [graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.TEXTURE_FORMAT_RGBA, width = 2, height = 3 }\n"
+    "    })\n"
+    "    assert(not ok)\n"
+    "    local rt = render.render_target({\n"
+    "        [graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.TEXTURE_FORMAT_RGBA, width = 2, height = 3 }\n"
+    "    })\n"
+    "    ok = pcall(render.set_render_target, rt, { face = graphics.CUBEMAP_FACE_POSITIVE_Y })\n"
+    "    assert(not ok)\n"
+    "    render.delete_render_target(rt)\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTargetInvalidSampleCount)
 {
     const char* script =

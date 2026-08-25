@@ -144,6 +144,8 @@ namespace dmGraphics
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
         HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
+        WGPUTextureView m_CubeMapColorViews[CUBEMAP_FACE_COUNT][MAX_BUFFER_COLOR_ATTACHMENTS];
+        WGPUTextureView m_CubeMapDepthStencilViews[CUBEMAP_FACE_COUNT];
         float        m_Scissor[4];
         uint32_t     m_Width;
         uint32_t     m_Height;

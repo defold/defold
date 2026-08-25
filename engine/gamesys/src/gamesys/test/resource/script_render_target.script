@@ -37,6 +37,17 @@ local function test_get_info(self)
 	assert_attachment(info.attachments[3], resource.get_texture_info(info.attachments[3].handle))
 end
 
+local function test_get_cubemap_info(self)
+	local info = resource.get_render_target_info("/resource/render_target_cubemap.render_targetc")
+	assert(#info.attachments == 1)
+	assert(info.attachments[1].width == 16)
+	assert(info.attachments[1].height == 16)
+	assert(info.attachments[1].type == graphics.TEXTURE_TYPE_CUBE_MAP)
+	local texture_info = resource.get_texture_info(info.attachments[1].handle)
+	assert(texture_info.type == graphics.TEXTURE_TYPE_CUBE_MAP)
+	assert(texture_info.page_count == 6)
+end
+
 local function test_attachment_get_info(self)
 	local info = resource.get_render_target_info("/resource/render_target_valid.render_targetc")
 
@@ -57,5 +68,6 @@ end
 
 function init(self)
     test_get_info(self)
+    test_get_cubemap_info(self)
     test_attachment_get_info(self)
 end

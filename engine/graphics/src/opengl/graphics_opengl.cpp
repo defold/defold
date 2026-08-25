@@ -4417,9 +4417,9 @@ static void LogFrameBufferError(GLenum status)
         ClearTextureParamsData(params);
     }
 
-    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, HTexture texture, GLenum* attachment_targets, uint32_t num_attachment_targets)
+    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, HTexture texture, GLenum* attachment_targets, uint32_t num_attachment_targets, CubeMapFace cube_map_face)
     {
-        if (attachment.m_Attached)
+        if (attachment.m_Attached && attachment.m_Type != ATTACHMENT_TYPE_TEXTURE)
         {
             return;
         }
@@ -4436,9 +4436,10 @@ static void LogFrameBufferError(GLenum status)
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
             OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+            GLenum texture_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + cube_map_face : GL_TEXTURE_2D;
             for (int i = 0; i < num_attachment_targets; ++i)
             {
-                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
                 CHECK_GL_ERROR;
                 CHECK_GL_FRAMEBUFFER_ERROR;
             }
@@ -4458,7 +4459,7 @@ static void LogFrameBufferError(GLenum status)
                 SetTexture(_context, rt->m_Base.m_TextureColor[i], rt->m_Base.m_ColorTextureParams[i]);
 
                 GLenum attachments[] = { (GLenum) GL_COLOR_ATTACHMENT0 + i };
-                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             }
         }
 
@@ -4472,11 +4473,11 @@ static void LogFrameBufferError(GLenum status)
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
     #else
                 // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
     #endif
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4486,24 +4487,30 @@ static void LogFrameBufferError(GLenum status)
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
-                glBindTexture(GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
+                GLenum texture_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+                glBindTexture(texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
                 CHECK_GL_ERROR;
 
                  // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
-                glTexImage2D(GL_TEXTURE_2D, 0,
-                    DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
-                    rt->m_Base.m_DepthStencilTextureParams.m_Width,
-                    rt->m_Base.m_DepthStencilTextureParams.m_Height,
-                    0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
-                CHECK_GL_ERROR;
+                uint32_t face_count = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t face = 0; face < face_count; ++face)
+                {
+                    GLenum image_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + face : GL_TEXTURE_2D;
+                    glTexImage2D(image_target, 0,
+                        DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
+                        rt->m_Base.m_DepthStencilTextureParams.m_Width,
+                        rt->m_Base.m_DepthStencilTextureParams.m_Height,
+                        0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
+                    CHECK_GL_ERROR;
+                }
 
-                glBindTexture(GL_TEXTURE_2D, 0);
+                glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             #else
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             #endif
             }
             else
@@ -4520,7 +4527,7 @@ static void LogFrameBufferError(GLenum status)
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4529,7 +4536,7 @@ static void LogFrameBufferError(GLenum status)
                 SetTexture(_context, rt->m_Base.m_TextureDepth, rt->m_Base.m_DepthBufferParams);
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             }
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
@@ -4539,7 +4546,7 @@ static void LogFrameBufferError(GLenum status)
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4548,7 +4555,45 @@ static void LogFrameBufferError(GLenum status)
                 SetTexture(_context, rt->m_Base.m_TextureStencil, rt->m_Base.m_StencilBufferParams);
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
+            }
+        }
+    }
+
+    static void AttachCubeMapRenderTargetFace(OpenGLContext* context, OpenGLRenderTarget* rt, CubeMapFace face)
+    {
+        assert(rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP);
+        rt->m_Base.m_CubeMapFace = face;
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_ColorAttachments[i].m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
+                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], &attachment, 1, face);
+            }
+        }
+
+        if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+        {
+#ifdef GL_DEPTH_STENCIL_ATTACHMENT
+            GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
+#else
+            GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
+#endif
+            AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), face);
+        }
+        else
+        {
+            if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_DEPTH_ATTACHMENT;
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, &attachment, 1, face);
+            }
+            if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_STENCIL_ATTACHMENT;
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, &attachment, 1, face);
             }
         }
     }
@@ -4692,7 +4737,12 @@ static void LogFrameBufferError(GLenum status)
         rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
         rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = use_depth_attachment ? params.m_DepthBufferParams : params.m_StencilBufferParams;
-        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, OpenGLGetSupportedSampleCounts(context), "OpenGL");
+        // Cubemap MSAA needs separate multisample storage for each face in order
+        // to preserve attachment contents when a face is loaded again. Until the
+        // adapter owns those per-face surfaces, use the public fallback behavior.
+        uint32_t supported_sample_counts = params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? 1 : OpenGLGetSupportedSampleCounts(context);
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "OpenGL");
+        rt->m_Base.m_TextureType = params.m_TextureType;
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);
@@ -4892,7 +4942,7 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
     }
 
-    static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLRenderTarget* rt = 0;
@@ -4934,12 +4984,18 @@ static void LogFrameBufferError(GLenum status)
                 }
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
-            context->m_FrameBufferInvalidateBits = transient_buffer_types;
+            context->m_FrameBufferInvalidateBits = params.m_TransientBufferTypes;
 #if defined(DM_PLATFORM_IOS)
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
 #endif
+        }
+        if (rt && rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Base.m_SampleCount > 1 ? rt->m_ResolveId : rt->m_Id));
+            AttachCubeMapRenderTargetFace(context, rt, params.m_CubeMapFace);
+            CHECK_GL_FRAMEBUFFER_ERROR;
         }
         glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : GetGLHandle(context, rt->m_Id));
         CHECK_GL_ERROR;

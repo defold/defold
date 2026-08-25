@@ -76,7 +76,10 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_RENDER_TARGET:
                 {
-                    dmGraphics::SetRenderTarget(context, c->m_Operands[0], c->m_Operands[1]);
+                    dmGraphics::RenderTargetBindingParams params = {};
+                    params.m_TransientBufferTypes = c->m_Operands[1];
+                    params.m_CubeMapFace = (dmGraphics::CubeMapFace) c->m_Operands[2];
+                    dmGraphics::SetRenderTarget(context, c->m_Operands[0], params);
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:
