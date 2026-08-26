@@ -33,6 +33,7 @@ import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.gamesys.proto.ModelProto.Texture;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.RigScene;
 
 // for editing we use ModelDesc but in runtime Model
@@ -40,6 +41,18 @@ import com.dynamo.rig.proto.Rig.RigScene;
 @ProtoParams(srcClass = ModelDesc.class, messageClass = Model.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
+
+    private Task createSubTaskOutput(String inputPath, String field, Task.TaskBuilder taskBuilder,
+                                     int outputIndex) throws CompileExceptionError {
+        IResource inputResource = BuilderUtil.checkResource(project, taskBuilder.firstInput(), field, inputPath);
+        Task subTask = project.createTask(inputResource);
+        if (subTask == null || subTask.output(outputIndex) == null) {
+            throw new CompileExceptionError(inputResource, 0,
+                    String.format("Unsupported resource type for '%s': '%s'", field, inputResource.getPath()));
+        }
+        taskBuilder.addInput(subTask.output(outputIndex));
+        return subTask;
+    }
 
     private int resolveMeshIndex(ModelDesc.Builder modelDescBuilder, IResource modelResource) throws CompileExceptionError {
         String meshName = modelDescBuilder.getMeshName();
@@ -57,20 +70,15 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         }
 
         IResource sceneResource = BuilderUtil.checkResource(project, modelResource, "mesh", meshPath);
-        Modelimporter.Scene scene = null;
         try {
-            scene = ModelUtil.loadScene(sceneResource.getContent(), sceneResource.getPath(), new Modelimporter.Options(), new MeshsetBuilder.ResourceDataResolver(project));
+            IResource meshSetResource = sceneResource.changeExt(".meshsetc");
+            MeshSet meshSet = MeshSet.parseFrom(meshSetResource.getContent());
             int requestedMeshIndex = modelDescBuilder.hasMeshIndex() ? modelDescBuilder.getMeshIndex() : -1;
-            Modelimporter.Model selectedMesh = ModelUtil.resolveNamedMesh(scene, meshName, requestedMeshIndex);
-            return selectedMesh.index;
+            return ModelUtil.resolveNamedMesh(meshSet, meshName, requestedMeshIndex).getMeshIndex();
         } catch (IllegalArgumentException e) {
             throw new CompileExceptionError(sceneResource, 0, e.getMessage());
         } catch (IOException e) {
             throw new CompileExceptionError(sceneResource, 0, e.getMessage(), e);
-        } finally {
-            if (scene != null) {
-                ModelUtil.unloadScene(scene);
-            }
         }
     }
 
@@ -84,17 +92,17 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".rigscenec"));
 
-        createSubTask(modelDescBuilder.getMesh(), "mesh", taskBuilder);
-        if (!modelDescBuilder.getMeshName().isEmpty()) {
-            IResource sceneResource = BuilderUtil.checkResource(project, input, "mesh", modelDescBuilder.getMesh());
-            taskBuilder.addInput(sceneResource);
-        }
+        createSubTaskOutput(modelDescBuilder.getMesh(), "mesh", taskBuilder, 0);
 
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            createSubTask(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder);
+            String suffix = BuilderUtil.getSuffix(modelDescBuilder.getSkeleton()).toLowerCase();
+            createSubTaskOutput(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder,
+                    suffix.equals("gltf") || suffix.equals("glb") ? 1 : 0);
         }
         if((!modelDescBuilder.getAnimations().isEmpty())) {
-            createSubTask(modelDescBuilder.getAnimations(), "animations", taskBuilder);
+            String suffix = BuilderUtil.getSuffix(modelDescBuilder.getAnimations()).toLowerCase();
+            createSubTaskOutput(modelDescBuilder.getAnimations(), "animations", taskBuilder,
+                    suffix.equals("gltf") || suffix.equals("glb") ? 2 : 0);
         }
 
         if (modelDescBuilder.getMaterialsCount() > 0) {

@@ -162,7 +162,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testSelectedMeshSceneIsDirectTaskInput() throws Exception {
+    public void testSelectedMeshSceneIsInputOfMeshsetProducer() throws Exception {
         String namedGltf = GLTF.replace("\"meshes\":[{", "\"meshes\":[{\"name\":\"SelectedMesh\",");
         addFile("/selected_mesh.gltf", namedGltf);
         addFile("/selected.model",
@@ -170,9 +170,13 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
                 "mesh_name: \"SelectedMesh\"\n" +
                 "mesh_index: 0\n");
 
-        Task task = getProject().createTask(getProject().getResource("/selected.model"), ModelBuilder.class);
+        Task modelTask = getProject().createTask(getProject().getResource("/selected.model"), ModelBuilder.class);
+        Task meshsetTask = getProject().createTask(getProject().getResource("/selected_mesh.gltf"), MeshsetBuilder.class);
 
-        assertEquals(1, countInputs(task, "selected_mesh.gltf"));
+        assertEquals(1, countInputs(modelTask, "build/selected_mesh.meshsetc"));
+        assertEquals(0, countInputs(modelTask, "selected_mesh.gltf"));
+        assertEquals(2, modelTask.getInputs().size());
+        assertEquals(1, countInputs(meshsetTask, "selected_mesh.gltf"));
     }
 
     @Test(expected=CompileExceptionError.class)

@@ -176,6 +176,12 @@ public class ParseUtil {
                 return Rig.MeshSet.parseFrom(content);
             }
         });
+        parseMap.put("meshsetbuildc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Rig.UncompactedMeshSet.parseFrom(content);
+            }
+        });
         parseMap.put("animationsetc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
