@@ -56,6 +56,9 @@ namespace dmGameSystem
     /*# Collection factory status values
      * @enum
      * @name collectionfactory.STATUS
+     * @member collectionfactory.STATUS_LOADED The collection factory resources are loaded.
+     * @member collectionfactory.STATUS_LOADING The collection factory resources are loading.
+     * @member collectionfactory.STATUS_UNLOADED The collection factory resources are unloaded.
      */
 
     static int HashTableIndex(lua_State* L)
@@ -90,26 +93,6 @@ namespace dmGameSystem
      * @name collectionfactory.get_status
      * @param [url] [type:string|hash|url] the collection factory component to get status from
      * @return status [type:collectionfactory.STATUS] status of the collection factory component
-     *
-     * - `collectionfactory.STATUS_UNLOADED`
-     * - `collectionfactory.STATUS_LOADING`
-     * - `collectionfactory.STATUS_LOADED`
-     *
-     */
-    /*# unloaded
-     *
-     * @name collectionfactory.STATUS_UNLOADED
-     * @constant
-     */
-    /*# loading
-     *
-     * @name collectionfactory.STATUS_LOADING
-     * @constant
-     */
-    /*# loaded
-     *
-     * @name collectionfactory.STATUS_LOADED
-     * @constant
      */
     static int CollectionFactoryComp_GetStatus(lua_State* L)
     {

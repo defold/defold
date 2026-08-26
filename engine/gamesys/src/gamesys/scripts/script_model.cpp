@@ -51,6 +51,21 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Model animation playback properties
+     * @struct
+     * @name model.play_properties
+     * @member blend_duration? [type:number] duration of a linear blend from the current animation
+     * @member offset? [type:number] normalized initial animation cursor
+     * @member playback_rate? [type:number] positive animation playback rate
+     */
+
+    /*# Axis-aligned bounding box
+     * @struct
+     * @name model.aabb
+     * @member min [type:vector3] minimum local-space bounds
+     * @member max [type:vector3] maximum local-space bounds
+     */
+
     /*# [type:number] model cursor
      *
      * The normalized animation cursor. The type of the property is number.
@@ -255,19 +270,7 @@ namespace dmGameSystem
      * - `go.PLAYBACK_LOOP_BACKWARD`
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
-     * @param [play_properties] [type:{ blend_duration?:number, offset?:number, playback_rate?:number }] optional table with properties
-     *
-     * Play properties table:
-     *
-     * `blend_duration`
-     * : [type:number] Duration of a linear blend between the current and new animation.
-     *
-     * `offset`
-     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing.
-     *
-     * `playback_rate`
-     * : [type:number] The rate with which the animation will be played. Must be positive.
-     *
+     * @param [play_properties] [type:model.play_properties] optional playback properties
      * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.model.model_animation_done, sender:url)] function to call when the animation has completed.
      *
      * `self`
@@ -277,10 +280,7 @@ namespace dmGameSystem
      * : [type:hash] The name of the completion message, `"model_animation_done"`.
      *
      * `message`
-     * : [type:message.model.model_animation_done] Information about the completion:
-     *
-     * - [type:hash] `animation_id` - the animation that was completed.
-     * - [type:go.PLAYBACK] `playback` - the playback mode for the animation.
+     * : [type:message.model.model_animation_done] Information about the completion.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the model component.
@@ -604,11 +604,9 @@ namespace dmGameSystem
 
     /*# get the AABB of the whole model in local coordinate space
      * Get AABB of the whole model in local coordinate space.
-     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
-     *
      * @name model.get_aabb
      * @param url [type:string|hash|url] the model
-     * @return aabb [type:{ min:vector3, max:vector3 }] A table containing AABB of the model. If model has no meshes - return vmath.vector3(0,0,0) for min and max fields.
+     * @return aabb [type:model.aabb] model bounds; an empty model returns zero vectors
      * @examples
      *
      * ```lua
@@ -641,11 +639,9 @@ namespace dmGameSystem
 
     /*# get the AABB of all meshes
      * Get AABB of all meshes.
-     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
-     *
      * @name model.get_mesh_aabb
      * @param url [type:string|hash|url] the model
-     * @return aabb [type:table<hash, { min:vector3, max:vector3 }>] A table containing info about all AABB in the format <hash(mesh_id), aabb_info>
+     * @return aabb [type:table<hash, model.aabb>] mesh bounds keyed by mesh identifier
      * @examples
      *
      * ```lua

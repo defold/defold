@@ -1367,46 +1367,6 @@ namespace dmGameSystem
  * ```
  */
 
-/*# Distance joint type.
- * @name b2d.joint.JOINT_TYPE_DISTANCE
- * @constant
- */
-
-/*# Filter joint type.
- * @name b2d.joint.JOINT_TYPE_FILTER
- * @constant
- */
-
-/*# Motor joint type.
- * @name b2d.joint.JOINT_TYPE_MOTOR
- * @constant
- */
-
-/*# Mouse joint type.
- * @name b2d.joint.JOINT_TYPE_MOUSE
- * @constant
- */
-
-/*# Prismatic joint type.
- * @name b2d.joint.JOINT_TYPE_PRISMATIC
- * @constant
- */
-
-/*# Revolute joint type.
- * @name b2d.joint.JOINT_TYPE_REVOLUTE
- * @constant
- */
-
-/*# Weld joint type.
- * @name b2d.joint.JOINT_TYPE_WELD
- * @constant
- */
-
-/*# Wheel joint type.
- * @name b2d.joint.JOINT_TYPE_WHEEL
- * @constant
- */
-
 /*# Destroy a joint created by `b2d.joint`.
  * @name b2d.joint.destroy
  * @param joint [type: b2Joint] joint

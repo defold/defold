@@ -54,72 +54,176 @@ namespace dmGui
     /*# Adjust modes
      * @enum
      * @name gui.ADJUST
+     * @member gui.ADJUST_FIT fit adjust mode Adjust mode is used when the screen resolution differs from the project settings. The fit mode ensures that the entire node is visible in the adjusted gui scene.
+     * @member gui.ADJUST_STRETCH stretch adjust mode Adjust mode is used when the screen resolution differs from the project settings. The stretch mode ensures that the node is displayed as is in the adjusted gui scene, which might scale it non-uniformally.
+     * @member gui.ADJUST_ZOOM zoom adjust mode Adjust mode is used when the screen resolution differs from the project settings. The zoom mode ensures that the node fills its entire area and might make the node exceed it.
      */
 
     /*# Anchor modes
      * @enum
      * @name gui.ANCHOR
+     * @member gui.ANCHOR_BOTTOM bottom y-anchor
+     * @member gui.ANCHOR_LEFT left x-anchor
+     * @member gui.ANCHOR_NONE no anchor
+     * @member gui.ANCHOR_RIGHT right x-anchor
+     * @member gui.ANCHOR_TOP top y-anchor
      */
 
     /*# Blend modes
      * @enum
      * @name gui.BLEND
+     * @member gui.BLEND_ADD additive blending
+     * @member gui.BLEND_ADD_ALPHA additive alpha blending
+     * @member gui.BLEND_ALPHA alpha blending
+     * @member gui.BLEND_MULT multiply blending
+     * @member gui.BLEND_SCREEN screen blending
      */
 
     /*# Clipping modes
      * @enum
      * @name gui.CLIPPING_MODE
+     * @member gui.CLIPPING_MODE_NONE clipping mode none
+     * @member gui.CLIPPING_MODE_STENCIL clipping mode stencil
      */
 
     /*# Easing curves
      * @enum
      * @name gui.EASING
+     * @member gui.EASING_INBACK in-back
+     * @member gui.EASING_INBOUNCE in-bounce
+     * @member gui.EASING_INCIRC in-circlic
+     * @member gui.EASING_INCUBIC in-cubic
+     * @member gui.EASING_INELASTIC in-elastic
+     * @member gui.EASING_INEXPO in-exponential
+     * @member gui.EASING_INOUTBACK in-out-back
+     * @member gui.EASING_INOUTBOUNCE in-out-bounce
+     * @member gui.EASING_INOUTCIRC in-out-circlic
+     * @member gui.EASING_INOUTCUBIC in-out-cubic
+     * @member gui.EASING_INOUTELASTIC in-out-elastic
+     * @member gui.EASING_INOUTEXPO in-out-exponential
+     * @member gui.EASING_INOUTQUAD in-out-quadratic
+     * @member gui.EASING_INOUTQUART in-out-quartic
+     * @member gui.EASING_INOUTQUINT in-out-quintic
+     * @member gui.EASING_INOUTSINE in-out-sine
+     * @member gui.EASING_INQUAD in-quadratic
+     * @member gui.EASING_INQUART in-quartic
+     * @member gui.EASING_INQUINT in-quintic
+     * @member gui.EASING_INSINE in-sine
+     * @member gui.EASING_LINEAR linear interpolation
+     * @member gui.EASING_OUTBACK out-back
+     * @member gui.EASING_OUTBOUNCE out-bounce
+     * @member gui.EASING_OUTCIRC out-circlic
+     * @member gui.EASING_OUTCUBIC out-cubic
+     * @member gui.EASING_OUTELASTIC out-elastic
+     * @member gui.EASING_OUTEXPO out-exponential
+     * @member gui.EASING_OUTINBACK out-in-back
+     * @member gui.EASING_OUTINBOUNCE out-in-bounce
+     * @member gui.EASING_OUTINCIRC out-in-circlic
+     * @member gui.EASING_OUTINCUBIC out-in-cubic
+     * @member gui.EASING_OUTINELASTIC out-in-elastic
+     * @member gui.EASING_OUTINEXPO out-in-exponential
+     * @member gui.EASING_OUTINQUAD out-in-quadratic
+     * @member gui.EASING_OUTINQUART out-in-quartic
+     * @member gui.EASING_OUTINQUINT out-in-quintic
+     * @member gui.EASING_OUTINSINE out-in-sine
+     * @member gui.EASING_OUTQUAD out-quadratic
+     * @member gui.EASING_OUTQUART out-quartic
+     * @member gui.EASING_OUTQUINT out-quintic
+     * @member gui.EASING_OUTSINE out-sine
      */
 
     /*# Keyboard types
      * @enum
      * @name gui.KEYBOARD_TYPE
+     * @member gui.KEYBOARD_TYPE_DEFAULT default keyboard
+     * @member gui.KEYBOARD_TYPE_EMAIL email keyboard
+     * @member gui.KEYBOARD_TYPE_NUMBER_PAD number input keyboard
+     * @member gui.KEYBOARD_TYPE_PASSWORD password keyboard
      */
 
     /*# Pie bounds modes
      * @enum
      * @name gui.PIEBOUNDS
+     * @member gui.PIEBOUNDS_ELLIPSE elliptical pie node bounds
+     * @member gui.PIEBOUNDS_RECTANGLE rectangular pie node bounds
      */
 
     /*# Pivot modes
      * @enum
      * @name gui.PIVOT
+     * @member gui.PIVOT_CENTER center pivot
+     * @member gui.PIVOT_E east pivot
+     * @member gui.PIVOT_N north pivot
+     * @member gui.PIVOT_NE north-east pivot
+     * @member gui.PIVOT_NW north-west pivot
+     * @member gui.PIVOT_S south pivot
+     * @member gui.PIVOT_SE south-east pivot
+     * @member gui.PIVOT_SW south-west pivot
+     * @member gui.PIVOT_W west pivot
      */
 
     /*# Playback modes
      * @enum
      * @name gui.PLAYBACK
+     * @member gui.PLAYBACK_LOOP_BACKWARD loop backward
+     * @member gui.PLAYBACK_LOOP_FORWARD loop forward
+     * @member gui.PLAYBACK_LOOP_PINGPONG ping pong loop
+     * @member gui.PLAYBACK_ONCE_BACKWARD once backward
+     * @member gui.PLAYBACK_ONCE_FORWARD once forward
+     * @member gui.PLAYBACK_ONCE_PINGPONG once forward and then backward
      */
 
     /*# GUI property names
      * @enum
      * @name gui.PROP
+     * @member gui.PROP_COLOR color property
+     * @member gui.PROP_EULER euler property
+     * @member gui.PROP_FILL_ANGLE fill_angle property
+     * @member gui.PROP_INNER_RADIUS inner_radius property
+     * @member gui.PROP_LEADING leading property
+     * @member gui.PROP_OUTLINE outline color property
+     * @member gui.PROP_POSITION position property
+     * @member gui.PROP_ROTATION rotation property
+     * @member gui.PROP_SCALE scale property
+     * @member gui.PROP_SHADOW shadow color property
+     * @member gui.PROP_SIZE size property
+     * @member gui.PROP_SLICE9 slice9 property
+     * @member gui.PROP_TRACKING tracking property
      * @param value [type:string] property name
      */
 
     /*# GUI results
      * @enum
      * @name gui.RESULT
+     * @member gui.RESULT_DATA_ERROR data error The provided data is not in the expected format or is in some other way incorrect, for instance the image data provided to gui.new_texture().
+     * @member gui.RESULT_OUT_OF_RESOURCES out of resource The system is out of resources, for instance when trying to create a new texture using gui.new_texture().
+     * @member gui.RESULT_TEXTURE_ALREADY_EXISTS texture already exists The texture id already exists when trying to use gui.new_texture().
      */
 
     /*# Safe-area modes
      * @enum
      * @name gui.SAFE_AREA
+     * @member gui.SAFE_AREA_BOTH both sides safe area Safe area mode that applies insets on all edges.
+     * @member gui.SAFE_AREA_LONG long side safe area Safe area mode that applies insets only on the long edges.
+     * @member gui.SAFE_AREA_NONE no safe area Safe area mode that ignores safe area insets.
+     * @member gui.SAFE_AREA_SHORT short side safe area Safe area mode that applies insets only on the short edges.
      */
 
     /*# Size modes
      * @enum
      * @name gui.SIZE_MODE
+     * @member gui.SIZE_MODE_AUTO automatic size mode The size of the node is determined by the currently assigned texture.
+     * @member gui.SIZE_MODE_MANUAL manual size mode The size of the node is determined by the size set in the editor, the constructor or by gui.set_size()
      */
 
     /*# Node types
      * @enum
      * @name gui.TYPE
+     * @member gui.TYPE_BOX box type
+     * @member gui.TYPE_CUSTOM custom type
+     * @member gui.TYPE_PARTICLEFX particlefx type
+     * @member gui.TYPE_PIE pie type
+     * @member gui.TYPE_TEXT text type
      */
 
     /*# GUI node handle
@@ -139,6 +243,20 @@ namespace dmGui
      *
      * local marker = gui.new_box_node(vmath.vector3(100, 100, 0), vmath.vector3(16, 16, 0))
      * ```
+     */
+
+    /*# Generic GUI property options
+     * @struct
+     * @name gui.set_options
+     * @member index? [type:integer] One-based material-constant array index.
+     * @member key? [type:hash] Internal property name.
+     */
+
+    /*# GUI flipbook playback properties
+     * @struct
+     * @name gui.play_properties
+     * @member offset? [type:number] Normalized initial animation cursor.
+     * @member playback_rate? [type:number] Positive animation playback rate.
      */
 
     /*# [type:hash] gui material
@@ -669,13 +787,6 @@ namespace dmGui
      * @name gui.get_type
      * @param node [type:node] node from which to get the type
      * @return type [type:gui.TYPE] type
-     *
-     * - `gui.TYPE_BOX`
-     * - `gui.TYPE_TEXT`
-     * - `gui.TYPE_PIE`
-     * - `gui.TYPE_PARTICLEFX`
-     * - `gui.TYPE_CUSTOM`
-     *
      * @return subtype [type:number|nil] id of the custom type
      */
     static int LuaGetType(lua_State* L)
@@ -928,9 +1039,7 @@ namespace dmGui
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|gui.PROP] the property to set
      * @param value [type:number|vector4|vector3|quaternion|nil] the property to set. `nil` is only supported for removing runtime texture mappings with `gui.set(msg.url(), "textures", nil, {key = ...})`.
-     * @param [options] [type:{ index?:integer, key?:hash }] optional options table (only applicable for material constants)
-     * - `index` [type:integer] index into array property (1 based)
-     * - `key` [type:hash] name of internal property
+     * @param [options] [type:gui.set_options] optional material-constant options
      *
      * @examples
      *
@@ -1285,242 +1394,7 @@ namespace dmGui
         dmScript::DestroyCallback(cbk);
     }
 
-    /*# once forward
-     *
-     * @name gui.PLAYBACK_ONCE_FORWARD
-     * @constant
-     */
-    /*# once backward
-     *
-     * @name gui.PLAYBACK_ONCE_BACKWARD
-     * @constant
-     */
-    /*# once forward and then backward
-     *
-     * @name gui.PLAYBACK_ONCE_PINGPONG
-     * @constant
-     */
-    /*# loop forward
-     *
-     * @name gui.PLAYBACK_LOOP_FORWARD
-     * @constant
-     */
-    /*# loop backward
-     *
-     * @name gui.PLAYBACK_LOOP_BACKWARD
-     * @constant
-     */
-    /*# ping pong loop
-     *
-     * @name gui.PLAYBACK_LOOP_PINGPONG
-     * @constant
-     */
 
-    /*# linear interpolation
-     *
-     * @name gui.EASING_LINEAR
-     * @constant
-     */
-    /*# in-quadratic
-     *
-     * @name gui.EASING_INQUAD
-     * @constant
-     */
-    /*# out-quadratic
-     *
-     * @name gui.EASING_OUTQUAD
-     * @constant
-     */
-    /*# in-out-quadratic
-     *
-     * @name gui.EASING_INOUTQUAD
-     * @constant
-     */
-    /*# out-in-quadratic
-     *
-     * @name gui.EASING_OUTINQUAD
-     * @constant
-     */
-    /*# in-cubic
-     *
-     * @name gui.EASING_INCUBIC
-     * @constant
-     */
-    /*# out-cubic
-     *
-     * @name gui.EASING_OUTCUBIC
-     * @constant
-     */
-    /*# in-out-cubic
-     *
-     * @name gui.EASING_INOUTCUBIC
-     * @constant
-     */
-    /*# out-in-cubic
-     *
-     * @name gui.EASING_OUTINCUBIC
-     * @constant
-     */
-    /*# in-quartic
-     *
-     * @name gui.EASING_INQUART
-     * @constant
-     */
-    /*# out-quartic
-     *
-     * @name gui.EASING_OUTQUART
-     * @constant
-     */
-    /*# in-out-quartic
-     *
-     * @name gui.EASING_INOUTQUART
-     * @constant
-     */
-    /*# out-in-quartic
-     *
-     * @name gui.EASING_OUTINQUART
-     * @constant
-     */
-    /*# in-quintic
-     *
-     * @name gui.EASING_INQUINT
-     * @constant
-     */
-    /*# out-quintic
-     *
-     * @name gui.EASING_OUTQUINT
-     * @constant
-     */
-    /*# in-out-quintic
-     *
-     * @name gui.EASING_INOUTQUINT
-     * @constant
-     */
-    /*# out-in-quintic
-     *
-     * @name gui.EASING_OUTINQUINT
-     * @constant
-     */
-    /*# in-sine
-     *
-     * @name gui.EASING_INSINE
-     * @constant
-     */
-    /*# out-sine
-     *
-     * @name gui.EASING_OUTSINE
-     * @constant
-     */
-    /*# in-out-sine
-     *
-     * @name gui.EASING_INOUTSINE
-     * @constant
-     */
-    /*# out-in-sine
-     *
-     * @name gui.EASING_OUTINSINE
-     * @constant
-     */
-    /*# in-exponential
-     *
-     * @name gui.EASING_INEXPO
-     * @constant
-     */
-    /*# out-exponential
-     *
-     * @name gui.EASING_OUTEXPO
-     * @constant
-     */
-    /*# in-out-exponential
-     *
-     * @name gui.EASING_INOUTEXPO
-     * @constant
-     */
-    /*# out-in-exponential
-     *
-     * @name gui.EASING_OUTINEXPO
-     * @constant
-     */
-    /*# in-circlic
-     *
-     * @name gui.EASING_INCIRC
-     * @constant
-     */
-    /*# out-circlic
-     *
-     * @name gui.EASING_OUTCIRC
-     * @constant
-     */
-    /*# in-out-circlic
-     *
-     * @name gui.EASING_INOUTCIRC
-     * @constant
-     */
-    /*# out-in-circlic
-     *
-     * @name gui.EASING_OUTINCIRC
-     * @constant
-     */
-    /*# in-elastic
-     *
-     * @name gui.EASING_INELASTIC
-     * @constant
-     */
-    /*# out-elastic
-     *
-     * @name gui.EASING_OUTELASTIC
-     * @constant
-     */
-    /*# in-out-elastic
-     *
-     * @name gui.EASING_INOUTELASTIC
-     * @constant
-     */
-    /*# out-in-elastic
-     *
-     * @name gui.EASING_OUTINELASTIC
-     * @constant
-     */
-    /*# in-back
-     *
-     * @name gui.EASING_INBACK
-     * @constant
-     */
-    /*# out-back
-     *
-     * @name gui.EASING_OUTBACK
-     * @constant
-     */
-    /*# in-out-back
-     *
-     * @name gui.EASING_INOUTBACK
-     * @constant
-     */
-    /*# out-in-back
-     *
-     * @name gui.EASING_OUTINBACK
-     * @constant
-     */
-    /*# in-bounce
-     *
-     * @name gui.EASING_INBOUNCE
-     * @constant
-     */
-    /*# out-bounce
-     *
-     * @name gui.EASING_OUTBOUNCE
-     * @constant
-     */
-    /*# in-out-bounce
-     *
-     * @name gui.EASING_INOUTBOUNCE
-     * @constant
-     */
-    /*# out-in-bounce
-     *
-     * @name gui.EASING_OUTINBOUNCE
-     * @constant
-     */
 
     /*# animates a node property
      * This starts an animation of a node property according to the specified parameters.
@@ -1543,38 +1417,7 @@ namespace dmGui
      *
      * @name gui.animate
      * @param node [type:node] node to animate
-     * @param property [type:string|hash|gui.PROP] property to animate
-     *
-     * - `"position"`
-     * - `"rotation"`
-     * - `"euler"`
-     * - `"scale"`
-     * - `"color"`
-     * - `"outline"`
-     * - `"shadow"`
-     * - `"size"`
-     * - `"fill_angle"` (pie)
-     * - `"inner_radius"` (pie)
-     * - `"leading"` (text)
-     * - `"tracking"` (text)
-     * - `"slice9"` (slice9)
-     *
-     * The following property constants are defined equaling the corresponding property string names.
-     *
-     * - `gui.PROP_POSITION`
-     * - `gui.PROP_ROTATION`
-     * - `gui.PROP_EULER`
-     * - `gui.PROP_SCALE`
-     * - `gui.PROP_COLOR`
-     * - `gui.PROP_OUTLINE`
-     * - `gui.PROP_SHADOW`
-     * - `gui.PROP_SIZE`
-     * - `gui.PROP_FILL_ANGLE`
-     * - `gui.PROP_INNER_RADIUS`
-     * - `gui.PROP_LEADING`
-     * - `gui.PROP_TRACKING`
-     * - `gui.PROP_SLICE9`
-     *
+     * @param property [type:string|hash|gui.PROP] property to animate; each [type:gui.PROP] member equals its corresponding property name string
      * @param to [type:number|vector3|vector4|quaternion] target property value
      * @param easing [type:gui.EASING|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
@@ -1584,13 +1427,6 @@ namespace dmGui
      * @param [complete_function] [type:fun(self:script_instance, node:node)] function to call when the
      *      animation has completed
      * @param [playback] [type:gui.PLAYBACK] playback mode
-     *
-     * - `gui.PLAYBACK_ONCE_FORWARD`
-     * - `gui.PLAYBACK_ONCE_BACKWARD`
-     * - `gui.PLAYBACK_ONCE_PINGPONG`
-     * - `gui.PLAYBACK_LOOP_FORWARD`
-     * - `gui.PLAYBACK_LOOP_BACKWARD`
-     * - `gui.PLAYBACK_LOOP_PINGPONG`
      *
      * @examples
      *
@@ -1975,12 +1811,6 @@ namespace dmGui
      * @name gui.get_blend_mode
      * @param node [type:node] node from which to get the blend mode
      * @return blend_mode [type:gui.BLEND] blend mode
-     *
-     * - `gui.BLEND_ALPHA`
-     * - `gui.BLEND_ADD`
-     * - `gui.BLEND_ADD_ALPHA`
-     * - `gui.BLEND_MULT`
-     * - `gui.BLEND_SCREEN`
      */
     static int LuaGetBlendMode(lua_State* L)
     {
@@ -1996,12 +1826,6 @@ namespace dmGui
      * @name gui.set_blend_mode
      * @param node [type:node] node to set blend mode for
      * @param blend_mode [type:gui.BLEND] blend mode to set
-     *
-     * - `gui.BLEND_ALPHA`
-     * - `gui.BLEND_ADD`
-     * - `gui.BLEND_ADD_ALPHA`
-     * - `gui.BLEND_MULT`
-     * - `gui.BLEND_SCREEN`
      */
     static int LuaSetBlendMode(lua_State* L)
     {
@@ -2139,13 +1963,7 @@ namespace dmGui
      * `node`
      * :        [type:node] The node that is animated.
      *
-     * @param [play_properties] [type:{ offset?:number, playback_rate?:number }] optional table with properties
-     *
-     * `offset`
-     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing
-     *
-     * `playback_rate`
-     * : [type:number] The rate with which the animation will be played. Must be positive
+     * @param [play_properties] [type:gui.play_properties] optional playback properties
      *
      * @examples
      *
@@ -3420,10 +3238,7 @@ namespace dmGui
      *
      * @name gui.set_outer_bounds
      * @param node [type:node] node for which to set the outer bounds mode
-     * @param bounds_mode [type:gui.PIEBOUNDS] the outer bounds mode of the pie node:
-     *
-     * - `gui.PIEBOUNDS_RECTANGLE`
-     * - `gui.PIEBOUNDS_ELLIPSE`
+     * @param bounds_mode [type:gui.PIEBOUNDS] the outer bounds mode of the pie node
      */
     static int LuaSetOuterBounds(lua_State* L)
     {
@@ -3451,10 +3266,7 @@ namespace dmGui
      *
      * @name gui.get_outer_bounds
      * @param node [type:node] node from where to get the outer bounds mode
-     * @return bounds_mode [type:gui.PIEBOUNDS] the outer bounds mode of the pie node:
-     *
-     * - `gui.PIEBOUNDS_RECTANGLE`
-     * - `gui.PIEBOUNDS_ELLIPSE`
+     * @return bounds_mode [type:gui.PIEBOUNDS] the outer bounds mode of the pie node
      */
     static int LuaGetOuterBounds(lua_State* L)
     {
@@ -3695,10 +3507,6 @@ namespace dmGui
      * @name gui.get_adjust_mode
      * @param node [type:node] node from which to get the adjust mode (node)
      * @return adjust_mode [type:gui.ADJUST] the current adjust mode
-     *
-     * - `gui.ADJUST_FIT`
-     * - `gui.ADJUST_ZOOM`
-     * - `gui.ADJUST_STRETCH`
      */
     static int LuaGetAdjustMode(lua_State* L)
     {
@@ -3715,10 +3523,6 @@ namespace dmGui
      * @name gui.set_adjust_mode
      * @param node [type:node] node to set adjust mode for
      * @param adjust_mode [type:gui.ADJUST] adjust mode to set
-     *
-     * - `gui.ADJUST_FIT`
-     * - `gui.ADJUST_ZOOM`
-     * - `gui.ADJUST_STRETCH`
      */
     static int LuaSetAdjustMode(lua_State* L)
     {
@@ -3736,11 +3540,6 @@ namespace dmGui
      *
      * @name gui.set_safe_area_mode
      * @param mode [type:gui.SAFE_AREA] safe area mode
-     *
-     * - `gui.SAFE_AREA_NONE`
-     * - `gui.SAFE_AREA_LONG`
-     * - `gui.SAFE_AREA_SHORT`
-     * - `gui.SAFE_AREA_BOTH`
      */
     static int LuaSetSafeMode(lua_State* L)
     {
@@ -3769,9 +3568,6 @@ namespace dmGui
      * @name gui.get_size_mode
      * @param node [type:node] node from which to get the size mode (node)
      * @return size_mode [type:gui.SIZE_MODE] the current size mode
-     *
-     *   - `gui.SIZE_MODE_MANUAL`
-     *   - `gui.SIZE_MODE_AUTO`
      */
     static int LuaGetSizeMode(lua_State* L)
     {
@@ -3791,9 +3587,6 @@ namespace dmGui
      * @name gui.set_size_mode
      * @param node [type:node] node to set size mode for
      * @param size_mode [type:gui.SIZE_MODE] size mode to set
-     *
-     *   - `gui.SIZE_MODE_MANUAL`
-     *   - `gui.SIZE_MODE_AUTO`
      */
     static int LuaSetSizeMode(lua_State* L)
     {
@@ -4179,29 +3972,9 @@ namespace dmGui
         return 0;
     }
 
-    /*# default keyboard
-     *
-     * @name gui.KEYBOARD_TYPE_DEFAULT
-     * @constant
-     */
 
-    /*# number input keyboard
-     *
-     * @name gui.KEYBOARD_TYPE_NUMBER_PAD
-     * @constant
-     */
 
-    /*# email keyboard
-     *
-     * @name gui.KEYBOARD_TYPE_EMAIL
-     * @constant
-     */
 
-    /*# password keyboard
-     *
-     * @name gui.KEYBOARD_TYPE_PASSWORD
-     * @constant
-     */
 
     /*# shows the on-display keyboard if available [icon:ios] [icon:android]
      * Shows the on-display touch keyboard.
@@ -4212,11 +3985,6 @@ namespace dmGui
      *
      * @name gui.show_keyboard
      * @param type [type:gui.KEYBOARD_TYPE] keyboard type
-     *
-     * - `gui.KEYBOARD_TYPE_DEFAULT`
-     * - `gui.KEYBOARD_TYPE_EMAIL`
-     * - `gui.KEYBOARD_TYPE_NUMBER_PAD`
-     * - `gui.KEYBOARD_TYPE_PASSWORD`
      * @param autoclose [type:boolean] if the keyboard should automatically close when clicking outside
      */
     static int LuaShowKeyboard(lua_State* L)
@@ -4862,23 +4630,6 @@ namespace dmGui
      * @param node [type:node] node to play particle fx for
      * @param [emitter_state_function] [type:fun(self:script_instance, node:node|nil, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
      *
-     * `self`
-     * : [type:script_instance] The current script instance
-     *
-     * `node`
-     * : [type:node|nil] The particle fx node, or `nil` if the node was deleted
-     *
-     * `emitter`
-     * : [type:hash] The id of the emitter
-     *
-     * `state`
-     * : [type:particlefx.EMITTER_STATE] the new state of the emitter:
-     *
-     * - `particlefx.EMITTER_STATE_SLEEPING`
-     * - `particlefx.EMITTER_STATE_PRESPAWN`
-     * - `particlefx.EMITTER_STATE_SPAWNING`
-     * - `particlefx.EMITTER_STATE_POSTSPAWN`
-     *
      * @examples
      *
      * How to play a particle fx when a gui node is created.
@@ -4945,9 +4696,7 @@ namespace dmGui
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for
-     * @param [options] [type:{ clear?:boolean }] options when stopping the particle fx. Supported options:
-     *
-     * - [type:boolean] `clear`: instantly clear spawned particles
+     * @param [options] [type:particlefx.stop_options] options used when stopping the particle fx
      */
     static int LuaParticlefxStop(lua_State* L)
     {
@@ -5248,316 +4997,48 @@ namespace dmGui
 
 #undef REGGETSET
 
-    /*# position property
-     *
-     * @name gui.PROP_POSITION
-     * @constant
-     */
-
-    /*# rotation property
-     *
-     * @name gui.PROP_ROTATION
-     * @constant
-     */
-
-    /*# euler property
-     *
-     * @name gui.PROP_EULER
-     * @constant
-     */
-
-    /*# scale property
-     *
-     * @name gui.PROP_SCALE
-     * @constant
-     */
-
-    /*# color property
-     *
-     * @name gui.PROP_COLOR
-     * @constant
-     */
-
-    /*# outline color property
-     *
-     * @name gui.PROP_OUTLINE
-     * @constant
-     */
-
-    /*# shadow color property
-     *
-     * @name gui.PROP_SHADOW
-     * @constant
-     */
-
-    /*# size property
-     *
-     * @name gui.PROP_SIZE
-     * @constant
-     */
-
-    /*# fill_angle property
-     *
-     * @name gui.PROP_FILL_ANGLE
-     * @constant
-     */
-
-    /*# inner_radius property
-     *
-     * @name gui.PROP_INNER_RADIUS
-     * @constant
-     */
-
-    /*# leading property
-     *
-     * @name gui.PROP_LEADING
-     * @constant
-     */
-
-    /*# tracking property
-     *
-     * @name gui.PROP_TRACKING
-     * @constant
-     */
-
-    /*# slice9 property
-     *
-     * @name gui.PROP_SLICE9
-     * @constant
-     */
-
-    /*# alpha blending
-     *
-     * @name gui.BLEND_ALPHA
-     * @constant
-     */
-
-    /*# additive blending
-     *
-     * @name gui.BLEND_ADD
-     * @constant
-     */
-
-    /*# additive alpha blending
-     *
-     * @name gui.BLEND_ADD_ALPHA
-     * @constant
-     */
-
-    /*# multiply blending
-     *
-     * @name gui.BLEND_MULT
-     * @constant
-     */
-
-    /*# screen blending
-     *
-     * @name gui.BLEND_SCREEN
-     * @constant
-     */
-
-    /*# clipping mode none
-     *
-     * @name gui.CLIPPING_MODE_NONE
-     * @constant
-     */
-
-    /*# clipping mode stencil
-     *
-     * @name gui.CLIPPING_MODE_STENCIL
-     * @constant
-     */
-
-    /*# left x-anchor
-     *
-     * @name gui.ANCHOR_LEFT
-     * @constant
-     */
-
-    /*# right x-anchor
-     *
-     * @name gui.ANCHOR_RIGHT
-     * @constant
-     */
-
-    /*# top y-anchor
-     *
-     * @name gui.ANCHOR_TOP
-     * @constant
-     */
-
-    /*# bottom y-anchor
-     *
-     * @name gui.ANCHOR_BOTTOM
-     * @constant
-     */
-
-    /*# no anchor
-     *
-     * @name gui.ANCHOR_NONE
-     * @constant
-     */
-
-    /*# center pivot
-     *
-     * @name gui.PIVOT_CENTER
-     * @constant
-     */
-    /*# north pivot
-     *
-     * @name gui.PIVOT_N
-     * @constant
-     */
-    /*# north-east pivot
-     *
-     * @name gui.PIVOT_NE
-     * @constant
-     */
-    /*# east pivot
-     *
-     * @name gui.PIVOT_E
-     * @constant
-     */
-    /*# south-east pivot
-     *
-     * @name gui.PIVOT_SE
-     * @constant
-     */
-    /*# south pivot
-     *
-     * @name gui.PIVOT_S
-     * @constant
-     */
-    /*# south-west pivot
-     *
-     * @name gui.PIVOT_SW
-     * @constant
-     */
-    /*# west pivot
-     *
-     * @name gui.PIVOT_W
-     * @constant
-     */
-    /*# north-west pivot
-     *
-     * @name gui.PIVOT_NW
-     * @constant
-     */
-
-    /*# box type
-     *
-     * @name gui.TYPE_BOX
-     * @constant
-     */
-    /*# text type
-     *
-     * @name gui.TYPE_TEXT
-     * @constant
-     */
-    /*# pie type
-     *
-     * @name gui.TYPE_PIE
-     * @constant
-     */
-    /*# particlefx type
-     *
-     * @name gui.TYPE_PARTICLEFX
-     * @constant
-     */
-    /*# custom type
-     *
-     * @name gui.TYPE_CUSTOM
-     * @constant
-     */
-
-    /*# fit adjust mode
-     * Adjust mode is used when the screen resolution differs from the project settings.
-     * The fit mode ensures that the entire node is visible in the adjusted gui scene.
-     * @name gui.ADJUST_FIT
-     * @constant
-     */
-
-    /*# zoom adjust mode
-     * Adjust mode is used when the screen resolution differs from the project settings.
-     * The zoom mode ensures that the node fills its entire area and might make the node exceed it.
-     * @name gui.ADJUST_ZOOM
-     * @constant
-     */
-
-    /*# stretch adjust mode
-     * Adjust mode is used when the screen resolution differs from the project settings.
-     * The stretch mode ensures that the node is displayed as is in the adjusted gui scene, which might scale it non-uniformally.
-     * @name gui.ADJUST_STRETCH
-     * @constant
-     */
-
-    /*# no safe area
-     * Safe area mode that ignores safe area insets.
-     * @name gui.SAFE_AREA_NONE
-     * @constant
-     */
-
-    /*# long side safe area
-     * Safe area mode that applies insets only on the long edges.
-     * @name gui.SAFE_AREA_LONG
-     * @constant
-     */
-
-    /*# short side safe area
-     * Safe area mode that applies insets only on the short edges.
-     * @name gui.SAFE_AREA_SHORT
-     * @constant
-     */
-
-    /*# both sides safe area
-     * Safe area mode that applies insets on all edges.
-     * @name gui.SAFE_AREA_BOTH
-     * @constant
-     */
-
-    /*# elliptical pie node bounds
-     * @name gui.PIEBOUNDS_ELLIPSE
-     * @constant
-     */
-
-    /*# rectangular pie node bounds
-     * @name gui.PIEBOUNDS_RECTANGLE
-     * @constant
-     */
 
 
-    /*# manual size mode
-     * The size of the node is determined by the size set in the editor, the constructor or by gui.set_size()
-     * @name gui.SIZE_MODE_MANUAL
-     * @constant
-     */
-
-    /*# automatic size mode
-     * The size of the node is determined by the currently assigned texture.
-     * @name gui.SIZE_MODE_AUTO
-     * @constant
-     */
 
 
-    /*# texture already exists
-     * The texture id already exists when trying to use gui.new_texture().
-     * @name gui.RESULT_TEXTURE_ALREADY_EXISTS
-     * @constant
-     */
 
-    /*# out of resource
-     * The system is out of resources, for instance when trying to create a new
-     * texture using gui.new_texture().
-     * @name gui.RESULT_OUT_OF_RESOURCES
-     * @constant
-     */
 
-    /*# data error
-     * The provided data is not in the expected format or is in some other way
-     * incorrect, for instance the image data provided to gui.new_texture().
-     * @name gui.RESULT_DATA_ERROR
-     * @constant
-     */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
@@ -5912,68 +5393,10 @@ namespace dmGui
      * See the documentation of <a href="/ref/go/#acquire_input_focus">acquire_input_focus</a> for more
      * information.
      *
-     * The `action` parameter is a table containing data about the input mapped to the
-     * `action_id`.
-     * For mapped actions it specifies the value of the input and if it was just pressed or released.
-     * Actions are mapped to input in an input_binding-file.
-     *
-     * Mouse movement is specifically handled and uses `nil` as its `action_id`.
-     * The `action` only contains positional parameters in this case, such as x and y of the pointer.
-     *
-     * Here is a brief description of the available table fields:
-     *
-     *
-     * Field         | Description
-     * ------------- | ----------------------------------------------------------
-     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
-     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
-     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
-     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
-     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
-     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
-     * `text`        | Text input from a (virtual) keyboard or similar.
-     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
-     *
-     * Gamepad specific fields:
-     *
-     * Field             | Description
-     * ----------------- | ----------------------------------------------------------
-     * `gamepad`         | The index of the gamepad device that provided the input.
-     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
-     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
-     * `gamepad_name`    | Name of the gamepad
-     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
-     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
-     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
-     *
-     * Touch input table:
-     *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `id`        | A number identifying the touch input during its duration.
-     * `pressed`   | True if the finger was pressed this frame.
-     * `released`  | True if the finger was released this frame.
-     * `tap_count` | Number of taps, one for single, two for double-tap, etc
-     * `x`         | The x touch location.
-     * `y`         | The y touch location.
-     * `dx`        | The change in x value.
-     * `dy`        | The change in y value.
-     * `acc_x`     | Accelerometer x value (if present).
-     * `acc_y`     | Accelerometer y value (if present).
-     * `acc_z`     | Accelerometer z value (if present).
-     *
      * @name on_input
      * @param self [type:script_instance] script instance used for storing state
      * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
-     * @param action [type:on_input.action] input data, see above for a description
+     * @param action [type:on_input.action] input data for the action
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *

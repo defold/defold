@@ -692,104 +692,33 @@ namespace dmGameSystem
 /*# Collision object activation states
  * @enum
  * @name bullet3d.collision_object.ACTIVATION_STATE
- * @member ACTIVE_TAG
- * @member ISLAND_SLEEPING
- * @member WANTS_DEACTIVATION
- * @member DISABLE_DEACTIVATION
- * @member DISABLE_SIMULATION
+ * @member ACTIVE_TAG Active simulation state.
+ * @member ISLAND_SLEEPING Sleeping simulation state.
+ * @member WANTS_DEACTIVATION Wants-deactivation simulation state.
+ * @member DISABLE_DEACTIVATION Disable automatic deactivation.
+ * @member DISABLE_SIMULATION Disable simulation.
  */
 
 /*# Collision object flags
  * @enum
  * @name bullet3d.collision_object.COLLISION_FLAG
- * @member CF_STATIC_OBJECT
- * @member CF_KINEMATIC_OBJECT
- * @member CF_NO_CONTACT_RESPONSE
- * @member CF_CUSTOM_MATERIAL_CALLBACK
- * @member CF_CHARACTER_OBJECT
- * @member CF_DISABLE_VISUALIZE_OBJECT
- * @member CF_DISABLE_SPU_COLLISION_PROCESSING
+ * @member CF_STATIC_OBJECT Static collision object flag.
+ * @member CF_KINEMATIC_OBJECT Kinematic collision object flag.
+ * @member CF_NO_CONTACT_RESPONSE Disable contact response flag.
+ * @member CF_CUSTOM_MATERIAL_CALLBACK Custom material callback flag.
+ * @member CF_CHARACTER_OBJECT Character collision object flag.
+ * @member CF_DISABLE_VISUALIZE_OBJECT Disable debug visualization flag.
+ * @member CF_DISABLE_SPU_COLLISION_PROCESSING Disable SPU collision processing flag.
  */
 
 /*# Native collision object types
  * @enum
  * @name bullet3d.collision_object.INTERNAL_TYPE
- * @member CO_COLLISION_OBJECT
- * @member CO_RIGID_BODY
- * @member CO_GHOST_OBJECT
- * @member CO_SOFT_BODY
- * @member CO_HF_FLUID
- */
-
-/*# Active simulation state
- * @name bullet3d.collision_object.ACTIVE_TAG
- * @constant
- */
-/*# Sleeping simulation state
- * @name bullet3d.collision_object.ISLAND_SLEEPING
- * @constant
- */
-/*# Wants-deactivation simulation state
- * @name bullet3d.collision_object.WANTS_DEACTIVATION
- * @constant
- */
-/*# Disable automatic deactivation
- * @name bullet3d.collision_object.DISABLE_DEACTIVATION
- * @constant
- */
-/*# Disable simulation
- * @name bullet3d.collision_object.DISABLE_SIMULATION
- * @constant
- */
-
-/*# Static collision object flag
- * @name bullet3d.collision_object.CF_STATIC_OBJECT
- * @constant
- */
-/*# Kinematic collision object flag
- * @name bullet3d.collision_object.CF_KINEMATIC_OBJECT
- * @constant
- */
-/*# Disable contact response flag
- * @name bullet3d.collision_object.CF_NO_CONTACT_RESPONSE
- * @constant
- */
-/*# Custom material callback flag
- * @name bullet3d.collision_object.CF_CUSTOM_MATERIAL_CALLBACK
- * @constant
- */
-/*# Character collision object flag
- * @name bullet3d.collision_object.CF_CHARACTER_OBJECT
- * @constant
- */
-/*# Disable debug visualization flag
- * @name bullet3d.collision_object.CF_DISABLE_VISUALIZE_OBJECT
- * @constant
- */
-/*# Disable SPU collision processing flag
- * @name bullet3d.collision_object.CF_DISABLE_SPU_COLLISION_PROCESSING
- * @constant
- */
-
-/*# Generic collision object type
- * @name bullet3d.collision_object.CO_COLLISION_OBJECT
- * @constant
- */
-/*# Rigid body collision object type
- * @name bullet3d.collision_object.CO_RIGID_BODY
- * @constant
- */
-/*# Ghost collision object type
- * @name bullet3d.collision_object.CO_GHOST_OBJECT
- * @constant
- */
-/*# Soft body collision object type
- * @name bullet3d.collision_object.CO_SOFT_BODY
- * @constant
- */
-/*# Height-field fluid collision object type
- * @name bullet3d.collision_object.CO_HF_FLUID
- * @constant
+ * @member CO_COLLISION_OBJECT Generic collision object type.
+ * @member CO_RIGID_BODY Rigid body collision object type.
+ * @member CO_GHOST_OBJECT Ghost collision object type.
+ * @member CO_SOFT_BODY Soft body collision object type.
+ * @member CO_HF_FLUID Height-field fluid collision object type.
  */
 
 /*# Test whether a collision object handle is valid

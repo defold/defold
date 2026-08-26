@@ -109,6 +109,20 @@ foobar
         self.assertEqual(1, len(elements))
         self.assertEqual(u'<em>EMPHASIS</em>\n<ul>\n<li>MY_DESC</li>\n<li>MY_DESC</li>\n</ul>', elements[0].get("description"))
 
+    def test_member_markdown(self):
+        doc = """
+/*#
+ * MY_STRUCT
+ * @name my.struct
+ * @struct
+ * @member value [type:string] Use `code` formatting.
+ */
+"""
+        doc_msg = script_doc.parse_document(doc)
+        doc_dict = script_doc.message_to_json_dict(doc_msg)
+        member = doc_dict["elements"][0]["members"][0]
+        self.assertEqual("Use <code>code</code> formatting.", member["doc"])
+
     def test_json_format_version(self):
         doc_msg = script_doc.parse_document("""
 /*#

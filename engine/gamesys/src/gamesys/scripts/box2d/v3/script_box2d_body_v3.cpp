@@ -1227,29 +1227,10 @@ namespace dmGameSystem
  * ```
  */
 
-/*# Static (immovable) body
- *
- * @name b2d.body.B2_STATIC_BODY
- * @constant
- */
-/*# Kinematic body
- *
- * @name b2d.body.B2_KINEMATIC_BODY
- * @constant
- */
-/*# Dynamic body
- *
- * @name b2d.body.B2_DYNAMIC_BODY
- * @constant
- */
-
 /**
  * Creates a shape and attaches it to this body.
  * If the density is non-zero, this function automatically updates the mass of the body.
  * Contacts are not created until the next time step.
- * The definition may include `density`, `friction`, `restitution`, `material`,
- * `sensor` or `is_sensor`, `filter`, and the shape table itself. The shape table
- * can be in `definition.shape` or directly in `definition`.
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_shape
  * @param body [type: b2Body] body
@@ -1261,39 +1242,12 @@ namespace dmGameSystem
  * the ends of open chains. Ghost vertices are creation-time chain data only and
  * cannot be added to arbitrary shapes, bodies, or joints after creation.
  *
- * `definition.vertices`
- * : [type:vector3[]] array of local vertices. Open chains require at least 2 vertices. Loop chains require at least 4 vertices.
- *
- * `definition.loop`
- * : [type:boolean] true to create a closed loop chain.
- *
- * `definition.prev_vertex`
- * : [type:vector3] optional ghost vertex before the first vertex for open chains.
- *
- * `definition.next_vertex`
- * : [type:vector3] optional ghost vertex after the last vertex for open chains.
- *
- * `definition.friction`
- * : [type:number] optional friction.
- *
- * `definition.restitution`
- * : [type:number] optional restitution.
- *
- * `definition.material`
- * : [type:integer] optional material id.
- *
- * `definition.filter`
- * : [type:b2d.filter_options] optional filter with `category_bits`, `mask_bits`, and `group_index`.
- *
- * `definition.enable_sensor_events`
- * : [type:boolean] true to enable sensor events for chain segments.
- *
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_chain
  * @param body [type: b2Body] body
  * @param definition [type:b2d.chain_definition] the chain definition
  * @return chain [type: b2Chain] created chain handle
- * @return segments [type:b2d.shape_info[]] array of shape info tables for the chain segments
+ * @return segments [type:b2d.shape_info[]] created chain segments
  * @examples
  *
  * ```lua
@@ -1632,13 +1586,13 @@ namespace dmGameSystem
 /** Get the list of all shapes attached to this body.
  * @name b2d.body.get_shapes
  * @param body [type: b2Body] body
- * @return shapes [type:b2d.shape_info[]] a table of shape info entries. Each entry includes `shape_id` for use with `b2d.shape` functions.
+ * @return shapes [type:b2d.shape_info[]] attached shapes
  */
 
 /*# Get the joints attached to this body.
  * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return joints [type:b2Joint[]] array of `b2Joint` handles created by `b2d.joint`
+ * @return joints [type:b2Joint[]] joint handles created by [ref:b2d.joint]
  */
 
 /** Get the user data pointer that was provided in the body definition.
@@ -1731,5 +1685,5 @@ namespace dmGameSystem
 /*# Compute the world AABB of all body shapes.
  * @name b2d.body.compute_aabb
  * @param body [type: b2Body] body
- * @return aabb [type:b2d.aabb] table with `lower` and `upper` vector3 fields
+ * @return aabb [type:b2d.aabb] body bounds
  */

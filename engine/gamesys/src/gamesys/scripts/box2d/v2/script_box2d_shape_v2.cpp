@@ -254,6 +254,14 @@ namespace dmGameSystem
 /*# Box2D shape types.
  * @enum
  * @name b2d.shape.SHAPE_TYPE
+ * @member b2d.shape.SHAPE_TYPE_BOX Box shape type alias. Uses the polygon enum value, but indicates the `hx`/`hy` box convenience format.
+ * @member b2d.shape.SHAPE_TYPE_CAPSULE Capsule shape type.
+ * @member b2d.shape.SHAPE_TYPE_CHAIN Chain shape type.
+ * @member b2d.shape.SHAPE_TYPE_CIRCLE Circle shape type.
+ * @member b2d.shape.SHAPE_TYPE_EDGE Edge shape type alias. Compatibility alias for `b2d.shape.SHAPE_TYPE_SEGMENT`.
+ * @member b2d.shape.SHAPE_TYPE_GRID Grid shape type.
+ * @member b2d.shape.SHAPE_TYPE_POLYGON Polygon shape type.
+ * @member b2d.shape.SHAPE_TYPE_SEGMENT Segment shape type.
  */
 
 /*# Box2D shape definition.
@@ -292,35 +300,4 @@ namespace dmGameSystem
  *     angle = math.rad(15),
  * }
  * ```
- */
-
-/*# Circle shape type.
- * @name b2d.shape.SHAPE_TYPE_CIRCLE
- * @constant
- */
-
-/*# Edge shape type.
- * @name b2d.shape.SHAPE_TYPE_EDGE
- * @constant
- */
-
-/*# Polygon shape type.
- * @name b2d.shape.SHAPE_TYPE_POLYGON
- * @constant
- */
-
-/*# Box shape type alias.
- * Uses the polygon enum value, but indicates the `hx`/`hy` box convenience format.
- * @name b2d.shape.SHAPE_TYPE_BOX
- * @constant
- */
-
-/*# Chain shape type.
- * @name b2d.shape.SHAPE_TYPE_CHAIN
- * @constant
- */
-
-/*# Grid shape type.
- * @name b2d.shape.SHAPE_TYPE_GRID
- * @constant
  */

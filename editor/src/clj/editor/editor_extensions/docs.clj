@@ -420,23 +420,23 @@ editor.create_resources({
                        {:name "[args]"
                         :types ["any"]
                         :doc "View-specific open arguments; requires <code>view</code>. Currently supported by Code and Text views."}]}]
-        (e/mapcat
+        (e/map
           (fn [[enum-id enum-values]]
             (let [id (ui-docs/->screaming-snake-case enum-id)]
-              (eduction
-                cat
-                [[{:name (str "editor.ui." id)
-                   :type :enum
-                   :types ["string"]
-                   :description (str "Constants for "
-                                     (string/replace (name enum-id) \- \space)
-                                     " enums")}]
-                 (eduction
-                   (map (fn [enum-value]
-                          {:name (str "editor.ui." id "." (ui-docs/->screaming-snake-case enum-value))
-                           :type :constant
-                           :description (format "`\"%s\"`" (name enum-value))}))
-                   enum-values)])))
+              {:name (str "editor.ui." id)
+               :type :enum
+               :types ["string"]
+               :members (into []
+                              (map (fn [enum-value]
+                                     {:name (str "editor.ui."
+                                                 id
+                                                 "."
+                                                 (ui-docs/->screaming-snake-case enum-value))
+                                      :doc (format "`\"%s\"`" (name enum-value))}))
+                              enum-values)
+               :description (str "Constants for "
+                                 (string/replace (name enum-id) \- \space)
+                                 " enums")}))
           ui-docs/enums)
         (ui-docs/script-docs)
         (prefs-docs/script-docs)
@@ -1146,26 +1146,21 @@ zip.unpack(
          {:name "zip.METHOD"
           :type :enum
           :types ["string"]
+          :members [{:name "zip.METHOD.DEFLATED"
+                     :doc "<code>\"deflated\"</code> compression method"}
+                    {:name "zip.METHOD.STORED"
+                     :doc "<code>\"stored\"</code> compression method, i.e. no compression"}]
           :description "Constants for zip compression methods"}
-         {:name "zip.METHOD.DEFLATED"
-          :type :constant
-          :description "<code>\"deflated\"</code> compression method"}
-         {:name "zip.METHOD.STORED"
-          :type :constant
-          :description "<code>\"stored\"</code> compression method, i.e. no compression"}
          {:name "zip.ON_CONFLICT"
           :type :enum
           :types ["string"]
+          :members [{:name "zip.ON_CONFLICT.ERROR"
+                     :doc "`\"error\"`, any conflict aborts extraction"}
+                    {:name "zip.ON_CONFLICT.SKIP"
+                     :doc "`\"skip\"`, existing file is preserved"}
+                    {:name "zip.ON_CONFLICT.OVERWRITE"
+                     :doc "`\"overwrite\"`, existing file is overwritten"}]
           :description "Constants defining conflict resolution strategies for zip archive extraction"}
-         {:name "zip.ON_CONFLICT.ERROR"
-          :type :constant
-          :description "`\"error\"`, any conflict aborts extraction"}
-         {:name "zip.ON_CONFLICT.SKIP"
-          :type :constant
-          :description "`\"skip\"`, existing file is preserved"}
-         {:name "zip.ON_CONFLICT.OVERWRITE"
-          :type :constant
-          :description "`\"overwrite\"`, existing file is overwritten"}
          {:name "zlib"
           :type :module
           :description "Module for compressing and decompressing string buffers"}

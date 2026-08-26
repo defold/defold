@@ -690,15 +690,13 @@ namespace dmGameSystem
 /*# Get the segment shapes owned by a chain.
  * @name b2d.chain.get_segments
  * @param chain [type: b2Chain] chain
- * @return segments [type:b2d.shape_info[]] array of shape info tables for the chain segments. Each entry includes `shape_id`.
+ * @return segments [type:b2d.shape_info[]] chain segment shapes
  */
 
 /*# Get the chain geometry.
- * Returns a chain geometry table with `loop`, `segment_count`, and `vertices`.
- * Open chains also include `prev_vertex` and `next_vertex` ghost vertices.
  * @name b2d.chain.get_geometry
  * @param chain [type: b2Chain] chain
- * @return geometry [type:b2d.chain_geometry] chain geometry table
+ * @return geometry [type:b2d.chain_geometry] chain geometry
  */
 
 /*# Get the parent chain for a chain segment shape.

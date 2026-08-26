@@ -60,7 +60,6 @@
                     "function on_input(context, id, data)\n"
                     "end\n")]
     (is (= (str "---@param self script_instance\n"
-                "---@param params userdata\n"
                 "function init(self, params)\n"
                 "end\n\n"
                 "---@param self script_instance\n"

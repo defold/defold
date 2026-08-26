@@ -31,34 +31,15 @@ namespace dmRender
     /*# Orthographic projection modes
      * @enum
      * @name camera.ORTHO_MODE
+     * @member camera.ORTHO_MODE_AUTO_COVER auto-cover orthographic zoom mode Computes zoom so the original display area covers the entire window while preserving aspect ratio. Equivalent to using max(window_width/width, window_height/height). The result is multiplied by the user-controlled orthographic zoom.
+     * @member camera.ORTHO_MODE_AUTO_FIT auto-fit orthographic zoom mode Computes zoom so the original display area (game.project width/height) fits inside the window while preserving aspect ratio. Equivalent to using min(window_width/width, window_height/height). The result is multiplied by the user-controlled orthographic zoom.
+     * @member camera.ORTHO_MODE_FIXED fixed orthographic zoom mode Uses the manually set orthographic zoom value (camera.set_orthographic_zoom).
      */
 
     #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"
 
-    /*# fixed orthographic zoom mode
-     * Uses the manually set orthographic zoom value (camera.set_orthographic_zoom).
-     *
-     * @name camera.ORTHO_MODE_FIXED
-     * @constant
-     */
 
-    /*# auto-fit orthographic zoom mode
-     * Computes zoom so the original display area (game.project width/height) fits inside the window
-     * while preserving aspect ratio. Equivalent to using min(window_width/width, window_height/height).
-     * The result is multiplied by the user-controlled orthographic zoom.
-     *
-     * @name camera.ORTHO_MODE_AUTO_FIT
-     * @constant
-     */
 
-    /*# auto-cover orthographic zoom mode
-     * Computes zoom so the original display area covers the entire window while preserving aspect ratio.
-     * Equivalent to using max(window_width/width, window_height/height).
-     * The result is multiplied by the user-controlled orthographic zoom.
-     *
-     * @name camera.ORTHO_MODE_AUTO_COVER
-     * @constant
-     */
 
     struct RenderScriptCameraModule
     {

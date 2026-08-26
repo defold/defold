@@ -48,13 +48,16 @@ namespace dmGameSystem
      */
 
     /*# Tile transformations
+     * A transform is the arithmetic sum of one or both flip members and/or one
+     * rotation member. Flipping is applied before clockwise rotation.
+     *
      * @enum
      * @name tilemap.TRANSFORM
-     * @member tilemap.H_FLIP
-     * @member tilemap.ROTATE_180
-     * @member tilemap.ROTATE_270
-     * @member tilemap.ROTATE_90
-     * @member tilemap.V_FLIP
+     * @member tilemap.H_FLIP flip tile horizontally
+     * @member tilemap.ROTATE_180 rotate tile 180 degrees clockwise
+     * @member tilemap.ROTATE_270 rotate tile 270 degrees clockwise
+     * @member tilemap.ROTATE_90 rotate tile 90 degrees clockwise
+     * @member tilemap.V_FLIP flip tile vertically
      */
 
     /*# [type:hash] tile source
@@ -157,10 +160,6 @@ namespace dmGameSystem
      * The coordinates must be within the bounds of the tile map as it were created.
      * That is, it is not possible to extend the size of a tile map by setting tiles outside the edges.
      * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by the URL and the layer name parameters.
-     *
-     * Transform bitmask is arithmetic sum of one or both FLIP constants (`tilemap.H_FLIP`, `tilemap.V_FLIP`) and/or one of ROTATION constants
-     * (`tilemap.ROTATE_90`, `tilemap.ROTATE_180`, `tilemap.ROTATE_270`).
-     * Flip always applies before rotation (clockwise).
      *
      * @name tilemap.set_tile
      * @param url [type:string|hash|url] the tile map
@@ -611,31 +610,6 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    /*# flip tile horizontally
-     *
-     * @name tilemap.H_FLIP
-     * @constant
-     */
-    /*# flip tile vertically
-     *
-     * @name tilemap.V_FLIP
-     * @constant
-     */
-    /*# rotate tile 90 degrees clockwise
-     *
-     * @name tilemap.ROTATE_90
-     * @constant
-     */
-    /*# rotate tile 180 degrees clockwise
-     *
-     * @name tilemap.ROTATE_180
-     * @constant
-     */
-    /*# rotate tile 270 degrees clockwise
-     *
-     * @name tilemap.ROTATE_270
-     * @constant
-     */
 
     void ScriptTileMapRegister(const ScriptLibContext& context)
     {

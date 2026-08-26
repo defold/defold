@@ -45,16 +45,16 @@ namespace dmCrash
     /*# System crash fields
      * @enum
      * @name crash.SYSFIELD
-     * @member crash.SYSFIELD_ENGINE_VERSION
-     * @member crash.SYSFIELD_ENGINE_HASH
-     * @member crash.SYSFIELD_DEVICE_MODEL
-     * @member crash.SYSFIELD_MANUFACTURER
-     * @member crash.SYSFIELD_SYSTEM_NAME
-     * @member crash.SYSFIELD_SYSTEM_VERSION
-     * @member crash.SYSFIELD_LANGUAGE
-     * @member crash.SYSFIELD_DEVICE_LANGUAGE
-     * @member crash.SYSFIELD_TERRITORY
-     * @member crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT
+     * @member crash.SYSFIELD_ENGINE_VERSION engine version as release number
+     * @member crash.SYSFIELD_ENGINE_HASH engine version as hash
+     * @member crash.SYSFIELD_DEVICE_MODEL device model as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_MANUFACTURER device manufacturer as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_SYSTEM_NAME system name as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_SYSTEM_VERSION system version as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_LANGUAGE system language as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_DEVICE_LANGUAGE system device language as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_TERRITORY system territory as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT android build fingerprint
      */
 
     /*# User crash-field slot index
@@ -72,6 +72,13 @@ namespace dmCrash
      * crash.set_user_field(0, "level=forest")
      * crash.set_user_field(1, "checkpoint=3")
      * ```
+     */
+
+    /*# Loaded crash module
+     * @struct
+     * @name crash.module_info
+     * @member name [type:string] module name
+     * @member address [type:string] module load address
      */
 
     static HDump CheckHandle(lua_State* L, int index)
@@ -176,12 +183,9 @@ namespace dmCrash
 
     /*# get all loaded modules from when the crash occured
      *
-     * The function returns a table containing entries with sub-tables that
-     * have fields 'name' and 'address' set for all loaded modules.
-     *
      * @name crash.get_modules
      * @param handle [type:number] crash dump handle
-     * @return modules [type:{ name:string, address:string }[]] module table
+     * @return modules [type:crash.module_info[]] loaded modules
      */
     static int Crash_GetModules(lua_State* L)
     {
@@ -363,74 +367,24 @@ namespace dmCrash
             lua_pushnumber(L, (lua_Number) name); \
             lua_setfield(L, -2, #name);\
 
-        /*# engine version as release number
-         *
-         * @name crash.SYSFIELD_ENGINE_VERSION
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_ENGINE_VERSION);
 
-        /*# engine version as hash
-         *
-         * @name crash.SYSFIELD_ENGINE_HASH
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_ENGINE_HASH);
 
-        /*# device model as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_DEVICE_MODEL
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_DEVICE_MODEL);
 
-        /*# device manufacturer as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_MANUFACTURER
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_MANUFACTURER);
 
-        /*# system name as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_SYSTEM_NAME
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_SYSTEM_NAME);
 
-        /*# system version as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_SYSTEM_VERSION
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_SYSTEM_VERSION);
 
-        /*# system language as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_LANGUAGE
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_LANGUAGE);
 
-        /*# system device language as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_DEVICE_LANGUAGE
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_DEVICE_LANGUAGE);
 
-        /*# system territory as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_TERRITORY
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_TERRITORY);
 
-        /*# android build fingerprint
-         *
-         * @name crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_ANDROID_BUILD_FINGERPRINT);
 
         /*# The max number of sysfields.

@@ -54,11 +54,17 @@ namespace dmProfiler
 /*# Profiler modes
  * @enum
  * @name profiler.MODE
+ * @member profiler.MODE_PAUSE pause on the currently displayed frame
+ * @member profiler.MODE_RECORD record incoming frames to the recording buffer
+ * @member profiler.MODE_RUN continuously show the latest frame
+ * @member profiler.MODE_SHOW_PEAK_FRAME pause on the displayed frame, replacing it when a slower frame arrives
  */
 
 /*# Profiler view modes
  * @enum
  * @name profiler.VIEW_MODE
+ * @member profiler.VIEW_MODE_FULL show all profiler details
+ * @member profiler.VIEW_MODE_MINIMIZED show only the header with FPS counters and profiler mode
  */
 
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
@@ -499,11 +505,6 @@ static int EnableProfilerUI(lua_State* L)
  * @name profiler.set_ui_mode
  * @param mode [type:profiler.MODE] the mode to set the ui profiler in
  *
- * - `profiler.MODE_RUN` This is default mode that continously shows the last frame
- * - `profiler.MODE_PAUSE` Pauses on the currently displayed frame
- * - `profiler.MODE_SHOW_PEAK_FRAME` Pauses on the currently displayed frame but shows a new frame if that frame is slower
- * - `profiler.MODE_RECORD` Records all incoming frames to the recording buffer
- *
  * To stop recording, switch to a different mode such as `MODE_PAUSE` or `MODE_RUN`.
  * You can also use the `view_recorded_frame` function to display a recorded frame. Doing so stops the recording as well.
  *
@@ -541,10 +542,6 @@ static int SetProfileUIMode(lua_State* L)
  *
  * @name profiler.set_ui_view_mode
  * @param mode [type:profiler.VIEW_MODE] the view mode to set the ui profiler in
- *
- * - `profiler.VIEW_MODE_FULL` The default mode which displays all the ui profiler details
- * - `profiler.VIEW_MODE_MINIMIZED` Minimized mode which only shows the top header (fps counters and ui profiler mode)
- *
  *
  * @examples
  * ```lua
@@ -812,36 +809,6 @@ static int ProfilerScopeEnd(lua_State* L)
 }
 
 
-/*# continously show latest frame
-*
-* @name profiler.MODE_RUN
-* @constant
-*/
-/*# pause on current frame
-*
-* @name profiler.MODE_PAUSE
-* @constant
-*/
-/*# pause at peak frame
-*
-* @name profiler.MODE_SHOW_PEAK_FRAME
-* @constant
-*/
-/*# start recording
-*
-* @name profiler.MODE_RECORD
-* @constant
-*/
-/*# show full profiler ui
-*
-* @name profiler.VIEW_MODE_FULL
-* @constant
-*/
-/*# show mimimal profiler ui
-*
-* @name profiler.VIEW_MODE_MINIMIZED
-* @constant
-*/
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1392,87 +1392,44 @@ namespace dmGameSystem
 /*# Box2D joint types.
  * @enum
  * @name b2d.joint.JOINT_TYPE
+ * @member b2d.joint.JOINT_TYPE_DISTANCE Distance joint type.
+ * @member b2d.joint.JOINT_TYPE_FILTER Filter joint type.
+ * @member b2d.joint.JOINT_TYPE_FRICTION Friction joint type.
+ * @member b2d.joint.JOINT_TYPE_GEAR Gear joint type.
+ * @member b2d.joint.JOINT_TYPE_MOTOR Motor joint type.
+ * @member b2d.joint.JOINT_TYPE_MOUSE Mouse joint type.
+ * @member b2d.joint.JOINT_TYPE_PRISMATIC Prismatic joint type.
+ * @member b2d.joint.JOINT_TYPE_PULLEY Pulley joint type.
+ * @member b2d.joint.JOINT_TYPE_REVOLUTE Revolute joint type.
+ * @member b2d.joint.JOINT_TYPE_ROPE Rope joint type.
+ * @member b2d.joint.JOINT_TYPE_UNKNOWN Unknown joint type.
+ * @member b2d.joint.JOINT_TYPE_WELD Weld joint type.
+ * @member b2d.joint.JOINT_TYPE_WHEEL Wheel joint type.
  */
 
 /*# Box2D joint limit states.
  * @enum
  * @name b2d.joint.LIMIT_STATE
+ * @member b2d.joint.LIMIT_STATE_AT_LOWER At lower limit state.
+ * @member b2d.joint.LIMIT_STATE_AT_UPPER At upper limit state.
+ * @member b2d.joint.LIMIT_STATE_EQUAL Equal limits state.
+ * @member b2d.joint.LIMIT_STATE_INACTIVE Inactive limit state.
  */
 
-/*# Unknown joint type.
- * @name b2d.joint.JOINT_TYPE_UNKNOWN
- * @constant
- */
 
-/*# Revolute joint type.
- * @name b2d.joint.JOINT_TYPE_REVOLUTE
- * @constant
- */
 
-/*# Prismatic joint type.
- * @name b2d.joint.JOINT_TYPE_PRISMATIC
- * @constant
- */
 
-/*# Distance joint type.
- * @name b2d.joint.JOINT_TYPE_DISTANCE
- * @constant
- */
 
-/*# Pulley joint type.
- * @name b2d.joint.JOINT_TYPE_PULLEY
- * @constant
- */
 
-/*# Mouse joint type.
- * @name b2d.joint.JOINT_TYPE_MOUSE
- * @constant
- */
 
-/*# Gear joint type.
- * @name b2d.joint.JOINT_TYPE_GEAR
- * @constant
- */
 
-/*# Wheel joint type.
- * @name b2d.joint.JOINT_TYPE_WHEEL
- * @constant
- */
 
-/*# Weld joint type.
- * @name b2d.joint.JOINT_TYPE_WELD
- * @constant
- */
 
-/*# Friction joint type.
- * @name b2d.joint.JOINT_TYPE_FRICTION
- * @constant
- */
 
-/*# Rope joint type.
- * @name b2d.joint.JOINT_TYPE_ROPE
- * @constant
- */
 
-/*# Inactive limit state.
- * @name b2d.joint.LIMIT_STATE_INACTIVE
- * @constant
- */
 
-/*# At lower limit state.
- * @name b2d.joint.LIMIT_STATE_AT_LOWER
- * @constant
- */
 
-/*# At upper limit state.
- * @name b2d.joint.LIMIT_STATE_AT_UPPER
- * @constant
- */
 
-/*# Equal limits state.
- * @name b2d.joint.LIMIT_STATE_EQUAL
- * @constant
- */
 
 /*# Destroy a joint created by `b2d.joint`.
  * @name b2d.joint.destroy

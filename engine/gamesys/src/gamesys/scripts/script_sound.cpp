@@ -57,6 +57,23 @@ namespace dmGameSystem
      * @member play_id [type:number] The sequential play identifier for the playback.
      */
 
+    /*# Sound playback properties
+     * @struct
+     * @name sound.play_properties
+     * @member delay? [type:number] Delay in seconds before playback starts. The default is 0.
+     * @member gain? [type:number] Gain from 0 to 1. The default is 1; this combines with the group and master gains.
+     * @member pan? [type:number] Pan from -1 to 1. The default is 0; this is added to the component pan.
+     * @member speed? [type:number] Playback speed from 0 to 50. The default is 1; this is multiplied by the component speed.
+     * @member start_time? [type:number] Playback offset in seconds. Mutually exclusive with `start_frame`.
+     * @member start_frame? [type:number] Playback offset in frames or samples. Takes precedence over `start_time`.
+     */
+
+    /*# Sound stop properties
+     * @struct
+     * @name sound.stop_properties
+     * @member play_id [type:number] Sequential playback identifier returned by [ref:sound.play].
+     */
+
 
     /*# [type:number] sound gain
      *
@@ -438,25 +455,7 @@ namespace dmGameSystem
      *
      * @name sound.play
      * @param url [type:string|hash|url] the sound that should play
-     * @param [play_properties] [type:{ delay?:number, gain?:number, pan?:number, speed?:number, start_time?:number, start_frame?:number }] optional table with properties:
-     * `delay`
-     * : [type:number] delay in seconds before the sound starts playing, default is 0.
-     *
-     * `gain`
-     * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
-     *
-     * `pan`
-     * : [type:number] sound pan between -1 and 1, default is 0. The final pan of the sound will be an addition of this pan and the sound pan.
-     *
-     * `speed`
-     * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. Valid range is 0.0 to 50.0. The final speed of the sound will be a multiplication of this speed and the sound speed.
-
-     * `start_time`
-     * : [type:number] start playback offset (seconds). Optional, mutually exclusive with `start_frame`.
-
-     * `start_frame`
-     * : [type:number] start playback offset (frames/samples). Optional, mutually exclusive with `start_time`. If both are provided, `start_frame` is used.
-     *
+     * @param [play_properties] [type:sound.play_properties] optional playback properties
      * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:sound.play_completion, sender:url)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
      * `self`
@@ -588,9 +587,7 @@ namespace dmGameSystem
      *
      * @name sound.stop
      * @param url [type:string|hash|url] the sound component that should stop
-     * @param [stop_properties] [type:{ play_id:number }] optional table with properties:
-     * `play_id`
-     * : [type:number] the sequential play identifier that should be stopped (was given by the sound.play() function)
+     * @param [stop_properties] [type:sound.stop_properties] optional playback to stop
      *
      * @examples
      *

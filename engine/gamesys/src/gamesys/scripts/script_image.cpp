@@ -46,34 +46,50 @@ namespace dmGameSystem
     /*# Image types
      * @enum
      * @name image.TYPE
+     * @member image.TYPE_RGB RGB image type.
+     * @member image.TYPE_RGBA RGBA image type.
+     * @member image.TYPE_LUMINANCE Luminance image type.
+     * @member image.TYPE_LUMINANCE_ALPHA Luminance-alpha image type.
      * @param value [type:string] image type
      */
 
+    /*# Image loading options
+     * @struct
+     * @name image.load_options
+     * @member premultiply_alpha? [type:boolean] Whether to premultiply alpha into the color components. Defaults to `false`.
+     * @member flip_vertically? [type:boolean] Whether to flip the image contents vertically. Defaults to `false`.
+     */
+
+    /*# Loaded string image data
+     * @struct
+     * @name image.load_result
+     * @member width [type:integer] Image width.
+     * @member height [type:integer] Image height.
+     * @member type [type:image.TYPE] Image type.
+     * @member buffer [type:string] Raw image data.
+     */
+
+    /*# Loaded buffer image data
+     * @struct
+     * @name image.load_buffer_result
+     * @member width [type:integer] Image width.
+     * @member height [type:integer] Image height.
+     * @member type [type:image.TYPE] Image type.
+     * @member buffer [type:buffer_data] Script buffer containing the decompressed image data.
+     */
+
+    /*# ASTC image header
+     * @struct
+     * @name image.astc_header
+     * @member width [type:integer] Image width.
+     * @member height [type:integer] Image height.
+     * @member depth [type:integer] Image depth.
+     * @member block_size_x [type:integer] Block size on the x-axis.
+     * @member block_size_y [type:integer] Block size on the y-axis.
+     * @member block_size_z [type:integer] Block size on the z-axis.
+     */
+
     #define LIB_NAME "image"
-
-    /*# RGB image type
-     *
-     * @name image.TYPE_RGB
-     * @constant
-     */
-
-    /*# RGBA image type
-     *
-     * @name image.TYPE_RGBA
-     * @constant
-     */
-
-    /*# luminance image type
-     *
-     * @name image.TYPE_LUMINANCE
-     * @constant
-     */
-
-    /*# luminance-alpha image type
-     *
-     * @name image.TYPE_LUMINANCE_ALPHA
-     * @constant
-     */
 
     static void PushImageParameters(lua_State* L, dmImage::Image image)
     {
@@ -110,24 +126,8 @@ namespace dmGameSystem
     *
     * @name image.load
     * @param buffer [type:string] image data buffer
-    * @param [options] [type:boolean|{ premultiply_alpha?:boolean, flip_vertically?:boolean }] Optional loading parameters. A boolean is accepted for backwards compatibility and controls `premultiply_alpha`.
-    *
-    * `premultiply_alpha`
-    * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.
-    *
-    * `flip_vertically`
-    * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
-    *
-    * @return image [type:{ width:number, height:number, type:image.TYPE, buffer:string }|nil] object or `nil` if loading fails. The object is a table with the following fields:
-    *
-    * - [type:number] `width`: image width
-    * - [type:number] `height`: image height
-    * - [type:image.TYPE] `type`: image type
-    *     - `image.TYPE_RGB`
-    *     - `image.TYPE_RGBA`
-    *     - `image.TYPE_LUMINANCE`
-    *     - `image.TYPE_LUMINANCE_ALPHA`
-    * - [type:string] `buffer`: the raw image data
+    * @param [options] [type:boolean|image.load_options] Optional loading parameters. A boolean is accepted for backwards compatibility and controls `premultiply_alpha`.
+    * @return image [type:image.load_result|nil] loaded image, or `nil` if loading fails
     *
     * @examples
     *
@@ -212,24 +212,8 @@ namespace dmGameSystem
     *
     * @name image.load_buffer
     * @param buffer [type:string] image data buffer
-    * @param [options] [type:boolean|{ premultiply_alpha?:boolean, flip_vertically?:boolean }] Optional loading parameters. A boolean is accepted for backwards compatibility and controls `premultiply_alpha`.
-    *
-    * `premultiply_alpha`
-    * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.
-    *
-    * `flip_vertically`
-    * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
-    *
-    * @return image [type:{ width:number, height:number, type:image.TYPE, buffer:buffer_data }|nil] object or `nil` if loading fails. The object is a table with the following fields:
-    *
-    * - [type:number] `width`: image width
-    * - [type:number] `height`: image height
-    * - [type:image.TYPE] `type`: image type
-    *     - `image.TYPE_RGB`
-    *     - `image.TYPE_RGBA`
-    *     - `image.TYPE_LUMINANCE`
-    *     - `image.TYPE_LUMINANCE_ALPHA`
-    * - [type:buffer_data] `buffer`: the script buffer that holds the decompressed image data. See [ref:buffer.create] how to use the buffer.
+    * @param [options] [type:boolean|image.load_options] Optional loading parameters. A boolean is accepted for backwards compatibility and controls `premultiply_alpha`.
+    * @return image [type:image.load_buffer_result|nil] loaded image, or `nil` if loading fails
     *
     * @examples
     *
@@ -342,15 +326,7 @@ namespace dmGameSystem
     *
     * @name image.get_astc_header
     * @param buffer [type:string] .astc file data buffer
-    *
-    * @return table [type:{ width:number, height:number, depth:number, block_size_x:number, block_size_y:number, block_size_z:number }|nil] header or `nil` if buffer is not a valid .astc. The header has these fields:
-    *
-    * - [type:number] `width`: image width
-    * - [type:number] `height`: image height
-    * - [type:number] `depth`: image depth
-    * - [type:number] `block_size_x`: block size x
-    * - [type:number] `block_size_y`: block size y
-    * - [type:number] `block_size_z`: block size z
+    * @return header [type:image.astc_header|nil] header, or `nil` if the buffer is not a valid ASTC image
     *
     * @examples
     *

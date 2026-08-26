@@ -186,11 +186,39 @@ namespace dmGameSystem
     /*# Joint types
      * @enum
      * @name physics.JOINT_TYPE
+     * @member physics.JOINT_TYPE_FIXED Fixed joint; uses `max_length` from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_HINGE Hinge joint; uses the angular-limit and motor fields from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_SLIDER Slider joint; uses the translation-limit and motor fields from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_SPRING Spring joint; uses `length`, `frequency`, and `damping` from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_WELD Weld joint; uses `reference_angle`, `frequency`, and `damping` from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_WHEEL Wheel joint; uses the axis, motor, frequency, and damping fields from [ref:physics.joint_properties].
      */
 
     /*# Shape types
      * @enum
      * @name physics.SHAPE_TYPE
+     * @member physics.SHAPE_TYPE_BOX Box shape.
+     * @member physics.SHAPE_TYPE_CAPSULE Capsule shape; supported only by 3D physics.
+     * @member physics.SHAPE_TYPE_HULL Convex hull shape.
+     * @member physics.SHAPE_TYPE_SPHERE Sphere shape.
+     */
+
+    /*# Ray-cast options
+     * @struct
+     * @name physics.raycast_options
+     * @member all? [type:boolean] Return every hit instead of only the closest hit.
+     */
+
+    /*# Collision shape data
+     *
+     * The available geometry fields depend on `type`.
+     *
+     * @struct
+     * @name physics.shape_data
+     * @member type [type:physics.SHAPE_TYPE] shape type
+     * @member diameter? [type:number] sphere diameter or capsule pole diameter
+     * @member dimensions? [type:vector3] box dimensions
+     * @member height? [type:number] capsule height
      */
 
     /*# Physics world event
@@ -201,94 +229,6 @@ namespace dmGameSystem
      * @typedef
      * @name physics.event
      * @param value [type:message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed] physics event data
-     */
-
-    /*# spring joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:
-     * @param length [type:number] The natural length between the anchor points.
-     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. A value of 0 disables softness.
-     * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
-     *
-     * @name physics.JOINT_TYPE_SPRING
-     * @constant
-     */
-
-    /*# fixed joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_FIXED` type:
-     * @param max_length [type:number] The maximum length of the rope.
-     *
-     * @name physics.JOINT_TYPE_FIXED
-     * @constant
-     */
-
-    /*# hinge joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_HINGE` type:
-     * @param reference_angle [type:number] The bodyB angle minus bodyA angle in the reference state (radians).
-     * @param lower_angle [type:number] The lower angle for the joint limit (radians).
-     * @param upper_angle [type:number] The upper angle for the joint limit (radians).
-     * @param max_motor_torque [type:number] The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
-     * @param motor_speed [type:number] The desired motor speed. Usually in radians per second.
-     * @param enable_limit [type:boolean] A flag to enable joint limits.
-     * @param enable_motor [type:boolean] A flag to enable the joint motor.
-     * @param joint_angle [type:number] [mark:READ ONLY]Current joint angle in radians.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     * @param joint_speed [type:number] [mark:READ ONLY]Current joint angle speed in radians per second.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     *
-     * @name physics.JOINT_TYPE_HINGE
-     * @constant
-     */
-
-    /*# slider joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_SLIDER` type:
-     * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.
-     * @param reference_angle [type:number] The constrained angle between the bodies: bodyB_angle - bodyA_angle.
-     * @param enable_limit [type:boolean] Enable/disable the joint limit.
-     * @param lower_translation [type:number] The lower translation limit, usually in meters.
-     * @param upper_translation [type:number] The upper translation limit, usually in meters.
-     * @param enable_motor [type:boolean] Enable/disable the joint motor.
-     * @param max_motor_force [type:number] The maximum motor torque, usually in N-m.
-     * @param motor_speed [type:number] The desired motor speed in radians per second.
-     * @param joint_translation [type:number] [mark:READ ONLY]Current joint translation, usually in meters.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     * @param joint_speed [type:number] [mark:READ ONLY]Current joint translation speed, usually in meters per second.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     *
-     * @name physics.JOINT_TYPE_SLIDER
-     * @constant
-     */
-
-    /*# weld joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_WELD` type:
-     * @param reference_angle [type:number] [mark:READ ONLY]The bodyB angle minus bodyA angle in the reference state (radians).
-     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. Rotation only. Disable softness with a value of 0.
-     * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
-     *
-     * @name physics.JOINT_TYPE_WELD
-     * @constant
-     */
-
-    /*# wheel joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_WHEEL` type:
-     * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.
-     * @param max_motor_torque [type:number] The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
-     * @param motor_speed [type:number] The desired motor speed in radians per second.
-     * @param enable_motor [type:boolean] Enable/disable the joint motor.
-     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. Rotation only. Disable softness with a value of 0.
-     * @param damping [type:number] The spring damping ratio. 0 = no damping, 1 = critical damping.
-     * @param joint_translation [type:number] [mark:READ ONLY]Current joint translation, usually in meters.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     * @param joint_speed [type:number] [mark:READ ONLY]Current joint translation speed, usually in meters per second.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     *
-     * @name physics.JOINT_TYPE_WHEEL
-     * @constant
      */
 
     struct PhysicsScriptContext
@@ -546,11 +486,7 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:hash[]] a lua table containing the hashed groups for which to test collisions against
-     * @param [options] [type:{ all?:boolean }] a lua table containing options for the raycast.
-     *
-     * `all`
-     * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
-     *
+     * @param [options] [type:physics.raycast_options] optional ray-cast options
      * @return result [type:message.physics.ray_cast_response[]|message.physics.ray_cast_response|nil] It returns a list. If missed it returns `nil`. See [ref:ray_cast_response] for details on the returned values.
      * @examples
      *
@@ -826,21 +762,21 @@ namespace dmGameSystem
      * @struct
      * @name physics.joint_properties
      * @member collide_connected? [type:boolean] whether the connected objects should collide
-     * @member length? [type:number] spring length
-     * @member frequency? [type:number] spring frequency
-     * @member damping? [type:number] damping ratio
-     * @member max_length? [type:number] fixed-joint maximum length
-     * @member local_axis_a? [type:vector3] local joint axis
-     * @member reference_angle? [type:number] reference angle
-     * @member lower_angle? [type:number] lower angular limit
-     * @member upper_angle? [type:number] upper angular limit
-     * @member lower_translation? [type:number] lower translation limit
-     * @member upper_translation? [type:number] upper translation limit
-     * @member max_motor_torque? [type:number] maximum motor torque
-     * @member max_motor_force? [type:number] maximum motor force
-     * @member motor_speed? [type:number] motor speed
-     * @member enable_limit? [type:boolean] whether limits are enabled
-     * @member enable_motor? [type:boolean] whether the motor is enabled
+     * @member length? [type:number] Natural spring length between the anchor points.
+     * @member frequency? [type:number] Mass-spring-damper frequency in Hertz; zero disables softness.
+     * @member damping? [type:number] Damping ratio, where zero is no damping and one is critical damping.
+     * @member max_length? [type:number] Maximum fixed-joint rope length.
+     * @member local_axis_a? [type:vector3] Local translation unit axis in the first body.
+     * @member reference_angle? [type:number] Angle of the second body relative to the first body, in radians.
+     * @member lower_angle? [type:number] Lower angular limit in radians.
+     * @member upper_angle? [type:number] Upper angular limit in radians.
+     * @member lower_translation? [type:number] Lower translation limit, usually in meters.
+     * @member upper_translation? [type:number] Upper translation limit, usually in meters.
+     * @member max_motor_torque? [type:number] Maximum motor torque used to reach the desired speed, usually in N-m.
+     * @member max_motor_force? [type:number] Maximum motor force used to reach the desired speed.
+     * @member motor_speed? [type:number] Desired motor speed.
+     * @member enable_limit? [type:boolean] Whether joint limits are enabled.
+     * @member enable_motor? [type:boolean] Whether the joint motor is enabled.
      */
 
     /*# returned joint properties
@@ -863,9 +799,9 @@ namespace dmGameSystem
      * @member motor_speed? [type:number] motor speed
      * @member enable_limit? [type:boolean] whether limits are enabled
      * @member enable_motor? [type:boolean] whether the motor is enabled
-     * @member joint_angle? [type:number] current joint angle
-     * @member joint_speed? [type:number] current joint speed
-     * @member joint_translation? [type:number] current joint translation
+     * @member joint_angle? [type:number] Read-only current hinge angle in radians.
+     * @member joint_speed? [type:number] Read-only current hinge angular speed or slider/wheel translation speed.
+     * @member joint_translation? [type:number] Read-only current slider or wheel translation, usually in meters.
      */
 
     /*# create a physics joint
@@ -881,11 +817,7 @@ namespace dmGameSystem
      * @param position_a [type:vector3] local position where to attach the joint on the first collision object
      * @param collisionobject_b [type:string|hash|url] second collision object
      * @param position_b [type:vector3] local position where to attach the joint on the second collision object
-     * @param [properties] [type:physics.joint_properties] optional joint specific properties table
-     *
-     * See each joint type for possible properties field. The one field that is accepted for all joint types is:
-     * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
-     *
+     * @param [properties] [type:physics.joint_properties] optional joint-specific properties
      */
     static int Physics_CreateJoint(lua_State* L)
     {
@@ -967,10 +899,7 @@ namespace dmGameSystem
      * @name physics.get_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @return properties [type:physics.joint_properties_info] properties table. See the joint types for what fields are available, the only field available for all types is:
-     *
-     * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
-     *
+     * @return properties [type:physics.joint_properties_info] joint properties
      */
     static int Physics_GetJointProperties(lua_State* L)
     {
@@ -1521,25 +1450,9 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*#
-     * @name physics.SHAPE_TYPE_SPHERE
-     * @constant
-     */
 
-    /*#
-     * @name physics.SHAPE_TYPE_BOX
-     * @constant
-     */
 
-    /*#
-     * @name physics.SHAPE_TYPE_CAPSULE
-     * @constant
-     */
 
-    /*#
-     * @name physics.SHAPE_TYPE_HULL
-     * @constant
-     */
 
     /*# get collision shape info
      * Gets collision shape data from a collision object
@@ -1547,36 +1460,7 @@ namespace dmGameSystem
      * @name physics.get_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @return table [type:{ type:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] A table containing meta data about the physics shape
-     *
-     * `type`
-     * : [type:physics.SHAPE_TYPE] The shape type. Supported values:
-     *
-     * - `physics.SHAPE_TYPE_SPHERE`
-     * - `physics.SHAPE_TYPE_BOX`
-     * - `physics.SHAPE_TYPE_CAPSULE` *Only supported for 3D physics*
-     * - `physics.SHAPE_TYPE_HULL`
-     *
-     * The returned table contains different fields depending on which type the shape is.
-     *
-     * If the shape is a sphere:
-     *
-     * `diameter`
-     * : [type:number] the diameter of the sphere shape
-     *
-     * If the shape is a box:
-     *
-     * `dimensions`
-     * : [type:vector3] a `vmath.vector3` of the box dimensions
-     *
-     * If the shape is a capsule:
-     *
-     * `diameter`
-     * : [type:number] the diameter of the capsule poles
-     *
-     * `height`
-     * : [type:number] the height of the capsule
-     *
+     * @return table [type:physics.shape_data] collision shape data
      * @examples
      *
      * ```lua
@@ -1647,9 +1531,7 @@ namespace dmGameSystem
      * @name physics.set_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @param table [type:{ type:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] the shape data to update the shape with.
-     *
-     * See [ref:physics.get_shape] for a detailed description of each field in the data table.
+     * @param table [type:physics.shape_data] updated collision shape data
      *
      * @examples
      *

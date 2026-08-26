@@ -688,6 +688,10 @@ namespace dmGameSystem
 /*# Collision shape types
  * @enum
  * @name bullet3d.shape.SHAPE_TYPE
+ * @member bullet3d.shape.SHAPE_TYPE_BOX Box shape type Value `1`. Shape data contains positive vector3 `dimensions` in Defold units.
+ * @member bullet3d.shape.SHAPE_TYPE_CAPSULE Capsule shape type Value `2`. Shape data contains a positive numeric `diameter` and positive numeric cylindrical-section `height` in Defold units.
+ * @member bullet3d.shape.SHAPE_TYPE_HULL Convex hull shape type Value `3`. Shape data contains a `vertices` array with at least four finite vector3 values in Defold units.
+ * @member bullet3d.shape.SHAPE_TYPE_SPHERE Sphere shape type Value `0`. Shape data contains a positive numeric `diameter` in Defold units.
  */
 
 /*# Bullet collision shape definition
@@ -702,39 +706,9 @@ namespace dmGameSystem
  * @param value [type:{ type:bullet3d.shape.SHAPE_TYPE, diameter:number, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, dimensions:vector3, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, diameter:number, height:number, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, vertices:vector3[], position?:vector3, rotation?:quaternion, target_rotation?:quaternion }] collision shape definition
  */
 
-/*# Sphere shape type
- *
- * Value `0`. Shape data contains a positive numeric `diameter` in Defold units.
- *
- * @name bullet3d.shape.SHAPE_TYPE_SPHERE
- * @constant
- */
 
-/*# Box shape type
- *
- * Value `1`. Shape data contains positive vector3 `dimensions` in Defold units.
- *
- * @name bullet3d.shape.SHAPE_TYPE_BOX
- * @constant
- */
 
-/*# Capsule shape type
- *
- * Value `2`. Shape data contains a positive numeric `diameter` and positive
- * numeric cylindrical-section `height` in Defold units.
- *
- * @name bullet3d.shape.SHAPE_TYPE_CAPSULE
- * @constant
- */
 
-/*# Convex hull shape type
- *
- * Value `3`. Shape data contains a `vertices` array with at least four finite
- * vector3 values in Defold units.
- *
- * @name bullet3d.shape.SHAPE_TYPE_HULL
- * @constant
- */
 
 /*# Get the number of shapes attached to a collision object.
  * @name bullet3d.collision_object.get_shape_count

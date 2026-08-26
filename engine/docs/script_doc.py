@@ -1024,6 +1024,8 @@ def message_to_json_dict(message):
         e["brief"] = _markdownify(e["brief"])
         e["examples"] = _markdownify(e["examples"])
         e["replaces"] = _markdownify(e["replaces"])
+        for member in e["members"]:
+            member["doc"] = _markdownify(member["doc"])
         for p in e["parameters"]:
             p["doc"] = _markdownify(p["doc"])
         for r in e["returnvalues"]:

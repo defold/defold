@@ -56,6 +56,9 @@ namespace dmGameSystem
     /*# Factory status values
      * @enum
      * @name factory.STATUS
+     * @member factory.STATUS_LOADED The factory resources are loaded.
+     * @member factory.STATUS_LOADING The factory resources are loading.
+     * @member factory.STATUS_UNLOADED The factory resources are unloaded.
      */
 
     /*# Get factory status
@@ -68,26 +71,6 @@ namespace dmGameSystem
      * @name factory.get_status
      * @param [url] [type:string|hash|url] the factory component to get status from
      * @return status [type:factory.STATUS] status of the factory component
-     *
-     * - `factory.STATUS_UNLOADED`
-     * - `factory.STATUS_LOADING`
-     * - `factory.STATUS_LOADED`
-     *
-     */
-    /*# unloaded
-     *
-     * @name factory.STATUS_UNLOADED
-     * @constant
-     */
-    /*# loading
-     *
-     * @name factory.STATUS_LOADING
-     * @constant
-     */
-    /*# loaded
-     *
-     * @name factory.STATUS_LOADED
-     * @constant
      */
     static int FactoryComp_GetStatus(lua_State* L)
     {

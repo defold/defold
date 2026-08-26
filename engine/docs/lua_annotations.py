@@ -699,13 +699,9 @@ def _collect_enum_members(constants, metadata, documented_enums):
     for enum_name, options in metadata.get("enums", {}).items():
         options = options or {}
         members = list(options.get("members", []))
-        if not members:
-            prefixes = (enum_name + "_", enum_name + ".")
-            members = sorted(
-                name for name in constants
-                if name.startswith(prefixes))
         result[enum_name] = {
             "members": members,
+            "member_elements": {},
             "value_type": options.get("value_type", "integer"),
             "source_path": None,
             "element": None,
@@ -715,13 +711,12 @@ def _collect_enum_members(constants, metadata, documented_enums):
             _enum_member_name(enum_name, member.name)
             for member in element.members
         ]
-        if not members:
-            prefixes = (enum_name + "_", enum_name + ".")
-            members = sorted(
-                name for name in constants
-                if name.startswith(prefixes))
         source_enum = {
             "members": members,
+            "member_elements": {
+                _enum_member_name(enum_name, member.name): member
+                for member in element.members
+            },
             "value_type": _enum_value_type(element, metadata),
             "source_path": source_path,
             "element": element,
@@ -817,6 +812,8 @@ def _collect(documents, metadata):
                         element,
                         alias_type)
             elif element.type == script_doc_ddf_pb2.ENUM:
+                for member in element.members:
+                    constants.add(_enum_member_name(name, member.name))
                 previous = documented_enums.get(name)
                 if previous:
                     previous_path, previous_element = previous
@@ -867,7 +864,7 @@ def _collect(documents, metadata):
         reference_namespaces)
 
 
-def _namespace_sets(functions, values):
+def _namespace_sets(functions, values, enum_members):
     by_root = defaultdict(set)
     for root, root_functions in functions.items():
         for name in root_functions:
@@ -878,6 +875,13 @@ def _namespace_sets(functions, values):
     for root, root_values in values.items():
         for name in root_values:
             namespace = _namespace_of(name)
+            while namespace:
+                by_root[root].add(namespace)
+                namespace = _namespace_of(namespace)
+    for enum in enum_members.values():
+        for name in enum["members"]:
+            namespace = _namespace_of(name)
+            root = _root_namespace(name)
             while namespace:
                 by_root[root].add(namespace)
                 namespace = _namespace_of(namespace)
@@ -895,14 +899,22 @@ def _render_namespace(
         lines.extend(lua_doc_lines(description))
     for child in sorted(child_namespaces):
         lines.append("---@field %s defold_api.%s" % (_field_name(child), child))
-    for field_name, field_type, source_path, element in sorted(
+    for field_name, field_type, source_path, element, member in sorted(
             fields,
             key=lambda field: field[0]):
-        lines.extend(_element_doc_lines(
-            element,
-            reference_url=_reference_url(
+        reference_url = (
+            _reference_url(
                 reference_namespaces.get(source_path),
-                element)))
+                element)
+            if element is not None
+            else None)
+        if member is None:
+            lines.extend(_element_doc_lines(
+                element,
+                reference_url=reference_url))
+        else:
+            lines.extend(lua_doc_lines(member.doc))
+            _append_reference_link(lines, reference_url)
         lines.append("---@field %s %s" % (field_name, field_type))
     lines.append("%s = {}" % namespace)
     return lines
@@ -1144,7 +1156,26 @@ def _render_module(
                 enum_members,
                 metadata)
         namespace_fields[namespace].append(
-            (_field_name(name), value_type, source_path, element))
+            (_field_name(name), value_type, source_path, element, None))
+
+    for enum_name, enum in enum_members.items():
+        for name in enum["members"]:
+            if name in values:
+                continue
+            namespace = _namespace_of(name)
+            if not namespace:
+                continue
+            member = enum["member_elements"].get(name)
+            member_type = (
+                normalize_type(member.type, metadata)
+                if member is not None and member.type
+                else enum_name)
+            namespace_fields[namespace].append((
+                _field_name(name),
+                member_type,
+                enum["source_path"],
+                enum["element"],
+                member))
 
     for namespace in sorted(namespaces, key=lambda value: (value.count("."), value)):
         description = descriptions.get(root, "") if namespace == root else ""
@@ -1421,7 +1452,7 @@ def _validate_types(
         if not enum["members"]:
             source = enum["source_path"] or metadata_path
             errors.append(
-                "%s: enum alias '%s' has no matching constant members"
+                "%s: enum '%s' must declare at least one explicit member"
                 % (source, enum_name))
         for member in enum["members"]:
             if member not in constants:
@@ -1429,6 +1460,12 @@ def _validate_types(
                 errors.append(
                     "%s: enum %s references missing constant %s"
                     % (source, enum_name, member))
+        for member in enum["member_elements"].values():
+            if member.type:
+                validate(
+                    normalize_type(member.type, metadata),
+                    enum["source_path"] or metadata_path,
+                    "enum %s member %s" % (enum_name, member.name))
         validate(
             enum["value_type"],
             enum["source_path"] or metadata_path,
@@ -1528,7 +1565,7 @@ def generate(
         constants,
         context_metadata,
         documented_enums)
-    namespaces = _namespace_sets(functions, values)
+    namespaces = _namespace_sets(functions, values, enum_members)
 
     outputs = {
         "meta%s" % extension: _render_meta(
@@ -1538,7 +1575,7 @@ def generate(
             documented_aliases,
             class_methods,
             reference_namespaces)}
-    roots = sorted(set(functions) | set(values))
+    roots = sorted(set(functions) | set(values) | set(namespaces))
     for root in roots:
         root_namespaces = namespaces.get(root, set())
         if root != "builtins" and root not in root_namespaces:

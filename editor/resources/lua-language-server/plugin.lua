@@ -14,7 +14,8 @@
 
 local lifecycle_signatures = {
     script = {
-        init = {parameters = {'script_instance', 'userdata'}},
+        -- The runtime passes the script instance again as a legacy second argument; omit it from user-facing annotations.
+        init = {parameters = {'script_instance'}},
         final = {parameters = {'script_instance'}},
         update = {parameters = {'script_instance', 'number'}},
         late_update = {parameters = {'script_instance', 'number'}},

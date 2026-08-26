@@ -254,25 +254,26 @@ static int PrewarmText(lua_State* L)
     return 1;
 }
 
+/*# Associated font file information
+ * @struct
+ * @name font.file_info
+ * @member path [type:string] path to the `.ttf` or `.otf` font file
+ * @member path_hash [type:hash] hashed font-file path
+ */
+
+/*# Font resource information
+ * @struct
+ * @name font.info
+ * @member path [type:hash] path hash of the `.fontc` resource
+ * @member fonts [type:font.file_info[]] associated font files
+ */
+
 /*#
  * Gets information about a font, such as the associated font files
  *
  * @name font.get_info
  * @param fontc [type:string|hash] The path to the .fontc resource
- * @return info [type:{ path:hash, fonts:{ path:string, path_hash:hash }[] }] the information table contains these fields:
- *
- * `path`
- * : [type:hash] The path hash of the current file.
- *
- * `fonts`
- * : [type:{ path:string, path_hash:hash }[]] An array of associated font (`.ttf` or `.otf`) files. Each item is a table that contains:
- *
- *      `path`
- *      : [type:string] The path of the font file
- *
- *      `path_hash`
- *      : [type:hash] The path of the font file
- *
+ * @return info [type:font.info] font resource information
  */
 static int GetFontInfo(lua_State* L)
 {

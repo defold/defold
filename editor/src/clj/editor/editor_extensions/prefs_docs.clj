@@ -232,19 +232,17 @@
         :type :module
         :description "Schema for defining preferences"}]
       (e/mapcat schema-component->script-docs schema-components)
-      (e/mapcat (fn [[id-kw vs]]
-                  (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
-                    (e/concat
-                      [{:name id
-                        :type :enum
-                        :types ["string"]
-                        :description (str "Constants for "
-                                          (string/replace (name id-kw) \- \space)
-                                          " enums")}]
-                      (e/map
-                        (fn [v-kw]
-                          {:name (str id "." (ui-docs/->screaming-snake-case v-kw))
-                           :type :constant
-                           :description (format "`\"%s\"`" (name v-kw))})
-                        vs))))
-                enums))))
+      (e/map (fn [[id-kw vs]]
+               (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
+                 {:name id
+                  :type :enum
+                  :types ["string"]
+                  :members (into []
+                                 (map (fn [v-kw]
+                                        {:name (str id "." (ui-docs/->screaming-snake-case v-kw))
+                                         :doc (format "`\"%s\"`" (name v-kw))}))
+                                 vs)
+                  :description (str "Constants for "
+                                    (string/replace (name id-kw) \- \space)
+                                    " enums")}))
+             enums))))

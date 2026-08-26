@@ -46,6 +46,13 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Sprite flipbook playback properties
+     * @struct
+     * @name sprite.play_properties
+     * @member offset? [type:number] Normalized initial animation cursor.
+     * @member playback_rate? [type:number] Positive animation playback rate.
+     */
+
     /*# [type:vector3] sprite size
      *
      * The size of the sprite, not allowing for any additional scaling that may be applied.
@@ -411,21 +418,12 @@ namespace dmGameSystem
      * : [type:hash] The name of the completion message, `"animation_done"`.
      *
      * `message`
-     * : [type:message.sprite.animation_done] Information about the completion:
-     *
-     * - [type:number] `current_tile` - the current tile of the sprite.
-     * - [type:hash] `id` - id of the animation that was completed.
+     * : [type:message.sprite.animation_done] Information about the completion.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the sprite component.
      *
-     * @param [play_properties] [type:{ offset?:number, playback_rate?:number }] optional table with properties:
-     *
-     * `offset`
-     * : [type:number] the normalized initial value of the animation cursor when the animation starts playing.
-     *
-     * `playback_rate`
-     * : [type:number] the rate with which the animation will be played. Must be positive.
+     * @param [play_properties] [type:sprite.play_properties] optional playback properties
      *
      * @examples
      *

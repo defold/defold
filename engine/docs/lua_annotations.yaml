@@ -81,7 +81,7 @@ function_overloads:
     - "fun(path:string, method:string, openapi:table<string, any>, handler:http.server.handler):http.route"
     - 'fun(path:string, as:"string"|"json", openapi:table<string, any>, handler:http.server.handler):http.route'
   render.render_target:
-    - "fun(name:string, parameters:{ sample_count?:integer, [graphics.BUFFER_TYPE]:{ format:graphics.TEXTURE_FORMAT, width:integer, height:integer, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:render.RENDER_TARGET_FLAG } }):render_target"
+    - "fun(name:string, parameters:render.render_target_params):render_target"
   zip.pack:
     - "fun(output_path:string, entries:zip.pack.entries)"
   zip.unpack:

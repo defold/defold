@@ -64,6 +64,14 @@ namespace dmScript
      * ```
      */
 
+    /*# Timer information
+     * @struct
+     * @name timer.info
+     * @member time_remaining [type:number] Time remaining until the next callback.
+     * @member delay [type:number] Timer interval.
+     * @member repeating [type:boolean] Whether the timer repeats until cancelled.
+     */
+
     /*
         The timer handle is an index into an indirection layer combined with a generation counter,
         this makes it possible to reuse the index for the indirection layer without risk of using
@@ -803,16 +811,7 @@ namespace dmScript
      *
      * @name  timer.get_info
      * @param handle [type:timer_handle] the timer handle returned by timer.delay()
-     * @return data [type:{ time_remaining:number, delay:number, repeating:boolean }|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
-     *
-     * `time_remaining`
-     * : [type:number] Time remaining until the next time a timer.delay() fires.
-     *
-     * `delay`
-     * : [type:number] Time interval.
-     *
-     * `repeating`
-     * : [type:boolean] true = repeat timer until cancel, false = one-shot timer.
+     * @return data [type:timer.info|nil] timer information, or `nil` if the timer is cancelled or complete
      * @examples
      *
      * ```lua

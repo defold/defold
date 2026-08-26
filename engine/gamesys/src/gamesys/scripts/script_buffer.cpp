@@ -57,6 +57,15 @@ namespace dmGameSystem
     /*# Buffer value types
      * @enum
      * @name buffer.VALUE_TYPE
+     * @member buffer.VALUE_TYPE_FLOAT32 float32 Float, single precision, 4 bytes
+     * @member buffer.VALUE_TYPE_INT16 int16 Signed integer, 2 bytes
+     * @member buffer.VALUE_TYPE_INT32 int32 Signed integer, 4 bytes
+     * @member buffer.VALUE_TYPE_INT64 int64 Signed integer, 8 bytes
+     * @member buffer.VALUE_TYPE_INT8 int8 Signed integer, 1 byte
+     * @member buffer.VALUE_TYPE_UINT16 uint16 Unsigned integer, 2 bytes
+     * @member buffer.VALUE_TYPE_UINT32 uint32 Unsigned integer, 4 bytes
+     * @member buffer.VALUE_TYPE_UINT64 uint64 Unsigned integer, 8 bytes
+     * @member buffer.VALUE_TYPE_UINT8 uint8 Unsigned integer, 1 byte
      */
 
     /*# Typed data buffer
@@ -100,51 +109,6 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# uint8
-     * Unsigned integer, 1 byte
-     * @name buffer.VALUE_TYPE_UINT8
-     * @constant
-    */
-    /*# uint16
-     * Unsigned integer, 2 bytes
-     * @name buffer.VALUE_TYPE_UINT16
-     * @constant
-    */
-    /*# uint32
-     * Unsigned integer, 4 bytes
-     * @name buffer.VALUE_TYPE_UINT32
-     * @constant
-    */
-    /*# uint64
-     * Unsigned integer, 8 bytes
-     * @name buffer.VALUE_TYPE_UINT64
-     * @constant
-    */
-    /*# int8
-     * Signed integer, 1 byte
-     * @name buffer.VALUE_TYPE_INT8
-     * @constant
-    */
-    /*# int16
-     * Signed integer, 2 bytes
-     * @name buffer.VALUE_TYPE_INT16
-     * @constant
-    */
-    /*# int32
-     * Signed integer, 4 bytes
-     * @name buffer.VALUE_TYPE_INT32
-     * @constant
-    */
-    /*# int64
-     * Signed integer, 8 bytes
-     * @name buffer.VALUE_TYPE_INT64
-     * @constant
-    */
-    /*# float32
-     * Float, single precision, 4 bytes
-     * @name buffer.VALUE_TYPE_FLOAT32
-     * @constant
-    */
 
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"

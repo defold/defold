@@ -68,75 +68,23 @@ namespace dmGameSystem
     /*# Material constant types
      * @enum
      * @name material.CONSTANT_TYPE
-     */
-
-    /*# User vector constant.
-     * @name material.CONSTANT_TYPE_USER
-     * @constant
-     */
-    /*# User matrix constant.
-     * @name material.CONSTANT_TYPE_USER_MATRIX4
-     * @constant
-     */
-    /*# View-projection matrix constant.
-     * @name material.CONSTANT_TYPE_VIEWPROJ
-     * @constant
-     */
-    /*# World matrix constant.
-     * @name material.CONSTANT_TYPE_WORLD
-     * @constant
-     */
-    /*# Texture matrix constant.
-     * @name material.CONSTANT_TYPE_TEXTURE
-     * @constant
-     */
-    /*# View matrix constant.
-     * @name material.CONSTANT_TYPE_VIEW
-     * @constant
-     */
-    /*# Projection matrix constant.
-     * @name material.CONSTANT_TYPE_PROJECTION
-     * @constant
-     */
-    /*# Normal matrix constant.
-     * @name material.CONSTANT_TYPE_NORMAL
-     * @constant
-     */
-    /*# World-view matrix constant.
-     * @name material.CONSTANT_TYPE_WORLDVIEW
-     * @constant
-     */
-    /*# World-view-projection matrix constant.
-     * @name material.CONSTANT_TYPE_WORLDVIEWPROJ
-     * @constant
-     */
-    /*# Time constant.
-     * @name material.CONSTANT_TYPE_TIME
-     * @constant
-     */
-    /*# Inverse world matrix constant.
-     * @name material.CONSTANT_TYPE_WORLD_INVERSE
-     * @constant
-     */
-    /*# Inverse view matrix constant.
-     * @name material.CONSTANT_TYPE_VIEW_INVERSE
-     * @constant
-     */
-    /*# Inverse projection matrix constant.
-     * @name material.CONSTANT_TYPE_PROJECTION_INVERSE
-     * @constant
-     */
-    /*# Inverse view-projection matrix constant.
-     * @name material.CONSTANT_TYPE_VIEWPROJ_INVERSE
-     * @constant
-     */
-    /*# Inverse world-view matrix constant.
-     * @name material.CONSTANT_TYPE_WORLDVIEW_INVERSE
-     * @constant
-     */
-    /*# Inverse world-view-projection matrix constant.
-     * @name material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE
-     * @constant
+     * @member material.CONSTANT_TYPE_USER User vector constant.
+     * @member material.CONSTANT_TYPE_USER_MATRIX4 User matrix constant.
+     * @member material.CONSTANT_TYPE_VIEWPROJ View-projection matrix constant.
+     * @member material.CONSTANT_TYPE_WORLD World matrix constant.
+     * @member material.CONSTANT_TYPE_TEXTURE Texture matrix constant.
+     * @member material.CONSTANT_TYPE_VIEW View matrix constant.
+     * @member material.CONSTANT_TYPE_PROJECTION Projection matrix constant.
+     * @member material.CONSTANT_TYPE_NORMAL Normal matrix constant.
+     * @member material.CONSTANT_TYPE_WORLDVIEW World-view matrix constant.
+     * @member material.CONSTANT_TYPE_WORLDVIEWPROJ World-view-projection matrix constant.
+     * @member material.CONSTANT_TYPE_TIME Time constant.
+     * @member material.CONSTANT_TYPE_WORLD_INVERSE Inverse world matrix constant.
+     * @member material.CONSTANT_TYPE_VIEW_INVERSE Inverse view matrix constant.
+     * @member material.CONSTANT_TYPE_PROJECTION_INVERSE Inverse projection matrix constant.
+     * @member material.CONSTANT_TYPE_VIEWPROJ_INVERSE Inverse view-projection matrix constant.
+     * @member material.CONSTANT_TYPE_WORLDVIEW_INVERSE Inverse world-view matrix constant.
+     * @member material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE Inverse world-view-projection matrix constant.
      */
 
     /*# Material constant value
@@ -319,50 +267,7 @@ namespace dmGameSystem
      * @name material.get_vertex_attributes
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:material.vertex_attribute_info[]] A table of tables, where each entry contains info about the vertex attributes:
-     *
-     * `name`
-     * : [type:hash] the hashed name of the vertex attribute
-     *
-     * `value`
-     * : [type:material.vertex_attribute_value] the value of the vertex attribute. Matrix attributes that do not map to `matrix4` are returned as a table of numbers.
-     *
-     * `normalize`
-     * : [type:boolean] whether the value is normalized when passed into the shader
-     *
-     * `data_type`
-     * : [type:graphics.DATA_TYPE] the data type of the vertex attribute. Supported values:
-     *
-     *   - `graphics.DATA_TYPE_BYTE`
-     *   - `graphics.DATA_TYPE_UNSIGNED_BYTE`
-     *   - `graphics.DATA_TYPE_SHORT`
-     *   - `graphics.DATA_TYPE_UNSIGNED_SHORT`
-     *   - `graphics.DATA_TYPE_INT`
-     *   - `graphics.DATA_TYPE_UNSIGNED_INT`
-     *   - `graphics.DATA_TYPE_FLOAT`
-     *
-     * `coordinate_space`
-     * : [type:graphics.COORDINATE_SPACE] the coordinate space of the vertex attribute. Supported values:
-     *
-     *   - `graphics.COORDINATE_SPACE_WORLD`
-     *   - `graphics.COORDINATE_SPACE_LOCAL`
-     *
-     * `semantic_type`
-     * : [type:graphics.SEMANTIC_TYPE] the semantic type of the vertex attribute. Supported values:
-     *
-     *   - `graphics.SEMANTIC_TYPE_NONE`
-     *   - `graphics.SEMANTIC_TYPE_POSITION`
-     *   - `graphics.SEMANTIC_TYPE_TEXCOORD`
-     *   - `graphics.SEMANTIC_TYPE_PAGE_INDEX`
-     *   - `graphics.SEMANTIC_TYPE_COLOR`
-     *   - `graphics.SEMANTIC_TYPE_NORMAL`
-     *   - `graphics.SEMANTIC_TYPE_TANGENT`
-     *   - `graphics.SEMANTIC_TYPE_WORLD_MATRIX`
-     *   - `graphics.SEMANTIC_TYPE_NORMAL_MATRIX`
-     *   - `graphics.SEMANTIC_TYPE_BONE_WEIGHTS`
-     *   - `graphics.SEMANTIC_TYPE_BONE_INDICES`
-     *   - `graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D`
-     *   - `graphics.SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS`
+     * @return attributes [type:material.vertex_attribute_info[]] vertex attribute information
      *
      * @examples
      * Get the vertex attributes from a material specified as a resource property
@@ -426,50 +331,7 @@ namespace dmGameSystem
      * @name material.get_samplers
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:material.sampler_info[]] A table of tables, where each entry contains info about the texture samplers:
-     *
-     * `name`
-     * : [type:hash] the hashed name of the texture sampler
-     *
-     * `type`
-     * : [type:graphics.TEXTURE_TYPE] the texture type expected by the sampler
-     *
-     * `u_wrap`
-     * : [type:graphics.TEXTURE_WRAP] the u wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `v_wrap`
-     * : [type:graphics.TEXTURE_WRAP] the v wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `min_filter`
-     * : [type:graphics.TEXTURE_FILTER] the min filter mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
-     *
-     * `mag_filter`
-     * : [type:graphics.TEXTURE_FILTER] the mag filter mode of the texture sampler
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *
-     * `max_anisotropy`
-     * : [type:number] the max anisotropy of the texture sampler
+     * @return samplers [type:material.sampler_info[]] texture sampler information
      *
      * @examples
      * Get the texture samplers from a material specified as a resource property
@@ -515,34 +377,7 @@ namespace dmGameSystem
      * @name material.get_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:material.constant_info[]] A table of tables, where each entry contains info about the shader constants:
-     *
-     * `name`
-     * : [type:hash] the hashed name of the constant
-     *
-     * `type`
-     * : [type:material.CONSTANT_TYPE] the type of the constant. Supported values:
-     *
-     *   - `material.CONSTANT_TYPE_USER`
-     *   - `material.CONSTANT_TYPE_USER_MATRIX4`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ`
-     *   - `material.CONSTANT_TYPE_WORLD`
-     *   - `material.CONSTANT_TYPE_TEXTURE`
-     *   - `material.CONSTANT_TYPE_VIEW`
-     *   - `material.CONSTANT_TYPE_PROJECTION`
-     *   - `material.CONSTANT_TYPE_NORMAL`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
-     *   - `material.CONSTANT_TYPE_TIME`
-     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
-     *
-     * `value`
-     * : [type:material.constant_info_value] the value(s) of the constant. If the constant is an array, the value will be a table of vector4 or matrix4 if the type is `material.CONSTANT_TYPE_USER_MATRIX4`.
+     * @return constants [type:material.constant_info[]] shader constant information
      *
      * @examples
      * Get the shader constants from a material specified as a resource property
@@ -591,47 +426,7 @@ namespace dmGameSystem
      * @name material.get_textures
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:material.texture_info[]] A table of tables, where each entry contains info about the material textures:
-     *
-     * `path`
-     * : [type:hash] the resource path of the texture. Only available if the texture is a resource.
-     *
-     * `handle`
-     * : [type:texture] the runtime handle of the texture.
-     *
-     * `width`
-     * : [type:integer] the width of the texture
-     *
-     * `height`
-     * : [type:integer] the height of the texture
-     *
-     * `depth`
-     * : [type:integer] the depth of the texture. Corresponds to the number of layers in an array texture.
-     *
-     * `page_count`
-     * : [type:integer] the number of pages in the texture
-     *
-     * `mipmaps`
-     * : [type:integer] the number of mipmaps in the texture
-     *
-     * `type`
-     * : [type:graphics.TEXTURE_TYPE] the type of the texture. Supported values:
-     *
-     *   - `graphics.TEXTURE_TYPE_2D`
-     *   - `graphics.TEXTURE_TYPE_2D_ARRAY`
-     *   - `graphics.TEXTURE_TYPE_CUBE_MAP`
-     *   - `graphics.TEXTURE_TYPE_IMAGE_2D`
-     *   - `graphics.TEXTURE_TYPE_3D`
-     *   - `graphics.TEXTURE_TYPE_IMAGE_3D`
-     *
-     * `flags`
-     * : [type:graphics.TEXTURE_USAGE_FLAG] the flags of the texture. This field is a bit mask of these supported flags:
-     *
-     *   - `graphics.TEXTURE_USAGE_FLAG_SAMPLE`
-     *   - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS`
-     *   - `graphics.TEXTURE_USAGE_FLAG_STORAGE`
-     *   - `graphics.TEXTURE_USAGE_FLAG_INPUT`
-     *   - `graphics.TEXTURE_USAGE_FLAG_COLOR`
+     * @return textures [type:material.texture_info[]] material texture information
      *
      * @examples
      * Get the textures from a material specified as a resource property
@@ -674,49 +469,7 @@ namespace dmGameSystem
      * @name material.set_vertex_attributes
      *
      * @param path [type:hash|string] The path to the resource
-     * @param attributes [type:table<string|hash, material.vertex_attribute_options>|material.named_vertex_attribute_options[]] A table keyed by vertex attribute name with args tables as values, or an array whose entries include a `name`. Partial updates are supported. Supported entries:
-     *
-     * `value`
-     * : [type:material.vertex_attribute_value] the value of the vertex attribute. Use a table of numbers for matrix attributes that do not map to `matrix4`.
-     *
-     * `normalize`
-     * : [type:boolean] whether the value is normalized when passed into the shader
-     *
-     * `data_type`
-     * : [type:graphics.DATA_TYPE] the data type of the vertex attribute. Supported values:
-     *
-     *   - `graphics.DATA_TYPE_BYTE`
-     *   - `graphics.DATA_TYPE_UNSIGNED_BYTE`
-     *   - `graphics.DATA_TYPE_SHORT`
-     *   - `graphics.DATA_TYPE_UNSIGNED_SHORT`
-     *   - `graphics.DATA_TYPE_INT`
-     *   - `graphics.DATA_TYPE_UNSIGNED_INT`
-     *   - `graphics.DATA_TYPE_FLOAT`
-     *
-     * `coordinate_space`
-     * : [type:graphics.COORDINATE_SPACE] the coordinate space of the vertex attribute. Supported values:
-     *
-     *   - `graphics.COORDINATE_SPACE_DEFAULT`
-     *   - `graphics.COORDINATE_SPACE_WORLD`
-     *   - `graphics.COORDINATE_SPACE_LOCAL`
-     *
-     * `semantic_type`
-     * : [type:graphics.SEMANTIC_TYPE] the semantic type of the vertex attribute. Supported values:
-     *
-     *   - `graphics.SEMANTIC_TYPE_NONE`
-     *   - `graphics.SEMANTIC_TYPE_POSITION`
-     *   - `graphics.SEMANTIC_TYPE_TEXCOORD`
-     *   - `graphics.SEMANTIC_TYPE_PAGE_INDEX`
-     *   - `graphics.SEMANTIC_TYPE_COLOR`
-     *   - `graphics.SEMANTIC_TYPE_NORMAL`
-     *   - `graphics.SEMANTIC_TYPE_TANGENT`
-     *   - `graphics.SEMANTIC_TYPE_WORLD_MATRIX`
-     *   - `graphics.SEMANTIC_TYPE_NORMAL_MATRIX`
-     *   - `graphics.SEMANTIC_TYPE_BONE_WEIGHTS`
-     *   - `graphics.SEMANTIC_TYPE_BONE_INDICES`
-     *   - `graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D`
-     *   - `graphics.SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS`
-     *
+     * @param attributes [type:table<string|hash, material.vertex_attribute_options>|material.named_vertex_attribute_options[]] Vertex attributes keyed by name, or an array with explicit `name` fields. Partial updates are supported.
      *
      * @examples
      * Configures a vertex attribute in a material specified as a resource property
@@ -902,44 +655,7 @@ namespace dmGameSystem
      * @name material.set_samplers
      *
      * @param path [type:hash|string] The path to the resource
-     * @param samplers [type:table<string|hash, material.sampler_options>] A table keyed by sampler name with args tables as values. Partial updates are supported. Supported entries:
-     *
-     * `u_wrap`
-     * : [type:graphics.TEXTURE_WRAP] the u wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `v_wrap`
-     * : [type:graphics.TEXTURE_WRAP] the v wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `min_filter`
-     * : [type:graphics.TEXTURE_FILTER] the min filter mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
-     *
-     * `mag_filter`
-     * : [type:graphics.TEXTURE_FILTER] the mag filter mode of the texture sampler
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *
-     * `max_anisotropy`
-     * : [type:number] the max anisotropy of the texture sampler
+     * @param samplers [type:table<string|hash, material.sampler_options>] Sampler updates keyed by sampler name. Partial updates are supported.
      *
      * @examples
      * Configures a sampler in a material specified as a resource property
@@ -1003,31 +719,7 @@ namespace dmGameSystem
      * @name material.set_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @param constants [type:table<string|hash, material.constant_options>] A table keyed by constant name with args tables as values. Constants can be partially updated. Supported entries:
-     *
-     * `type`
-     * : [type:material.CONSTANT_TYPE] the type of the constant. Supported values:
-     *
-     *   - `material.CONSTANT_TYPE_USER`
-     *   - `material.CONSTANT_TYPE_USER_MATRIX4`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ`
-     *   - `material.CONSTANT_TYPE_WORLD`
-     *   - `material.CONSTANT_TYPE_TEXTURE`
-     *   - `material.CONSTANT_TYPE_VIEW`
-     *   - `material.CONSTANT_TYPE_PROJECTION`
-     *   - `material.CONSTANT_TYPE_NORMAL`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
-     *   - `material.CONSTANT_TYPE_TIME`
-     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
-     *
-     * `value`
-     * : [type:material.constant_value] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
+     * @param constants [type:table<string|hash, material.constant_options>] Shader constant updates keyed by constant name. Partial updates are supported.
      *
      * @examples
      * Set a shader constant in a material specified as a resource property

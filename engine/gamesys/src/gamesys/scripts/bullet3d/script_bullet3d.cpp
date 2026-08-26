@@ -430,5 +430,5 @@ namespace dmGameSystem
 
 /*# Get the bundled Bullet version
  * @name bullet3d.get_version
- * @return info [type:bullet3d.version_info] version fields: `version` is the string `"3.25"`, `number` is the integer `325`, `major` is `3`, and `minor` is `25`
+ * @return info [type:bullet3d.version_info] version information
  */

@@ -1123,38 +1123,6 @@ namespace dmGameSystem
  * ```
  */
 
-/*# Circle shape type.
- * @name b2d.shape.SHAPE_TYPE_CIRCLE
- * @constant
- */
-
-/*# Capsule shape type.
- * @name b2d.shape.SHAPE_TYPE_CAPSULE
- * @constant
- */
-
-/*# Segment shape type.
- * @name b2d.shape.SHAPE_TYPE_SEGMENT
- * @constant
- */
-
-/*# Edge shape type alias.
- * Compatibility alias for `b2d.shape.SHAPE_TYPE_SEGMENT`.
- * @name b2d.shape.SHAPE_TYPE_EDGE
- * @constant
- */
-
-/*# Polygon shape type.
- * @name b2d.shape.SHAPE_TYPE_POLYGON
- * @constant
- */
-
-/*# Box shape type alias.
- * Uses the polygon enum value, but indicates the `hx`/`hy` box convenience format.
- * @name b2d.shape.SHAPE_TYPE_BOX
- * @constant
- */
-
 /*# Get shape material id.
  * @name b2d.shape.get_material
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
@@ -1240,7 +1208,7 @@ namespace dmGameSystem
  * @param origin [type: vector3] world ray origin
  * @param translation [type: vector3] world ray translation
  * @param [max_fraction] [type:number] optional maximum translation fraction, defaults to 1
- * @return hit [type:b2d.shape_cast_output|nil] hit table with `point`, `normal`, `fraction`, and `iterations`, or nil
+ * @return hit [type:b2d.shape_cast_output|nil] cast result, or `nil`
  */
 
 /*# Get shape contact capacity.
@@ -1252,7 +1220,7 @@ namespace dmGameSystem
 /*# Get touching contact data for a shape.
  * @name b2d.shape.get_contact_data
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return contacts [type:b2d.contact_data[]] array of contact tables
+ * @return contacts [type:b2d.contact_data[]] touching contacts
  */
 
 /*# Get sensor overlap capacity.
@@ -1264,13 +1232,13 @@ namespace dmGameSystem
 /*# Get sensor overlaps.
  * @name b2d.shape.get_sensor_overlaps
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return overlaps [type:b2d.shape_info[]] array of shape info tables
+ * @return overlaps [type:b2d.shape_info[]] overlapping shapes
  */
 
 /*# Get mass data for a shape.
  * @name b2d.shape.get_mass_data
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return data [type:b2d.mass_data] table with `mass`, `center`, and `inertia`
+ * @return data [type:b2d.mass_data] shape mass data
  */
 
 /*# Get the closest point on a shape.

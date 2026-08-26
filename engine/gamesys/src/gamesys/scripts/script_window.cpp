@@ -37,11 +37,43 @@ namespace dmGameSystem
     /*# Screen-dimming modes
      * @enum
      * @name window.DIMMING
+     * @member window.DIMMING_OFF dimming mode off Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+     * @member window.DIMMING_ON dimming mode on Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+     * @member window.DIMMING_UNKNOWN dimming mode unknown Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction. This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
      */
 
     /*# Window events
      * @enum
      * @name window.WINDOW_EVENT
+     * @member window.WINDOW_EVENT_DEICONIFIED deiconified window event [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is restored after being iconified.
+     * @member window.WINDOW_EVENT_FOCUS_GAINED focus gained window event This event is sent to a window event listener when the game window or app screen has gained focus. This event is also sent at game startup and the engine gives focus to the game.
+     * @member window.WINDOW_EVENT_FOCUS_LOST focus lost window event This event is sent to a window event listener when the game window or app screen has lost focus.
+     * @member window.WINDOW_EVENT_ICONIFIED iconify window event [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is iconified (reduced to an application icon in a toolbar, application tray or similar).
+     * @member window.WINDOW_EVENT_RESIZED resized window event This event is sent to a window event listener when the game window or app screen is resized. The new size is passed along in the data field to the event listener.
+     */
+
+    /*# Window event data
+     *
+     * Width and height are present for [ref:window.WINDOW_EVENT_RESIZED] and
+     * absent for other window events.
+     *
+     * @struct
+     * @name window.event_data
+     * @member width? [type:integer] Window width after a resize.
+     * @member height? [type:integer] Window height after a resize.
+     */
+
+    /*# Window safe-area data
+     * @struct
+     * @name window.safe_area
+     * @member x [type:integer] Safe-area x-coordinate.
+     * @member y [type:integer] Safe-area y-coordinate.
+     * @member width [type:integer] Safe-area width.
+     * @member height [type:integer] Safe-area height.
+     * @member inset_left [type:integer] Inset from the left window edge.
+     * @member inset_top [type:integer] Inset from the top window edge.
+     * @member inset_right [type:integer] Inset from the right window edge.
+     * @member inset_bottom [type:integer] Inset from the bottom window edge.
      */
 
 enum WindowEvent
@@ -117,25 +149,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:fun(self:script_instance, event:window.WINDOW_EVENT, data:{ width?:integer, height?:integer })|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
- *
- * `self`
- * : [type:script_instance] The calling script instance
- *
- * `event`
- * : [type:window.WINDOW_EVENT] The type of event. Can be one of these:
- *
- * - `window.WINDOW_EVENT_FOCUS_LOST`
- * - `window.WINDOW_EVENT_FOCUS_GAINED`
- * - `window.WINDOW_EVENT_RESIZED`
- * - `window.WINDOW_EVENT_ICONIFIED`
- * - `window.WINDOW_EVENT_DEICONIFIED`
- *
- * `data`
- * : [type:{ width?:integer, height?:integer }] The callback value `data` is a table which currently holds these values
- *
- * - [type:integer] `width`: The width of a resize event. nil otherwise.
- * - [type:integer] `height`: The height of a resize event. nil otherwise.
+ * @param callback [type:fun(self:script_instance, event:window.WINDOW_EVENT, data:window.event_data)|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
  *
  * @examples
  *
@@ -222,9 +236,6 @@ static int SetMouseLock(lua_State* L)
  *
  * @name window.set_dim_mode
  * @param mode [type:window.DIMMING] The mode for screen dimming
- *
- * - `window.DIMMING_ON`
- * - `window.DIMMING_OFF`
  */
 
 static int SetDimMode(lua_State* L)
@@ -260,10 +271,6 @@ static int SetDimMode(lua_State* L)
  *
  * @name window.get_dim_mode
  * @return mode [type:window.DIMMING] The mode for screen dimming
- *
- * - `window.DIMMING_UNKNOWN`
- * - `window.DIMMING_ON`
- * - `window.DIMMING_OFF`
  */
 static int GetDimMode(lua_State* L)
 {
@@ -300,19 +307,7 @@ static int GetSize(lua_State* L)
  * this returns the full window size and zero insets.
  *
  * @name window.get_safe_area
- * @return safe_area [type:{ x:integer, y:integer, width:integer, height:integer, inset_left:integer, inset_top:integer, inset_right:integer, inset_bottom:integer }] safe area data
- *
- * `safe_area`
- * : [type:{ x:integer, y:integer, width:integer, height:integer, inset_left:integer, inset_top:integer, inset_right:integer, inset_bottom:integer }] table containing these keys:
- *
- * - [type:integer] `x`
- * - [type:integer] `y`
- * - [type:integer] `width`
- * - [type:integer] `height`
- * - [type:integer] `inset_left`
- * - [type:integer] `inset_top`
- * - [type:integer] `inset_right`
- * - [type:integer] `inset_bottom`
+ * @return safe_area [type:window.safe_area] safe area data
  */
 static int GetSafeArea(lua_State* L)
 {
@@ -475,69 +470,13 @@ static const luaL_reg Module_methods[] =
     {0, 0}
 };
 
-/*# focus lost window event
- *
- * This event is sent to a window event listener when the game window or app screen has lost focus.
- *
- * @name window.WINDOW_EVENT_FOCUS_LOST
- * @constant
- */
 
-/*# focus gained window event
- *
- * This event is sent to a window event listener when the game window or app screen has
- * gained focus.
- * This event is also sent at game startup and the engine gives focus to the game.
- *
- * @name window.WINDOW_EVENT_FOCUS_GAINED
- * @constant
- */
 
-/*# resized window event
- *
- * This event is sent to a window event listener when the game window or app screen is resized.
- * The new size is passed along in the data field to the event listener.
- *
- * @name window.WINDOW_EVENT_RESIZED
- * @constant
- */
 
-/*# iconify window event
- *
- * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
- * iconified (reduced to an application icon in a toolbar, application tray or similar).
- *
- * @name window.WINDOW_EVENT_ICONIFIED
- * @constant
- */
 
-/*# deiconified window event
- *
- * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
- * restored after being iconified.
- *
- * @name window.WINDOW_EVENT_DEICONIFIED
- * @constant
- */
 
-/*# dimming mode on
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * @name window.DIMMING_ON
-  * @constant
-  */
 
-/*# dimming mode off
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * @name window.DIMMING_OFF
-  * @constant
-  */
 
-/*# dimming mode unknown
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
-  * @name window.DIMMING_UNKNOWN
-  * @constant
-  */
 
 static void LuaInit(lua_State* L)
 {

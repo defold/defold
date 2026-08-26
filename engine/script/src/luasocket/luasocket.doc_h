@@ -209,6 +209,21 @@
  *
  */
 
+/*# DNS host information
+ * @struct
+ * @name socket.dns.host_info
+ * @member name [type:string] canonical host name
+ * @member alias [type:string[]] host aliases
+ * @member ip [type:string[]] resolved IPv4 addresses
+ */
+
+/*# DNS address information
+ * @struct
+ * @name socket.dns.address_info
+ * @member family [type:string] `"inet"` for IPv4 or `"inet6"` for IPv6
+ * @member addr [type:string] resolved IP address
+ */
+
 /*# resolve to host name (IPv4)
  *
  * This function converts from an IPv4 address to host name.
@@ -217,7 +232,7 @@
  * @name socket.dns.tohostname
  * @param address [type:string] an IPv4 address or host name.
  * @return hostname [type:string|nil] the canonic host name of the given address, or `nil` in case of an error.
- * @return resolved [type:{ name:string, alias:string[], ip:string[] }|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
+ * @return resolved [type:socket.dns.host_info|string] resolver information, or an error message string
  */
 
 /*# resolve to IPv4 address
@@ -228,7 +243,7 @@
  * @name socket.dns.toip
  * @param address [type:string] a hostname or an IP address.
  * @return ip_address [type:string|nil] the first IP address found for the hostname, or `nil` in case of an error.
- * @return resolved [type:{ name:string, alias:string[], ip:string[] }|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
+ * @return resolved [type:socket.dns.host_info|string] resolver information, or an error message string
  *
  */
 
@@ -246,28 +261,11 @@
  * This function converts a host name to IPv4 or IPv6 address.
  * The supplied address can be an IPv4 or IPv6 address or host name.
  *
- * The function returns a table with all information returned by the resolver:
- *
- * ```lua
- * {
- *  [1] = {
- *     family = family-name-1,
- *     addr = address-1
- *   },
- *   ...
- *   [n] = {
- *     family = family-name-n,
- *     addr = address-n
- *   }
- * }
- * ```
- *
- * Here, family contains the string `"inet"` for IPv4 addresses, and `"inet6"` for IPv6 addresses.
  * In case of error, the function returns nil followed by an error message.
  *
  * @name socket.dns.getaddrinfo
  * @param address [type:string] a hostname or an IPv4 or IPv6 address.
- * @return resolved [type:{ family:string, addr:string }[]|nil] a table with all information returned by the resolver, or if an error occurs, `nil`.
+ * @return resolved [type:socket.dns.address_info[]|nil] resolver information, or `nil` on error
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */

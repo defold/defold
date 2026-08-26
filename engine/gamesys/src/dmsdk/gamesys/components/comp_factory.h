@@ -40,6 +40,9 @@ namespace dmGameSystem
      * CompFactoryStatus
      * @enum
      * @name CompFactoryStatus
+     * @member COMP_FACTORY_STATUS_UNLOADED
+     * @member COMP_FACTORY_STATUS_LOADING
+     * @member COMP_FACTORY_STATUS_LOADED
      */
     enum CompFactoryStatus
     {

@@ -66,11 +66,70 @@ namespace dmGameObject
     /*# Easing curves
      * @enum
      * @name go.EASING
+     * @member go.EASING_INBACK in-back
+     * @member go.EASING_INBOUNCE in-bounce
+     * @member go.EASING_INCIRC in-circlic
+     * @member go.EASING_INCUBIC in-cubic
+     * @member go.EASING_INELASTIC in-elastic
+     * @member go.EASING_INEXPO in-exponential
+     * @member go.EASING_INOUTBACK in-out-back
+     * @member go.EASING_INOUTBOUNCE in-out-bounce
+     * @member go.EASING_INOUTCIRC in-out-circlic
+     * @member go.EASING_INOUTCUBIC in-out-cubic
+     * @member go.EASING_INOUTELASTIC in-out-elastic
+     * @member go.EASING_INOUTEXPO in-out-exponential
+     * @member go.EASING_INOUTQUAD in-out-quadratic
+     * @member go.EASING_INOUTQUART in-out-quartic
+     * @member go.EASING_INOUTQUINT in-out-quintic
+     * @member go.EASING_INOUTSINE in-out-sine
+     * @member go.EASING_INQUAD in-quadratic
+     * @member go.EASING_INQUART in-quartic
+     * @member go.EASING_INQUINT in-quintic
+     * @member go.EASING_INSINE in-sine
+     * @member go.EASING_LINEAR linear interpolation
+     * @member go.EASING_OUTBACK out-back
+     * @member go.EASING_OUTBOUNCE out-bounce
+     * @member go.EASING_OUTCIRC out-circlic
+     * @member go.EASING_OUTCUBIC out-cubic
+     * @member go.EASING_OUTELASTIC out-elastic
+     * @member go.EASING_OUTEXPO out-exponential
+     * @member go.EASING_OUTINBACK out-in-back
+     * @member go.EASING_OUTINBOUNCE out-in-bounce
+     * @member go.EASING_OUTINCIRC out-in-circlic
+     * @member go.EASING_OUTINCUBIC out-in-cubic
+     * @member go.EASING_OUTINELASTIC out-in-elastic
+     * @member go.EASING_OUTINEXPO out-in-exponential
+     * @member go.EASING_OUTINQUAD out-in-quadratic
+     * @member go.EASING_OUTINQUART out-in-quartic
+     * @member go.EASING_OUTINQUINT out-in-quintic
+     * @member go.EASING_OUTINSINE out-in-sine
+     * @member go.EASING_OUTQUAD out-quadratic
+     * @member go.EASING_OUTQUART out-quartic
+     * @member go.EASING_OUTQUINT out-quintic
+     * @member go.EASING_OUTSINE out-sine
      */
 
     /*# Playback modes
      * @enum
      * @name go.PLAYBACK
+     * @member go.PLAYBACK_LOOP_BACKWARD loop backward
+     * @member go.PLAYBACK_LOOP_FORWARD loop forward
+     * @member go.PLAYBACK_LOOP_PINGPONG ping pong loop
+     * @member go.PLAYBACK_NONE no playback
+     * @member go.PLAYBACK_ONCE_BACKWARD once backward
+     * @member go.PLAYBACK_ONCE_FORWARD once forward
+     * @member go.PLAYBACK_ONCE_PINGPONG once ping pong
+     */
+
+    /*# Property access options
+     *
+     * Options for accessing indexed or internal component properties with [ref:go.get] and [ref:go.set].
+     *
+     * @struct
+     * @name go.property_options
+     * @member index? [type:integer] Index into an array property, starting at one.
+     * @member key? [type:hash] Name of an internal property.
+     * @member keys? [type:hash[]] Internal component resources identified by key, such as particle FX emitters.
      */
 
     /*# Input action
@@ -79,32 +138,32 @@ namespace dmGameObject
      *
      * @struct
      * @name on_input.action
-     * @member value? [type:number] Amount of input, usually 1 for buttons or between 0 and 1 for analogue input.
-     * @member pressed? [type:boolean] Whether the input was pressed this frame.
-     * @member released? [type:boolean] Whether the input was released this frame.
-     * @member repeated? [type:boolean] Whether the input was repeated this frame.
-     * @member x? [type:number] Pointer x-coordinate.
-     * @member y? [type:number] Pointer y-coordinate.
-     * @member screen_x? [type:number] Pointer x-coordinate in screen space.
-     * @member screen_y? [type:number] Pointer y-coordinate in screen space.
-     * @member dx? [type:number] Change in the pointer x-coordinate.
-     * @member dy? [type:number] Change in the pointer y-coordinate.
-     * @member screen_dx? [type:number] Change in the pointer x-coordinate in screen space.
-     * @member screen_dy? [type:number] Change in the pointer y-coordinate in screen space.
+     * @member value? [type:number] Amount of input, usually 1 for buttons or between 0 and 1 for analogue input; absent for pointer movement and text input.
+     * @member pressed? [type:boolean] Whether the input was pressed this frame; absent for pointer movement and text input.
+     * @member released? [type:boolean] Whether the input was released this frame; absent for pointer movement and text input.
+     * @member repeated? [type:boolean] Whether the input was repeated this frame; absent for pointer movement and text input.
+     * @member x? [type:number] Pointer x-coordinate; absent for gamepad, key, and text input.
+     * @member y? [type:number] Pointer y-coordinate; absent for gamepad, key, and text input.
+     * @member screen_x? [type:number] Pointer x-coordinate in screen space; absent for gamepad, key, and text input.
+     * @member screen_y? [type:number] Pointer y-coordinate in screen space; absent for gamepad, key, and text input.
+     * @member dx? [type:number] Change in the pointer x-coordinate; absent for gamepad, key, and text input.
+     * @member dy? [type:number] Change in the pointer y-coordinate; absent for gamepad, key, and text input.
+     * @member screen_dx? [type:number] Change in the pointer x-coordinate in screen space; absent for gamepad, key, and text input.
+     * @member screen_dy? [type:number] Change in the pointer y-coordinate in screen space; absent for gamepad, key, and text input.
      * @member acc_x? [type:number] Accelerometer x value, when present.
      * @member acc_y? [type:number] Accelerometer y value, when present.
      * @member acc_z? [type:number] Accelerometer z value, when present.
      * @member gamepad? [type:integer] Index of the gamepad that provided the input.
      * @member userid? [type:integer] Id of the user associated with the controller.
-     * @member gamepad_guid? [type:string] SDL-compatible guid of a connected gamepad.
-     * @member gamepad_guid_info? [type:on_input.gamepad_guid_info] Parsed guid information for a connected gamepad.
+     * @member gamepad_guid? [type:string] SDL-compatible guid, supplied with a gamepad-connected action.
+     * @member gamepad_guid_info? [type:on_input.gamepad_guid_info] Parsed guid information, supplied with a gamepad-connected action.
      * @member gamepad_unknown? [type:boolean] Whether the input originated from an unknown or unmapped gamepad.
      * @member gamepad_name? [type:string] Name of a connected gamepad.
-     * @member gamepad_axis? [type:number[]] Axis values for raw gamepad input.
-     * @member gamepad_hats? [type:number[]] Hat values for raw gamepad input.
-     * @member gamepad_buttons? [type:number[]] Button values for raw gamepad input.
+     * @member gamepad_axis? [type:number[]] Axis values, supplied only for raw gamepad input.
+     * @member gamepad_hats? [type:number[]] Hat values, supplied only for raw gamepad input.
+     * @member gamepad_buttons? [type:number[]] Button values, supplied only for raw gamepad input.
      * @member touch? [type:on_input.touch[]] Touch inputs, one entry per finger.
-     * @member text? [type:string] Text entered by a text or marked-text input action.
+     * @member text? [type:string] Text entered by a text action, or the current sequence for marked-text composition such as Japanese Kana.
      */
 
     /*# Touch input
@@ -635,10 +694,7 @@ namespace dmGameObject
      * @name go.get
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
-     * @param [options] [type:{ index?:integer, key?:hash, keys?:hash[] }] optional options table
-     * - index [type:integer] index into array property (1 based)
-     * - key [type:hash] name of internal property
-     * - keys [type:hash[]] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
+     * @param [options] [type:go.property_options] optional property access options
      * @return value [type:number|boolean|hash|string|url|vector3|vector4|quaternion|resource_data] the value of the specified property
      *
      * @examples
@@ -784,10 +840,7 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
      * @param value [type:number|boolean|hash|string|url|vector3|vector4|quaternion|resource_data] the value to set
-     * @param [options] [type:{ index?:integer, key?:hash, keys?:hash[] }] optional options table
-     * - index [type:integer] index into array property (1 based)
-     * - key [type:hash] name of internal property
-     * - keys [type:hash[]] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
+     * @param [options] [type:go.property_options] optional property access options
      * @examples
      *
      * Set a property "speed" of a script "player", the property must be declared in the player-script:
@@ -2956,79 +3009,10 @@ bail:
      * See the documentation of [ref:acquire_input_focus] for more
      * information.
      *
-     * The `action` parameter is a table containing data about the input mapped to the
-     * `action_id`.
-     * For mapped actions it specifies the value of the input and if it was just pressed or released.
-     * Actions are mapped to input in an input_binding-file.
-     *
-     * Mouse movement is specifically handled and uses `nil` as its `action_id`.
-     * The `action` only contains positional parameters in this case, such as x and y of the pointer.
-     *
-     * Here is a brief description of the available table fields:
-     *
-     * Field         | Description
-     * ------------- | ----------------------------------------------------------
-     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
-     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
-     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
-     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
-     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
-     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
-     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
-     * `text`        | Text input from a (virtual) keyboard or similar. For marked-text input, this is the sequence entered while composing a symbol, for example Japanese Kana.
-     *
-     * Gamepad specific fields:
-     *
-     * Field               | Description
-     * ------------------- | ----------------------------------------------------------
-     * `gamepad`           | The index of the gamepad device that provided the input.
-     * `userid`            | Id of the user associated with the controller. Usually only relevant on consoles.
-     * `gamepad_guid`      | The guid of the gamepad controller. Only passed with "connected" action.
-     * `gamepad_guid_info` | Parsed guid info table. Only passed with "connected" action. See table below.
-     * `gamepad_unknown`   | True if the input originated from an unknown/unmapped gamepad.
-     * `gamepad_name`      | Name of the gamepad
-     * `gamepad_axis`      | List of gamepad axis values. For raw gamepad input only.
-     * `gamepad_hats`      | List of gamepad hat values. For raw gamepad input only.
-     * `gamepad_buttons`   | List of gamepad button values. For raw gamepad input only.
-     *
-     * Touch input table:
-     *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `id`        | A number identifying the touch input during its duration.
-     * `pressed`   | True if the finger was pressed this frame.
-     * `released`  | True if the finger was released this frame.
-     * `tap_count` | Number of taps, one for single, two for double-tap, etc
-     * `x`         | The x touch location.
-     * `y`         | The y touch location.
-     * `dx`        | The change in x value.
-     * `dy`        | The change in y value.
-     * `acc_x`     | Accelerometer x value (if present).
-     * `acc_y`     | Accelerometer y value (if present).
-     * `acc_z`     | Accelerometer z value (if present).
-     *
-     * Guid info table:
-     * This info is only passed with a `connected` action.
-     *
-     * Field     | Description
-     * --------- | ----------------------------------------------------------
-     * `vendor`  | USB vendor id. E.g. Nintendo 0x057e, Sony 0x054c, or Microsoft 0x045e
-     * `product` | USB product id
-     * `bus`     | How device is communicating. E.g.0x0003 for USB devices and 0x0005 for Bluetooth devices.
-     * `crc`     | SDL CRC16 signature, typically used when vendor and product ids are unavailable
-     * `version` | The device or firmware version
-     *
      * @name on_input
      * @param self [type:script_instance] script instance used for storing state
      * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
-     * @param action [type:on_input.action] input data, see above for a description
+     * @param action [type:on_input.action] input data for the action
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
@@ -3106,245 +3090,5 @@ bail:
      * ```
      */
 
-    /*# no playback
-     *
-     * @name go.PLAYBACK_NONE
-     * @constant
-     */
-    /*# once forward
-     *
-     * @name go.PLAYBACK_ONCE_FORWARD
-     * @constant
-     */
-    /*# once backward
-     *
-     * @name go.PLAYBACK_ONCE_BACKWARD
-     * @constant
-     */
-    /*# once ping pong
-     *
-     * @name go.PLAYBACK_ONCE_PINGPONG
-     * @constant
-     */
-    /*# loop forward
-     *
-     * @name go.PLAYBACK_LOOP_FORWARD
-     * @constant
-     */
-    /*# loop backward
-     *
-     * @name go.PLAYBACK_LOOP_BACKWARD
-     * @constant
-     */
-    /*# ping pong loop
-     *
-     * @name go.PLAYBACK_LOOP_PINGPONG
-     * @constant
-     */
 
-    /*# linear interpolation
-     *
-     * @name go.EASING_LINEAR
-     * @constant
-     */
-    /*# in-quadratic
-     *
-     * @name go.EASING_INQUAD
-     * @constant
-     */
-    /*# out-quadratic
-     *
-     * @name go.EASING_OUTQUAD
-     * @constant
-     */
-    /*# in-out-quadratic
-     *
-     * @name go.EASING_INOUTQUAD
-     * @constant
-     */
-    /*# out-in-quadratic
-     *
-     * @name go.EASING_OUTINQUAD
-     * @constant
-     */
-    /*# in-cubic
-     *
-     * @name go.EASING_INCUBIC
-     * @constant
-     */
-    /*# out-cubic
-     *
-     * @name go.EASING_OUTCUBIC
-     * @constant
-     */
-    /*# in-out-cubic
-     *
-     * @name go.EASING_INOUTCUBIC
-     * @constant
-     */
-    /*# out-in-cubic
-     *
-     * @name go.EASING_OUTINCUBIC
-     * @constant
-     */
-    /*# in-quartic
-     *
-     * @name go.EASING_INQUART
-     * @constant
-     */
-    /*# out-quartic
-     *
-     * @name go.EASING_OUTQUART
-     * @constant
-     */
-    /*# in-out-quartic
-     *
-     * @name go.EASING_INOUTQUART
-     * @constant
-     */
-    /*# out-in-quartic
-     *
-     * @name go.EASING_OUTINQUART
-     * @constant
-     */
-    /*# in-quintic
-     *
-     * @name go.EASING_INQUINT
-     * @constant
-     */
-    /*# out-quintic
-     *
-     * @name go.EASING_OUTQUINT
-     * @constant
-     */
-    /*# in-out-quintic
-     *
-     * @name go.EASING_INOUTQUINT
-     * @constant
-     */
-    /*# out-in-quintic
-     *
-     * @name go.EASING_OUTINQUINT
-     * @constant
-     */
-    /*# in-sine
-     *
-     * @name go.EASING_INSINE
-     * @constant
-     */
-    /*# out-sine
-     *
-     * @name go.EASING_OUTSINE
-     * @constant
-     */
-    /*# in-out-sine
-     *
-     * @name go.EASING_INOUTSINE
-     * @constant
-     */
-    /*# out-in-sine
-     *
-     * @name go.EASING_OUTINSINE
-     * @constant
-     */
-    /*# in-exponential
-     *
-     * @name go.EASING_INEXPO
-     * @constant
-     */
-    /*# out-exponential
-     *
-     * @name go.EASING_OUTEXPO
-     * @constant
-     */
-    /*# in-out-exponential
-     *
-     * @name go.EASING_INOUTEXPO
-     * @constant
-     */
-    /*# out-in-exponential
-     *
-     * @name go.EASING_OUTINEXPO
-     * @constant
-     */
-    /*# in-circlic
-     *
-     * @name go.EASING_INCIRC
-     * @constant
-     */
-    /*# out-circlic
-     *
-     * @name go.EASING_OUTCIRC
-     * @constant
-     */
-    /*# in-out-circlic
-     *
-     * @name go.EASING_INOUTCIRC
-     * @constant
-     */
-    /*# out-in-circlic
-     *
-     * @name go.EASING_OUTINCIRC
-     * @constant
-     */
-    /*# in-elastic
-     *
-     * @name go.EASING_INELASTIC
-     * @constant
-     */
-    /*# out-elastic
-     *
-     * @name go.EASING_OUTELASTIC
-     * @constant
-     */
-    /*# in-out-elastic
-     *
-     * @name go.EASING_INOUTELASTIC
-     * @constant
-     */
-    /*# out-in-elastic
-     *
-     * @name go.EASING_OUTINELASTIC
-     * @constant
-     */
-    /*# in-back
-     *
-     * @name go.EASING_INBACK
-     * @constant
-     */
-    /*# out-back
-     *
-     * @name go.EASING_OUTBACK
-     * @constant
-     */
-    /*# in-out-back
-     *
-     * @name go.EASING_INOUTBACK
-     * @constant
-     */
-    /*# out-in-back
-     *
-     * @name go.EASING_OUTINBACK
-     * @constant
-     */
-    /*# in-bounce
-     *
-     * @name go.EASING_INBOUNCE
-     * @constant
-     */
-    /*# out-bounce
-     *
-     * @name go.EASING_OUTBOUNCE
-     * @constant
-     */
-    /*# in-out-bounce
-     *
-     * @name go.EASING_INOUTBOUNCE
-     * @constant
-     */
-    /*# out-in-bounce
-     *
-     * @name go.EASING_OUTINBOUNCE
-     * @constant
-     */
 }

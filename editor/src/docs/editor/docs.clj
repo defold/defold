@@ -43,6 +43,21 @@
               (str "@" tag " " name " [type:" (coll/join-to-string "|" types) "] " (string/replace (str doc) "\n" " "))))
        (coll/join-to-string "\n")))
 
+(defn- enum-members->string [members]
+  (coll/join-to-string
+    "\n"
+    (into []
+          (map (fn [member]
+                 (let [{:keys [doc name types]} (if (string? member)
+                                                  {:name member}
+                                                  member)]
+                   (str "@member " name
+                        (when (coll/not-empty types)
+                          (str " [type:" (coll/join-to-string "|" types) "]"))
+                        (when (coll/not-empty doc)
+                          (str " " (string/replace doc "\n" " ")))))))
+          members)))
+
 (defn- write-docs [output-dir]
   (with-open [w (io/writer (doto (io/file output-dir "editor.apidoc") io/make-parents))]
     (write-as-comment w "Editor scripting documentation\n\n@document\n@name Editor\n@namespace editor\n@language Lua")
@@ -60,9 +75,11 @@
                                      (str " [type:" (coll/join-to-string "|" types) "]"))
                                    "\n@name " name)))
         :enum
-        (let [{:keys [types]} doc]
+        (let [{:keys [members types]} doc]
           (write-as-comment w (str brief "\n\n" description "\n\n"
                                    "@enum\n@name " name "\n"
+                                   (when (coll/not-empty members)
+                                     (str (enum-members->string members) "\n"))
                                    (when (seq types)
                                      (str "@param value [type:" (coll/join-to-string "|" types) "] enum value")))))
         :struct

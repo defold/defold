@@ -361,6 +361,18 @@ message ContactPoint
     required uint64         group                    = 7;
 }
 
+/*# contact-point object information
+ * @struct
+ * @name message.physics.contact_point_info
+ * @member position [type:vector3] contact point position in world space
+ * @member instance_position [type:vector3] object position in world space
+ * @member normal [type:vector3] contact normal pointing from the other object toward this object
+ * @member relative_velocity [type:vector3] object velocity relative to the other object
+ * @member mass [type:number] object mass in kilograms
+ * @member id [type:hash] object identifier
+ * @member group [type:hash] object collision group
+ */
+
 /*# reports a contact point between two collision objects in cases where a listener is specified.
  * See [ref:physics.set_event_listener].
  *
@@ -375,51 +387,8 @@ message ContactPoint
  * @name contact_point_event
  * @param applied_impulse [type:number] the impulse the contact resulted in
  * @param distance [type:number] the penetration distance between the objects, which is always positive
- * @param a [type:{ position:vector3, instance_position:vector3, normal:vector3, relative_velocity:vector3, mass:number, id:hash, group:hash }] contact point information for object A
- *
- * `position`
- * : [type:vector3] The contact point position in world space
- *
- * `instance_position`
- * : [type:vector3] The position of object A in world space
- *
- * `id`
- * : [type:hash] The ID of object A
- *
- * `group`
- * : [type:hash] The collision group of object A
- *
- * `relative_velocity`
- * : [type:vector3] The relative velocity of the collision object A as observed from B object
- *
- * `mass`
- * : [type:number] The mass of the collision object A in kg
- *
- * `normal`
- * : [type:vector3] normal in world space of the contact point, which points from B object towards A object
- *
- * @param b [type:{ position:vector3, instance_position:vector3, normal:vector3, relative_velocity:vector3, mass:number, id:hash, group:hash }] contact point information for object B
- *
- * `position`
- * : [type:vector3] The contact point position in world space
- *
- * `instance_position`
- * : [type:vector3] The position of object B in world space
- *
- * `id`
- * : [type:hash] The ID of object B
- *
- * `group`
- * : [type:hash] The collision group of object B
- *
- * `relative_velocity`
- * : [type:vector3] The relative velocity of the collision object B as observed from A object
- *
- * `mass`
- * : [type:number] The mass of the collision object B in kg
- *
- * `normal`
- * : [type:vector3] normal in world space of the contact point, which points from A object towards B object
+ * @param a [type:message.physics.contact_point_info] contact point information for object A
+ * @param b [type:message.physics.contact_point_info] contact point information for object B
  *
  * @examples
  *
@@ -473,6 +442,14 @@ message Collision
     required uint64 group                            = 3;
 }
 
+/*# collision object information
+ * @struct
+ * @name message.physics.collision_info
+ * @member position [type:vector3] object position in world space
+ * @member id [type:hash] object identifier
+ * @member group [type:hash] object collision group
+ */
+
 /*# reports a collision between two collision objects in cases where a listener is specified.
  * See [ref:physics.set_event_listener].
  *
@@ -484,27 +461,8 @@ message Collision
  *
  * @message
  * @name collision_event
- * @param a [type:{ position:vector3, id:hash, group:hash }] collision information for object A
- *
- * `position`
- * : [type:vector3] The world position of object A
- *
- * `id`
- * : [type:hash] The ID of object A
- *
- * `group`
- * : [type:hash] The collision group of object A
- *
- * @param b [type:{ position:vector3, id:hash, group:hash }] collision information for object B
- *
- * `position`
- * : [type:vector3] The world position of object B
- *
- * `id`
- * : [type:hash] The ID of object B
- *
- * `group`
- * : [type:hash] The collision group of object B
+ * @param a [type:message.physics.collision_info] collision information for object A
+ * @param b [type:message.physics.collision_info] collision information for object B
  *
  * @examples
  *
@@ -544,6 +502,13 @@ message Trigger
     required uint64 group                           = 2;
 }
 
+/*# trigger interaction object information
+ * @struct
+ * @name message.physics.trigger_info
+ * @member id [type:hash] object identifier
+ * @member group [type:hash] object collision group
+ */
+
 /*# reports interaction (enter/exit) between a trigger collision object and another collision object
  * See [ref:physics.set_event_listener].
  *
@@ -556,20 +521,8 @@ message Trigger
  * @message
  * @name trigger_event
  * @param enter [type:boolean] if the interaction was an entry or not
- * @param a [type:{ id:hash, group:hash }] interaction information for object A
- * `id`
- * : [type:hash] The ID of object A
- *
- * `group`
- * : [type:hash] The collision group of object A
- *
- * @param b [type:{ id:hash, group:hash }] collision information for object B
- *
- * `id`
- * : [type:hash] The ID of object B
- *
- * `group`
- * : [type:hash] The collision group of object B
+ * @param a [type:message.physics.trigger_info] interaction information for object A
+ * @param b [type:message.physics.trigger_info] interaction information for object B
  *
  * @examples
  *

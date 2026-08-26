@@ -1859,9 +1859,20 @@ namespace dmGameSystem
 /*# Constraint types
  * @enum
  * @name bullet3d.constraint.CONSTRAINT_TYPE
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_CONE_TWIST Cone-twist constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF Generic 6-DOF constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF_SPRING Generic spring 6-DOF constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_HINGE Hinge constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_HINGE2 Hinge2 constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_POINT_TO_POINT Point-to-point constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_SLIDER Slider constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_UNIVERSAL Universal constraint type
  */
 
 /*# Point-to-point constraint parameters
+ *
+ * `pivot_b` is required for a two-body constraint. For a one-body constraint,
+ * it is an optional world-space anchor.
  * @struct
  * @name bullet3d.constraint.point_to_point_params
  * @member pivot_a [type:vector3] local body-A pivot
@@ -1870,6 +1881,8 @@ namespace dmGameSystem
  */
 
 /*# Hinge constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
  * @struct
  * @name bullet3d.constraint.hinge_params
  * @member frame_a_position [type:vector3] local body-A frame position
@@ -1882,6 +1895,8 @@ namespace dmGameSystem
  */
 
 /*# Cone-twist constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
  * @struct
  * @name bullet3d.constraint.cone_twist_params
  * @member frame_a_position [type:vector3] local body-A frame position
@@ -1893,6 +1908,8 @@ namespace dmGameSystem
  */
 
 /*# Generic 6-DOF constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
  * @struct
  * @name bullet3d.constraint.generic_6dof_params
  * @member frame_a_position [type:vector3] local body-A frame position
@@ -1913,6 +1930,8 @@ namespace dmGameSystem
  */
 
 /*# Slider constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
  * @struct
  * @name bullet3d.constraint.slider_params
  * @member frame_a_position [type:vector3] local body-A frame position
@@ -1932,52 +1951,17 @@ namespace dmGameSystem
  * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
 
-/*# Point-to-point constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_POINT_TO_POINT
- * @constant
- */
 
-/*# Hinge constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_HINGE
- * @constant
- */
 
-/*# Cone-twist constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_CONE_TWIST
- * @constant
- */
 
-/*# Generic 6-DOF constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF
- * @constant
- */
 
-/*# Generic spring 6-DOF constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF_SPRING
- * @constant
- */
 
-/*# Slider constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_SLIDER
- * @constant
- */
 
-/*# Universal constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_UNIVERSAL
- * @constant
- */
 
-/*# Hinge2 constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_HINGE2
- * @constant
- */
 
 /*# Create a point-to-point constraint
  *
- * `params.pivot_a` is required. `params.pivot_b` is required with `body_b`;
- * for a one-body constraint it is an optional world-space anchor. The params
- * table also accepts `collide_connected`, which defaults to `false`. The world
- * is derived from `body_a`; both bodies must belong to that same world.
+ * The world is derived from `body_a`; both bodies must belong to that same world.
  *
  * @name bullet3d.constraint.create_point_to_point
  * @param body_a [type:btRigidBody] first body
@@ -2009,10 +1993,7 @@ namespace dmGameSystem
 
 /*# Create a hinge constraint
  *
- * The params table requires `frame_a_position` and `frame_a_rotation`, plus
- * the corresponding frame B fields for a two-body constraint. It optionally
- * accepts `use_reference_frame_a`, `angular_only`, and
- * `collide_connected`. The world is derived from `body_a`.
+ * The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_hinge
  * @param body_a [type:btRigidBody] first body
@@ -2047,9 +2028,7 @@ namespace dmGameSystem
 
 /*# Create a cone-twist constraint
  *
- * The params table uses the same local-frame fields as a hinge and optionally
- * accepts `angular_only` and `collide_connected`. The world is derived from
- * `body_a`.
+ * The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_cone_twist
  * @param body_a [type:btRigidBody] first body
@@ -2060,9 +2039,7 @@ namespace dmGameSystem
 
 /*# Create a generic six-degree-of-freedom constraint
  *
- * The params table requires local frame A and, for a two-body constraint,
- * local frame B. It optionally accepts
- * `collide_connected`. The world is derived from `body_a`. Bullet 2.77's active 6-DOF
+ * The world is derived from `body_a`. Bullet 2.77's active 6-DOF
  * solver ignores its legacy linear-reference-frame selector, so that field is
  * rejected rather than silently accepted.
  *
@@ -2075,8 +2052,7 @@ namespace dmGameSystem
 
 /*# Create a generic spring six-degree-of-freedom constraint
  *
- * Both bodies and both local frames are required. The params table optionally
- * accepts `collide_connected`. The world is derived from `body_a`. Bullet 2.77's active
+ * The world is derived from `body_a`. Bullet 2.77's active
  * spring 6-DOF solver ignores its legacy linear-reference-frame selector, so
  * that field is rejected rather than silently accepted.
  *
@@ -2116,9 +2092,7 @@ namespace dmGameSystem
 
 /*# Create a slider constraint
  *
- * The params table requires local frame A and, for a two-body constraint,
- * local frame B. It optionally accepts `use_linear_reference_frame_a` and
- * `collide_connected`. The world is derived from `body_a`.
+ * The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_slider
  * @param body_a [type:btRigidBody] first body
@@ -2129,9 +2103,7 @@ namespace dmGameSystem
 
 /*# Create a universal constraint
  *
- * Both bodies are required. The params table requires a world-space `anchor`
- * and non-zero, orthogonal `axis1` and `axis2` vectors. It optionally accepts
- * `collide_connected`. The world is derived from `body_a`.
+ * Both bodies are required. The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_universal
  * @param body_a [type:btRigidBody] first body
@@ -2142,10 +2114,8 @@ namespace dmGameSystem
 
 /*# Create a hinge2 constraint
  *
- * Both bodies are required. The params table requires a world-space `anchor`
- * and non-zero, orthogonal `axis1` and `axis2` vectors. Its initial linear
- * suspension travel is one Defold unit in either direction. It optionally
- * accepts `collide_connected`. The world is derived from `body_a`.
+ * Both bodies are required. Its initial linear suspension travel is one Defold
+ * unit in either direction. The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_hinge2
  * @param body_a [type:btRigidBody] first body

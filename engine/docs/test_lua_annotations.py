@@ -210,7 +210,11 @@ class TestLuaAnnotations(unittest.TestCase):
         math_doc = document("math", [function("math.abs", "number")])
 
         with tempfile.TemporaryDirectory() as directory:
-            metadata = self.metadata(directory, {"go.PLAYBACK": {}})
+            metadata = self.metadata(
+                directory,
+                {"go.PLAYBACK": {
+                    "members": ["go.PLAYBACK_ONCE_FORWARD"],
+                }})
             output = Path(directory) / "output"
             names = lua_annotations.generate([
                 ("go.cpp", go_doc),
@@ -874,7 +878,7 @@ class TestLuaAnnotations(unittest.TestCase):
             for namespace in ("world", "body", "joint", "shape", "chain"):
                 self.assertNotIn("---@alias b2d.%s userdata" % namespace, meta_lua)
 
-    def test_source_enum_infers_members_from_constants(self):
+    def test_source_enum_requires_explicit_members(self):
         playback = enum("go.PLAYBACK")
         go_doc = document("go", [
             playback,
@@ -884,29 +888,16 @@ class TestLuaAnnotations(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             metadata = self.metadata(directory)
-            output = Path(directory) / "output"
-            lua_annotations.generate(
-                [("go.cpp", go_doc)],
-                output,
-                metadata)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"go\.cpp: enum 'go\.PLAYBACK' must declare at least "
+                    r"one explicit member"):
+                lua_annotations.generate(
+                    [("go.cpp", go_doc)],
+                    Path(directory) / "output",
+                    metadata)
 
-            go_lua = (output / "go.lua").read_text(encoding="utf-8")
-            self.assertIn(
-                "---@enum defold_enum.go.PLAYBACK: integer",
-                go_lua)
-            self.assertIn(
-                "local __defold_enum_go_PLAYBACK = {",
-                go_lua)
-            self.assertIn("    PLAYBACK_NONE = nil,", go_lua)
-            self.assertIn(
-                "---@alias go.PLAYBACK defold_enum.go.PLAYBACK",
-                go_lua)
-            self.assertIn("---| `go.PLAYBACK_NONE`", go_lua)
-            self.assertIn(
-                "---@field PLAYBACK_NONE go.PLAYBACK",
-                go_lua)
-
-    def test_source_enum_infers_members_from_nested_constant_namespace(self):
+    def test_nested_source_enum_requires_explicit_members(self):
         alignment = enum("editor.ui.ALIGNMENT", value_type="string")
         editor_doc = document("editor", [
             alignment,
@@ -916,22 +907,14 @@ class TestLuaAnnotations(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             metadata = self.metadata(directory)
-            output = Path(directory) / "output"
-            lua_annotations.generate(
-                [("editor.apidoc", editor_doc)],
-                output,
-                metadata)
-
-            editor_lua = (output / "editor.lua").read_text(encoding="utf-8")
-            self.assertIn(
-                "---@enum defold_enum.editor.ui.ALIGNMENT: string",
-                editor_lua)
-            self.assertIn(
-                "---@alias editor.ui.ALIGNMENT "
-                "defold_enum.editor.ui.ALIGNMENT",
-                editor_lua)
-            self.assertIn("---| `editor.ui.ALIGNMENT.TOP`", editor_lua)
-            self.assertIn("---@field TOP editor.ui.ALIGNMENT", editor_lua)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"editor\.apidoc: enum 'editor\.ui\.ALIGNMENT' must "
+                    r"declare at least one explicit member"):
+                lua_annotations.generate(
+                    [("editor.apidoc", editor_doc)],
+                    Path(directory) / "output",
+                    metadata)
 
     def test_constant_supports_explicit_value_type(self):
         socket_doc = document("socket", [
@@ -964,7 +947,9 @@ class TestLuaAnnotations(unittest.TestCase):
                     metadata)
 
     def test_constant_enum_member_can_be_nil(self):
-        format_enum = enum("graphics.TEXTURE_FORMAT")
+        format_enum = enum(
+            "graphics.TEXTURE_FORMAT",
+            ["graphics.TEXTURE_FORMAT_RGBA16F"])
         graphics_doc = document("graphics", [
             format_enum,
             constant(
@@ -986,16 +971,35 @@ class TestLuaAnnotations(unittest.TestCase):
                 "---@field TEXTURE_FORMAT_RGBA16F graphics.TEXTURE_FORMAT|nil",
                 graphics_lua)
 
+    def test_source_enum_member_supports_doc_and_explicit_type(self):
+        format_enum = enum(
+            "graphics.TEXTURE_FORMAT",
+            ["graphics.TEXTURE_FORMAT_RGBA16F"])
+        format_enum.members[0].doc = "Optional texture format."
+        format_enum.members[0].type = "graphics.TEXTURE_FORMAT|nil"
+        graphics_doc = document("graphics", [format_enum])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("graphics.cpp", graphics_doc)],
+                output,
+                metadata)
+
+            graphics_lua = (output / "graphics.lua").read_text(
+                encoding="utf-8")
+            self.assertIn("---Optional texture format.", graphics_lua)
+            self.assertIn(
+                "---@field TEXTURE_FORMAT_RGBA16F graphics.TEXTURE_FORMAT|nil",
+                graphics_lua)
+
     def test_source_enum_supports_explicit_members_and_value_type(self):
         properties = enum(
             "gui.PROP",
             ["gui.PROP_POSITION", "gui.PROP_ROTATION"],
             "string")
-        gui_doc = document("gui", [
-            properties,
-            constant("gui.PROP_POSITION"),
-            constant("gui.PROP_ROTATION"),
-        ])
+        gui_doc = document("gui", [properties])
 
         with tempfile.TemporaryDirectory() as directory:
             metadata = self.metadata(directory)
@@ -1013,6 +1017,7 @@ class TestLuaAnnotations(unittest.TestCase):
                 "---@alias gui.PROP defold_enum.gui.PROP",
                 gui_lua)
             self.assertIn("---| `gui.PROP_ROTATION`", gui_lua)
+            self.assertIn("---@field PROP_POSITION gui.PROP", gui_lua)
 
     def test_conflicting_source_typedefs_report_both_sources(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1033,20 +1038,23 @@ class TestLuaAnnotations(unittest.TestCase):
                     Path(directory) / "output",
                     metadata)
 
-    def test_source_enum_rejects_missing_explicit_member(self):
-        playback = enum(
-            "go.PLAYBACK",
-            ["go.PLAYBACK_NONE", "go.PLAYBACK_MISSING"])
-        go_doc = document("go", [
-            playback,
-            constant("go.PLAYBACK_NONE"),
-        ])
+    def test_metadata_enum_rejects_missing_explicit_member(self):
+        go_doc = document("go", [constant("go.PLAYBACK_NONE")])
 
         with tempfile.TemporaryDirectory() as directory:
-            metadata = self.metadata(directory)
+            metadata = self.metadata(
+                directory,
+                enums={
+                    "go.PLAYBACK": {
+                        "members": [
+                            "go.PLAYBACK_NONE",
+                            "go.PLAYBACK_MISSING",
+                        ],
+                    },
+                })
             with self.assertRaisesRegex(
                     ValueError,
-                    r"go\.cpp: enum go\.PLAYBACK references missing constant "
+                    r"metadata\.yaml: enum go\.PLAYBACK references missing constant "
                     r"go\.PLAYBACK_MISSING"):
                 lua_annotations.generate(
                     [("go.cpp", go_doc)],

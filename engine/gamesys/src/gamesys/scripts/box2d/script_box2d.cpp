@@ -671,5 +671,5 @@ namespace dmGameSystem
 
 /*# Get the Box2D version information for the active backend.
  * @name b2d.get_version
- * @return info [type:b2d.version_info] version info with fields `version`, `major`, `middle`, and `minor`
+ * @return info [type:b2d.version_info] version information
  */
