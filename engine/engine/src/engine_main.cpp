@@ -127,7 +127,11 @@ int engine_main(int argc, char *argv[])
         return 0;
     }
 
-    glfwInit();
+    if (!glfwInit())
+    {
+        dmLogWarning("Could not initialize GLFW.");
+        return 0;
+    }
 
     EngineMainThreadArgs args;
     args.m_Argc = argc;

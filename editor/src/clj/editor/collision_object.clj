@@ -116,6 +116,7 @@
   (property node-outline-key g/Str ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property id g/Str (default (protobuf/default Physics$CollisionShape$Shape :id))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :id))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
@@ -857,8 +858,10 @@
             (dynamic read-only? (g/fnk [collision-shape] (tilemap-collision-shape? collision-shape)))
             (dynamic label (properties/label-dynamic :collision-object :group))
             (dynamic tooltip (g/fnk [collision-shape]
-                               (when (tilemap-collision-shape? collision-shape)
-                                 (localization/message "property.collision-object.group.tilemap.tooltip")))))
+                               (localization/message
+                                 (if (tilemap-collision-shape? collision-shape)
+                                   "property.collision-object.group.tilemap.tooltip"
+                                   "property.collision-object.group.tooltip")))))
   (property mask g/Str ; Nil is valid default.
             (dynamic label (properties/label-dynamic :collision-object :mask))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :mask)))

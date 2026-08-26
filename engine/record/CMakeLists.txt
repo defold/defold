@@ -12,7 +12,7 @@ set(RECORD_SRC_DIR "${RECORD_ROOT}/src/record")
 set(RECORD_NULL_DEPENDENCIES dlib)
 set(RECORD_DEPENDENCIES dlib vpx)
 set(RECORD_IS_DESKTOP_PLATFORM OFF)
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
+if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
   set(RECORD_IS_DESKTOP_PLATFORM ON)
 endif()
 

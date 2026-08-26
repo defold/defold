@@ -562,7 +562,7 @@ def gofile(self, node):
         return 1
 
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
-proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
+proto_compile_task('collectionproxy', 'collectionproxy_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
 proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.ParticleFX', '.particlefx', '.particlefxc', transform_particlefx)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
 proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)

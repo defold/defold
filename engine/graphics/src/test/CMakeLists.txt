@@ -25,6 +25,27 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 endif()
 defold_register_test_target(test_graphics ON "${GRAPHICS_TEST_SRC_DIR}")
 
+# Needs the real basis transcoder (test_graphics above links the null one, where Transcode is a stub)
+defold_add_executable(test_transcoder
+  "${GRAPHICS_TEST_SRC_DIR}/test_transcoder.cpp")
+target_include_directories(test_transcoder PRIVATE
+  "${GRAPHICS_SRC_DIR}"
+  "${GRAPHICS_PROTO_ROOT}")
+defold_target_link_libraries(test_transcoder "${TARGET_PLATFORM}"
+  testmain
+  ddf
+  dlib
+  profile_null
+  graphics_null
+  graphics_transcoder_basisu
+  basis_transcoder)
+defold_target_link_socket(test_transcoder "${TARGET_PLATFORM}" PRIVATE)
+if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+  find_package(Threads REQUIRED)
+  target_link_libraries(test_transcoder PRIVATE Threads::Threads dl)
+endif()
+defold_register_test_target(test_transcoder ON "${GRAPHICS_TEST_SRC_DIR}")
+
 if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
   defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 

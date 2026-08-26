@@ -26,6 +26,8 @@ pom.xml.asc
 /.project
 /.pydevproject
 /resources/doc/
+# Release notes staged onto the classpath at build time (place_release_notes); never committed.
+/resources/release-notes/
 /build
 /preflight-report.txt
 /.calva

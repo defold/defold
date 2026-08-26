@@ -53,7 +53,7 @@ It is in our plans however.
 
 ### Runtime generation
 
-For fonts that support it (currently only .ttf), we can generate distance fields at runtime. This helps keep the game bundle size to a minimum.
+For `.ttf` and `.otf` fonts, we can generate distance fields at runtime. This helps keep the game bundle size to a minimum.
 
 This is an opt-in feature that requires building the engine locally with `--enable-feature=font_layout` or using an app manifest.
 
@@ -73,7 +73,7 @@ The main text render loop is in `engine/render/src/render/font/font_renderer.cpp
 
 The render library also manages the texture cache, via its `HFontMap`
 
-Final vertex data generation is handled by `dmRender::CreateFontVertexData` in `engine/render/src/render/font/default/font_default_vertex.cpp`.
+Final vertex data generation is coordinated by `dmRender::CreateFontVertexData` in `engine/render/src/render/font/font_renderer.cpp`. The `font` library handles fonts, glyph generation, and text layout without depending on graphics. The `font_render` library in `engine/font/src/render` owns the fixed `FontGlyphVertex` layout, packs glyph vertices, and creates the matching graphics vertex declaration. The `fontc_shared` C/FFM boundary lives separately in `engine/font/src/fontc` and links the full-text-shaping font implementation with `font_render`.
 
 For distance-field fonts, SDF smoothing is computed in screen space. The renderer derives a pixels-per-local-unit scale from the current view-projection matrix and viewport and uses it to keep edge thickness stable under camera zoom and perspective. If the projection is invalid for a text entry (e.g. clip `w` near zero or a zero-sized viewport), it falls back to the local/world scale.
 
@@ -108,7 +108,7 @@ This library handles file formats, component logic, and scripting.
 ### FontResource
 
 In `engine/gamesys/src/gamesys/resources/res_font.cpp` we load a `.fontc` and create a `FontResource*`. This represents an `HFontCollection`.
-At this stage, the file format is either an offline font (.glyphbankc), or a runtime font (.ttf).
+At this stage, the file format is either an offline font (`.glyphbankc`), or a runtime font (`.ttf` or `.otf`).
 
 `res_font.cpp` is responsible for producing data for a glyph index: glyph info or glyph distance-field bitmap. See `OnGlyphCacheMiss()` in `res_font.cpp`.
 
@@ -139,7 +139,6 @@ They register a text entry with the renderer each frame.
 Scripting is handled by the `font.*` Lua module (see `script_font.cpp`).
 
 The scripting module allows for associating a compatible `HFont` with a `HFontCollection`.
-In particular, you can get a `HFont` from a `HFontCollection` (.fontc) and associate it with another `HFontCollection`. This will increase the reference count of the underlying `HFont` resource (.ttf).
+In particular, you can get a `HFont` from a `HFontCollection` (.fontc) and associate it with another `HFontCollection`. This will increase the reference count of the underlying `HFont` resource (`.ttf` or `.otf`).
 
 The scripting api will also allow for generating new glyphs on-the-fly. This operation is asynchronous, as the bitmap generation is time consuming.
-

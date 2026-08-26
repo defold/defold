@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.script
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-annotations :as script-annotations]
@@ -23,6 +24,7 @@
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
+            [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -32,9 +34,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(g/deftype Modules [String])
-
 
 ;; Lua block open/close keywords for indentation
 (def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
@@ -54,7 +53,7 @@
 (defn lua-opens-block? [^String line]
   (let [len (.length line)]
     (if (or (zero? len)
-            (.startsWith (clojure.string/triml line) "--"))
+            (.startsWith (string/triml line) "--"))
       false
       (loop [i 0
              token (StringBuilder.)
@@ -66,8 +65,8 @@
         (if (>= i len)
           (let [tokens (if (pos? (.length token)) (conj tokens (.toString token)) tokens)]
             (or (= last-non-space \{)
-                (and (some lua-open-keywords tokens)
-                     (not (some lua-close-keywords tokens)))))
+                (and (coll/some lua-open-keywords tokens)
+                     (not (coll/some lua-close-keywords tokens)))))
           (let [ch (.charAt line (long i))]
             (cond
               skip-rest
@@ -101,8 +100,8 @@
                                (conj tokens tok))
                              tokens)]
                 (recur (inc i) token in-quote false skip-rest
-                        (if (Character/isWhitespace ch) last-non-space ch)
-                        tokens)))))))))
+                       (if (Character/isWhitespace ch) last-non-space ch)
+                       tokens)))))))))
 
 (def lua-grammar
   {:name "Lua"
@@ -198,6 +197,7 @@
           :script-property-type-vector4
           :script-property-type-quat
           :script-property-type-boolean
+          :script-property-type-text
           :script-property-type-resource))
 
 (defn- prop->key [p]
@@ -322,11 +322,11 @@
 
 (defn- create-script-property [script-node-id name type resource-kind value]
   (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]
-                (edit-script-property node-id type resource-kind value)
-                (g/connect node-id :_node-id script-node-id :nodes)
-                (g/connect node-id :build-targets script-node-id :resource-property-build-targets)
-                (g/connect node-id :name+node-id script-node-id :script-property-name+node-ids)
-                (g/connect node-id :property-entries script-node-id :script-property-entries)))
+    (edit-script-property node-id type resource-kind value)
+    (g/connect node-id :_node-id script-node-id :nodes)
+    (g/connect node-id :build-targets script-node-id :resource-property-build-targets)
+    (g/connect node-id :name+node-id script-node-id :script-property-name+node-ids)
+    (g/connect node-id :property-entries script-node-id :script-property-entries)))
 
 (defn- update-script-properties [evaluation-context script-node-id old-value new-value]
   (assert (or (nil? old-value) (vector? old-value)))
@@ -432,6 +432,14 @@
   (output breakpoints project/Breakpoints produce-breakpoints)
 
   (output completions g/Any :cached (gu/passthrough script-intelligence-completions))
+  (output required-module-info script-intelligence/RequiredModuleInfo :cached
+          (g/fnk [_node-id resource lines]
+            [_node-id
+             (resource/proj-path resource)
+             (with-open [reader (data/lines-reader lines)]
+               (coll/into-> (lua-parser/modules reader) []
+                 (remove lua/preinstalled-modules)
+                 (map lua/lua-module->path)))]))
   (output resource-with-lines script-annotations/ResourceWithLines (g/fnk [resource lines :as ret] ret)))
 
 (g/defnode LuaNode
@@ -491,6 +499,7 @@
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :category (localization/message "resource.category.scripts")
+                   :reference-completions true
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
@@ -514,10 +523,11 @@
                    :icon-class :script
                    :category (localization/message "resource.category.scripts")
                    :annotations true
+                   :reference-completions true
                    :tags #{:debuggable}}])
 
 (defn- additional-load-fn
-  [annotations project self resource]
+  [annotations reference-completions project self resource]
   (g/with-auto-evaluation-context evaluation-context
     (let [code-preprocessors (project/code-preprocessors project evaluation-context)
           script-intelligence (project/script-intelligence project evaluation-context)
@@ -525,18 +535,20 @@
       (concat
         (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
         (g/connect script-intelligence :lua-completions self :script-intelligence-completions)
+        (when reference-completions
+          (g/connect self :required-module-info script-intelligence :required-module-infos))
         (when (and annotations (resource/zip-resource? resource))
           (g/connect self :resource-with-lines script-annotations :script-annotations))))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
         :let [args (-> def
-                       (dissoc :annotations)
+                       (dissoc :annotations :reference-completions)
                        (assoc
                          :built-pb-class script-compilation/built-pb-class
                          :language "lua"
                          :lazy-loaded false
-                         :additional-load-fn (partial additional-load-fn (:annotations def))
+                         :additional-load-fn (partial additional-load-fn (:annotations def) (:reference-completions def))
                          :view-types [:code :default]
                          :view-opts lua-code-opts))]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

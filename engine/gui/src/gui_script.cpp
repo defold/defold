@@ -256,6 +256,18 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptInstanceGetUserData(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        uintptr_t user_data = 0;
+        if (scene != 0 && scene->m_Context->m_GetUserDataCallback != 0)
+        {
+            user_data = scene->m_Context->m_GetUserDataCallback(scene);
+        }
+        lua_pushlightuserdata(L, (void*)user_data);
+        return 1;
+    }
+
     static int GuiScriptInstanceResolvePath(lua_State* L)
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
@@ -311,6 +323,7 @@ namespace dmGui
         {"__index",                                     GuiScriptInstance_index},
         {"__newindex",                                  GuiScriptInstance_newindex},
         {dmScript::META_TABLE_GET_URL,                  GuiScriptInstanceGetURL},
+        {dmScript::META_TABLE_GET_USER_DATA,            GuiScriptInstanceGetUserData},
         {dmScript::META_TABLE_RESOLVE_PATH,             GuiScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
@@ -2878,47 +2891,6 @@ namespace dmGui
         int inverted = lua_toboolean(L, 2);
         n->m_Node.m_ClippingInverted = inverted;
         return 0;
-    }
-
-    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break, float leading, float tracking)
-    {
-        dmGui::TextMetrics metrics;
-        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, leading, tracking, &metrics);
-        if (r != RESULT_OK) {
-            luaL_error(L, "Font '%s' is not specified in scene", dmHashReverseSafe64(font_id_hash));
-        }
-
-        lua_createtable(L, 0, 4);
-        lua_pushliteral(L, "width");
-        lua_pushnumber(L, metrics.m_Width);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "height");
-        lua_pushnumber(L, metrics.m_Height);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "max_ascent");
-        lua_pushnumber(L, metrics.m_MaxAscent);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "max_descent");
-        lua_pushnumber(L, metrics.m_MaxDescent);
-        lua_rawset(L, -3);
-    }
-
-    static inline float LuaUtilGetDefaultFloat(lua_State* L, int index, float defaultvalue)
-    {
-        if( lua_isnoneornil(L, index) )
-        {
-            return defaultvalue;
-        }
-        return (float) luaL_checknumber(L, index);
-    }
-
-    static inline bool LuaUtilGetDefaultBool(lua_State* L, int index, bool defaultvalue)
-    {
-        if( lua_isnoneornil(L, index) )
-        {
-            return defaultvalue;
-        }
-        return lua_toboolean(L, index);
     }
 
     /*# gets the x-anchor of a node

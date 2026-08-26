@@ -221,12 +221,34 @@
                        (app-manifest/update-setting-value setting update-fn)
                        (app-manifest/get-setting-value setting))))))))))
 
+;; Verifies the combined 2D/3D physics selection round-trips and excludes the
+;; Bullet3D script library and symbol on every platform exactly when 3D is disabled.
+;; This prevents editor writes from linking an unavailable API or stripping the
+;; API from projects that still use 3D physics.
+(deftest physics-setting-test
+  (testing "Bullet script API follows the 3D physics selection"
+    (doseq [[selection exclude-bullet-script]
+            [[{:2d :none :3d false} true]
+             [{:2d :legacy :3d false} true]
+             [{:2d :v3 :3d false} true]
+             [{:2d :none :3d true} false]
+             [{:2d :v3 :3d true} false]
+             [{:2d :legacy :3d true} false]]]
+      (let [manifest (app-manifest/set-setting-value {} app-manifest/physics-setting selection)]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/physics-setting)))
+        (doseq [platform app-manifest/all-platforms]
+          (let [context (get-in manifest [:platforms platform :context])]
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeLibs context)) "script_bullet3d")))
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
+
 (deftest android-graphics-setting-test
   (testing "OpenGL-only Android excludes Vulkan link inputs"
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :both)
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
           (is (some #{"dmglfw"} (:libs context)))
@@ -239,7 +261,7 @@
           (is (some #{"GLESv2"} (:dynamicLibs context)))))))
   (testing "Vulkan-only Android excludes OpenGL ES link inputs"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-android :vulkan)]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
           (is (some #{"dmglfw_vulkan"} (:libs context)))
@@ -374,6 +396,9 @@
         (is (= false (g/node-value manifest :exclude-record)))
         (is (= :debug-only (g/node-value manifest :profiler)))
         (is (= false (g/node-value manifest :exclude-sound)))
+        (is (= false (g/node-value manifest :exclude-gui)))
+        (is (= false (g/node-value manifest :exclude-particle-fx)))
+        (is (= false (g/node-value manifest :exclude-tilemap)))
         (is (= false (g/node-value manifest :exclude-input)))
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
@@ -598,4 +623,21 @@
       (is (true? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record false)
       (is (false? (string/includes? (text) "record_null")))
-      (is (false? (g/node-value manifest :exclude-record))))))
+      (is (false? (g/node-value manifest :exclude-record)))
+
+      (g/set-property! manifest :exclude-gui true)
+      (g/set-property! manifest :exclude-particle-fx true)
+      (g/set-property! manifest :exclude-tilemap true)
+      (is (string/includes? (text) "gui_null"))
+      (is (string/includes? (text) "particle_null"))
+      (is (string/includes? (text) "ResourceTypeTileMap"))
+      (is (true? (g/node-value manifest :exclude-gui)))
+      (is (true? (g/node-value manifest :exclude-particle-fx)))
+      (is (true? (g/node-value manifest :exclude-tilemap)))
+
+      (g/set-property! manifest :exclude-gui false)
+      (g/set-property! manifest :exclude-particle-fx false)
+      (g/set-property! manifest :exclude-tilemap false)
+      (is (false? (string/includes? (text) "gui_null")))
+      (is (false? (string/includes? (text) "particle_null")))
+      (is (false? (string/includes? (text) "ResourceTypeTileMap"))))))

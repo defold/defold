@@ -489,13 +489,28 @@ var LibraryGLFW = {
       GLFW.onFocusChanged(0);
     },
 
+    isDocumentFullscreen: function() {
+      return !!(document["fullscreenElement"] || document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"]);
+    },
+
+    addFullScreenEventListeners: function() {
+      document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+    },
+
+    removeFullScreenEventListeners: function() {
+      document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+    },
+
     onFullScreenEventChange: function(event) {
-      GLFW.isFullscreen = document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"];
+      GLFW.isFullscreen = GLFW.isDocumentFullscreen();
       if (!GLFW.isFullscreen) {
-        document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
-        document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
-        document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
-        document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+        GLFW.removeFullScreenEventListeners();
       }
       //reset previous values for updating size in glfwSwapBuffers()
       GLFW.prevWidth = 0;
@@ -507,10 +522,7 @@ var LibraryGLFW = {
       if (!element) {
         return;
       }
-      document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+      GLFW.addFullScreenEventListeners();
       var RFS = element['requestFullscreen'] ||
                 element['requestFullScreen'] ||
                 element['mozRequestFullScreen'] ||
@@ -739,6 +751,23 @@ var LibraryGLFW = {
     GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
 
+    // The browser can still be in fullscreen or pointer lock from a previous
+    // engine instance, since a reboot keeps the canvas and glfwTerminate leaves
+    // the browser state alone. Recompute the cached state from the document and
+    // listen for changes again while it is active.
+    GLFW.isFullscreen = false;
+    GLFW.isPointerLocked = false;
+    if (typeof document !== 'undefined') {
+        GLFW.isFullscreen = GLFW.isDocumentFullscreen();
+        if (GLFW.isFullscreen) {
+            GLFW.addFullScreenEventListeners();
+        }
+        GLFW.isPointerLocked = !!document["pointerLockElement"];
+        if (GLFW.isPointerLocked) {
+            document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        }
+    }
+
     //TODO: Init with correct values
     GLFW.params = new Array();
     GLFW.params[0x00030001] = true; // GLFW_MOUSE_CURSOR
@@ -789,6 +818,7 @@ var LibraryGLFW = {
   },
 
   glfwTerminate: () => {
+    GLFW.removeEventListener("unload", GLFW.onWindowClose, true);
     GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
@@ -801,15 +831,37 @@ var LibraryGLFW = {
     GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
     GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
+    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
     GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
 
-    var canvas = Module["canvas"];
-    if (typeof canvas !== 'undefined') {
-        Module["canvas"].width = Module["canvas"].height = 1;
+    // Fullscreen and pointer lock listeners are otherwise only removed by their
+    // own change handlers, so they survive termination if we exit while active.
+    // The browser state itself is left as it is, glfwInitJS recomputes the
+    // cached flags from the document when a new window is opened.
+    // The document is guarded like window/canvas above, since glfwTerminate is
+    // also reachable from embeddings without a DOM.
+    if (typeof document !== 'undefined') {
+        GLFW.removeFullScreenEventListeners();
+        document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
     }
+
+    // The callbacks point into the engine that is being destroyed. They are set
+    // again when a new window is opened.
+    GLFW.keyFunc = null;
+    GLFW.charFunc = null;
+    GLFW.markedTextFunc = null;
+    GLFW.gamepadFunc = null;
+    GLFW.mouseButtonFunc = null;
+    GLFW.mousePosFunc = null;
+    GLFW.mouseWheelFunc = null;
+    GLFW.resizeFunc = null;
+    GLFW.closeFunc = null;
+    GLFW.refreshFunc = null;
+    GLFW.focusFunc = null;
+    GLFW.iconifyFunc = null;
+    GLFW.touchFunc = null;
   },
 
   glfwGetVersion: function(major, minor, rev) {
@@ -851,7 +903,8 @@ var LibraryGLFW = {
             antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
             depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
             stencil: (GLFW.params[0x0002000A] > 0), // GLFW_STENCIL_BITS
-            alpha: (GLFW.params[0x00020008] > 0) // GLFW_ALPHA_BITS
+            alpha: (GLFW.params[0x00020008] > 0), // GLFW_ALPHA_BITS
+            majorVersion: GLFW.params[0x0002001B] // GLFW_WEBGL_VERSION
         };
 
         // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.

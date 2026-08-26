@@ -63,6 +63,8 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static const char* GUI_MAX_COUNT_KEY = "gui.max_count";
+
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
@@ -71,7 +73,7 @@ namespace dmGameSystem
 
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource, dmhash_t, dmGui::TextureSetAnimDesc*);
 
-    // implemention in comp_particlefx.cpp
+    // implementation in comp_particlefx.cpp, or particle_null.cpp when Particle FX is excluded
     extern dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data);
 
     static dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
@@ -1211,8 +1213,8 @@ namespace dmGameSystem
 
         if (gui_world->m_Components.Full())
         {
-            ShowFullBufferError("Gui", "gui.max_count", gui_world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Gui", GUI_MAX_COUNT_KEY, gui_world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
@@ -2177,10 +2179,12 @@ namespace dmGameSystem
                 vs[vI[3]] = tc[3];
             }
 
-            xs[1] = sx * slice9.getX();
-            xs[2] = 1 - sx * slice9.getZ();
-            ys[1] = sy * slice9.getW();
-            ys[2] = 1 - sy * slice9.getY();
+            // Keep the geometry subdivisions aligned with the reversed UV
+            // subdivisions when an asymmetric 9-slice is flipped.
+            xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
+            xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
+            ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
+            ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
 
             const Matrix4* transform = &node_transforms[i];
             Vector4 pts[4][4];
@@ -3189,7 +3193,7 @@ namespace dmGameSystem
         }
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -3202,14 +3206,14 @@ namespace dmGameSystem
         }
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         return (uintptr_t)component->m_Instance;
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -3648,7 +3652,7 @@ namespace dmGameSystem
         gui_context->m_GuiContext = (dmGui::HContext) ContextRegistryGet(context_registry, "guic");
         gui_context->m_ScriptContext = (dmScript::HContext) ContextRegistryGet(context_registry, "gui_scriptc");
 
-        gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
+        gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, GUI_MAX_COUNT_KEY, 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
         gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
         gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
@@ -3663,6 +3667,11 @@ namespace dmGameSystem
         }
         gui_context->m_Worlds.SetCapacity(max_world_count);
 
+        dmGui::SetContextCallbacks(gui_context->m_GuiContext,
+                                   GuiGetURLCallback,
+                                   GuiGetUserDataCallback,
+                                   GuiResolvePathCallback,
+                                   (dmGui::GetTextMetricsCallback) GuiGetTextMetricsCallback);
         dmGui::InitializeScript(gui_context->m_ScriptContext);
 
         ComponentTypeSetPrio(type, 300);
@@ -3739,6 +3748,7 @@ namespace dmGameSystem
         g_CompGuiPropertySetters.Clear();
         g_CompGuiPropertyGetters.Clear();
 
+        dmGui::SetContextCallbacks(gui_context->m_GuiContext, 0, 0, 0, 0);
         delete gui_context;
         return dmGameObject::RESULT_OK;
     }

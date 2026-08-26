@@ -40,21 +40,29 @@ DM_PROPERTY_U32(rmtp_CollisionObjectBullet3D, 0, PROFILE_PROPERTY_FRAME_RESET, "
 namespace dmGameSystem
 {
     static PhysicsAdapterFunctionTable* g_PhysicsAdapter = 0x0;
+    static ScriptBullet3DInvalidateWorldCallback           g_ScriptBullet3DInvalidateWorldCallback = 0x0;
+    static ScriptBullet3DInvalidateCollisionObjectCallback g_ScriptBullet3DInvalidateCollisionObjectCallback = 0x0;
+    static ScriptBullet3DCollisionObjectEnabledCallback    g_ScriptBullet3DCollisionObjectEnabledCallback = 0x0;
+    static ScriptBullet3DProcessWorldQueriesCallback       g_ScriptBullet3DProcessWorldQueriesCallback = 0x0;
     static int g_NumPhysicsTransformsUpdated = 0;
     static bool g_CollisionOverflowWarning   = false;
     static bool g_ContactOverflowWarning     = false;
 
+    struct CollisionComponentBullet3D;
+    struct CollisionWorldBullet3D;
+
     static void InstallBullet3DPhysicsAdapter();
+    static void DeleteCollisionObject(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component);
     static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform);
     static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
 
-    struct CollisionComponentBullet3D;
     struct CollisionWorldBullet3D
     {
         CollisionWorld                       m_BaseWorld;
         dmPhysics::HWorld3D                  m_World3D;
         uint8_t                              m_ComponentTypeIndex;
         uint8_t                              m_FirstUpdate : 1;
+        uint8_t                              m_IsStepping : 1;
         dmArray<CollisionComponentBullet3D*> m_Components;
     };
 
@@ -64,6 +72,44 @@ namespace dmGameSystem
         dmPhysics::HCollisionObject3D m_Object3D;
         dmPhysics::HCollisionShape3D* m_ShapeBuffer;
     };
+
+    static void InvalidateScriptBullet3DWorld(dmPhysics::HWorld3D world)
+    {
+        if (g_ScriptBullet3DInvalidateWorldCallback)
+        {
+            g_ScriptBullet3DInvalidateWorldCallback(dmPhysics::GetWorldContext3D(world));
+        }
+    }
+
+    static void InvalidateScriptBullet3DCollisionObject(dmPhysics::HCollisionObject3D collision_object)
+    {
+        if (g_ScriptBullet3DInvalidateCollisionObjectCallback)
+        {
+            g_ScriptBullet3DInvalidateCollisionObjectCallback(dmPhysics::GetCollisionObjectContext3D(collision_object));
+        }
+    }
+
+    static void NotifyScriptBullet3DCollisionObjectEnabled(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component, bool enabled)
+    {
+        if (g_ScriptBullet3DCollisionObjectEnabledCallback)
+        {
+            g_ScriptBullet3DCollisionObjectEnabledCallback(dmPhysics::GetWorldContext3D(world->m_World3D),
+                                                           dmPhysics::GetCollisionObjectContext3D(component->m_Object3D),
+                                                           enabled);
+        }
+    }
+
+    static void DeleteCollisionObject(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component)
+    {
+        if (component->m_Object3D != 0x0)
+        {
+            InvalidateScriptBullet3DCollisionObject(component->m_Object3D);
+            dmPhysics::DeleteCollisionObject3D(world->m_World3D, component->m_Object3D);
+            component->m_Object3D = 0x0;
+        }
+        delete[] component->m_ShapeBuffer;
+        component->m_ShapeBuffer = 0;
+    }
 
     static void RemoveComponentFromUpdate(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component)
     {
@@ -134,6 +180,18 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
+        uint32_t num_components = world->m_Components.Size();
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            CollisionComponentBullet3D* component = world->m_Components[i];
+            if (component->m_Object3D)
+            {
+                InvalidateScriptBullet3DCollisionObject(component->m_Object3D);
+            }
+        }
+
+        InvalidateScriptBullet3DWorld(world->m_World3D);
+
         dmPhysics::DeleteWorld3D(physics_context->m_Context, world->m_World3D);
 
         delete world;
@@ -191,7 +249,9 @@ namespace dmGameSystem
         if (collision_object != 0x0)
         {
             if (component->m_Object3D != 0x0)
-                dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
+            {
+                DeleteCollisionObject(world, component);
+            }
             component->m_Object3D = collision_object;
         }
         else
@@ -242,14 +302,7 @@ namespace dmGameSystem
         CollisionComponentBullet3D* component = (CollisionComponentBullet3D*) *params.m_UserData;
         CollisionWorldBullet3D* world         = (CollisionWorldBullet3D*) params.m_World;
 
-        delete[] component->m_ShapeBuffer;
-
-        if (component->m_Object3D != 0)
-        {
-            dmPhysics::HWorld3D physics_world = world->m_World3D;
-            dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
-            component->m_Object3D = 0;
-        }
+        DeleteCollisionObject(world, component);
 
         delete component;
         return dmGameObject::CREATE_RESULT_OK;
@@ -342,7 +395,13 @@ namespace dmGameSystem
         }
 
         DM_PROFILE("StepWorld3D");
+        world->m_IsStepping = 1;
         dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
+        world->m_IsStepping = 0;
+        if (g_ScriptBullet3DProcessWorldQueriesCallback)
+        {
+            g_ScriptBullet3DProcessWorldQueriesCallback(dmPhysics::GetWorldContext3D(world->m_World3D));
+        }
 
         if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount && physics_context->m_BaseContext.m_MaxCollisionCount > 0)
         {
@@ -484,12 +543,13 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)*params.m_UserData;
         assert(!component->m_BaseComponent.m_AddedToUpdate);
 
         dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_BaseComponent.m_StartAsEnabled);
+        NotifyScriptBullet3DCollisionObjectEnabled(world, component, component->m_BaseComponent.m_StartAsEnabled);
         component->m_BaseComponent.m_AddedToUpdate = true;
 
         world->m_Components.Push(component);
@@ -515,6 +575,7 @@ namespace dmGameSystem
             if (component_base->m_AddedToUpdate)
             {
                 dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
+                NotifyScriptBullet3DCollisionObjectEnabled(world, component, enable);
             }
             else
             {
@@ -561,13 +622,16 @@ namespace dmGameSystem
         PhysicsContextBullet3D* physics_context = (PhysicsContextBullet3D*)params.m_Context;
         CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)params.m_World;
         CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)*params.m_UserData;
+        bool added_to_update = component->m_BaseComponent.m_AddedToUpdate;
+        bool start_as_enabled = component->m_BaseComponent.m_StartAsEnabled;
+        bool enabled = added_to_update && component->m_Object3D && dmPhysics::IsEnabled3D(component->m_Object3D);
         component->m_BaseComponent.m_Resource = (CollisionObjectResource*)params.m_Resource;
-        component->m_BaseComponent.m_AddedToUpdate = false;
-        component->m_BaseComponent.m_StartAsEnabled = true;
-        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, true))
+        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, enabled))
         {
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");
         }
+        component->m_BaseComponent.m_AddedToUpdate = added_to_update;
+        component->m_BaseComponent.m_StartAsEnabled = start_as_enabled;
     }
 
     dmGameObject::PropertyResult CompCollisionObjectBullet3DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -658,6 +722,51 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    // Internal script API
+    void* CompCollisionObjectGetBullet3DWorld(dmGameObject::HComponentWorld _world)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        return dmPhysics::GetWorldContext3D(world->m_World3D);
+    }
+
+    bool CompCollisionObjectIsBullet3DWorldLocked(dmGameObject::HComponentWorld _world)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        return world && world->m_IsStepping;
+    }
+
+    void CompCollisionObjectSetBullet3DWorldGravity(dmGameObject::HComponentWorld _world, const dmVMath::Vector3& gravity)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        dmPhysics::SetGravity3D(world->m_World3D, gravity);
+    }
+
+    void* CompCollisionObjectGetBullet3DCollisionObject(dmGameObject::HComponent _component)
+    {
+        CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)_component;
+        return dmPhysics::GetCollisionObjectContext3D(component->m_Object3D);
+    }
+
+    void CompCollisionObjectSetBullet3DInvalidateWorldCallback(ScriptBullet3DInvalidateWorldCallback callback)
+    {
+        g_ScriptBullet3DInvalidateWorldCallback = callback;
+    }
+
+    void CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(ScriptBullet3DInvalidateCollisionObjectCallback callback)
+    {
+        g_ScriptBullet3DInvalidateCollisionObjectCallback = callback;
+    }
+
+    void CompCollisionObjectSetBullet3DCollisionObjectEnabledCallback(ScriptBullet3DCollisionObjectEnabledCallback callback)
+    {
+        g_ScriptBullet3DCollisionObjectEnabledCallback = callback;
+    }
+
+    void CompCollisionObjectSetBullet3DProcessWorldQueriesCallback(ScriptBullet3DProcessWorldQueriesCallback callback)
+    {
+        g_ScriptBullet3DProcessWorldQueriesCallback = callback;
     }
 
     // Adapter functions
@@ -752,6 +861,60 @@ namespace dmGameSystem
         return dmPhysics::GetCollisionShape3D(component->m_Object3D, shape_index);
     }
 
+    bool CompCollisionObjectMakeBullet3DShapeOwned(dmGameObject::HComponentWorld _world, dmGameObject::HComponent _component, uint32_t shape_index, void** out_shape)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)_component;
+        if (!world || !component || !component->m_Object3D || !out_shape ||
+            shape_index >= component->m_BaseComponent.m_Resource->m_ShapeCount)
+        {
+            return false;
+        }
+
+        dmPhysics::HCollisionShape3D shape = 0;
+        if (!dmPhysics::MakeCollisionShapeOwned3D(component->m_Object3D, shape_index, &shape))
+        {
+            return false;
+        }
+        if (component->m_ShapeBuffer)
+        {
+            component->m_ShapeBuffer[shape_index] = shape;
+        }
+        *out_shape = shape;
+        return true;
+    }
+
+    bool CompCollisionObjectReplaceBullet3DShape(dmGameObject::HComponentWorld _world, dmGameObject::HComponent _component, uint32_t shape_index, void* new_shape)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)_component;
+        if (!world || !component || !component->m_Object3D || !new_shape ||
+            shape_index >= component->m_BaseComponent.m_Resource->m_ShapeCount)
+        {
+            return false;
+        }
+        if (!dmPhysics::ReplaceCollisionShapeAtIndex3D(component->m_Object3D, shape_index, new_shape))
+        {
+            return false;
+        }
+        if (component->m_ShapeBuffer)
+        {
+            component->m_ShapeBuffer[shape_index] = new_shape;
+        }
+        dmPhysics::RefreshCollisionShape3D(world->m_World3D, component->m_Object3D);
+        return true;
+    }
+
+    void CompCollisionObjectRefreshBullet3DShape(dmGameObject::HComponentWorld _world, dmGameObject::HComponent _component)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)_component;
+        if (world && component && component->m_Object3D)
+        {
+            dmPhysics::RefreshCollisionShape3D(world->m_World3D, component->m_Object3D);
+        }
+    }
+
     static bool GetShapeBullet3D(CollisionWorld* _world, CollisionComponent* _component, uint32_t shape_ix, ShapeInfo* shape_info)
     {
         CollisionComponentBullet3D* component = (CollisionComponentBullet3D*) _component;
@@ -794,9 +957,8 @@ namespace dmGameSystem
         return true;
     }
 
-    static void ReplaceAndDeleteShape3D(dmPhysics::HContext3D context,
+    static bool ReplaceShape3D(CollisionWorldBullet3D* world,
         CollisionComponentBullet3D* component,
-        dmPhysics::HCollisionShape3D old_shape,
         dmPhysics::HCollisionShape3D new_shape,
         uint32_t shape_index)
     {
@@ -812,11 +974,12 @@ namespace dmGameSystem
             assert(res == shape_count);
         }
 
-        dmPhysics::ReplaceShape3D(context, old_shape, new_shape);
-        dmPhysics::ReplaceShape3D(component->m_Object3D, old_shape, new_shape);
-        dmPhysics::DeleteCollisionShape3D(old_shape);
-
-        component->m_ShapeBuffer[shape_index] = new_shape;
+        if (!CompCollisionObjectReplaceBullet3DShape(world, component, shape_index, new_shape))
+        {
+            dmPhysics::DeleteCollisionShape3D(new_shape);
+            return false;
+        }
+        return true;
     }
 
     static bool SetShapeBullet3D(CollisionWorld* _world, CollisionComponent* _component, uint32_t shape_ix, ShapeInfo* shape_info)
@@ -832,11 +995,21 @@ namespace dmGameSystem
 
         dmPhysics::HCollisionShape3D shape3d = GetShape3D(component, shape_ix);
 
+        if (shape_info->m_Type != _component->m_Resource->m_ShapeTypes[shape_ix])
+        {
+            return false;
+        }
+
         switch(shape_info->m_Type)
         {
             case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
             {
+                if (!CompCollisionObjectMakeBullet3DShapeOwned(world, component, shape_ix, &shape3d))
+                {
+                    return false;
+                }
                 dmPhysics::SetCollisionShapeRadius3D(shape3d, shape_info->m_SphereDiameter * 0.5f);
+                CompCollisionObjectRefreshBullet3DShape(world, component);
             } break;
             case dmPhysicsDDF::CollisionShape::TYPE_BOX:
             {
@@ -845,7 +1018,10 @@ namespace dmGameSystem
                                      shape_info->m_BoxDimensions[1] * 0.5f,
                                      shape_info->m_BoxDimensions[2] * 0.5f));
 
-                ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
+                if (!ReplaceShape3D(world, component, new_shape, shape_ix))
+                {
+                    return false;
+                }
             } break;
             case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
             {
@@ -853,7 +1029,10 @@ namespace dmGameSystem
                     shape_info->m_CapsuleDiameterHeight[0] * 0.5f,
                     shape_info->m_CapsuleDiameterHeight[1]);
 
-                ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
+                if (!ReplaceShape3D(world, component, new_shape, shape_ix))
+                {
+                    return false;
+                }
             } break;
             default: assert(0);
         }

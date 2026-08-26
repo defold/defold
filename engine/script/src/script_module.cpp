@@ -114,6 +114,12 @@ namespace dmScript
     Result AddModule(HContext context, dmLuaDDF::LuaSource *source, const char *script_name, void* resource, dmhash_t path_hash)
     {
         dmhash_t module_hash = dmHashString64(script_name);
+        Module* existing_module = context->m_Modules.Get(module_hash);
+        if (existing_module != 0 && strcmp(existing_module->m_Name, script_name) != 0)
+        {
+            dmLogError("Lua module name hash collision between '%s' and '%s'", existing_module->m_Name, script_name);
+            return RESULT_MODULE_NAME_HASH_COLLISION;
+        }
 
 
         Module module;
@@ -133,12 +139,14 @@ namespace dmScript
         if (context->m_Modules.Full())
         {
             context->m_Modules.SetCapacity(127, context->m_Modules.Capacity() + 128);
+        }
+        if (context->m_PathToModule.Full())
+        {
             context->m_PathToModule.SetCapacity(127, context->m_PathToModule.Capacity() + 128);
         }
 
         context->m_Modules.Put(module_hash, module);
-        Module* module_handle = context->m_Modules.Get(module_hash);
-        context->m_PathToModule.Put(path_hash, module_handle);
+        context->m_PathToModule.Put(path_hash, module_hash);
 
         return RESULT_OK;
     }
@@ -149,12 +157,16 @@ namespace dmScript
         int top = lua_gettop(L);
         (void) top;
 
-        Module** module_handle = context->m_PathToModule.Get(path_hash);
-        if (module_handle == 0)
+        dmhash_t* module_hash = context->m_PathToModule.Get(path_hash);
+        if (module_hash == 0)
         {
             return RESULT_MODULE_NOT_LOADED;
         }
-        Module* module = *module_handle;
+        Module* module = context->m_Modules.Get(*module_hash);
+        if (module == 0)
+        {
+            return RESULT_MODULE_NOT_LOADED;
+        }
 
         const char *buf;
         uint32_t size;

@@ -1,0 +1,92 @@
+syntax = "proto2";
+package dmCollectionProxyDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.gamesys.proto";
+option java_outer_classname = "CollectionProxy";
+
+message CollectionProxyDesc
+{
+    required string collection = 1 [(resource)=true];
+    optional bool exclude = 2 [default=false];
+}
+
+enum TimeStepMode
+{
+    TIME_STEP_MODE_CONTINUOUS   = 0;
+    TIME_STEP_MODE_DISCRETE     = 1;
+}
+
+/* Documented in comp_collecion_proxy.cpp */
+message SetTimeStep
+{
+    required float          factor  = 1;
+    required TimeStepMode   mode    = 2;
+}
+
+/*# reports that a collection proxy is loading
+ *
+ * @message
+ * @name proxy_loading
+ * @param progress [type:number] the loading progress (0.0 to 1.0)
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   collectionproxy.load("#proxy", {}, function(self, message_id, message, sender)
+ *      if message_id == hash("proxy_loading") then
+ *         print("Proxy loading progress:", message.progress)
+ *      end
+ *   end)
+ * end
+ * ```
+ */
+message ProxyLoading
+{
+    required float progress  = 1;
+}
+
+/*# reports that a collection proxy has been loaded and is running
+ *
+ * @message
+ * @name proxy_ready
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   collectionproxy.load("#proxy", {}, function(self, message_id, message, sender)
+ *      if message_id == hash("proxy_ready") then
+ *         print("Proxy has been loaded and is running")
+ *      end
+ *   end)
+ * end
+ * ```
+ */
+message ProxyReady
+{
+}
+
+/*# reports that an error occurred while loading or initializing a collection
+ * proxy
+ *
+ * @message
+ * @name proxy_error
+ * @param code [type:number] error code
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   collectionproxy.load("#proxy", {}, function(self, message_id, message, sender)
+ *      if message_id == hash("proxy_error") then
+ *         print("Proxy loading error:", message.code)
+ *      end
+ *   end)
+ * end
+ * ```
+ */
+message ProxyError
+{
+    required int32 code = 1;
+}

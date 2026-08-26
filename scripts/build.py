@@ -33,6 +33,7 @@ import wasm_runner
 import release_to_github
 import release_to_steam
 import release_to_egs
+import releasenotes
 import BuildUtility
 import http_cache
 import sdk_merge
@@ -51,7 +52,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
-                    'armv7-android', 'arm64-android',
+                    'armv7-android', 'arm64-android', 'x86_64-android',
                     'wasm-web', 'wasm_pthread-web']
 
 _CMAKE_FEATURE_FLAG_MAP = {
@@ -111,6 +112,11 @@ class build_private(object):
         return cls._call(platform, 'get_install_target_packages', [], platform)
 
     @classmethod
+    def get_external_package_name(cls, platform, library, default_name):
+        return cls._call(platform, 'get_external_package_name', default_name,
+                         platform, library, default_name)
+
+    @classmethod
     def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
         return cls._call(platform, 'install_sdk', None, configuration, platform)
 
@@ -146,7 +152,7 @@ def get_default_target_platforms():
     return BASE_PLATFORMS
 
 PACKAGES_ALL=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "junit-4.6",
     "jsign-4.2",
     "bundletool-all",
@@ -157,7 +163,7 @@ PACKAGES_ALL=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
-    "bullet-2.77",
+    "bullet-3.25",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.14",
     "vulkan-v1.4.307",
@@ -170,15 +176,15 @@ PACKAGES_ALL=[
     "SkriBidi-1e8038"]
 
 PACKAGES_HOST=[
+    "protobuf-35.1",
     "vpx-1.7.0",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_X86_64=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -189,10 +195,9 @@ PACKAGES_IOS_X86_64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_IOS_64=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "moltenvk-1474891",
     "glfw-2.7.1",
     "box2d-3.1.0",
@@ -204,11 +209,11 @@ PACKAGES_IOS_64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_X86_64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -234,11 +239,11 @@ PACKAGES_MACOS_X86_64=[
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -263,10 +268,10 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
-    "bullet-2.77",
+    "bullet-3.25",
     "vulkan-v1.4.307",
     "glfw-3.4",
     "box2d-3.1.0",
@@ -278,11 +283,11 @@ PACKAGES_WIN32=[
     "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "bullet-2.77",
+    "bullet-3.25",
     "glslang-42d9adf5",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -307,9 +312,9 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-2.77",
+    "bullet-3.25",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -337,9 +342,9 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
-    "protobuf-3.20.1",
+    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-2.77",
+    "bullet-3.25",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -360,10 +365,9 @@ PACKAGES_LINUX_ARM64=[
     "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -376,10 +380,9 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
-    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -391,9 +394,23 @@ PACKAGES_ANDROID_64=[
     "SkriBidi-1e8038"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
+PACKAGES_ANDROID_X86_64=[
+    "luajit-2.1.0-3e223cb",
+    "tremolo-b0cb4d1",
+    "bullet-3.25",
+    "glfw-2.7.1",
+    "box2d-3.1.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2",
+    "vkquality-1.1-2642a0d",
+    "harfbuzz-13.2.1",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
+PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
+
 PACKAGES_EMSCRIPTEN=[
-    "protobuf-3.20.1",
-    "bullet-2.77",
+    "bullet-3.25",
     "glfw-2.7.1",
     "wagyu-69",
     "box2d-3.1.0",
@@ -417,6 +434,7 @@ PLATFORM_PACKAGES = {
     'x86_64-ios':       PACKAGES_IOS_X86_64,
     'armv7-android':    PACKAGES_ANDROID,
     'arm64-android':    PACKAGES_ANDROID_64,
+    'x86_64-android':   PACKAGES_ANDROID_X86_64,
     'wasm-web':         PACKAGES_EMSCRIPTEN,
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
@@ -456,7 +474,8 @@ BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
 
 BOB_EXTRA_PLATFORM_PACKAGES = {
     'armv7-android': ["vkquality-1.1-2642a0d"],
-    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"]
+    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"],
+    'x86_64-android': ["vkquality-1.1-2642a0d"]
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -465,11 +484,9 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") or os.environ.get("GITHUB_REPOSITORY") or release_to_github.get_current_repo()
 
-PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r{0}".format(sdk.ANDROID_NDK_VERSION)
 PACKAGES_ANDROID_SDK="android-sdk"
-PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 
@@ -479,14 +496,24 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
+ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
-EXTERNAL_CMAKE_LIBS = "vkquality".split()
+EXTERNAL_WAF_LIBS = "glfw opus".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 bullet3d vkquality".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
+    "box2d": "3.1.0",
+    "box2d_v2": "2.2.1",
+    "bullet3d": "3.25",
     "vkquality": "1.1-2642a0d",
+}
+EXTERNAL_PACKAGE_NAMES = {
+    "box2d_v2": "box2d_defold",
+    "bullet3d": "bullet",
+}
+EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
+    "bullet3d",
 }
 
 def get_host_platform():
@@ -683,6 +710,7 @@ class Configuration(object):
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
         self.build_tracker = BuildTimeTracker(logger=self._log)
+        self._cmake_configure_inputs_mtime_cache = {}
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -1141,7 +1169,7 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = PLATFORM_PACKAGES.get(platform, [])
+            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if package not in PACKAGES_HOST]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -1151,6 +1179,7 @@ class Configuration(object):
         for base_platform in base_platforms:
             packages = list(PACKAGES_HOST)
             packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
+            packages = list(dict.fromkeys(packages))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths.extend(make_private_package_paths(base_platform, build_private.get_install_host_packages(base_platform)))
             package_paths = [path for path in package_paths if path not in installed_packages]
@@ -1160,16 +1189,8 @@ class Configuration(object):
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
 
-        # For easier usage with the extender server, we want the linux protoc tool available
-        if target_platform in ('x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux'):
-            protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
-            package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
-            print("Installing %s protobuf packages " % 'x86_64-linux')
-            for path in package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(package_paths)
-
-        target_package_paths = make_package_paths(self.defold_root, self.target_platform, PLATFORM_PACKAGES.get(self.target_platform, []))
+        target_packages = PLATFORM_PACKAGES.get(self.target_platform, [])
+        target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
@@ -1184,7 +1205,7 @@ class Configuration(object):
             'Markdown==3.3.7',
             'Pygments==2.12.0',
             'boto3==1.36.3',
-            'protobuf==3.20.1',
+            'protobuf==7.35.1',
             'PyYAML==6.0.3',
             'pystache==0.6.8',
             'rangehttpserver==1.4.0',
@@ -1379,7 +1400,7 @@ class Configuration(object):
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
-        if target_platform in ('armv7-android', 'arm64-android'):
+        if target_platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
             host = self.host
             if 'win32' in host:
                 host = 'win'
@@ -1392,17 +1413,6 @@ class Configuration(object):
             download_sdk(self, '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
             download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, sdk.ANDROID_TARGET_API_LEVEL, sdk.ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
-
-        if 'linux' in self.host:
-            package = sdk.PACKAGES_LINUX_X86_64_TOOLCHAIN
-            if self.host == 'arm64-linux':
-                package = sdk.PACKAGES_LINUX_ARM64_TOOLCHAIN
-
-            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, package), join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG), format='J')
-
-        if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios') and 'linux' in self.host:
-            if not os.path.exists(join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG, 'cctools')):
-                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG), force_extract=True)
 
         build_private.install_sdk(self, target_platform)
 
@@ -1622,7 +1632,7 @@ class Configuration(object):
             paths = _findlibs(libdirs)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
 
-            if platform in ['armv7-android', 'arm64-android']:
+            if platform in ['armv7-android', 'arm64-android', 'x86_64-android']:
                 # Android Jars (Dynamo)
                 jardir = os.path.join(self.dynamo_home, 'share/java')
                 paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
@@ -1814,7 +1824,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios','armv7-android','arm64-android']:
+        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios','armv7-android','arm64-android','x86_64-android']:
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
@@ -1861,6 +1871,11 @@ class Configuration(object):
             self._log('%s/%s' % (full_archive_path, mouse_capture_name))
             self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_name))
 
+        if self.is_desktop_target():
+            fontc_name = format_lib("fontc_shared", self.target_platform)
+            fontc_lib = join(lib_dir, fontc_name)
+            self.upload_to_archive(fontc_lib, '%s/%s' % (full_archive_path, fontc_name))
+
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
@@ -1899,6 +1914,7 @@ class Configuration(object):
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'fontrenderer.jar'), '%s/fontrenderer.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'shaderc.jar'), '%s/shaderc.jar' % (java_archive_path))
 
@@ -1934,16 +1950,17 @@ class Configuration(object):
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
 
         if 'android' in self.target_platform:
-            can_run_android_tests = build_android.can_run_tests_android(self._log, env = self._form_env(), device = self.test_device)
+            can_run_android_tests = build_android.can_run_tests_android(self._log, env = self._form_env(), device = self.test_device, target_platform = self.target_platform)
             if self.test_device and not can_run_android_tests:
-                self.fatal("Requested Android test device '%s' is not available" % self.test_device)
+                self.fatal("Requested Android test device '%s' cannot run %s tests" % (self.test_device, self.target_platform))
 
             if can_run_android_tests:
-                android_tests = ['armv7-android', 'arm64-android']
-                supported_tests['x86_64-macos'].extend(android_tests)
-                supported_tests['arm64-macos'].extend(android_tests)
-                supported_tests['x86_64-linux'].extend(android_tests)
-                supported_tests['x86_64-win32'].extend(android_tests)
+                # The device was checked against this platform's ABI, so it is the
+                # only Android platform we may claim as runnable here.
+                supported_tests['x86_64-macos'].append(self.target_platform)
+                supported_tests['arm64-macos'].append(self.target_platform)
+                supported_tests['x86_64-linux'].append(self.target_platform)
+                supported_tests['x86_64-win32'].append(self.target_platform)
 
         if build_ios.is_ios_test_platform(self.target_platform):
             strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.waf_options
@@ -2138,6 +2155,10 @@ class Configuration(object):
         return join(build_home, 'engine', 'build', platform)
 
     def _cmake_configure_inputs_mtime(self, roots):
+        cache_key = tuple(normpath(root) for root in roots)
+        if cache_key in self._cmake_configure_inputs_mtime_cache:
+            return self._cmake_configure_inputs_mtime_cache[cache_key]
+
         watched_files = ('CMakeLists.txt',)
         watched_suffixes = ('.cmake',)
         watched_dirs = ('scripts/cmake', 'engine', 'share')
@@ -2166,6 +2187,7 @@ class Configuration(object):
                 except OSError:
                     pass
 
+        self._cmake_configure_inputs_mtime_cache[cache_key] = latest
         return latest
 
     def _cmake_configure_state(self, builddir, cmake_configure_args):
@@ -2231,12 +2253,17 @@ class Configuration(object):
         previous_lib_set = previous_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
         current_build_tests = current_defines.pop('BUILD_TESTS', None)
         previous_build_tests = previous_defines.pop('BUILD_TESTS', None)
+        current_skip_bob_light = current_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
+        previous_skip_bob_light = previous_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
 
         if current_defines != previous_defines:
             return False
         if current_lib_set != 'host' or previous_lib_set != 'all':
             return False
         if current_build_tests != 'OFF':
+            return False
+        if (current_skip_bob_light not in ('OFF', 'ON')
+                or previous_skip_bob_light != 'ON'):
             return False
 
         # Keep test install rules consistent with the requested host pass.
@@ -2356,6 +2383,29 @@ class Configuration(object):
         if not os.path.exists(build_ninja):
             return True
 
+        # CMake's detected target system is immutable within an existing build
+        # tree. If a Windows build directory is later reused for a Generic
+        # console target, updating CMAKE_SYSTEM_NAME in the cache is not enough:
+        # generated link rules keep Windows image flags and system libraries.
+        # Force a clean configure when that generated platform metadata is stale.
+        if platform in ('x86_64-ps4', 'x86_64-ps5', 'arm64-nx64'):
+            cmake_files_dir = join(configure_state.get('builddir', ''), 'CMakeFiles')
+            system_files = []
+            if os.path.isdir(cmake_files_dir):
+                for entry in os.listdir(cmake_files_dir):
+                    system_file = join(cmake_files_dir, entry, 'CMakeSystem.cmake')
+                    if os.path.isfile(system_file):
+                        system_files.append(system_file)
+            for system_file in system_files:
+                try:
+                    with open(system_file, 'r') as f:
+                        system_content = f.read()
+                except OSError:
+                    continue
+                if 'set(CMAKE_SYSTEM_NAME "Generic")' not in system_content:
+                    self._log('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform))
+                    return False
+
         try:
             with open(build_ninja, 'r') as f:
                 content = f.read().replace('\\', '/')
@@ -2424,6 +2474,7 @@ class Configuration(object):
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
+            f'-DCMAKE_INSTALL_MESSAGE:STRING=LAZY',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
@@ -2454,11 +2505,19 @@ class Configuration(object):
             os.makedirs(builddir, exist_ok=True)
             previous_cmake_configure_state = None
 
+        configure_state_matches = self._cmake_configure_state_matches(
+            cmake_configure_state,
+            previous_cmake_configure_state,
+            allow_compatible_configure)
+        compatible_configure = (configure_state_matches
+                                and cmake_configure_state != previous_cmake_configure_state)
+        validation_configure_state = (previous_cmake_configure_state
+                                      if compatible_configure else cmake_configure_state)
         skip_configure = (
             os.path.exists(cmake_cache)
-            and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure)
-            and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
-            and self._cmake_generated_install_matches_configure_state(cmake_configure_state)
+            and configure_state_matches
+            and self._cmake_cache_matches_configure_state(cmake_cache, validation_configure_state)
+            and self._cmake_generated_install_matches_configure_state(validation_configure_state)
             and generated_outputs_match)
         if skip_configure:
             self._log(f'Skipping CMake configure {name}; configure state is unchanged')
@@ -2511,12 +2570,7 @@ class Configuration(object):
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
 
-        if lib in CMAKE_SUPPORT:
-            if platform == 'win32':
-                platform = 'x86-win32'
-            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
-        else:
-            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 
         self.build_tracker.end_component(lib, platform)
 
@@ -2631,7 +2685,13 @@ class Configuration(object):
             reuse_builddir = host == target_platform
             target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir, use_existing_bob_light = True)
+            self._build_engine_libs_cmake(
+                'engine_libs',
+                target_lib_set,
+                target_platform,
+                skip_tests = self.skip_tests,
+                reuse_builddir = reuse_builddir,
+                use_existing_bob_light = True)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
@@ -2668,24 +2728,31 @@ class Configuration(object):
             flags = self._get_build_flags()
             flags['prefix'] = join(self.defold_root, 'packages')
             cmd = self._build_engine_cmd_waf(**flags)
-            args = cmd.split() + ['package']
+            # Some of these libraries vendor an upstream CMakeLists.txt next to our wscript
+            # (e.g. external/box2d_v2). Without --with-waf the CMake library guard in
+            # waf_dynamo mistakes them for migrated libraries and aborts the build.
+            args = cmd.split() + ['--with-waf', 'package']
             for lib in waf_libs:
                 self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
 
         for lib in [lib for lib in libs if lib in EXTERNAL_CMAKE_LIBS]:
-            if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android') and not self.external_package:
+            if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android', 'x86_64-android') and not self.external_package:
                 self._log("Skipping vkquality for non-Android platform: %s" % self.target_platform)
                 continue
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
-        package_name = '%s-%s' % (lib, version)
+        product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
+        default_package_name = '%s-%s' % (product_name, version)
+        package_name = build_private.get_external_package_name(
+            platform, lib, default_package_name)
         source_dir = join(self.defold_root, 'external', lib)
         build_dir = join(source_dir, 'build', platform)
         install_dir = join(self.dynamo_home, package_name)
         package_dir = join(self.defold_root, 'packages')
         package_path = join(package_dir, '%s-%s.tar.gz' % (package_name, platform))
+        common_package_path = join(package_dir, '%s-common.tar.gz' % package_name)
 
         if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
             self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
@@ -2724,13 +2791,23 @@ class Configuration(object):
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
-            package_command = ['tar', 'zcvf', os.path.normpath(package_path), 'include', 'lib', 'share']
+            package_directories = ['include', 'lib', 'share']
+            if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                package_directories = ['lib']
+            package_directories = [name for name in package_directories
+                                   if os.path.exists(join(install_dir, name))]
+            package_command = ['tar', 'zcvf', os.path.normpath(package_path)] + package_directories
             self.build_tracker.start_command('Package external %s' % lib)
             try:
                 run.command(package_command, cwd=install_dir)
+                if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                    common_package_command = ['tar', 'zcvf', os.path.normpath(common_package_path), 'include', 'share']
+                    run.command(common_package_command, cwd=install_dir)
             finally:
                 self.build_tracker.end_command('Package external %s' % lib)
             print("Installed to", package_path)
+            if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
+                print("Installed to", common_package_path)
         finally:
             self.build_tracker.end_component(lib, platform)
 
@@ -2745,6 +2822,7 @@ class Configuration(object):
     def copy_local_bob_artefacts(self):
         texc_name = format_lib('texc_shared', self.host)
         modelc_name = format_lib('modelc_shared', self.host)
+        fontc_name = format_lib('fontc_shared', self.host)
         shaderc_name = format_lib('shaderc_shared', self.host)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
@@ -2785,7 +2863,8 @@ class Configuration(object):
                          'ext/share/java/vkquality.jar': 'lib/vkquality.jar',
                          'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
                          'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
-                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so'}
+                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',
+                         'ext/lib/x86_64-android/libvkquality.so': 'libexec/x86_64-android/libvkquality.so'}
 
         switch_files = {}
         win32_engine_platform = self._engine_artifact_platform('win32')
@@ -2793,11 +2872,13 @@ class Configuration(object):
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
+                                 'share/java/fontrenderer.jar': 'lib/fontrenderer.jar',
                                  'share/java/modelimporter.jar': 'lib/modelimporter.jar',
                                  'share/java/shaderc.jar': 'lib/shaderc.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
                                  'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
+                                 'lib/%s/%s' % (self.host, fontc_name): 'lib/%s/%s' % (self.host, fontc_name),
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
@@ -2807,7 +2888,7 @@ class Configuration(object):
                      'linux-bundling': linux_files,
                      'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
+        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
                            'win32-bundling': [[win32_engine_platform, 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
@@ -3317,6 +3398,10 @@ class Configuration(object):
         editor_archive_path = urlparse(self.get_archive_path(self.channel)).path
 
         release_sha1 = releases[0]['sha1']
+
+        # The editor release notes (the update dialog's source) must land before
+        # update-v4.json points users at the new sha1.
+        releasenotes.upload(bucket, self.version, self.channel, required = self.channel in ('beta', 'stable'))
 
         html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
@@ -3851,8 +3936,6 @@ class Configuration(object):
         ld_library_path = 'DYLD_LIBRARY_PATH' if 'macos' in self.host else 'LD_LIBRARY_PATH'
         ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                             '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
-        if self.host in ['x86_64-linux', 'arm64-linux']:
-            ld_library_paths.append('%s/ext/SDKs/%s/%s/%s/lib' % (self.dynamo_home, self.host, sdk.PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 

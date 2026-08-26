@@ -48,7 +48,11 @@ namespace dmGraphics
     {
         DeviceBuffer()
         : m_Base()
+        , m_MappedDataPtr(0)
+        , m_Usage(0)
+        , m_Destroyed(0)
         {
+            memset(&m_Handle, 0, sizeof(m_Handle));
         }
         DeviceBuffer(const VkBufferUsageFlags usage)
         : m_Base()
@@ -261,11 +265,12 @@ namespace dmGraphics
 
     struct LogicalDevice
     {
-        VkDevice      m_Device;
-        VkQueue       m_GraphicsQueue;
-        VkQueue       m_PresentQueue;
-        VkCommandPool m_CommandPool;
-        VkCommandPool m_CommandPoolWorker;
+        VkDevice        m_Device;
+        VkQueue         m_GraphicsQueue;
+        VkQueue         m_PresentQueue;
+        VkCommandPool   m_CommandPool;
+        VkCommandPool   m_CommandPoolWorker;
+        dmMutex::HMutex m_QueueMutex; // Serializes host access to both queue handles (which may alias).
     };
 
     struct ShaderModule
@@ -560,7 +565,7 @@ namespace dmGraphics
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
     VkResult CreateTexture(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t imageWidth, uint32_t imageHeight, uint32_t imageDepth, uint32_t imageLayers, uint16_t imageMips, VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, VulkanTexture* textureOut);
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
-    VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
+    VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachments, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, VulkanRenderTarget* render_target, Pipeline* pipelineOut);
@@ -589,17 +594,20 @@ namespace dmGraphics
     QueueFamily           GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat        GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates, uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     void                  GetFormatProperties(VkPhysicalDevice vk_physical_device, VkFormat vk_format, VkFormatProperties* properties);
+    VkSampleCountFlags GetSupportedSampleCountFlags(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits);
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
 
     // Misc functions
     void            TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
-    VkResult        TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
     void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);
     void            ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool);
-    VkResult        SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out);
+    VkResult        QueueSubmit(LogicalDevice* logical_device, uint32_t submit_count, const VkSubmitInfo* submit_info, VkFence fence);
+    VkResult        QueuePresent(LogicalDevice* logical_device, const VkPresentInfoKHR* present_info);
+    VkResult        SubmitCommandBuffer(LogicalDevice* logical_device, VkCommandBuffer cmd, VkFence* fence_out);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
@@ -610,14 +618,16 @@ namespace dmGraphics
 
     bool InitializeVulkan(HContext context);
     void InitializeVulkanTexture(VulkanTexture* t);
+    void VulkanStopAsyncProcessing(VulkanContext* context);
 
     void OnWindowResize(int width, int height);
     int  OnWindowClose();
     void OnWindowFocus(int focus);
 
-    static inline void SynchronizeDevice(VkDevice vk_device)
+    static inline void SynchronizeDevice(LogicalDevice* logical_device)
     {
-        vkDeviceWaitIdle(vk_device);
+        DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+        vkDeviceWaitIdle(logical_device->m_Device);
     }
 
     // Implemented per supported platform

@@ -100,4 +100,15 @@ HFont GetFont(TTFResource* resource)
 } // namespace
 
 
-DM_DECLARE_RESOURCE_TYPE(ResourceTypeTTF, "ttf", dmGameSystem::RegisterResourceType_TTFFont, dmGameSystem::DeregisterResourceType_TTFFont);
+static uint8_t DM_ALIGNED(16) g_TTFResourceTypeDesc[ResourceTypeCreatorDescBufferSize];
+static uint8_t DM_ALIGNED(16) g_OTFResourceTypeDesc[ResourceTypeCreatorDescBufferSize];
+
+extern "C" void ResourceTypeTTF()
+{
+    ResourceRegisterTypeCreatorDesc(g_TTFResourceTypeDesc, sizeof(g_TTFResourceTypeDesc), "ttf",
+                                    dmGameSystem::RegisterResourceType_TTFFont,
+                                    dmGameSystem::DeregisterResourceType_TTFFont);
+    ResourceRegisterTypeCreatorDesc(g_OTFResourceTypeDesc, sizeof(g_OTFResourceTypeDesc), "otf",
+                                    dmGameSystem::RegisterResourceType_TTFFont,
+                                    dmGameSystem::DeregisterResourceType_TTFFont);
+}

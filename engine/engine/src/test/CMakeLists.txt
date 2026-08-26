@@ -33,7 +33,6 @@ defold_target_link_libraries(test_profilerext_lua "${TARGET_PLATFORM}"
   graphics_transcoder_null
   platform_null
   render
-  render_font_default
   script
   extension
   dlib
@@ -57,6 +56,7 @@ set(ENGINE_TEST_CONTENT_STAMP "${ENGINE_TEST_RUNTIME_ROOT}/.cmake/test_content.s
 set(ENGINE_TEST_CONTENT_SCRIPT "${ENGINE_TEST_ROOT}/build_cmake_test_content.py")
 set(ENGINE_TEST_CONTENT_SETTINGS
   "cross_script_messaging.ini"
+  "issue-12703.ini"
   "render_script.ini"
   "camera_acquire_input_focus.ini"
   "text_input.ini")
@@ -124,6 +124,8 @@ set(ENGINE_TEST_SYMBOLS
   ProfilerExt
   GraphicsAdapterNull
   ScriptModelExt
+  ScriptLibParticleFX
+  ScriptLibTileMap
   ${ENGINE_RESOURCE_SYMBOLS}
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_TEST_EXPORTS_CPP "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_test_engine.cpp")

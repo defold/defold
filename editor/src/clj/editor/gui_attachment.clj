@@ -21,7 +21,7 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- scene-input-node [basis scene-node input]
-  (gt/source-id ((g/explicit-arcs-by-target basis scene-node input) 0)))
+  (gt/source-id (first (g/explicit-arcs-by-target basis scene-node input))))
 
 (defn scene-node->layers-node [basis scene-node]
   (scene-input-node basis scene-node :layers-node))

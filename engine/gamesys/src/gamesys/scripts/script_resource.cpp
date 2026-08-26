@@ -1123,7 +1123,7 @@ static int CreateTextureAsync(lua_State* L)
     // The callback is optional, we don't have to do anything with the result if we don't need to.
     // I.e the upload can be fire-and-forget. There is no way an upload can fail in the graphics system,
     // we should catch any incorrectness here if that's the case.
-    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 4);
+    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(L, 4);
 
     // Create an initial blank texture that can be used while we upload the texture data externally
     CreateTextureResourceParams create_texture_resource_params = create_params;
@@ -1167,7 +1167,7 @@ static int CreateTextureAsync(lua_State* L)
 
     SetTextureAsyncRequest* request = new SetTextureAsyncRequest();
     HOpaqueHandle request_handle = g_ResourceModule.m_LoadRequests.Put(request);
-    request->m_LuaState          = L;
+    request->m_LuaState          = dmScript::GetMainThread(L);
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
@@ -1223,10 +1223,6 @@ static int CreateTextureAsync(lua_State* L)
 
     // Execute the upload, the upload buffer should now be locked by this request
     dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
-    if (!request->m_Completed && dmGraphics::GetTextureStatusFlags(g_ResourceModule.m_GraphicsContext, texture_dst) == dmGraphics::TEXTURE_STATUS_OK)
-    {
-        HandleRequestCompleted(texture_dst, request);
-    }
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -1689,7 +1685,10 @@ static int GetTextureInfo(lua_State* L)
  * `handle`
  * : [type:number] the opaque handle to the texture resource
  *
- * 'attachments'
+ * `sample_count`
+ * : [type:number] effective sample count shared by all render target attachments
+ *
+ * `attachments`
  * : [type:table] a table of attachments, where each attachment contains the following entries:
  *
  * `width`
@@ -1794,6 +1793,9 @@ static int GetRenderTargetInfo(lua_State* L)
 
     lua_pushnumber(L, rt_handle);
     lua_setfield(L, -2, "handle");
+
+    lua_pushinteger(L, dmGraphics::GetRenderTargetSampleCount(g_ResourceModule.m_GraphicsContext, rt_handle));
+    lua_setfield(L, -2, "sample_count");
 
     lua_pushliteral(L, "attachments");
     lua_newtable(L);
@@ -2896,12 +2898,10 @@ static int GetAtlas(lua_State* L)
     lua_pushliteral(L, "geometries");
     lua_newtable(L);
     {
-        int geometry_count = 0;
         for (int i = 0; i < texture_set->m_Geometries.m_Count; ++i)
         {
             dmGameSystemDDF::SpriteGeometry& geom = texture_set->m_Geometries[i];
             PushGeometry(L, i, geom, tex_width, tex_height);
-            geometry_count++;
         }
 
     }

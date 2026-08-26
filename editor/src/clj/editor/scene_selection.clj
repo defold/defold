@@ -182,6 +182,7 @@
                            toggle? (boolean (some (:modifiers action) toggle-modifiers))
                            mode :single]
                        (g/transact
+                         {:undoable false}
                          (concat
                            (g/set-property self :op-seq op-seq)
                            (g/set-property self :start cursor-pos)
@@ -194,6 +195,7 @@
       :mouse-released (do
                         (when start (select self op-seq mode toggle?))
                         (g/transact
+                          {:undoable false}
                           (concat
                             (g/set-property self :start nil)
                             (g/set-property self :current nil)
@@ -204,9 +206,12 @@
                             (g/set-property self :prev-selection nil)))
                         (when contextual?
                           (let [node ^Node (:target action)
-                                scene ^Scene (.getScene node)
-                                context-menu (init-scene-context-menu! scene node)]
-                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
+                                screen-x (:screen-x action)
+                                screen-y (:screen-y action)]
+                            (ui/request-context-menu!
+                              #(when-let [scene (.getScene node)]
+                                 (-> (init-scene-context-menu! scene node)
+                                     (.show node ^double screen-x ^double screen-y))))))
                         nil)
       :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
@@ -214,6 +219,7 @@
                                       mode)]
                        (when-not (g/node-value self :contextual?)
                          (g/transact
+                           {:undoable false}
                            (concat
                              (when (not= new-mode mode) (g/set-property self :mode new-mode))
                              (g/set-property self :current cursor-pos)))

@@ -47,4 +47,7 @@ public class CopyBuilders {
 
     @BuilderParams(name = "TTF", inExts = ".ttf", outExt = ".ttf")
     public static class TTFBuilder extends CopyBuilder {}
+
+    @BuilderParams(name = "OTF", inExts = ".otf", outExt = ".otf")
+    public static class OTFBuilder extends CopyBuilder {}
 }

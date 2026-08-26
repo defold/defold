@@ -215,6 +215,7 @@ max_font_batches = 128
 max_debug_vertices = 8192
 texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
+webgl_version_hint = 1
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
 memory_size = 512

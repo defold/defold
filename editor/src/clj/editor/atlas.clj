@@ -241,6 +241,7 @@
   (property id g/Str ; Required protobuf field.
             (value (g/fnk [maybe-image-resource rename-patterns]
                      (some-> maybe-image-resource (texture-set-gen/resource-id rename-patterns))))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.image :id))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
@@ -426,6 +427,7 @@
   (inherits outline/OutlineNode)
 
   (property id g/Str ; Required protobuf field.
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :id))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-animation-id _node-id id id-counts))))
   (property fps g/Int (default (protobuf/default AtlasProto$AtlasAnimation :fps))
             (dynamic label (properties/label-dynamic :atlas.animation :fps))
@@ -1186,6 +1188,7 @@
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact
+                         {:undoable false}
                          (concat
                            (g/set-property self :start-action action)
                            (g/set-property self :action action)
@@ -1207,12 +1210,14 @@
                             (g/operation-sequence op-seq)
                             (g/set-property (:node-id reference-renderable) :pivot pivot)))
                         (g/transact
+                          {:undoable false}
                           (g/set-property self :start-action nil))
                         nil)
                       action)
     :mouse-moved (if (g/node-value self :start-action)
                    (do
                      (g/transact
+                       {:undoable false}
                        (g/set-property self :action action))
                      nil)
                    action)

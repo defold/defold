@@ -352,9 +352,11 @@ public class ShaderCompilePipeline {
             long compilerVs = 0;
             long compilerFs = 0;
             if (this.options != null && this.options.remapVertexFragmentIOForHLSL) {
-                RemapCompilers remapCompilers = remapOutputsAndInputs(vertexModule, fragmentModule);
+                RemapCompilers remapCompilers = remapOutputsAndInputsForHLSL(vertexModule, fragmentModule);
                 compilerVs = remapCompilers.vertexCompiler;
                 compilerFs = remapCompilers.fragmentCompiler;
+            } else {
+                compilerFs = remapFragmentInputsToVertexOutputs(vertexModule, fragmentModule);
             }
             compilerFs = mergeResources(vertexModule, fragmentModule, compilerFs, mergedResources);
 
@@ -405,6 +407,23 @@ public class ShaderCompilePipeline {
         int columnCount = Math.max(1, resource.type.columnCount);
         int arraySize = Math.max(1, resource.type.arraySize);
         return columnCount * arraySize;
+    }
+
+    // SPIR-V modules are compiled one stage at a time, so matching vertex outputs and
+    // fragment inputs can receive different automatically assigned locations. Preserve
+    // the vertex stage and restore the fragment-stage remapping used by all backends
+    // before the HLSL-specific remapper was introduced.
+    private long remapFragmentInputsToVertexOutputs(ShaderModule vertexModule, ShaderModule fragmentModule) {
+        long compiler = 0;
+        for (Shaderc.ShaderResource output : vertexModule.spirvReflector.getOutputs()) {
+            for (Shaderc.ShaderResource input : fragmentModule.spirvReflector.getInputs()) {
+                if (output.name.equals(input.name) && output.location != input.location) {
+                    compiler = ensureSpirvCompiler(compiler, fragmentModule.spirvContext);
+                    ShadercJni.SetResourceLocation(fragmentModule.spirvContext, compiler, input.nameHash, output.location);
+                }
+            }
+        }
+        return compiler;
     }
 
     private void recompileSpirvModule(ShaderModule module, long compiler) throws IOException, CompileExceptionError {
@@ -503,7 +522,7 @@ public class ShaderCompilePipeline {
      * A remap compiler is only created for a stage if at least one location needs to
      * change for that stage.
      */
-    private RemapCompilers remapOutputsAndInputs(ShaderModule vertexModule, ShaderModule fragmentModule) {
+    private RemapCompilers remapOutputsAndInputsForHLSL(ShaderModule vertexModule, ShaderModule fragmentModule) {
         RemapCompilers compilers = new RemapCompilers();
 
         ArrayList<Shaderc.ShaderResource> outputs = vertexModule.spirvReflector.getOutputs();

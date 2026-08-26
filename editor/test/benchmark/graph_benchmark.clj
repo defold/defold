@@ -79,8 +79,8 @@
 
 (defn build-fake-graphs!
   [resource-count view-node-count]
-  (let [project-graph  (g/make-graph! :history true :volatility 1)
-        view-graph     (g/make-graph! :history false :volatility 10)
+  (let [project-graph  (g/make-graph! :volatility 1)
+        view-graph     (g/make-graph! :volatility 10)
         workspace      (first (tx-nodes (g/make-node project-graph FWorkspace)))
         bottom-layer   (pile-of-nodes project-graph FResource resource-count)
         middle-layer   (pile-of-nodes project-graph FEditable resource-count)

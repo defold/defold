@@ -3296,7 +3296,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         ((DX12Context*) context)->m_CurrentProgram = 0;
     }
 
-    static bool DX12ReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
+    static bool DX12ReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return true;
     }
@@ -3391,7 +3391,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static HRenderTarget DX12NewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         DX12Context* context = (DX12Context*) _context;
-
         DX12RenderTarget* rt     = new DX12RenderTarget();
         rt->m_Format             = DXGI_FORMAT_UNKNOWN;
         rt->m_DsvFormat          = DXGI_FORMAT_UNKNOWN;
@@ -3407,6 +3406,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         brt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
+        brt->m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, 1, "DX12");
 
         const BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,

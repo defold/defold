@@ -245,7 +245,6 @@ public class AnimationSetBuilder extends Builder  {
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
 
         ArrayList<String> animFiles = new ArrayList<String>();
-        animFiles = new ArrayList<String>();
         animFiles.add(task.input(0).getAbsPath());
 
         String suffix = BuilderUtil.getSuffix(task.input(0).getPath());

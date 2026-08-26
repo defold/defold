@@ -259,7 +259,7 @@
 
 (deftest invalidation-across-graphs
   (ts/with-clean-system
-    (let [project-graph (g/make-graph! :history true)
+    (let [project-graph (g/make-graph!)
           view-graph    (g/make-graph! :volatility 100)
           [content-node aux-node] (ts/tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
                                                (g/make-node project-graph CacheTestNode :scalar "Plissken"))

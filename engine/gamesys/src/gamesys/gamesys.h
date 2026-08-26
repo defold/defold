@@ -28,7 +28,6 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
-#include <gui/gui.h>
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>
@@ -147,11 +146,19 @@ namespace dmGameSystem
         GetJointReactionTorqueFn m_GetJointReactionTorque;
     };
 
+    enum PhysicsMessageType
+    {
+        PHYSICS_MESSAGE_TYPE_COLLISION,
+        PHYSICS_MESSAGE_TYPE_CONTACT_POINT,
+        PHYSICS_MESSAGE_TYPE_TRIGGER,
+        PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE,
+        PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED,
+    };
+
     struct PhysicsMessage
     {
-        const dmDDF::Descriptor* m_Descriptor; // They're static, so we can store the pointer
-        uint32_t m_Offset;  // Offset into payload array
-        uint32_t m_Size;    // Size of the data
+        uint32_t           m_Offset; // Aligned offset into payload array
+        PhysicsMessageType m_Type;
     };
 
     struct CollisionWorld
@@ -313,14 +320,12 @@ namespace dmGameSystem
                                                   dmGameObject::HRegister regist,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
-                                                  ParticleFXContext* emitter_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
-                                                  LabelContext* label_context,
-                                                  TilemapContext* tilemap_context);
+                                                  LabelContext* label_context);
 
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);

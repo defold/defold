@@ -505,11 +505,7 @@ namespace dmRender
         render_context->m_RenderLightsIndices.Clear();
 
         uint32_t old_light_count = render_context->m_RenderLights.Size();
-        if (render_context->m_RenderLights.Capacity() < max_lights)
-        {
-            render_context->m_RenderLights.SetCapacity(max_lights);
-        }
-        render_context->m_RenderLights.SetSize(max_lights);
+        render_context->m_RenderLights.EnsureSize(max_lights);
         for (uint32_t i = old_light_count; i < max_lights; ++i)
         {
             LightInstance* instance = &render_context->m_RenderLights[i];

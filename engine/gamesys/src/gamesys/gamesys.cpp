@@ -26,7 +26,6 @@
 #include <dmsdk/resource/resource.h>
 
 #include "resources/res_collection_proxy.h"
-#include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_shader_program.h"
 #include "resources/res_model.h"
@@ -36,7 +35,6 @@
 #include "resources/res_compute.h"
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
-#include "resources/res_gui.h"
 #include "resources/res_sound.h"
 #include "resources/res_camera.h"
 #include "resources/res_input_binding.h"
@@ -59,10 +57,8 @@
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
-#include "components/comp_particlefx.h"
 #include "components/comp_model.h"
 #include "components/comp_mesh.h"
-#include "components/comp_gui.h"
 #include "components/comp_camera.h"
 #include "components/comp_factory.h"
 #include "components/comp_collection_factory.h"
@@ -139,7 +135,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
         REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
-        REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
+        // particlefxc: res_particlefx.cpp
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("spc", graphics_context, ResShaderProgramPreload, ResShaderProgramCreate, 0, ResShaderProgramDestroy, ResShaderProgramRecreate);
         // fontc: res_font.cpp
@@ -165,7 +161,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, 0, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);
-        REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate);
+        // tilemapc: res_tilegrid.cpp
         REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, 0, ResMeshSetDestroy, ResMeshSetRecreate);
         REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, 0, ResSkeletonDestroy, ResSkeletonRecreate);
         REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, 0, ResRigSceneDestroy, ResRigSceneRecreate);
@@ -180,14 +176,12 @@ namespace dmGameSystem
                                                 dmGameObject::HRegister regist,
                                                 dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
-                                                ParticleFXContext* particlefx_context,
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 ModelContext* model_context,
-                                                LabelContext* label_context,
-                                                TilemapContext* tilemap_context)
+                                                LabelContext* label_context)
     {
         HResourceType type;
         dmGameObject::ComponentType component_type;
@@ -282,13 +276,7 @@ namespace dmGameSystem
 
         // prio: 725  comp_mesh.cpp
 
-        REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
-                &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
-                &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate, CompParticleFXGetComponent,
-                &CompParticleFXUpdate, 0, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
-                &CompParticleFXOnReload, CompParticleFXGetProperty, CompParticleFXSetProperty,
-                0, 0,
-                1);
+        // prio: 800  comp_particlefx.cpp
 
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
@@ -316,13 +304,7 @@ namespace dmGameSystem
                 0, CompSpriteIterProperties,
                 1);
 
-        REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, tilemap_context,
-                CompTileGridNewWorld, CompTileGridDeleteWorld,
-                CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, CompTileGridGetComponent,
-                0, CompTileGridLateUpdate, 0, CompTileGridRender, 0, CompTileGridOnMessage, 0,
-                CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
-                0, CompTileGridIterProperties,
-                1);
+        // prio: 1200  comp_tilegrid.cpp
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
                 CompLabelNewWorld, CompLabelDeleteWorld,

@@ -65,6 +65,7 @@ namespace dmRender
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
     #define RENDER_SCRIPT_FLAGS_NAME "flags"
+    #define RENDER_SCRIPT_SAMPLE_COUNT_NAME "sample_count"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
@@ -667,6 +668,22 @@ namespace dmRender
         return true;
     }
 
+    static bool InsertDrawCommand(RenderScriptInstance* i, HPredicate predicate, HNamedConstantBuffer constant_buffer, FrustumOptions* frustum_options, SortOrder sort_order)
+    {
+        if (!InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer, (uint64_t)frustum_options, (uint64_t)sort_order)))
+            return false;
+        i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return true;
+    }
+
+    static bool InsertDispatchComputeCommand(RenderScriptInstance* i, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
+    {
+        if (!InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer)))
+            return false;
+        i->m_CommandBuffer.Back().m_Operands[3] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return true;
+    }
+
     /*# enables a render state
      *
      * Enables a particular render state. The state will be enabled until disabled.
@@ -810,6 +827,9 @@ namespace dmRender
      * `v_wrap`     (optional) | `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`<br/>`graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`<br/>`graphics.TEXTURE_WRAP_MIRRORED_REPEAT`<br/>`graphics.TEXTURE_WRAP_REPEAT`
      * `flags`      (optional) | `render.TEXTURE_BIT` (only applicable to depth and stencil buffers)
      *
+     * The top-level `sample_count` key optionally specifies the multisample count for the entire render target.
+     * It defaults to 1 and the graphics adapter normalizes it to a supported power-of-two value.
+     *
      * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
      * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by graphics.BUFFER_TYPE_COLORX_BIT where 'X' is the attachment you want to create).
@@ -847,7 +867,7 @@ namespace dmRender
      *                            height = render.get_window_height(),
      *                            u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE }
-     *     self.my_render_target = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = color_params, [graphics.BUFFER_TYPE_DEPTH_BIT] = depth_params })
+     *     self.my_render_target = render.render_target({sample_count = 4, [graphics.BUFFER_TYPE_COLOR0_BIT] = color_params, [graphics.BUFFER_TYPE_DEPTH_BIT] = depth_params })
      * end
      *
      * function update(self, dt)
@@ -917,10 +937,24 @@ namespace dmRender
         luaL_checktype(L, table_index, LUA_TTABLE);
 
         dmGraphics::RenderTargetCreationParams params = {};
+        params.m_SampleCount = 1;
 
         lua_pushnil(L);                     // [-0,+1 = 1] first key
         while (lua_next(L, table_index))    // [-1,+2 = 2] pop key, push key-value (buffer_type and table)
         {
+            if (lua_type(L, -2) == LUA_TSTRING && strcmp(lua_tostring(L, -2), RENDER_SCRIPT_SAMPLE_COUNT_NAME) == 0)
+            {
+                lua_Integer sample_count = luaL_checkinteger(L, -1);
+                if (sample_count < 1)
+                {
+                    lua_pop(L, 2);
+                    return DM_LUA_ERROR("Invalid render target sample count: %d. Sample count must be greater than 0.", (int) sample_count);
+                }
+                params.m_SampleCount = (uint32_t) sample_count;
+                lua_pop(L, 1);
+                continue;
+            }
+
             dmGraphics::BufferType buffer_type    = CheckBufferType(L, -2);
             buffer_type_flags                    |= (uint32_t) buffer_type;
             dmGraphics::TextureParams* p          = 0;
@@ -1642,20 +1676,6 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    // Take a Lua registry reference to prevent the constant buffer
-    // userdata from being garbage collected while the draw command
-    // is queued. The reference is released after ParseCommands.
-    static void AddConstantBufferRef(lua_State* L, RenderScriptInstance* instance)
-    {
-        lua_pushvalue(L, -1);
-        int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        if (instance->m_ConstantBufferLuaRefs.Full())
-        {
-            instance->m_ConstantBufferLuaRefs.OffsetCapacity(16);
-        }
-        instance->m_ConstantBufferLuaRefs.Push(ref);
-    }
-
     /*# draws all objects matching a predicate
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
@@ -1676,7 +1696,7 @@ namespace dmRender
      * - render.FRUSTUM_PLANES_ALL : All 6 sides of the frustum.
      *
      * `constants`
-     * : [type:constant_buffer] optional constants to use while rendering
+     * : [type:constant_buffer] optional constants to use while rendering. The values are copied when `render.draw()` is called.
      *
      * `sort_order`
      * : [type:int] How to sort draw order for world-ordered entries. Default uses the renderer's preferred world sorting (back-to-front).
@@ -1741,8 +1761,6 @@ namespace dmRender
         {
             return luaL_error(L, "Invalid argument #2 type. Should be table or nil");
         }
-        bool has_constant_buffer_value = false;
-
         if (has_options_table)
         {
             luaL_checktype(L, 2, LUA_TTABLE);
@@ -1761,7 +1779,6 @@ namespace dmRender
             if (!lua_isnil(L, -1))
             {
                 constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
-                has_constant_buffer_value = true;
             }
 
             lua_getfield(L, options_index, "sort_order");
@@ -1781,21 +1798,11 @@ namespace dmRender
             frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options, (uint64_t) sort_order)))
+        if (InsertDrawCommand(i, predicate, constant_buffer, frustum_options, sort_order))
         {
             if (has_options_table)
             {
-                if (has_constant_buffer_value)
-                {
-                    AddConstantBufferRef(L, i);
-                }
                 lua_pop(L, 2);
-            }
-            else if (lua_isuserdata(L, 2)) // Deprecated
-            {
-                // Take a Lua registry reference (same reason as the options table path above).
-                lua_pushvalue(L, 2);
-                AddConstantBufferRef(L, i);
             }
             return 0;
         }
@@ -2930,7 +2937,7 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `constants`
-     * : [type:constant_buffer] optional constants to use while rendering
+     * : [type:constant_buffer] optional constants to use while dispatching. The values are copied when `render.dispatch_compute()` is called.
      *
      * @examples
      *
@@ -2972,8 +2979,6 @@ namespace dmRender
 
         HNamedConstantBuffer constant_buffer = 0;
         bool has_options_table = lua_istable(L, 4);
-        bool has_constant_buffer_value = false;
-
         if (has_options_table)
         {
             luaL_checktype(L, 4, LUA_TTABLE);
@@ -2984,18 +2989,13 @@ namespace dmRender
             if (!lua_isnil(L, -1))
             {
                 constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
-                has_constant_buffer_value = true;
             }
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, p_x, p_y, p_z, (uint64_t) constant_buffer)))
+        if (InsertDispatchComputeCommand(i, p_x, p_y, p_z, constant_buffer))
         {
             if (has_options_table)
             {
-                if (has_constant_buffer_value)
-                {
-                    AddConstantBufferRef(L, i);
-                }
                 lua_pop(L, 2);
             }
             return 0;
@@ -3354,19 +3354,6 @@ bail:
         return i;
     }
 
-    static void ReleaseConstantBufferLuaRefs(lua_State* L, HRenderScriptInstance instance)
-    {
-        uint32_t num_refs = instance->m_ConstantBufferLuaRefs.Size();
-        if (num_refs > 0)
-        {
-            for (uint32_t i = 0; i < num_refs; ++i)
-            {
-                dmScript::Unref(L, LUA_REGISTRYINDEX, instance->m_ConstantBufferLuaRefs[i]);
-            }
-            instance->m_ConstantBufferLuaRefs.SetSize(0);
-        }
-    }
-
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
         lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
@@ -3383,8 +3370,6 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
-
-        ReleaseConstantBufferLuaRefs(L, render_script_instance);
 
         assert(top == lua_gettop(L));
 
@@ -3577,8 +3562,6 @@ bail:
     {
         DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
-
-        ReleaseConstantBufferLuaRefs(instance->m_RenderContext->m_RenderScriptContext.m_LuaState, instance);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 
