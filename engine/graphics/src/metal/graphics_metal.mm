@@ -1367,6 +1367,9 @@ namespace dmGraphics
         {
             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
         }
+        // BC (S3TC/RGTC/BPTC) array/3D uploads work on Metal where BC is supported at all (macOS);
+        // gated further by IsTextureFormatSupported, so this is a no-op on iOS where BC is absent.
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
 
         // TODO: Make the requested Metal adapter version configurable from game.project.
         context->m_BaseContext.m_AdapterVersionMajor = 2;
