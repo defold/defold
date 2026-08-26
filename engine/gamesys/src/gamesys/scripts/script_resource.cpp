@@ -1104,21 +1104,10 @@ static int CreateTextureAsync(lua_State* L)
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    // We need to create an empty upload buffer if no explicit buffer is passed
+    // NOTE: No upload buffer is allocated when none was passed in. The adapters zero-fill the
+    //       destination when m_Data is null (see WriteToDeviceBuffer), so a blank texture doesn't
+    //       need us to hand them a blank source to copy from.
     bool is_transcoded = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
-    uint8_t* raw_data  = 0;
-
-    if (create_params.m_Buffer == 0)
-    {
-        // Block-aware byte size of the full texture. GetTextureFormatDataSize handles both compressed
-        // and uncompressed formats (the old width*height*bpp math over-allocated by 8x for uncompressed
-        // and mis-sized every compressed format). Scaled by faces/layers/depth like MakeTextureImage.
-        uint32_t slice_size = dmGraphics::GetTextureFormatDataSize(create_params.m_Format, create_params.m_Width, create_params.m_Height);
-        uint32_t num_slices = dmGraphics::GetLayerCount(create_params.m_Type)
-                            * dmMath::Max((uint16_t) 1, create_params.m_Depth)
-                            * dmMath::Max((uint8_t) 1, create_params.m_LayerCount);
-        raw_data = new uint8_t[slice_size * num_slices];
-    }
 
     // The callback is optional, we don't have to do anything with the result if we don't need to.
     // I.e the upload can be fire-and-forget. There is no way an upload can fail in the graphics system,
@@ -1174,7 +1163,7 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Buffer            = create_params.m_Buffer;
     request->m_Texture           = 0;
     request->m_PathHash          = create_params.m_PathHash;
-    request->m_RawData           = raw_data;
+    request->m_RawData           = 0; // Only set for the transcoded path below, which owns the decompressed data
     request->m_Completed         = 0;
 
     dmGraphics::TextureParams texture_params;

@@ -878,8 +878,13 @@ namespace dmGraphics
         }
 
         // PVRTC does not fit the simple whole-block scheme: dimensions are rounded up to a
-        // multiple of 4 and clamped to a hardware minimum before packing. This mirrors the
-        // authoritative size the transcoder computes (see graphics_transcoder_basisu.cpp).
+        // multiple of 4 and clamped to a hardware minimum before packing.
+        //
+        // The 4bpp formulas mirror the authoritative size the transcoder computes (see the
+        // cTFPVRTC1_4_* case in graphics_transcoder_basisu.cpp). The 2bpp variants have no producer
+        // today - the transcoder maps no format to a 2bpp basis format and texc doesn't emit one -
+        // so those are derived from the IMG_texture_compression_pvrtc spec instead, and exist so
+        // that every format IsTextureFormatCompressed() accepts has a defined size here.
         switch (format)
         {
             case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
@@ -900,7 +905,10 @@ namespace dmGraphics
                 break;
         }
 
-        return width * height * GetTextureFormatBitsPerPixel(format) / 8;
+        // Accumulate in 64 bits: width * height * bits-per-pixel overflows a uint32 well inside the
+        // supported texture size range (8192x8192 RGBA32F is already 2^33 bits, and GetMaxTextureSize
+        // reports 16384 on desktop GL/Vulkan), which would wrap the size to zero.
+        return (uint32_t) (((uint64_t) width * height * GetTextureFormatBitsPerPixel(format)) / 8);
     }
 
     Type GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type)

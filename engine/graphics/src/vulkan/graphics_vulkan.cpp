@@ -5014,8 +5014,13 @@ bail:
             // bits-per-pixel value is meaningless and would truncate BC1/BC4 to 0. format_orig==RGB
             // is expanded to RGBA above, so size against RGBA in that case. params.m_Width/m_Height
             // is the requested extent (the sub-rectangle for a sub-update), matching the packed source.
-            TextureFormat eff_format = (format_orig == TEXTURE_FORMAT_RGB) ? TEXTURE_FORMAT_RGBA : params.m_Format;
-            uint32_t tex_data_size   = GetTextureFormatDataSize(eff_format, params.m_Width, params.m_Height) * tex_depth * tex_layer_count;
+            //
+            // The source only holds the requested extent, so a sub-update must be sized against the
+            // update depth and not the full texture depth - the copy regions below use params.m_Depth
+            // as the extent, and over-sizing here would read past the end of the source buffer.
+            TextureFormat tex_format = (format_orig == TEXTURE_FORMAT_RGB) ? TEXTURE_FORMAT_RGBA : params.m_Format;
+            uint16_t upload_depth    = params.m_SubUpdate ? params_depth : tex_depth;
+            uint32_t tex_data_size   = GetTextureFormatDataSize(tex_format, params.m_Width, params.m_Height) * upload_depth * tex_layer_count;
 
             CopyToTexture(context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
 
@@ -5161,7 +5166,8 @@ bail:
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
-            uint16_t tex_depth        = dmMath::Max((uint16_t) 1, dmMath::Max(tex->m_Base.m_Depth, ap.m_Params.m_Depth));
+            uint16_t params_depth     = dmMath::Max((uint16_t) 1, ap.m_Params.m_Depth);
+            uint16_t tex_depth        = dmMath::Max(tex->m_Base.m_Depth, params_depth);
             TextureFormat format_orig = ap.m_Params.m_Format;
             void*  tex_data_ptr       = (void*) ap.m_Params.m_Data;
             uint8_t* temp_data        = 0;
@@ -5170,9 +5176,11 @@ bail:
             // Size the upload via the shared block-aware helper instead of a local bits-per-pixel
             // calculation. This is correct for compressed formats too (BC/ETC/ASTC/PVRTC), where a
             // bits-per-pixel value is meaningless. format_orig==RGB is expanded to RGBA below, so
-            // size against RGBA in that case.
+            // size against RGBA in that case. As in the synchronous path, a sub-update source only
+            // holds the requested extent, so it must be sized against the update depth.
             TextureFormat eff_format = (format_orig == TEXTURE_FORMAT_RGB) ? TEXTURE_FORMAT_RGBA : ap.m_Params.m_Format;
-            uint32_t tex_data_size   = GetTextureFormatDataSize(eff_format, ap.m_Params.m_Width, ap.m_Params.m_Height) * tex_depth * tex_layer_count;
+            uint16_t upload_depth    = ap.m_Params.m_SubUpdate ? params_depth : tex_depth;
+            uint32_t tex_data_size   = GetTextureFormatDataSize(eff_format, ap.m_Params.m_Width, ap.m_Params.m_Height) * upload_depth * tex_layer_count;
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 

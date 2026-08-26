@@ -2342,6 +2342,11 @@ TEST_F(dmGraphicsTest, TestTextureFormatDataSize)
     ASSERT_EQ(256u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_LUMINANCE, 16, 16));
     ASSERT_EQ(768u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB, 16, 16));
     ASSERT_EQ(1024u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA, 16, 16));
+
+    // The uncompressed path has to accumulate in 64 bits: 8192x8192 at 128 bpp is 2^33 bits, which
+    // wraps a uint32 to 0 if the bits-per-pixel multiply happens before the divide. GetMaxTextureSize
+    // reports 16384 on desktop GL/Vulkan, so this is inside the range we claim to support.
+    ASSERT_EQ(1073741824u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA32F, 8192, 8192));
 }
 
 // Every block-compressed format must be recognised as compressed. R_ETC2/RG_ETC2 (EAC) and the

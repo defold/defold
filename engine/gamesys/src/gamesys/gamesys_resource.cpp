@@ -69,7 +69,11 @@ namespace dmGameSystem
             }
             assert(data_size > 0);
 
-            data_size *= layer_count * mm_depth;
+            // NOTE: layer_count is already applied per mipmap inside the loop above, so only the
+            //       depth is scaled in here. Applying it twice inflates the blank buffer allocated
+            //       below (6x for a cubemap) and the m_DataSize we report for the image, which
+            //       res_texture.cpp uses to walk between alternatives.
+            data_size *= dmMath::Max((uint16_t) 1, mm_depth);
         }
 
         uint32_t image_data_size = 0;
