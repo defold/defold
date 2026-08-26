@@ -966,7 +966,7 @@ namespace dmRender
 
     static Result DrawInternal(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
 
-    static Result DrawRenderListInternal(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -1121,11 +1121,6 @@ namespace dmRender
         }
 
         return DrawInternal(context, predicate, constant_buffer);
-    }
-
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
-    {
-        return DrawRenderListInternal(context, predicate, constant_buffer, frustum_options, sort_order);
     }
 
     void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
