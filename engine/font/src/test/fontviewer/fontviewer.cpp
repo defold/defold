@@ -1376,9 +1376,7 @@ static void BuildNuklearData(Viewer* viewer, const FontViewerNuklearInput* input
 {
     FontViewerNuklearBuild(WINDOW_WIDTH, WINDOW_HEIGHT, viewer->m_LayoutText.Begin(), viewer->m_EditorContentHeight, input, &viewer->m_TextScrollY, &viewer->m_FontSize, &viewer->m_Zoom, &viewer->m_Properties, &viewer->m_ShapeText, &viewer->m_ShowBaselines, &viewer->m_ShowQuads, &viewer->m_NuklearLayout);
     const uint32_t index_count = viewer->m_NuklearLayout.m_IndexDataSize / sizeof(uint16_t);
-    if (viewer->m_NuklearVertices.Capacity() < index_count)
-        viewer->m_NuklearVertices.SetCapacity(index_count);
-    viewer->m_NuklearVertices.SetSize(index_count);
+    viewer->m_NuklearVertices.EnsureSize(index_count);
     for (uint32_t i = 0; i < index_count; ++i)
         viewer->m_NuklearVertices[i] = viewer->m_NuklearLayout.m_Vertices[viewer->m_NuklearLayout.m_Indices[i]];
 }
@@ -1406,9 +1404,7 @@ static bool PushEditorLayout(Viewer* viewer)
 
 static bool PackAllLayouts(Viewer* viewer)
 {
-    if (viewer->m_Vertices.Capacity() < viewer->m_VertexCount)
-        viewer->m_Vertices.SetCapacity(viewer->m_VertexCount);
-    viewer->m_Vertices.SetSize(viewer->m_VertexCount);
+    viewer->m_Vertices.EnsureSize(viewer->m_VertexCount);
     const uint32_t main_layer_stride = CountVisibleGlyphs(viewer->m_Layouts[0]) * 6;
     uint32_t       vertex_start = 0;
     for (uint32_t i = 0; i < viewer->m_Layouts.Size(); ++i)

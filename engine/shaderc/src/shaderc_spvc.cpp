@@ -564,15 +564,6 @@ namespace dmShaderc
         }
     }
 
-    template <typename T>
-    static void EnsureSize(dmArray<T>& array, uint32_t size)
-    {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
-        }
-        array.SetSize(size);
-    }
-
     static bool ReplaceString(const char *src, const char* search_str, const char *replacement, dmArray<char>* result_buf)
     {
         const char* found = strstr(src, search_str);
@@ -592,7 +583,7 @@ namespace dmShaderc
         uint32_t suffix_len      = strlen(line_end);
         uint32_t total           = prefix_len + replacement_len + suffix_len + 1;
 
-        EnsureSize(*result_buf, total);
+        result_buf->EnsureSize(total);
 
         char* dst = result_buf->Begin();
         memcpy(dst, src, prefix_len);
@@ -792,7 +783,7 @@ namespace dmShaderc
         // highp qualifier might not be supported on ES2, so we need to apply a workaround.
         if (compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
         {
-            EnsureSize(transform_buffer, compile_result_size + 1);
+            transform_buffer.EnsureSize(compile_result_size + 1);
             memcpy(transform_buffer.Begin(), compile_result, compile_result_size);
             transform_buffer.Begin()[compile_result_size] = '\0';
 
@@ -804,7 +795,7 @@ namespace dmShaderc
                  (options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_MEDIUMP &&
                   ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, true))))
             {
-                EnsureSize(transform_buffer, tmp_buffer.Size());
+                transform_buffer.EnsureSize(tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
                 transform_content_size = tmp_buffer.Size() - 1;
             }
@@ -813,7 +804,7 @@ namespace dmShaderc
                  (options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_MEDIUMP &&
                   ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, false))))
             {
-                EnsureSize(transform_buffer, tmp_buffer.Size());
+                transform_buffer.EnsureSize(tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
                 transform_content_size = tmp_buffer.Size() - 1;
             }

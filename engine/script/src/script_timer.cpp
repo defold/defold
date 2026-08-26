@@ -237,11 +237,7 @@ namespace dmScript
     static uint32_t CopyIndices(dmSet<uint16_t>& src, dmArray<uint16_t>& tgt)
     {
         uint32_t size = src.Size();
-        if (size > tgt.Capacity())
-        {
-            tgt.SetCapacity(size);
-        }
-        tgt.SetSize(size);
+        tgt.EnsureSize(size);
         for (uint32_t i = 0; i < size; ++i)
         {
             tgt[i] = src[i];
