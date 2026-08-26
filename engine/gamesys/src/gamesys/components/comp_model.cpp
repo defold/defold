@@ -863,11 +863,7 @@ namespace dmGameSystem
             weights_count = dmMath::Min(weights_count, render_item->m_Mesh->m_MorphTargetCount);
 
             dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
-            if (scratch.Capacity() < vec4_slots)
-            {
-                scratch.SetCapacity(vec4_slots);
-            }
-            scratch.SetSize(vec4_slots);
+            scratch.EnsureSize(vec4_slots);
             FillMorphWeightsFloatSlots(weights, weights_count, (float*) scratch.Begin(), weight_capacity);
             morph_target_weights_channels[0] = (float*) scratch.Begin();
 
@@ -1461,11 +1457,7 @@ namespace dmGameSystem
         weights_count = dmMath::Min(weights_count, mesh_morph_count);
 
         dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
-        if (scratch.Capacity() < shader_vec4_slots)
-        {
-            scratch.SetCapacity(shader_vec4_slots);
-        }
-        scratch.SetSize(shader_vec4_slots);
+        scratch.EnsureSize(shader_vec4_slots);
         FillMorphWeightsVector4Slots(weights, weights_count, scratch.Begin(), shader_vec4_slots);
 
         dmRender::SetNamedConstant(ro->m_ConstantBuffer, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, scratch.Begin(), shader_vec4_slots);
@@ -2294,11 +2286,7 @@ namespace dmGameSystem
 
     void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
     {
-        if (component->m_BlendWeightsOverride.Capacity() < count)
-        {
-            component->m_BlendWeightsOverride.SetCapacity(count);
-        }
-        component->m_BlendWeightsOverride.SetSize(count);
+        component->m_BlendWeightsOverride.EnsureSize(count);
         memcpy(component->m_BlendWeightsOverride.Begin(), weights, count * sizeof(float));
         component->m_BlendWeightsOverrideActive = 1;
         component->m_ReHash = 1;
