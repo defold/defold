@@ -4951,6 +4951,10 @@ static void LogFrameBufferError(GLenum status)
         else
         {
             SetTexture(_context, texture, params);
+            if (callback)
+            {
+                callback(texture, user_data);
+            }
         }
     }
 
