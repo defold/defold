@@ -409,7 +409,7 @@
      "    end"
      "}"]
 
-    ;; `until` belongs to `repeat`, not to `do`.
+    ;; `until` closes a `repeat`, so it does not close the `do` of a `while`.
     ["while a do"
      "    until"
      "end"]

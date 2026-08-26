@@ -180,7 +180,7 @@ function for_loops(t)
     print("after")
 end
 
--- Nested tables closed together with `}}`.
+-- Nested tables, each closing brace on its own line.
 function nested_tables()
     local cfg = {
         physics = {
@@ -196,8 +196,8 @@ function return_multiline_call()
         1, 2, 3)
 end
 
--- Method call chain broken across lines.
-function method_chain(self)
+-- Assignment from a call whose arguments wrap onto the next line.
+function call_args_wrapped()
     local n = string.format("%d",
         1)
     print(n)
@@ -252,8 +252,8 @@ function close_then_open(self)
     print("after")
 end
 
--- Operator continuation across lines.
-function operator_continuation()
+-- Call with every argument on a continuation line.
+function call_args_one_per_line()
     local s = concat(
         "a",
         "b")
@@ -290,7 +290,8 @@ function paren_in_comment()
     print(2)
 end
 
--- Unbalanced paren inside a single-line long string.
+-- Unbalanced paren inside a long string that opens with content on the same
+-- line as the `[[`.
 function paren_in_long_string()
     local s = [[ see the note below
     this is a test thing(
@@ -298,7 +299,7 @@ function paren_in_long_string()
     print(s)
 end
 
--- Unbalanced paren inside a multi-line long string.
+-- Unbalanced paren inside a long string that opens on its own line.
 -- Long-string state is carried across lines, so the paren remains string content.
 function paren_in_multiline_long_string()
     local s = [[
