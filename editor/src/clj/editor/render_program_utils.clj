@@ -27,19 +27,19 @@
                :type :string
                :default "new_constant"}
    :panel-form-fn
-   (fn panel-form-fn [selected-constant]
-     (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)
-           constant-type (:type selected-constant (ffirst constant-values))]
+   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)
+         default-constant-type (ffirst constant-values)]
+     (fn panel-form-fn [selected-constant]
        {:sections
         [{:fields
           [{:path [:type]
             :localization-key (str localization-key ".type")
             :type :choicebox
             :options (protobuf-forms/make-options constant-values)
-            :default (ffirst constant-values)}
+            :default default-constant-type}
            {:path [:value]
             :localization-key (str localization-key ".value")
-            :type (case constant-type
+            :type (case (:type selected-constant default-constant-type)
                     :constant-type-user-color :color
                     :vec4)}]}]}))})
 

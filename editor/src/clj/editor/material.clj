@@ -157,7 +157,7 @@
 (defn- constant->val [constant]
   (case (:type constant)
     (:constant-type-user :constant-type-user-color) (let [[x y z w] (:value constant)]
-                                                       (Vector4d. x y z w))
+                                                      (Vector4d. x y z w))
     :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
                                   (doto (Matrix4d.)
                                     (.setElement 0 0 x)

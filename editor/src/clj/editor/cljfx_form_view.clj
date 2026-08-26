@@ -357,6 +357,45 @@
                                                          :index i}}]}))
                      value)}))
 
+(defmethod handle-event :keep-edit [{:keys [state-path ui-state fx/event on-value-changed]}]
+  [[:set-ui-state (assoc-in ui-state (conj state-path :value) event)]
+   [:dispatch (assoc on-value-changed :fx/event event)]])
+
+(defmethod handle-event :commit-on-enter [{:keys [^KeyEvent fx/event on-commit state-path ui-state]}]
+  (when (= KeyCode/ENTER (.getCode event))
+    (let [value (get-in ui-state (conj state-path :value) ::no-value)]
+      (when-not (= value ::no-value)
+        {:dispatch (assoc on-commit :fx/event value)}))))
+
+(defn- wrap-commit-on-enter [desc on-commit state-path]
+  {:fx/type ext-with-key-pressed-props
+   :props {:on-key-pressed {:event-type :commit-on-enter
+                            :on-commit on-commit
+                            :state-path state-path}}
+   :desc desc})
+
+(defmethod cell-input-view :vec4 [{:keys [on-cancel
+                                          on-commit
+                                          on-value-changed
+                                          state
+                                          state-path]
+                                   :as field}]
+  (-> field
+      (assoc :fx/type form-input-view
+             :state-path (conj state-path :form-input-state)
+             :on-value-changed {:event-type :keep-edit
+                                :state-path state-path
+                                :on-value-changed on-value-changed})
+      (cond-> (contains? state :form-input-state)
+        (assoc :state (:form-input-state state)))
+      (wrap-cancel-on-escape on-cancel)
+      (wrap-commit-on-enter on-commit state-path)
+      (wrap-focus-text-field)))
+
+;; endregion
+
+;; region color input
+
 (defn- clamp-unit
   ^double [^double n]
   (Math/min 1.0 (Math/max 0.0 n)))
@@ -393,41 +432,6 @@
   {:fx/type form-color-picker-view
    :value (ensure-value value field)
    :on-value-changed on-value-changed})
-
-(defmethod handle-event :keep-edit [{:keys [state-path ui-state fx/event on-value-changed]}]
-  [[:set-ui-state (assoc-in ui-state (conj state-path :value) event)]
-   [:dispatch (assoc on-value-changed :fx/event event)]])
-
-(defmethod handle-event :commit-on-enter [{:keys [^KeyEvent fx/event on-commit state-path ui-state]}]
-  (when (= KeyCode/ENTER (.getCode event))
-    (let [value (get-in ui-state (conj state-path :value) ::no-value)]
-      (when-not (= value ::no-value)
-        {:dispatch (assoc on-commit :fx/event value)}))))
-
-(defn- wrap-commit-on-enter [desc on-commit state-path]
-  {:fx/type ext-with-key-pressed-props
-   :props {:on-key-pressed {:event-type :commit-on-enter
-                            :on-commit on-commit
-                            :state-path state-path}}
-   :desc desc})
-
-(defmethod cell-input-view :vec4 [{:keys [on-cancel
-                                          on-commit
-                                          on-value-changed
-                                          state
-                                          state-path]
-                                   :as field}]
-  (-> field
-      (assoc :fx/type form-input-view
-             :state-path (conj state-path :form-input-state)
-             :on-value-changed {:event-type :keep-edit
-                                :state-path state-path
-                                :on-value-changed on-value-changed})
-      (cond-> (contains? state :form-input-state)
-        (assoc :state (:form-input-state state)))
-      (wrap-cancel-on-escape on-cancel)
-      (wrap-commit-on-enter on-commit state-path)
-      (wrap-focus-text-field)))
 
 ;; endregion
 
