@@ -110,7 +110,7 @@ namespace dmRender
      * @name render.draw_options
      * @member frustum? [type:matrix4] Frustum matrix used for culling renderable items.
      * @member frustum_planes? [type:render.FRUSTUM_PLANES] Frustum planes used for culling. The default is [ref:render.FRUSTUM_PLANES_SIDES].
-     * @member constants? [type:constant_buffer] Constants used while rendering.
+     * @member constants? [type:constant_buffer] Constants used while rendering. The values are copied when `render.draw()` is called.
      * @member sort_order? [type:render.SORT] World-entry sort order. The default is the renderer's preferred back-to-front order.
      */
 
@@ -130,7 +130,7 @@ namespace dmRender
     /*# Compute-dispatch options
      * @struct
      * @name render.dispatch_options
-     * @member constants? [type:constant_buffer] Constants used by the compute program.
+     * @member constants? [type:constant_buffer] Constants used by the compute program. The values are copied when `render.dispatch_compute()` is called.
      */
 
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"

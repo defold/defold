@@ -695,6 +695,35 @@ class TestLuaAnnotations(unittest.TestCase):
                 "---@field enabled? boolean Whether enabled.",
                 meta_lua)
 
+    def test_source_struct_requires_explicit_members(self):
+        options = struct("resource.options", [])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"resource\.cpp: struct resource\.options must declare at "
+                    r"least one explicit member"):
+                lua_annotations.generate(
+                    [("resource.cpp", document("resource", [options]))],
+                    Path(directory) / "output",
+                    metadata)
+
+    def test_source_class_can_be_opaque(self):
+        handle = struct("resource.handle", [])
+        handle.type = script_doc_ddf_pb2.CLASS
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("resource.cpp", document("resource", [handle]))],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn("---@class resource.handle", meta_lua)
+
     def test_documented_struct_index_fields_are_rendered_from_source(self):
         request = struct("http.server.request", [
             ("[string]", "any", "Route path parameter."),
@@ -946,7 +975,7 @@ class TestLuaAnnotations(unittest.TestCase):
                     Path(directory) / "output",
                     metadata)
 
-    def test_constant_enum_member_can_be_nil(self):
+    def test_source_enum_rejects_duplicate_standalone_constant(self):
         format_enum = enum(
             "graphics.TEXTURE_FORMAT",
             ["graphics.TEXTURE_FORMAT_RGBA16F"])
@@ -959,17 +988,15 @@ class TestLuaAnnotations(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             metadata = self.metadata(directory)
-            output = Path(directory) / "output"
-            lua_annotations.generate(
-                [("graphics.cpp", graphics_doc)],
-                output,
-                metadata)
-
-            graphics_lua = (output / "graphics.lua").read_text(
-                encoding="utf-8")
-            self.assertIn(
-                "---@field TEXTURE_FORMAT_RGBA16F graphics.TEXTURE_FORMAT|nil",
-                graphics_lua)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"graphics\.cpp: enum graphics\.TEXTURE_FORMAT member "
+                    r"graphics\.TEXTURE_FORMAT_RGBA16F is also declared as a "
+                    r"standalone constant"):
+                lua_annotations.generate(
+                    [("graphics.cpp", graphics_doc)],
+                    Path(directory) / "output",
+                    metadata)
 
     def test_source_enum_member_supports_doc_and_explicit_type(self):
         format_enum = enum(

@@ -1369,6 +1369,12 @@ def _validate_types(
         documented_aliases,
         class_methods)
     errors = []
+    standalone_constants = {
+        name: source_path
+        for root_values in values.values()
+        for name, (source_path, element) in root_values.items()
+        if element.type == script_doc_ddf_pb2.CONSTANT
+    }
 
     def validate(expression, source_path, symbol):
         if not _is_valid_type_expression(expression):
@@ -1421,6 +1427,12 @@ def _validate_types(
             for parameter in element.parameters:
                 validate(_parameter_type(parameter, metadata), source_path, "%s field %s" % (name, parameter.name))
     for class_name, (source_path, element) in documented_classes.items():
+        if (
+                element.type == script_doc_ddf_pb2.STRUCT
+                and not element.members):
+            errors.append(
+                "%s: struct %s must declare at least one explicit member"
+                % (source_path, class_name))
         for member in element.members:
             validate(
                 normalize_type(member.type, metadata),
@@ -1460,6 +1472,13 @@ def _validate_types(
                 errors.append(
                     "%s: enum %s references missing constant %s"
                     % (source, enum_name, member))
+        for member_name in enum["member_elements"]:
+            duplicate_source = standalone_constants.get(member_name)
+            if duplicate_source:
+                errors.append(
+                    "%s: enum %s member %s is also declared as a standalone "
+                    "constant; use only @member for source-defined enums"
+                    % (duplicate_source, enum_name, member_name))
         for member in enum["member_elements"].values():
             if member.type:
                 validate(
