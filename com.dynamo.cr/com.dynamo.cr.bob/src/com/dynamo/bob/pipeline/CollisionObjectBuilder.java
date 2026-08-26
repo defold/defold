@@ -2,7 +2,6 @@ package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
@@ -10,9 +9,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.pipeline.Modelimporter.Mesh;
-import com.dynamo.bob.pipeline.Modelimporter.Model;
-import com.dynamo.bob.pipeline.Modelimporter.Scene;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Shape;
@@ -20,12 +16,13 @@ import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.rig.proto.Rig;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,35 +30,6 @@ import java.util.Set;
 @ProtoParams(srcClass = CollisionObjectDesc.class, messageClass = CollisionObjectDesc.class)
 @BuilderParams(name="CollisionObject", inExts=".collisionobject", outExt=".collisionobjectc", paramsForSignature = {"physics-type-2D"})
 public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
-
-    private static class DependencyTrackingDataResolver implements ModelImporterJni.DataResolver {
-        private final Project project;
-        private final Task.TaskBuilder taskBuilder;
-        private final Set<IResource> dependencies = new HashSet<>();
-
-        DependencyTrackingDataResolver(Project project, Task.TaskBuilder taskBuilder) {
-            this.project = project;
-            this.taskBuilder = taskBuilder;
-        }
-
-        @Override
-        public byte[] getData(String path, String uri) {
-            File file = new File(path);
-            File bufferFile = new File(file.getParentFile(), uri);
-            IResource bufferResource = project.getResource(bufferFile.getPath());
-            if (bufferResource == null) {
-                return null;
-            }
-            if (dependencies.add(bufferResource)) {
-                taskBuilder.addInput(bufferResource);
-            }
-            try {
-                return bufferResource.getContent();
-            } catch (IOException e) {
-                return null;
-            }
-        }
-    }
 
     private static class CompiledMesh {
         int dataIndex;
@@ -89,59 +57,74 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
-        createSubTasks(sourceBuilder, taskBuilder);
 
-        DependencyTrackingDataResolver dataResolver = new DependencyTrackingDataResolver(project, taskBuilder);
-        Set<String> scenePaths = new HashSet<>();
+        if (sourceBuilder.hasCollisionShape() && !sourceBuilder.getCollisionShape().isEmpty()) {
+            createSubTask(sourceBuilder.getCollisionShape(), "collision_shape", taskBuilder);
+        }
+
+        Set<String> meshScenes = new HashSet<>();
         for (Shape shape : sourceBuilder.getEmbeddedCollisionShape().getShapesList()) {
-            if (!isSourceMeshShape(shape) || !shape.hasMeshScene() || !scenePaths.add(shape.getMeshScene())) {
+            if (!isSourceMeshShape(shape) || !shape.hasMeshScene() || !meshScenes.add(shape.getMeshScene())) {
                 continue;
             }
-
             IResource sceneResource = BuilderUtil.checkResource(project, input, "mesh_scene", shape.getMeshScene());
-            taskBuilder.addInput(sceneResource);
-            Scene scene = null;
-            try {
-                scene = ModelUtil.loadScene(sceneResource.getContent(), sceneResource.getPath(), new Modelimporter.Options(), dataResolver);
-            } catch (IOException e) {
-                // Import and validation errors are reported by transform().
-            } finally {
-                if (scene != null) {
-                    ModelUtil.unloadScene(scene);
-                }
+            Task meshsetTask = project.createTask(sceneResource);
+            if (meshsetTask == null) {
+                throw new CompileExceptionError(sceneResource, 0,
+                        String.format("Unsupported resource type for 'mesh_scene': '%s'", sceneResource.getPath()));
             }
+            taskBuilder.addInput(meshsetTask.output(0));
         }
         return taskBuilder.build();
     }
 
-    private static CompiledMesh compileMesh(Model model, CollisionShape.Builder collisionShapeBuilder, IResource resource, boolean includeTriangles) throws CompileExceptionError {
+    private static CompiledMesh compileMesh(Rig.Model model, String modelName, CollisionShape.Builder collisionShapeBuilder, IResource resource, boolean includeTriangles) throws CompileExceptionError {
         CompiledMesh compiledMesh = new CompiledMesh();
         compiledMesh.dataIndex = collisionShapeBuilder.getDataCount();
         compiledMesh.triangleIndex = collisionShapeBuilder.getIndicesCount() / 3;
 
         int vertexOffset = 0;
-        for (Mesh mesh : model.meshes) {
-            if (includeTriangles && mesh.primitiveType != Modelimporter.PrimitiveType.PRIMITIVE_TYPE_TRIANGLES) {
-                throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains a non-triangle primitive", model.name));
+        for (Rig.Mesh mesh : model.getMeshesList()) {
+            if (includeTriangles && mesh.getPrimitiveType() != Rig.PrimitiveType.PRIMITIVE_TYPE_TRIANGLES) {
+                throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains a non-triangle primitive", modelName));
             }
-            if (mesh.positions == null || mesh.positions.length == 0 || mesh.positions.length % 3 != 0) {
-                throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains invalid vertex data", model.name));
-            }
-            if (includeTriangles && (mesh.indices == null || mesh.indices.length == 0 || mesh.indices.length % 3 != 0)) {
-                throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains invalid triangle indices", model.name));
+            if (mesh.getPositionsCount() == 0 || mesh.getPositionsCount() % 3 != 0) {
+                throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains invalid vertex data", modelName));
             }
 
-            int vertexCount = mesh.positions.length / 3;
-            for (float position : mesh.positions) {
+            int indexSize = 0;
+            int indexCount = 0;
+            if (includeTriangles) {
+                if (mesh.getIndicesFormat() == Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16) {
+                    indexSize = Short.BYTES;
+                } else if (mesh.getIndicesFormat() == Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32) {
+                    indexSize = Integer.BYTES;
+                } else {
+                    throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains invalid triangle indices", modelName));
+                }
+                int indexByteCount = mesh.getIndices().size();
+                if (indexByteCount == 0 || indexByteCount % indexSize != 0) {
+                    throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains invalid triangle indices", modelName));
+                }
+                indexCount = indexByteCount / indexSize;
+                if (indexCount % 3 != 0) {
+                    throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains invalid triangle indices", modelName));
+                }
+            }
+
+            int vertexCount = mesh.getPositionsCount() / 3;
+            for (float position : mesh.getPositionsList()) {
                 if (!Float.isFinite(position)) {
-                    throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains a non-finite vertex position", model.name));
+                    throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains a non-finite vertex position", modelName));
                 }
                 collisionShapeBuilder.addData(position);
             }
             if (includeTriangles) {
-                for (int index : mesh.indices) {
+                ByteBuffer indices = mesh.getIndices().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+                for (int i = 0; i < indexCount; ++i) {
+                    int index = indexSize == Short.BYTES ? Short.toUnsignedInt(indices.getShort()) : indices.getInt();
                     if (index < 0 || index >= vertexCount) {
-                        throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains an out-of-range triangle index", model.name));
+                        throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains an out-of-range triangle index", modelName));
                     }
                     collisionShapeBuilder.addIndices(vertexOffset + index);
                 }
@@ -152,80 +135,92 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
         compiledMesh.dataCount = collisionShapeBuilder.getDataCount() - compiledMesh.dataIndex;
         compiledMesh.triangleCount = collisionShapeBuilder.getIndicesCount() / 3 - compiledMesh.triangleIndex;
         if (compiledMesh.dataCount == 0 || includeTriangles && compiledMesh.triangleCount == 0) {
-            throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains no %s", model.name, includeTriangles ? "triangle geometry" : "vertices"));
+            throw new CompileExceptionError(resource, 0, String.format("Mesh '%s' contains no %s", modelName, includeTriangles ? "triangle geometry" : "vertices"));
         }
         return compiledMesh;
     }
 
+    private static Rig.Model resolveGeometryModel(Rig.MeshSet meshSet, Rig.Model selectedModel) {
+        if (selectedModel.getMeshesCount() > 0) {
+            return selectedModel;
+        }
+        for (Rig.Model model : meshSet.getModelsList()) {
+            if (model.getMeshIndex() == selectedModel.getMeshIndex()) {
+                return model;
+            }
+        }
+        return selectedModel;
+    }
+
     private void compileMeshes(CollisionShape.Builder collisionShapeBuilder, IResource resource) throws IOException, CompileExceptionError {
-        Map<String, Scene> scenes = new LinkedHashMap<>();
+        Map<String, Rig.MeshSet> meshSets = new HashMap<>();
         Map<String, CompiledMesh> compiledMeshes = new HashMap<>();
 
-        try {
-            for (int i = 0; i < collisionShapeBuilder.getShapesCount(); i++) {
-                Shape.Builder shapeBuilder = collisionShapeBuilder.getShapesBuilder(i);
-                if (!isSourceMeshShape(shapeBuilder)) {
-                    continue;
-                }
-                boolean includeTriangles = shapeBuilder.getShapeType() == Type.TYPE_MESH;
-                String shapeName = includeTriangles ? "Mesh" : "Hull";
-                if (!shapeBuilder.hasMeshScene() || shapeBuilder.getMeshScene().isEmpty()) {
-                    throw new CompileExceptionError(resource, 0, shapeName + " collision shape has no scene");
-                }
-                if (!shapeBuilder.hasMeshName() || shapeBuilder.getMeshName().isEmpty()) {
-                    throw new CompileExceptionError(resource, 0, shapeName + " collision shape has no selected mesh");
-                }
-                if (!shapeBuilder.hasMeshIndex()) {
-                    throw new CompileExceptionError(resource, 0, shapeName + " collision shape has no raw mesh index");
-                }
+        for (int i = 0; i < collisionShapeBuilder.getShapesCount(); i++) {
+            Shape.Builder shapeBuilder = collisionShapeBuilder.getShapesBuilder(i);
+            if (!isSourceMeshShape(shapeBuilder)) {
+                continue;
+            }
+            boolean includeTriangles = shapeBuilder.getShapeType() == Type.TYPE_MESH;
+            String shapeName = includeTriangles ? "Mesh" : "Hull";
+            if (!shapeBuilder.hasMeshScene() || shapeBuilder.getMeshScene().isEmpty()) {
+                throw new CompileExceptionError(resource, 0, shapeName + " collision shape has no scene");
+            }
+            if (!shapeBuilder.hasMeshName() || shapeBuilder.getMeshName().isEmpty()) {
+                throw new CompileExceptionError(resource, 0, shapeName + " collision shape has no selected mesh");
+            }
+            if (!shapeBuilder.hasMeshIndex()) {
+                throw new CompileExceptionError(resource, 0, shapeName + " collision shape has no raw mesh index");
+            }
 
-                String scenePath = shapeBuilder.getMeshScene();
-                IResource sceneResource = BuilderUtil.checkResource(project, resource, "mesh_scene", scenePath);
-                String suffix = BuilderUtil.getSuffix(sceneResource.getPath()).toLowerCase();
-                if (!suffix.equals("gltf") && !suffix.equals("glb")) {
-                    throw new CompileExceptionError(resource, 0, String.format("Mesh collision scene '%s' must be a .gltf or .glb resource", scenePath));
-                }
+            String scenePath = shapeBuilder.getMeshScene();
+            IResource sceneResource = BuilderUtil.checkResource(project, resource, "mesh_scene", scenePath);
+            String suffix = BuilderUtil.getSuffix(sceneResource.getPath()).toLowerCase();
+            if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+                throw new CompileExceptionError(resource, 0, String.format("Mesh collision scene '%s' must be a .gltf or .glb resource", scenePath));
+            }
 
-                Scene scene = scenes.get(scenePath);
-                if (scene == null) {
-                    try {
-                        scene = ModelUtil.loadScene(sceneResource.getContent(), sceneResource.getPath(), new Modelimporter.Options(), new MeshsetBuilder.ResourceDataResolver(project));
-                    } catch (IOException e) {
-                        throw new CompileExceptionError(sceneResource, 0, e.getMessage(), e);
-                    }
-                    scenes.put(scenePath, scene);
-                }
-
-                Model model;
+            Rig.MeshSet meshSet = meshSets.get(scenePath);
+            if (meshSet == null) {
                 try {
-                    model = ModelUtil.resolveNamedMesh(scene, shapeBuilder.getMeshName(), shapeBuilder.getMeshIndex());
-                } catch (IllegalArgumentException e) {
-                    throw new CompileExceptionError(sceneResource, 0, e.getMessage());
+                    meshSet = Rig.MeshSet.parseFrom(sceneResource.changeExt(".meshsetc").getContent());
+                } catch (IOException e) {
+                    throw new CompileExceptionError(sceneResource, 0, e.getMessage(), e);
                 }
-                String compiledMeshKey = shapeBuilder.getShapeType() + ":" + scenePath + "#" + model.index;
-                CompiledMesh compiledMesh = compiledMeshes.get(compiledMeshKey);
-                if (compiledMesh == null) {
-                    compiledMesh = compileMesh(model, collisionShapeBuilder, sceneResource, includeTriangles);
-                    compiledMeshes.put(compiledMeshKey, compiledMesh);
-                }
+                meshSets.put(scenePath, meshSet);
+            }
 
-                shapeBuilder.setIndex(compiledMesh.dataIndex);
-                shapeBuilder.setCount(compiledMesh.dataCount);
-                if (includeTriangles) {
-                    shapeBuilder.setTriangleIndex(compiledMesh.triangleIndex);
-                    shapeBuilder.setTriangleCount(compiledMesh.triangleCount);
-                } else {
-                    shapeBuilder.clearTriangleIndex();
-                    shapeBuilder.clearTriangleCount();
-                }
-                shapeBuilder.clearMeshScene();
-                shapeBuilder.clearMeshName();
-                shapeBuilder.clearMeshIndex();
+            Rig.Model selectedModel;
+            try {
+                selectedModel = ModelUtil.resolveNamedMesh(meshSet, shapeBuilder.getMeshName(), shapeBuilder.getMeshIndex());
+            } catch (IllegalArgumentException e) {
+                throw new CompileExceptionError(sceneResource, 0, e.getMessage());
             }
-        } finally {
-            for (Scene scene : scenes.values()) {
-                ModelUtil.unloadScene(scene);
+            if (meshSet.getSplitModelIndicesList().contains(selectedModel.getMeshIndex())) {
+                throw new CompileExceptionError(sceneResource, 0, String.format(
+                        "Mesh '%s' was split because it exceeds the vertex limit and cannot be used for collision geometry",
+                        shapeBuilder.getMeshName()));
             }
+            String compiledMeshKey = shapeBuilder.getShapeType() + ":" + scenePath + "#" + selectedModel.getMeshIndex();
+            CompiledMesh compiledMesh = compiledMeshes.get(compiledMeshKey);
+            if (compiledMesh == null) {
+                Rig.Model geometryModel = resolveGeometryModel(meshSet, selectedModel);
+                compiledMesh = compileMesh(geometryModel, shapeBuilder.getMeshName(), collisionShapeBuilder, sceneResource, includeTriangles);
+                compiledMeshes.put(compiledMeshKey, compiledMesh);
+            }
+
+            shapeBuilder.setIndex(compiledMesh.dataIndex);
+            shapeBuilder.setCount(compiledMesh.dataCount);
+            if (includeTriangles) {
+                shapeBuilder.setTriangleIndex(compiledMesh.triangleIndex);
+                shapeBuilder.setTriangleCount(compiledMesh.triangleCount);
+            } else {
+                shapeBuilder.clearTriangleIndex();
+                shapeBuilder.clearTriangleCount();
+            }
+            shapeBuilder.clearMeshScene();
+            shapeBuilder.clearMeshName();
+            shapeBuilder.clearMeshIndex();
         }
     }
 
