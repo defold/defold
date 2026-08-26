@@ -488,6 +488,7 @@
    (let [s (or sampler default-editable-sampler)
          params {:wrap-s (wrap-mode->gl (:wrap-u s))
                  :wrap-t (wrap-mode->gl (:wrap-v s))
+                 :wrap-r (wrap-mode->gl (:wrap-w s))
                  :min-filter (filter-mode-min->gl (:filter-min s) default-tex-params)
                  :mag-filter (filter-mode-mag->gl (:filter-mag s) default-tex-params)
                  :name (:name s)

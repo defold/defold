@@ -62,6 +62,11 @@
           :type :choicebox
           :options (protobuf-forms/make-options wrap-options)
           :default (ffirst wrap-options)}
+         {:path [:wrap-w]
+          :localization-key (str localization-key ".wrap-w")
+          :type :choicebox
+          :options (protobuf-forms/make-options wrap-options)
+          :default (ffirst wrap-options)}
          {:path [:filter-min]
           :localization-key (str localization-key ".filter-min")
           :type :choicebox

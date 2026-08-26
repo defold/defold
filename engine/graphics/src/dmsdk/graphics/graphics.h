@@ -833,6 +833,7 @@ namespace dmGraphics
      * @member m_MagFilter [type:dmGraphics::TextureFilter] Magnification filter (applied when enlarging). Determines how pixels are sampled when the texture is displayed larger than its native resolution
      * @member m_UWrap [type:dmGraphics::TextureWrap]       Wrapping mode for U (X) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_VWrap [type:dmGraphics::TextureWrap]       Wrapping mode for V (Y) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
+     * @member m_WWrap [type:dmGraphics::TextureWrap]       Wrapping mode for W (Z) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_X [type:uint32_t]                          X offset in pixels for sub-texture updates. Defines the left edge of the destination region
      * @member m_Y [type:uint32_t]                          Y offset in pixels for sub-texture updates. Defines the top edge of the destination region
      * @member m_Z [type:uint32_t]                          Z offset (depth layer) for 3D textures. Ignored for standard 2D textures
@@ -854,6 +855,7 @@ namespace dmGraphics
         , m_MagFilter(TEXTURE_FILTER_LINEAR)
         , m_UWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_VWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
+        , m_WWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_X(0)
         , m_Y(0)
         , m_Z(0)
@@ -873,6 +875,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_UWrap;
         TextureWrap   m_VWrap;
+        TextureWrap   m_WWrap;
 
         // For sub texture updates
         uint32_t m_X;
@@ -1211,8 +1214,10 @@ namespace dmGraphics
      * @param mag_filter [type:dmGraphics::TextureFilter] Magnification filter type
      * @param uwrap [type:dmGraphics::TextureWrap] Wrapping mode for the U (X) texture coordinate.
      * @param vwrap [type:dmGraphics::TextureWrap] Wrapping mode for the V (Y) texture coordinate
+     * @param wwrap [type:dmGraphics::TextureWrap] Wrapping mode for the W (Z) texture coordinate
      * @param max_anisotropy [type:float]
      */
+    void SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
     void SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
 
     /*#

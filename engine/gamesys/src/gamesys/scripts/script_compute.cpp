@@ -94,6 +94,14 @@ namespace dmGameSystem
      *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
      *   - `graphics.TEXTURE_WRAP_REPEAT`
      *
+     * `w_wrap`
+     * : [type:number] the w wrap mode of the texture sampler. Supported values:
+     *
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
+     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_REPEAT`
+     *
      * `min_filter`
      * : [type:number] the min filter mode of the texture sampler. Supported values:
      *
@@ -334,6 +342,14 @@ namespace dmGameSystem
      *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
      *   - `graphics.TEXTURE_WRAP_REPEAT`
      *
+     * `w_wrap`
+     * : [type:number] the w wrap mode of the texture sampler. Supported values:
+     *
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
+     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_REPEAT`
+     *
      * `min_filter`
      * : [type:number] the min filter mode of the texture sampler. Supported values:
      *
@@ -384,11 +400,11 @@ namespace dmGameSystem
         luaL_checktype(L, args_index, LUA_TTABLE);
         lua_pushvalue(L, args_index);
 
-        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
+        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_WWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
 
         lua_pop(L, 1);
 
-        dmRender::SetComputeProgramSampler(compute_res->m_Program, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
+        dmRender::SetComputeProgramSampler(compute_res->m_Program, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_WWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
 
         return 0;
     }

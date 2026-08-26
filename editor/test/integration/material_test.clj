@@ -33,6 +33,16 @@
       (is (some? (g/node-value node-id :shader)))
       (is (= 1 (count samplers))))))
 
+(deftest optional-sampler-wrap-w
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test_samplers.material")
+          sampler (first (g/node-value node-id :samplers))]
+      (is (= :wrap-mode-repeat (:wrap-w sampler)))
+      (is (not (contains? (first (:samplers (g/node-value node-id :save-value))) :wrap-w)))
+      (prop! node-id :samplers [(assoc sampler :wrap-w :wrap-mode-clamp-to-edge)])
+      (is (= :wrap-mode-clamp-to-edge
+             (get-in (g/node-value node-id :save-value) [:samplers 0 :wrap-w]))))))
+
 (deftest missing-material-constant-value
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/materials/test_missing_constant_value.material")]

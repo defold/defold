@@ -238,6 +238,9 @@ namespace dmGameSystem
         lua_pushinteger(L, (lua_Integer) info.m_VWrap);
         lua_setfield(L, -2, "v_wrap");
 
+        lua_pushinteger(L, (lua_Integer) info.m_WWrap);
+        lua_setfield(L, -2, "w_wrap");
+
         lua_pushinteger(L, (lua_Integer) info.m_MinFilter);
         lua_setfield(L, -2, "min_filter");
 
@@ -378,7 +381,7 @@ namespace dmGameSystem
         PushVertexAttributeValue(L, attribute->m_VectorType, values);
     }
 
-    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureWrap* w_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
     {
         // parse u_wrap
         {
@@ -396,6 +399,16 @@ namespace dmGameSystem
             if (!lua_isnil(L, -1))
             {
                 *v_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse w_wrap
+        {
+            lua_getfield(L, -1, "w_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *w_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
             }
             lua_pop(L, 1);
         }

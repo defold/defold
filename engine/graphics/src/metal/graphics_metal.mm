@@ -1235,6 +1235,7 @@ namespace dmGraphics
         MTL::SamplerMipFilter mipFilter,
         MTL::SamplerAddressMode wrapU,
         MTL::SamplerAddressMode wrapV,
+        MTL::SamplerAddressMode wrapW,
         float minLod,
         float maxLod,
         float maxAnisotropy)
@@ -1247,7 +1248,7 @@ namespace dmGraphics
         desc->setMipFilter(mipFilter);
         desc->setSAddressMode(wrapU);
         desc->setTAddressMode(wrapV);
-        desc->setRAddressMode(wrapU);
+        desc->setRAddressMode(wrapW);
         desc->setLodMinClamp(minLod);
         desc->setLodMaxClamp(maxLod);
         desc->setSupportArgumentBuffers(true);
@@ -1267,6 +1268,7 @@ namespace dmGraphics
         TextureFilter magFilter,
         TextureWrap uWrap,
         TextureWrap vWrap,
+        TextureWrap wWrap,
         uint8_t maxLod,
         float maxAnisotropy)
     {
@@ -1287,12 +1289,14 @@ namespace dmGraphics
 
         MTL::SamplerAddressMode wrapU = GetMetalSamplerAddressMode(uWrap);
         MTL::SamplerAddressMode wrapV = GetMetalSamplerAddressMode(vWrap);
+        MTL::SamplerAddressMode wrapW = GetMetalSamplerAddressMode(wWrap);
 
         MetalTextureSampler newSampler = {};
         newSampler.m_MinFilter = minFilter;
         newSampler.m_MagFilter = magFilter;
         newSampler.m_AddressModeU = uWrap;
         newSampler.m_AddressModeV = vWrap;
+        newSampler.m_AddressModeW = wWrap;
         newSampler.m_MaxLod = maxLod;
         newSampler.m_MaxAnisotropy = maxAnisotropy;
 
@@ -1307,6 +1311,7 @@ namespace dmGraphics
             metalMipFilter,
             wrapU,
             wrapV,
+            wrapW,
             0.0f,
             static_cast<float>(maxLod),
             maxAnisotropy
@@ -1426,7 +1431,7 @@ namespace dmGraphics
         }
 
         // Create default texture sampler
-        CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
+        CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         // Create default dummy texture
         TextureCreationParams default_texture_creation_params;
@@ -4890,7 +4895,7 @@ namespace dmGraphics
         MetalSetTextureInternal(context, tex, params);
     }
 
-    static int16_t GetTextureSamplerIndex(MetalContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
+    static int16_t GetTextureSamplerIndex(MetalContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy)
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
         {
@@ -4908,6 +4913,7 @@ namespace dmGraphics
                 sampler.m_MinFilter     == minfilter &&
                 sampler.m_AddressModeU  == uwrap     &&
                 sampler.m_AddressModeV  == vwrap     &&
+                sampler.m_AddressModeW  == wwrap     &&
                 sampler.m_MaxLod        == maxLod    &&
                 sampler.m_MaxAnisotropy == max_anisotropy)
             {
@@ -4926,7 +4932,7 @@ namespace dmGraphics
         return (requested < MAX_SUPPORTED_ANISOTROPY) ? requested : MAX_SUPPORTED_ANISOTROPY;
     }
 
-    static void MetalSetTextureParamsInternal(MetalContext* context, MetalTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void MetalSetTextureParamsInternal(MetalContext* context, MetalTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         const MetalTextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
         float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
@@ -4935,13 +4941,14 @@ namespace dmGraphics
             sampler.m_MagFilter     != magfilter                     ||
             sampler.m_AddressModeU  != uwrap                         ||
             sampler.m_AddressModeV  != vwrap                         ||
+            sampler.m_AddressModeW  != wwrap                         ||
             sampler.m_MaxLod        != texture->m_Base.m_MipMapCount ||
             sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
+            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, wwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
+                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, wwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             }
             texture->m_TextureSamplerIndex = sampler_index;
         }
@@ -5049,12 +5056,12 @@ namespace dmGraphics
         }
     }
 
-    static void MetalSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void MetalSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         MetalContext* context = (MetalContext*)_context;
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-        MetalSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        MetalSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
 
     static void MetalEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)

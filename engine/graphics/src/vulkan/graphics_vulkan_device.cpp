@@ -959,7 +959,7 @@ bail:
     }
 
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
-        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, VkSamplerAddressMode vk_wrap_w, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
     {
         VkSamplerCreateInfo vk_sampler_create_info;
         memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
@@ -969,7 +969,7 @@ bail:
         vk_sampler_create_info.minFilter               = vk_min_filter;
         vk_sampler_create_info.addressModeU            = vk_wrap_u;
         vk_sampler_create_info.addressModeV            = vk_wrap_v;
-        vk_sampler_create_info.addressModeW            = vk_wrap_u;
+        vk_sampler_create_info.addressModeW            = vk_wrap_w;
         vk_sampler_create_info.anisotropyEnable        = max_anisotropy > 1.0f;
         vk_sampler_create_info.maxAnisotropy           = max_anisotropy;
         vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
