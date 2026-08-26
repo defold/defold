@@ -24,7 +24,11 @@
 (deftest cubemap-sample-count-validation
   (test-util/with-temp-project-content
     {"/cubemap.render_target"
-     "type: TYPE_CUBEMAP\nsample_count: 4\ncolor_attachments { width: 16 height: 16 format: TEXTURE_FORMAT_RGBA }\n"}
+     {:type :type-cubemap
+      :sample-count 4
+      :color-attachments [{:width 16
+                           :height 16
+                           :format :texture-format-rgba}]}}
     (let [node-id (test-util/resource-node project "/cubemap.render_target")]
       (is (true? (:disable (form-field (g/node-value node-id :form-data) [:sample-count]))))
       (is (g/error-fatal? (g/node-value node-id :build-errors)))
