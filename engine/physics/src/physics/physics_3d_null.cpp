@@ -197,11 +197,6 @@ namespace dmPhysics
         return 0;
     }
 
-    bool SetMass3D(HCollisionObject3D collision_object, float mass)
-    {
-        return false;
-    }
-
     uint16_t GetGroup3D(HCollisionObject3D collision_object)
     {
         return 0;

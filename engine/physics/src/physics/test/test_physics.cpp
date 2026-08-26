@@ -15,9 +15,6 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#include <float.h>
-#include <math.h>
-
 #include "test_physics.h"
 #include <dlib/math.h>
 
@@ -852,69 +849,6 @@ TYPED_TEST(PhysicsTest, DynamicScalingUpdatesInertia)
 
     dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, dynamically_scaled_object);
     dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, initially_scaled_object);
-    dmPhysics::DeleteCollisionShape3D(shape);
-}
-
-TYPED_TEST(PhysicsTest, SetMassUpdatesInertia)
-{
-    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
-
-    VisualObject initially_heavy_visual_object;
-    initially_heavy_visual_object.m_Position = Point3(-10.0f, 0.0f, 0.0f);
-    dmPhysics::CollisionObjectData initially_heavy_data;
-    initially_heavy_data.m_UserData = &initially_heavy_visual_object;
-    initially_heavy_data.m_Mass = 8.0f;
-
-    VisualObject dynamically_heavy_visual_object;
-    dynamically_heavy_visual_object.m_Position = Point3(10.0f, 0.0f, 0.0f);
-    dmPhysics::CollisionObjectData dynamically_heavy_data;
-    dynamically_heavy_data.m_UserData = &dynamically_heavy_visual_object;
-
-    dmPhysics::HCollisionShape3D shape = dmPhysics::NewBoxShape3D(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f));
-    dmPhysics::HCollisionObject3D initially_heavy_object = dmPhysics::NewCollisionObject3D(
-        TestFixture::m_World, initially_heavy_data, &shape, 1);
-    dmPhysics::HCollisionObject3D dynamically_heavy_object = dmPhysics::NewCollisionObject3D(
-        TestFixture::m_World, dynamically_heavy_data, &shape, 1);
-
-    ASSERT_TRUE(dmPhysics::SetMass3D(dynamically_heavy_object, 8.0f));
-    ASSERT_NEAR(8.0f, dmPhysics::GetMass3D(dynamically_heavy_object), 0.000001f);
-
-    const Vector3 force(0.0f, 10.0f, 0.0f);
-    dmPhysics::ApplyForce3D(TestFixture::m_Context, initially_heavy_object, force,
-                            initially_heavy_visual_object.m_Position + Vector3(1.0f, 0.0f, 0.0f));
-    dmPhysics::ApplyForce3D(TestFixture::m_Context, dynamically_heavy_object, force,
-                            dynamically_heavy_visual_object.m_Position + Vector3(1.0f, 0.0f, 0.0f));
-    dmPhysics::StepWorld3D(TestFixture::m_World, TestFixture::m_StepWorldContext);
-
-    Vector3 initially_heavy_angular_velocity = dmPhysics::GetAngularVelocity3D(TestFixture::m_Context, initially_heavy_object);
-    Vector3 dynamically_heavy_angular_velocity = dmPhysics::GetAngularVelocity3D(TestFixture::m_Context, dynamically_heavy_object);
-    Vector3 initially_heavy_linear_velocity = dmPhysics::GetLinearVelocity3D(TestFixture::m_Context, initially_heavy_object);
-    Vector3 dynamically_heavy_linear_velocity = dmPhysics::GetLinearVelocity3D(TestFixture::m_Context, dynamically_heavy_object);
-    for (uint32_t i = 0; i < 3; ++i)
-    {
-        ASSERT_NEAR(initially_heavy_angular_velocity.getElem(i), dynamically_heavy_angular_velocity.getElem(i), 0.000001f);
-        ASSERT_NEAR(initially_heavy_linear_velocity.getElem(i), dynamically_heavy_linear_velocity.getElem(i), 0.000001f);
-    }
-    ASSERT_LT(dynamically_heavy_linear_velocity.getY(), 0.0f);
-
-    ASSERT_FALSE(dmPhysics::SetMass3D(dynamically_heavy_object, 0.0f));
-    ASSERT_NEAR(8.0f, dmPhysics::GetMass3D(dynamically_heavy_object), 0.000001f);
-
-    const float invalid_masses[] = {
-        -1.0f,
-        NAN,
-        INFINITY,
-        -INFINITY,
-        FLT_MIN * 0.125f,
-    };
-    for (uint32_t i = 0; i < sizeof(invalid_masses) / sizeof(invalid_masses[0]); ++i)
-    {
-        ASSERT_FALSE(dmPhysics::SetMass3D(dynamically_heavy_object, invalid_masses[i]));
-        ASSERT_NEAR(8.0f, dmPhysics::GetMass3D(dynamically_heavy_object), 0.000001f);
-    }
-
-    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, dynamically_heavy_object);
-    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, initially_heavy_object);
     dmPhysics::DeleteCollisionShape3D(shape);
 }
 
