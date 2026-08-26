@@ -3089,7 +3089,7 @@ static void LogFrameBufferError(GLenum status)
                     if ((IsTextureType3D(tex->m_Base.m_Type) || tex->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_3D) &&
                         tex->m_Sampler.m_AddressModeW != tex->m_SamplerDirty.m_AddressModeW)
                     {
-                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_R, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeW));
+                        glTexParameteri(gl_type, DMGRAPHICS_TEXTURE_WRAP_R, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeW));
                         CHECK_GL_ERROR;
                     }
 
@@ -5124,7 +5124,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (IsTextureType3D(texture->m_Base.m_Type) || texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_3D)
             {
-                glTexParameteri(gl_type, GL_TEXTURE_WRAP_R, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeW));
+                glTexParameteri(gl_type, DMGRAPHICS_TEXTURE_WRAP_R, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeW));
                 CHECK_GL_ERROR;
             }
 
