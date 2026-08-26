@@ -2193,22 +2193,25 @@
        :has-code (not (string/blank? line))
        :in-long-string false})))
 
-(defn- find-indent-state [indent-level-pattern grammar lines queried-row tab-spaces]
+(defn- find-indent-state [indent-level-pattern grammar syntax-info lines queried-row tab-spaces]
   (let [queried-row (long queried-row)
         tab-spaces (long tab-spaces)
+        multiline-string-scope (:multiline-string-scope (:indent grammar))
+        syntax-info-row-count (count syntax-info)
         ^long start-row (loop [row queried-row
                                candidate nil]
                           (if-not (pos? row)
                             (or candidate 0)
                             (let [^String line (get lines row)]
                               (cond
-                                ;; Anything between a long bracket and its match may be
-                                ;; string content, and no single line tells content from
-                                ;; code. Only the start of the file is known to be
-                                ;; outside one.
-                                (re-find #"\[=*\[|\]=*\]" line) 0
+                                ;; A long string can hold anything, so give up and
+                                ;; start from the top. The indexOf calls skip the
+                                ;; pattern on lines without either bracket.
+                                (and (or (<= 0 (.indexOf line (int \[)))
+                                         (<= 0 (.indexOf line (int \]))))
+                                     (re-find #"\[=*\[|\]=*\]" line))
+                                0
 
-                                ;; Keep looking for long brackets above the anchor.
                                 (some? candidate) (recur (dec row) candidate)
 
                                 (string/blank? line) (recur (dec row) nil)
@@ -2226,7 +2229,18 @@
                                   (and leading (coll/not-empty closes) (not= :block (first closes))))
                                 (recur (dec row) nil)
 
-                                :else (recur (dec row) row)))))]
+                                ;; Nothing to ask: keep climbing for long brackets.
+                                (or (nil? multiline-string-scope)
+                                    (< syntax-info-row-count row))
+                                (recur (dec row) row)
+
+                                ;; The contexts left open at the end of the row above
+                                ;; say whether this one starts inside a long string.
+                                (= multiline-string-scope
+                                   (:name (:parent-pattern (ffirst (get syntax-info (dec row))))))
+                                0
+
+                                :else row))))]
     (loop [row start-row
            stack (loop [n (parse-indent-level indent-level-pattern (get lines start-row))
                         stack []]
@@ -2244,7 +2258,7 @@
               [next-stack next-assign-pending] (indent-step stack assign-pending counts)]
           (recur (inc row) next-stack next-assign-pending (:in-long-string counts)))))))
 
-(defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
+(defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions]
   (let [fixed-rows (volatile! #{})
         tab-spaces (indent-string->tab-spaces indent-string)
         mapcat-fn
@@ -2253,7 +2267,7 @@
                 end (cursor-range-end cursor-range)
                 start-row (.row start)
                 end-row (inc (.row end))
-                prev-state (find-indent-state indent-level-pattern grammar lines (dec start-row) tab-spaces)]
+                prev-state (find-indent-state indent-level-pattern grammar syntax-info lines (dec start-row) tab-spaces)]
             (loop [row start-row
                    stack (:stack prev-state)
                    assign-pending (:assign-pending prev-state)
@@ -2321,13 +2335,17 @@
                                           [line-cursor-range [new-line]])))))
                             rows)))
 
-(defn- fix-indentation-after-splice [{:keys [lines cursor-ranges regions] :as splice-properties} indent-level-pattern indent-string grammar]
+(defn- fix-indentation-after-splice [{:keys [invalidated-row lines cursor-ranges regions] :as splice-properties} indent-level-pattern indent-string grammar syntax-info]
   (when (some? splice-properties)
     (assert (vector? lines))
     (assert (vector? cursor-ranges))
     (if (nil? (:indent grammar))
       splice-properties
-      (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
+      (let [syntax-info (cond-> syntax-info
+
+                                invalidated-row
+                                (invalidate-syntax-info invalidated-row (count lines)))
+            indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)]
         (merge splice-properties
                (dissoc indentation-properties :invalidated-row))))))
 
@@ -2348,18 +2366,18 @@
         (assoc splice-properties :document-width new-document-width)
         splice-properties))))
 
-(defn- insert-lines-seqs [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
+(defn- insert-lines-seqs [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
     (-> (splice lines regions (map #(pair (adjust-cursor-range lines %1) %2) cursor-ranges lines-seqs))
-        (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+        (fix-indentation-after-splice indent-level-pattern indent-string grammar syntax-info)
         (update-document-width-after-splice layout)
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
-(defn- insert-text [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout ^String text]
+(defn- insert-text [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout ^String text]
   (when-not (empty? text)
     (let [text-lines (util/split-lines text)]
-      (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (repeat text-lines)))))
+      (insert-lines-seqs indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout (repeat text-lines)))))
 
 (defn- inc-limited
   ^long [^long n]
@@ -2515,7 +2533,7 @@
 
 (defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
   (-> (splice lines regions splices)
-      (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+      (fix-indentation-after-splice indent-level-pattern indent-string grammar [])
       (update-document-width-after-splice layout)))
 
 ;; -----------------------------------------------------------------------------
@@ -2594,7 +2612,7 @@
                             :else
                             (pair cursor-range (util/split-lines typed))))
                         cursor-ranges))
-                    (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+                    (fix-indentation-after-splice indent-level-pattern indent-string grammar syntax-info)
                     (update-document-width-after-splice layout))
         {:keys [lines]} changes]
     (-> changes
@@ -2622,14 +2640,14 @@
 (defn key-typed [indent-level-pattern indent-string grammar auto-closing-parens lines cursor-ranges regions layout syntax-info ^String typed]
   (case typed
     "\r" ; Enter or Return.
-    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
+    (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout "\n")
 
     (when (not-any? #(Character/isISOControl ^char %) typed)
       (if (and auto-closing-parens
                (= 1 (.length typed))
                (contains? grammar :auto-insert))
         (key-type-with-auto-insert indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info typed)
-        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
+        (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout typed)))))
 
 (defn execution-marker? [region]
   (= :execution-marker (:type region)))
@@ -3053,10 +3071,10 @@
 (defn paste [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (cond
     (can-paste-multi-selection? clipboard cursor-ranges)
-    (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+    (insert-lines-seqs indent-level-pattern indent-string grammar [] lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
 
     (can-paste-plain-text? clipboard)
-    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
+    (insert-text indent-level-pattern indent-string grammar [] lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
 
 (defn can-paste? [cursor-ranges clipboard]
   (or (can-paste-plain-text? clipboard)
@@ -3196,7 +3214,7 @@
 
 (defn indent [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout]
   (if-not (can-indent? lines cursor-ranges)
-    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout indent-string)
+    (insert-text indent-level-pattern indent-string grammar [] lines cursor-ranges regions layout indent-string)
     (let [indent-line #(if (empty? %) % (str indent-string %))
           rows (cursor-ranges->rows lines cursor-ranges)]
       (-> (transform-indentation rows lines cursor-ranges regions indent-line)
@@ -3214,7 +3232,7 @@
                                             end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
                                         (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
                                     cursor-ranges)]
-    (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)
+    (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar [] lines cursor-ranges regions)
         (update-document-width-after-splice layout))))
 
 (defn select-and-frame [lines ^LayoutInfo layout cursor-range]

@@ -25,7 +25,7 @@
 (def ^:private indent-level-pattern (data/indent-level-pattern (count indent-string)))
 
 (defn- insert-lines [lines cursor-ranges inserted-lines]
-  (#'data/insert-lines-seqs indent-level-pattern "    " script/lua-grammar lines cursor-ranges nil (layout-info lines) (repeat inserted-lines)))
+  (#'data/insert-lines-seqs indent-level-pattern "    " script/lua-grammar [] lines cursor-ranges nil (layout-info lines) (repeat inserted-lines)))
 
 (def ^:private xform-test-lines->lines
   (map #(string/replace % #"\|" "")))

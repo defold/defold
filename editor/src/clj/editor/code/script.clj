@@ -277,7 +277,8 @@
   {:name "Lua"
    :scope-name "source.lua"
    :indent {:counts #(lua-indent-counts %1 %2 %3)
-            :end lua-close-line-pattern}
+            :end lua-close-line-pattern
+            :multiline-string-scope "string.quoted.other.multiline.lua"}
    :line-comment "--"
    :auto-insert {:characters {\" \"
                               \' \'

@@ -694,7 +694,7 @@
         (is (= :to-cursor-metadata-value (:to-cursor-metadata-prop (meta (.to cursor-range')))))))))
 
 (defn- insert-text [lines cursor-ranges text]
-  (#'data/insert-text #"\t" "\t" nil lines cursor-ranges nil (layout-info lines) text))
+  (#'data/insert-text #"\t" "\t" nil [] lines cursor-ranges nil (layout-info lines) text))
 
 (deftest insert-text-test
   (testing "Single cursor"
