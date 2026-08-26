@@ -1584,12 +1584,14 @@ bail:
 #else
 
     #if ANDROID
-        // VkQuality is only useful when Vulkan can fall back to another linked graphics adapter.
-        // If Vulkan is the only linked adapter, continue with the regular Vulkan support probe.
-        const bool only_linked_graphics_adapter = GetLinkedGraphicsAdapterCount() == 1;
-        if (!only_linked_graphics_adapter && !AndroidVulkanIsRecommended())
+        bool use_vkquality = false;
+        for (uint32_t i = 0; i < GetRegisteredAdaptersCount(); ++i)
         {
-            return false;
+            if (GetAdapterFamily(GetRegisteredAdapter(i)) == ADAPTER_FAMILY_OPENGLES)
+            {
+                use_vkquality = true;
+                break;
+            }
         }
 
         if (!LoadVulkanLibrary())
@@ -1628,6 +1630,7 @@ bail:
 
         VkInstance inst;
         VkResult res = CreateInstance(&inst, vk_api_version, extensionNames, extensionNameCount, 0, 0, 0, 0);
+        bool is_supported = res == VK_SUCCESS;
 
         if (res == VK_SUCCESS)
         {
@@ -1645,6 +1648,12 @@ bail:
 
             if (res == VK_SUCCESS)
             {
+            #if ANDROID
+                if (use_vkquality && !AndroidVulkanIsRecommended(&physical_device.m_Properties))
+                {
+                    is_supported = false;
+                }
+            #endif
                 DestroyLogicalDevice(&logical_device);
                 DestroyPhysicalDevice(&physical_device);
             }
@@ -1652,7 +1661,7 @@ bail:
             DestroyInstance(&inst);
         }
 
-        return res == VK_SUCCESS;
+        return res == VK_SUCCESS && is_supported;
 #endif
     }
 

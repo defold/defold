@@ -348,16 +348,16 @@ public class AndroidBundler implements IBundler {
             return true;
         }
         boolean hasVulkanAdapter = false;
-        boolean hasFallbackAdapter = false;
+        boolean hasOpenGlesAdapter = false;
         for (String shaderAdapter : shaderAdapters.split(",")) {
             String adapter = shaderAdapter.trim();
             if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(adapter)) {
                 hasVulkanAdapter = true;
-            } else if (!adapter.isEmpty()) {
-                hasFallbackAdapter = true;
+            } else if (ShaderCompilers.SHADER_ADAPTER_OPENGLES.equals(adapter)) {
+                hasOpenGlesAdapter = true;
             }
         }
-        return hasVulkanAdapter && hasFallbackAdapter;
+        return hasVulkanAdapter && hasOpenGlesAdapter;
     }
 
     private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
@@ -925,14 +925,6 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
-        boolean vkQualityEnabled = usesVkQuality(project);
-        properties.put("defold.vkquality.enabled", vkQualityEnabled ? "true" : "false");
-
-        Map<String, Object> defoldProperties = propertiesMap.computeIfAbsent("defold", k -> new HashMap<String, Object>());
-        Map<String, Object> vkQualityProperties = new HashMap<String, Object>();
-        vkQualityProperties.put("enabled", vkQualityEnabled);
-        defoldProperties.put("vkquality", vkQualityProperties);
-
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
