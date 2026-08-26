@@ -44,7 +44,7 @@
   (let [prop-kw (first path)]
     (g/clear-property node-id prop-kw)))
 
-(g/defnk produce-form-data [_node-id integer number vec4 color]
+(g/defnk produce-form-data [_node-id integer number vec4 color color-vec3]
   (let [fields
         [{:label "Integer"
           :type :integer
@@ -57,14 +57,18 @@
           :path [:vec4]}
          {:label "Color"
           :type :color
-          :path [:color]}]]
+          :path [:color]}
+         {:label "Color Vec3"
+          :type :color
+          :path [:color-vec3]}]]
     {:navigation false
      :sections [{:title "Section"
                  :fields fields}]
      :values {[:integer] integer
               [:number] number
               [:vec4] vec4
-              [:color] color}
+              [:color] color
+              [:color-vec3] color-vec3}
      :form-ops {:user-data {:node-id _node-id}
                 :set set-form-op
                 :clear clear-form-op}}))
@@ -74,31 +78,36 @@
   (property number g/Num)
   (property vec4 t/Vec4)
   (property color t/Vec4)
+  (property color-vec3 t/Vec3)
   (output form-data g/Any :cached produce-form-data))
 
 (def ^:private generic-32-bit-property-values
   {:integer (int 1)
    :number (float 0.1)
    :vec4 (float-vec 0.1 0.2 0.3 0.4)
-   :color (float-vec 0.1 0.2 0.3 0.4)})
+   :color (float-vec 0.1 0.2 0.3 0.4)
+   :color-vec3 (float-vec 0.1 0.2 0.3)})
 
 (def ^:private generic-64-bit-property-values
   {:integer (long 1)
    :number (double 0.1)
    :vec4 (double-vec 0.1 0.2 0.3 0.4)
-   :color (double-vec 0.1 0.2 0.3 0.4)})
+   :color (double-vec 0.1 0.2 0.3 0.4)
+   :color-vec3 (double-vec 0.1 0.2 0.3)})
 
 (def ^:private specialized-32-bit-property-values
   {:integer (int 1)
    :number (float 0.1)
    :vec4 (vector-of :float 0.1 0.2 0.3 0.4)
-   :color (vector-of :float 0.1 0.2 0.3 0.4)})
+   :color (vector-of :float 0.1 0.2 0.3 0.4)
+   :color-vec3 (vector-of :float 0.1 0.2 0.3)})
 
 (def ^:private specialized-64-bit-property-values
   {:integer (long 1)
    :number (double 0.1)
    :vec4 (vector-of :double 0.1 0.2 0.3 0.4)
-   :color (vector-of :double 0.1 0.2 0.3 0.4)})
+   :color (vector-of :double 0.1 0.2 0.3 0.4)
+   :color-vec3 (vector-of :double 0.1 0.2 0.3)})
 
 (defn- find-controls [^Parent parent]
   (->> parent
@@ -197,7 +206,7 @@
                       (:fields)
                       (map-indexed (fn [row field]
                                      (assoc field :row row))))]
-      (is (= 4 (count fields)))
+      (is (= 5 (count fields)))
       (doseq [field fields]
         (testing (str "Types preserved after editing " (:path field))
           (test-form-widget! resource-node field form-view-parent))))))
