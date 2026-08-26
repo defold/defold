@@ -2423,6 +2423,11 @@ namespace dmGraphics
     }
     void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        if (GetRenderTargetTextureType(context, render_target) == TEXTURE_TYPE_CUBE_MAP && width != height)
+        {
+            dmLogError("Cubemap render target dimensions must be square.");
+            return;
+        }
         g_functions.m_SetRenderTargetSize(context, render_target, width, height);
     }
     bool IsTextureFormatSupported(HContext context, TextureFormat format)

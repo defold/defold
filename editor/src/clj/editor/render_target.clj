@@ -15,6 +15,7 @@
 (ns editor.render-target
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.form :as form]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
@@ -81,7 +82,8 @@
                :type :boolean}]}]})
 
 (g/defnk produce-form-data [_node-id type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
-  (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
+  (let [form-data (form/update-form-setting form-data [:sample-count] #(assoc % :disable (= :type-cubemap type)))
+        values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
@@ -143,6 +145,10 @@
   (when-not (contains? sample-counts (or v 1))
     (localization/message "error.render-target.sample-count-must-be-supported")))
 
+(defn- cubemap-sample-count-error [type sample-count]
+  (when (and (= :type-cubemap type) (> sample-count 1))
+    (localization/message "error.render-target.cubemap-sample-count-must-be-one")))
+
 (defn- cubemap-dimensions-error [type color-attachments depth-width depth-height]
   (when (= :type-cubemap type)
     (let [dimensions (cond-> (mapv (juxt :width :height) color-attachments)
@@ -185,6 +191,8 @@
                                                               (color-attachment->error-values i color-attachment _node-id :color-attachments))
                                                             color-attachments))
                                                  (validation/prop-error :fatal _node-id :sample-count validate-sample-count sample-count (localization/message "form.label.render-target.sample-count"))
+                                                 (when-let [message (cubemap-sample-count-error type sample-count)]
+                                                   (g/->error _node-id :sample-count :fatal sample-count message))
                                                  (when-let [message (cubemap-dimensions-error type color-attachments depth-stencil-attachment-width depth-stencil-attachment-height)]
                                                    (g/->error _node-id :type :fatal type message))
                                                  (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width depth-stencil-attachment-width-message)

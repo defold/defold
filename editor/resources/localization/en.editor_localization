@@ -2699,6 +2699,7 @@ error.property-must-be-at-least = "{property}" must be at least {min}.
 error.property-must-be-at-most = "{property}" must be at most {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" cannot have more than {max} color attachments.
 error.render-target.sample-count-must-be-supported = Sample count must be one of 1, 2, 4, 8, or 16.
+error.render-target.cubemap-sample-count-must-be-one = Cubemap render targets only support a sample count of 1.
 error.render-target.cubemap-attachments-must-be-square-and-equal = Cubemap render-target attachments must be square and have identical dimensions.
 error.render-target.color-attachment-width-must-be-greater-than-zero = Color attachment {index} must have a width greater than zero.
 error.render-target.color-attachment-height-must-be-greater-than-zero = Color attachment {index} must have a height greater than zero.

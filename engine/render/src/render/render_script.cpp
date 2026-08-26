@@ -1321,6 +1321,7 @@ namespace dmRender
      *
      * Sets the render target size for a render target created from
      * either a render script, or from a render target resource.
+     * Cubemap render targets require equal width and height.
      *
      * @name render.set_render_target_size
      * @param render_target [type:render_target] render target to set size for
@@ -1337,12 +1338,17 @@ namespace dmRender
      */
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         lua_Integer width = luaL_checkinteger(L, 2);
         lua_Integer height = luaL_checkinteger(L, 3);
 
         CheckRenderTargetSize(L, i, width, height);
+        if (dmGraphics::GetRenderTargetTextureType(i->m_RenderContext->m_GraphicsContext, render_target) == dmGraphics::TEXTURE_TYPE_CUBE_MAP && width != height)
+        {
+            return DM_LUA_ERROR("Cubemap render target dimensions must be square.");
+        }
         dmGraphics::SetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, (uint32_t) width, (uint32_t) height);
         return 0;
     }

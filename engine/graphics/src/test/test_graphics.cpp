@@ -2132,6 +2132,18 @@ TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
         }
     }
 
+    const uint32_t non_power_of_two_size = 13;
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size);
+    uint32_t target_width, target_height;
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size + 1);
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
     dmGraphics::SetRenderTarget(m_Context, 0, 0);
     dmGraphics::DeleteRenderTarget(m_Context, target);
 
