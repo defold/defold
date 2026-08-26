@@ -4880,8 +4880,6 @@ bail:
         uint8_t params_layer_count      = dmMath::Max((uint8_t) 1, params.m_LayerCount);
         uint8_t tex_layer_count         = dmMath::Max(texture->m_LayerCount, params_layer_count);
         uint16_t tex_depth              = dmMath::Max(texture->m_Base.m_Depth, params_depth);
-        uint8_t tex_bpp                 = IsTextureFormatCompressed(params.m_Format) ? 0 : GetTextureFormatBitsPerPixel(params.m_Format);
-        size_t tex_data_size_bpp        = params.m_DataSize * tex_layer_count * 8; // Convert into bits
         void*  tex_data_ptr             = (void*)params.m_Data;
         VkFormat vk_format              = GetVulkanFormatFromTextureFormat(params.m_Format);
 
@@ -4908,25 +4906,15 @@ bail:
             RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, temp_data);
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = temp_data;
-            tex_bpp       = 32;
         }
 
-        // In cases where we just want to clear the texture we don't have a valid data or datasize, so we need to infer it.
-        // This will NOT work for clearing compressed texture formats, but I don't think that is a case we can support anyway.
-        tex_data_size_bpp         = tex_bpp * params.m_Width * params.m_Height * tex_depth * tex_layer_count;
         texture->m_Base.m_Format = params.m_Format;
         texture->m_Base.m_MipMapCount    = dmMath::Max(texture->m_Base.m_MipMapCount, (uint8_t)(params.m_MipMap+1));
         texture->m_LayerCount     = tex_layer_count;
 
         VulkanSetTextureParamsInternal(context, texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
-        if (params.m_SubUpdate)
-        {
-            // TODO: Not sure this will work for compressed formats..
-            // data size might be different if we have generated a new image
-            tex_data_size_bpp = params.m_Width * params.m_Height * tex_bpp * tex_layer_count;
-        }
-        else if (params.m_MipMap == 0)
+        if (!params.m_SubUpdate && params.m_MipMap == 0)
         {
             if (texture->m_Format != vk_format ||
                 texture->m_Base.m_Width != params.m_Width ||
@@ -5021,13 +5009,13 @@ bail:
 
         if (!memoryless)
         {
-            uint32_t tex_data_size;
-            // Compressed formats (ASTC/BC/ETC/PVRTC) can't be sized from bits-per-pixel; trust the
-            // block-aware data size res_texture computed (same as the OpenGL/DX12 backends do).
-            if (IsTextureFormatCompressed(params.m_Format))
-                tex_data_size = params.m_DataSize * tex_layer_count;
-            else
-                tex_data_size = (int) ceil((float) tex_data_size_bpp / 8.0f);
+            // Size the upload via the shared block-aware helper instead of a local bits-per-pixel
+            // calculation. This is correct for compressed formats too (BC/ETC/ASTC/PVRTC), where a
+            // bits-per-pixel value is meaningless and would truncate BC1/BC4 to 0. format_orig==RGB
+            // is expanded to RGBA above, so size against RGBA in that case. params.m_Width/m_Height
+            // is the requested extent (the sub-rectangle for a sub-update), matching the packed source.
+            TextureFormat eff_format = (format_orig == TEXTURE_FORMAT_RGB) ? TEXTURE_FORMAT_RGBA : params.m_Format;
+            uint32_t tex_data_size   = GetTextureFormatDataSize(eff_format, params.m_Width, params.m_Height) * tex_depth * tex_layer_count;
 
             CopyToTexture(context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
 
@@ -5179,18 +5167,12 @@ bail:
             uint8_t* temp_data        = 0;
             bool is_memoryless        = IsTextureMemoryless(tex);
 
-            uint32_t tex_data_size;
-            // Compressed formats can't be sized from bits-per-pixel; trust the block-aware data size.
-            if (IsTextureFormatCompressed(ap.m_Params.m_Format))
-            {
-                tex_data_size = ap.m_Params.m_DataSize * tex_layer_count;
-            }
-            else
-            {
-                uint32_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
-                uint32_t tex_data_size_bpp = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
-                tex_data_size = (uint32_t) ceil((float) tex_data_size_bpp / 8.0f);
-            }
+            // Size the upload via the shared block-aware helper instead of a local bits-per-pixel
+            // calculation. This is correct for compressed formats too (BC/ETC/ASTC/PVRTC), where a
+            // bits-per-pixel value is meaningless. format_orig==RGB is expanded to RGBA below, so
+            // size against RGBA in that case.
+            TextureFormat eff_format = (format_orig == TEXTURE_FORMAT_RGB) ? TEXTURE_FORMAT_RGBA : ap.m_Params.m_Format;
+            uint32_t tex_data_size   = GetTextureFormatDataSize(eff_format, ap.m_Params.m_Width, ap.m_Params.m_Height) * tex_depth * tex_layer_count;
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
@@ -5205,9 +5187,7 @@ bail:
 
                     RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, temp_data);
                     tex_data_ptr  = temp_data;
-                    uint32_t tex_bpp       = 32;
-                    uint32_t tex_data_size_bpp = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
-                    tex_data_size = (uint32_t) ceil((float) tex_data_size_bpp / 8.0f);
+                    // tex_data_size already accounts for the RGB->RGBA expansion (sized as RGBA above).
                 }
 
                 TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
