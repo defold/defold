@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.font;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -193,6 +194,8 @@ public class FontRendererTest {
             FontRenderer.Layout plain = renderer.measure("Large red text", false, 0.0f, 1.0f, 0.0f);
             FontRenderer.Layout markup = renderer.measureMarkup("<size=2em>Large</size> <color=#ff0000>red</color> text", false, 0.0f, 1.0f, 0.0f);
             assertTrue(markup.width > plain.width);
+            assertNull(markup.markupDocument);
+            assertNotNull(renderer.measureMarkupWithDocument("<color=#fff>text</color>", false, 0.0f, 1.0f, 0.0f).markupDocument);
 
             renderer.setProperties(properties(100.0f, 1.0f, 0));
             renderer.setMarkup("<color=#ff0000>red</color>");
@@ -262,6 +265,31 @@ public class FontRendererTest {
         assertEquals("<link id=\"<shadow blur=2>\">A&amp;<sprite/></link>C",
                 FontRenderer.filterMarkup("<link id=\"<shadow blur=2>\">A&amp;B中<sprite/></link>C",
                         new int[] {'A', '&', 'C'}));
+    }
+
+    @Test
+    public void testParseMarkupDocument() {
+        String source = "<link id=\"<shadow blur=9>\"><outline size=1><shadow blur=2>A&amp;</shadow></outline></link>";
+        FontRenderer.MarkupParseResult result = FontRenderer.parseMarkup(source);
+        assertNull(result.error);
+        assertNotNull(result.document);
+        assertEquals(source, result.document.source);
+        assertArrayEquals(new int[] {'A', '&'}, result.document.text);
+        assertEquals(4, result.document.nodes.length);
+        assertEquals("link", result.document.nodes[1].tag);
+        assertEquals(0, result.document.nodes[1].parent);
+        assertEquals("<shadow blur=9>", result.document.nodes[1].attributes[0].value);
+        assertEquals("outline", result.document.nodes[2].tag);
+        assertEquals(1, result.document.nodes[2].parent);
+        assertEquals("shadow", result.document.nodes[3].tag);
+        assertEquals(2, result.document.nodes[3].parent);
+        assertEquals("2", result.document.nodes[3].attributes[0].value);
+        assertEquals(1, result.document.spans.length);
+        assertEquals(3, result.document.spans[0].node);
+
+        FontRenderer.MarkupParseResult invalid = FontRenderer.parseMarkup("<color>text</size>");
+        assertNull(invalid.document);
+        assertNotNull(invalid.error);
     }
 
     @Test

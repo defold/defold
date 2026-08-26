@@ -46,8 +46,12 @@ SYMBOLS_CLASS = "FontRendererSymbols"
 FUNCTIONS = (
     "FontcCreate",
     "FontcDestroy",
+    "FontcParseMarkup",
+    "FontcDestroyMarkup",
+    "FontcGetMarkupData",
     "FontcMeasure",
     "FontcMeasureMarkup",
+    "FontcMeasureParsedMarkup",
     "FontcFilterMarkup",
     "FontcGenerateGlyph",
     "FontcFreeGlyph",
@@ -71,13 +75,21 @@ STRUCTS = (
     "FontcGlyph",
     "FontcGlyphMetrics",
     "FontcImage",
+    "FontcMarkupString",
+    "FontcMarkupAttribute",
+    "FontcMarkupNode",
+    "FontcMarkupSpan",
+    "FontcMarkupError",
+    "FontcMarkupData",
     "FontcProperties",
     "FontcTexture",
 )
 TYPEDEFS = (
     "HFontRenderer",
+    "HFontcMarkup",
     "FontRendererResult",
     "FontRendererLayer",
+    "FontcMarkupErrorType",
 )
 CONSTANTS = (
     "FONT_RENDERER_RESULT_OK",
@@ -89,6 +101,21 @@ CONSTANTS = (
     "FONT_RENDERER_LAYER_FACE",
     "FONT_RENDERER_LAYER_OUTLINE",
     "FONT_RENDERER_LAYER_SHADOW",
+    "FONTC_MARKUP_ERROR_NONE",
+    "FONTC_MARKUP_ERROR_INCOMPLETE_TAG",
+    "FONTC_MARKUP_ERROR_INCOMPLETE_ENTITY",
+    "FONTC_MARKUP_ERROR_UNCLOSED_TAG",
+    "FONTC_MARKUP_ERROR_INVALID_TAG",
+    "FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE",
+    "FONTC_MARKUP_ERROR_INVALID_ENTITY",
+    "FONTC_MARKUP_ERROR_UNEXPECTED_CLOSING_TAG",
+    "FONTC_MARKUP_ERROR_MISMATCHED_CLOSING_TAG",
+    "FONTC_MARKUP_ERROR_INVALID_UTF8",
+    "FONTC_MARKUP_ERROR_LIMIT_EXCEEDED",
+    "FONTC_MARKUP_ERROR_UNSUPPORTED",
+    "FONTC_MARKUP_ERROR_UNKNOWN_TAG",
+    "FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE",
+    "FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE",
 )
 HEADER_HASH_PREFIX = "// Font renderer header SHA-256: "
 

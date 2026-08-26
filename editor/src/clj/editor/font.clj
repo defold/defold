@@ -43,7 +43,7 @@
             [service.log :as log]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Layout FontRenderer$MarkupError FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -53,7 +53,6 @@
            [java.io InputStream]
            [java.nio ByteBuffer]
            [java.nio.file Paths]
-           [java.util.regex Matcher]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
@@ -486,66 +485,92 @@
      :text-tracking text-tracking
      :text-leading text-leading}))
 
-(def ^:private markup-layer-tag-pattern #"<(?:outline|shadow)(?:\s[^>]*)?>")
-(def ^:private markup-outline-tag-pattern #"<outline(?:\s[^>]*)?>")
-(def ^:private markup-outline-size-pattern #"(?:^|\s)size=(?:'([^']*)'|\"([^\"]*)\"|([^\s>]+))")
-(def ^:private markup-shadow-tag-pattern #"<shadow(?:\s[^>]*)?>")
-(def ^:private markup-shadow-blur-pattern #"(?:^|\s)blur=(?:'([^']*)'|\"([^\"]*)\"|([^\s>]+))")
+(defn- markup-node-attribute
+  ^FontRenderer$MarkupAttribute [^FontRenderer$MarkupNode node ^String name]
+  (let [^objects attributes (.-attributes node)]
+    (loop [attribute-index 0]
+      (when (< attribute-index (alength attributes))
+        (let [^FontRenderer$MarkupAttribute attribute (aget attributes attribute-index)]
+          (if (= name (.-name attribute))
+            attribute
+            (recur (inc attribute-index))))))))
 
-(defn- markup-shadow-info
-  [^String text]
-  (let [has-layer-tag (boolean (re-find markup-layer-tag-pattern text))
-        ^Matcher shadow-matcher (re-matcher markup-shadow-tag-pattern text)]
-    (loop [has-shadow-tag false
-           has-default-shadow-blur false
-           max-shadow-blur 0.0]
-      (if-not (.find shadow-matcher)
-        {:has-layer-tag has-layer-tag
-         :has-shadow-tag has-shadow-tag
-         :has-default-shadow-blur has-default-shadow-blur
-         :max-shadow-blur max-shadow-blur}
-        (let [^Matcher blur-matcher (re-matcher markup-shadow-blur-pattern (.group shadow-matcher))
-              has-blur (.find blur-matcher)
-              shadow-blur (if has-blur
-                            (try
-                              (Double/parseDouble (or (.group blur-matcher 1)
-                                                      (.group blur-matcher 2)
-                                                      (.group blur-matcher 3)))
-                              (catch NumberFormatException _
-                                0.0))
-                            0.0)]
-          (recur true
-                 (or has-default-shadow-blur (not has-blur))
-                 (double (max max-shadow-blur shadow-blur))))))))
+(defn- parse-markup-number
+  ^Double [^String value]
+  (try
+    (Double/valueOf value)
+    (catch NumberFormatException _
+      nil)))
 
-(defn- markup-outline-info
-  [^String text]
-  (let [^Matcher outline-matcher (re-matcher markup-outline-tag-pattern text)]
-    (loop [has-outline-tag false
+(defn- markup-node-has-ancestor-tag?
+  [^objects nodes ^FontRenderer$MarkupNode node ^String tag]
+  (loop [node-index (.-parent node)]
+    (if (neg? node-index)
+      false
+      (let [^FontRenderer$MarkupNode ancestor (aget nodes node-index)]
+        (if (= tag (.-tag ancestor))
+          true
+          (recur (.-parent ancestor)))))))
+
+(defn- markup-layer-info
+  [^FontRenderer$MarkupDocument document]
+  (let [^objects nodes (.-nodes document)]
+    (loop [node-index 1
+           has-layer-tag false
+           has-outline-tag false
            has-default-outline false
-           outline-sizes []]
-      (if-not (.find outline-matcher)
-        {:has-outline-tag has-outline-tag
+           outline-sizes []
+           shadows []]
+      (if (= node-index (alength nodes))
+        {:has-layer-tag has-layer-tag
+         :has-outline-tag has-outline-tag
          :has-default-outline has-default-outline
-         :outline-sizes outline-sizes}
-        (let [^Matcher size-matcher (re-matcher markup-outline-size-pattern (.group outline-matcher))
-              has-size (.find size-matcher)
-              outline-size (when has-size
-                             (try
-                               (Double/parseDouble (or (.group size-matcher 1)
-                                                       (.group size-matcher 2)
-                                                       (.group size-matcher 3)))
-                               (catch NumberFormatException _
-                                 nil)))]
-          (recur true
-                 (or has-default-outline (not has-size))
-                 (cond-> outline-sizes
-                   (some? outline-size) (conj outline-size))))))))
+         :outline-sizes outline-sizes
+         :shadows shadows}
+        (let [^FontRenderer$MarkupNode node (aget nodes node-index)
+              tag (.-tag node)]
+          (case tag
+            "outline"
+            (let [^FontRenderer$MarkupAttribute size-attribute (markup-node-attribute node "size")
+                  outline-size (when size-attribute
+                                 (parse-markup-number (.-value size-attribute)))]
+              (recur (inc node-index)
+                     true
+                     true
+                     (or has-default-outline (nil? size-attribute))
+                     (cond-> outline-sizes
+                       (some? outline-size) (conj outline-size))
+                     shadows))
+
+            "shadow"
+            (let [^FontRenderer$MarkupAttribute blur-attribute (markup-node-attribute node "blur")
+                  blur (if blur-attribute
+                         (or (parse-markup-number (.-value blur-attribute)) 0.0)
+                         0.0)]
+              (recur (inc node-index)
+                     true
+                     has-outline-tag
+                     has-default-outline
+                     outline-sizes
+                     (conj shadows {:blur (double blur)
+                                    :default-blur (nil? blur-attribute)
+                                    :inside-outline (markup-node-has-ancestor-tag? nodes node "outline")})))
+
+            (recur (inc node-index)
+                   has-layer-tag
+                   has-outline-tag
+                   has-default-outline
+                   outline-sizes
+                   shadows)))))))
 
 (defn- markup-layer-capability-error
-  [node-id property font-map text]
-  (let [{:keys [has-layer-tag has-shadow-tag has-default-shadow-blur max-shadow-blur]} (markup-shadow-info text)
-        {:keys [has-outline-tag has-default-outline outline-sizes]} (markup-outline-info text)
+  [node-id property font-map text ^FontRenderer$MarkupDocument document]
+  (let [{:keys [has-layer-tag has-outline-tag has-default-outline outline-sizes shadows]} (markup-layer-info document)
+        has-shadow-tag (pos? (count shadows))
+        max-shadow-blur (reduce (fn [max-blur {:keys [blur]}]
+                                  (max max-blur (double blur)))
+                                0.0
+                                shadows)
         requests-outline (and has-outline-tag
                               (or has-default-outline
                                   (coll/any? #(pos? (double %)) outline-sizes)))
@@ -558,10 +583,12 @@
                                             (pos? outline-alpha)
                                             (or (pos? shadow-alpha)
                                                 (pos? blur-capacity)))
-        requests-blurred-shadow (and has-shadow-tag
-                                     (or (pos? max-shadow-blur)
-                                         (and has-default-shadow-blur
-                                              (pos? blur-capacity))))]
+        requests-unoutlined-blurred-shadow (coll/any? (fn [{:keys [blur default-blur inside-outline]}]
+                                                        (and (not inside-outline)
+                                                             (or (pos? (double blur))
+                                                                 (and default-blur
+                                                                      (pos? blur-capacity)))))
+                                                      shadows)]
     (cond
       (and (= :bitmap render-kind) has-layer-tag)
       (g/->error node-id property :warning text
@@ -571,7 +598,7 @@
       (g/->error node-id property :warning text
                  (localization/message "error.font.no-reserved-data-for-rich-text-outlines"))
 
-      (and (= :defold render-kind) bitmap-shadow-includes-outline requests-blurred-shadow)
+      (and (= :defold render-kind) bitmap-shadow-includes-outline requests-unoutlined-blurred-shadow)
       (g/->error node-id property :warning text
                  (localization/message "error.font.bitmap-shadow-blur-includes-outline"))
 
@@ -595,6 +622,16 @@
       (g/->error node-id property :warning text
                  (localization/message "error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur")))))
 
+(defn- markup-parser-error
+  [node-id property text ^FontRenderer$MarkupError error]
+  (let [line (.-line error)
+        column (.-column error)]
+    (g/->error node-id property :warning text (.-message error)
+               {:byte-offset (.-byteOffset error)
+                :column column
+                :cursor-range (code.data/line-number->CursorRange line column)
+                :line line})))
+
 (defn markup-error
   [node-id property font-map text]
   (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
@@ -602,18 +639,16 @@
                         (.-use-rich-text renderer-spec)
                         (:use-rich-text font-map))]
     (when (and use-rich-text (not (s/blank? text)))
-      (or (when renderer-spec
-            (let [^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
-                  ^FontRenderer$Layout layout (.measureMarkup renderer text false 0.0 1.0 0.0)]
-              (when-let [^FontRenderer$MarkupError error (.-markupError layout)]
-                (let [line (.-line error)
-                      column (.-column error)]
-                  (g/->error node-id property :warning text (.-message error)
-                             {:byte-offset (.-byteOffset error)
-                              :column column
-                              :cursor-range (code.data/line-number->CursorRange line column)
-                              :line line})))))
-          (markup-layer-capability-error node-id property font-map text)))))
+      (let [[document error]
+            (if renderer-spec
+              (let [^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
+                    ^FontRenderer$Layout layout (.measureMarkupWithDocument renderer text false 0.0 1.0 0.0)]
+                [(.-markupDocument layout) (.-markupError layout)])
+              (let [^FontRenderer$MarkupParseResult result (FontRenderer/parseMarkup text)]
+                [(.-document result) (.-error result)]))]
+        (if error
+          (markup-parser-error node-id property text error)
+          (markup-layer-capability-error node-id property font-map text document))))))
 
 (defn measure
   ([font-map text]

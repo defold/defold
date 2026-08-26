@@ -55,6 +55,21 @@ defold_target_link_libraries(test_markup_null "${TARGET_PLATFORM}"
 defold_target_link_socket(test_markup_null "${TARGET_PLATFORM}" PRIVATE)
 defold_register_test_target(test_markup_null ON "${FONT_ROOT}")
 
+if(FONT_RENDERER_IS_DESKTOP)
+  defold_add_executable(test_fontc_markup_api "${FONT_TEST_ROOT}/test_fontc_markup_api.cpp")
+  target_include_directories(test_fontc_markup_api PRIVATE "${FONTC_SRC_DIR}")
+  defold_target_link_libraries(test_fontc_markup_api "${TARGET_PLATFORM}"
+    testmain
+    dlib
+    profile_null)
+  target_link_libraries(test_fontc_markup_api PRIVATE fontc_shared)
+  set_target_properties(test_fontc_markup_api PROPERTIES
+    BUILD_WITH_INSTALL_RPATH ON
+    INSTALL_RPATH "$<TARGET_FILE_DIR:fontc_shared>")
+  defold_target_link_socket(test_fontc_markup_api "${TARGET_PLATFORM}" PRIVATE)
+  defold_register_test_target(test_fontc_markup_api ON "${CMAKE_CURRENT_BINARY_DIR}/../..")
+endif()
+
 defold_add_executable(benchmark_text_layout
   "${FONT_TEST_ROOT}/benchmark_text_layout.cpp"
   "${FONT_SRC_DIR}/render/glyph_vertex.cpp"

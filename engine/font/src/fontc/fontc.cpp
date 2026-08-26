@@ -49,6 +49,23 @@ static_assert(sizeof(FontcGlyphMetrics) == 32, "Unexpected FontcGlyphMetrics ABI
 static_assert(sizeof(FontcProperties) == 84, "Unexpected FontcProperties ABI layout");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
 static_assert(offsetof(FontcTexture, m_AtlasVersion) == 8, "Unexpected FontcTexture ABI layout");
+static_assert(sizeof(FontcMarkupString) == sizeof(MarkupString), "Unexpected FontcMarkupString ABI layout");
+static_assert(sizeof(FontcMarkupAttribute) == sizeof(MarkupAttribute), "Unexpected FontcMarkupAttribute ABI layout");
+static_assert(offsetof(FontcMarkupAttribute, m_Type) == offsetof(MarkupAttribute, m_Type), "Unexpected FontcMarkupAttribute ABI layout");
+static_assert(sizeof(FontcMarkupNode) == sizeof(MarkupStyleNode), "Unexpected FontcMarkupNode ABI layout");
+static_assert(offsetof(FontcMarkupNode, m_Parent) == offsetof(MarkupStyleNode, m_Parent), "Unexpected FontcMarkupNode ABI layout");
+static_assert(offsetof(FontcMarkupNode, m_TextOffset) == offsetof(MarkupStyleNode, m_TextOffset), "Unexpected FontcMarkupNode ABI layout");
+static_assert(sizeof(FontcMarkupSpan) == sizeof(MarkupSpan), "Unexpected FontcMarkupSpan ABI layout");
+static_assert(offsetof(FontcMarkupSpan, m_NodeIndex) == offsetof(MarkupSpan, m_StyleNodeIndex), "Unexpected FontcMarkupSpan ABI layout");
+static_assert(sizeof(FontcMarkupError) == 8, "Unexpected FontcMarkupError ABI layout");
+static_assert((int)FONTC_MARKUP_ERROR_NONE == (int)MARKUP_ERROR_NONE, "Unexpected FontcMarkupErrorType values");
+static_assert((int)FONTC_MARKUP_ERROR_MISMATCHED_CLOSING_TAG == (int)MARKUP_ERROR_MISMATCHED_CLOSING_TAG, "Unexpected FontcMarkupErrorType values");
+static_assert((int)FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE == (int)MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, "Unexpected FontcMarkupErrorType values");
+static_assert(sizeof(FontcMarkupData) == 80, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Text) == 16, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Nodes) == 32, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Attributes) == 48, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Spans) == 64, "Unexpected FontcMarkupData ABI layout");
 
 struct CachedGlyph
 {
@@ -448,7 +465,7 @@ static uint8_t ResolvePreviewLayoutObject(void* context,
     return 1;
 }
 
-static TextResult CreateMarkupLayout(FontcContext* session, const char* markup, uint32_t markup_byte_count, bool line_break, float width, float leading, float tracking, HTextLayout* layout, MarkupError* error)
+static TextResult CreateParsedMarkupLayout(FontcContext* session, HMarkup parsed_markup, bool line_break, float width, float leading, float tracking, HTextLayout* layout)
 {
     TextLayoutSettings settings = { 0 };
     settings.m_Size = session->m_Size;
@@ -458,6 +475,11 @@ static TextResult CreateMarkupLayout(FontcContext* session, const char* markup, 
     settings.m_LineBreak = line_break;
     settings.m_ResolveObject = ResolvePreviewLayoutObject;
 
+    return session->m_UseTextShaping ? TextLayoutCreateMarkup(session->m_Collection, parsed_markup, &settings, layout) : TextLayoutLegacyCreateMarkup(session->m_Collection, parsed_markup, &settings, layout);
+}
+
+static TextResult CreateMarkupLayout(FontcContext* session, const char* markup, uint32_t markup_byte_count, bool line_break, float width, float leading, float tracking, HTextLayout* layout, MarkupError* error)
+{
     HMarkup parsed_markup = 0;
 
     if (MarkupCreate(markup ? markup : "", markup_byte_count, &parsed_markup, error) != MARKUP_RESULT_OK)
@@ -465,9 +487,7 @@ static TextResult CreateMarkupLayout(FontcContext* session, const char* markup, 
         return TEXT_RESULT_ERROR;
     }
 
-    TextResult result = session->m_UseTextShaping
-                      ? TextLayoutCreateMarkup(session->m_Collection, parsed_markup, &settings, layout)
-                      : TextLayoutLegacyCreateMarkup(session->m_Collection, parsed_markup, &settings, layout);
+    TextResult result = CreateParsedMarkupLayout(session, parsed_markup, line_break, width, leading, tracking, layout);
     MarkupDestroy(parsed_markup);
 
     return result;
@@ -649,6 +669,53 @@ void FontcDestroy(HFontRenderer renderer)
     DestroySession(renderer);
 }
 
+FontRendererResult FontcParseMarkup(const char*       markup,
+                                    uint32_t          markup_byte_count,
+                                    HFontcMarkup*     parsed_markup,
+                                    FontcMarkupError* output_error)
+{
+    if (!parsed_markup || !output_error || (!markup && markup_byte_count != 0))
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    *parsed_markup = 0;
+    memset(output_error, 0, sizeof(*output_error));
+
+    MarkupError        error = {};
+    const MarkupResult result = MarkupCreate(markup ? markup : "", markup_byte_count, parsed_markup, &error);
+    output_error->m_ByteOffset = error.m_ByteOffset;
+    output_error->m_Type = (FontcMarkupErrorType)error.m_Type;
+
+    return result == MARKUP_RESULT_OK ? FONT_RENDERER_RESULT_OK : FONT_RENDERER_RESULT_TEXT_ERROR;
+}
+
+void FontcDestroyMarkup(HFontcMarkup parsed_markup)
+{
+    MarkupDestroy(parsed_markup);
+}
+
+FontRendererResult FontcGetMarkupData(HFontcMarkup parsed_markup, FontcMarkupData* data)
+{
+    if (!parsed_markup || !data)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    data->m_Source = MarkupGetSource(parsed_markup);
+    data->m_SourceLength = MarkupGetSourceLength(parsed_markup);
+    data->m_Text = MarkupGetText(parsed_markup);
+    data->m_TextLength = MarkupGetTextLength(parsed_markup);
+    data->m_Nodes = reinterpret_cast<const FontcMarkupNode*>(MarkupGetStyleNodes(parsed_markup));
+    data->m_NodeCount = MarkupGetStyleNodeCount(parsed_markup);
+    data->m_Attributes = reinterpret_cast<const FontcMarkupAttribute*>(MarkupGetAttributes(parsed_markup));
+    data->m_AttributeCount = MarkupGetAttributeCount(parsed_markup);
+    data->m_Spans = reinterpret_cast<const FontcMarkupSpan*>(MarkupGetSpans(parsed_markup));
+    data->m_SpanCount = MarkupGetSpanCount(parsed_markup);
+
+    return FONT_RENDERER_RESULT_OK;
+}
+
 FontRendererResult FontcMeasure(HFontRenderer   renderer,
                                 const uint32_t* codepoints,
                                 uint32_t        codepoint_count,
@@ -699,6 +766,38 @@ FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
         output->m_ErrorByteOffset = error.m_ByteOffset;
         output->m_ErrorType = error.m_Type;
 
+        return FONT_RENDERER_RESULT_TEXT_ERROR;
+    }
+
+    TextLayoutGetBounds(layout, &output->m_Width, &output->m_Height);
+    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
+    output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
+    output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
+    TextLayoutRelease(layout);
+
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
+                                            HFontcMarkup  parsed_markup,
+                                            uint32_t      line_break,
+                                            float         width,
+                                            float         leading,
+                                            float         tracking,
+                                            FontcLayout*  output)
+{
+    if (!renderer || !parsed_markup || !output)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    memset(output, 0, sizeof(*output));
+    HTextLayout layout = 0;
+    TextResult  result = CreateParsedMarkupLayout(renderer, parsed_markup, line_break != 0, width, leading, tracking, &layout);
+
+    if (result != TEXT_RESULT_OK)
+    {
         return FONT_RENDERER_RESULT_TEXT_ERROR;
     }
 

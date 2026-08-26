@@ -95,6 +95,14 @@
                                          {:rich-text-render-kind :bitmap
                                           :use-rich-text true}
                                          "<shadow x=1>Text</shadow>")
+        bm-font-attribute-text-error (font/markup-error 0 :text
+                                                       {:rich-text-render-kind :bitmap
+                                                        :use-rich-text true}
+                                                       "<link id=\"<shadow blur=2>\">Text</link>")
+        static-invalid-markup-error (font/markup-error 0 :text
+                                                       {:rich-text-render-kind :distance-field
+                                                        :use-rich-text true}
+                                                       "<outline>Text</shadow>")
         bitmap-outline-error (font/markup-error 0 :text
                                                 {:outline-width 3.0
                                                  :rich-text-render-kind :defold
@@ -108,6 +116,14 @@
                                                                 :shadow-alpha 1.0
                                                                 :use-rich-text true}
                                                                "<shadow x='2'>Text</shadow>")
+        bitmap-nested-outline-shadow-error (font/markup-error 0 :text
+                                                               {:outline-alpha 1.0
+                                                                :outline-width 3.0
+                                                                :rich-text-render-kind :defold
+                                                                :rich-text-shadow-blur-capacity 4.0
+                                                                :shadow-alpha 1.0
+                                                                :use-rich-text true}
+                                                               "<outline><shadow x='2'>Text</shadow></outline>")
         unreserved-outline-error (font/markup-error 0 :text
                                                     {:outline-width 0.0
                                                      :rich-text-render-kind :distance-field
@@ -135,10 +151,14 @@
                                                  "<shadow blur='2'>Text</shadow>")]
     (is (g/error-warning? bm-font-error))
     (is (s/includes? (test-util/localization (g/error-message bm-font-error)) "not supported by BMFont"))
+    (is (nil? bm-font-attribute-text-error))
+    (is (g/error-warning? static-invalid-markup-error))
+    (is (s/includes? (test-util/localization (g/error-message static-invalid-markup-error)) "mismatched closing tag"))
     (is (g/error-warning? bitmap-outline-error))
     (is (s/includes? (test-util/localization (g/error-message bitmap-outline-error)) "fixed for bitmap fonts"))
     (is (g/error-warning? bitmap-hidden-outline-shadow-error))
     (is (s/includes? (test-util/localization (g/error-message bitmap-hidden-outline-shadow-error)) "spans without an outline tag render crisp"))
+    (is (nil? bitmap-nested-outline-shadow-error))
     (is (g/error-warning? unreserved-outline-error))
     (is (s/includes? (test-util/localization (g/error-message unreserved-outline-error)) "will not be rendered"))
     (is (nil? disabled-outline-error))

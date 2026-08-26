@@ -22,6 +22,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcBeginBatch;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcCreate;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroy;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroyMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDecodeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFilterMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeGlyph;
@@ -30,12 +31,14 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBufferSize;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasure;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasureMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasureParsedMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcParseMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetProperties;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetText;
@@ -48,12 +51,19 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontcGlyph;
 import com.dynamo.bob.font.generated.FontcGlyphMetrics;
 import com.dynamo.bob.font.generated.FontcImage;
 import com.dynamo.bob.font.generated.FontcLayout;
+import com.dynamo.bob.font.generated.FontcMarkupAttribute;
+import com.dynamo.bob.font.generated.FontcMarkupData;
+import com.dynamo.bob.font.generated.FontcMarkupError;
+import com.dynamo.bob.font.generated.FontcMarkupNode;
+import com.dynamo.bob.font.generated.FontcMarkupSpan;
+import com.dynamo.bob.font.generated.FontcMarkupString;
 import com.dynamo.bob.font.generated.FontcParams;
 import com.dynamo.bob.font.generated.FontcProperties;
 import com.dynamo.bob.font.generated.FontcTexture;
@@ -134,18 +144,28 @@ public final class FontRenderer implements AutoCloseable {
         public final float maxAscent;
         public final float maxDescent;
         public final MarkupError markupError;
+        public final MarkupDocument markupDocument;
 
         private Layout(MemorySegment values) {
-            this(values, null);
+            this(values, null, null);
         }
 
         private Layout(MemorySegment values, MarkupError markupError) {
+            this(values, markupError, null);
+        }
+
+        private Layout(MemorySegment values, MarkupDocument markupDocument) {
+            this(values, null, markupDocument);
+        }
+
+        private Layout(MemorySegment values, MarkupError markupError, MarkupDocument markupDocument) {
             width = FontcLayout.m_Width(values);
             height = FontcLayout.m_Height(values);
             lineCount = FontcLayout.m_LineCount(values);
             maxAscent = FontcLayout.m_MaxAscent(values);
             maxDescent = FontcLayout.m_MaxDescent(values);
             this.markupError = markupError;
+            this.markupDocument = markupDocument;
         }
     }
 
@@ -162,6 +182,79 @@ public final class FontRenderer implements AutoCloseable {
             this.column = column;
             this.errorType = errorType;
             this.message = "Invalid rich text markup at line " + line + ", column " + column + ": " + description;
+        }
+    }
+
+    /** A generic parsed rich-text attribute copied from the native parser. */
+    public static final class MarkupAttribute {
+        public final String name;
+        public final String value;
+        public final int type;
+        public final int constant;
+
+        private MarkupAttribute(String name, String value, int type, int constant) {
+            this.name = name;
+            this.value = value;
+            this.type = type;
+            this.constant = constant;
+        }
+    }
+
+    /** A parent-linked element in a parsed rich-text document. */
+    public static final class MarkupNode {
+        public final String tag;
+        public final int type;
+        public final int parent;
+        public final int textOffset;
+        public final int textLength;
+        public final MarkupAttribute[] attributes;
+
+        private MarkupNode(String tag, int type, int parent, int textOffset, int textLength, MarkupAttribute[] attributes) {
+            this.tag = tag;
+            this.type = type;
+            this.parent = parent;
+            this.textOffset = textOffset;
+            this.textLength = textLength;
+            this.attributes = attributes;
+        }
+    }
+
+    /** A visible-text range and its innermost active markup node. */
+    public static final class MarkupSpan {
+        public final int textOffset;
+        public final int textLength;
+        public final int node;
+
+        private MarkupSpan(int textOffset, int textLength, int node) {
+            this.textOffset = textOffset;
+            this.textLength = textLength;
+            this.node = node;
+        }
+    }
+
+    /** A font-independent snapshot of native rich-text parser output. */
+    public static final class MarkupDocument {
+        public final String source;
+        public final int[] text;
+        public final MarkupNode[] nodes;
+        public final MarkupSpan[] spans;
+
+        private MarkupDocument(String source, int[] text, MarkupNode[] nodes, MarkupSpan[] spans) {
+            this.source = source;
+            this.text = text;
+            this.nodes = nodes;
+            this.spans = spans;
+        }
+    }
+
+    /** Exactly one of {@link #document} and {@link #error} is non-null. */
+    public static final class MarkupParseResult {
+        public final MarkupDocument document;
+        public final MarkupError error;
+
+        private MarkupParseResult(MarkupDocument document, MarkupError error) {
+            this.document = document;
+            this.error = error;
         }
     }
 
@@ -354,17 +447,73 @@ public final class FontRenderer implements AutoCloseable {
      * <p>Malformed tags fail validation so editor resources can report a build error.</p>
      */
     public synchronized Layout measureMarkup(String markup, boolean lineBreak, float width, float leading, float tracking) {
+        return measureMarkup(markup, lineBreak, width, leading, tracking, false);
+    }
+
+    /**
+     * Parses, shapes, and measures UTF-8 rich-text markup, and includes its generic parsed document.
+     *
+     * <p>Use this when syntax-tree inspection is required. Regular layout calls avoid copying the
+     * parsed arrays into Java.</p>
+     */
+    public synchronized Layout measureMarkupWithDocument(String markup, boolean lineBreak, float width, float leading, float tracking) {
+        return measureMarkup(markup, lineBreak, width, leading, tracking, true);
+    }
+
+    private Layout measureMarkup(String markup, boolean lineBreak, float width, float leading, float tracking, boolean includeDocument) {
         if (markup == null)
             throw new NullPointerException("markup");
         byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment result = FontcLayout.allocate(arena);
-            int status = FontcMeasureMarkup(requireHandle(), arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
-                    flag(lineBreak), width, leading, tracking, result);
-            if (status == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR() && FontcLayout.m_ErrorType(result) != 0)
-                return new Layout(result, markupError(bytes, result));
+            MemorySegment parsedMarkupPointer = arena.allocate(FontRendererFFM.HFontcMarkup);
+            MemorySegment parseError = FontcMarkupError.allocate(arena);
+            int status = FontcParseMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
+                    parsedMarkupPointer, parseError);
+            if (status == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR() && FontcMarkupError.m_Type(parseError) != 0)
+                return new Layout(result, markupError(bytes,
+                        FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)));
             checkResult(status, "Native rich-text shaping failed");
-            return new Layout(result);
+
+            MemorySegment parsedMarkup = parsedMarkupPointer.get(ADDRESS, 0);
+            try {
+                status = FontcMeasureParsedMarkup(requireHandle(), parsedMarkup,
+                        flag(lineBreak), width, leading, tracking, result);
+                checkResult(status, "Native rich-text shaping failed");
+                return includeDocument
+                        ? new Layout(result, copyMarkupDocument(parsedMarkup, arena))
+                        : new Layout(result);
+            } finally {
+                FontcDestroyMarkup(parsedMarkup);
+            }
+        }
+    }
+
+    /**
+     * Parses UTF-8 rich text without requiring a font renderer.
+     *
+     * @return a font-independent document on success, or a structured parser error
+     */
+    public static MarkupParseResult parseMarkup(String markup) {
+        if (markup == null)
+            throw new NullPointerException("markup");
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment parsedMarkupPointer = arena.allocate(FontRendererFFM.HFontcMarkup);
+            MemorySegment parseError = FontcMarkupError.allocate(arena);
+            int status = FontcParseMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
+                    parsedMarkupPointer, parseError);
+            if (status == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR() && FontcMarkupError.m_Type(parseError) != 0)
+                return new MarkupParseResult(null, markupError(bytes,
+                        FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)));
+            checkResult(status, "Native rich-text parsing failed");
+
+            MemorySegment parsedMarkup = parsedMarkupPointer.get(ADDRESS, 0);
+            try {
+                return new MarkupParseResult(copyMarkupDocument(parsedMarkup, arena), null);
+            } finally {
+                FontcDestroyMarkup(parsedMarkup);
+            }
         }
     }
 
@@ -676,8 +825,78 @@ public final class FontRenderer implements AutoCloseable {
         return value ? 1 : 0;
     }
 
-    private static MarkupError markupError(byte[] markup, MemorySegment result) {
-        int byteOffset = Math.min(FontcLayout.m_ErrorByteOffset(result), markup.length);
+    private static MarkupDocument copyMarkupDocument(MemorySegment parsedMarkup, Arena arena) {
+        MemorySegment data = FontcMarkupData.allocate(arena);
+        checkResult(FontcGetMarkupData(parsedMarkup, data), "Unable to read parsed rich text");
+
+        int sourceLength = FontcMarkupData.m_SourceLength(data);
+        byte[] source = sourceLength == 0
+                ? new byte[0]
+                : FontcMarkupData.m_Source(data).reinterpret(sourceLength).toArray(JAVA_BYTE);
+
+        int textLength = FontcMarkupData.m_TextLength(data);
+        int[] text = textLength == 0
+                ? new int[0]
+                : FontcMarkupData.m_Text(data).reinterpret((long)textLength * JAVA_INT.byteSize()).toArray(JAVA_INT);
+
+        int attributeCount = FontcMarkupData.m_AttributeCount(data);
+        MarkupAttribute[] attributes = new MarkupAttribute[attributeCount];
+        if (attributeCount != 0) {
+            MemorySegment nativeAttributes = FontcMarkupData.m_Attributes(data)
+                    .reinterpret((long)attributeCount * FontcMarkupAttribute.layout().byteSize());
+            for (int index = 0; index < attributeCount; ++index) {
+                MemorySegment attribute = FontcMarkupAttribute.asSlice(nativeAttributes, index);
+                attributes[index] = new MarkupAttribute(
+                        sourceString(source, FontcMarkupAttribute.m_Name(attribute)),
+                        sourceString(source, FontcMarkupAttribute.m_Value(attribute)),
+                        Byte.toUnsignedInt(FontcMarkupAttribute.m_Type(attribute)),
+                        Byte.toUnsignedInt(FontcMarkupAttribute.m_Constant(attribute)));
+            }
+        }
+
+        int nodeCount = FontcMarkupData.m_NodeCount(data);
+        MarkupNode[] nodes = new MarkupNode[nodeCount];
+        MemorySegment nativeNodes = FontcMarkupData.m_Nodes(data)
+                .reinterpret((long)nodeCount * FontcMarkupNode.layout().byteSize());
+        for (int index = 0; index < nodeCount; ++index) {
+            MemorySegment node = FontcMarkupNode.asSlice(nativeNodes, index);
+            int parent = Short.toUnsignedInt(FontcMarkupNode.m_Parent(node));
+            int attributeIndex = Short.toUnsignedInt(FontcMarkupNode.m_AttributeIndex(node));
+            int nodeAttributeCount = Short.toUnsignedInt(FontcMarkupNode.m_AttributeCount(node));
+            nodes[index] = new MarkupNode(
+                    sourceString(source, FontcMarkupNode.m_Tag(node)),
+                    Byte.toUnsignedInt(FontcMarkupNode.m_Type(node)),
+                    parent == 0xffff ? -1 : parent,
+                    FontcMarkupNode.m_TextOffset(node),
+                    FontcMarkupNode.m_TextLength(node),
+                    Arrays.copyOfRange(attributes, attributeIndex, attributeIndex + nodeAttributeCount));
+        }
+
+        int spanCount = FontcMarkupData.m_SpanCount(data);
+        MarkupSpan[] spans = new MarkupSpan[spanCount];
+        if (spanCount != 0) {
+            MemorySegment nativeSpans = FontcMarkupData.m_Spans(data)
+                    .reinterpret((long)spanCount * FontcMarkupSpan.layout().byteSize());
+            for (int index = 0; index < spanCount; ++index) {
+                MemorySegment span = FontcMarkupSpan.asSlice(nativeSpans, index);
+                spans[index] = new MarkupSpan(
+                        FontcMarkupSpan.m_TextOffset(span),
+                        FontcMarkupSpan.m_TextLength(span),
+                        Short.toUnsignedInt(FontcMarkupSpan.m_NodeIndex(span)));
+            }
+        }
+
+        return new MarkupDocument(new String(source, StandardCharsets.UTF_8), text, nodes, spans);
+    }
+
+    private static String sourceString(byte[] source, MemorySegment string) {
+        int offset = FontcMarkupString.m_Offset(string);
+        int length = Short.toUnsignedInt(FontcMarkupString.m_Length(string));
+        return new String(source, offset, length, StandardCharsets.UTF_8);
+    }
+
+    private static MarkupError markupError(byte[] markup, int nativeByteOffset, int errorType) {
+        int byteOffset = Math.min(nativeByteOffset, markup.length);
         int line = 1;
         int column = 1;
         for (int index = 0; index < byteOffset; ++index) {
@@ -689,7 +908,6 @@ public final class FontRenderer implements AutoCloseable {
                 ++column;
             }
         }
-        int errorType = FontcLayout.m_ErrorType(result);
         return new MarkupError(byteOffset, line, column, errorType, markupErrorDescription(errorType));
     }
 
