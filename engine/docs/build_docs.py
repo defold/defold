@@ -379,6 +379,7 @@ def validate_lua_behavior(executable, annotations_dir, fixture_dir, stamp):
     expected_negative_by_context = {
         "runtime": {
             "assign-type-mismatch": 5,
+            "missing-fields": 1,
             "param-type-mismatch": 5,
         },
         "editor": {
