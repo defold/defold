@@ -279,7 +279,9 @@
   [{:path [:semantic-type]
     :localization-key "material.attributes.semantic-type"
     :type :choicebox
-    :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
+    :options (vec (sort-by first
+                           (remove #(unsupported-semantic-types (first %))
+                                   (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
     :localization-key "material.attributes.step-function"
