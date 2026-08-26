@@ -670,14 +670,18 @@ namespace dmRender
 
     static bool InsertDrawCommand(RenderScriptInstance* i, HPredicate predicate, HNamedConstantBuffer constant_buffer, FrustumOptions* frustum_options, SortOrder sort_order)
     {
-        HNamedConstantBuffer constant_buffer_clone = PushRenderConstants(i->m_RenderContext, constant_buffer);
-        return InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer_clone, (uint64_t)frustum_options, (uint64_t)sort_order));
+        if (!InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer, (uint64_t)frustum_options, (uint64_t)sort_order)))
+            return false;
+        i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return true;
     }
 
     static bool InsertDispatchComputeCommand(RenderScriptInstance* i, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
     {
-        HNamedConstantBuffer constant_buffer_clone = PushRenderConstants(i->m_RenderContext, constant_buffer);
-        return InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer_clone));
+        if (!InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer)))
+            return false;
+        i->m_CommandBuffer.Back().m_Operands[3] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return true;
     }
 
     /*# enables a render state

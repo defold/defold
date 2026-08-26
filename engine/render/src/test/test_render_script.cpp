@@ -1585,6 +1585,39 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_CloneOnDraw)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_RejectedCommandsDoNotCreateClones)
+{
+    const char* script =
+        "function init(self)\n"
+        "    self.pred = render.predicate({\"tag\"})\n"
+        "    self.cb = render.constant_buffer()\n"
+        "    self.cb.tint = vmath.vector4(1, 0, 0, 1)\n"
+        "end\n"
+        "function update(self)\n"
+        "    render.enable_state(graphics.STATE_BLEND)\n"
+        "    for i = 1, 10 do\n"
+        "        assert(not pcall(render.draw, self.pred, { constants = self.cb }))\n"
+        "        assert(not pcall(render.dispatch_compute, 1, 1, 1, { constants = self.cb }))\n"
+        "    end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    commands.SetCapacity(1);
+
+    uint32_t clone_cursor = m_Context->m_ConstantBufferCloneCursor;
+    uint32_t clone_count = m_Context->m_ConstantBufferClones.Size();
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ(clone_cursor, m_Context->m_ConstantBufferCloneCursor);
+    ASSERT_EQ(clone_count, m_Context->m_ConstantBufferClones.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
 {
     const char* script =

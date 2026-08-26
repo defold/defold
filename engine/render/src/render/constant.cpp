@@ -172,10 +172,8 @@ void CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuf
     destination->m_Constants.SetSize(constant_count);
     destination->m_Values.SetSize(value_count);
 
-    if (constant_count > 0)
-        memcpy(destination->m_Constants.Begin(), source->m_Constants.Begin(), constant_count * sizeof(NamedConstantBuffer::Constant));
-    if (value_count > 0)
-        memcpy(destination->m_Values.Begin(), source->m_Values.Begin(), value_count * sizeof(dmVMath::Vector4));
+    memcpy(destination->m_Constants.Begin(), source->m_Constants.Begin(), constant_count * sizeof(NamedConstantBuffer::Constant));
+    memcpy(destination->m_Values.Begin(), source->m_Values.Begin(), value_count * sizeof(dmVMath::Vector4));
 }
 
 struct ShiftConstantsContext
