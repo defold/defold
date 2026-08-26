@@ -260,13 +260,33 @@ function call_args_one_per_line()
     print(s)
 end
 
--- Assignment continued after `=`.
--- Commented out: we disagree with LuaLS here. It indents a line continuing an
--- assignment after a bare `=`; nothing is open by then as far as our scanner is
--- concerned, so we leave it flush. Its shape was:
---     local big =
---         compute(1,
---             2)
+-- Assignment continued after a trailing `=`. The continuation lines indent one
+-- level, and the call opened on the first of them indents its arguments again.
+function assign_continued_after_equals()
+    local big =
+        compute(1,
+            2)
+    print(big)
+end
+
+-- A blank line inside a continuation does not end it.
+function assign_continued_across_blank_line()
+    local spaced =
+
+        compute(1)
+    print(spaced)
+end
+
+-- A continuation inside a table constructor ends at the value, so the closing
+-- brace still lines up with the line that opened it.
+function assign_continued_inside_table()
+    local t = {
+        x =
+            1,
+        y = 2
+    }
+    print(t)
+end
 
 -- ---------------------------------------------------------------------------
 -- Scope traps -- parens inside strings and comments

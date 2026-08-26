@@ -445,6 +445,50 @@
                     "print(1)"
                     "end"]))))
 
+(deftest reindent-continues-unfinished-assignment-test
+  (are [lines] (= lines (reindent lines))
+
+    ;; A line ending on a bare `=` leaves the assignment unfinished, so what
+    ;; follows is indented until a line of code finishes it.
+    ["local big ="
+     "    compute(1,"
+     "        2)"
+     "print(big)"]
+
+    ;; Blank lines and comments do not finish it. LuaLS leaves a standalone
+    ;; comment at the statement's own level instead, which is why the fixture
+    ;; only covers the blank line.
+    ["local spaced ="
+     ""
+     "    -- still going"
+     "    compute(1)"
+     "print(spaced)"]
+
+    ;; It nests inside whatever encloses it, and ends at the value.
+    ["local t = {"
+     "    x ="
+     "        1,"
+     "    y = 2"
+     "}"]
+
+    ;; Comparison operators end in `=` without opening an assignment, so their
+    ;; continuation lines are left flush like any other operator continuation.
+    ["if a =="
+     "b then"
+     "    f()"
+     "end"])
+
+  ;; A closer finishes the assignment above it, so the lines below are not
+  ;; left indented by an assignment that never got a value.
+  (is (= ["local t = {"
+          "    x ="
+          "}"
+          "print(t)"]
+         (reindent ["local t = {"
+                    "x ="
+                    "}"
+                    "        print(t)"]))))
+
 (deftest reindent-matches-checked-in-fixture-test
   ;; The fixture is checked in already formatted by the bundled Lua language
   ;; server, so reindenting it must change nothing. Anything else means

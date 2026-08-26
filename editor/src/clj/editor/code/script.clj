@@ -89,6 +89,9 @@
 ;;   line up under the first one. Other openers just indent by one level
 ;; - Treats `else` as closing and reopening a block, and `elseif` as just
 ;;   closing one (the `then` after it opens the new block)
+;; - Reports the index of the last character that was code, so the summary can
+;;   tell an unfinished assignment from an `=` inside a string or comment, and
+;;   a line of code from a blank or comment-only one
 ;;
 ;; The summary cancels matched opens/closes and reports what's left:
 ;; - :closes - kinds of the closers with no matching opener on this line;
@@ -101,6 +104,9 @@
 ;;       tabs expanded, so it matches where the text actually appears)
 ;;     * or nil, if no parameter follows the opening parenthesis, or if the
 ;;       opener is not a function parameter list
+;; - :unfinished-assign - whether the line ends on a bare `=`, leaving an
+;;   assignment for the lines below it to finish
+;; - :has-code - whether the line has any code on it at all
 ;;
 ;; A closer whose kind does not match is dropped. On well-formed code that
 ;; never happens, since a closer's opener is always the innermost one still
@@ -112,24 +118,25 @@
            escaped false
            in-long-string in-long-string
            after-function false
-           tokens []]
+           tokens []
+           last-code -1]
       (if (>= i len)
-        [tokens in-long-string]
+        [tokens in-long-string last-code]
         (let [ch (.charAt line i)]
           (cond
             in-long-string
             ;; Resume lexing after the matching long-bracket delimiter.
             (let [close (long-bracket-end line i (long in-long-string))]
               (if (neg? close)
-                [tokens in-long-string]
-                (recur close in-quote false nil after-function tokens)))
+                [tokens in-long-string last-code]
+                (recur close in-quote false nil after-function tokens (dec close))))
 
             in-quote
             (cond
-              escaped (recur (inc i) in-quote false nil after-function tokens)
-              (= ch \\) (recur (inc i) in-quote true nil after-function tokens)
-              (= ch in-quote) (recur (inc i) nil false nil after-function tokens)
-              :else (recur (inc i) in-quote false nil after-function tokens))
+              escaped (recur (inc i) in-quote false nil after-function tokens last-code)
+              (= ch \\) (recur (inc i) in-quote true nil after-function tokens last-code)
+              (= ch in-quote) (recur (inc i) nil false nil after-function tokens i)
+              :else (recur (inc i) in-quote false nil after-function tokens last-code))
 
             ;; A comment is multiline when -- is followed by a long bracket.
             (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
@@ -138,17 +145,17 @@
                           (long-bracket-level line open len \[)
                           -1)]
               (if (neg? level)
-                (recur len in-quote false nil after-function tokens)
-                (recur (+ open level 2) in-quote false level after-function tokens)))
+                (recur len in-quote false nil after-function tokens last-code)
+                (recur (+ open level 2) in-quote false level after-function tokens last-code)))
 
             ;; Start of quote
             (or (= ch \") (= ch \'))
-            (recur (inc i) ch false nil after-function tokens)
+            (recur (inc i) ch false nil after-function tokens i)
 
             ;; Start of a long string.
             (and (= ch \[) (<= 0 (long-bracket-level line i len \[)))
             (let [level (long-bracket-level line i len \[)]
-              (recur (+ i level 2) in-quote false level after-function tokens))
+              (recur (+ i level 2) in-quote false level after-function tokens (+ i level 1)))
 
             ;; Scan a whole identifier so keywords match only at word boundaries.
             (or (Character/isLetter ch) (= ch \_))
@@ -172,7 +179,8 @@
                          (conj tokens [:open kind nil])
                          (if-let [kind (lua-close-keyword-kind tok)]
                            (conj tokens [:close kind nil])
-                           tokens)))))
+                           tokens)))
+                     (dec end)))
 
             ;; Emit structural bracket tokens and ignore other punctuation.
             :else
@@ -185,7 +193,8 @@
               (recur (inc i) in-quote false nil
                      (and after-function
                           (or (Character/isWhitespace ch) (= ch \.) (= ch \:)))
-                     tokens))))))))
+                     tokens
+                     (if (Character/isWhitespace ch) last-code i)))))))))
 
 (defn- code-after-index? [^String line ^long index]
   (let [len (.length line)]
@@ -194,7 +203,9 @@
         (>= i len) false
         (Character/isWhitespace (.charAt line i)) (recur (inc i))
 
-        (and (= \- (.charAt line i)) (< (inc i) len) (= \- (.charAt line (inc i))))
+        (and (= \- (.charAt line i))
+             (< (inc i) len)
+             (= \- (.charAt line (inc i))))
         (let [open (+ i 2)
               level (if (and (< open len) (= \[ (.charAt line open)))
                       (long-bracket-level line open len \[)
@@ -221,7 +232,16 @@
   #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])")
 
 (defn lua-indent-counts [^String line in-long-string tab-spaces]
-  (let [[tokens in-long-string] (lua-lex-line line in-long-string)
+  (let [[tokens in-long-string ^long last-code] (lua-lex-line line in-long-string)
+        ;; A line whose last code character is a bare `=` leaves an assignment
+        ;; unfinished, so the lines that continue it are indented one level.
+        unfinished-assign (and (nil? in-long-string)
+                               (not (neg? last-code))
+                               (= \= (.charAt line last-code))
+                               (or (zero? last-code)
+                                   (case (.charAt line (dec last-code))
+                                     (\= \~ \< \>) false
+                                     true)))
         ;; Cancel matched pairs, leaving only structure that crosses this line.
         leftover (reduce (fn [stack t]
                            (let [top (peek stack)]
@@ -249,6 +269,8 @@
     {:closes closes
      :opens opens
      :leading (some? (re-find lua-close-line-pattern line))
+     :unfinished-assign (boolean unfinished-assign)
+     :has-code (not (neg? last-code))
      :in-long-string in-long-string}))
 
 (def lua-grammar

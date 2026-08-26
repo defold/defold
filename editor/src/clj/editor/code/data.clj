@@ -2075,12 +2075,15 @@
       (= :any (:kind frame))
       (= kind (:kind frame))))
 
-(defn- indent-step [stack {:keys [leading closes opens]}]
-  (let [top (peek stack)
+(defn- indent-step [stack assign-pending {:keys [leading closes opens has-code unfinished-assign]}]
+  (let [;; A closer finishes any assignment left unfinished above it.
+        assign-pending (and assign-pending (coll/empty? closes))
+        continued (if assign-pending 1 0)
+        top (peek stack)
         ;; Determine this line's indentation before updating the stack.
         [level col] (cond
                       (nil? top)
-                      [0 nil]
+                      [continued nil]
 
                       (and leading
                            (coll/not-empty closes)
@@ -2088,7 +2091,8 @@
                       [(:level top) nil]
 
                       :else
-                      [(inc ^long (:level top)) (:col top)])
+                      [(+ (inc ^long (:level top)) continued)
+                       (when-not assign-pending (:col top))])
         ;; Remove enclosing frames closed by this line.
         stack (reduce (fn [s kind]
                         (let [top (peek s)]
@@ -2098,14 +2102,22 @@
                       stack
                       closes)
         ;; Add frames opened on this line for subsequent lines.
-        stack (let [line-indent (if (coll/empty? stack) 0 (inc ^long (:level (peek stack))))
+        stack (let [line-indent (if (coll/empty? stack)
+                                  continued
+                                  (+ (inc ^long (:level (peek stack))) continued))
                     n (count opens)]
                 (loop [i 0
                        s stack]
                   (if (= i n)
                     s
-                    (recur (inc i) (conj s (assoc (opens i) :level line-indent))))))]
-    [stack level col]))
+                    (recur (inc i) (conj s (assoc (opens i) :level line-indent))))))
+        ;; The assignment carries to the lines below until a line of code
+        ;; finishes it. A line that opens a bracket indents through that
+        ;; instead, so it finishes the assignment too.
+        assign-pending (if has-code
+                         (and unfinished-assign (coll/empty? opens))
+                         assign-pending)]
+    [stack assign-pending level col]))
 
 (defn- indent-string->tab-spaces
   ^long [^String indent-string]
@@ -2177,6 +2189,8 @@
       {:leading close
        :closes (if close [:any] [])
        :opens (if open [{:kind :any :col nil}] [])
+       :unfinished-assign false
+       :has-code (not (string/blank? line))
        :in-long-string false})))
 
 (defn- find-indent-state [indent-level-pattern grammar lines queried-row tab-spaces]
@@ -2220,13 +2234,15 @@
                      stack
                      ;; Indentation alone says nothing about what opened these.
                      (recur (dec n) (conj stack {:level (long (count stack)) :col nil :kind :any}))))
+           assign-pending false
            in-long-string false]
       (if (< queried-row row)
         {:stack stack
+         :assign-pending assign-pending
          :in-long-string in-long-string}
         (let [counts (line-indent-counts grammar (get lines row) in-long-string tab-spaces)
-              [next-stack] (indent-step stack counts)]
-          (recur (inc row) next-stack (:in-long-string counts)))))))
+              [next-stack next-assign-pending] (indent-step stack assign-pending counts)]
+          (recur (inc row) next-stack next-assign-pending (:in-long-string counts)))))))
 
 (defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
   (let [fixed-rows (volatile! #{})
@@ -2240,6 +2256,7 @@
                 prev-state (find-indent-state indent-level-pattern grammar lines (dec start-row) tab-spaces)]
             (loop [row start-row
                    stack (:stack prev-state)
+                   assign-pending (:assign-pending prev-state)
                    in-long-string (:in-long-string prev-state)
                    splices (transient [])]
               (if (<= end-row row)
@@ -2248,9 +2265,10 @@
                       line (lines row)
                       counts (line-indent-counts grammar line in-long-string tab-spaces)
                       next-in-long-string (:in-long-string counts)
-                      [unfixed-stack line-indent-level line-indent-col] (indent-step stack counts)]
+                      [unfixed-stack unfixed-assign-pending line-indent-level line-indent-col]
+                      (indent-step stack assign-pending counts)]
                   (if (contains? @fixed-rows row)
-                    (recur next-row unfixed-stack next-in-long-string splices)
+                    (recur next-row unfixed-stack unfixed-assign-pending next-in-long-string splices)
                     (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
                           typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
                           line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
@@ -2282,12 +2300,13 @@
                                 ""
                                 (indent-line unindented-line indent-string line-indent-level line-indent-col))))
                           ;; Re-lex the corrected line because indentation can change visual columns.
-                          [next-stack] (indent-step stack (line-indent-counts grammar indented-line in-long-string tab-spaces))
+                          [next-stack next-assign-pending]
+                          (indent-step stack assign-pending (line-indent-counts grammar indented-line in-long-string tab-spaces))
                           splices (if (= line indented-line)
                                     splices
                                     (conj! splices [line-cursor-range [indented-line]]))]
                       (vswap! fixed-rows conj row)
-                      (recur next-row next-stack next-in-long-string splices))))))))]
+                      (recur next-row next-stack next-assign-pending next-in-long-string splices))))))))]
     (splice-indentation lines cursor-ranges regions
                         (into [] (mapcat mapcat-fn) affected-cursor-ranges))))
 
