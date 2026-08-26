@@ -42,7 +42,8 @@
             :localization-key (str localization-key ".value")
             :type (case (:type selected-constant default-constant-type)
                     :constant-type-user-color :color
-                    :vec4)}]}]}))})
+                    :vec4)
+            :default protobuf/vector4-one}]}]}))})
 
 (defn gen-form-data-samplers [localization-key path-key]
   {:path [path-key]
