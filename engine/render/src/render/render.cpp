@@ -964,8 +964,6 @@ namespace dmRender
         }
     }
 
-    static Result DrawInternal(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
-
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
     {
         DM_PROFILE("DrawRenderList");
@@ -1120,7 +1118,7 @@ namespace dmRender
             }
         }
 
-        return DrawInternal(context, predicate, constant_buffer);
+        return Draw(context, predicate, constant_buffer);
     }
 
     void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
@@ -1191,7 +1189,7 @@ namespace dmRender
 
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
-    static Result DrawInternal(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
+    Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
         if (render_context == 0x0)
         {
@@ -1330,11 +1328,6 @@ namespace dmRender
         TrimTextureBindingTable(render_context);
 
         return RESULT_OK;
-    }
-
-    Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
-    {
-        return DrawInternal(render_context, predicate, constant_buffer);
     }
 
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options)
