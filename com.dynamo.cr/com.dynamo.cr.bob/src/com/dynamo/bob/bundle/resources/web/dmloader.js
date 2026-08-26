@@ -661,17 +661,29 @@ var GameArchiveLoader = {
     downloadContent: async function() {
         var file = this._files[this._fileIndex];
 
-        {{!
-            file.stream is already set when we are downloading this file again after a failed
-            verification. The stream stays open in that case and is written at absolute
-            offsets, so it can be reused as is, and we must not look at what is on disk now.
-        }}
-        if (Module['isDMFSSupported'] && file.stream === undefined) {
+        if (Module['isDMFSSupported']) {
             const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
             try { // see if already and stored
-                const stat = FS.stat(path);
+                {{!
+                    Only look at the persisted copy on the first attempt. When we get here after
+                    a failed verification we already know that copy is bad, and reopening it
+                    with "w+" below truncates it, which is what removes a stale tail left behind
+                    by a response that was longer than expected.
+                }}
+                const stat = file.verificationAttempt ? null : FS.stat(path);
                 if (stat) {
+                    {{#html5.verify_downloaded_file_size}}
                     let matches = (file.size == stat.size);
+                    {{/html5.verify_downloaded_file_size}}
+                    {{^html5.verify_downloaded_file_size}}
+                    {{!
+                        Without the size check the hash is the only thing that can tell a
+                        complete persisted file from a truncated one, so only reuse a file we
+                        are able to hash. Bundle with --with-sha1 to keep persistence working
+                        with size verification turned off.
+                    }}
+                    let matches = !!file.sha1;
+                    {{/html5.verify_downloaded_file_size}}
                     if (matches && file.sha1) {
                         const stream = FS.open(path, "r");
                         if (stream) {
@@ -845,6 +857,16 @@ var GameArchiveLoader = {
             file.pieces[i].data = undefined;
         }
         ProgressUpdater.updateCurrent(-downloadedSize);
+
+        {{!
+            Close the stream so that downloadContent() reopens it with "w+", which truncates.
+            A response that was longer than expected has already extended the file on disk, and
+            the next attempt would only overwrite the prefix, leaving a stale tail behind.
+        }}
+        if (file.stream !== undefined) {
+            FS.close(file.stream);
+            file.stream = undefined;
+        }
 
         file.data = undefined;
         file.totalLoadedPieces = 0;
