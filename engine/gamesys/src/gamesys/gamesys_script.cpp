@@ -500,11 +500,7 @@ namespace dmGameSystem
                     }
                     lua_pop(L, 1);
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     dmVMath::Vector4* write_ptr = scratch_values->Begin();
 
@@ -525,12 +521,7 @@ namespace dmGameSystem
                         count = 4;
                     }
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     FillConstantsFromLua(L, -1, scratch_values->Begin());
                 }

@@ -2340,11 +2340,7 @@ static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration 
     context->m_CurrentVertexBufferOffsets[binding_index] = base_offset;
 
     dmArray<VertexDeclaration::Stream>& streams = context->m_VertexDeclarationStreams[binding_index];
-    if (streams.Capacity() < declaration->m_StreamCount)
-    {
-        streams.SetCapacity(declaration->m_StreamCount);
-    }
-    streams.SetSize(declaration->m_StreamCount);
+    streams.EnsureSize(declaration->m_StreamCount);
     memset(streams.Begin(), 0, sizeof(VertexDeclaration::Stream) * declaration->m_StreamCount);
     context->m_VertexDeclaration[binding_index].m_Streams = streams.Begin();
 
