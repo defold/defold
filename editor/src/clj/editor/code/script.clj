@@ -37,24 +37,24 @@
 ;; Lua block open/close keywords for indentation, and what closes what. A
 ;; closer only pops a frame of its own kind, so a stray `end` inside a table
 ;; constructor cannot close the `{`.
-(def lua-open-keyword-kinds
-  {"do" :block
-   "then" :block
-   "function" :block
-   "else" :block
-   "repeat" :repeat})
+(defn- lua-open-keyword-kind [^String token]
+  (case token
+    ("do" "then" "function" "else") :block
+    "repeat" :repeat
+    nil))
 
-(def lua-close-keyword-kinds
-  {"end" :block
-   "until" :repeat})
+(defn- lua-close-keyword-kind [^String token]
+  (case token
+    "end" :block
+    "until" :repeat
+    nil))
 
-(def lua-bracket-kinds
-  {\( :paren
-   \) :paren
-   \{ :brace
-   \} :brace
-   \[ :bracket
-   \] :bracket})
+(defn- lua-bracket-kind [ch]
+  (case ch
+    (\( \)) :paren
+    (\{ \}) :brace
+    (\[ \]) :bracket
+    nil))
 
 (defn- long-bracket-level
   "The number of = signs in the long bracket at index, or -1 if there is none.
@@ -168,9 +168,9 @@
                        "else" (conj tokens [:close :block nil] [:open :block nil])
                        ;; The `then` on the same line supplies the :open.
                        "elseif" (conj tokens [:close :block nil])
-                       (if-let [kind (lua-open-keyword-kinds tok)]
+                       (if-let [kind (lua-open-keyword-kind tok)]
                          (conj tokens [:open kind nil])
-                         (if-let [kind (lua-close-keyword-kinds tok)]
+                         (if-let [kind (lua-close-keyword-kind tok)]
                            (conj tokens [:close kind nil])
                            tokens)))))
 
@@ -178,10 +178,10 @@
             :else
             (let [tokens (cond-> tokens
                            (contains? #{\{ \( \[} ch)
-                           (conj [:open (lua-bracket-kinds ch) (when (and after-function (= ch \()) i)])
+                           (conj [:open (lua-bracket-kind ch) (when (and after-function (= ch \()) i)])
 
                            (contains? #{\} \) \]} ch)
-                           (conj [:close (lua-bracket-kinds ch) nil]))]
+                           (conj [:close (lua-bracket-kind ch) nil]))]
               (recur (inc i) in-quote false nil
                      (and after-function
                           (or (Character/isWhitespace ch) (= ch \.) (= ch \:)))
