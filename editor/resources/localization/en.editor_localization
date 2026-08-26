@@ -1991,6 +1991,8 @@ form.label.project.html5.engine_arguments = Engine Arguments
 form.help.project.html5.engine_arguments = Comma-separated engine arguments passed at startup. Use `--config=section.key=value` to override a configuration value.
 form.label.project.html5.wasm_streaming = Wasm Streaming
 form.help.project.html5.wasm_streaming = Compiles WebAssembly while it downloads for faster startup and lower peak memory use. The server must send `.wasm` files as `application/wasm`. The loader falls back to ordinary loading if streaming fails.
+form.label.project.html5.verify_downloaded_file_size = Verify Downloaded File Size
+form.help.project.html5.verify_downloaded_file_size = Checks that each downloaded bundle file is the size it was when bundled, and refuses to start the game if it is not. Turn this off only if a server, proxy or CDN rewrites the files it serves, which changes their size. Files are always downloaded again a couple of times before the check is reported as an error.
 form.label.project.html5.show_fullscreen_button = Show Fullscreen Button
 form.help.project.html5.show_fullscreen_button = Shows the fullscreen control below the canvas in the built-in HTML shell. Custom shells can use this setting as a Mustache condition.
 form.label.project.html5.show_made_with_defold = Show "Made With Defold"
@@ -2000,9 +2002,9 @@ form.help.project.html5.show_console_banner = Prints the **Made with Defold** ba
 form.label.project.html5.scale_mode = Scale Mode
 form.help.project.html5.scale_mode = Controls canvas resizing. **Downscale Fit** preserves aspect ratio and only shrinks. **Fit** preserves aspect ratio and can shrink or grow. **Stretch** fills the page and may distort. **No Scale** keeps the configured display dimensions.
 form.label.project.html5.retry_count = Retry Count
-form.help.project.html5.retry_count = Number of retries after a network error while loading bundle files. The initial request is separate.
+form.help.project.html5.retry_count = Number of retries after a network error or a failed HTTP status while loading bundle files. The initial request is separate.
 form.label.project.html5.retry_time = Retry Time
-form.help.project.html5.retry_time = Delay in seconds before retrying a bundle file after a network error.
+form.help.project.html5.retry_time = Delay in seconds before retrying a bundle file after a network error or a failed verification.
 form.label.project.html5.transparent_graphics_context = Transparent Context
 form.help.project.html5.transparent_graphics_context = Requests an alpha channel for the HTML5 graphics context so the page can show through transparent canvas pixels. The game must also render transparent pixels.
 

@@ -92,6 +92,7 @@ archive_location_prefix = archive_prefix
 archive_location_suffix = archive_suffix
 engine_arguments = --verify-graphics-calls=false
 wasm_streaming = 1
+verify_downloaded_file_size = 0
 show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0

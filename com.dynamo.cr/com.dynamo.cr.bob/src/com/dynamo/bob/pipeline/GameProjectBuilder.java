@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -463,7 +464,7 @@ public class GameProjectBuilder extends Builder {
         }
 
         transformGameProjectFile(properties);
-        task.getOutputs().get(0).setContent(properties.serialize().getBytes());
+        task.getOutputs().get(0).setContent(properties.serialize().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

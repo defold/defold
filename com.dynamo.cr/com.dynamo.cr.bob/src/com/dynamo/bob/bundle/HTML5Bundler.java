@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,13 @@ public class HTML5Bundler implements IBundler {
 
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
+    private static final String GitAttributesName = ".gitattributes";
+    // The bundle contains text files (game.projectc, ssl_keys.pem, archive_files.json and the
+    // wasm loader javascript) whose size and sha1 are verified by dmloader.js at startup. Git
+    // rewrites line endings of files it considers text, which changes both, and the game then
+    // refuses to start. Mark everything in the bundle as binary so committing a bundle is safe.
+    // See issue #10006.
+    private static final String GitAttributesContent = "* -text\n";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static String SplitFileSHA1 = "";
 
@@ -449,6 +457,9 @@ public class HTML5Bundler implements IBundler {
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(project, buildDir, splitDir);
+        // Written before the bundle resources so that a project shipping its own .gitattributes
+        // as a bundle resource takes precedence over ours.
+        createGitAttributes(appDir);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
@@ -521,6 +532,12 @@ public class HTML5Bundler implements IBundler {
             }
         }
         BundleHelper.moveBundleIfNeed(project, appDir);
+    }
+
+    // A .gitattributes in the bundle root also applies to every subdirectory, so this single
+    // file covers the engine javascript next to it as well as everything below archive/.
+    private void createGitAttributes(File appDir) throws IOException {
+        FileUtils.write(new File(appDir, GitAttributesName), GitAttributesContent, StandardCharsets.UTF_8);
     }
 
     private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {
