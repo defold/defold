@@ -1438,37 +1438,51 @@ namespace dmGraphics
         return pitch;
     }
 
-    static void CopyTextureDataMipmapLevel(const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts,
-        const uint32_t* num_rows, const uint64_t* row_size_in_bytes, uint32_t array_count,
+    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat format,
+        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t array_count,
         const uint8_t* pixels, uint8_t* upload_data)
     {
-        // GetCopyableFootprints describes the destination in terms the tightly-packed source shares:
-        // num_rows is the number of (block-)rows and row_size_in_bytes is the unpadded (block-)row size.
-        // Using those instead of a bits-per-pixel value keeps this correct for block-compressed formats,
-        // where a per-pixel byte size is meaningless (BC1/BC4 would truncate to 0 bytes-per-pixel).
+        // The source (pixels) is tightly packed at the *requested update extent* — for a sub-update
+        // that is the sub-rectangle (params.m_Width/m_Height), not the full subresource. Derive the
+        // source row pitch and row count from that extent, block-aware. (Using the full-subresource
+        // footprint here would overread a sub-rectangle source; a per-pixel byte size is meaningless
+        // for BC formats where BC1/BC4 would truncate to 0 bytes-per-pixel.) The destination pitch
+        // still comes from the footprint; CopyTextureRegion places this top-left block at m_X,m_Y.
+        uint32_t src_row_pitch;
+        uint32_t src_rows;
+        TextureFormatCompressedBlockSize block_size;
+        if (GetTextureFormatCompressedBlockSize(format, &block_size))
+        {
+            src_row_pitch = ((params.m_Width  + block_size.m_Width  - 1) / block_size.m_Width) * block_size.m_ByteSize;
+            src_rows      =  (params.m_Height + block_size.m_Height - 1) / block_size.m_Height;
+        }
+        else
+        {
+            src_row_pitch = params.m_Width * (GetTextureFormatBitsPerPixel(format) / 8);
+            src_rows      = params.m_Height;
+        }
+
         uint64_t src_offset = 0;
         for (uint32_t array = 0; array < array_count; ++array)
         {
             const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[array];
-            const uint64_t dstRowPitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded)
-            const uint64_t srcRowPitch = row_size_in_bytes[array];    // unpadded, matches the source
-            const uint32_t rows = num_rows[array];
+            const uint64_t dstRowPitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded), full width
             const uint32_t depth = layout.Footprint.Depth;
 
             uint8_t* dst = upload_data + layout.Offset;
 
             for (uint32_t z = 0; z < depth; ++z)
             {
-                for (uint32_t row = 0; row < rows; ++row)
+                for (uint32_t row = 0; row < src_rows; ++row)
                 {
-                    const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * rows + row) * srcRowPitch;
-                    uint8_t* dst_row = dst + (uint64_t) (z * rows + row) * dstRowPitch;
+                    const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * src_rows + row) * src_row_pitch;
+                    uint8_t* dst_row = dst + (uint64_t) (z * src_rows + row) * dstRowPitch;
 
-                    memcpy(dst_row, src_row, srcRowPitch);
+                    memcpy(dst_row, src_row, src_row_pitch);
                 }
             }
 
-            src_offset += (uint64_t) rows * srcRowPitch * depth;
+            src_offset += (uint64_t) src_rows * src_row_pitch * depth;
         }
     }
 
@@ -1528,34 +1542,30 @@ namespace dmGraphics
         CloseHandle(fence_event);
     }
 
-    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, const TextureParams& params, uint8_t* pixels)
+    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format, const TextureParams& params, uint8_t* pixels)
     {
         const uint32_t target_mip        = params.m_MipMap;
         const uint16_t tex_layer_count   = dmMath::Max(texture->m_LayerCount, (uint16_t) params.m_LayerCount);
         const uint32_t subresource_count = tex_layer_count; // only one mip, full array
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = {};
-        uint32_t num_rows[16];
-        uint64_t row_size_in_bytes[16];
         uint64_t total_upload_size = 0;
 
-        // Calculate offset/footprint per array slice
+        // Calculate offset/footprint per array slice. We only need the placed footprint (dest layout)
+        // and the total byte size here; the source pitch/rows are derived from the update extent in
+        // CopyTextureDataMipmapLevel, so pNumRows / pRowSizeInBytes are not requested.
         for (uint32_t array = 0; array < tex_layer_count; ++array)
         {
             const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, tex_layer_count);
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
-            UINT rows = 0;
-            UINT64 rowSize = 0;
             UINT64 size = 0;
 
             context->m_Device->GetCopyableFootprints(
                 &texture->m_ResourceDesc, subresource, 1,
-                total_upload_size, &layout, &rows, &rowSize, &size);
+                total_upload_size, &layout, NULL, NULL, &size);
 
             fp[array] = layout;
-            num_rows[array] = rows;
-            row_size_in_bytes[array] = rowSize;
             total_upload_size += size;
         }
 
@@ -1585,9 +1595,9 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**)&upload_data);
         CHECK_HR_ERROR(hr);
 
-        // The footprint (num_rows / row_size_in_bytes) already describes the block-compressed layout,
-        // so no bits-per-pixel row-pitch calculation is needed here.
-        CopyTextureDataMipmapLevel(fp, num_rows, row_size_in_bytes, tex_layer_count, pixels, upload_data);
+        // The destination footprint (fp) is for the full subresource; the copy helper derives the
+        // source pitch/rows from the requested update extent so a sub-update doesn't overread.
+        CopyTextureDataMipmapLevel(params, format, fp, tex_layer_count, pixels, upload_data);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
         DX12OneTimeCommandList one_time_cmd_list = {};
@@ -3940,7 +3950,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             tex->m_ResourceDesc = desc;
         }
 
-        TextureBufferUploadHelper(g_DX12Context, tex, params, (uint8_t*) tex_data_ptr);
+        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, params, (uint8_t*) tex_data_ptr);
 
         tex->m_Base.m_Format = format_actual;
         SetTextureResourceSize(&tex->m_Base, sizeof(DX12Texture));
