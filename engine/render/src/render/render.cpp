@@ -141,6 +141,7 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
+        context->m_ConstantBufferCloneCursor = 0;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
 
@@ -216,6 +217,8 @@ namespace dmRender
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         FinalizeLightData(render_context);
+        for (uint32_t i = 0; i < render_context->m_ConstantBufferClones.Size(); ++i)
+            DeleteNamedConstantBuffer(render_context->m_ConstantBufferClones[i]);
         dmMessage::DeleteSocket(render_context->m_Socket);
         delete render_context;
 
@@ -229,10 +232,29 @@ namespace dmRender
 
     void RenderListBegin(HRenderContext render_context)
     {
+        render_context->m_ConstantBufferCloneCursor = 0;
         render_context->m_RenderList.SetSize(0);
         render_context->m_RenderListSortIndices.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
+    }
+
+    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer)
+    {
+        if (!constant_buffer)
+            return 0;
+
+        uint32_t clone_index = render_context->m_ConstantBufferCloneCursor++;
+        if (clone_index == render_context->m_ConstantBufferClones.Size())
+        {
+            if (render_context->m_ConstantBufferClones.Full())
+                render_context->m_ConstantBufferClones.OffsetCapacity(16);
+            render_context->m_ConstantBufferClones.Push(NewNamedConstantBuffer());
+        }
+
+        HNamedConstantBuffer clone = render_context->m_ConstantBufferClones[clone_index];
+        CopyNamedConstantBuffer(clone, constant_buffer);
+        return clone;
     }
 
     HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
