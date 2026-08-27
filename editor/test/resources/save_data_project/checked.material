@@ -35,6 +35,7 @@ samplers {
   name: "texture0"
   wrap_u: WRAP_MODE_CLAMP_TO_EDGE
   wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_w: WRAP_MODE_MIRRORED_REPEAT
   filter_min: FILTER_MODE_MIN_LINEAR
   filter_mag: FILTER_MODE_MAG_LINEAR
   max_anisotropy: 0.0
