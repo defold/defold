@@ -3628,8 +3628,8 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
 
     // Occupy the only worker thread so both prewarm requests remain pending
     // until the two script instances have been created and destroyed/reused.
-    int32_atomic_t blocker_started = 0;
-    int32_atomic_t blocker_allow_finish = 0;
+    int32_t blocker_started = 0;
+    int32_t blocker_allow_finish = 0;
     Job blocker = {};
     blocker.m_Process = ProcessBlockingFontJob;
     blocker.m_Context = &blocker_started;
