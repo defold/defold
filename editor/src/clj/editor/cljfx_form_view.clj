@@ -396,9 +396,7 @@
 
 ;; region color input
 
-(defn- clamp-unit
-  ^double [^double n]
-  (Math/min 1.0 (Math/max 0.0 n)))
+(defn- clamp-unit ^double [^double n] (min 1.0 (max 0.0 n)))
 
 (defn- color->value
   "Assocs the color into the old value to retain its vector and number types."
