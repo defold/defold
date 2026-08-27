@@ -73,47 +73,7 @@ namespace dmGameSystem
      * @name compute.get_samplers
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:table] A table of tables, where each entry contains info about the texture samplers:
-     *
-     * `name`
-     * : [type:hash] the hashed name of the texture sampler
-     *
-     * `u_wrap`
-     * : [type:number] the u wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `v_wrap`
-     * : [type:number] the v wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `min_filter`
-     * : [type:number] the min filter mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
-     *
-     * `mag_filter`
-     * : [type:number] the mag filter mode of the texture sampler
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *
-     * `max_anisotropy`
-     * : [type:number] the max anisotropy of the texture sampler
+     * @return table [type:material.sampler_info[]] Information about the texture samplers.
      *
      * @examples
      * Get the texture samplers from a compute program resource
@@ -158,35 +118,7 @@ namespace dmGameSystem
      * @name compute.get_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:table] A table of tables, where each entry contains info about the shader constants:
-     *
-     * `name`
-     * : [type:hash] the hashed name of the constant
-     *
-     * `type`
-     * : [type:number] the type of the constant. Supported values:
-     *
-     *   - `material.CONSTANT_TYPE_USER`
-     *   - `material.CONSTANT_TYPE_USER_COLOR`
-     *   - `material.CONSTANT_TYPE_USER_MATRIX4`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ`
-     *   - `material.CONSTANT_TYPE_WORLD`
-     *   - `material.CONSTANT_TYPE_TEXTURE`
-     *   - `material.CONSTANT_TYPE_VIEW`
-     *   - `material.CONSTANT_TYPE_PROJECTION`
-     *   - `material.CONSTANT_TYPE_NORMAL`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
-     *   - `material.CONSTANT_TYPE_TIME`
-     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
-     *
-     * `value`
-     * : [type:vmath.vector4|vmath.matrix4] the value(s) of the constant. If the constant is an array, the value will be a table of vmath.vector4 or vmath.matrix4 if the type is `material.CONSTANT_TYPE_USER_MATRIX4`.
+     * @return table [type:material.constant_info[]] Information about the shader constants.
      *
      * @examples
      * Get the shader constants from a compute program resource
@@ -235,44 +167,7 @@ namespace dmGameSystem
      * @name compute.get_textures
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:table] A table of tables, where each entry contains info about the compute textures:
-     *
-     * `path`
-     * : [type:hash] the resource path of the texture. Only available if the texture is a resource.
-     *
-     * `handle`
-     * : [type:hash] the runtime handle of the texture.
-     *
-     * `width`
-     * : [type:number] the width of the texture
-     *
-     * `height`
-     * : [type:number] the height of the texture
-     *
-     * `depth`
-     * : [type:number] the depth of the texture. Corresponds to the number of layers in an array texture.
-     *
-     * `mipmaps`
-     * : [type:number] the number of mipmaps in the texture
-     *
-     * `type`
-     * : [type:number] the type of the texture. Supported values:
-     *
-     *   - `graphics.TEXTURE_TYPE_2D`
-     *   - `graphics.TEXTURE_TYPE_2D_ARRAY`
-     *   - `graphics.TEXTURE_TYPE_CUBE_MAP`
-     *   - `graphics.TEXTURE_TYPE_IMAGE_2D`
-     *   - `graphics.TEXTURE_TYPE_3D`
-     *   - `graphics.TEXTURE_TYPE_IMAGE_3D`
-     *
-     * `flags`
-     * : [type:number] the flags of the texture. This field is a bit mask of these supported flags:
-     *
-     *   - `graphics.TEXTURE_USAGE_FLAG_SAMPLE`
-     *   - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS`
-     *   - `graphics.TEXTURE_USAGE_FLAG_STORAGE`
-     *   - `graphics.TEXTURE_USAGE_FLAG_INPUT`
-     *   - `graphics.TEXTURE_USAGE_FLAG_COLOR`
+     * @return table [type:material.texture_info[]] Information about the compute textures.
      *
      * @examples
      * Get the textures from a compute program resource
@@ -317,44 +212,7 @@ namespace dmGameSystem
      * @name compute.set_samplers
      *
      * @param path [type:hash|string] The path to the resource
-     * @param samplers [type:table] A table keyed by sampler name with args tables as values. Partial updates are supported. Supported entries:
-     *
-     * `u_wrap`
-     * : [type:number] the u wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `v_wrap`
-     * : [type:number] the v wrap mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `graphics.TEXTURE_WRAP_REPEAT`
-     *
-     * `min_filter`
-     * : [type:number] the min filter mode of the texture sampler. Supported values:
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
-     *
-     * `mag_filter`
-     * : [type:number] the mag filter mode of the texture sampler
-     *
-     *   - `graphics.TEXTURE_FILTER_DEFAULT`
-     *   - `graphics.TEXTURE_FILTER_NEAREST`
-     *   - `graphics.TEXTURE_FILTER_LINEAR`
-     *
-     * `max_anisotropy`
-     * : [type:number] the max anisotropy of the texture sampler
+     * @param samplers [type:table<string|hash, material.sampler_options>] Sampler options keyed by sampler name. Partial updates are supported.
      *
      * @examples
      * Configures a sampler in a compute program
@@ -416,32 +274,7 @@ namespace dmGameSystem
      * @name compute.set_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @param constants [type:table] A table keyed by constant name with args tables as values. Constants can be partially updated. Supported entries:
-     *
-     * `type`
-     * : [type:number] the type of the constant. Supported values:
-     *
-     *   - `material.CONSTANT_TYPE_USER`
-     *   - `material.CONSTANT_TYPE_USER_COLOR`
-     *   - `material.CONSTANT_TYPE_USER_MATRIX4`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ`
-     *   - `material.CONSTANT_TYPE_WORLD`
-     *   - `material.CONSTANT_TYPE_TEXTURE`
-     *   - `material.CONSTANT_TYPE_VIEW`
-     *   - `material.CONSTANT_TYPE_PROJECTION`
-     *   - `material.CONSTANT_TYPE_NORMAL`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
-     *   - `material.CONSTANT_TYPE_TIME`
-     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
-     *
-     * `value`
-     * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
+     * @param constants [type:table<string|hash, material.constant_options>] Constant options keyed by constant name. Partial updates are supported.
      *
      * @examples
      * Set a shader constant in a compute program
@@ -515,7 +348,7 @@ namespace dmGameSystem
      * @name compute.set_textures
      *
      * @param path [type:hash|string] The path to the resource
-     * @param textures [type:table] A table keyed by sampler name with texture resources as values.
+     * @param textures [type:table<string|hash, string|hash>] A table keyed by sampler name with texture resources as values.
      *
      * @examples
      * Set a texture in a compute program from a resource
