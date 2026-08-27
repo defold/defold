@@ -81,6 +81,7 @@ namespace dmGameSystem
         uint32_t selected_mesh_index = resource->m_Model->m_MeshIndex;
         dmRigDDF::Model* models = mesh_set->m_Models.m_Data;
         dmRigDDF::Model* geometry_models = models;
+        dmRigDDF::Model* morph_model = 0;
         uint32_t model_count = mesh_set->m_Models.m_Count;
         if (selected_mesh_index != ~0u)
         {
@@ -98,15 +99,16 @@ namespace dmGameSystem
                     break;
                 }
             }
-            if (!geometry_model)
+            for (uint32_t i = 0; i < mesh_set->m_Models.m_Count; ++i)
             {
-                for (uint32_t i = 0; i < mesh_set->m_Models.m_Count; ++i)
+                if (mesh_set->m_Models[i].m_MeshIndex == selected_mesh_index)
                 {
-                    if (mesh_set->m_Models[i].m_MeshIndex == selected_mesh_index)
+                    morph_model = &mesh_set->m_Models[i];
+                    if (!geometry_model)
                     {
-                        geometry_model = &mesh_set->m_Models[i];
-                        break;
+                        geometry_model = morph_model;
                     }
+                    break;
                 }
             }
             if (!geometry_model)
@@ -116,6 +118,10 @@ namespace dmGameSystem
             if (!selected_model)
             {
                 selected_model = geometry_model;
+            }
+            if (!morph_model)
+            {
+                morph_model = selected_model;
             }
 
             resource->m_SelectedModel = *selected_model;
@@ -145,6 +151,7 @@ namespace dmGameSystem
                 info.m_Mesh = mesh;
                 info.m_Buffers = 0;
                 info.m_MorphTargetTexture = 0;
+                info.m_MorphModelId = selected_mesh_index != ~0u ? morph_model->m_Id : model->m_Id;
 
                 resource->m_Meshes.Push(info);
             }
