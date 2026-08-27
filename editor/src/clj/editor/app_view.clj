@@ -31,6 +31,7 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
+            [editor.code.view :as code-view]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -971,7 +972,7 @@
   [app-view changes-view project prefs]
   (when (and (auto-save-on-app-unfocus? prefs)
              (can-async-save?))
-    (async-save! app-view changes-view project project/dirty-save-data)))
+    (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
@@ -3035,22 +3036,36 @@
                                                                       :use-custom-editor false})))))
 
 (defn- async-save!
-  ([app-view changes-view project save-data-fn]
-   (async-save! app-view changes-view project save-data-fn nil))
-  ([app-view changes-view project save-data-fn callback!]
+  ([app-view changes-view project prefs save-data-fn]
+   (async-save! app-view changes-view project prefs save-data-fn nil))
+  ([app-view changes-view project prefs save-data-fn callback!]
    {:pre [(g/node-id? app-view)
           (g/node-id? changes-view)
           (g/node-id? project)
           (ifn? save-data-fn)
           (or (nil? callback!) (ifn? callback!))]}
    (let [render-reload-progress! (make-render-task-progress :resource-sync)
-         render-save-progress! (make-render-task-progress :save-all)]
-     (disk/async-save! render-reload-progress! render-save-progress! save-data-fn project changes-view
-                       (fn [successful?]
-                         (when successful?
-                           (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
-                         (when callback!
-                           (callback! successful? render-reload-progress! render-save-progress!)))))))
+         render-save-progress! (make-render-task-progress :save-all)
+         save! (fn save! []
+                 (disk/async-save! render-reload-progress! render-save-progress! save-data-fn project changes-view
+                                   (fn [successful?]
+                                     (when successful?
+                                       (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
+                                     (when callback!
+                                       (callback! successful? render-reload-progress! render-save-progress!)))))]
+     (if-not (prefs/get prefs [:code :format-on-save])
+       (save!)
+       (do
+         (disk-availability/push-busy!)
+         (try
+           (code-view/async-format-on-save!
+             (coll/keys (g/node-value app-view :open-views))
+             (fn formatted! []
+               (disk-availability/pop-busy!)
+               (save!)))
+           (catch Throwable error
+             (disk-availability/pop-busy!)
+             (throw error))))))))
 
 (defn- restart-defold! [^Stage stage prefs]
   (store-window-state! stage prefs)
@@ -3075,7 +3090,7 @@
                            {:text (localization/message "dialog.restart-defold.button.save-and-restart")
                             :default-button true
                             :result true}]})
-          (async-save! app-view changes-view project project/dirty-save-data
+          (async-save! app-view changes-view project prefs project/dirty-save-data
                        (fn [successful? _render-reload-progress! _render-save-progress!]
                          (when successful?
                            (restart-defold! stage prefs)))))))))
@@ -3100,12 +3115,12 @@
 
 (handler/defhandler :file.save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
-  (run [app-view changes-view project]
-    (async-save! app-view changes-view project project/dirty-save-data)))
+  (run [app-view changes-view project prefs]
+    (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (handler/defhandler :file.save-and-upgrade-all :global
   (enabled? [] (not (bob/build-in-progress?)))
-  (run [app-view changes-view project workspace localization]
+  (run [app-view changes-view project prefs workspace localization]
     (let [git (g/node-value changes-view :git)]
       (when (and
 
@@ -3191,7 +3206,7 @@
           (when save-data-fn
             ;; The user has opted to proceed with the file format upgrade.
             (project/clear-cached-save-data! project)
-            (async-save! app-view changes-view project save-data-fn)))))))
+            (async-save! app-view changes-view project prefs save-data-fn)))))))
 
 (handler/defhandler :file.load-external-changes :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))
