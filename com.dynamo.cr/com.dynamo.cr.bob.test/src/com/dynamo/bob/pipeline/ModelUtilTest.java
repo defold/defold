@@ -54,6 +54,18 @@ public class ModelUtilTest {
 
     static double EPSILON = 0.0001;
 
+    private static Modelimporter.Transform identityImporterTransform() {
+        Modelimporter.Transform transform = new Modelimporter.Transform();
+        transform.translation = new Modelimporter.Vector3();
+        transform.rotation = new Modelimporter.Quat();
+        transform.rotation.w = 1.0f;
+        transform.scale = new Modelimporter.Vector3();
+        transform.scale.x = 1.0f;
+        transform.scale.y = 1.0f;
+        transform.scale.z = 1.0f;
+        return transform;
+    }
+
     private void assertVtx(List<Float> pos, int i, double xe, double ye, double ze) {
         float x = pos.get(i * 3 + 0);
         float y = pos.get(i * 3 + 1);
@@ -390,6 +402,42 @@ public class ModelUtilTest {
 
         assertEquals(1, meshSetBuilder.getRawModelsCount());
         assertEquals(0, meshSetBuilder.getRawModels(0).getMeshIndex());
+    }
+
+    @Test
+    public void testInstantiatedNamedModelsReuseSceneGeometry() throws Exception {
+        Modelimporter.Model namedModel = new Modelimporter.Model();
+        namedModel.name = "Named";
+        namedModel.meshes = new Modelimporter.Mesh[0];
+
+        Modelimporter.Node modelNode = new Modelimporter.Node();
+        modelNode.name = "Node";
+        modelNode.model = namedModel;
+        modelNode.local = identityImporterTransform();
+        modelNode.world = identityImporterTransform();
+        modelNode.children = new Modelimporter.Node[0];
+
+        Modelimporter.Scene scene = new Modelimporter.Scene();
+        scene.rootNodes = new Modelimporter.Node[] { modelNode };
+        scene.models = new Modelimporter.Model[] { namedModel };
+        scene.skins = new Modelimporter.Skin[0];
+        scene.materials = new Modelimporter.Material[0];
+
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModels(scene, meshSetBuilder, 0, 0, null);
+
+        assertEquals(1, meshSetBuilder.getModelsCount());
+        assertEquals(1, meshSetBuilder.getRawModelsCount());
+        assertEquals(0, meshSetBuilder.getModels(0).getMeshIndex());
+        assertEquals(0, meshSetBuilder.getRawModels(0).getMeshIndex());
+        assertEquals(0, meshSetBuilder.getRawModels(0).getMeshesCount());
+
+        Rig.MeshSet.Builder forcedRawMeshSetBuilder = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModels(scene, forcedRawMeshSetBuilder, 0, 0, null, Collections.singleton(0));
+
+        assertEquals(1, forcedRawMeshSetBuilder.getModelsCount());
+        assertEquals(1, forcedRawMeshSetBuilder.getRawModelsCount());
+        assertEquals(0, forcedRawMeshSetBuilder.getRawModels(0).getMeshIndex());
     }
 
     private Modelimporter.Scene loadBuiltScene(String path,

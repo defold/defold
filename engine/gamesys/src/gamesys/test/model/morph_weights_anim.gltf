@@ -4,6 +4,7 @@
   "scenes": [{"nodes": [0]}],
   "nodes": [{"name": "MorphedMesh", "mesh": 0}],
   "meshes": [{
+    "name": "MorphSource",
     "primitives": [{
       "attributes": {"POSITION": 0},
       "targets": [{"POSITION": 1}, {"POSITION": 2}]

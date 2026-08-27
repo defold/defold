@@ -27,7 +27,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :as test-support])
+            [support.test-support :as test-support]
+            [util.coll :as coll])
   (:import [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
@@ -316,25 +317,28 @@
           buffer-resource (workspace/find-resource workspace "/mesh/triangle/gltf/simpleTriangle.bin")
           buffer-node (project/get-resource-node project buffer-resource)
           first-x (fn []
-                    (let [^floats positions (-> (g/node-value model-scene :collision-meshes)
-                                                (get-in [0 :primitives 0 :positions]))]
-                      (aget positions 0)))
-          collision-preview-vbuf (fn []
-                                   (get-in (g/node-value collision-shape :scene)
-                                           [:renderable :user-data :geometry :vbuf]))]
+                    (-> (g/node-value model-scene :content)
+                        (get-in [:mesh-set :models 0 :meshes 0 :positions 0])
+                        double))
+          collision-preview-position-buffer
+          (fn []
+            (get-in (g/node-value collision-shape :selected-collision-mesh-renderable)
+                    [:primitives 0 :position-buffer]))]
       (g/set-property! collision-shape :mesh-scene model-scene-resource)
       (g/set-properties! collision-shape :mesh-name "Triangle" :mesh-index 0)
 
       (is (= ["simpleTriangle.bin"] (g/node-value model-scene :source-value)))
       (is (= [[buffer-node :sha256]]
              (g/sources-of model-scene :external-buffer-sha256s)))
+      (is (coll/empty? (get-in (g/node-value model-scene :content)
+                               [:mesh-set :raw-models 0 :meshes])))
       (is (= 0.0 (first-x)))
 
       (let [initial-mesh-set-content-hash (:content-hash (g/node-value model-scene :mesh-set-build-target))
             initial-collision-content-hash (-> (g/node-value collision-object :build-targets)
                                                first
                                                :content-hash)
-            initial-collision-preview-vbuf (collision-preview-vbuf)
+            initial-collision-preview-position-buffer (collision-preview-position-buffer)
             bytes (resource/resource->bytes buffer-resource)]
         (-> (ByteBuffer/wrap bytes)
             (.order ByteOrder/LITTLE_ENDIAN)
@@ -350,5 +354,5 @@
                   (-> (g/node-value collision-object :build-targets)
                       first
                       :content-hash)))
-        (is (not (identical? initial-collision-preview-vbuf
-                             (collision-preview-vbuf))))))))
+        (is (not (identical? initial-collision-preview-position-buffer
+                             (collision-preview-position-buffer))))))))

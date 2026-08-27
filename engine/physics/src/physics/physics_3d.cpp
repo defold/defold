@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>
 #include <stdint.h>
 #include <stdlib.h> // qsort
 #include <string.h>
@@ -1627,27 +1626,6 @@ namespace dmPhysics
         } else {
             return 0.0f;
         }
-    }
-
-    bool SetMass3D(HCollisionObject3D collision_object, float mass)
-    {
-        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
-        btScalar bullet_mass = mass;
-        if (body == 0x0 || body->isStaticOrKinematicObject() ||
-            !isfinite((double)bullet_mass) || !(bullet_mass > btScalar(0.0f)))
-        {
-            return false;
-        }
-
-        btScalar inverse_mass = btScalar(1.0f) / bullet_mass;
-        if (!isfinite((double)inverse_mass) || !(inverse_mass > btScalar(0.0f)))
-        {
-            return false;
-        }
-
-        SetDynamicBodyMass(body, bullet_mass);
-        body->activate(true);
-        return true;
     }
 
 	uint16_t GetGroup3D(HCollisionObject3D collision_object) {

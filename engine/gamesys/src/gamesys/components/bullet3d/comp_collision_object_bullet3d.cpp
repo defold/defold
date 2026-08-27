@@ -719,15 +719,7 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MASS)
         {
-            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
-            {
-                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            }
-            if (!dmPhysics::SetMass3D(component->m_Object3D, params.m_Value.m_Number))
-            {
-                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
-            }
-            return dmGameObject::PROPERTY_RESULT_OK;
+            return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }

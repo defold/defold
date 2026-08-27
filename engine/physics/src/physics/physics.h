@@ -1087,15 +1087,6 @@ namespace dmPhysics
     float GetMass3D(HCollisionObject3D collision_object);
 
     /**
-     * Set the mass of a dynamic 3D collision object and recalculate its inertia.
-     *
-     * @param collision_object Collision object
-     * @param mass New positive mass
-     * @return true if the mass was updated
-     */
-    bool SetMass3D(HCollisionObject3D collision_object, float mass);
-
-    /**
      * Return the mass of the 2D collision object.
      *
      * @param collision_object Collision object

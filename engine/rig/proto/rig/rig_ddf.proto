@@ -272,6 +272,20 @@ enum IndexBufferFormat
     INDEXBUFFER_FORMAT_32 = 1;
 }
 
+// Same values as dmModelImporter::PrimitiveType/cgltf_primitive_type.
+enum PrimitiveType
+{
+    PRIMITIVE_TYPE_INVALID        = 0;
+    PRIMITIVE_TYPE_POINTS         = 1;
+    PRIMITIVE_TYPE_LINES          = 2;
+    PRIMITIVE_TYPE_LINE_LOOP      = 3;
+    PRIMITIVE_TYPE_LINE_STRIP     = 4;
+    PRIMITIVE_TYPE_TRIANGLES      = 5;
+    PRIMITIVE_TYPE_TRIANGLE_STRIP = 6;
+    PRIMITIVE_TYPE_TRIANGLE_FAN   = 7;
+    PRIMITIVE_TYPE_MAX_ENUM       = 8;
+}
+
 message Mesh
 {
     required dmMath.Vector3 aabb_min        = 1;
@@ -304,6 +318,9 @@ message Mesh
 
     // Number of morph targets represented by morph_target_texture.
     optional uint32 morph_target_count = 18;
+
+    // Kept in the producer artifact so build-time consumers can validate topology.
+    optional PrimitiveType primitive_type = 19 [default = PRIMITIVE_TYPE_TRIANGLES];
 }
 
 message Model // E.g. the Node in the Scene
@@ -331,6 +348,10 @@ message MeshSet
 
     // Source meshes without scene node transforms, indexed by Model.mesh_index.
     repeated Model          raw_models     = 5;
+
+    // Raw source model indices that were split for the runtime mesh set.
+    // Build-time consumers use this to reject unsupported split geometry.
+    repeated uint32         split_model_indices = 6;
 }
 
 // Public api (dmSDK)

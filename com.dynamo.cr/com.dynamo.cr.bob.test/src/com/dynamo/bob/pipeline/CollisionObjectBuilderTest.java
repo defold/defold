@@ -15,8 +15,10 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
+import com.dynamo.rig.proto.Rig.MeshSet;
 import com.google.protobuf.Message;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -26,6 +28,13 @@ import java.util.Base64;
 import java.util.List;
 
 public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
+
+    private static final int LARGE_MESH_VERTEX_COUNT = 65537;
+
+    @Before
+    public void use3DPhysics() {
+        getProject().getProjectProperties().putStringValue("physics", "type", "3D");
+    }
 
     private static byte[] makeMeshBuffer() {
         ByteBuffer buffer = ByteBuffer.allocate(86).order(ByteOrder.LITTLE_ENDIAN);
@@ -55,6 +64,40 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
         buffer.putShort((short) 1);
         buffer.putShort((short) 2);
         return buffer.array();
+    }
+
+    private static byte[] makeLargeUint32MeshBuffer() {
+        int positionsByteLength = LARGE_MESH_VERTEX_COUNT * 3 * Float.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(positionsByteLength + 3 * Integer.BYTES)
+                .order(ByteOrder.LITTLE_ENDIAN);
+
+        buffer.position(3 * Float.BYTES);
+        buffer.putFloat(10.0f).putFloat(0.0f).putFloat(0.0f);
+        buffer.position((LARGE_MESH_VERTEX_COUNT - 2) * 3 * Float.BYTES);
+        buffer.putFloat(1.0f).putFloat(0.0f).putFloat(0.0f);
+        buffer.putFloat(0.0f).putFloat(0.0f).putFloat(1.0f);
+
+        buffer.putInt(0);
+        buffer.putInt(LARGE_MESH_VERTEX_COUNT - 2);
+        buffer.putInt(LARGE_MESH_VERTEX_COUNT - 1);
+        return buffer.array();
+    }
+
+    private static String makeLargeUint32Gltf(String bufferUri) {
+        int positionsByteLength = LARGE_MESH_VERTEX_COUNT * 3 * Float.BYTES;
+        int bufferByteLength = positionsByteLength + 3 * Integer.BYTES;
+        return "{" +
+                "\"asset\":{\"version\":\"2.0\"}," +
+                "\"buffers\":[{\"uri\":\"" + bufferUri + "\",\"byteLength\":" + bufferByteLength + "}]," +
+                "\"bufferViews\":[" +
+                "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":" + positionsByteLength + "}," +
+                "{\"buffer\":0,\"byteOffset\":" + positionsByteLength + ",\"byteLength\":12}]," +
+                "\"accessors\":[" +
+                "{\"bufferView\":0,\"componentType\":5126,\"count\":" + LARGE_MESH_VERTEX_COUNT + ",\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[10,0,1]}," +
+                "{\"bufferView\":1,\"componentType\":5125,\"count\":3,\"type\":\"SCALAR\",\"min\":[0],\"max\":[" + (LARGE_MESH_VERTEX_COUNT - 1) + "]}]," +
+                "\"meshes\":[{\"name\":\"Large\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}]," +
+                "\"nodes\":[{\"mesh\":0}]," +
+                "\"scenes\":[{\"nodes\":[0]}],\"scene\":0}";
     }
 
     private static String makeGltf(String bufferUri, boolean duplicateName) {
@@ -114,7 +157,11 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
         return makeCollisionObject("TYPE_MESH", meshName, meshIndex, shapeCount);
     }
 
-    private static String makeCollisionObject(String shapeType, String meshName, int meshIndex, int shapeCount) {
+    private static String makeCollisionObjectWithoutMeshIndex(String meshName) {
+        return makeCollisionObject("TYPE_MESH", meshName, null, 1);
+    }
+
+    private static String makeCollisionObject(String shapeType, String meshName, Integer meshIndex, int shapeCount) {
         StringBuilder shapes = new StringBuilder();
         for (int i = 0; i < shapeCount; ++i) {
             shapes.append("shapes {\n")
@@ -125,9 +172,11 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
                     .append("  index: 0\n")
                     .append("  count: 0\n")
                     .append("  mesh_scene: \"/mesh.gltf\"\n")
-                    .append("  mesh_name: \"").append(meshName).append("\"\n")
-                    .append("  mesh_index: ").append(meshIndex).append("\n")
-                    .append("}\n");
+                    .append("  mesh_name: \"").append(meshName).append("\"\n");
+            if (meshIndex != null) {
+                shapes.append("  mesh_index: ").append(meshIndex).append("\n");
+            }
+            shapes.append("}\n");
         }
         return "type: COLLISION_OBJECT_TYPE_STATIC\n" +
                 "mass: 0\n" +
@@ -187,7 +236,6 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCompilesHullVerticesAndSharesRanges() throws Exception {
-        getProject().getProjectProperties().putStringValue("physics", "type", "3D");
         addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), true));
         CollisionObjectDesc collisionObject = buildCollisionObject(makeCollisionObject("TYPE_HULL", "Ground", 0, 2));
         CollisionShape collisionShape = collisionObject.getEmbeddedCollisionShape();
@@ -214,12 +262,26 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testSourceHullIsRejectedFor2DPhysics() throws Exception {
+        getProject().getProjectProperties().putStringValue("physics", "type", "2D");
         addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), false));
         try {
             buildCollisionObject(makeCollisionObject("TYPE_HULL", "Ground", 0, 1));
             fail("Expected the Hull shape to be rejected for 2D physics");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("Hull"));
+            assertTrue(e.getMessage().contains("2D"));
+        }
+    }
+
+    @Test
+    public void testMeshIsRejectedFor2DPhysics() throws Exception {
+        getProject().getProjectProperties().putStringValue("physics", "type", "2D");
+        addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), false));
+        try {
+            buildCollisionObject(makeCollisionObject("Ground", 0, 1));
+            fail("Expected the Mesh shape to be rejected for 2D physics");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("Mesh"));
             assertTrue(e.getMessage().contains("2D"));
         }
     }
@@ -239,6 +301,17 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
             fail("Expected the duplicate mesh selection to fail");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("does not exist at raw index 2"));
+        }
+    }
+
+    @Test
+    public void testDuplicateNameRequiresExplicitRawIndex() throws Exception {
+        addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), true));
+        try {
+            buildCollisionObject(makeCollisionObjectWithoutMeshIndex("Ground"));
+            fail("Expected the duplicate mesh selection without a raw index to fail");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("is ambiguous"));
         }
     }
 
@@ -287,15 +360,57 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testSceneAndExternalBufferAreDirectTaskInputs() throws Exception {
+    public void testDecodesPackedUint32MeshIndices() throws Exception {
+        addFile("/large_mesh.bin", makeLargeUint32MeshBuffer());
+        addFile("/mesh.gltf", makeLargeUint32Gltf("large_mesh.bin"));
+
+        CollisionObjectDesc collisionObject = buildCollisionObject(makeCollisionObject("Large", 0, 1));
+        CollisionShape collisionShape = collisionObject.getEmbeddedCollisionShape();
+
+        assertEquals(LARGE_MESH_VERTEX_COUNT * 3, collisionShape.getDataCount());
+        assertEquals(3, collisionShape.getIndicesCount());
+        assertEquals(0, collisionShape.getIndices(0));
+        assertEquals(LARGE_MESH_VERTEX_COUNT - 2, collisionShape.getIndices(1));
+        assertEquals(LARGE_MESH_VERTEX_COUNT - 1, collisionShape.getIndices(2));
+        assertEquals(1, collisionShape.getShapes(0).getTriangleCount());
+    }
+
+    @Test
+    public void testSplitMeshIsRejectedForCollisionGeometry() throws Exception {
+        addFile("/large_mesh.bin", makeLargeUint32MeshBuffer());
+        addFile("/mesh.gltf", makeLargeUint32Gltf("large_mesh.bin"));
+        getProject().setOption("model-split-large-meshes", "true");
+
+        try {
+            buildCollisionObject(makeCollisionObject("TYPE_HULL", "Large", 0, 1));
+            fail("Expected split collision geometry to be rejected");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("was split because it exceeds the vertex limit"));
+        }
+
+        Task meshsetTask = getProject().createTask(getProject().getResource("/mesh.gltf"), MeshsetBuilder.class);
+        MeshSet renderMeshSet = MeshSet.parseFrom(meshsetTask.output(0).getContent());
+        assertEquals(1, renderMeshSet.getSplitModelIndicesCount());
+        assertEquals(0, renderMeshSet.getSplitModelIndices(0));
+        assertEquals(3, meshsetTask.getOutputs().size());
+    }
+
+    @Test
+    public void testSceneAndExternalBufferAreInputsOfMeshsetProducer() throws Exception {
         addFile("/mesh.bin", makeMeshBuffer());
         addFile("/mesh.gltf", makeGltf("mesh.bin", false));
         addFile("/mesh.collisionobject", makeCollisionObject("Ground", 0, 2));
 
-        Task task = getProject().createTask(getProject().getResource("/mesh.collisionobject"), CollisionObjectBuilder.class);
+        Task collisionObjectTask = getProject().createTask(getProject().getResource("/mesh.collisionobject"), CollisionObjectBuilder.class);
+        Task meshsetTask = getProject().createTask(getProject().getResource("/mesh.gltf"), MeshsetBuilder.class);
 
-        assertEquals(1, countInputs(task, "mesh.gltf"));
-        assertEquals(1, countInputs(task, "mesh.bin"));
+        assertEquals(1, countInputs(collisionObjectTask, "build/mesh.meshsetc"));
+        assertEquals(0, countInputs(collisionObjectTask, "mesh.gltf"));
+        assertEquals(0, countInputs(collisionObjectTask, "mesh.bin"));
+        assertEquals(2, collisionObjectTask.getInputs().size());
+
+        assertEquals(1, countInputs(meshsetTask, "mesh.gltf"));
+        assertEquals(1, countInputs(meshsetTask, "mesh.bin"));
     }
 
     @Test

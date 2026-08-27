@@ -53,8 +53,8 @@
 
 (defn- model-mesh->collision-primitive [^Modelimporter$Mesh mesh]
   (let [^Modelimporter$Material material (.-material mesh)]
-    (cond-> {:indices (.-indices mesh)
-             :positions (.-positions mesh)
+    (cond-> {:index-count (alength (.-indices mesh))
+             :position-count (alength (.-positions mesh))
              :triangles (= Modelimporter$PrimitiveType/PRIMITIVE_TYPE_TRIANGLES
                            (.-primitiveType mesh))}
       material
@@ -127,7 +127,7 @@
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ModelUtil/getAnimationNames scene) ; sorted on duration (largest first)
         morph-target-texture-collector (ModelUtil/createMorphTargetTextureCollector)]
-    (when-not (empty? bones)
+    (when-not (coll/empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
     (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))

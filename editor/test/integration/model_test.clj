@@ -104,10 +104,28 @@
         (let [scene (g/node-value node-id :scene)]
           (is (= 2 (count (:children scene))))
           (is (= [0.0 0.0 0.0] (:translation (:pose (nth (:children scene) 1))))))
+        (let [mesh-set (get-in (g/node-value mesh-scene-node-id :content) [:mesh-set])
+              renderable-mesh-set (g/node-value mesh-scene-node-id :renderable-mesh-set)]
+          (is (= [0 0 1] (mapv (comp count :meshes) (:raw-models mesh-set))))
+          (is (identical? (get-in renderable-mesh-set [:renderable-models 0 :renderable-meshes])
+                          (get-in renderable-mesh-set [:renderable-raw-models 0 :renderable-meshes]))))
+        (test-util/with-prop [node-id :mesh-name "LeftMesh"]
+          (test-util/with-prop [node-id :mesh-index 0]
+            (let [scene (g/node-value node-id :scene)
+                  selected-model-scene (nth (:children scene) 1)]
+              (is (= [0.0 0.0 0.0] (:translation (:pose selected-model-scene))))
+              (is (pos? (count (:children selected-model-scene)))))))
         (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
           (is (= [2] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))
         (is (coll/empty? (get-in (g/node-value mesh-scene-node-id :mesh-set-build-target)
                                  [:user-data :mesh-set :raw-models]))))
+
+      (testing "a selected mesh with a skeleton uses the selected mesh bounds"
+        (let [skeleton-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.gltf")]
+          (test-util/with-prop [node-id :skeleton skeleton-resource]
+            (let [aabb (:aabb (g/node-value node-id :scene))]
+              (is (= (Point3d. 0.0 0.0 0.0) (types/min-p aabb)))
+              (is (= (Point3d. 1.0 1.0 0.0) (types/max-p aabb)))))))
 
       (testing "an empty selection renders the entire scene and omits the fields"
         (test-util/with-prop [node-id :mesh-name ""]

@@ -72,6 +72,7 @@
 #include <dmsdk/gamesys/components/comp_gui.h>
 #include <dmsdk/gamesys/resources/res_data.h>
 #include <dmsdk/gamesys/resources/res_light.h>
+#include <dmsdk/gamesys/resources/res_model.h>
 
 #include <sound/sound.h>
 
@@ -9907,6 +9908,20 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
     ASSERT_TRUE(found_b);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ModelTest, SelectedMeshUsesInstantiatedMorphModelId)
+{
+    dmGameSystem::ModelResource* model_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/morph_selected.modelc", (void**)&model_resource));
+    ASSERT_NE((dmGameSystem::ModelResource*)0, model_resource);
+    ASSERT_EQ(1u, model_resource->m_Meshes.Size());
+
+    const dmGameSystem::MeshInfo& mesh_info = model_resource->m_Meshes[0];
+    ASSERT_EQ(dmHashString64("MorphSource"), mesh_info.m_Model->m_Id);
+    ASSERT_EQ(dmHashString64("MorphedMesh"), mesh_info.m_MorphModelId);
+
+    dmResource::Release(m_Factory, model_resource);
 }
 
 TEST_F(ModelTest, MorphTargetUniformWeightsSplitInstancedBatches)
