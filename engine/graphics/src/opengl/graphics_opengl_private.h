@@ -65,7 +65,6 @@ namespace dmGraphics
     struct OpenGLTextureBinding
     {
         HTexture m_Texture;
-        Type     m_Type;
         uint8_t  m_TextureIdIndex;
     };
 
@@ -145,6 +144,7 @@ namespace dmGraphics
         ShaderDesc::Language                m_Language;
         dmArray<OpenGLVertexAttribute>      m_Attributes;
         dmArray<OpenGLScratchUniformBuffer> m_UniformBuffers;
+        Type                                m_TextureUnitTypes[DM_MAX_TEXTURE_UNITS];
     };
 
     /*

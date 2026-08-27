@@ -3003,7 +3003,7 @@ static void LogFrameBufferError(GLenum status)
                 bool bind_as_texture = true;
                 if (tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
-                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, binding.m_Type, false);
+                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, context->m_CurrentProgram->m_TextureUnitTypes[unit], false);
                 }
 
                 if (bind_as_texture)
@@ -4128,6 +4128,7 @@ static void LogFrameBufferError(GLenum status)
             BuildAttributes(program);
         }
 
+        memset(program->m_TextureUnitTypes, 0, sizeof(program->m_TextureUnitTypes));
         return true;
     }
 
@@ -4299,14 +4300,20 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
 
-        OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
-        binding.m_Type = TYPE_BYTE;
+        if (unit < 0 || unit >= DM_MAX_TEXTURE_UNITS)
+        {
+            dmLogError("Texture unit %d is out of range [0, %d).", unit, DM_MAX_TEXTURE_UNITS);
+            return;
+        }
+
+        Type& texture_unit_type = context->m_CurrentProgram->m_TextureUnitTypes[unit];
+        texture_unit_type = TYPE_BYTE;
         for (uint32_t i = 0; i < context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size(); ++i)
         {
             const Uniform& uniform = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i];
             if (uniform.m_Location == location)
             {
-                binding.m_Type = uniform.m_Type;
+                texture_unit_type = uniform.m_Type;
                 break;
             }
         }
@@ -5677,7 +5684,6 @@ static void LogFrameBufferError(GLenum status)
         // Note: We just store the binding here. Binding the actual gl handle is done before rendering!
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
         binding.m_Texture = texture;
-        binding.m_Type = TYPE_BYTE;
         binding.m_TextureIdIndex = id_index;
     }
 
@@ -5691,7 +5697,6 @@ static void LogFrameBufferError(GLenum status)
         //       from the wrong texture (which all other adapters also do).
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
         binding.m_Texture = 0x0;
-        binding.m_Type = TYPE_BYTE;
         binding.m_TextureIdIndex = 0;
     }
 
