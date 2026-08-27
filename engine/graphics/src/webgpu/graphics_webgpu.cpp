@@ -447,6 +447,23 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
     }
 }
 
+static WGPUTextureView WebGPUCreateCubeMapFaceView(WebGPUTexture* texture, uint32_t face)
+{
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUTextureViewDescriptor desc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+#else
+    WGPUTextureViewDescriptor desc = {};
+#endif
+    desc.format          = texture->m_Format;
+    desc.dimension       = WGPUTextureViewDimension_2D;
+    desc.baseMipLevel    = 0;
+    desc.mipLevelCount   = 1;
+    desc.baseArrayLayer  = face;
+    desc.arrayLayerCount = 1;
+    desc.aspect          = WGPUTextureAspect_All;
+    return wgpuTextureCreateView(texture->m_Texture, &desc);
+}
+
 static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams& params)
 {
     switch (params.m_Format)
@@ -1709,7 +1726,9 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float
         colorAttachments[i].depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
         {
             WebGPUTexture* texture   = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_Base.m_TextureColor[i]);
-            colorAttachments[i].view = texture->m_TextureView;
+            colorAttachments[i].view = context->m_CurrentRenderPass.m_Target->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP
+                ? context->m_CurrentRenderPass.m_Target->m_CubeMapColorViews[context->m_CurrentRenderPass.m_Target->m_Base.m_CubeMapFace][i]
+                : texture->m_TextureView;
         }
         if (context->m_CurrentRenderPass.m_Target->m_TextureResolve[i])
         {
@@ -1767,7 +1786,9 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float
     {
         WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_Base.m_TextureDepthStencil);
         if(texture->m_TextureView) {
-            dsAttachment.view                  = texture->m_TextureView;
+            dsAttachment.view                  = context->m_CurrentRenderPass.m_Target->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP
+                ? context->m_CurrentRenderPass.m_Target->m_CubeMapDepthStencilViews[context->m_CurrentRenderPass.m_Target->m_Base.m_CubeMapFace]
+                : texture->m_TextureView;
             dsAttachment.depthStoreOp          = WGPUStoreOp_Store;
             if (clear_depth) {
                 dsAttachment.depthLoadOp       = WGPULoadOp_Clear;
@@ -3321,6 +3342,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
     rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ? params.m_DepthBufferParams : params.m_StencilBufferParams;
     rt->m_Base.m_SampleCount               = ConformRenderTargetSampleCount(params.m_SampleCount, 1, "WebGPU");
+    rt->m_Base.m_TextureType               = params.m_TextureType;
 
     // colors
     const BufferType color_buffer_flags[] = {
@@ -3341,6 +3363,13 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
                 WebGPUTexture* texture    = WebGPUNewTextureInternal(params.m_ColorBufferCreationParams[i]);
                 texture->m_Base.m_Format = rt->m_Base.m_ColorTextureParams[i].m_Format;
                 WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(rt->m_Base.m_ColorTextureParams[i].m_Format), 1, 1, g_rendertarget_usage);
+                if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+                {
+                    for (uint32_t face = 0; face < CUBEMAP_FACE_COUNT; ++face)
+                    {
+                        rt->m_CubeMapColorViews[face][rt->m_Base.m_ColorAttachmentCount] = WebGPUCreateCubeMapFaceView(texture, face);
+                    }
+                }
                 SetTextureResourceSize(&texture->m_Base, sizeof(WebGPUTexture));
                 rt->m_Base.m_TextureColor[rt->m_Base.m_ColorAttachmentCount] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
                 if (!rt->m_Width)
@@ -3377,6 +3406,13 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         }
         assert(texture);
         WebGPURealizeTexture(texture, format, 1, 1, WGPUTextureUsage_RenderAttachment);
+        if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            for (uint32_t face = 0; face < CUBEMAP_FACE_COUNT; ++face)
+            {
+                rt->m_CubeMapDepthStencilViews[face] = WebGPUCreateCubeMapFaceView(texture, face);
+            }
+        }
         SetTextureResourceSize(&texture->m_Base, sizeof(WebGPUTexture));
         rt->m_Base.m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
         if (!rt->m_Width)
@@ -3395,6 +3431,16 @@ static void WebGPUDestroyRenderTarget(WebGPURenderTarget *rt)
 {
     TRACE_CALL;
     HContext context = (HContext)g_WebGPUContext;
+    for (uint32_t face = 0; face < CUBEMAP_FACE_COUNT; ++face)
+    {
+        for (uint32_t color = 0; color < MAX_BUFFER_COLOR_ATTACHMENTS; ++color)
+        {
+            if (rt->m_CubeMapColorViews[face][color])
+                wgpuTextureViewRelease(rt->m_CubeMapColorViews[face][color]);
+        }
+        if (rt->m_CubeMapDepthStencilViews[face])
+            wgpuTextureViewRelease(rt->m_CubeMapDepthStencilViews[face]);
+    }
     for (size_t i = 0; i < rt->m_Base.m_ColorAttachmentCount; ++i)
     {
         if (rt->m_Base.m_TextureColor[i])
@@ -3415,15 +3461,19 @@ static void WebGPUDeleteRenderTarget(HContext context, HRenderTarget _rt)
     g_WebGPUContext->m_BaseContext.m_AssetHandleContainer.Release(_rt);
 }
 
-static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, uint32_t transient_buffer_types)
+static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, const RenderTargetBindingParams& params)
 {
     TRACE_CALL;
-    (void)transient_buffer_types;
     assert(_context);
     WebGPUContext* context         = (WebGPUContext*)_context;
     WebGPURenderTarget* rt         = GetAssetFromContainer<WebGPURenderTarget>(context->m_BaseContext.m_AssetHandleContainer, _rt);
+    rt = rt ? rt : context->m_MainRenderTarget;
+    if (context->m_CurrentRenderTarget == rt && rt->m_Base.m_CubeMapFace == params.m_CubeMapFace)
+        return;
+    WebGPUEndRenderPass(context);
+    rt->m_Base.m_CubeMapFace       = params.m_CubeMapFace;
     context->m_ViewportChanged     = 1;
-    context->m_CurrentRenderTarget = rt ? rt : context->m_MainRenderTarget;
+    context->m_CurrentRenderTarget = rt;
 }
 
 static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)

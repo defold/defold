@@ -2442,6 +2442,8 @@ form.label.render.render-resources.name = Name
 form.label.render.render-resources.resource = Resource
 
 form.label.render-target = Render Target
+form.label.render-target.type = Texture Type
+form.help.render-target.type = Selects the texture type used by every render-target attachment. Cubemaps are rendered one face at a time and must be sampled using a `samplerCube`.
 form.label.render-target.color-attachments = Color Attachments
 form.help.render-target.color-attachments = Defines the color textures that receive rendered output. Each row creates one attachment with its own size and pixel format. Use matching dimensions for all attachments for portability across graphics backends. Up to `4` are supported.
 form.label.render-target.color-attachments.width = Width
@@ -2699,6 +2701,8 @@ error.property-must-be-at-least = "{property}" must be at least {min}.
 error.property-must-be-at-most = "{property}" must be at most {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" cannot have more than {max} color attachments.
 error.render-target.sample-count-must-be-supported = Sample count must be one of 1, 2, 4, 8, or 16.
+error.render-target.cubemap-sample-count-must-be-one = Cubemap render targets only support a sample count of 1.
+error.render-target.cubemap-attachments-must-be-square-and-equal = Cubemap render-target attachments must be square and have identical dimensions.
 error.render-target.color-attachment-width-must-be-greater-than-zero = Color attachment {index} must have a width greater than zero.
 error.render-target.color-attachment-height-must-be-greater-than-zero = Color attachment {index} must have a height greater than zero.
 error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is = Incorrect depth/stencil attachment: width is greater than zero, but height is zero.

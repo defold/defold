@@ -114,7 +114,7 @@ namespace dmGraphics
     typedef void (*SetPolygonOffsetFn)(HContext context, float factor, float units);
     typedef HRenderTarget (*NewRenderTargetFn)(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
     typedef void (*DeleteRenderTargetFn)(HContext context, HRenderTarget render_target);
-    typedef void (*SetRenderTargetFn)(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    typedef void (*SetRenderTargetFn)(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params);
     typedef void (*SetRenderTargetSizeFn)(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height);
     typedef HTexture (*NewTextureFn)(HContext context, const TextureCreationParams& params);
     typedef void (*DeleteTextureFn)(HContext context, HTexture t);

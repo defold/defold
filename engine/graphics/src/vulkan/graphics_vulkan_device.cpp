@@ -1555,6 +1555,20 @@ bail:
     void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle)
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
+        for (uint32_t i = 0; i < CUBEMAP_FACE_COUNT - 1; ++i)
+        {
+            DestroyFrameBuffer(vk_device, handle->m_CubeMapFramebuffers[i]);
+        }
+        for (uint32_t face = 0; face < CUBEMAP_FACE_COUNT; ++face)
+        {
+            for (uint32_t attachment = 0; attachment < MAX_BUFFER_COLOR_ATTACHMENTS + 1; ++attachment)
+            {
+                if (handle->m_CubeMapAttachmentViews[face][attachment] != VK_NULL_HANDLE)
+                {
+                    vkDestroyImageView(vk_device, handle->m_CubeMapAttachmentViews[face][attachment], 0);
+                }
+            }
+        }
         DestroyRenderPass(vk_device, handle->m_RenderPass);
         // Only destroy CLEAR variants if they are distinct objects. For the main RT both alias
         // context->m_MainRenderPass, which is destroyed by the context teardown instead.

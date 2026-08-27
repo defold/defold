@@ -1970,6 +1970,13 @@ namespace dmGraphics
         const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
         return rt ? GetDefaultSampleCount(rt->m_SampleCount) : 0;
     }
+    TextureType GetRenderTargetTextureType(HContext context, HRenderTarget render_target)
+    {
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
+        return rt ? rt->m_TextureType : TEXTURE_TYPE_2D;
+    }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
         GraphicsContext* gc = (GraphicsContext*)context;
@@ -2332,7 +2339,62 @@ namespace dmGraphics
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
+        if (params.m_TextureType != TEXTURE_TYPE_2D && params.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
+        {
+            dmLogError("Render target texture type %s is not supported.", GetTextureTypeLiteral(params.m_TextureType));
+            return 0;
+        }
+
+        RenderTargetCreationParams normalized_params = params;
+        if (params.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            uint32_t target_size = 0;
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if ((buffer_type_flags & (BUFFER_TYPE_COLOR0_BIT << i)) == 0)
+                    continue;
+
+                TextureParams& texture_params = normalized_params.m_ColorBufferParams[i];
+                if (texture_params.m_Width == 0 || texture_params.m_Width != texture_params.m_Height || (target_size != 0 && target_size != texture_params.m_Width))
+                {
+                    dmLogError("Cubemap render target attachments must be non-zero, square, and equally sized.");
+                    return 0;
+                }
+                target_size = texture_params.m_Width;
+                normalized_params.m_ColorBufferCreationParams[i].m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                normalized_params.m_ColorBufferCreationParams[i].m_LayerCount = CUBEMAP_FACE_COUNT;
+                texture_params.m_LayerCount                                   = CUBEMAP_FACE_COUNT;
+            }
+
+            TextureParams* depth_stencil_params = 0;
+            if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
+                depth_stencil_params = &normalized_params.m_DepthBufferParams;
+            else if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
+                depth_stencil_params = &normalized_params.m_StencilBufferParams;
+
+            if (depth_stencil_params)
+            {
+                if (depth_stencil_params->m_Width == 0 || depth_stencil_params->m_Width != depth_stencil_params->m_Height || (target_size != 0 && target_size != depth_stencil_params->m_Width))
+                {
+                    dmLogError("Cubemap render target attachments must be non-zero, square, and equally sized.");
+                    return 0;
+                }
+
+                if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
+                {
+                    normalized_params.m_DepthBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                    normalized_params.m_DepthBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
+                    normalized_params.m_DepthBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+                }
+                if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
+                {
+                    normalized_params.m_StencilBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                    normalized_params.m_StencilBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
+                    normalized_params.m_StencilBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+                }
+            }
+        }
+        return g_functions.m_NewRenderTarget(context, buffer_type_flags, normalized_params);
     }
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
@@ -2340,10 +2402,32 @@ namespace dmGraphics
     }
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
-        g_functions.m_SetRenderTarget(context, render_target, transient_buffer_types);
+        RenderTargetBindingParams params = {};
+        params.m_TransientBufferTypes = transient_buffer_types;
+        SetRenderTarget(context, render_target, params);
+    }
+    void SetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params)
+    {
+        if (params.m_CubeMapFace < CUBEMAP_FACE_POSITIVE_X || params.m_CubeMapFace >= CUBEMAP_FACE_COUNT)
+        {
+            dmLogError("Invalid cubemap render-target face: %d.", params.m_CubeMapFace);
+            return;
+        }
+        if (params.m_CubeMapFace != CUBEMAP_FACE_POSITIVE_X &&
+            (!render_target || GetRenderTargetTextureType(context, render_target) != TEXTURE_TYPE_CUBE_MAP))
+        {
+            dmLogError("A cubemap face can only be selected on a cubemap render target.");
+            return;
+        }
+        g_functions.m_SetRenderTarget(context, render_target, params);
     }
     void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        if (GetRenderTargetTextureType(context, render_target) == TEXTURE_TYPE_CUBE_MAP && width != height)
+        {
+            dmLogError("Cubemap render target dimensions must be square.");
+            return;
+        }
         g_functions.m_SetRenderTargetSize(context, render_target, width, height);
     }
     bool IsTextureFormatSupported(HContext context, TextureFormat format)

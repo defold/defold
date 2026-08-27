@@ -328,6 +328,13 @@ namespace dmScript
      * @constant
      */
 
+    /*# @name graphics.CUBEMAP_FACE_POSITIVE_X @constant */
+    /*# @name graphics.CUBEMAP_FACE_NEGATIVE_X @constant */
+    /*# @name graphics.CUBEMAP_FACE_POSITIVE_Y @constant */
+    /*# @name graphics.CUBEMAP_FACE_NEGATIVE_Y @constant */
+    /*# @name graphics.CUBEMAP_FACE_POSITIVE_Z @constant */
+    /*# @name graphics.CUBEMAP_FACE_NEGATIVE_Z @constant */
+
     /*#
      * @name graphics.TEXTURE_TYPE_IMAGE_2D
      * @constant
@@ -1021,6 +1028,13 @@ namespace dmScript
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
+
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_POSITIVE_X);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_NEGATIVE_X);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_POSITIVE_Y);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_NEGATIVE_Y);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_POSITIVE_Z);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_NEGATIVE_Z);
 
         if (graphics_context && dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
         {

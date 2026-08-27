@@ -66,6 +66,7 @@ namespace dmRender
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
     #define RENDER_SCRIPT_FLAGS_NAME "flags"
     #define RENDER_SCRIPT_SAMPLE_COUNT_NAME "sample_count"
+    #define RENDER_SCRIPT_TEXTURE_TYPE_NAME "type"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
@@ -847,6 +848,12 @@ namespace dmRender
      * @name render.render_target
      * @param name [type:string] render target name
      * @param parameters [type:table] table of buffer parameters, see the description for available keys and values
+     *
+     * `type`
+     * : [type:number] Target-wide texture type. Supported values are `graphics.TEXTURE_TYPE_2D` (default) and `graphics.TEXTURE_TYPE_CUBE_MAP`.
+     *
+     * `sample_count`
+     * : [type:number] Requested sample count shared by all attachments. Defaults to 1 and is normalized to a value supported by the graphics adapter.
      * @return render_target [type:render_target] new render target
      * @examples
      *
@@ -951,6 +958,18 @@ namespace dmRender
                     return DM_LUA_ERROR("Invalid render target sample count: %d. Sample count must be greater than 0.", (int) sample_count);
                 }
                 params.m_SampleCount = (uint32_t) sample_count;
+                lua_pop(L, 1);
+                continue;
+            }
+            if (lua_type(L, -2) == LUA_TSTRING && strcmp(lua_tostring(L, -2), RENDER_SCRIPT_TEXTURE_TYPE_NAME) == 0)
+            {
+                dmGraphics::TextureType texture_type = (dmGraphics::TextureType) luaL_checkinteger(L, -1);
+                if (texture_type != dmGraphics::TEXTURE_TYPE_2D && texture_type != dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+                {
+                    lua_pop(L, 2);
+                    return DM_LUA_ERROR("Invalid render target texture type: %d. Expected graphics.TEXTURE_TYPE_2D or graphics.TEXTURE_TYPE_CUBE_MAP.", (int) texture_type);
+                }
+                params.m_TextureType = texture_type;
                 lua_pop(L, 1);
                 continue;
             }
@@ -1096,12 +1115,11 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
-        assert(dmGraphics::GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
-
         if (render_target == 0)
         {
             return DM_LUA_ERROR("Unable to create render target.");
         }
+        assert(dmGraphics::GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
 
         lua_pushnumber(L, render_target);
 
@@ -1214,6 +1232,16 @@ namespace dmRender
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
+     * `face`
+     * : [type:number] Cubemap face selected for rendering. This option is valid only for cubemap render targets and defaults to `graphics.CUBEMAP_FACE_POSITIVE_X`.
+     *
+     * - `graphics.CUBEMAP_FACE_POSITIVE_X`
+     * - `graphics.CUBEMAP_FACE_NEGATIVE_X`
+     * - `graphics.CUBEMAP_FACE_POSITIVE_Y`
+     * - `graphics.CUBEMAP_FACE_NEGATIVE_Y`
+     * - `graphics.CUBEMAP_FACE_POSITIVE_Z`
+     * - `graphics.CUBEMAP_FACE_NEGATIVE_Z`
+     *
      * @examples
      *
      * How to set a render target and draw to it and then switch back to the default render target
@@ -1261,6 +1289,8 @@ namespace dmRender
         }
 
         uint32_t transient_buffer_types = 0;
+        dmGraphics::CubeMapFace cube_map_face = dmGraphics::CUBEMAP_FACE_POSITIVE_X;
+        bool has_explicit_face = false;
         if (lua_gettop(L) > 1)
         {
             luaL_checktype(L, 2, LUA_TTABLE);
@@ -1275,10 +1305,29 @@ namespace dmRender
                     lua_pop(L, 1);
                 }
             }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "face");
+            if (!lua_isnil(L, -1))
+            {
+                int face = luaL_checkint(L, -1);
+                if (face < dmGraphics::CUBEMAP_FACE_POSITIVE_X || face >= dmGraphics::CUBEMAP_FACE_COUNT)
+                {
+                    lua_pop(L, 2);
+                    return DM_LUA_ERROR("Invalid cubemap face: %d.", face);
+                }
+                cube_map_face = (dmGraphics::CubeMapFace) face;
+                has_explicit_face = true;
+            }
             lua_pop(L, 2);
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types)))
+        if (has_explicit_face && (render_target == 0 || dmGraphics::GetRenderTargetTextureType(i->m_RenderContext->m_GraphicsContext, render_target) != dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+        {
+            return DM_LUA_ERROR("The 'face' option can only be used with a cubemap render target.");
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types, cube_map_face)))
             return 0;
         else
             return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1288,6 +1337,7 @@ namespace dmRender
      *
      * Sets the render target size for a render target created from
      * either a render script, or from a render target resource.
+     * Cubemap render targets require equal width and height.
      *
      * @name render.set_render_target_size
      * @param render_target [type:render_target] render target to set size for
@@ -1304,12 +1354,17 @@ namespace dmRender
      */
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         lua_Integer width = luaL_checkinteger(L, 2);
         lua_Integer height = luaL_checkinteger(L, 3);
 
         CheckRenderTargetSize(L, i, width, height);
+        if (dmGraphics::GetRenderTargetTextureType(i->m_RenderContext->m_GraphicsContext, render_target) == dmGraphics::TEXTURE_TYPE_CUBE_MAP && width != height)
+        {
+            return DM_LUA_ERROR("Cubemap render target dimensions must be square.");
+        }
         dmGraphics::SetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, (uint32_t) width, (uint32_t) height);
         return 0;
     }
