@@ -392,7 +392,7 @@ function M.get_commands()
                 print("Collision object initial state:")
                 print_collision_object(collision)
 
-                print("Transaction: add 3 shapes")
+                print("Transaction: add 5 shapes")
                 editor.transact({
                     editor.tx.set(collision, "collision_type", "collision-object-type-static"),
                     editor.tx.add(collision, "shapes", {
@@ -406,10 +406,18 @@ function M.get_commands()
                     editor.tx.add(collision, "shapes", {
                         id = "capsule",
                         type = "shape-type-capsule"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "hull",
+                        type = "shape-type-hull"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "mesh",
+                        type = "shape-type-mesh"
                     })
                 })
 
-                print("After transaction (add 3 shapes):")
+                print("After transaction (add 5 shapes):")
                 print_collision_object(collision)
 
                 print("Transaction: clear")

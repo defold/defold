@@ -688,7 +688,7 @@
       :else
       nil)))
 
-(g/defnode MeshShape
+(g/defnode MeshSourceShape
   (inherits Shape)
 
   (display-order [Shape])
@@ -700,6 +700,12 @@
               (validate-image-id _node-id id id-counts)
               (mesh-shape-selection-error _node-id shape-type mesh-scene mesh-name mesh-index collision-meshes))))
   (output shape-data g/Any (g/constantly [])))
+
+(g/defnode HullShape
+  (inherits MeshSourceShape))
+
+(g/defnode MeshShape
+  (inherits MeshSourceShape))
 
 (defn- resolve-shape-node-outline-key [evaluation-context parent-node shape-node]
   (let [type-label (:label (shape-type-ui (g/node-value shape-node :shape-type evaluation-context)))
@@ -756,7 +762,7 @@
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape
-                    :type-hull MeshShape
+                    :type-hull HullShape
                     :type-mesh MeshShape)
         node-props (dissoc shape :index :count :id-hash)]
     (g/make-nodes
@@ -1125,6 +1131,7 @@
 (node-types/register-node-type-name! SphereShape "shape-type-sphere")
 (node-types/register-node-type-name! BoxShape "shape-type-box")
 (node-types/register-node-type-name! CapsuleShape "shape-type-capsule")
+(node-types/register-node-type-name! HullShape "shape-type-hull")
 (node-types/register-node-type-name! MeshShape "shape-type-mesh")
 
 (defn- sanitize-collision-object [collision-object-desc]
@@ -1137,6 +1144,7 @@
       :add {SphereShape attach-shape-node
             BoxShape attach-shape-node
             CapsuleShape attach-shape-node
+            HullShape attach-shape-node
             MeshShape attach-shape-node}
       :get attachment/nodes-getter)
     (resource-node/register-ddf-resource-type workspace
