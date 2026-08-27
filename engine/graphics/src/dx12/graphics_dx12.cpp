@@ -1444,12 +1444,8 @@ namespace dmGraphics
         const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t layer_base, uint32_t layer_count,
         const uint8_t* pixels, uint8_t* upload_data)
     {
-        // The source (pixels) is tightly packed at the *requested update extent* — for a sub-update
-        // that is the sub-rectangle (params.m_Width/m_Height), not the full subresource. Derive the
-        // source row pitch and row count from that extent, block-aware. (Using the full-subresource
-        // footprint here would overread a sub-rectangle source; a per-pixel byte size is meaningless
-        // for BC formats where BC1/BC4 would truncate to 0 bytes-per-pixel.) The destination pitch
-        // still comes from the footprint; CopyTextureRegion places this top-left block at m_X,m_Y.
+        // The source is packed at the requested update extent (the sub-rectangle for a sub-update),
+        // not at the full subresource, so deriving its pitch from the footprint would overread it.
         uint32_t src_row_pitch;
         uint32_t src_rows;
         TextureFormatCompressedBlockSize block_size;
@@ -1469,8 +1465,6 @@ namespace dmGraphics
         {
             const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[layer_base + i];
             const uint64_t dstRowPitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded), full width
-            // Same reasoning as the row count above: a sub-update source only holds the requested
-            // depth extent, so walking the full subresource depth here would overread it.
             const uint32_t depth = params.m_SubUpdate ? dmMath::Max((uint32_t) 1, (uint32_t) params.m_Depth) : layout.Footprint.Depth;
 
             uint8_t* dst = upload_data + layout.Offset;
@@ -1555,9 +1549,7 @@ namespace dmGraphics
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = {};
         uint64_t total_upload_size = 0;
 
-        // Calculate offset/footprint per array slice. We only need the placed footprint (dest layout)
-        // and the total byte size here; the source pitch/rows are derived from the update extent in
-        // CopyTextureDataMipmapLevel, so pNumRows / pRowSizeInBytes are not requested.
+        // Calculate offset/footprint per array slice
         for (uint32_t array = 0; array < tex_layer_count; ++array)
         {
             const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, tex_layer_count);
@@ -1599,17 +1591,13 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**)&upload_data);
         CHECK_HR_ERROR(hr);
 
-        // A sub-update's source holds only the slice(s) being updated (m_LayerCount, typically a
-        // single page) and targets the array slice at m_Slice. Walking the full array here would
-        // read past the end of the source, and would splat the remaining pages with whatever
-        // happens to be in the (uninitialized) upload heap.
+        // A sub-update's source holds only the slices at m_Slice. Walking the full array would read
+        // past its end, and splat the other pages with whatever is in the uninitialized upload heap.
         const uint32_t layer_base  = params.m_SubUpdate ? dmMath::Min((uint32_t) params.m_Slice, subresource_count - 1) : 0;
         const uint32_t layer_count = params.m_SubUpdate ?
             dmMath::Min((uint32_t) dmMath::Max((uint8_t) 1, params.m_LayerCount), subresource_count - layer_base) :
             subresource_count;
 
-        // The destination footprint (fp) is for the full subresource; the copy helper derives the
-        // source pitch/rows from the requested update extent so a sub-update doesn't overread.
         CopyTextureDataMipmapLevel(params, format, fp, layer_base, layer_count, pixels, upload_data);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
@@ -1629,7 +1617,7 @@ namespace dmGraphics
             texture->m_ResourceStates[target_mip] = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
-        // Copy per array slice - only the slices the source actually provided data for
+        // Copy per array slice
         for (uint32_t i = 0; i < layer_count; ++i)
         {
             const uint32_t array            = layer_base + i;

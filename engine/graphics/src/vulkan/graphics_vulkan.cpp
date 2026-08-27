@@ -5009,15 +5009,8 @@ bail:
 
         if (!memoryless)
         {
-            // Size the upload via the shared block-aware helper instead of a local bits-per-pixel
-            // calculation. This is correct for compressed formats too (BC/ETC/ASTC/PVRTC), where a
-            // bits-per-pixel value is meaningless and would truncate BC1/BC4 to 0. format_orig==RGB
-            // is expanded to RGBA above, so size against RGBA in that case. params.m_Width/m_Height
-            // is the requested extent (the sub-rectangle for a sub-update), matching the packed source.
-            //
-            // The source only holds the requested extent, so a sub-update must be sized against the
-            // update depth and not the full texture depth - the copy regions below use params.m_Depth
-            // as the extent, and over-sizing here would read past the end of the source buffer.
+            // RGB is expanded to RGBA above, so size against RGBA. A sub-update's source only holds
+            // the requested extent, so it must be sized against the update depth, not the texture's.
             TextureFormat tex_format = (format_orig == TEXTURE_FORMAT_RGB) ? TEXTURE_FORMAT_RGBA : params.m_Format;
             uint16_t upload_depth    = params.m_SubUpdate ? params_depth : tex_depth;
             uint32_t tex_data_size   = GetTextureFormatDataSize(tex_format, params.m_Width, params.m_Height) * upload_depth * tex_layer_count;
@@ -5173,11 +5166,7 @@ bail:
             uint8_t* temp_data        = 0;
             bool is_memoryless        = IsTextureMemoryless(tex);
 
-            // Size the upload via the shared block-aware helper instead of a local bits-per-pixel
-            // calculation. This is correct for compressed formats too (BC/ETC/ASTC/PVRTC), where a
-            // bits-per-pixel value is meaningless. format_orig==RGB is expanded to RGBA below, so
-            // size against RGBA in that case. As in the synchronous path, a sub-update source only
-            // holds the requested extent, so it must be sized against the update depth.
+            // Sized like the synchronous path above
             TextureFormat eff_format = (format_orig == TEXTURE_FORMAT_RGB) ? TEXTURE_FORMAT_RGBA : ap.m_Params.m_Format;
             uint16_t upload_depth    = ap.m_Params.m_SubUpdate ? params_depth : tex_depth;
             uint32_t tex_data_size   = GetTextureFormatDataSize(eff_format, ap.m_Params.m_Width, ap.m_Params.m_Height) * upload_depth * tex_layer_count;
@@ -5195,7 +5184,6 @@ bail:
 
                     RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, temp_data);
                     tex_data_ptr  = temp_data;
-                    // tex_data_size already accounts for the RGB->RGBA expansion (sized as RGBA above).
                 }
 
                 TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);

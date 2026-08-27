@@ -59,7 +59,6 @@ namespace dmGraphics
             size = texture->m_Mip0ResourceSize;
             if (size == 0)
             {
-                // Block-aware size (also covers compressed formats, where bits-per-pixel is undefined).
                 size = dmMath::Max(1U, GetTextureFormatDataSize(texture->m_Format, texture->m_Width, texture->m_Height));
             }
         }
@@ -386,7 +385,7 @@ namespace dmGraphics
 
     uint32_t                   GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     bool                       GetTextureFormatCompressedBlockSize(TextureFormat format, TextureFormatCompressedBlockSize* out);
-    uint32_t                   GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height); // Size of one image slice, for both compressed and uncompressed formats
+    uint32_t                   GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height); // Size of one image slice, compressed or not
     uint32_t                   GetGraphicsTypeDataSize(Type type);
     void                       InstallAdapterVendor();
     PipelineState              GetDefaultPipelineState();

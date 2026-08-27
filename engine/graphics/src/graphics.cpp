@@ -792,8 +792,7 @@ namespace dmGraphics
         default: break;
         }
 
-        // Bits-per-pixel is only defined for uncompressed formats. Compressed formats (ETC/BC/ASTC/
-        // PVRTC) must be sized via GetTextureFormatDataSize / GetTextureFormatCompressedBlockSize.
+        // Compressed formats have no meaningful bits-per-pixel, use GetTextureFormatDataSize()
         if (IsTextureFormatCompressed(format))
         {
             assert(false && "GetTextureFormatBitsPerPixel called with a compressed format");
@@ -866,9 +865,7 @@ namespace dmGraphics
 
     uint32_t GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height)
     {
-        // Block compressed formats store whole blocks, so the size can't be derived from a
-        // bits-per-pixel value (GetTextureFormatBitsPerPixel only covers uncompressed formats,
-        // and ASTC has no meaningful bpp at all). Partial blocks are padded to a full block.
+        // Partial blocks are padded to a full block
         TextureFormatCompressedBlockSize block_size;
         if (GetTextureFormatCompressedBlockSize(format, &block_size))
         {
@@ -877,14 +874,9 @@ namespace dmGraphics
             return block_columns * block_rows * block_size.m_ByteSize;
         }
 
-        // PVRTC does not fit the simple whole-block scheme: dimensions are rounded up to a
-        // multiple of 4 and clamped to a hardware minimum before packing.
-        //
-        // The 4bpp formulas mirror the authoritative size the transcoder computes (see the
-        // cTFPVRTC1_4_* case in graphics_transcoder_basisu.cpp). The 2bpp variants have no producer
-        // today - the transcoder maps no format to a 2bpp basis format and texc doesn't emit one -
-        // so those are derived from the IMG_texture_compression_pvrtc spec instead, and exist so
-        // that every format IsTextureFormatCompressed() accepts has a defined size here.
+        // PVRTC rounds dimensions up to a multiple of 4 and clamps to a hardware minimum. The 4bpp
+        // formulas match the transcoder (cTFPVRTC1_4_* in graphics_transcoder_basisu.cpp); the 2bpp
+        // ones have no producer today and follow the IMG_texture_compression_pvrtc spec.
         switch (format)
         {
             case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
@@ -905,9 +897,7 @@ namespace dmGraphics
                 break;
         }
 
-        // Accumulate in 64 bits: width * height * bits-per-pixel overflows a uint32 well inside the
-        // supported texture size range (8192x8192 RGBA32F is already 2^33 bits, and GetMaxTextureSize
-        // reports 16384 on desktop GL/Vulkan), which would wrap the size to zero.
+        // 64 bit accumulate, 8192x8192 at 128 bpp already overflows a uint32 count of bits
         return (uint32_t) (((uint64_t) width * height * GetTextureFormatBitsPerPixel(format)) / 8);
     }
 

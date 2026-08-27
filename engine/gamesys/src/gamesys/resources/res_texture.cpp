@@ -155,7 +155,6 @@ namespace dmGameSystem
         }
 
         // Validate data size (this should be true even if a NULL pointer is passed for the data, i.e blank texture)
-        //
         // NOTE! The params.m_Depth is NOT included here. This is because of how the pipeline (and I think, OpenGL adapter is built),
         //       the data size is supposed to be per slice and not the full data size. With this in mind, we unfortunately can't
         //       properly validate 3D textures here. We will have to solve this at some point.

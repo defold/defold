@@ -55,11 +55,9 @@ namespace dmGameSystem
                 mip_map_dimensions[i * 2 + 0] = mm_width;
                 mip_map_dimensions[i * 2 + 1] = mm_height;
 
-                // Calculate the data size per mipmap in bytes.
+                // Calculate the data size per mipmap in bytes
                 // Graphics APIs require that the data size is _per slice_ and not the whole texture.
                 // This is a quirk from how the OpenGL adapter is implemented, and should probably be fixed.
-                // GetTextureFormatDataSize counts whole compressed blocks (and falls back to the
-                // bits-per-pixel value for uncompressed formats), so block-compressed mips are sized correctly.
                 uint32_t data_size_per_slice  = dmGraphics::GetTextureFormatDataSize(params.m_Format, mm_width, mm_height);
                 data_size                    += data_size_per_slice * layer_count;
                 mip_map_data_size[i]          = data_size_per_slice;
@@ -69,10 +67,7 @@ namespace dmGameSystem
             }
             assert(data_size > 0);
 
-            // NOTE: layer_count is already applied per mipmap inside the loop above, so only the
-            //       depth is scaled in here. Applying it twice inflates the blank buffer allocated
-            //       below (6x for a cubemap) and the m_DataSize we report for the image, which
-            //       res_texture.cpp uses to walk between alternatives.
+            // NOTE: layer_count is already applied per mipmap in the loop above
             data_size *= dmMath::Max((uint16_t) 1, mm_depth);
         }
 
@@ -94,7 +89,7 @@ namespace dmGameSystem
         }
         else
         {
-            image_data_size  = data_size; // already in bytes (GetTextureFormatDataSize)
+            image_data_size  = data_size;
             image_data = new uint8_t[image_data_size];
             memset(image_data, 0, image_data_size);
         }

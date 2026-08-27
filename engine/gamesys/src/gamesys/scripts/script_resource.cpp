@@ -1104,10 +1104,22 @@ static int CreateTextureAsync(lua_State* L)
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    // NOTE: No upload buffer is allocated when none was passed in. The adapters zero-fill the
-    //       destination when m_Data is null (see WriteToDeviceBuffer), so a blank texture doesn't
-    //       need us to hand them a blank source to copy from.
-    bool is_transcoded = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
+    // We need to create an empty upload buffer if no explicit buffer is passed. A null m_Data is not
+    // a valid "clear the texture" source: it faults on DX12/WebGPU and leaves garbage on Metal/GL.
+    bool is_transcoded        = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
+    uint8_t* blank_data       = 0;
+    uint32_t blank_slice_size = 0;
+
+    if (create_params.m_Buffer == 0)
+    {
+        // Scaled by faces/layers/depth like MakeTextureImage
+        blank_slice_size    = dmGraphics::GetTextureFormatDataSize(create_params.m_Format, create_params.m_Width, create_params.m_Height);
+        uint32_t num_slices = dmGraphics::GetLayerCount(create_params.m_Type)
+                            * dmMath::Max((uint16_t) 1, create_params.m_Depth)
+                            * dmMath::Max((uint8_t) 1, create_params.m_LayerCount);
+        blank_data          = new uint8_t[blank_slice_size * num_slices];
+        memset(blank_data, 0, blank_slice_size * num_slices);
+    }
 
     // The callback is optional, we don't have to do anything with the result if we don't need to.
     // I.e the upload can be fire-and-forget. There is no way an upload can fail in the graphics system,
@@ -1137,6 +1149,7 @@ static int CreateTextureAsync(lua_State* L)
 
     if (res != dmResource::RESULT_OK)
     {
+        delete[] blank_data; // No request owns it yet
         return ReportPathError(L, res, create_params.m_PathHash);
     }
 
@@ -1163,7 +1176,7 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Buffer            = create_params.m_Buffer;
     request->m_Texture           = 0;
     request->m_PathHash          = create_params.m_PathHash;
-    request->m_RawData           = 0; // Only set for the transcoded path below, which owns the decompressed data
+    request->m_RawData           = blank_data; // Replaced by the decompressed data in the transcoded path below
     request->m_Completed         = 0;
 
     dmGraphics::TextureParams texture_params;
@@ -1180,6 +1193,14 @@ static int CreateTextureAsync(lua_State* L)
     }
 
     dmBuffer::GetBytes(request->m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
+
+    // GetBytes leaves both out-params untouched for a null handle. m_DataSize is per slice, matching
+    // the sync path and the stride the GL adapter walks cube map faces with.
+    if (blank_data)
+    {
+        texture_params.m_Data     = blank_data;
+        texture_params.m_DataSize = blank_slice_size;
+    }
 
     // If the data is transcoded, we need an extra pass here to unpack the data before uploading it
     if (is_transcoded)
