@@ -105,6 +105,8 @@ local function print_collision_object(collision, indent)
         elseif type == "shape-type-capsule" then
             print(("%s  diameter: %s"):format(indent, editor.get(shape, "diameter")))
             print(("%s  height: %s"):format(indent, editor.get(shape, "height")))
+        elseif type == "shape-type-hull" or type == "shape-type-mesh" then
+            assert(editor.can_get(shape, "mesh_scene"))
         end
     end
 end

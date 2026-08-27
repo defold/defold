@@ -906,16 +906,6 @@
           "height" default-capsule-height)
         (attachment->set-tx-steps child-node-id rt project evaluation-context))))
 
-(defmethod init-attachment :editor.collision-object/HullShape [evaluation-context rt project _ _ child-node-id attachment]
-  (concat
-    (g/set-property child-node-id :shape-type :type-hull)
-    (attachment->set-tx-steps attachment child-node-id rt project evaluation-context)))
-
-(defmethod init-attachment :editor.collision-object/MeshShape [evaluation-context rt project _ _ child-node-id attachment]
-  (concat
-    (g/set-property child-node-id :shape-type :type-mesh)
-    (attachment->set-tx-steps attachment child-node-id rt project evaluation-context)))
-
 (defmethod init-attachment :editor.gui/LayerNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (let [layers-node (gui-attachment/scene-node->layers-node (:basis evaluation-context) parent-node-id)]
     (concat

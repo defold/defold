@@ -702,10 +702,16 @@
   (output shape-data g/Any (g/constantly [])))
 
 (g/defnode HullShape
-  (inherits MeshSourceShape))
+  (inherits MeshSourceShape)
+
+  (property shape-type g/Any
+            (default :type-hull)))
 
 (g/defnode MeshShape
-  (inherits MeshSourceShape))
+  (inherits MeshSourceShape)
+
+  (property shape-type g/Any
+            (default :type-mesh)))
 
 (defn- resolve-shape-node-outline-key [evaluation-context parent-node shape-node]
   (let [type-label (:label (shape-type-ui (g/node-value shape-node :shape-type evaluation-context)))
