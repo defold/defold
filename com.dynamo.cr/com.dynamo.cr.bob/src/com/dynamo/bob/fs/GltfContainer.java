@@ -374,7 +374,7 @@ public final class GltfContainer {
 
         final String decodedPath;
         try {
-            URI uri = new URI(rawUri);
+            URI uri = new URI(rawUri.replace(" ", "%20"));
             if (uri.isAbsolute() || uri.getRawAuthority() != null || uri.getRawQuery() != null
                     || uri.getRawFragment() != null) {
                 throw new IOException(String.format("unsupported external URI '%s'", uriForDiagnostic(rawUri)));
@@ -847,7 +847,7 @@ public final class GltfContainer {
     }
 
     private static String normalizedMimeType(String mimeType) {
-        return mimeType == null ? null : mimeType.toLowerCase(Locale.ROOT);
+        return mimeType == null ? null : mimeType.replace("\\/", "/").toLowerCase(Locale.ROOT);
     }
 
     private static String extensionForImage(String mimeType, String uri, byte[] content) throws IOException {

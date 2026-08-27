@@ -372,7 +372,8 @@ bool NeedsResolve(Scene* scene)
 {
     for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
     {
-        if (!scene->m_Buffers[i].m_Buffer)
+        // Metadata-only importers mark geometry-only buffers with zero size.
+        if (scene->m_Buffers[i].m_BufferCount > 0 && !scene->m_Buffers[i].m_Buffer)
             return true;
     }
     return false;

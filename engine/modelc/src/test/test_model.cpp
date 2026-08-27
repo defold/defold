@@ -342,6 +342,31 @@ TEST(ModelGLTF, MaterialsOnlyCanLoadMeshMetadataWithoutGeometry)
     dmModelImporter::DestroyScene(scene);
 }
 
+TEST(ModelGLTF, MaterialsOnlyMeshMetadataIgnoresUnresolvedGeometryBuffers)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":36}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36}],"
+        "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}]"
+        "}";
+
+    dmModelImporter::Options options;
+    options.m_LoadMaterialsOnly = true;
+    options.m_LoadMeshMetadata = true;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
+    ASSERT_EQ(1U, scene->m_Models.Size());
+    ASSERT_EQ(1U, scene->m_Models[0].m_Meshes.Size());
+    ASSERT_EQ(3U, scene->m_Models[0].m_Meshes[0].m_VertexCount);
+    ASSERT_EQ(0U, scene->m_Models[0].m_Meshes[0].m_Positions.Size());
+    dmModelImporter::DestroyScene(scene);
+}
+
 TEST(ModelGLTF, RejectsSparseAnimationAccessors)
 {
     const char* json =

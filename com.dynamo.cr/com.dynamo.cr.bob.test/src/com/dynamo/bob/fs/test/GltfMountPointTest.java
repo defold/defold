@@ -216,8 +216,25 @@ public class GltfMountPointTest {
 
         assertEquals("textures/albedo.png", GltfContainer.resolveExternalResourcePath(
                 "models/robot.gltf", "../textures/albedo.png"));
+        assertEquals("models/Box With Spaces.bin", GltfContainer.resolveExternalResourcePath(
+                "models/robot.gltf", "Box With Spaces.bin"));
         assertExternalResourcePathFails("models/robot.gltf", "../../outside.png");
         assertExternalResourcePathFails("models/robot.gltf", "external.png?cache=1");
+    }
+
+    @Test
+    public void testExternalBufferUriWithSpaces() throws Exception {
+        String embeddedGeometry = "\"uri\":\"data:application/octet-stream;base64,"
+                + GEOMETRY_BUFFER_BASE64 + "\",\"byteLength\":42";
+        String source = gltf("external.png").replace(embeddedGeometry,
+                "\"uri\":\"Box With Spaces.bin\",\"byteLength\":42");
+        fileSystem.addFile("models/Box With Spaces.bin", Base64.getDecoder().decode(GEOMETRY_BUFFER_BASE64));
+        fileSystem.addFile("models/spaces.gltf", source.getBytes(StandardCharsets.UTF_8));
+        fileSystem.addMountPoint(mountPoint);
+
+        GltfContainer container = mountPoint.getContainer("models/spaces.gltf");
+        assertTrue(container.getDiagnostics().isEmpty());
+        assertNotNull(container.getResource("meshes/Mesh 0"));
     }
 
     @Test
@@ -568,6 +585,19 @@ public class GltfMountPointTest {
         assertNull(container.getResource("images/0.png"));
         assertEquals(1, container.getDiagnostics().size());
         assertTrue(container.getDiagnostics().get(0).contains("unsupported image MIME type 'image/webp'"));
+    }
+
+    @Test
+    public void testJsonEscapedSlashInImageMimeType() throws Exception {
+        String source = gltf("external.png").replace(
+                "\"mimeType\":\"image/png\"", "\"mimeType\":\"image\\/png\"");
+        fileSystem.addFile("models/escaped-mime.gltf", source.getBytes(StandardCharsets.UTF_8));
+        fileSystem.addMountPoint(mountPoint);
+
+        GltfContainer container = mountPoint.getContainer("models/escaped-mime.gltf");
+        assertTrue(container.getDiagnostics().isEmpty());
+        assertNotNull(container.getResource("images/0.png"));
+        assertNotNull(container.getResource("images/2.png"));
     }
 
     @Test

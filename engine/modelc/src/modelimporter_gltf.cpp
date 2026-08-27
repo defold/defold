@@ -2130,11 +2130,26 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* dat
     return cgltf_result_success;
 }
 
-static bool HasUnresolvedBuffersInternal(cgltf_data* data)
+static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer)
 {
-    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    if (!data->m_LoadMaterialsOnly)
+        return true;
+
+    for (cgltf_size i = 0; i < data->m_Data->images_count; ++i)
     {
-        if (!data->buffers[i].data)
+        const cgltf_image* image = &data->m_Data->images[i];
+        if (image->buffer_view && image->buffer_view->buffer == buffer)
+            return true;
+    }
+    return false;
+}
+
+static bool HasUnresolvedBuffersInternal(const GltfData* data)
+{
+    for (cgltf_size i = 0; i < data->m_Data->buffers_count; ++i)
+    {
+        const cgltf_buffer* buffer = &data->m_Data->buffers[i];
+        if (IsBufferRequired(data, buffer) && !buffer->data)
             return true;
     }
     return false;
@@ -2142,7 +2157,7 @@ static bool HasUnresolvedBuffersInternal(cgltf_data* data)
 
 bool HasUnresolvedBuffers(Scene* scene)
 {
-    return HasUnresolvedBuffersInternal((cgltf_data*)scene->m_OpaqueSceneData);
+    return HasUnresolvedBuffersInternal((GltfData*)scene->m_OpaqueSceneData);
 }
 
 // As we use names for comparisons and lookups, it's awkward to support items with NULL names
@@ -2437,7 +2452,7 @@ static bool LoadFinalizeGltf(Scene* scene)
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
     if (scene->m_LoadError)
         return false;
-    if (HasUnresolvedBuffersInternal(data->m_Data))
+    if (HasUnresolvedBuffersInternal(data))
     {
         SetLoadError(scene, "glTF buffer data is missing.");
         return false;
@@ -2525,7 +2540,10 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     {
         scene->m_Buffers[i].m_Uri = DuplicateObjectName(&data->buffers[i]);
         scene->m_Buffers[i].m_Buffer = (uint8_t*)data->buffers[i].data;
-        scene->m_Buffers[i].m_BufferCount = data->buffers[i].size;
+        // Metadata-only loads need encoded image buffers, but not geometry buffers.
+        scene->m_Buffers[i].m_BufferCount = IsBufferRequired(scenedata, &data->buffers[i])
+            ? data->buffers[i].size
+            : 0;
     }
 
     if (!NeedsResolve(scene))
