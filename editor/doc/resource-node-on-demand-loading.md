@@ -132,70 +132,191 @@ unmaterialized resource cannot be dirty.
 
 ## Graph topology findings
 
-### The strong encapsulation invariant is not true today
+### Refined isolation rule and audit method
 
-A runtime audit of `test/resources/test_project` found:
+Complete graph encapsulation is not required for first-load deferral. Inputs
+from resource shells or the `Project` node into substructure are expected, and
+the implicit connections introduced by override propagation are part of the
+override mechanism. Two related checks are needed:
+
+> An unmaterialized resource has no substructure. Any explicit connection from
+> one substructure node to another must remain within the same ultimate
+> `ResourceNode` owner. A substructure node may feed its owning shell.
+
+A **global-effect edge** is an explicit connection emitted by a resource
+load-fn from either its resource shell or its owned substructure into an
+ownerless/global node. Examples of global nodes are `Project`, script
+intelligence, editor extensions, and project-wide localization/annotation
+services. These edges are not necessarily ownership violations, but they make
+global state depend on which load-fns have run. `:save-data` registrations are
+temporarily excluded from this category.
+
+This permits a resource load-fn to wire external shell and project outputs into
+newly-created nodes. It also permits the resource's substructure to aggregate
+values back into its own shell. Neither case directly couples the lifetimes of
+two resources' subgraphs.
+
+The runtime audit used `test/resources/save_data_project`, the broad save-data
+fixture containing all editor resource categories. It considered explicit arcs
+between non-override nodes and assigned ownership by recursively following
+explicit connections into `:cascade-delete` inputs. This intentionally excludes
+implicit override-propagation arcs, which are allowed by the rule. It also
+avoids using `owner-resource-node-id` as the sole audit primitive: in the
+presence of overrides, an original node can acquire implicit ownership paths
+that make a first-match traversal misleading.
+
+The loaded fixture contained:
 
 | Item | Count |
 | --- | ---: |
-| Project resource roots | 488 |
-| Total graph nodes after project setup | 1,894 |
-| Resource roots with explicit cascade-owned substructure | 130 |
-| Explicitly cascade-owned nodes below project resource roots | 876 |
-| Explicit cross-owner arcs touching owned nodes | 1,081 |
-| External/resource-root to owned-node arcs | 1,064 |
-| Owned-node to external arcs | 17 |
+| Total nodes in the project graph | 2,295 |
+| Non-override nodes considered by the audit | 2,138 |
+| Override nodes excluded from the explicit-ownership audit | 157 |
+| Resource shells | 1,732 |
+| Concrete resource-shell node types | 61 |
+| Resource shells with original substructure | 42 |
+| Original substructure nodes | 401 |
+| Nodes with ambiguous explicit ownership | 0 |
 
-This is a representative test project snapshot, not a performance benchmark.
-The audit considered explicit arcs between non-override nodes and determined
-ownership by following explicit `:cascade-delete` arcs. Override propagation
-introduces implicit ownership arcs, so `owner-resource-node-id` alone is not a
-reliable topology-audit primitive in a graph containing overrides.
+This is a correctness-oriented topology snapshot, not a load-time benchmark.
+A secondary scan found 129 explicit arcs touching the 157 override nodes.
+Fourteen override nodes had an explicit cascade chain to a resource owner, and
+none of their explicit arcs crossed between the classified owners. The other
+143 derive ownership only through the permitted implicit override mechanism and
+remain outside the base-graph assertion. A production diagnostic should retain
+this separate override-provenance category instead of guessing an owner.
 
-The largest direct subgraphs in this project came from GUI scenes (333 nodes),
-collections (245), atlases (93), game objects (78), and `game.project` (50).
-This indicates meaningful memory and graph-transaction savings are possible
-even before considering override-node expansion.
+### Direct cross-owner isolation holds in the fixture
 
-### Most cross-owner arcs do not prevent first-load deferral
+The explicit arc classification was:
 
-The 1,064 incoming arcs are primarily normal dependency injection:
+| Arc category | Count | Assessment |
+| --- | ---: | --- |
+| Substructure to substructure, same owner | 1,439 | Internal |
+| Substructure to owning resource shell | 1,189 | Internal aggregation |
+| Resource shell to substructure | 728 | Allowed input |
+| `Project` to substructure | 20 | Allowed input |
+| Substructure to substructure, different owners | 0 | Isolation violation |
+| Substructure to foreign resource shell | 0 | Suspicious escape |
+| Substructure to ownerless/global node other than `Project` | 0 | Suspicious escape |
+| Substructure to `Project` | 3 | Global registration; classified below |
 
-- image outputs feed atlas image nodes;
-- atlas, tile source, material, and font outputs feed GUI, sprite, model, and
-  particle substructure;
-- game object and collection outputs feed referenced-instance nodes;
-- project settings feed owned rendering/component nodes.
+The 20 allowed `Project` inputs cover collision-group data, sprite rendering
+defaults, and settings/dependency metadata. The shell inputs are the normal
+resource-reference pattern: a material, image, atlas, game object, or other
+resource shell supplies data to the consumer's owned nodes after those nodes
+have been created.
 
-These arcs are created while the consuming owner is loaded. They do not need to
-exist while that owner is a shell, and their deletion is naturally handled when
-the owned target node is deleted. Therefore a practical first invariant is
-weaker than complete encapsulation:
+The result supports deferring original resource substructure without a broad
+façade refactor. A production invariant checker should use the same categories
+instead of treating every arc that touches substructure as a violation. It
+should report override-propagated arcs separately rather than folding them into
+explicit cross-owner counts.
 
-> An unmaterialized resource has no substructure, and a materialized resource's
-> owned nodes must not publish explicit outputs to nodes outside the owning
-> resource.
+### Load-fn-installed global registrations
 
-This one-way rule is enough for initial deferral. Full root-to-root encapsulation
-would also forbid incoming arcs and would require a broad façade refactor.
+The broader runtime scan starts with explicit arcs whose source is either a
+resource shell or its substructure and whose target has no resource owner. It
+then excludes the universal `:node-id+resource -> Project
+:node-id+resources` shell-registration arcs, removes `:save-data`, and verifies
+the remaining connection sites in source. On `save_data_project`, 52 observed
+arcs across 13 endpoint patterns are installed by resource load-fns:
 
-### The outbound exceptions are project-wide collision groups
+| Source role and type | Source output | Global target input | Count | Installer |
+| --- | --- | --- | ---: | --- |
+| Shell: `LuaNode`, `ScriptNode` | `:breakpoints` | `Project :breakpoints` | 15 | `editor.code.resource/load-fn` |
+| Shell: `LuaNode`, `ScriptNode` | `:required-module-info` | `ScriptIntelligenceNode :required-module-infos` | 11 | `editor.code.script/additional-load-fn` |
+| Shell: `LuaNode` from a dependency archive | `:resource-with-lines` | `ScriptAnnotations :script-annotations` | 8 | `editor.code.script/additional-load-fn` |
+| Shell: `ScriptApiNode` | `:completions` | `ScriptIntelligenceNode :lua-completions` | 5 | `editor.script-api/additional-load-fn` |
+| Shell: file-backed `ScriptApiNode` | `:build-errors` | `ScriptIntelligenceNode :build-errors` | 1 | `editor.script-api/additional-load-fn` |
+| Shell: `CollisionObjectNode` | `:collision-group-node` | `Project :collision-group-nodes` | 2 | `editor.collision-object/load-collision-object` |
+| Substructure: `CollisionGroupNode` | `:collision-group-node` | `Project :collision-group-nodes` | 3 | `editor.tile-source/load-tile-source` via `attach-collision-group-node` |
+| Shell: `GameProperties` | `:proj-path+meta-info` | `Project :proj-path+meta-info-pairs` | 4 | `editor.game-properties/additional-load-fn` |
+| Shell: `EditorLocalizationNode` | `:resource-path+reader-fn` | `EditorLocalizationBundle :resource-path+reader-fns` | 1 | `editor.editor-localization/additional-load-fn` |
+| Shell: `EditorScript` | `:prototype` | `EditorExtensions :project-prototypes` | 1 | `editor.editor-script` additional load-fn |
+| Shell: `EditorScript` | `:reload-signature` | `EditorExtensions :project-reload-signatures` | 1 | `editor.editor-script` additional load-fn |
 
-All 17 real outbound arcs in the audit came from embedded collision-object or
-tile-source collision-group nodes feeding `Project :collision-group-nodes`.
-This is a genuine global effect of materializing substructure.
+The two combined `LuaNode`/`ScriptNode` rows each collapse two
+source-type-specific patterns, so 13 runtime patterns appear as 11 table rows.
+Of the 52 arcs, 49 originate at resource shells and three at tile-source
+substructure. No observed global registration originates at an override node.
+The `EditorScript` loader
+also has conditional `:library-prototypes` and `:library-reload-signatures`
+targets for non-file resources; that branch is a potential global effect but is
+not exercised by this fixture.
 
-With demand loading, the project-wide collision-group set would otherwise be
-incomplete and its stable id/color allocation could change as more resources
-are opened. Initial options are:
+Four additional `GameProjectNode -> Project` connections appear in the runtime
+scan but are not global-effect edges by this definition. They are installed in
+the initial-load prelude by `setup-game-project-tx-data`, before resource
+load-fns run:
 
-- keep collision-group contributors eager;
-- extract a lightweight collision-group summary while reading resource headers;
-- publish a summary through the owning resource root and define whether the
-  project aggregate represents all resources or only materialized resources.
+- `:settings-map -> :settings`
+- `:display-profiles-data -> :display-profiles`
+- `:texture-profiles-data -> :texture-profiles`
+- `:use-font-layout -> :use-font-layout`
 
-The second option gives complete project-wide behavior without retaining full
-resource subgraphs.
+This bootstrap wiring is useful precedent: the global dependency is known while
+`game.project` is still only a shell, so evaluation can discover and
+materialize that shell. By contrast, the 52 load-fn-installed registrations are
+absent before their resources materialize. Any global consumer can therefore
+observe an incomplete contributor set, and cannot discover missing contributors
+by ordinary graph traversal.
+
+### Collision groups demonstrate both shell and substructure effects
+
+The collision-group subsystem accounts for five of the 52 global-effect edges:
+
+- three `TileSource`-owned `CollisionGroupNode` substructure nodes connect
+  `:collision-group-node` to `Project :collision-group-nodes`; and
+- the top-level `CollisionObjectNode` shells for `/checked01.collisionobject`
+  and `/checked02.collisionobject` make the same connection.
+
+The tile-source contributors originate in
+`/builtins/graphics/particle_blob.tilesource`, `/checked.tilesource`, and
+`/checked.tileset`. This fixture has no embedded collision-object component. If
+it did, `load-collision-object` would install the same edge from a
+`CollisionObjectNode` owned as game-object substructure.
+
+`Project :collision-groups-data` fans the five-contributor aggregate out to
+eight targets: three collision-group substructure nodes, three tile-source
+shells, and two collision-object shells.
+
+This is an indirect cross-owner dependency even though there is no direct
+substructure-to-substructure arc:
+
+```text
+resource A substructure
+    -> Project aggregate
+        -> resource B shell or substructure
+```
+
+It creates two issues for on-demand loading:
+
+1. The contributor connections are currently installed by resource load-fns.
+   Before a resource is materialized, the project aggregate does not know that
+   contribution exists and can return an incomplete collision-group set.
+2. If all candidate shells were connected to the aggregate and their summary
+   outputs required materialization, the first collision-group evaluation would
+   materialize every contributor. That is correct but creates a potentially
+   large first-use fan-out.
+
+Potential treatments, in increasing order of retained laziness, are:
+
+- keep contributor-producing resources eager initially, including owners of
+  embedded collision objects;
+- register candidate shells up front and materialize all contributors when the
+  complete aggregate is first requested;
+- extract a lightweight collision-group summary per candidate resource and
+  connect that shell-safe summary to `Project`, without creating editable
+  substructure;
+- define the aggregate as materialized-resources-only, accepting that ids and
+  colors can change as resources load.
+
+The materialized-only policy is unlikely to preserve current editor behavior.
+The lightweight summary is the strongest long-term option; the eager policy is
+the safest first implementation. Merely routing the child value through its
+owning shell would clarify the ownership boundary but would not solve aggregate
+completeness or first-use fan-out by itself.
 
 ### Overrides make dependency order mandatory
 
@@ -389,8 +510,14 @@ for initial first-load deferral.
 - Add diagnostics for resource materialization reason, duration, dependency
   closure, and triggering endpoint.
 - Add a topology audit using explicit arcs and explicit cascade ownership.
-- Enforce no owned-to-external explicit arcs for on-demand resource types, with
-  temporary documented exceptions.
+- Reject explicit substructure-to-substructure arcs across resource owners.
+  Report substructure-to-foreign-shell arcs separately and report
+  override-propagated arcs in their own category.
+- Inventory every load-fn-installed connection from a resource shell or its
+  substructure into an ownerless/global node, excluding the temporarily
+  out-of-scope `:save-data` registrations.
+- Detect global relay paths where these values are redistributed to other
+  resource shells or substructure.
 - Record project-open resource reads, materialized roots, node counts, and
   accidental fan-out.
 
@@ -452,6 +579,9 @@ Correctness coverage should include:
 - build, bundle, hot reload, preview, search, LSP, editor extensions, and project
   settings;
 - deterministic node ids and collision-group behavior;
+- the refined isolation audit on `save_data_project`, including zero direct
+  cross-owner substructure arcs, the load-fn global-registration inventory, and
+  an explicit policy for every global relay;
 - `.defunload` policy remaining distinct from automatic on-demand loading.
 
 Performance evaluation should compare project-open wall time, number of files
