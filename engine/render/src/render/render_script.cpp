@@ -133,6 +133,7 @@ namespace dmRender
         switch(type)
         {
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR:
                 dmScript::PushVector4(L, value_ptr[value_index]);
                 break;
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4:

@@ -304,6 +304,7 @@ namespace dmGameSystem
      * : [type:number] the type of the constant. Supported values:
      *
      *   - `material.CONSTANT_TYPE_USER`
+     *   - `material.CONSTANT_TYPE_USER_COLOR`
      *   - `material.CONSTANT_TYPE_USER_MATRIX4`
      *   - `material.CONSTANT_TYPE_VIEWPROJ`
      *   - `material.CONSTANT_TYPE_WORLD`
@@ -786,6 +787,7 @@ namespace dmGameSystem
      * : [type:number] the type of the constant. Supported values:
      *
      *   - `material.CONSTANT_TYPE_USER`
+     *   - `material.CONSTANT_TYPE_USER_COLOR`
      *   - `material.CONSTANT_TYPE_USER_MATRIX4`
      *   - `material.CONSTANT_TYPE_VIEWPROJ`
      *   - `material.CONSTANT_TYPE_WORLD`
@@ -992,6 +994,7 @@ namespace dmGameSystem
             lua_setfield(L, -2, #name);
 
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_USER,          CONSTANT_TYPE_USER);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_USER_COLOR,    CONSTANT_TYPE_USER_COLOR);
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_USER_MATRIX4,  CONSTANT_TYPE_USER_MATRIX4);
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_VIEWPROJ,      CONSTANT_TYPE_VIEWPROJ);
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLD,         CONSTANT_TYPE_WORLD);

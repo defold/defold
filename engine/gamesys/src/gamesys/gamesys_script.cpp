@@ -282,7 +282,8 @@ namespace dmGameSystem
 
             lua_setfield(L, -2, "value");
         }
-        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER ||
+                 type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR)
         {
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
