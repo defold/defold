@@ -67,6 +67,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
@@ -1137,7 +1138,7 @@
    :text (coll/join-to-string "\n" (error-message-lines [error] localization-state))})
 
 (defn- cursor-position-info-text [camera viewport cursor-pos]
-  (when (and (some? cursor-pos)
+  (when (and cursor-pos
              (c/mode-2d? camera)
              (not (types/empty-space? viewport)))
     (let [[x y] cursor-pos
@@ -1158,15 +1159,16 @@
       (let [info-text (coll/not-empty
                         (coll/join-to-string
                           "\n"
-                          (remove nil?
-                                  [(let [scene-info-text (:info-text scene)]
-                                     (when (and (string? scene-info-text)
-                                                (pos? (count scene-info-text)))
-                                       scene-info-text))
-                                   (cursor-position-info-text camera viewport cursor-pos)
-                                   (when (and (string? tool-info-text)
-                                              (pos? (count tool-info-text)))
-                                     tool-info-text)])))
+                          (e/remove
+                            nil?
+                            [(let [scene-info-text (:info-text scene)]
+                               (when (and (string? scene-info-text)
+                                          (pos? (count scene-info-text)))
+                                 scene-info-text))
+                             (cursor-position-info-text camera viewport cursor-pos)
+                             (when (and (string? tool-info-text)
+                                        (pos? (count tool-info-text)))
+                               tool-info-text)])))
             close-button (when-let [anim-data (and (not (coll/empty? active-updatable-ids))
                                                    (active-animation-anim-data updatables active-updatable-ids))]
                            (merge (animation-preview-anchor-props camera viewport anim-data)
@@ -1960,12 +1962,11 @@
     (.put (.getProperties parent) ::window-focused-property window-focused-property)
     (doto parent
       (ui/on-mouse! (fn [type _event]
-                      (cond (= type :exit)
-                            (do
-                              (g/transact
-                                {:undoable false}
-                                (g/set-property view-id :cursor-pos nil))
-                              (g/user-data-swap! view-id ::input-action-queue conj {:type :mouse-exited})))))
+                      (when (= type :exit)
+                        (g/transact
+                          {:undoable false}
+                          (g/set-property view-id :cursor-pos nil))
+                        (g/user-data-swap! view-id ::input-action-queue conj {:type :mouse-exited}))))
       (.setOnMousePressed event-handler)
       (.setOnMouseReleased event-handler)
       (.setOnMouseClicked event-handler)
