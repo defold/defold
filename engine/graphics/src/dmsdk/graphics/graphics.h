@@ -1206,7 +1206,7 @@ namespace dmGraphics
     void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
 
     /*#
-     * Set texture parameters
+     * Set texture parameters, including the W wrapping mode used by 3D textures.
      * @name SetTextureParams
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
@@ -1218,6 +1218,19 @@ namespace dmGraphics
      * @param max_anisotropy [type:float]
      */
     void SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
+
+    /*#
+     * Set texture parameters using the legacy U/V wrapping interface.
+     * The U wrapping mode is also applied to the W texture coordinate.
+     * @name SetTextureParams
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
+     * @param min_filter [type:dmGraphics::TextureFilter] Minification filter type
+     * @param mag_filter [type:dmGraphics::TextureFilter] Magnification filter type
+     * @param uwrap [type:dmGraphics::TextureWrap] Wrapping mode for the U (X) and W (Z) texture coordinates
+     * @param vwrap [type:dmGraphics::TextureWrap] Wrapping mode for the V (Y) texture coordinate
+     * @param max_anisotropy [type:float]
+     */
     void SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
 
     /*#
