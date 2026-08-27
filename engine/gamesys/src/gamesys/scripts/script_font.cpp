@@ -154,27 +154,24 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
-    if (cbk)
+    if (dmScript::IsCallbackValid(cbk))
     {
-        if (dmScript::IsCallbackValid(cbk))
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (dmScript::SetupCallback(cbk))
         {
-            lua_State* L = dmScript::GetCallbackLuaContext(cbk);
-            DM_LUA_STACK_CHECK(L, 0);
+            int nargs = 3;
+            lua_pushinteger(L, (int)ctx->m_Request);
+            lua_pushboolean(L, result != 0);
+            if (0 != errmsg)
+                lua_pushstring(L, errmsg);
+            else
+                lua_pushnil(L);
 
-            if (dmScript::SetupCallback(cbk))
-            {
-                int nargs = 3;
-                lua_pushinteger(L, (int)ctx->m_Request);
-                lua_pushboolean(L, result != 0);
-                if (0 != errmsg)
-                    lua_pushstring(L, errmsg);
-                else
-                    lua_pushnil(L);
+            dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
 
-                dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
-
-                dmScript::TeardownCallback(cbk);
-            }
+            dmScript::TeardownCallback(cbk);
         }
         dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
     }
