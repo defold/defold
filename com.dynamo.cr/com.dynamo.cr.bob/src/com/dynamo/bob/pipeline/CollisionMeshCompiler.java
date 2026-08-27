@@ -146,7 +146,8 @@ public final class CollisionMeshCompiler {
 
             Rig.Model selectedModel;
             try {
-                selectedModel = ModelUtil.resolveNamedMesh(meshSet, shapeBuilder.getMeshName(), shapeBuilder.getMeshIndex());
+                int meshIndex = shapeBuilder.hasMeshIndex() ? shapeBuilder.getMeshIndex() : -1;
+                selectedModel = ModelUtil.resolveNamedMesh(meshSet, shapeBuilder.getMeshName(), meshIndex);
             } catch (IllegalArgumentException e) {
                 throw new CompileException(scenePath, e.getMessage());
             }

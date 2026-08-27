@@ -157,7 +157,11 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
         return makeCollisionObject("TYPE_MESH", meshName, meshIndex, shapeCount);
     }
 
-    private static String makeCollisionObject(String shapeType, String meshName, int meshIndex, int shapeCount) {
+    private static String makeCollisionObjectWithoutMeshIndex(String meshName) {
+        return makeCollisionObject("TYPE_MESH", meshName, null, 1);
+    }
+
+    private static String makeCollisionObject(String shapeType, String meshName, Integer meshIndex, int shapeCount) {
         StringBuilder shapes = new StringBuilder();
         for (int i = 0; i < shapeCount; ++i) {
             shapes.append("shapes {\n")
@@ -168,9 +172,11 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
                     .append("  index: 0\n")
                     .append("  count: 0\n")
                     .append("  mesh_scene: \"/mesh.gltf\"\n")
-                    .append("  mesh_name: \"").append(meshName).append("\"\n")
-                    .append("  mesh_index: ").append(meshIndex).append("\n")
-                    .append("}\n");
+                    .append("  mesh_name: \"").append(meshName).append("\"\n");
+            if (meshIndex != null) {
+                shapes.append("  mesh_index: ").append(meshIndex).append("\n");
+            }
+            shapes.append("}\n");
         }
         return "type: COLLISION_OBJECT_TYPE_STATIC\n" +
                 "mass: 0\n" +
@@ -295,6 +301,17 @@ public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
             fail("Expected the duplicate mesh selection to fail");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("does not exist at raw index 2"));
+        }
+    }
+
+    @Test
+    public void testDuplicateNameRequiresExplicitRawIndex() throws Exception {
+        addFile("/mesh.gltf", makeGltf(embeddedBufferUri(), true));
+        try {
+            buildCollisionObject(makeCollisionObjectWithoutMeshIndex("Ground"));
+            fail("Expected the duplicate mesh selection without a raw index to fail");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("is ambiguous"));
         }
     }
 
