@@ -279,28 +279,54 @@ void glfwAndroidUpdateJoystick(const AInputEvent* event)
 void glfwAndroidDiscoverJoysticks()
 {
     int32_t joystickIndex;
-
-    // prepare all connected gamepads to be refreshed
-    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
-    {
-        if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_CONNECTED)
-        {
-            _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_REFRESHING;
-        }
-    }
+    int discovery_succeeded = 0;
 
     JNIEnv* env = JNIAttachCurrentThread();
     if (env)
     {
         jobject native_activity = g_AndroidApp->activity->clazz;
+        if (native_activity == 0) goto cleanup_and_early_exit;
+
         jmethodID get_game_controller_device_ids = JNIGetMethodID(env, native_activity, "getGameControllerDeviceIds", "()[I");
         jmethodID get_game_controller_device_name = JNIGetMethodID(env, native_activity, "getGameControllerDeviceName", "(I)Ljava/lang/String;");
         jmethodID get_game_controller_device_descriptor = JNIGetMethodID(env, native_activity, "getGameControllerDeviceDescriptor", "(I)Ljava/lang/String;");
         jmethodID get_game_controller_device_vendor_id = JNIGetMethodID(env, native_activity, "getGameControllerDeviceVendorId", "(I)I");
         jmethodID get_game_controller_device_product_id = JNIGetMethodID(env, native_activity, "getGameControllerDeviceProductId", "(I)I");
+        if (get_game_controller_device_ids == 0) goto cleanup_and_early_exit;
+        if (get_game_controller_device_name == 0) goto cleanup_and_early_exit;
+        if (get_game_controller_device_descriptor == 0) goto cleanup_and_early_exit;
+        if (get_game_controller_device_vendor_id == 0) goto cleanup_and_early_exit;
+        if (get_game_controller_device_product_id == 0) goto cleanup_and_early_exit;
+
         jintArray device_ids = (*env)->CallObjectMethod(env, native_activity, get_game_controller_device_ids);
+        if (JNICheckAndClearException(env) || device_ids == 0)
+        {
+            goto cleanup_and_early_exit;
+        }
+
         jsize len = (*env)->GetArrayLength(env, device_ids);
+        if (JNICheckAndClearException(env))
+        {
+            goto cleanup_and_early_exit;
+        }
+
         jint *elements = (*env)->GetIntArrayElements(env, device_ids, 0);
+        if (JNICheckAndClearException(env) || elements == 0)
+        {
+            goto cleanup_and_early_exit;
+        }
+
+        // Prepare connected gamepads to be refreshed only after discovery has
+        // returned a valid array. Earlier failures must leave their state intact.
+        for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+        {
+            if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_CONNECTED)
+            {
+                _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_REFRESHING;
+            }
+        }
+        discovery_succeeded = 1;
+
         for (int i=0; i<len; i++)
         {
             int32_t deviceId = elements[i];
@@ -309,25 +335,70 @@ void glfwAndroidDiscoverJoysticks()
             {
                 jint jni_device_id = deviceId;
                 jstring jni_device_name = (*env)->CallObjectMethod(env, native_activity, get_game_controller_device_name, jni_device_id);
+                if (JNICheckAndClearException(env) || jni_device_name == 0)
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+
                 jstring jni_device_descriptor = (*env)->CallObjectMethod(env, native_activity, get_game_controller_device_descriptor, jni_device_id);
+                if (JNICheckAndClearException(env) || jni_device_descriptor == 0)
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+
                 jint vendor_id = (*env)->CallIntMethod(env, native_activity, get_game_controller_device_vendor_id, jni_device_id);
+                if (JNICheckAndClearException(env))
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+
                 jint product_id = (*env)->CallIntMethod(env, native_activity, get_game_controller_device_product_id, jni_device_id);
+                if (JNICheckAndClearException(env))
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+
                 char deviceGuid[DEVICE_GUID_LENGTH + 1];
                 const char *deviceName = (*env)->GetStringUTFChars(env, jni_device_name, 0);
+                if (JNICheckAndClearException(env) || deviceName == 0)
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+
                 const char *deviceDescriptor = (*env)->GetStringUTFChars(env, jni_device_descriptor, 0);
+                if (JNICheckAndClearException(env) || deviceDescriptor == 0)
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
 
                 glfwCreateJoystickDeviceGuid(SDL_ANDROID_GAMEPAD_BUS, (unsigned short) vendor_id, (unsigned short) product_id,
                     0, 0, deviceDescriptor, 0, 0, deviceGuid);
                 deviceIndex = glfwAndroidConnectJoystick(deviceId, deviceName, deviceGuid);
-                (*env)->ReleaseStringUTFChars(env, jni_device_descriptor, deviceDescriptor);
-                (*env)->ReleaseStringUTFChars(env, jni_device_name, deviceName);
+cleanup_and_break:
+                if (deviceDescriptor != 0)      (*env)->ReleaseStringUTFChars(env, jni_device_descriptor, deviceDescriptor);
+                if (deviceName != 0)            (*env)->ReleaseStringUTFChars(env, jni_device_name, deviceName);
+                if (jni_device_descriptor != 0) (*env)->DeleteLocalRef(env, jni_device_descriptor);
+                if (jni_device_name != 0)       (*env)->DeleteLocalRef(env, jni_device_name);
+                if (!discovery_succeeded)
+                {
+                    break;
+                }
             }
             else
             {
                 _glfwJoy[deviceIndex].State = GLFW_ANDROID_GAMEPAD_CONNECTED;
             }
         }
-        (*env)->ReleaseIntArrayElements(env, device_ids, elements, 0);
+
+cleanup_and_early_exit:
+        if (elements != 0) (*env)->ReleaseIntArrayElements(env, device_ids, elements, JNI_ABORT); // JNI_ABORT because we are not modifying elements
+        if (device_ids != 0) (*env)->DeleteLocalRef(env, device_ids);
         JNIDetachCurrentThread();
     }
 
@@ -336,7 +407,14 @@ void glfwAndroidDiscoverJoysticks()
     {
         if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_REFRESHING)
         {
-            glfwAndroidDisconnectJoystick(joystickIndex);
+            if (discovery_succeeded)
+            {
+                glfwAndroidDisconnectJoystick(joystickIndex);
+            }
+            else
+            {
+                _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_CONNECTED;
+            }
         }
     }
 }
