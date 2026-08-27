@@ -88,7 +88,7 @@
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage Window]
            [javax.imageio ImageIO]
-           [javax.vecmath Matrix4d Point3d Quat4d Tuple3d Vector3d]
+           [javax.vecmath Matrix4d Point3d Quat4d Tuple3d Vector3d Vector4d]
            [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)
@@ -1136,7 +1136,15 @@
    :wrap-text true
    :text (coll/join-to-string "\n" (error-message-lines [error] localization-state))})
 
-(g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text active-updatable-ids updatables camera viewport localization keymap camera-inset-data]
+(defn- cursor-position-info-text [camera viewport cursor-pos]
+  (when (and (some? cursor-pos)
+             (c/mode-2d? camera)
+             (not (types/empty-space? viewport)))
+    (let [[x y] cursor-pos
+          ^Vector4d p (c/camera-unproject camera viewport (Point3d. (double x) (double y) 0.0))]
+      (format "Position: %.0f, %.0f" (.x p) (.y p)))))
+
+(g/defnk produce-overlay-anchor-pane-props [cursor-pos scene ^:try tool-info-text active-updatable-ids updatables camera viewport localization keymap camera-inset-data]
   (if-let [error (:error scene)]
     {:children [{:fx/type error-overlay
                  :anchor-pane/bottom 0
@@ -1147,14 +1155,18 @@
                  :error error}]}
     (if-let [overlay-anchor-pane-props (:overlay-anchor-pane-props scene)]
       overlay-anchor-pane-props
-      (let [info-text
-            (if (and (string? tool-info-text)
-                     (pos? (count tool-info-text)))
-              tool-info-text
-              (let [scene-info-text (:info-text scene)]
-                (when (and (string? scene-info-text)
-                           (pos? (count scene-info-text)))
-                  scene-info-text)))
+      (let [info-text (coll/not-empty
+                        (coll/join-to-string
+                          "\n"
+                          (remove nil?
+                                  [(let [scene-info-text (:info-text scene)]
+                                     (when (and (string? scene-info-text)
+                                                (pos? (count scene-info-text)))
+                                       scene-info-text))
+                                   (cursor-position-info-text camera viewport cursor-pos)
+                                   (when (and (string? tool-info-text)
+                                              (pos? (count tool-info-text)))
+                                     tool-info-text)])))
             close-button (when-let [anim-data (and (not (coll/empty? active-updatable-ids))
                                                    (active-animation-anim-data updatables active-updatable-ids))]
                            (merge (animation-preview-anchor-props camera viewport anim-data)
@@ -1949,9 +1961,11 @@
     (doto parent
       (ui/on-mouse! (fn [type _event]
                       (cond (= type :exit)
-                            (g/transact
-                              {:undoable false}
-                              (g/set-property view-id :cursor-pos nil)))))
+                            (do
+                              (g/transact
+                                {:undoable false}
+                                (g/set-property view-id :cursor-pos nil))
+                              (g/user-data-swap! view-id ::input-action-queue conj {:type :mouse-exited})))))
       (.setOnMousePressed event-handler)
       (.setOnMouseReleased event-handler)
       (.setOnMouseClicked event-handler)
