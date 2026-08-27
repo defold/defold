@@ -14,6 +14,7 @@
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/jobsystem.h>
+#include <dlib/time.h>
 
 #include <resource/resource.h>
 
@@ -52,6 +53,7 @@ namespace dmGameSystem
     struct LuaRequest
     {
         dmScript::LuaCallbackInfo* m_CallbackInfo;
+        HJob                       m_Job;
         HOpaqueHandle              m_Handle;
         dmBuffer::HBuffer          m_Payload;
         dmResource::LoadBufferType m_LoadBuffer;
@@ -173,19 +175,22 @@ namespace dmGameSystem
     // Called from the main thread
     static void LoadBufferCompleteCallback(HJobContext, HJob hjob, JobSystemStatus status, void* context, void* data, int result)
     {
-        if (((dmResource::Result) result) == dmResource::RESULT_OK)
+        if ((status == JOBSYSTEM_STATUS_FINISHED) && ((dmResource::Result) result) == dmResource::RESULT_OK)
         {
             DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
             HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
             LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
-            request->m_Status            = REQUEST_STATUS_FINISHED;
-            dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
-            dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
+            if (request)
+            {
+                request->m_Status            = REQUEST_STATUS_FINISHED;
+                dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
+                dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
 
-            uint8_t* buffer_data     = 0;
-            uint32_t buffer_datasize = 0;
-            dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
-            memcpy(buffer_data, request->m_LoadBuffer.Begin(), request->m_LoadBuffer.Size());
+                uint8_t* buffer_data     = 0;
+                uint32_t buffer_datasize = 0;
+                dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
+                memcpy(buffer_data, request->m_LoadBuffer.Begin(), request->m_LoadBuffer.Size());
+            }
         }
     }
 
@@ -198,8 +203,8 @@ namespace dmGameSystem
         job.m_Context = (void*) (uintptr_t) request->m_Handle;
         job.m_Data = 0;
 
-        HJob hjob = JobSystemCreateJob(g_SysModule.m_JobContext, &job);
-        JobSystemPushJob(g_SysModule.m_JobContext, hjob);
+        request->m_Job = JobSystemCreateJob(g_SysModule.m_JobContext, &job);
+        JobSystemPushJob(g_SysModule.m_JobContext, request->m_Job);
     }
 
     /*# loads a buffer from a resource or disk path
@@ -457,24 +462,49 @@ namespace dmGameSystem
 
     void ScriptSysGameSysFinalize(const ScriptLibContext& context)
     {
-        if (g_SysModule.m_LoadRequestsMutex)
-            dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
-
+        // A load job may still be using its request when the engine is rebooted.
+        // Cancel all jobs before waiting so queued jobs cannot start while an
+        // in-flight job is finishing.
         for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
         {
             LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
             if (request)
             {
+                JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+            }
+        }
+
+        // Wait for jobs that were already in flight before deleting their requests.
+        for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
+        {
+            LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
+            if (request)
+            {
+                JobSystemResult result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+                while (result == JOBSYSTEM_RESULT_PENDING)
+                {
+                    dmTime::Sleep(1000);
+                    result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+                }
+
                 if (dmBuffer::IsBufferValid(request->m_Payload))
                 {
                     dmBuffer::Destroy(request->m_Payload);
                 }
                 dmScript::DestroyCallback(request->m_CallbackInfo);
+                g_SysModule.m_LoadRequests.Release(request->m_Handle);
+                free(request->m_Path);
                 delete request;
             }
         }
 
+        if (g_SysModule.m_LoadRequestsMutex)
+        {
+            dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
+        }
+
         g_SysModule.m_Factory           = 0;
+        g_SysModule.m_JobContext        = 0;
         g_SysModule.m_LoadRequestsMutex = 0;
     }
 

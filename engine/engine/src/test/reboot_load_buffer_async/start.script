@@ -1,0 +1,54 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local function exit(code)
+    sys.exit(code)
+end
+
+local function reboot()
+    local project = sys.get_config_string("test.project", "src/test/build/default/game.projectc")
+    sys.reboot(
+        "--config=script.shared_state=1",
+        "--config=bootstrap.main_collection=/reboot_load_buffer_async/start.collectionc",
+        "--config=test.reboot_load_buffer_async_phase=second",
+        "--config=dmengine.unload_builtins=0",
+        project)
+end
+
+function update(self)
+    if self.started then
+        return
+    end
+    self.started = true
+
+    if sys.get_config_string("test.reboot_load_buffer_async_phase") == "first" then
+        -- load something significantly large that it is not immediately completed
+        sys.load_buffer_async("/def-3086/def-3086.texturec", function()
+            exit(1)
+        end)
+        -- make sure the load request had a chance to start before rebooting
+        timer.delay(0, false, reboot)
+    elseif sys.get_config_string("test.reboot_load_buffer_async_phase") == "second" then
+        -- load a second resource which is expected to finish loading successfully
+        -- prior to issue-13001 the load crashed because of a lingering job from
+        -- before the reboot
+        sys.load_buffer_async("/reboot_load_buffer_async/start.scriptc", function(_, _, result)
+            if result.status == sys.REQUEST_STATUS_FINISHED and result.buffer ~= nil then
+                exit(7)
+            else
+                exit(2)
+            end
+        end)
+    end
+end

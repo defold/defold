@@ -1012,9 +1012,7 @@ FontRendererResult FontcSetText(HFontRenderer renderer, const uint32_t* codepoin
 {
     if (!renderer || (!codepoints && codepoint_count != 0))
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
-    if (renderer->m_Codepoints.Capacity() < codepoint_count)
-        renderer->m_Codepoints.SetCapacity(codepoint_count);
-    renderer->m_Codepoints.SetSize(codepoint_count);
+    renderer->m_Codepoints.EnsureSize(codepoint_count);
     if (codepoint_count != 0)
         memcpy(renderer->m_Codepoints.Begin(), codepoints, (size_t)codepoint_count * sizeof(uint32_t));
     renderer->m_Markup.SetSize(0);

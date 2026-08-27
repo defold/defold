@@ -212,9 +212,7 @@ namespace dmGameSystem
         uint32_t vertex_size = GetRigModelVertexFormatSize(format);
         uint32_t data_size = num_vertices * vertex_size;
 
-        if (scratch_buffer.Capacity() < data_size)
-            scratch_buffer.SetCapacity(data_size);
-        scratch_buffer.SetSize(data_size);
+        scratch_buffer.EnsureSize(data_size);
 
         CreateVertexData(ddf_mesh, scratch_buffer.Begin(), format);
 

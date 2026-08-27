@@ -29,6 +29,7 @@ message MaterialDesc
         CONSTANT_TYPE_VIEWPROJ_INVERSE = 14;
         CONSTANT_TYPE_WORLDVIEW_INVERSE = 15;
         CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE = 16;
+        CONSTANT_TYPE_USER_COLOR = 17;
     }
 
     message Constant

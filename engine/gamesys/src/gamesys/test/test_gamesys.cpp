@@ -1442,6 +1442,28 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     lua_pop(L, 1);
 }
 
+TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection)
+{
+    // The proxy collection creates the resource, while this parent collection
+    // releases it. Unloading the proxy must not leave stale resource bookkeeping.
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collection_proxy/release_dynamic_resource_root.goc", dmHashString64("/go"), 0,
+                                       Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool proxy_unloaded = false;
+    for (uint32_t i = 0; i < 64 && !proxy_unloaded; ++i)
+    {
+        UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+        lua_getglobal(L, "issue_13002_proxy_unloaded");
+        proxy_unloaded = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(proxy_unloaded);
+}
+
 TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
