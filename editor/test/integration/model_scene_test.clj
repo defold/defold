@@ -23,7 +23,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :as test-support])
+            [support.test-support :as test-support]
+            [util.coll :as coll])
   (:import [java.nio ByteBuffer ByteOrder]
            [javax.vecmath Point3d]))
 
@@ -77,7 +78,7 @@
           buffer-node (project/get-resource-node project buffer-resource)
           first-x (fn []
                     (-> (g/node-value model-scene :content)
-                        (get-in [:mesh-set :raw-models 0 :meshes 0 :positions 0])
+                        (get-in [:mesh-set :models 0 :meshes 0 :positions 0])
                         double))
           collision-preview-position-buffer
           (fn []
@@ -89,6 +90,8 @@
       (is (= ["simpleTriangle.bin"] (g/node-value model-scene :source-value)))
       (is (= [[buffer-node :sha256]]
              (g/sources-of model-scene :external-buffer-sha256s)))
+      (is (coll/empty? (get-in (g/node-value model-scene :content)
+                               [:mesh-set :raw-models 0 :meshes])))
       (is (= 0.0 (first-x)))
 
       (let [initial-mesh-set-content-hash (:content-hash (g/node-value model-scene :mesh-set-build-target))

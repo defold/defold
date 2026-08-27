@@ -22,7 +22,8 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
            [com.jogamp.opengl GL2]))
 
@@ -153,6 +154,10 @@
 
 (deftest mesh-source-shape-compilation
   (test-util/with-scratch-project "test/resources/test_project"
+    (let [mesh-scene-node-id (test-util/resource-node project "/mesh/quad.gltf")
+          mesh-set (get-in (g/node-value mesh-scene-node-id :content) [:mesh-set])]
+      (is (coll/empty? (get-in mesh-set [:raw-models 0 :meshes])))
+      (is (pos? (count (:models (g/node-value mesh-scene-node-id :collision-mesh-set))))))
     (doseq [[path triangles?] [["/collision_object/hull_shape.collisionobject" false]
                                ["/collision_object/mesh_shape.collisionobject" true]]]
       (let [node-id (test-util/resource-node project path)]

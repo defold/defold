@@ -316,7 +316,7 @@
   (:collision-meshes content))
 
 (g/defnk produce-collision-mesh-set [content]
-  (assoc (:mesh-set content) :models []))
+  (:mesh-set content))
 
 (g/defnk produce-collision-mesh-renderables [renderable-mesh-set]
   (mapv (fn [{:keys [aabb mesh-index renderable-meshes]}]
@@ -547,11 +547,22 @@
         renderable-models
         (make-renderable-models (:models mesh-set) :model-id :id mesh-set-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)
 
-        renderable-raw-models
+        initial-renderable-raw-models
         (make-renderable-models (:raw-models mesh-set) :raw-mesh-index :mesh-index mesh-set-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)]
 
-    (g/precluding-errors (into renderable-models renderable-raw-models)
-      (let [mesh-set-aabb (transduce
+    (g/precluding-errors (into renderable-models initial-renderable-raw-models)
+      (let [renderable-model-by-mesh-index (coll/pair-map-by :mesh-index renderable-models)
+            renderable-raw-models
+            (mapv (fn [renderable-raw-model]
+                    (if (coll/not-empty (:renderable-meshes renderable-raw-model))
+                      renderable-raw-model
+                      (if-let [renderable-model (renderable-model-by-mesh-index (:mesh-index renderable-raw-model))]
+                        (assoc renderable-raw-model
+                          :aabb (:aabb renderable-model)
+                          :renderable-meshes (:renderable-meshes renderable-model))
+                        renderable-raw-model)))
+                  initial-renderable-raw-models)
+            mesh-set-aabb (transduce
                             (map (fn [{:keys [aabb pose-with-skeleton]}]
                                    (geom/aabb-transform aabb (pose/matrix pose-with-skeleton))))
                             geom/aabb-union
