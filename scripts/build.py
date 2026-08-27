@@ -18,7 +18,7 @@ import sys, os, platform
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
+import shutil, zipfile, tarfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import build_android
@@ -631,6 +631,7 @@ class Configuration(object):
                  incremental = False,
                  skip_builtins = False,
                  skip_bob_light = False,
+                 host_tools_archive = None,
                  disable_ccache = False,
                  generate_compile_commands = False,
                  no_colors = False,
@@ -689,6 +690,7 @@ class Configuration(object):
         self.incremental = incremental
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
+        self.host_tools_archive = host_tools_archive
         self.disable_ccache = disable_ccache
         self.generate_compile_commands = generate_compile_commands
         self.no_colors = no_colors
@@ -2651,6 +2653,49 @@ class Configuration(object):
         finally:
             self.build_tracker.end_component('bob_light', self.host)
 
+    # ------------------------------------------------------------------
+    # Host tool sharing.
+    #
+    # A cross build (e.g. x86-win32 on an x86_64-win32 host) has to build the host
+    # tools first, into their own build tree, before it can build anything for the
+    # target. That output depends only on the host platform and the host tool
+    # sources, so jobs that share a host can share the result instead of each
+    # rebuilding it. Only cross builds take part: when host == target the two
+    # phases share one build tree and the second pass reuses the first pass's
+    # objects, so there is nothing to hand over.
+    # ------------------------------------------------------------------
+    def _host_tools_snapshot(self):
+        snapshot = {}
+        root = self.dynamo_home
+        for dirpath, _, filenames in os.walk(root):
+            for name in filenames:
+                path = join(dirpath, name)
+                try:
+                    st = os.lstat(path)
+                except OSError:
+                    continue
+                snapshot[os.path.relpath(path, root)] = (st.st_size, st.st_mtime_ns)
+        return snapshot
+
+    def _pack_host_tools(self, before, archive_path):
+        after = self._host_tools_snapshot()
+        changed = sorted(rel for rel, meta in after.items() if before.get(rel) != meta)
+        if not changed:
+            self._log('No host tool output to archive, skipping %s' % archive_path)
+            return
+        self._mkdirs(os.path.dirname(os.path.abspath(archive_path)))
+        tmp_path = archive_path + '.tmp'
+        with tarfile.open(tmp_path, 'w:gz') as tar:
+            for rel in changed:
+                tar.add(join(self.dynamo_home, rel), arcname = rel)
+        if os.path.exists(archive_path):
+            os.remove(archive_path)
+        os.rename(tmp_path, archive_path)
+        self._log('Archived %d host tool files to %s' % (len(changed), archive_path))
+
+    def _unpack_host_tools(self, archive_path):
+        self._extract_tgz(archive_path, self.dynamo_home)
+
     def build_engine(self):
         self.check_sdk()
 
@@ -2676,9 +2721,19 @@ class Configuration(object):
             for lib in HOST_LIBS:
                 self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
         else:
-            self.build_tracker.start_component('cmake_host_libs', host)
-            self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
-            self.build_tracker.end_component('cmake_host_libs', host)
+            # Only cross builds can hand the host tools over; see _host_tools_snapshot.
+            host_tools_archive = self.host_tools_archive if host != target_platform else None
+            if host_tools_archive and os.path.exists(host_tools_archive):
+                self.build_tracker.start_component('unpack_host_libs', host)
+                self._unpack_host_tools(host_tools_archive)
+                self.build_tracker.end_component('unpack_host_libs', host)
+            else:
+                before = self._host_tools_snapshot() if host_tools_archive else None
+                self.build_tracker.start_component('cmake_host_libs', host)
+                self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
+                self.build_tracker.end_component('cmake_host_libs', host)
+                if host_tools_archive:
+                    self._pack_host_tools(before, host_tools_archive)
 
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
@@ -4115,6 +4170,12 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = False,
                       help = 'skip building bob-light when building the engine. Default is false')
 
+    parser.add_option('--host-tools-archive', dest='host_tools_archive',
+                      default = None,
+                      help = ('path to a host-tool archive. If the file exists it is unpacked into '
+                              'DYNAMO_HOME and the host build is skipped; otherwise the host build '
+                              'runs as usual and its output is written to this path.'))
+
     parser.add_option('--disable-ccache', dest='disable_ccache',
                       action = 'store_true',
                       default = False,
@@ -4282,6 +4343,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       incremental = options.incremental,
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
+                      host_tools_archive = options.host_tools_archive,
                       disable_ccache = options.disable_ccache,
                       generate_compile_commands = options.generate_compile_commands,
                       no_colors = options.no_colors,

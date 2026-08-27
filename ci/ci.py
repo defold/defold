@@ -291,6 +291,8 @@ def build_engine(channel, platform, args):
     cmd_opts.append('--disable-ccache')
     if args.verbose:
         cmd_opts.append('--verbose')
+    if args.host_tools_archive:
+        cmd_opts.append('--host-tools-archive=%s' % args.host_tools_archive)
 
     cmd_args.append('build_engine')
 
@@ -564,6 +566,9 @@ def main(argv):
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
     parser.add_argument("--codesign", dest="codesign", action='store_true', help="Enable code signing")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
+    parser.add_argument("--host-tools-archive", dest="host_tools_archive",
+                        help="Path to a host-tool archive shared between cross builds with the same host. "
+                             "Unpacked and reused if it exists, otherwise written after the host build.")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")

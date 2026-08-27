@@ -37,29 +37,38 @@ env:
   # Shared by the Android SDK setup and the emulator the x86_64-android tests run on
   ANDROID_API_LEVEL: '36'
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
-  # Sign only where the artifacts are actually distributed: the release branches and
-  # explicit dispatch builds. On a feature branch this also skips the Apple notarization
-  # wait, which create_dmg() only performs when codesigning is on (editor/scripts/bundle.py).
-  OPTION_SIGN_BRANCH: ${{ github.event_name == 'repository_dispatch' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
-  OPTION_CODESIGN: ${{ (github.event_name == 'repository_dispatch' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master') && github.event.client_payload.skip_sign != true && github.event.client_payload.skip_sign != 'true' && '--codesign' || '' }}
+  OPTION_CODESIGN: ${{ github.event.client_payload.skip_sign != true && github.event.client_payload.skip_sign != 'true' && '--codesign' || '' }}
 
 jobs:
   # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-windows:
     strategy:
       matrix:
-        platform: [win32, x86_64-win32]
+        include:
+          - platform: win32
+            host_tools: x86_64-win32
+          - platform: x86_64-win32
 
     runs-on: windows-2025-vs2026
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 30
+    env:
+      # Empty for the legs where host == target: those share one build tree between the
+      # host and target passes, so there is no separate host output to hand over.
+      HOST_TOOLS_ARCHIVE_FLAG: ${{ matrix.host_tools && format('--host-tools-archive={0}/.host-tools/{1}.tar.gz', github.workspace, matrix.host_tools) || '' }}
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      # A cross build must build the host tools before it can build anything for the target.
+      # That output depends only on the host platform and the host tool sources, so jobs that
+      # share a host reuse it instead of each rebuilding it. Exact-match key only: a near-miss
+      # would hand the build subtly stale tools. Bump the key prefix to force a rebuild (for
+      # example after a same-version package tarball is republished into packages/).
+      &host_tools_cache { name: 'Cache host tools', if: "matrix.host_tools != ''", uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '${{ github.workspace }}/.host-tools/${{ matrix.host_tools }}.tar.gz', key: "hosttools-v1-${{ matrix.host_tools }}-${{ hashFiles('CMakeLists.txt', 'scripts/build.py', 'scripts/cmake/**', 'build_tools/sdk.py', 'engine/dlib/CMakeLists.txt', 'engine/dlib/src/**', 'engine/jni/CMakeLists.txt', 'engine/jni/src/**', 'engine/texc/CMakeLists.txt', 'engine/texc/src/**', 'engine/modelc/CMakeLists.txt', 'engine/modelc/src/**', 'engine/font/CMakeLists.txt', 'engine/font/src/**', 'engine/shaderc/CMakeLists.txt', 'engine/shaderc/src/**') }}" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      { name: 'Set up Google Cloud SDK', if: env.OPTION_SIGN_BRANCH == 'true', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
+      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -79,7 +88,7 @@ jobs:
       {
         name: 'Build engine',
         shell: bash,
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.HOST_TOOLS_ARCHIVE_FLAG }} ${{ env.OPTION_CODESIGN }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
       {
         name: 'Stop Gradle Daemon',
@@ -98,17 +107,25 @@ jobs:
       matrix:
         include:
           - platform: x86_64-macos
+            host_tools: arm64-macos
           - platform: arm64-macos
           - platform: arm64-ios
+            host_tools: arm64-macos
             skip_tests: true
           - platform: x86_64-ios
+            host_tools: arm64-macos
             skip_tests: true
     runs-on: macos-26
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 30
+    env:
+      # Empty for the legs where host == target: those share one build tree between the
+      # host and target passes, so there is no separate host output to hand over.
+      HOST_TOOLS_ARCHIVE_FLAG: ${{ matrix.host_tools && format('--host-tools-archive={0}/.host-tools/{1}.tar.gz', github.workspace, matrix.host_tools) || '' }}
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      *host_tools_cache,
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
@@ -130,7 +147,7 @@ jobs:
       },
       {
         name: 'Build engine',
-        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh engine --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }}'
+        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh engine --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs ${{ env.HOST_TOOLS_ARCHIVE_FLAG }} ${{ env.OPTION_CODESIGN }}'
       },
       {
         name: 'Stop Gradle Daemon',
@@ -147,13 +164,22 @@ jobs:
   bld-eng-web:
     strategy:
       matrix:
-        platform: [wasm-web, wasm_pthread-web]
+        include:
+          - platform: wasm-web
+            host_tools: x86_64-linux
+          - platform: wasm_pthread-web
+            host_tools: x86_64-linux
     runs-on: ubuntu-22.04
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 45
+    env:
+      # Empty for the legs where host == target: those share one build tree between the
+      # host and target passes, so there is no separate host output to hand over.
+      HOST_TOOLS_ARCHIVE_FLAG: ${{ matrix.host_tools && format('--host-tools-archive={0}/.host-tools/{1}.tar.gz', github.workspace, matrix.host_tools) || '' }}
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      *host_tools_cache,
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
@@ -165,7 +191,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs --skip-tests'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs --skip-tests ${{ env.HOST_TOOLS_ARCHIVE_FLAG }}'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
@@ -181,17 +207,25 @@ jobs:
       matrix:
         include:
           - platform: armv7-android
+            host_tools: x86_64-linux
             skip_tests: true
           - platform: arm64-android
+            host_tools: x86_64-linux
             skip_tests: true
           # Without skip_tests the unit tests run on a hardware accelerated emulator, see below
           - platform: x86_64-android
+            host_tools: x86_64-linux
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: 60
+    env:
+      # Empty for the legs where host == target: those share one build tree between the
+      # host and target passes, so there is no separate host output to hand over.
+      HOST_TOOLS_ARCHIVE_FLAG: ${{ matrix.host_tools && format('--host-tools-archive={0}/.host-tools/{1}.tar.gz', github.workspace, matrix.host_tools) || '' }}
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      *host_tools_cache,
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
@@ -231,13 +265,13 @@ jobs:
           # to stay up for the whole build. ANDROID_SERIAL points both the ABI check in
           # build_android.py and the adb test harness at it. Without a device those would
           # quietly fall back to --skip-tests, so bail out instead of building for nothing.
-          script: "ANDROID_SERIAL=$(adb devices | awk '$2==\"device\"{print $1; exit}')\nif [ -z \"$ANDROID_SERIAL\" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi\nexport ANDROID_SERIAL\necho \"Running ${{ matrix.platform }} tests on $ANDROID_SERIAL\"\nci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs"
+          script: "ANDROID_SERIAL=$(adb devices | awk '$2==\"device\"{print $1; exit}')\nif [ -z \"$ANDROID_SERIAL\" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi\nexport ANDROID_SERIAL\necho \"Running ${{ matrix.platform }} tests on $ANDROID_SERIAL\"\nci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.HOST_TOOLS_ARCHIVE_FLAG }}"
         }
       },
       {
         name: 'Build engine',
         if: matrix.skip_tests,
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs ${{ env.HOST_TOOLS_ARCHIVE_FLAG }}'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
@@ -795,7 +829,7 @@ jobs:
       { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Set up Google Cloud SDK', if: env.OPTION_SIGN_BRANCH == 'true', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
+      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
       {
         name: 'Download bob jar',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
