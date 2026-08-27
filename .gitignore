@@ -96,3 +96,8 @@ AGENTS.md
 /share/ext/astcenc/build/
 /share/ext/astcenc/source
 /engine/dlib/test_http_server.log
+
+# Build-log dumps from local runs (a batch of these was committed by accident once)
+/log.txt
+/log_*.txt
+/includelog.txt

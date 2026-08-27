@@ -2,6 +2,37 @@ defold_log("functions_test.cmake:")
 
 set(_DEFOLD_BUN_MIN_VERSION "1.3.13")
 
+# Desktop test binaries run as ordinary build edges so Ninja can overlap them.
+# USES_TERMINAL puts an edge in Ninja's console pool, which has depth 1, so every
+# test in the suite ran strictly one at a time after the build had finished.
+# The pool is bounded rather than unlimited because tests sharing a working
+# directory can still collide on temp files and fixed ports. Device-driven tests
+# (Android/iOS/Xbox) keep USES_TERMINAL - there is only one device to run on.
+set(DEFOLD_TEST_PARALLELISM "4" CACHE STRING
+    "Max desktop test binaries Ninja may run concurrently (1 restores serial execution)")
+get_property(_defold_test_pool_registered GLOBAL PROPERTY DEFOLD_TEST_POOL_REGISTERED)
+if(NOT _defold_test_pool_registered)
+  set_property(GLOBAL PROPERTY DEFOLD_TEST_POOL_REGISTERED ON)
+  if(CMAKE_GENERATOR MATCHES "Ninja" AND DEFOLD_TEST_PARALLELISM GREATER 1)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS defold_test_pool=${DEFOLD_TEST_PARALLELISM})
+    set_property(GLOBAL PROPERTY DEFOLD_TEST_RUN_SCHEDULING JOB_POOL defold_test_pool)
+    defold_log("desktop tests run ${DEFOLD_TEST_PARALLELISM}-way parallel (ninja pool defold_test_pool)")
+  else()
+    set_property(GLOBAL PROPERTY DEFOLD_TEST_RUN_SCHEDULING USES_TERMINAL)
+    defold_log("desktop tests run serially (console pool)")
+  endif()
+endif()
+
+# Always returns a non-empty scheduling keyword, so a run target can never accidentally
+# land in ninja's default pool.
+function(_defold_test_run_scheduling out_var)
+  get_property(_scheduling GLOBAL PROPERTY DEFOLD_TEST_RUN_SCHEDULING)
+  if(NOT _scheduling)
+    set(_scheduling USES_TERMINAL)
+  endif()
+  set(${out_var} ${_scheduling} PARENT_SCOPE)
+endfunction()
+
 # Registers a test target with the global build_tests and run_tests targets.
 #
 # Usage:
@@ -690,16 +721,18 @@ function(defold_register_test_target target_name)
             COMMENT "Xbox test runner missing for ${target_name}")
         endif()
       elseif(_RUN_DIR_NORM)
+        _defold_test_run_scheduling(_run_scheduling)
         add_custom_target(${_run_target}
           COMMAND ${_run_env} ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
-          USES_TERMINAL
+          ${_run_scheduling}
           COMMENT "Running ${target_name} in ${_RUN_DIR_NORM}")
       else()
+        _defold_test_run_scheduling(_run_scheduling)
         add_custom_target(${_run_target}
           COMMAND ${_run_env} ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
-          USES_TERMINAL
+          ${_run_scheduling}
           COMMENT "Running ${target_name}")
       endif()
     endif()

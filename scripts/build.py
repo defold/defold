@@ -48,6 +48,15 @@ from queue import Queue
 from configparser import ConfigParser
 from BuildTimeTracker import BuildTimeTracker
 
+# How many desktop test binaries ninja may run at once. Overridable from CI without a
+# code change; 1 restores the old strictly-serial behaviour.
+def _test_parallelism():
+    value = os.environ.get('DEFOLD_TEST_PARALLELISM', '4')
+    try:
+        return max(1, int(value))
+    except ValueError:
+        return 4
+
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
@@ -2477,6 +2486,7 @@ class Configuration(object):
             f'-DCMAKE_INSTALL_MESSAGE:STRING=LAZY',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
+            f'-DDEFOLD_TEST_PARALLELISM:STRING={_test_parallelism()}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
             f'-DDEFOLD_GCLOUD_PROJECTID:STRING={self.gcloud_projectid or ""}',
