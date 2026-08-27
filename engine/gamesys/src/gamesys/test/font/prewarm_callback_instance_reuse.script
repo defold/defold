@@ -12,14 +12,11 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-prewarm_instance_count = 0
 prewarm_stale_callback_count = 0
 prewarm_replacement_callback_count = 0
 
 function init(self)
-    prewarm_instance_count = prewarm_instance_count + 1
-
-    if prewarm_instance_count == 1 then
+    if go.get_id() == hash("/first") then
         font.prewarm_text("/font/dyn_glyph_bank_test_1.fontc", "First instance", function(self, request_id, result, errmsg)
             prewarm_stale_callback_count = prewarm_stale_callback_count + 1
         end)
