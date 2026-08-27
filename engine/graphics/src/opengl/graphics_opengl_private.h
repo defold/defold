@@ -65,6 +65,7 @@ namespace dmGraphics
     struct OpenGLTextureBinding
     {
         HTexture m_Texture;
+        Type     m_Type;
         uint8_t  m_TextureIdIndex;
     };
 

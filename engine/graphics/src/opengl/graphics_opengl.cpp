@@ -2822,60 +2822,32 @@ static void LogFrameBufferError(GLenum status)
     #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
-#ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
-    static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
-    {
-        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
-        uint32_t texture_unit = 0;
-        for (int i = 0; i < num_uniforms; ++i)
-        {
-            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
-            {
-                if (texture_unit == unit)
-                {
-                    *index = i;
-                    *type = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type;
-                    return true;
-                }
-                texture_unit++;
-            }
-        }
-        return false;
-    }
-#endif
-
-    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
+    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, Type type, bool do_unbind = false)
     {
     #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         if (!context->m_ComputeSupport)
             return false;
 
-        int32_t uniform_index;
-        Type type;
-
-        if (GetTextureUniform(context, unit, &uniform_index, &type))
+        // Bind image uniforms as images; all other texture resources use combined samplers.
+        if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
         {
-            // Binding a image texture to a imagexd slot, otherwise we'll bind it as a combined sampler
-            if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
+            GLenum access            = DMGRAPHICS_READ_ONLY;
+            GLenum gl_format         = 0;
+            GLenum gl_type           = GL_UNSIGNED_BYTE;
+            GLint gl_internal_format = 0;
+            GLuint id                = 0;
+            GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
+
+            // We need a valid texture regardless of bind/unbind
+            if (!do_unbind)
             {
-                GLenum access            = DMGRAPHICS_READ_ONLY;
-                GLenum gl_format         = 0;
-                GLenum gl_type           = GL_UNSIGNED_BYTE;
-                GLint gl_internal_format = 0;
-                GLuint id                = 0;
-                GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
-
-                // We need a valid texture regardless of bind/unbind
-                if (!do_unbind)
-                {
-                    id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
-                    access = tex->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
-                }
-                glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
-                CHECK_GL_ERROR;
-
-                return true;
+                id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
+                access = tex->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
             }
+            glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
+            CHECK_GL_ERROR;
+
+            return true;
         }
     #endif
         return false;
@@ -3031,7 +3003,7 @@ static void LogFrameBufferError(GLenum status)
                 bool bind_as_texture = true;
                 if (tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
-                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, false);
+                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, binding.m_Type, false);
                 }
 
                 if (bind_as_texture)
@@ -3159,7 +3131,7 @@ static void LogFrameBufferError(GLenum status)
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
 
-            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS);
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS | DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH);
             CHECK_GL_ERROR;
         }
     #endif
@@ -3919,6 +3891,8 @@ static void LogFrameBufferError(GLenum status)
         program->m_Id            = AddNewGLHandle(context, p);
         program->m_Language      = shader->m_Language;
 
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        CreateProgramResourceBindings(program, bindings, &shader, 1);
         OpenGLBuildUniforms(context, program, &shader, 1);
         return true;
     }
@@ -4324,6 +4298,19 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
+
+        OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
+        binding.m_Type = TYPE_BYTE;
+        for (uint32_t i = 0; i < context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size(); ++i)
+        {
+            const Uniform& uniform = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i];
+            if (uniform.m_Location == location)
+            {
+                binding.m_Type = uniform.m_Type;
+                break;
+            }
+        }
+
         glUniform1i(location, unit);
         CHECK_GL_ERROR;
     }
@@ -5690,6 +5677,7 @@ static void LogFrameBufferError(GLenum status)
         // Note: We just store the binding here. Binding the actual gl handle is done before rendering!
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
         binding.m_Texture = texture;
+        binding.m_Type = TYPE_BYTE;
         binding.m_TextureIdIndex = id_index;
     }
 
@@ -5703,6 +5691,7 @@ static void LogFrameBufferError(GLenum status)
         //       from the wrong texture (which all other adapters also do).
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
         binding.m_Texture = 0x0;
+        binding.m_Type = TYPE_BYTE;
         binding.m_TextureIdIndex = 0;
     }
 
