@@ -57,15 +57,29 @@ namespace dmGraphics
         if (size == 0)
         {
             size = texture->m_Mip0ResourceSize;
-            if (size == 0)
+        }
+
+        if (size == 0)
+        {
+            // Nothing was handed to us, so every level is sized from its own dimensions. Quartering
+            // the byte count per level undercounts compressed formats, whose mips never drop below
+            // one whole block - a three level 4x4 BC1 chain is 8+8+8 bytes, not 8+2+0.
+            for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
             {
-                size = dmMath::Max(1U, GetTextureFormatDataSize(texture->m_Format, texture->m_Width, texture->m_Height));
+                uint16_t mip_width  = dmMath::Max((uint16_t) 1, GetMipmapSize(texture->m_Width, i));
+                uint16_t mip_height = dmMath::Max((uint16_t) 1, GetMipmapSize(texture->m_Height, i));
+                size_total         += dmMath::Max(1U, GetTextureFormatDataSize(texture->m_Format, mip_width, mip_height));
             }
         }
-        for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        else
         {
-            size_total += size;
-            size >>= 2;
+            // A supplied mip 0 size may include padding we can't re-derive (it comes from the
+            // uploaded buffer), so the smaller levels are approximated from it.
+            for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+            {
+                size_total += size;
+                size >>= 2;
+            }
         }
         if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
         {

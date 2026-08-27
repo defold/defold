@@ -2297,6 +2297,41 @@ TEST_F(dmGraphicsTest, TestTextureFormatCompressedBlockSize)
     ASSERT_FALSE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA, &block_size));
 }
 
+TEST_F(dmGraphicsTest, TestEstimateTextureResourceDataSize)
+{
+    dmGraphics::Texture tex = {};
+    tex.m_Type              = dmGraphics::TEXTURE_TYPE_2D;
+
+    // Without a supplied mip 0 size every level is computed from its own dimensions. Compressed
+    // mips floor at one whole block, so the small end of the chain doesn't decay towards zero.
+    tex.m_Format       = dmGraphics::TEXTURE_FORMAT_RGB_BC1;
+    tex.m_Width        = 4;
+    tex.m_Height       = 4;
+    tex.m_MipMapCount  = 3;
+    ASSERT_EQ(24u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // 16x16 BC1 is 4x4 blocks, then 2x2, then 1x1, then two more levels of a single block
+    tex.m_Width       = 16;
+    tex.m_Height      = 16;
+    tex.m_MipMapCount = 5;
+    ASSERT_EQ(128u + 32u + 8u + 8u + 8u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // Uncompressed formats keep quartering naturally, since their mips do shrink by 4x
+    tex.m_Format      = dmGraphics::TEXTURE_FORMAT_RGBA;
+    tex.m_Width       = 16;
+    tex.m_Height      = 16;
+    tex.m_MipMapCount = 3;
+    ASSERT_EQ(1024u + 256u + 64u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // A supplied mip 0 size is authoritative for level 0 and scaled for the rest
+    ASSERT_EQ(2048u + 512u + 128u, dmGraphics::EstimateTextureResourceDataSize(&tex, 2048, false));
+
+    // Cube maps count all six faces
+    tex.m_Type        = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+    tex.m_MipMapCount = 1;
+    ASSERT_EQ(1024u * 6, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+}
+
 TEST_F(dmGraphicsTest, TestTextureFormatDataSize)
 {
     // 1580x860 BC4 is 395x215 blocks of 8 bytes
