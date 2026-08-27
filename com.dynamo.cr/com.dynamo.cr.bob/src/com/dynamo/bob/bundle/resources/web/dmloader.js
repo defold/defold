@@ -249,7 +249,8 @@ var FileLoader = {
     // Do HTTP GET request
     // onprogress(loadedDelta)
     // onerror(error)
-    // onload(response)
+    // onload(response, url) - url is the one that answered, which is not the one passed in
+    //                         when a retry had to vary it
     // onretry(loadedSize, currentAttempt)
     load: function(url, responseType, onprogress, onerror, onload, onretry) {
         var request = FileLoader.request(url, "GET", responseType);
@@ -265,9 +266,9 @@ var FileLoader = {
                 if (xhr.status === 200) {
                     var res = xhr.response;
                     if (responseType == "json" && typeof res === "string") {
-                        onload(JSON.parse(res));
+                        onload(JSON.parse(res), request.url);
                     } else {
-                        onload(res);
+                        onload(res, request.url);
                     }
                 } else if (!request.retry(xhr, e)) {
                     onerror("Error loading '" + request.url + "' (status " + xhr.status + ")");
@@ -447,7 +448,7 @@ var EngineLoader = {
                 ProgressUpdater.updateCurrent(delta);
             },
             function(error) { throw error; },
-            async function(response) {
+            async function(response, url) {
                 {{#html5.verify_downloaded_file_size}}
                 {{!
                     response.length counts utf-16 code units, expectedLength counts bytes.
@@ -469,10 +470,15 @@ var EngineLoader = {
                         }
                     }
                 }
-                Module["mainScriptUrlOrBlob"] = src;
+                {{!
+                    The script tag re-requests the file, so it has to ask for the url that
+                    answered here. Asking for src again would go back to the url whose
+                    response failed, and run bytes other than the ones verified above.
+                }}
+                Module["mainScriptUrlOrBlob"] = url;
 
                 const script = document.createElement('script');
-                script.src = src;
+                script.src = url;
                 script.type = "text/javascript";
                 document.body.appendChild(script);
             },
