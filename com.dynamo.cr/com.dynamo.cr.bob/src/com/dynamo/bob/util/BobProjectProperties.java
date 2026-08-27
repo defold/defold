@@ -636,11 +636,8 @@ public class BobProjectProperties {
      * @param pw {@link PrintWriter} to save to
      */
     public void save(PrintWriter pw) {
-        // Note: line endings are hardcoded to '\n' instead of using the platform line
-        // separator. The output of this function ends up in game.projectc, which is a text
-        // file that gets its size verified by the HTML5 loader. Platform dependent line
-        // endings make the bundle non-reproducible and let tools that rewrite text files
-        // (such as git with core.autocrlf) change the file size. See issue #10006.
+        // Line endings are hardcoded to '\n' rather than the platform separator: this ends up
+        // in game.projectc, whose size the HTML5 loader verifies. See issue #10006.
         for (String category : getCategoryNames()) {
             pw.format("[%s]\n", category);
 

@@ -1,6 +1,10 @@
 /*
 *     'archive_location_filter':
-*         Filter function that will run for each archive path.
+*         Filter function that will run for each archive path, called as
+*         filter(path, attempt) where attempt counts up per retry. What it returns is
+*         requested as is, so a filter that signs its urls must sign the retry url too, or
+*         ignore attempt to reuse the signed url. Unsigned urls can use
+*         FileLoader.addCacheBuster(url, attempt) to bypass a bad http cache entry.
 *
 *     'unsupported_webgl_callback':
 *         Function that is called if WebGL is not supported.
@@ -44,8 +48,9 @@
 *         subsequently passed on to WebAssembly.
 */
 var CUSTOM_PARAMETERS = {
-    archive_location_filter: function( path ) {
-        return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
+    archive_location_filter: function( path, attempt ) {
+        var url = ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
+        return attempt ? FileLoader.addCacheBuster(url, attempt) : url;
     },
     engine_arguments: [{{#DEFOLD_ENGINE_ARGUMENTS}}"{{.}}",{{/DEFOLD_ENGINE_ARGUMENTS}}],
     custom_heap_size: {{DEFOLD_HEAP_SIZE}},
@@ -166,15 +171,18 @@ var FileLoader = {
         retryCount: 4,
         retryInterval: 1000,
     },
-    {{!
-        Vary the url so that a retry can not be answered from the same http cache entry.
-        A retry is usually caused by a network hiccup, but it can also be caused by a
-        response that is corrupt in the browser or CDN cache, and repeating the exact same
-        request would keep getting the exact same bad bytes back.
-        Note that the archive location suffix may already contain a query string.
-    }}
     addCacheBuster: function(url, attempt) {
         return url + (url.indexOf("?") === -1 ? "?" : "&") + "dmretry=" + attempt;
+    },
+    {{!
+        Nothing is ever appended to what a url function returns: appending to a signed url
+        whose signature covers the query string turns every retry into a 403.
+    }}
+    resolveUrl: function(url, attempt) {
+        if (typeof url === "function") {
+            return url(attempt);
+        }
+        return attempt > 0 ? FileLoader.addCacheBuster(url, attempt) : url;
     },
     // do xhr request with retries
     request: function(url, method, responseType, currentAttempt) {
@@ -182,10 +190,6 @@ var FileLoader = {
         if (typeof method === 'responseType') throw TypeError("No responseType specified");
         if (typeof currentAttempt === 'undefined') currentAttempt = 0;
         var obj = {
-            {{!
-                Schedule another attempt if there is retry budget left. Returns false when the
-                budget is spent and the caller is expected to report the error instead.
-            }}
             retry: function(xhr, event) {
                 if (currentAttempt == FileLoader.options.retryCount) {
                     return false;
@@ -203,7 +207,8 @@ var FileLoader = {
 
                 var xhr = new XMLHttpRequest();
                 xhr._loadedSize = 0;
-                xhr.open(method, currentAttempt > 0 ? FileLoader.addCacheBuster(url, currentAttempt) : url, true);
+                obj.url = FileLoader.resolveUrl(url, currentAttempt);
+                xhr.open(method, obj.url, true);
                 xhr.responseType = responseType;
                 xhr.onprogress = function(event) {
                     if (onprogress) onprogress(xhr, event, xhr._loadedSize);
@@ -253,7 +258,7 @@ var FileLoader = {
             onprogress(delta);
         };
         request.onerror = function(xhr, e) {
-            onerror("Error loading '" + url + "' (" + e + ")");
+            onerror("Error loading '" + request.url + "' (" + e + ")");
         };
         request.onload = function(xhr, e) {
             if (xhr.readyState === XMLHttpRequest.DONE) {
@@ -265,11 +270,7 @@ var FileLoader = {
                         onload(res);
                     }
                 } else if (!request.retry(xhr, e)) {
-                    {{!
-                        a completed request with a bad status is just as retryable as a
-                        failed connection, a 502 from a proxy is often gone a second later
-                    }}
-                    onerror("Error loading '" + url + "' (status " + xhr.status + ")");
+                    onerror("Error loading '" + request.url + "' (status " + xhr.status + ")");
                 }
             }
         };
@@ -449,9 +450,7 @@ var EngineLoader = {
             async function(response) {
                 {{#html5.verify_downloaded_file_size}}
                 {{!
-                    response is a string, so response.length counts utf-16 code units while
-                    expectedLength is the size of the file in bytes. Encode before comparing,
-                    otherwise every non ascii character in the file is reported as a mismatch.
+                    response.length counts utf-16 code units, expectedLength counts bytes.
                 }}
                 const actualLength = new TextEncoder().encode(response).length;
                 if (actualLength != expectedLength) {
@@ -544,11 +543,7 @@ var GameArchiveLoader = {
     isCompleted: false,       // status of process
 
     {{!
-        How many times a file may be downloaded again after a failed verification. Kept much
-        lower than html5.retry_count because a network retry re-requests a single piece while
-        this re-requests the whole file, which can be tens of megabytes. Corruption that is
-        transient or cached is recovered on the first attempt or two, corruption that is
-        consistently served will not be recovered no matter how many times we ask for it.
+        Kept much lower than html5.retry_count: this re-requests a whole file, not a piece.
     }}
     MAX_VERIFICATION_RETRIES: 2,
 
@@ -556,7 +551,20 @@ var GameArchiveLoader = {
     _onArchiveLoadedListeners:[],        // signature: void
     _onFileDownloadErrorListeners: [],   // signature: name
 
-    _archiveLocationFilter: function(path) { return "split" + path; },
+    _archiveLocationFilter: function(path, attempt) {
+        var url = "split" + path;
+        return attempt ? FileLoader.addCacheBuster(url, attempt) : url;
+    },
+
+    {{!
+        The attempt passed to the filter has to cover the transport retries of every earlier
+        verification attempt as well, so that no two requests for a piece can be identical.
+    }}
+    archiveLocationProvider: function(path, verificationAttempt) {
+        var self = this;
+        var base = (verificationAttempt || 0) * (FileLoader.options.retryCount + 1);
+        return function(attempt) { return self._archiveLocationFilter(path, base + attempt); };
+    },
 
     cleanUp: function() {
         this._files =  [];
@@ -608,7 +616,7 @@ var GameArchiveLoader = {
     // descriptionUrl: location of text file describing files to be preloaded
     loadArchiveDescription: function(descriptionUrl) {
         FileLoader.load(
-            this._archiveLocationFilter(descriptionUrl),
+            this.archiveLocationProvider(descriptionUrl, 0),
             "text",
             function (delta) { },
             function (error) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
@@ -665,10 +673,8 @@ var GameArchiveLoader = {
             const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
             try { // see if already and stored
                 {{!
-                    Only look at the persisted copy on the first attempt. When we get here after
-                    a failed verification we already know that copy is bad, and reopening it
-                    with "w+" below truncates it, which is what removes a stale tail left behind
-                    by a response that was longer than expected.
+                    On a retry the persisted copy is known bad, and skipping the check lets
+                    "w+" below truncate away a stale tail.
                 }}
                 const stat = file.verificationAttempt ? null : FS.stat(path);
                 if (stat) {
@@ -677,10 +683,8 @@ var GameArchiveLoader = {
                     {{/html5.verify_downloaded_file_size}}
                     {{^html5.verify_downloaded_file_size}}
                     {{!
-                        Without the size check the hash is the only thing that can tell a
-                        complete persisted file from a truncated one, so only reuse a file we
-                        are able to hash. Bundle with --with-sha1 to keep persistence working
-                        with size verification turned off.
+                        Without the size check only a hash can tell a complete persisted file
+                        from a truncated one, so bundle with --with-sha1 to keep persistence.
                     }}
                     let matches = !!file.sha1;
                     {{/html5.verify_downloaded_file_size}}
@@ -732,13 +736,8 @@ var GameArchiveLoader = {
         file.lastRequestedPiece = index;
         file.totalLoadedPieces = 0;
 
-        var url = this._archiveLocationFilter('/' + piece.name);
-        if (file.verificationAttempt) {
-            url = FileLoader.addCacheBuster(url, file.verificationAttempt);
-        }
-
         FileLoader.load(
-            url, "arraybuffer",
+            this.archiveLocationProvider('/' + piece.name, file.verificationAttempt), "arraybuffer",
             function (delta) {
                 GameArchiveLoader.notifyDownloadProgress(delta);
             },
@@ -770,11 +769,6 @@ var GameArchiveLoader = {
             var start = piece.offset;
             var end = start + piece.data.length;
             {{^html5.verify_downloaded_file_size}}
-            {{!
-                The buffer was allocated from the expected size. With size verification turned
-                off a file is allowed to be bigger than expected, so grow the buffer, otherwise
-                turning the check off would still fail below for multi piece files.
-            }}
             if (end > file.data.length) {
                 const grown = new Uint8Array(end);
                 grown.set(file.data);
@@ -783,10 +777,8 @@ var GameArchiveLoader = {
             {{/html5.verify_downloaded_file_size}}
             if (0 > start || end > file.data.length) {
                 {{!
-                    The piece does not fit the buffer we allocated from the expected file size,
-                    so what we received is not what we asked for. Leave the piece out and let
-                    verifyFile() report it once every piece has settled, instead of throwing
-                    from an xhr callback while the other pieces are still in flight.
+                    Let verifyFile() report this once every piece has settled, rather than
+                    throwing from an xhr callback while the other pieces are still in flight.
                 }}
                 console.warn("Piece " + piece.name + " does not fit " + file.name + ": start " + start + ", end " + end + ", buffer length " + file.data.length);
                 return;
@@ -808,10 +800,6 @@ var GameArchiveLoader = {
                 }
                 this.onFileLoaded(file);
             }).catch((e) => {
-                {{!
-                    Every piece has settled by the time we get here, so it is safe to throw the
-                    file away and ask for it again.
-                }}
                 if (this.retryFile(file, e)) {
                     return;
                 }
@@ -833,12 +821,6 @@ var GameArchiveLoader = {
         }
     },
 
-    {{!
-        A failed verification means the bytes we got are not the bytes we asked for. That is
-        often transient, a truncated response or a bad entry in a cache somewhere, so download
-        the file again instead of killing the game on the first attempt.
-        Returns false once the budget is spent and the caller should report the error.
-    }}
     retryFile: function(file, error) {
         if (file.verificationAttempt === undefined) {
             file.verificationAttempt = 0;
@@ -859,9 +841,8 @@ var GameArchiveLoader = {
         ProgressUpdater.updateCurrent(-downloadedSize);
 
         {{!
-            Close the stream so that downloadContent() reopens it with "w+", which truncates.
-            A response that was longer than expected has already extended the file on disk, and
-            the next attempt would only overwrite the prefix, leaving a stale tail behind.
+            Reopening with "w+" in downloadContent() truncates. Without that, a response that
+            was too long has already extended the file and the retry only rewrites its prefix.
         }}
         if (file.stream !== undefined) {
             FS.close(file.stream);
@@ -870,10 +851,6 @@ var GameArchiveLoader = {
 
         file.data = undefined;
         file.totalLoadedPieces = 0;
-        {{!
-            downloadPiece() only accepts pieces in ascending order, and _fileIndex still points
-            at this file since it is only advanced once the file has loaded successfully
-        }}
         file.lastRequestedPiece = undefined;
 
         setTimeout(function() { GameArchiveLoader.downloadContent(); }, FileLoader.options.retryInterval);
@@ -918,10 +895,6 @@ var GameArchiveLoader = {
             let data = file.data;
             if (file.stream) {
                 try {
-                    {{!
-                        map what was actually written, which is only different from file.size
-                        when size verification is turned off
-                    }}
                     data = FS.mmap(file.stream, actualSize, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
                 } catch(e) { }
             }
