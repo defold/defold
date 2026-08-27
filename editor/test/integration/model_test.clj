@@ -120,6 +120,13 @@
         (is (coll/empty? (get-in (g/node-value mesh-scene-node-id :mesh-set-build-target)
                                  [:user-data :mesh-set :raw-models]))))
 
+      (testing "a selected mesh with a skeleton uses the selected mesh bounds"
+        (let [skeleton-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.gltf")]
+          (test-util/with-prop [node-id :skeleton skeleton-resource]
+            (let [aabb (:aabb (g/node-value node-id :scene))]
+              (is (= (Point3d. 0.0 0.0 0.0) (types/min-p aabb)))
+              (is (= (Point3d. 1.0 1.0 0.0) (types/max-p aabb)))))))
+
       (testing "an empty selection renders the entire scene and omits the fields"
         (test-util/with-prop [node-id :mesh-name ""]
           (test-util/with-prop [node-id :mesh-index -1]

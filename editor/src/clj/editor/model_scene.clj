@@ -726,7 +726,8 @@
                                (:raw-model-scenes scene)))
           augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms)
                                        model-scenes)
-          scene-aabb (when-not use-skeleton-transforms
+          scene-aabb (when (or (not use-skeleton-transforms)
+                               (not= -1 selected-mesh-index))
                        (model-scenes-aabb augmented-model-scenes))
           augmented-model-scenes (cond-> augmented-model-scenes
                                    (and scene-aabb (seq augmented-model-scenes))
