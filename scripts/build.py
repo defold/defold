@@ -235,7 +235,7 @@ PACKAGES_MACOS_X86_64=[
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
@@ -264,7 +264,7 @@ PACKAGES_MACOS_ARM64=[
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_WIN32=[
@@ -307,8 +307,7 @@ PACKAGES_WIN32_64=[
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
@@ -337,8 +336,7 @@ PACKAGES_LINUX_X86_64=[
     "aapt2-36.1.0",
     "apkc-0.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
@@ -466,7 +464,6 @@ BOB_TOOL_PACKAGE_PREFIXES = (
     'ogg-',
     'spirv-tools-',
     'strip_android-',
-    'strip_android_aarch64-',
     'tint-',
 )
 

@@ -64,14 +64,6 @@ public class AndroidBundler implements IBundler {
     private static String stripToolName = "strip_android";
     private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
 
-    private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
-    static {
-        platformToStripToolMap.put(Platform.Armv7Android, stripToolName);
-        platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
-        // llvm-strip is architecture agnostic, reuse the same tool for x86_64
-        platformToStripToolMap.put(Platform.X86_64Android, "strip_android_aarch64");
-    }
-
     private static Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
     static {
         platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
@@ -219,15 +211,12 @@ public class AndroidBundler implements IBundler {
         return getArchitectures(project).get(0);
     }
 
-    private void stripBinary(Project project, Platform architecture, File binary, ICanceled canceled) throws IOException, CompileExceptionError
+    private void stripBinary(Project project, File binary, ICanceled canceled) throws IOException, CompileExceptionError
     {
         final boolean strip_executable = project.hasOption("strip-executable");
         if (strip_executable) {
-            String stripToolExe = platformToStripToolMap.get(architecture);
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
-                stripToolExe = stripToolName;
-            }
-            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
+            // llvm-strip reads every Android ABI, so a single tool covers armv7/arm64/x86_64
+            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolName);
             AndroidTools.exec(stripTool, binary.getAbsolutePath());
             BundleHelper.throwIfCanceled(canceled);
         }
@@ -588,12 +577,12 @@ public class AndroidBundler implements IBundler {
                 File dest = new File(architectureDir, "lib" + exeName + ".so");
                 logger.info("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest, canceled);
-                stripBinary(project, architecture, dest, canceled);
+                stripBinary(project, dest, canceled);
                 
                 if (vkQualityEnabled)
                 {
                     File libdest = copyVkQualityLibrary(project, architecture, libDir, canceled);
-                    stripBinary(project, architecture, libdest, canceled);
+                    stripBinary(project, libdest, canceled);
                 }
                 else
                 {
