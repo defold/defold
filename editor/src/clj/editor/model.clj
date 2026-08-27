@@ -65,7 +65,9 @@
                     (map (fn [{:keys [index name]}]
                            [index (if (= 1 (get name-counts name))
                                     name
-                                    (format "%s (raw%d)" name index))]))
+                                    (localization/message "property.mesh-selection.option.raw-index"
+                                                          {"mesh" name
+                                                           "index" index}))]))
                     collision-meshes)}))
 
 (defn- set-mesh-index [evaluation-context self _old-value new-value]

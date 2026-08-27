@@ -315,6 +315,21 @@
 (g/defnk produce-collision-meshes [content]
   (:collision-meshes content))
 
+(g/defnk produce-collision-mesh-set [content]
+  (assoc (:mesh-set content) :models []))
+
+(g/defnk produce-collision-mesh-renderables [renderable-mesh-set]
+  (mapv (fn [{:keys [aabb mesh-index renderable-meshes]}]
+          {:aabb aabb
+           :index mesh-index
+           :primitives
+           (mapv (fn [{:keys [aabb renderable-buffers]}]
+                   {:aabb aabb
+                    :index-buffer (:index-buffer renderable-buffers)
+                    :position-buffer (nth (get-in renderable-buffers [:attribute-buffers :semantic-type-position]) 0)})
+                 renderable-meshes)})
+        (:renderable-raw-models renderable-mesh-set)))
+
 (def ^:private default-material-ids ["default"])
 
 (g/defnk produce-material-ids [content]
@@ -772,6 +787,8 @@
   (output bones g/Any produce-bones)
   (output animation-info g/Any produce-animation-info)
   (output animation-ids g/Any produce-animation-ids)
+  (output collision-mesh-renderables g/Any produce-collision-mesh-renderables)
+  (output collision-mesh-set g/Any produce-collision-mesh-set)
   (output collision-meshes g/Any produce-collision-meshes)
   (output material-ids g/Any produce-material-ids)
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)

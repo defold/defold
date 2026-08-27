@@ -51,8 +51,8 @@
      :packed-texture (packed-morph-target-texture->map packed-texture)}))
 
 (defn- model-mesh->collision-primitive [^Modelimporter$Mesh mesh]
-  {:indices (.-indices mesh)
-   :positions (.-positions mesh)
+  {:index-count (alength (.-indices mesh))
+   :position-count (alength (.-positions mesh))
    :triangles (= Modelimporter$PrimitiveType/PRIMITIVE_TYPE_TRIANGLES
                  (.-primitiveType mesh))})
 

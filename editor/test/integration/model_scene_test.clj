@@ -76,12 +76,13 @@
           buffer-resource (workspace/find-resource workspace "/mesh/triangle/gltf/simpleTriangle.bin")
           buffer-node (project/get-resource-node project buffer-resource)
           first-x (fn []
-                    (let [^floats positions (-> (g/node-value model-scene :collision-meshes)
-                                                (get-in [0 :primitives 0 :positions]))]
-                      (aget positions 0)))
-          collision-preview-vbuf (fn []
-                                   (get-in (g/node-value collision-shape :scene)
-                                           [:renderable :user-data :geometry :vbuf]))]
+                    (-> (g/node-value model-scene :content)
+                        (get-in [:mesh-set :raw-models 0 :meshes 0 :positions 0])
+                        double))
+          collision-preview-position-buffer
+          (fn []
+            (get-in (g/node-value collision-shape :selected-collision-mesh-renderable)
+                    [:primitives 0 :position-buffer]))]
       (g/set-property! collision-shape :mesh-scene model-scene-resource)
       (g/set-properties! collision-shape :mesh-name "Triangle" :mesh-index 0)
 
@@ -94,7 +95,7 @@
             initial-collision-content-hash (-> (g/node-value collision-object :build-targets)
                                                first
                                                :content-hash)
-            initial-collision-preview-vbuf (collision-preview-vbuf)
+            initial-collision-preview-position-buffer (collision-preview-position-buffer)
             bytes (resource/resource->bytes buffer-resource)]
         (-> (ByteBuffer/wrap bytes)
             (.order ByteOrder/LITTLE_ENDIAN)
@@ -110,5 +111,5 @@
                   (-> (g/node-value collision-object :build-targets)
                       first
                       :content-hash)))
-        (is (not (identical? initial-collision-preview-vbuf
-                             (collision-preview-vbuf))))))))
+        (is (not (identical? initial-collision-preview-position-buffer
+                             (collision-preview-position-buffer))))))))
