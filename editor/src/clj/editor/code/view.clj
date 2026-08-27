@@ -3080,14 +3080,18 @@
                                line-edits
                                (get-property view-node :layout evaluation-context)))))))))
 
-(defn- format-whole-document! [view-node lsp resource indent-type lines]
+(defn- format-whole-document! [view-node lsp resource indent-type lines done! & {:as opts}]
   (lsp/format-document!
     lsp resource indent-type
     (fn [response]
       (ui/run-later
-        (if response
-          (apply-formatting-edits! view-node lines (:edits response))
-          (show-formatting-failed-notification! resource))))))
+        (try
+          (if response
+            (apply-formatting-edits! view-node lines (:edits response))
+            (show-formatting-failed-notification! resource))
+          (finally
+            (done!)))))
+    opts))
 
 (defn- format-selected-rows! [view-node lsp resource indent-type lines cursor-ranges]
   (when-let [row-spans (coll/not-empty (data/format-row-spans lines cursor-ranges))]
@@ -3100,6 +3104,36 @@
             (apply-formatting-edits!
               view-node lines
               (vec (sort-by key (into [] (mapcat :edits) responses))))))))))
+
+(defn async-format-on-save! [view-nodes done!]
+  (g/let-ec [basis (:basis evaluation-context)
+             pending
+             (into []
+                   (keep
+                     (fn [view-node]
+                       (when (g/node-instance? basis CodeEditorView view-node)
+                         (let [resource-node (get-property view-node :resource-node evaluation-context)
+                               resource (g/node-value resource-node :resource evaluation-context)
+                               lsp (lsp/get-node-lsp basis resource-node)]
+                           (when (and (resource/file-resource? resource)
+                                      (true? (g/node-value resource-node :dirty evaluation-context))
+                                      (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+                             {:view-node view-node
+                              :lsp lsp
+                              :resource resource
+                              :indent-type (get-property view-node :indent-type evaluation-context)
+                              :lines (get-property view-node :lines evaluation-context)})))))
+                   view-nodes)]
+    (if (coll/empty? pending)
+      (done!)
+      (let [remaining-volatile (volatile! (count pending))]
+        (doseq [{:keys [view-node lsp resource indent-type lines]} pending]
+          (format-whole-document!
+            view-node lsp resource indent-type lines
+            (fn []
+              (when (zero? (long (vswap! remaining-volatile #(dec (long %)))))
+                (done!)))
+            :timeout-ms 2000))))))
 
 (defn- formatting-selected-rows? [cursor-ranges]
   (coll/not-every? data/cursor-range-empty? cursor-ranges))
@@ -3120,7 +3154,7 @@
         (show-no-language-server-for-resource-language-notification! resource)
         (if (formatting-selected-rows? cursor-ranges)
           (format-selected-rows! view-node lsp resource indent-type lines cursor-ranges)
-          (format-whole-document! view-node lsp resource indent-type lines))))))
+          (format-whole-document! view-node lsp resource indent-type lines fn/constantly-nil))))))
 
 (handler/defhandler :code.goto-definition :code-view
   (enabled? [view-node evaluation-context]

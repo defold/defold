@@ -26,18 +26,23 @@
    :panel-key {:path [:name]
                :type :string
                :default "new_constant"}
-   :panel-form
-   {:sections
-    [{:fields
-      (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-        [{:path [:type]
-          :localization-key (str localization-key ".type")
-          :type :choicebox
-          :options (protobuf-forms/make-options constant-values)
-          :default (ffirst constant-values)}
-         {:path [:value]
-          :localization-key (str localization-key ".value")
-          :type :vec4}])}]}})
+   :panel-form-fn
+   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)
+         default-constant-type (ffirst constant-values)
+         constant-options (vec (sort-by first (protobuf-forms/make-options constant-values)))]
+     (fn panel-form-fn [selected-constant]
+       {:sections
+        [{:fields
+          [{:path [:type]
+            :localization-key (str localization-key ".type")
+            :type :choicebox
+            :options constant-options
+            :default default-constant-type}
+           {:path [:value]
+            :localization-key (str localization-key ".value")
+            :type (case (:type selected-constant default-constant-type)
+                    :constant-type-user-color :color
+                    :vec4)}]}]}))})
 
 (defn gen-form-data-samplers [localization-key path-key]
   {:path [path-key]
@@ -112,7 +117,8 @@
     :constant-type-viewproj-inverse false
     :constant-type-worldview-inverse false
     :constant-type-worldviewproj-inverse false
-    :constant-type-user-matrix4 true))
+    :constant-type-user-matrix4 true
+    :constant-type-user-color true))
 
 (defn sanitize-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
