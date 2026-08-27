@@ -37,6 +37,7 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)]
                      (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
+  (input project-node-id g/NodeID)
   (input value-input g/Str))
 
 (g/defnode BNode
@@ -48,6 +49,9 @@
 
 (defn- dependencies-a [source-value]
   (keep source-value [:b]))
+
+(defn- connect-a [project self _resource]
+  (g/connect project :_node-id self :project-node-id))
 
 (defn- load-a [_project self resource source-value]
   (swap! load-counter inc)
@@ -82,6 +86,7 @@
                                                  :node-type ANode
                                                  :read-fn read-a
                                                  :dependencies-fn dependencies-a
+                                                 :connect-fn connect-a
                                                  :load-fn load-a
                                                  :label "Type A"}
                                                 {:ext "type_b"
@@ -90,6 +95,9 @@
                                                  :label "Type B"}])))
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)
-              a1 (project/get-resource-node project "/a1.type_a")]
+              a1 (project/get-resource-node project "/a1.type_a")
+              a2 (project/get-resource-node project "/a2.type_a")]
           (is (= 3 @load-counter))
+          (is (= project (g/node-value a1 :project-node-id)))
+          (is (= project (g/node-value a2 :project-node-id)))
           (is (= "t" (g/node-value a1 :value-piece))))))))

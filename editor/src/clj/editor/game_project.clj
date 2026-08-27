@@ -33,6 +33,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
+            [util.eduction :as e]
             [util.path :as path])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Result]
            [com.fasterxml.jackson.databind ObjectMapper]
@@ -372,6 +373,19 @@
 
 ;;; loading node
 
+(defn- connect-game-project [project self _resource]
+  ;; Make sure the game.project node is properly connected before executing any
+  ;; load-fns, since establishing these connections will invalidate any
+  ;; dependent outputs in the cache.
+  (let [script-intelligence (g/node-value project :script-intelligence)]
+    (e/concat
+      (g/connect script-intelligence :build-errors self :build-errors)
+      (g/connect self :display-profiles-data project :display-profiles)
+      (g/connect self :texture-profiles-data project :texture-profiles)
+      (g/connect self :use-font-layout project :use-font-layout)
+      (g/connect self :use-rich-text project :use-rich-text)
+      (g/connect self :settings-map project :settings))))
+
 (defn- load-game-project [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)
         workspace (resource/workspace resource)
@@ -410,6 +424,7 @@
     :ext "project"
     :label (localization/message "resource.type.project")
     :node-type GameProjectNode
+    :connect-fn connect-game-project
     :load-fn load-game-project
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
