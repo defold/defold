@@ -3117,7 +3117,7 @@
                                lsp (lsp/get-node-lsp basis resource-node)]
                            (when (and (resource/file-resource? resource)
                                       (true? (g/node-value resource-node :dirty evaluation-context))
-                                      (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+                                      (lsp/has-language-servers-running-for-resource? lsp resource))
                              {:view-node view-node
                               :lsp lsp
                               :resource resource
