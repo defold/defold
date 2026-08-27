@@ -172,6 +172,14 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testGLTFValidatorIgnoresUnsupportedFeatureErrors() {
+        assertTrue(GLTFValidator.isIgnoredError(
+                "/meshes/0/primitives/0/material", "MESH_PRIMITIVE_NO_TANGENT_SPACE"));
+        assertTrue(GLTFValidator.isIgnoredError("/images/0", "IMAGE_UNSUPPORTED_MIME_TYPE"));
+        assertFalse(GLTFValidator.isIgnoredError("/accessors/0", "ACCESSOR_INVALID"));
+    }
+
+    @Test
     public void testGLTFValidatorInvalid() throws IOException {
         for (Map.Entry<String, String> entry : invalidGLTFFiles.entrySet()) {
             String invalidGLTFFile = entry.getKey();

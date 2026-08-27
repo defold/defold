@@ -819,6 +819,69 @@ TEST(ModelGLTF, MorphWeightsAnimationChannel)
     dmModelImporter::DestroyScene(scene);
 }
 
+TEST(ModelGLTF, NormalizedIntegerMorphWeightsAnimationChannel)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"scene\":0,"
+        "\"scenes\":[{\"nodes\":[0]}],"
+        "\"nodes\":[{\"mesh\":0}],"
+        "\"meshes\":[{"
+            "\"primitives\":[{"
+                "\"attributes\":{\"POSITION\":0},"
+                "\"targets\":[{\"POSITION\":1},{\"POSITION\":2}]"
+            "}],"
+            "\"weights\":[0,0]"
+        "}],"
+        "\"accessors\":["
+            "{\"bufferView\":0,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[0,0,0]},"
+            "{\"bufferView\":1,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"bufferView\":2,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"bufferView\":3,\"componentType\":5126,\"count\":2,\"type\":\"SCALAR\"},"
+            "{\"bufferView\":4,\"componentType\":5121,\"normalized\":true,\"count\":4,\"type\":\"SCALAR\"}"
+        "],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":12},"
+            "{\"buffer\":0,\"byteOffset\":12,\"byteLength\":12},"
+            "{\"buffer\":0,\"byteOffset\":24,\"byteLength\":12},"
+            "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":8},"
+            "{\"buffer\":0,\"byteOffset\":44,\"byteLength\":4}"
+        "],"
+        "\"buffers\":[{\"uri\":\"payload.bin\",\"byteLength\":48}],"
+        "\"animations\":[{"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"node\":0,\"path\":\"weights\"}}],"
+            "\"samplers\":[{\"input\":3,\"output\":4}]"
+        "}]"
+        "}";
+    uint8_t buffer[48];
+    memset(buffer, 0, sizeof(buffer));
+    const float times[] = { 0.0f, 1.0f };
+    memcpy(buffer + 36, times, sizeof(times));
+    buffer[44] = 0;
+    buffer[45] = 0;
+    buffer[46] = 255;
+    buffer[47] = 128;
+
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_TRUE(dmModelImporter::NeedsResolve(scene));
+    dmModelImporter::ResolveBuffer(scene, "payload.bin", buffer, sizeof(buffer));
+    ASSERT_TRUE(dmModelImporter::LoadFinalize(scene));
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+
+    const dmModelImporter::NodeAnimation& animation = scene->m_Animations[0].m_NodeAnimations[0];
+    ASSERT_EQ(2U, animation.m_MorphWeightDimensions);
+    ASSERT_EQ(4U, animation.m_MorphWeightKeyValues.Size());
+    ASSERT_NEAR(0.0f, animation.m_MorphWeightKeyValues[0], 1e-6f);
+    ASSERT_NEAR(0.0f, animation.m_MorphWeightKeyValues[1], 1e-6f);
+    ASSERT_NEAR(1.0f, animation.m_MorphWeightKeyValues[2], 1e-6f);
+    ASSERT_NEAR(128.0f / 255.0f, animation.m_MorphWeightKeyValues[3], 1e-6f);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 TEST(ModelGLTF, SparseMorphTarget)
 {
     dmModelImporter::Options options;

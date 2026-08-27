@@ -1905,6 +1905,25 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     }
 }
 
+static bool IsSupportedAnimationOutput(const cgltf_animation_channel* channel, const cgltf_accessor* output)
+{
+    if (output->component_type == cgltf_component_type_r_32f)
+        return true;
+    if (channel->target_path != cgltf_animation_path_type_weights || !output->normalized)
+        return false;
+
+    switch (output->component_type)
+    {
+        case cgltf_component_type_r_8:
+        case cgltf_component_type_r_8u:
+        case cgltf_component_type_r_16:
+        case cgltf_component_type_r_16u:
+            return true;
+        default:
+            return false;
+    }
+}
+
 static bool ValidateAnimationChannel(Scene* scene, cgltf_animation_channel* channel)
 {
     if (!channel->target_node)
@@ -1931,9 +1950,9 @@ static bool ValidateAnimationChannel(Scene* scene, cgltf_animation_channel* chan
         SetLoadError(scene, "glTF animation input accessor must contain SCALAR floats.");
         return false;
     }
-    if (output->component_type != cgltf_component_type_r_32f)
+    if (!IsSupportedAnimationOutput(channel, output))
     {
-        SetLoadError(scene, "glTF animation output accessor must contain floats.");
+        SetLoadError(scene, "glTF animation output accessor must contain floats or normalized integer weights.");
         return false;
     }
 
