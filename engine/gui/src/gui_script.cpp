@@ -189,7 +189,6 @@ namespace dmGui
      * @member gui.PROP_SIZE size property
      * @member gui.PROP_SLICE9 slice9 property
      * @member gui.PROP_TRACKING tracking property
-     * @param value [type:string] property name
      */
 
     /*# GUI results

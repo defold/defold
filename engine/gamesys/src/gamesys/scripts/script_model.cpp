@@ -262,14 +262,6 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the model for which to play the animation
      * @param anim_id [type:string|hash] id of the animation to play
      * @param playback [type:go.PLAYBACK] playback mode of the animation
-     *
-     * - `go.PLAYBACK_ONCE_FORWARD`
-     * - `go.PLAYBACK_ONCE_BACKWARD`
-     * - `go.PLAYBACK_ONCE_PINGPONG`
-     * - `go.PLAYBACK_LOOP_FORWARD`
-     * - `go.PLAYBACK_LOOP_BACKWARD`
-     * - `go.PLAYBACK_LOOP_PINGPONG`
-     *
      * @param [play_properties] [type:model.play_properties] optional playback properties
      * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.model.model_animation_done, sender:url)] function to call when the animation has completed.
      *

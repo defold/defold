@@ -213,6 +213,19 @@ generator associates constants named with either the `ENUM_VALUE` or
  */
 ```
 
+Alternatively, list enum values explicitly with `@member` when they are
+documented in the enum block. Do not also declare the same values as standalone
+constants:
+
+```
+/*# Image types
+ * @enum
+ * @name image.TYPE
+ * @member image.TYPE_RGB RGB image type.
+ * @member image.TYPE_RGBA RGBA image type.
+ */
+```
+
 Use an explicit type for a standalone constant that does not belong to an enum:
 
 ```
