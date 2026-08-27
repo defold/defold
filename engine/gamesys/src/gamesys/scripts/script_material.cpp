@@ -69,6 +69,7 @@ namespace dmGameSystem
      * @enum
      * @name material.CONSTANT_TYPE
      * @member material.CONSTANT_TYPE_USER User vector constant.
+     * @member material.CONSTANT_TYPE_USER_COLOR User color constant.
      * @member material.CONSTANT_TYPE_USER_MATRIX4 User matrix constant.
      * @member material.CONSTANT_TYPE_VIEWPROJ View-projection matrix constant.
      * @member material.CONSTANT_TYPE_WORLD World matrix constant.
@@ -377,35 +378,7 @@ namespace dmGameSystem
      * @name material.get_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @return table [type:table] A table of tables, where each entry contains info about the shader constants:
-     *
-     * `name`
-     * : [type:hash] the hashed name of the constant
-     *
-     * `type`
-     * : [type:number] the type of the constant. Supported values:
-     *
-     *   - `material.CONSTANT_TYPE_USER`
-     *   - `material.CONSTANT_TYPE_USER_COLOR`
-     *   - `material.CONSTANT_TYPE_USER_MATRIX4`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ`
-     *   - `material.CONSTANT_TYPE_WORLD`
-     *   - `material.CONSTANT_TYPE_TEXTURE`
-     *   - `material.CONSTANT_TYPE_VIEW`
-     *   - `material.CONSTANT_TYPE_PROJECTION`
-     *   - `material.CONSTANT_TYPE_NORMAL`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
-     *   - `material.CONSTANT_TYPE_TIME`
-     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
-     *
-     * `value`
-     * : [type:vmath.vector4|vmath.matrix4] the value(s) of the constant. If the constant is an array, the value will be a table of vmath.vector4 or vmath.matrix4 if the type is `material.CONSTANT_TYPE_USER_MATRIX4`.
+     * @return constants [type:material.constant_info[]] Shader constant information.
      *
      * @examples
      * Get the shader constants from a material specified as a resource property
@@ -747,32 +720,7 @@ namespace dmGameSystem
      * @name material.set_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @param constants [type:table] A table keyed by constant name with args tables as values. Constants can be partially updated. Supported entries:
-     *
-     * `type`
-     * : [type:number] the type of the constant. Supported values:
-     *
-     *   - `material.CONSTANT_TYPE_USER`
-     *   - `material.CONSTANT_TYPE_USER_COLOR`
-     *   - `material.CONSTANT_TYPE_USER_MATRIX4`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ`
-     *   - `material.CONSTANT_TYPE_WORLD`
-     *   - `material.CONSTANT_TYPE_TEXTURE`
-     *   - `material.CONSTANT_TYPE_VIEW`
-     *   - `material.CONSTANT_TYPE_PROJECTION`
-     *   - `material.CONSTANT_TYPE_NORMAL`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
-     *   - `material.CONSTANT_TYPE_TIME`
-     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
-     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
-     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
-     *
-     * `value`
-     * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
+     * @param constants [type:table<string|hash, material.constant_options>] Shader constant updates keyed by constant name. Partial updates are supported.
      *
      * @examples
      * Set a shader constant in a material specified as a resource property
