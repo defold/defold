@@ -88,6 +88,7 @@ GLFWAPI JavaVM* glfwGetAndroidJavaVM(void);
 GLFWAPI jobject glfwGetAndroidActivity(void);
 #if defined(ANDROID)
 GLFWAPI struct android_app* glfwGetAndroidApp(void);
+GLFWAPI ANativeWindow* glfwAcquireAndroidWindow(void);
 GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void);
 GLFWAPI int glfwAndroidIsWindowCurrent(ANativeWindow* window);
 GLFWAPI void glfwReleaseAndroidWindow(ANativeWindow* window);

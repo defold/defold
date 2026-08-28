@@ -343,6 +343,11 @@ namespace dmPlatform
         return 0;
     }
 
+    ANativeWindow* AcquireAndroidWindow()
+    {
+        return 0;
+    }
+
     ANativeWindow* WaitForAndroidWindow()
     {
         return 0;
