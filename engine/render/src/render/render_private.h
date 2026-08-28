@@ -319,7 +319,8 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        //dmhash_t                    m_FrustumHash;
+        dmArray<HNamedConstantBuffer> m_ConstantBufferClones;
+        uint32_t                      m_ConstantBufferCloneCursor;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
@@ -404,10 +405,13 @@ namespace dmRender
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
     bool    GetCanBindTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
-
     void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
     void    ApplyComputeProgramConstants(HRenderContext render_context, HComputeProgram compute_program);
     int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash);
+
+    // Render constants
+    void                 CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);
+    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer);
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);

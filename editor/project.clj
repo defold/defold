@@ -91,7 +91,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.10"
+                     [cljfx "1.10.361"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -153,7 +153,11 @@
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
-                      :lua-language-server-version "v1.7795"}
+                      :lua-language-server {:version "3.19.1"
+                                            :sha256 {"arm64-macos" "0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c"
+                                                     "x86_64-macos" "eb373c159cbe556711d7cd316315de2dce969bfd54b31edb7eb9cab2937f2cca"
+                                                     "x86_64-linux" "e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8"
+                                                     "x86_64-win32" "fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd"}}}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"
@@ -336,6 +340,8 @@
                                                     [org.openjfx/javafx-media "25"]
                                                     [org.openjfx/javafx-fxml "25"]
                                                     [org.openjfx/javafx-swing "25"]
+                                                    [nrepl/nrepl "1.7.0"]
+                                                    [cider/cider-nrepl "0.62.2"]
                                                     [com.clojure-goes-fast/clj-async-profiler "2.0.0-beta1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
@@ -348,9 +354,9 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.2.0.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.0.0.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.0.1.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.7.0.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.7.7.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.7.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"

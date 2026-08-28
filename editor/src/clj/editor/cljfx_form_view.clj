@@ -51,6 +51,7 @@
             [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.markdown :as markdown]
+            [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
@@ -69,6 +70,7 @@
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.paint Color]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -389,6 +391,47 @@
       (wrap-cancel-on-escape on-cancel)
       (wrap-commit-on-enter on-commit state-path)
       (wrap-focus-text-field)))
+
+;; endregion
+
+;; region color input
+
+(defn- clamp-unit ^double [^double n] (min 1.0 (max 0.0 n)))
+
+(defn- color->value
+  "Assocs the color into the old value to retain its vector and number types."
+  [value ^Color color]
+  (let [coerce (if (math/float32? (first value)) float double)]
+    (cond-> (assoc value
+              0 (coerce (.getRed color))
+              1 (coerce (.getGreen color))
+              2 (coerce (.getBlue color)))
+            (= 4 (count value))
+            (assoc 3 (coerce (.getOpacity color))))))
+
+;; The color picker calls :on-value-changed directly, so we need the
+;; map-event-handler to dispatch the form event ourselves.
+(ui/defc form-color-picker-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}
+             {:fx/type fx/ext-get-env :env [:prefs]}]}
+  [{:keys [value on-value-changed map-event-handler prefs]}]
+  (let [[r g b a] value]
+    {:fx/type fxui/color-picker
+     :max-width normal-field-width
+     :prefs prefs
+     :ignore-alpha (not= 4 (count value))
+     :value (Color. (clamp-unit (double r))
+                    (clamp-unit (double g))
+                    (clamp-unit (double b))
+                    (clamp-unit (double (or a 1.0))))
+     :on-value-changed (fn [^Color color]
+                         (map-event-handler
+                           (assoc on-value-changed :fx/event (color->value value color))))}))
+
+(defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
+  {:fx/type form-color-picker-view
+   :value (ensure-value value field)
+   :on-value-changed on-value-changed})
 
 ;; endregion
 
@@ -1736,7 +1779,7 @@
     (f event)
     (g/node-value view-id :form-view)))
 
-(defn- create-renderer [view-id parent workspace project localization]
+(defn- create-renderer [view-id parent workspace project prefs localization]
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
@@ -1792,31 +1835,33 @@
                     fxui/wrap-dedupe-desc
                     (fx/wrap-map-desc
                       (fn [{:keys [form-data ui-state]}]
-                        {:fx/type fx/ext-watcher
-                         :ref localization
-                         :key :localization-state
-                         :desc {:fx/type form-view
-                                :form-data form-data
-                                :ui-state ui-state
-                                :parent parent
-                                :project project
-                                :resource-string-converter resource-string-converter}}))))))
+                        {:fx/type fx/ext-set-env
+                         :env {:prefs prefs}
+                         :desc {:fx/type fx/ext-watcher
+                                :ref localization
+                                :key :localization-state
+                                :desc {:fx/type form-view
+                                       :form-data form-data
+                                       :ui-state ui-state
+                                       :parent parent
+                                       :project project
+                                       :resource-string-converter resource-string-converter}}}))))))
 
-(defn- make-form-view-node [graph parent resource-node workspace project localization]
+(defn- make-form-view-node [graph parent resource-node workspace project prefs localization]
   (g/make-nodes graph [view CljfxFormView]
-    (g/set-property view :renderer (create-renderer view parent workspace project localization))
+    (g/set-property view :renderer (create-renderer view parent workspace project prefs localization))
     (g/connect resource-node :form-data view :form-data)))
 
-(defn make-form-view-node! [graph parent resource-node workspace project localization]
+(defn make-form-view-node! [graph parent resource-node workspace project prefs localization]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (make-form-view-node graph parent resource-node workspace project localization)))))
+        (make-form-view-node graph parent resource-node workspace project prefs localization)))))
 
 (defn- make-form-view [graph parent resource-node opts]
-  (let [{:keys [workspace project tab localization]} opts
-        view-id (make-form-view-node! graph parent resource-node workspace project localization)
+  (let [{:keys [workspace project prefs tab localization]} opts
+        view-id (make-form-view-node! graph parent resource-node workspace project prefs localization)
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]

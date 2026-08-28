@@ -48,6 +48,91 @@ namespace dmRender
      * @language Lua
      */
 
+    /*# Render context events
+     * @enum
+     * @name render.CONTEXT_EVENT
+     * @member render.CONTEXT_EVENT_CONTEXT_LOST rendering context was lost; rendering pauses and graphics resources become invalid
+     * @member render.CONTEXT_EVENT_CONTEXT_RESTORED rendering context was restored; rendering remains paused while resources can be reloaded
+     */
+
+    /*# Frustum plane selections
+     * @enum
+     * @name render.FRUSTUM_PLANES
+     * @member render.FRUSTUM_PLANES_ALL All six frustum planes.
+     * @member render.FRUSTUM_PLANES_SIDES Left, right, top, and bottom frustum planes.
+     */
+
+    /*# Render sort orders
+     * @enum
+     * @name render.SORT
+     * @member render.SORT_BACK_TO_FRONT Depth sort far-to-near (default; good for transparent passes).
+     * @member render.SORT_FRONT_TO_BACK Depth sort near-to-far (good for opaque passes to reduce overdraw).
+     * @member render.SORT_NONE No per-call sorting; draw entries in insertion order.
+     */
+
+    /*# Render-target creation flags
+     * @enum
+     * @name render.RENDER_TARGET_FLAG
+     * @member render.TEXTURE_BIT [type:render.RENDER_TARGET_FLAG] Create a texture-backed depth or stencil attachment.
+     */
+
+    /*# Render-target attachment parameters
+     * @struct
+     * @name render.render_target_buffer_params
+     * @member format [type:graphics.TEXTURE_FORMAT] Attachment texture format.
+     * @member width [type:integer] Attachment width.
+     * @member height [type:integer] Attachment height.
+     * @member min_filter? [type:graphics.TEXTURE_FILTER] Minification filter.
+     * @member mag_filter? [type:graphics.TEXTURE_FILTER] Magnification filter.
+     * @member u_wrap? [type:graphics.TEXTURE_WRAP] Horizontal wrap mode.
+     * @member v_wrap? [type:graphics.TEXTURE_WRAP] Vertical wrap mode.
+     * @member flags? [type:render.RENDER_TARGET_FLAG] Attachment creation flags, applicable only to depth and stencil buffers.
+     */
+
+    /*# Render-target parameters
+     *
+     * `sample_count` defaults to 1 and is normalized by the graphics adapter to
+     * a supported power-of-two value.
+     *
+     * @typedef
+     * @name render.render_target_params
+     * @param value [type:{ sample_count?:integer, [graphics.BUFFER_TYPE]:render.render_target_buffer_params }] Attachments keyed by buffer type, with an optional multisample count.
+     */
+
+    /*# Render-target activation options
+     * @struct
+     * @name render.set_render_target_options
+     * @member transient? [type:graphics.BUFFER_TYPE[]] Buffers whose contents become undefined after the target is deactivated. Missing buffers are ignored; combined depth-stencil buffers remain non-transient unless both are selected.
+     */
+
+    /*# Render draw options
+     * @struct
+     * @name render.draw_options
+     * @member frustum? [type:matrix4] Frustum matrix used for culling renderable items.
+     * @member frustum_planes? [type:render.FRUSTUM_PLANES] Frustum planes used for culling. The default is [ref:render.FRUSTUM_PLANES_SIDES].
+     * @member constants? [type:constant_buffer] Constants used while rendering. The values are copied when `render.draw()` is called.
+     * @member sort_order? [type:render.SORT] World-entry sort order. The default is the renderer's preferred back-to-front order.
+     */
+
+    /*# Debug-draw options
+     * @struct
+     * @name render.debug_draw_options
+     * @member frustum? [type:matrix4] Frustum matrix used for culling renderable items.
+     * @member frustum_planes? [type:render.FRUSTUM_PLANES] Frustum planes used for culling. The default is [ref:render.FRUSTUM_PLANES_SIDES].
+     */
+
+    /*# Render-camera options
+     * @struct
+     * @name render.camera_options
+     * @member use_frustum? [type:boolean] Use the camera view-projection matrix for frustum culling. The default is false.
+     */
+
+    /*# Compute-dispatch options
+     * @struct
+     * @name render.dispatch_options
+     * @member constants? [type:constant_buffer] Constants used by the compute program. The values are copied when `render.dispatch_compute()` is called.
+     */
+
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
     #define RENDER_SCRIPT "RenderScript"
 
@@ -133,6 +218,7 @@ namespace dmRender
         switch(type)
         {
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR:
                 dmScript::PushVector4(L, value_ptr[value_index]);
                 break;
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4:
@@ -373,21 +459,104 @@ namespace dmRender
     };
 
     /*# Constant buffer
+     *
+     * A mutable collection of shader constants created with
+     * [ref:render.constant_buffer]. Assign constants by name using [type:vector4]
+     * or [type:matrix4] values, or arrays of those values, then pass the buffer in
+     * the `constants` option to [ref:render.draw]. Constant buffers are Lua
+     * userdata and cannot be iterated with `pairs()` or `ipairs()`.
+     *
      * @typedef
      * @name constant_buffer
-     * @param value [type:userdata]
+     * @param value [type:userdata] shader constant buffer
+     * @examples
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 0.5, 0.5, 1)
+     * render.draw(self.model_predicate, { constants = constants })
+     * ```
      */
 
     /*# Render target
+     *
+     * An opaque graphics handle identifying an off-screen render target. Create
+     * one with [ref:render.render_target], draw into it with
+     * [ref:render.set_render_target], and release dynamically created targets with
+     * [ref:render.delete_render_target]. A render-target resource handle can also
+     * be obtained from [ref:resource.get_render_target_info].
+     *
      * @typedef
      * @name render_target
-     * @param value [type:number]
+     * @param value [type:number] opaque render-target handle
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     local color_params = {
+     *         format = graphics.TEXTURE_FORMAT_RGBA,
+     *         width = 320,
+     *         height = 180,
+     *     }
+     *     self.target = render.render_target({
+     *         [graphics.BUFFER_TYPE_COLOR0_BIT] = color_params,
+     *     })
+     * end
+     *
+     * function update(self)
+     *     if not self.target then
+     *         return
+     *     end
+     *     render.set_render_target(self.target)
+     *     -- Draw off-screen content here.
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
+     * end
+     *
+     * function on_message(self, message_id)
+     *     if message_id == hash("release_render_target") and self.target then
+     *         render.delete_render_target(self.target)
+     *         self.target = nil
+     *     end
+     * end
+     * ```
      */
 
     /*# Texture handle
+     *
+     * An opaque graphics handle identifying a texture. Texture handles are
+     * returned by APIs such as [ref:resource.get_texture_info],
+     * [ref:material.get_textures], and [ref:compute.get_textures]. Pass a handle
+     * to [ref:render.enable_texture] to bind the texture in a render script. The
+     * resource or render target that owns the texture controls its lifetime.
+     *
      * @typedef
      * @name texture
-     * @param value [type:number]
+     * @param value [type:number] opaque texture handle
+     * @examples
+     *
+     * ```lua
+     * local texture_info = resource.get_texture_info("/assets/logo.texturec")
+     * local texture_handle = texture_info.handle
+     * render.enable_texture("texture_sampler", texture_handle)
+     * ```
+     */
+
+    /*# Material-tag render filter
+     *
+     * An opaque filter that selects renderable objects by material tag. Create a
+     * predicate with [ref:render.predicate] and pass it to [ref:render.draw]. When
+     * multiple tags are supplied, an object's material must contain all of them.
+     * Predicates are intended for use in render scripts.
+     *
+     * @typedef
+     * @name render_predicate
+     * @param value [type:userdata] material-tag render filter
+     * @examples
+     *
+     * ```lua
+     * local opaque = render.predicate({ "opaque" })
+     * render.draw(opaque)
+     * ```
      */
 
     /*# create a new constant buffer.
@@ -668,12 +837,28 @@ namespace dmRender
         return true;
     }
 
+    static bool InsertDrawCommand(RenderScriptInstance* i, HPredicate predicate, HNamedConstantBuffer constant_buffer, FrustumOptions* frustum_options, SortOrder sort_order)
+    {
+        if (!InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer, (uint64_t)frustum_options, (uint64_t)sort_order)))
+            return false;
+        i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return true;
+    }
+
+    static bool InsertDispatchComputeCommand(RenderScriptInstance* i, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
+    {
+        if (!InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer)))
+            return false;
+        i->m_CommandBuffer.Back().m_Operands[3] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        return true;
+    }
+
     /*# enables a render state
      *
      * Enables a particular render state. The state will be enabled until disabled.
      *
      * @name render.enable_state
-     * @param state [type:constant] state to enable
+     * @param state [type:graphics.STATE] state to enable
      *
      * - `graphics.STATE_DEPTH_TEST`
      * - `graphics.STATE_STENCIL_TEST`
@@ -722,7 +907,7 @@ namespace dmRender
      * Disables a render state.
      *
      * @name render.disable_state
-     * @param state [type:constant] state to disable
+     * @param state [type:graphics.STATE] state to disable
      *
      * - `graphics.STATE_DEPTH_TEST`
      * - `graphics.STATE_STENCIL_TEST`
@@ -768,10 +953,10 @@ namespace dmRender
      * Set the render viewport to the specified rectangle.
      *
      * @name render.set_viewport
-     * @param x [type:number] left corner
-     * @param y [type:number] bottom corner
-     * @param width [type:number] viewport width
-     * @param height [type:number] viewport height
+     * @param x [type:integer] left corner
+     * @param y [type:integer] bottom corner
+     * @param width [type:integer] viewport width
+     * @param height [type:integer] viewport height
      * @examples
      *
      * ```lua
@@ -796,24 +981,6 @@ namespace dmRender
      * Creates a new render target according to the supplied
      * specification table.
      *
-     * The table should contain keys specifying which buffers should be created
-     * with what parameters. Each buffer key should have a table value consisting
-     * of parameters. The following parameter keys are available:
-     *
-     * Key                     | Values
-     * ----------------------- | ----------------------------
-     * `format`                |  `graphics.TEXTURE_FORMAT_LUMINANCE`<br/>`graphics.TEXTURE_FORMAT_RGB`<br/>`graphics.TEXTURE_FORMAT_RGBA`<br/>`graphics.TEXTURE_FORMAT_DEPTH`<br/>`graphics.TEXTURE_FORMAT_STENCIL`<br/>`graphics.TEXTURE_FORMAT_RGBA32F`<br/>`graphics.TEXTURE_FORMAT_RGBA16F`<br/>
-     * `width`                 | number
-     * `height`                | number
-     * `min_filter` (optional) | `graphics.TEXTURE_FILTER_LINEAR`<br/>`graphics.TEXTURE_FILTER_NEAREST`
-     * `mag_filter` (optional) | `graphics.TEXTURE_FILTER_LINEAR`<br/>`graphics.TEXTURE_FILTER_NEAREST`
-     * `u_wrap`     (optional) | `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`<br/>`graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`<br/>`graphics.TEXTURE_WRAP_MIRRORED_REPEAT`<br/>`graphics.TEXTURE_WRAP_REPEAT`<br/>
-     * `v_wrap`     (optional) | `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`<br/>`graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`<br/>`graphics.TEXTURE_WRAP_MIRRORED_REPEAT`<br/>`graphics.TEXTURE_WRAP_REPEAT`
-     * `flags`      (optional) | `render.TEXTURE_BIT` (only applicable to depth and stencil buffers)
-     *
-     * The top-level `sample_count` key optionally specifies the multisample count for the entire render target.
-     * It defaults to 1 and the graphics adapter normalizes it to a supported power-of-two value.
-     *
      * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
      * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by graphics.BUFFER_TYPE_COLORX_BIT where 'X' is the attachment you want to create).
@@ -829,8 +996,7 @@ namespace dmRender
      * ```
      *
      * @name render.render_target
-     * @param name [type:string] render target name
-     * @param parameters [type:table] table of buffer parameters, see the description for available keys and values
+     * @param parameters [type:render.render_target_params] render-target parameters
      * @return render_target [type:render_target] new render target
      * @examples
      *
@@ -1176,7 +1342,7 @@ namespace dmRender
 
     /*#
      * @name render.RENDER_TARGET_DEFAULT
-     * @constant
+     * @constant [type:render_target]
      */
 
     /*# sets a render target
@@ -1186,17 +1352,8 @@ namespace dmRender
      * This function supports render targets created by a render script, or a render target resource.
      *
      * @name render.set_render_target
-     * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
-     * @param [options] [type:table] optional table with behaviour parameters
-     *
-     * `transient`
-     * : [type:table] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
-     *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and when this is the case both are considered non-transient if exclusively selected!
-     *  A buffer type defined that doesn't exist in the render target is silently ignored.
-     *
-     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
-     * - `graphics.BUFFER_TYPE_DEPTH_BIT`
-     * - `graphics.BUFFER_TYPE_STENCIL_BIT`
+     * @param [render_target] [type:render_target|string|hash|nil] render target to set. Omit it, pass `nil`, or use render.RENDER_TARGET_DEFAULT to set the default render target
+     * @param [options] [type:render.set_render_target_options] optional render-target activation options
      *
      * @examples
      *
@@ -1274,9 +1431,9 @@ namespace dmRender
      * either a render script, or from a render target resource.
      *
      * @name render.set_render_target_size
-     * @param render_target [type:render_target] render target to set size for
-     * @param width [type:number] new render target width
-     * @param height [type:number] new render target height
+     * @param render_target [type:render_target|string|hash] render target to set size for
+     * @param width [type:integer] new render target width
+     * @param height [type:integer] new render target height
      * @examples
      *
      * Resize render targets to the current window size:
@@ -1317,22 +1474,7 @@ namespace dmRender
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
      * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
-     * @param [buffer_type] [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
-     *
-     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
-     *
-     * If The render target has been created as depth and/or stencil textures, these buffer types can be used:
-     *
-     * - `graphics.BUFFER_TYPE_DEPTH_BIT`
-     * - `graphics.BUFFER_TYPE_STENCIL_BIT`
-     *
-     * If the render target has been created with multiple color attachments, these buffer types can be used
-     * to enable those textures as well. Currently 4 color attachments are supported:
-     *
-     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
-     * - `graphics.BUFFER_TYPE_COLOR1_BIT`
-     * - `graphics.BUFFER_TYPE_COLOR2_BIT`
-     * - `graphics.BUFFER_TYPE_COLOR3_BIT`
+     * @param [buffer_type] [type:graphics.BUFFER_TYPE] optional render-target attachment. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. Depth and stencil attachments must have been created as textures; color attachments beyond the first require a render target with multiple color attachments (up to four are supported).
      *
      * @examples
      *
@@ -1512,15 +1654,15 @@ namespace dmRender
      * Returns the specified buffer width from a render target.
      *
      * @name render.get_render_target_width
-     * @param render_target [type:render_target] render target from which to retrieve the buffer width
-     * @param buffer_type [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] which type of buffer to retrieve the width from
+     * @param render_target [type:render_target|string|hash] render target from which to retrieve the buffer width
+     * @param buffer_type [type:graphics.BUFFER_TYPE] which type of buffer to retrieve the width from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_COLOR[x]_BIT` (x: [0..3], if supported!)
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
-     * @return width [type:number] the width of the render target buffer texture
+     * @return width [type:integer] the width of the render target buffer texture
      * @examples
      *
      * ```lua
@@ -1552,14 +1694,14 @@ namespace dmRender
      * Returns the specified buffer height from a render target.
      *
      * @name render.get_render_target_height
-     * @param render_target [type:render_target] render target from which to retrieve the buffer height
-     * @param buffer_type [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] which type of buffer to retrieve the height from
+     * @param render_target [type:render_target|string|hash] render target from which to retrieve the buffer height
+     * @param buffer_type [type:graphics.BUFFER_TYPE] which type of buffer to retrieve the height from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
-     * @return height [type:number] the height of the render target buffer texture
+     * @return height [type:integer] the height of the render target buffer texture
      * @examples
      *
      * ```lua
@@ -1589,7 +1731,7 @@ namespace dmRender
      * color attachments, all buffers will be cleared with the same value.
      *
      * @name render.clear
-     * @param buffers [type:table] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
+     * @param buffers [type:table<graphics.BUFFER_TYPE, number|vector4>] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
@@ -1660,20 +1802,6 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    // Take a Lua registry reference to prevent the constant buffer
-    // userdata from being garbage collected while the draw command
-    // is queued. The reference is released after ParseCommands.
-    static void AddConstantBufferRef(lua_State* L, RenderScriptInstance* instance)
-    {
-        lua_pushvalue(L, -1);
-        int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        if (instance->m_ConstantBufferLuaRefs.Full())
-        {
-            instance->m_ConstantBufferLuaRefs.OffsetCapacity(16);
-        }
-        instance->m_ConstantBufferLuaRefs.Push(ref);
-    }
-
     /*# draws all objects matching a predicate
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
@@ -1681,23 +1809,8 @@ namespace dmRender
      * [ref:go.set] (or [ref:particlefx.set_constant]) on visual components.
      *
      * @name render.draw
-     * @param predicate [type:number] predicate to draw for
-     * @param [options] [type:table] optional table with properties:
-     *
-     * `frustum`
-     * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
-     *
-     * `frustum_planes`
-     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
-     *
-     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
-     * - render.FRUSTUM_PLANES_ALL : All 6 sides of the frustum.
-     *
-     * `constants`
-     * : [type:constant_buffer] optional constants to use while rendering
-     *
-     * `sort_order`
-     * : [type:int] How to sort draw order for world-ordered entries. Default uses the renderer's preferred world sorting (back-to-front).
+     * @param predicate [type:render_predicate] predicate to draw for
+     * @param [options] [type:render.draw_options] optional draw options
      *
      * @examples
      *
@@ -1759,8 +1872,6 @@ namespace dmRender
         {
             return luaL_error(L, "Invalid argument #2 type. Should be table or nil");
         }
-        bool has_constant_buffer_value = false;
-
         if (has_options_table)
         {
             luaL_checktype(L, 2, LUA_TTABLE);
@@ -1779,7 +1890,6 @@ namespace dmRender
             if (!lua_isnil(L, -1))
             {
                 constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
-                has_constant_buffer_value = true;
             }
 
             lua_getfield(L, options_index, "sort_order");
@@ -1799,21 +1909,11 @@ namespace dmRender
             frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options, (uint64_t) sort_order)))
+        if (InsertDrawCommand(i, predicate, constant_buffer, frustum_options, sort_order))
         {
             if (has_options_table)
             {
-                if (has_constant_buffer_value)
-                {
-                    AddConstantBufferRef(L, i);
-                }
                 lua_pop(L, 2);
-            }
-            else if (lua_isuserdata(L, 2)) // Deprecated
-            {
-                // Take a Lua registry reference (same reason as the options table path above).
-                lua_pushvalue(L, 2);
-                AddConstantBufferRef(L, i);
             }
             return 0;
         }
@@ -1829,16 +1929,7 @@ namespace dmRender
     /*# draws all 3d debug graphics
      * Draws all 3d debug graphics such as lines drawn with "draw_line" messages and physics visualization.
      * @name render.draw_debug3d
-     * @param [options] [type:table] optional table with properties:
-     *
-     * `frustum`
-     * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
-     *
-     * `frustum_planes`
-     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
-     *
-     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
-     * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.
+     * @param [options] [type:render.debug_draw_options] optional debug-draw options
      *
      * @examples
      *
@@ -1957,33 +2048,10 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * @name render.FRUSTUM_PLANES_SIDES
-     * @constant
-     */
 
-    /*#
-     * @name render.FRUSTUM_PLANES_ALL
-     * @constant
-     */
 
-    /*#
-     * Depth sort far-to-near (default; good for transparent passes).
-     * @name render.SORT_BACK_TO_FRONT
-     * @constant
-     */
 
-    /*#
-     * Depth sort near-to-far (good for opaque passes to reduce overdraw).
-     * @name render.SORT_FRONT_TO_BACK
-     * @constant
-     */
 
-    /*#
-     * No per-call sorting; draw entries in insertion order.
-     * @name render.SORT_NONE
-     * @constant
-     */
 
      /*# sets the blending function
      *
@@ -2005,26 +2073,6 @@ namespace dmRender
      *
      * The color values have integer values between 0 and (k<sub>R</sub>,k<sub>G</sub>,k<sub>B</sub>,k<sub>A</sub>), where k<sub>c</sub> = 2<sup>m<sub>c</sub></sup> - 1 and m<sub>c</sub> is the number of bitplanes for that color. I.e for 8 bit color depth, color values are between `0` and `255`.
 
-     * Available factor constants and corresponding scale factors:
-     *
-     * Factor constant                         | Scale factor (f<sub>R</sub>,f<sub>G</sub>,f<sub>B</sub>,f<sub>A</sub>)
-     * --------------------------------------- | -----------------------
-     * `graphics.BLEND_FACTOR_ZERO`                     | (0,0,0,0)
-     * `graphics.BLEND_FACTOR_ONE`                      | (1,1,1,1)
-     * `graphics.BLEND_FACTOR_SRC_COLOR`                | (R<sub>s</sub>/k<sub>R</sub>,G<sub>s</sub>/k<sub>G</sub>,B<sub>s</sub>/k<sub>B</sub>,A<sub>s</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_ONE_MINUS_SRC_COLOR`      | (1,1,1,1) - (R<sub>s</sub>/k<sub>R</sub>,G<sub>s</sub>/k<sub>G</sub>,B<sub>s</sub>/k<sub>B</sub>,A<sub>s</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_DST_COLOR`                | (R<sub>d</sub>/k<sub>R</sub>,G<sub>d</sub>/k<sub>G</sub>,B<sub>d</sub>/k<sub>B</sub>,A<sub>d</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_ONE_MINUS_DST_COLOR`      | (1,1,1,1) - (R<sub>d</sub>/k<sub>R</sub>,G<sub>d</sub>/k<sub>G</sub>,B<sub>d</sub>/k<sub>B</sub>,A<sub>d</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_SRC_ALPHA`                | (A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA`      | (1,1,1,1) - (A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_DST_ALPHA`                | (A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_ONE_MINUS_DST_ALPHA`      | (1,1,1,1) - (A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>)
-     * `graphics.BLEND_FACTOR_CONSTANT_COLOR`           | (R<sub>c</sub>,G<sub>c</sub>,B<sub>c</sub>,A<sub>c</sub>)
-     * `graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR` | (1,1,1,1) - (R<sub>c</sub>,G<sub>c</sub>,B<sub>c</sub>,A<sub>c</sub>)
-     * `graphics.BLEND_FACTOR_CONSTANT_ALPHA`           | (A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>)
-     * `graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA` | (1,1,1,1) - (A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>)
-     * `graphics.BLEND_FACTOR_SRC_ALPHA_SATURATE`       | (i,i,i,1) where i = min(A<sub>s</sub>, k<sub>A</sub> - A<sub>d</sub>) /k<sub>A</sub>
-     *
      * The blended RGBA values of a pixel comes from the following equations:
      *
      * - R<sub>d</sub> = min(k<sub>R</sub>, R<sub>s</sub> * s<sub>R</sub> + R<sub>d</sub> * d<sub>R</sub>)
@@ -2037,8 +2085,8 @@ namespace dmRender
      * It is also useful for drawing antialiased points and lines in arbitrary order.
      *
      * @name render.set_blend_func
-     * @param source_factor [type:number] source factor
-     * @param destination_factor [type:number] destination factor
+     * @param source_factor [type:graphics.BLEND_FACTOR] source factor
+     * @param destination_factor [type:graphics.BLEND_FACTOR] destination factor
      * @examples
      *
      * Set the blend func to the most common one:
@@ -2156,8 +2204,8 @@ namespace dmRender
      * Sets the blend equation with separate equations for the color and alpha channels.
      *
      * @name render.set_blend_equation_separate
-     * @param equation_color [type:number] color blend equation
-     * @param equation_alpha [type:number] alpha blend equation
+     * @param equation_color [type:graphics.BLEND_EQUATION] color blend equation
+     * @param equation_alpha [type:graphics.BLEND_EQUATION] alpha blend equation
      * @examples
      *
      * Set add for color and reverse subtract for alpha:
@@ -2308,21 +2356,10 @@ namespace dmRender
     * The comparison is performed only if depth testing is enabled and specifies
     * the conditions under which a pixel will be drawn.
     *
-    * Function constants:
-    *
-    * - `graphics.COMPARE_FUNC_NEVER` (never passes)
-    * - `graphics.COMPARE_FUNC_LESS` (passes if the incoming depth value is less than the stored value)
-    * - `graphics.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to the stored value)
-    * - `graphics.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored value)
-    * - `graphics.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to the stored value)
-    * - `graphics.COMPARE_FUNC_EQUAL` (passes if the incoming depth value is equal to the stored value)
-    * - `graphics.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the stored value)
-    * - `graphics.COMPARE_FUNC_ALWAYS` (always passes)
-    *
     * The depth function is initially set to `graphics.COMPARE_FUNC_LESS`.
     *
     * @name render.set_depth_func
-    * @param func [type:number] depth test function, see the description for available values
+    * @param func [type:graphics.COMPARE_FUNC] depth test function, see the description for available values
     * @examples
     *
     * Enable depth test and set the depth test function to "not equal".
@@ -2365,7 +2402,7 @@ namespace dmRender
     * The stencil test discards a pixel based on the outcome of a comparison between the
     * reference value `ref` and the corresponding value in the stencil buffer.
     *
-    * `func` specifies the comparison function. See the table below for values.
+    * `func` specifies the comparison function.
     * The initial value is `graphics.COMPARE_FUNC_ALWAYS`.
     *
     * `ref` specifies the reference value for the stencil test. The value is clamped to
@@ -2375,19 +2412,8 @@ namespace dmRender
     * `mask` is ANDed with both the reference value and the stored stencil value when the test
     * is done. The initial value is all `1`'s.
     *
-    * Function constant:
-    *
-    * - `graphics.COMPARE_FUNC_NEVER` (never passes)
-    * - `graphics.COMPARE_FUNC_LESS` (passes if (ref & mask) < (stencil & mask))
-    * - `graphics.COMPARE_FUNC_LEQUAL` (passes if (ref & mask) <= (stencil & mask))
-    * - `graphics.COMPARE_FUNC_GREATER` (passes if (ref & mask) > (stencil & mask))
-    * - `graphics.COMPARE_FUNC_GEQUAL` (passes if (ref & mask) >= (stencil & mask))
-    * - `graphics.COMPARE_FUNC_EQUAL` (passes if (ref & mask) = (stencil & mask))
-    * - `graphics.COMPARE_FUNC_NOTEQUAL` (passes if (ref & mask) != (stencil & mask))
-    * - `graphics.COMPARE_FUNC_ALWAYS` (always passes)
-    *
     * @name render.set_stencil_func
-    * @param func [type:number] stencil test function, see the description for available values
+    * @param func [type:graphics.COMPARE_FUNC] stencil test function, see the description for available values
     * @param ref [type:number] reference value for the stencil test
     * @param mask [type:number] mask that is ANDed with both the reference value and the stored stencil value when the test is done
     * @examples
@@ -2433,26 +2459,15 @@ namespace dmRender
     * pixel's color or depth buffers, and `sfail` specifies what happens to the stencil buffer
     * contents.
     *
-    * Operator constants:
-    *
-    * - `graphics.STENCIL_OP_KEEP` (keeps the current value)
-    * - `graphics.STENCIL_OP_ZERO` (sets the stencil buffer value to 0)
-    * - `graphics.STENCIL_OP_REPLACE` (sets the stencil buffer value to `ref`, as specified by [ref:render.set_stencil_func])
-    * - `graphics.STENCIL_OP_INCR` (increments the stencil buffer value and clamp to the maximum representable unsigned value)
-    * - `graphics.STENCIL_OP_INCR_WRAP` (increments the stencil buffer value and wrap to zero when incrementing the maximum representable unsigned value)
-    * - `graphics.STENCIL_OP_DECR` (decrements the current stencil buffer value and clamp to 0)
-    * - `graphics.STENCIL_OP_DECR_WRAP` (decrements the current stencil buffer value and wrap to the maximum representable unsigned value when decrementing zero)
-    * - `graphics.STENCIL_OP_INVERT` (bitwise inverts the current stencil buffer value)
-    *
     * `dppass` and `dpfail` specify the stencil buffer actions depending on whether subsequent
     * depth buffer tests succeed (dppass) or fail (dpfail).
     *
     * The initial value for all operators is `graphics.STENCIL_OP_KEEP`.
     *
     * @name render.set_stencil_op
-    * @param sfail [type:number] action to take when the stencil test fails
-    * @param dpfail [type:number] the stencil action when the stencil test passes
-    * @param dppass  [type:number] the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled
+    * @param sfail [type:graphics.STENCIL_OP] action to take when the stencil test fails
+    * @param dpfail [type:graphics.STENCIL_OP] the stencil action when the stencil test passes
+    * @param dppass  [type:graphics.STENCIL_OP] the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled
     * @examples
     *
     * Set the stencil function to never pass and operator to always draw 1's
@@ -2503,12 +2518,7 @@ namespace dmRender
      * `face_type` is `graphics.FACE_TYPE_BACK`.
      *
      * @name render.set_cull_face
-     * @param face_type [type:number] face type
-     *
-     * - `graphics.FACE_TYPE_FRONT`
-     * - `graphics.FACE_TYPE_BACK`
-     * - `graphics.FACE_TYPE_FRONT_AND_BACK`
-     *
+     * @param face_type [type:graphics.FACE_TYPE] face type
      * @examples
      *
      * How to enable polygon culling and set front face culling:
@@ -2588,7 +2598,7 @@ namespace dmRender
      * or user input.
      *
      * @name render.get_width
-     * @return width [type:number] specified window width (number)
+     * @return width [type:integer] specified window width
      * @examples
      *
      * Get the width of the window.
@@ -2612,7 +2622,7 @@ namespace dmRender
      * or user input.
      *
      * @name render.get_height
-     * @return height [type:number] specified window height
+     * @return height [type:integer] specified window height
      * @examples
      *
      * Get the height of the window
@@ -2636,7 +2646,7 @@ namespace dmRender
      * "game.project" settings.
      *
      * @name render.get_window_width
-     * @return width [type:number] actual window width
+     * @return width [type:integer] actual window width
      * @examples
      *
      * Get the actual width of the window
@@ -2660,7 +2670,7 @@ namespace dmRender
      * "game.project" settings.
      *
      * @name render.get_window_height
-     * @return height [type:number] actual window height
+     * @return height [type:integer] actual window height
      * @examples
      *
      * Get the actual height of the window
@@ -2687,14 +2697,14 @@ namespace dmRender
      * The current limit to the number of tags that can be defined is `64`.
      *
      * @name render.predicate
-     * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
-     * @return predicate [type:number] new predicate
+     * @param tags [type:(string|hash)[]] table of tags that the predicate should match. The tags can be of either hash or string type
+     * @return predicate [type:render_predicate] new predicate
      * @examples
      *
      * Create a new render predicate containing all visual objects that
      * have a material with material tags "opaque" AND "smoke".
      *
-     * ```
+     * ```lua
      * local p = render.predicate({hash("opaque"), hash("smoke")})
      * ```
      */
@@ -2820,11 +2830,7 @@ namespace dmRender
      *
      * @name render.set_camera
      * @param camera [type:url|number|nil] camera id to use, or nil to reset
-     * @param [options] [type:table] optional table with properties:
-     *
-     * `use_frustum`
-     * : [type:boolean] If true, the renderer will use the cameras view-projection matrix for frustum culling (default: false)
-     *
+     * @param [options] [type:render.camera_options] optional camera options
      *
      * @examples
      *
@@ -2942,13 +2948,10 @@ namespace dmRender
      * system constants buffer is used containing constants as defined in the compute program.
      *
      * @name render.dispatch_compute
-     * @param x [type:number] global work group size X
-     * @param y [type:number] global work group size Y
-     * @param z [type:number] global work group size Z
-     * @param [options] [type:table] optional table with properties:
-     *
-     * `constants`
-     * : [type:constant_buffer] optional constants to use while rendering
+     * @param x [type:integer] global work group size X
+     * @param y [type:integer] global work group size Y
+     * @param z [type:integer] global work group size Z
+     * @param [options] [type:render.dispatch_options] optional compute-dispatch options
      *
      * @examples
      *
@@ -2990,8 +2993,6 @@ namespace dmRender
 
         HNamedConstantBuffer constant_buffer = 0;
         bool has_options_table = lua_istable(L, 4);
-        bool has_constant_buffer_value = false;
-
         if (has_options_table)
         {
             luaL_checktype(L, 4, LUA_TTABLE);
@@ -3002,18 +3003,13 @@ namespace dmRender
             if (!lua_isnil(L, -1))
             {
                 constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
-                has_constant_buffer_value = true;
             }
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, p_x, p_y, p_z, (uint64_t) constant_buffer)))
+        if (InsertDispatchComputeCommand(i, p_x, p_y, p_z, constant_buffer))
         {
             if (has_options_table)
             {
-                if (has_constant_buffer_value)
-                {
-                    AddConstantBufferRef(L, i);
-                }
                 lua_pop(L, 2);
             }
             return 0;
@@ -3026,21 +3022,14 @@ namespace dmRender
     }
 #undef CHECK_COMPUTE_SUPPORT
 
+
+
    /*# set render's event listener
-    * Set or remove listener. Currenly only only two type of events can arrived:
-    * `render.CONTEXT_EVENT_CONTEXT_LOST` - when rendering context lost. Rending paused and all graphics resources become invalid.
-    * `render.CONTEXT_EVENT_CONTEXT_RESTORED` - when rendering context was restored. Rendering still paused and graphics resources still 
-    * invalid but can be reloaded.
+    * Set or remove the rendering-context event listener.
     *
     * @name render.set_listener
-    * @param callback [type:function(self, event_type)|nil] A callback that receives all render related events.
+    * @param callback [type:fun(self:script_instance, event_type:render.CONTEXT_EVENT)|nil] A callback that receives all render related events.
     * Pass `nil` if want to remove listener.
-    *
-    * `self`
-    * : [type:object] The render script
-    *
-    * `event_type`
-    * : [type:string] Rendering event. Possible values: `render.CONTEXT_EVENT_CONTEXT_LOST`, `render.CONTEXT_EVENT_CONTEXT_RESTORED`
     *
     * @examples
     *
@@ -3177,7 +3166,7 @@ namespace dmRender
 
 #undef REGISTER_SORT_ORDER_CONSTANT
 
-        // Flags (only flag here currently, so no need for an enum)
+        // Render-target creation flags
         lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
         lua_setfield(L, -2, "TEXTURE_BIT");
 
@@ -3372,19 +3361,6 @@ bail:
         return i;
     }
 
-    static void ReleaseConstantBufferLuaRefs(lua_State* L, HRenderScriptInstance instance)
-    {
-        uint32_t num_refs = instance->m_ConstantBufferLuaRefs.Size();
-        if (num_refs > 0)
-        {
-            for (uint32_t i = 0; i < num_refs; ++i)
-            {
-                dmScript::Unref(L, LUA_REGISTRYINDEX, instance->m_ConstantBufferLuaRefs[i]);
-            }
-            instance->m_ConstantBufferLuaRefs.SetSize(0);
-        }
-    }
-
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
         lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
@@ -3401,8 +3377,6 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
-
-        ReleaseConstantBufferLuaRefs(L, render_script_instance);
 
         assert(top == lua_gettop(L));
 
@@ -3595,8 +3569,6 @@ bail:
     {
         DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
-
-        ReleaseConstantBufferLuaRefs(instance->m_RenderContext->m_RenderScriptContext.m_LuaState, instance);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 

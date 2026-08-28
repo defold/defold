@@ -38,6 +38,35 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Collection proxy results
+     * @enum
+     * @name collectionproxy.RESULT
+     * @member collectionproxy.RESULT_ALREADY_LOADED The collection proxy is already loaded, so its collection cannot be changed.
+     * @member collectionproxy.RESULT_LOADING The collection proxy is loading, so its collection cannot be changed.
+     * @member collectionproxy.RESULT_NOT_EXCLUDED The collection proxy is not excluded from the bundle; only excluded proxies can change collections.
+     */
+
+    /*# Collection proxy load callback data
+     *
+     * Data delivered to a [ref:collectionproxy.load] callback. The available
+     * field depends on the callback message identifier.
+     *
+     * @struct
+     * @name collectionproxy.load_data
+     * @member progress? [type:number] Loading progress from 0 to 1 for `proxy_loading`.
+     * @member code? [type:integer] Error code for `proxy_error`.
+     */
+
+    /*# Collection proxy time-step mode
+     *
+     * The runtime message uses numeric modes rather than exported Lua constants:
+     * 0 updates continuously and 1 updates in discrete steps.
+     *
+     * @typedef
+     * @name collectionproxy.TIME_STEP_MODE
+     * @param value [type:0|1] time-step mode
+     */
+
     static dmhash_t GetCollectionUrlHashFromCollectionProxy(lua_State* L, int index, dmResource::HFactory* factory)
     {
         dmMessage::URL sender;
@@ -131,7 +160,7 @@ namespace dmGameSystem
      * @param [url] [type:string|hash|url] the collection proxy component
      * @param [prototype] [type:string|nil] the path to the new collection, or `nil`
      * @return success [type:boolean] collection change was successful
-     * @return code [type:number] one of the collectionproxy.RESULT_* codes if unsuccessful
+     * @return code [type:collectionproxy.RESULT] the failure reason
      *
      * @examples
      *
@@ -223,8 +252,8 @@ namespace dmGameSystem
      *
      * @name collectionproxy.load
      * @param url [type:string|hash|url] the collection proxy component
-     * @param options [type:table|nil] options table, currently unused
-     * @param callback [type:function(self, message_id, message, sender)] callback
+     * @param options [type:{}|nil] options table, currently unused
+     * @param callback [type:fun(self:script_instance, message_id:hash, message:collectionproxy.load_data, sender:url)] callback
      * @examples
      *
      * ```lua
@@ -276,24 +305,6 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    /*# collection proxy is loading now
-     * It's impossible to change the collection while the collection proxy is loading.
-     * @name collectionproxy.RESULT_LOADING
-     * @constant
-     */
-
-    /*# collection proxy is already loaded
-     * It's impossible to change the collection if the collection is already loaded.
-     * @name collectionproxy.RESULT_ALREADY_LOADED
-     * @constant
-     */
-
-    /*# collection proxy isn't excluded
-     * It's impossible to change the collection for a proxy that isn't excluded.
-     * @name collectionproxy.RESULT_NOT_EXCLUDED
-     * @constant
-     */
-
     static void LuaInit(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -339,7 +350,7 @@ namespace dmGameSystem
      * @message
      * @name set_time_step
      * @param factor [type:number] time-step scaling factor
-     * @param mode [type:number] time-step mode: 0 for continuous and 1 for discrete
+     * @param mode [type:collectionproxy.TIME_STEP_MODE] time-step mode
      * @examples
      *
      * The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".
@@ -599,7 +610,7 @@ namespace dmGameSystem
      * @namespace collectionproxy
      * @name collectionproxy.get_resources
      * @param collectionproxy [type:url] the collectionproxy to check for resources.
-     * @return resources [type:table] the resources, or an empty list if the
+     * @return resources [type:string[]] the resources, or an empty list if the
      * collection was not excluded.
      *
      * @examples
