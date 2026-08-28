@@ -1667,7 +1667,7 @@
 
 (defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
   (if-not (compare-and-set! bob-task-in-progress-atom false true)
-    {:error (g/error-fatal "Build already in progress")}
+    {:error (g/error-fatal (localization/message "error.bob.build-already-in-progress"))}
     (try
       (let [evaluation-context (g/make-evaluation-context)
             options (cond-> options
