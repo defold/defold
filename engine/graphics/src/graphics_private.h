@@ -403,6 +403,7 @@ namespace dmGraphics
 
     void                       CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
     void                       DestroyShaderMeta(ShaderMeta& meta);
+    void                       DestroyProgram(Program* program);
     bool                       GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
     void                       BuildUniforms(Program* program);

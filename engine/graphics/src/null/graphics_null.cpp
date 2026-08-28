@@ -971,6 +971,7 @@ namespace dmGraphics
     static bool NullReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         NullProgram* p = (NullProgram*) program;
+        DestroyProgram(&p->m_BaseProgram);
 
         if (g_ForceVertexReloadFail || g_ForceFragmentReloadFail)
             return false;

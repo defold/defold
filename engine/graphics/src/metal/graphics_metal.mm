@@ -28,6 +28,7 @@
 #include <dlib/profile.h>
 #include <dlib/log.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 
 #include <platform/window.hpp>
 
@@ -42,12 +43,11 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
-    void DestroyProgram(Program* program);
-
     static GraphicsAdapterFunctionTable MetalRegisterFunctionTable();
     static bool                         MetalIsSupported();
     static HContext                     MetalGetContext();
     static bool                         MetalInitialize(MetalContext* context);
+    static void                         MetalStopAsyncProcessing(MetalContext* context);
     static GraphicsAdapter g_Metal_adapter(ADAPTER_FAMILY_METAL);
     static MetalContext*   g_MetalContext = 0x0;
 
@@ -207,6 +207,15 @@ namespace dmGraphics
             pipeline->m_ComputePipelineState->release();
             pipeline->m_ComputePipelineState = 0;
         }
+    }
+
+    static void ClearMetalPipelineCache(MetalContext* context)
+    {
+        context->m_PipelineCache.Iterate(static_cast<void (*)(MetalContext*, const unsigned long long*, MetalPipeline*)>([](MetalContext*, const unsigned long long*, MetalPipeline* value) {
+            ReleaseMetalPipeline(value);
+        }), context);
+        context->m_PipelineCache.Clear();
+        context->m_CurrentPipeline = 0;
     }
 
     static void ReleaseMetalDeviceBuffer(MetalDeviceBuffer* device_buffer)
@@ -387,13 +396,60 @@ namespace dmGraphics
         }
     }
 
+    static int MetalAsyncStopBarrierCallback(HJobContext, HJob, void*, void* data)
+    {
+        int32_atomic_t* barrier_pending = (int32_atomic_t*) data;
+        dmAtomicStore32(barrier_pending, 0);
+        return 0;
+    }
+
+    static void MetalStopAsyncProcessing(MetalContext* context)
+    {
+        if (!context->m_AsyncProcessingSupport)
+        {
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+            return;
+        }
+
+        int32_atomic_t barrier_pending;
+        {
+            // Serialize shutdown with MetalSetTextureAsync(). Jobs queued before
+            // this barrier finish before context-owned Metal resources are released.
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+
+            if (dmAtomicGet32(&context->m_DeleteContextRequested))
+            {
+                return;
+            }
+
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+
+            // The graphics job context currently has one worker, so a queued
+            // barrier executes after every previously submitted texture upload.
+            assert(JobSystemGetWorkerCount(context->m_JobContext) == 1);
+            dmAtomicStore32(&barrier_pending, 1);
+
+            Job job = {0};
+            job.m_Process = MetalAsyncStopBarrierCallback;
+            job.m_Data = (void*) &barrier_pending;
+
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(context->m_JobContext, hjob);
+        }
+
+        while (dmAtomicGet32(&barrier_pending))
+        {
+            dmTime::Sleep(100);
+        }
+    }
+
     static void MetalDeleteContext(HContext _context)
     {
         assert(_context);
         if (g_MetalContext)
         {
             MetalContext* context = (MetalContext*) _context;
-            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+            MetalStopAsyncProcessing(context);
 
             for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
             {
@@ -1512,6 +1568,7 @@ namespace dmGraphics
     {
         assert(_context);
         MetalContext* context = (MetalContext*) _context;
+        MetalStopAsyncProcessing(context);
 
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
@@ -2538,7 +2595,13 @@ namespace dmGraphics
             MTL::BlendFactorDestinationAlpha,
             MTL::BlendFactorOneMinusDestinationAlpha,
             MTL::BlendFactorSourceAlphaSaturated,
+            MTL::BlendFactorBlendColor,
+            MTL::BlendFactorOneMinusBlendColor,
+            MTL::BlendFactorBlendAlpha,
+            MTL::BlendFactorOneMinusBlendAlpha,
         };
+        DM_STATIC_ASSERT(DM_ARRAY_SIZE(blend_factors) == BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA + 1, Invalid_Metal_Blend_Factor_Count);
+        assert(factor <= BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA);
         return blend_factors[(int)factor];
     }
 
@@ -2597,6 +2660,23 @@ namespace dmGraphics
             MTL::CompareFunctionAlways
         };
         return compare_funcs[(int)func];
+    }
+
+    static inline MTL::StencilOperation GetMetalStencilOperation(StencilOp op)
+    {
+        const MTL::StencilOperation stencil_ops[] = {
+            MTL::StencilOperationKeep,
+            MTL::StencilOperationZero,
+            MTL::StencilOperationReplace,
+            MTL::StencilOperationIncrementClamp,
+            MTL::StencilOperationIncrementWrap,
+            MTL::StencilOperationDecrementClamp,
+            MTL::StencilOperationDecrementWrap,
+            MTL::StencilOperationInvert,
+        };
+        DM_STATIC_ASSERT(DM_ARRAY_SIZE(stencil_ops) == STENCIL_OP_INVERT + 1, Invalid_Metal_Stencil_Operation_Count);
+        assert(op <= STENCIL_OP_INVERT);
+        return stencil_ops[(uint32_t) op];
     }
 
     static inline uint32_t GetVertexBufferStartIndex(const MetalProgram* program)
@@ -2735,6 +2815,31 @@ namespace dmGraphics
                 ds->setDepthCompareFunction(MTL::CompareFunctionAlways);
                 ds->setDepthWriteEnabled(false);
             }
+
+            if (pipeline_state.m_StencilEnabled && MetalFormatHasStencil(rt->m_DepthStencilFormat))
+            {
+                MTL::StencilDescriptor* front = MTL::StencilDescriptor::alloc()->init();
+                front->setStencilCompareFunction(GetMetalDepthTestFunc((CompareFunc) pipeline_state.m_StencilFrontTestFunc));
+                front->setStencilFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilFrontOpFail));
+                front->setDepthFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilFrontOpDepthFail));
+                front->setDepthStencilPassOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilFrontOpPass));
+                front->setReadMask(pipeline_state.m_StencilCompareMask);
+                front->setWriteMask(pipeline_state.m_StencilWriteMask);
+
+                MTL::StencilDescriptor* back = MTL::StencilDescriptor::alloc()->init();
+                back->setStencilCompareFunction(GetMetalDepthTestFunc((CompareFunc) pipeline_state.m_StencilBackTestFunc));
+                back->setStencilFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilBackOpFail));
+                back->setDepthFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilBackOpDepthFail));
+                back->setDepthStencilPassOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilBackOpPass));
+                back->setReadMask(pipeline_state.m_StencilCompareMask);
+                back->setWriteMask(pipeline_state.m_StencilWriteMask);
+
+                ds->setFrontFaceStencil(front);
+                ds->setBackFaceStencil(back);
+                front->release();
+                back->release();
+            }
+
             pipeline->m_DepthStencilState = context->m_Device->newDepthStencilState(ds);
             ds->release();
         }
@@ -3187,16 +3292,19 @@ namespace dmGraphics
 
         if (context->m_ScissorChanged)
         {
-            MTL::ScissorRect scissor = current_rt->m_Scissor;
-            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-            {
-                const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
-                scissor.y = rt_height > scissor.y + scissor.height ? rt_height - scissor.y - scissor.height : 0;
-            }
             const uint32_t rt_width = current_rt->m_ColorTextureParams[0].m_Width;
             const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
-            scissor.width = scissor.x < rt_width ? dmMath::Min((uint32_t)scissor.width, rt_width - (uint32_t)scissor.x) : 0;
-            scissor.height = scissor.y < rt_height ? dmMath::Min((uint32_t)scissor.height, rt_height - (uint32_t)scissor.y) : 0;
+            MTL::ScissorRect scissor = {0, 0, rt_width, rt_height};
+            if (pipeline_state_draw.m_ScissorTestEnabled)
+            {
+                scissor = current_rt->m_Scissor;
+                if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+                {
+                    scissor.y = rt_height > scissor.y + scissor.height ? rt_height - scissor.y - scissor.height : 0;
+                }
+                scissor.width = scissor.x < rt_width ? dmMath::Min((uint32_t)scissor.width, rt_width - (uint32_t)scissor.x) : 0;
+                scissor.height = scissor.y < rt_height ? dmMath::Min((uint32_t)scissor.height, rt_height - (uint32_t)scissor.y) : 0;
+            }
             context->m_ScissorChanged = 0;
             encoder->setScissorRect(scissor);
         }
@@ -3239,8 +3347,20 @@ namespace dmGraphics
 
         if (context->m_PolygonOffsetChanged)
         {
-            encoder->setDepthBias(context->m_PolygonOffsetUnits, context->m_PolygonOffsetFactor, 0.0f);
+            if (pipeline_state_draw.m_PolygonOffsetFillEnabled)
+            {
+                encoder->setDepthBias(context->m_PolygonOffsetUnits, context->m_PolygonOffsetFactor, 0.0f);
+            }
+            else
+            {
+                encoder->setDepthBias(0.0f, 0.0f, 0.0f);
+            }
             context->m_PolygonOffsetChanged = 0;
+        }
+
+        if (pipeline_state_draw.m_StencilEnabled && MetalFormatHasStencil(current_rt->m_DepthStencilFormat))
+        {
+            encoder->setStencilReferenceValue(pipeline_state_draw.m_StencilReference);
         }
 
         CommitUniforms(context, encoder, &frame.m_ConstantScratchBuffer, &frame.m_ArgumentBufferPool, context->m_CurrentProgram, UNIFORM_BUFFER_ALIGNMENT, false);
@@ -3618,11 +3738,60 @@ namespace dmGraphics
         return true;
     }
 
+    static MetalProgram* NewEmptyMetalProgram()
+    {
+        MetalProgram* program = new MetalProgram();
+        memset(program->m_BaseProgram.m_ResourceBindings, 0, sizeof(program->m_BaseProgram.m_ResourceBindings));
+        program->m_BaseProgram.m_MaxSet     = 0;
+        program->m_BaseProgram.m_MaxBinding = 0;
+        program->m_VertexModule             = 0;
+        program->m_FragmentModule           = 0;
+        program->m_ComputeModule            = 0;
+        memset(program->m_ArgumentEncoders, 0, sizeof(program->m_ArgumentEncoders));
+        memset(program->m_ArgumentBufferBindings, 0, sizeof(program->m_ArgumentBufferBindings));
+        memset(program->m_ResourceToMslIndex, 0, sizeof(program->m_ResourceToMslIndex));
+        memset(program->m_WorkGroupSize, 0, sizeof(program->m_WorkGroupSize));
+        program->m_UniformData            = 0;
+        program->m_Hash                   = 0;
+        program->m_UniformDataSizeAligned = 0;
+        program->m_UniformBufferCount     = 0;
+        program->m_StorageBufferCount     = 0;
+        program->m_TextureSamplerCount    = 0;
+        return program;
+    }
+
+    static void MoveMetalProgram(MetalProgram* dst, MetalProgram* src)
+    {
+        memcpy(dst->m_BaseProgram.m_ResourceBindings, src->m_BaseProgram.m_ResourceBindings, sizeof(dst->m_BaseProgram.m_ResourceBindings));
+        dst->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Swap(src->m_BaseProgram.m_ShaderMeta.m_UniformBuffers);
+        dst->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Swap(src->m_BaseProgram.m_ShaderMeta.m_StorageBuffers);
+        dst->m_BaseProgram.m_ShaderMeta.m_Textures.Swap(src->m_BaseProgram.m_ShaderMeta.m_Textures);
+        dst->m_BaseProgram.m_ShaderMeta.m_Inputs.Swap(src->m_BaseProgram.m_ShaderMeta.m_Inputs);
+        dst->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Swap(src->m_BaseProgram.m_ShaderMeta.m_TypeInfos);
+        dst->m_BaseProgram.m_Uniforms.Swap(src->m_BaseProgram.m_Uniforms);
+        dst->m_BaseProgram.m_UniformBufferLayouts.Swap(src->m_BaseProgram.m_UniformBufferLayouts);
+        dst->m_BaseProgram.m_MaxSet     = src->m_BaseProgram.m_MaxSet;
+        dst->m_BaseProgram.m_MaxBinding = src->m_BaseProgram.m_MaxBinding;
+
+        dst->m_VertexModule   = src->m_VertexModule;
+        dst->m_FragmentModule = src->m_FragmentModule;
+        dst->m_ComputeModule  = src->m_ComputeModule;
+        memcpy(dst->m_ArgumentEncoders, src->m_ArgumentEncoders, sizeof(dst->m_ArgumentEncoders));
+        memcpy(dst->m_ArgumentBufferBindings, src->m_ArgumentBufferBindings, sizeof(dst->m_ArgumentBufferBindings));
+        memcpy(dst->m_ResourceToMslIndex, src->m_ResourceToMslIndex, sizeof(dst->m_ResourceToMslIndex));
+        memcpy(dst->m_WorkGroupSize, src->m_WorkGroupSize, sizeof(dst->m_WorkGroupSize));
+        dst->m_UniformData            = src->m_UniformData;
+        dst->m_Hash                   = src->m_Hash;
+        dst->m_UniformDataSizeAligned = src->m_UniformDataSizeAligned;
+        dst->m_UniformBufferCount     = src->m_UniformBufferCount;
+        dst->m_StorageBufferCount     = src->m_StorageBufferCount;
+        dst->m_TextureSamplerCount    = src->m_TextureSamplerCount;
+    }
+
     static HProgram MetalNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         MetalContext* context = (MetalContext*) _context;
-        MetalProgram* program = new MetalProgram;
-        memset(program, 0, sizeof(MetalProgram));
+        MetalProgram* program = NewEmptyMetalProgram();
 
         if (!CreateMetalProgram(context, program, ddf, error_buffer, error_buffer_size))
         {
@@ -3666,16 +3835,25 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalProgram* metal_program = (MetalProgram*) program;
+        MetalProgram* replacement = NewEmptyMetalProgram();
 
-        ReleaseMetalProgramNativeResources(metal_program);
-        memset(&metal_program->m_BaseProgram, 0, sizeof(metal_program->m_BaseProgram));
-
-        bool ok = CreateMetalProgram(context, metal_program, ddf, 0, 0);
-        if (ok)
+        if (!CreateMetalProgram(context, replacement, ddf, error_buffer, error_buffer_size))
         {
-            context->m_CurrentPipeline = 0;
+            delete replacement;
+            return false;
         }
-        return ok;
+
+        // Only discard the working program once the replacement has compiled
+        // and all reflection/argument-buffer state has been created successfully.
+        ReleaseMetalProgramNativeResources(metal_program);
+        DestroyProgram(&metal_program->m_BaseProgram);
+        ClearMetalPipelineCache(context);
+
+        // Swap the owning dmArray storage and copy the remaining POD/native
+        // handles into the stable public program handle.
+        MoveMetalProgram(metal_program, replacement);
+        delete replacement;
+        return true;
     }
 
     static uint32_t MetalGetAttributeCount(HProgram prog)
@@ -3790,6 +3968,14 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         assert(context);
         SetPipelineStateValue(context->m_PipelineState, state, 1);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_POLYGON_OFFSET_FILL)
+        {
+            context->m_PolygonOffsetChanged = true;
+        }
     }
 
     static void MetalDisableState(HContext _context, State state)
@@ -3797,6 +3983,14 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         assert(context);
         SetPipelineStateValue(context->m_PipelineState, state, 0);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_POLYGON_OFFSET_FILL)
+        {
+            context->m_PolygonOffsetChanged = true;
+        }
     }
 
     static void MetalSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -5009,6 +5203,10 @@ namespace dmGraphics
                 bool prepare_ok = false;
                 {
                     DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+                    if (dmAtomicGet32(&context->m_DeleteContextRequested))
+                    {
+                        return;
+                    }
                     MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
                     prepare_ok = MetalPrepareTextureForUploading(context, tex, params);
                     if (prepare_ok)

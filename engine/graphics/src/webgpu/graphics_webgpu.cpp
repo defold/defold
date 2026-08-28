@@ -3058,6 +3058,8 @@ static void WebGPUDisableProgram(HContext _context)
 static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
 {
     TRACE_CALL;
+    WebGPUProgram* program = (WebGPUProgram*)_program;
+    DestroyProgram(&program->m_BaseProgram);
 
     ShaderDesc::Shader* ddf_vp = 0x0;
     ShaderDesc::Shader* ddf_fp = 0x0;
@@ -3069,7 +3071,6 @@ static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc
     }
 
     WebGPUContext* context = (WebGPUContext*)_context;
-    WebGPUProgram* program = (WebGPUProgram*)_program;
     WebGPUDestroyProgram(context, program);
 
     if (ddf_cp)

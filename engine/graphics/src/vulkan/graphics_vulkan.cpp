@@ -1552,6 +1552,9 @@ namespace dmGraphics
 
         context->m_TextureSamplers.SetCapacity(4);
         context->m_FenceResourcesToDestroy.Allocate(8);
+        context->m_PolygonOffsetFactor  = 0.0f;
+        context->m_PolygonOffsetUnits   = 0.0f;
+        context->m_PolygonOffsetChanged = 1;
 
         // Pre-allocate the dynamic offset buffer to the maximum possible size.
         // This avoids malloc/realloc in the per-draw PrepareScratchBuffer path.
@@ -1824,6 +1827,7 @@ bail:
         context->m_FrameBegun            = 1;
         context->m_MainRTBegunThisFrame  = 0;
         context->m_CurrentPipeline       = 0;
+        context->m_PolygonOffsetChanged  = 1;
 
         // Update current swapchain texture for rendering
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
@@ -3182,7 +3186,15 @@ bail:
                     vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
             }
 
-            vkCmdSetScissor(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], 0, 1, &current_rt->m_Scissor);
+            VkRect2D scissor = current_rt->m_Scissor;
+            if (!pipeline_state_draw.m_ScissorTestEnabled)
+            {
+                scissor.offset.x      = 0;
+                scissor.offset.y      = 0;
+                scissor.extent.width  = current_rt->m_Extent.width;
+                scissor.extent.height = current_rt->m_Extent.height;
+            }
+            vkCmdSetScissor(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], 0, 1, &scissor);
 
             context->m_ViewportChanged = 0;
         }
@@ -3211,6 +3223,19 @@ bail:
         {
             vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
             context->m_CurrentPipeline = pipeline;
+        }
+
+        if (context->m_PolygonOffsetChanged)
+        {
+            if (pipeline_state_draw.m_PolygonOffsetFillEnabled)
+            {
+                vkCmdSetDepthBias(vk_command_buffer, context->m_PolygonOffsetUnits, 0.0f, context->m_PolygonOffsetFactor);
+            }
+            else
+            {
+                vkCmdSetDepthBias(vk_command_buffer, 0.0f, 0.0f, 0.0f);
+            }
+            context->m_PolygonOffsetChanged = 0;
         }
 
         // Bind the indexbuffer
@@ -3691,6 +3716,9 @@ bail:
 
     static bool VulkanReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        VulkanProgram* program = (VulkanProgram*) _program;
+        DestroyProgram(&program->m_BaseProgram);
+
         ShaderDesc::Shader* ddf_vp = 0x0;
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
@@ -3701,7 +3729,6 @@ bail:
         }
 
         VulkanContext* context = (VulkanContext*) _context;
-        VulkanProgram* program = (VulkanProgram*) _program;
 
         if (ddf_cp)
         {
@@ -3868,6 +3895,14 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         assert(context);
         SetPipelineStateValue(context->m_PipelineState, state, 1);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            context->m_ViewportChanged = 1;
+        }
+        else if (state == STATE_POLYGON_OFFSET_FILL)
+        {
+            context->m_PolygonOffsetChanged = 1;
+        }
     }
 
     static void VulkanDisableState(HContext _context, State state)
@@ -3875,6 +3910,14 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         assert(context);
         SetPipelineStateValue(context->m_PipelineState, state, 0);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            context->m_ViewportChanged = 1;
+        }
+        else if (state == STATE_POLYGON_OFFSET_FILL)
+        {
+            context->m_PolygonOffsetChanged = 1;
+        }
     }
 
     static void VulkanSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -4023,7 +4066,9 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         assert(context);
-        vkCmdSetDepthBias(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], factor, 0.0, units);
+        context->m_PolygonOffsetFactor  = factor;
+        context->m_PolygonOffsetUnits   = units;
+        context->m_PolygonOffsetChanged = 1;
     }
 
     static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format)
