@@ -69,6 +69,131 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Vector with three components
+     *
+     * A fixed-size value containing three floating-point components. Vector3
+     * values are commonly used for positions, directions, scales, and Euler
+     * angles. Create one with [ref:vmath.vector3], access its components through
+     * `x`, `y`, and `z`, and use arithmetic operators to combine or scale values.
+     *
+     * @class
+     * @name vector3
+     * @member x [type:number] x component
+     * @member y [type:number] y component
+     * @member z [type:number] z component
+     * @examples
+     *
+     * ```lua
+     * local position = vmath.vector3(100, 50, 0)
+     * local offset = vmath.vector3(10, 0, 0)
+     * go.set_position(position + offset)
+     * ```
+     */
+
+    /*# Vector with four components
+     *
+     * A fixed-size value containing four floating-point components. Vector4
+     * values are commonly used for colors, shader constants, and homogeneous
+     * coordinates. Create one with [ref:vmath.vector4], access its components
+     * through `x`, `y`, `z`, and `w`, and use arithmetic operators to combine or
+     * scale values.
+     *
+     * @class
+     * @name vector4
+     * @member x [type:number] x component
+     * @member y [type:number] y component
+     * @member z [type:number] z component
+     * @member w [type:number] w component
+     * @examples
+     *
+     * ```lua
+     * local tint = vmath.vector4(1, 0.5, 0.25, 1)
+     * local faded_tint = tint * 0.5
+     * go.set("#sprite", "tint", faded_tint)
+     * ```
+     */
+
+    /*# Matrix with four rows and four columns
+     *
+     * A 4x4 floating-point matrix used for 3D transformations and projections.
+     * Create an identity matrix with [ref:vmath.matrix4], or use constructors such
+     * as [ref:vmath.matrix4_translation] and [ref:vmath.matrix4_rotation_z].
+     * Matrices can be multiplied by other matrices, numbers, and [type:vector4]
+     * values. Individual elements are exposed as `m00` through `m33`, and columns
+     * as `c0` through `c3`.
+     *
+     * @class
+     * @name matrix4
+     * @member m00 [type:number] row 0, column 0
+     * @member m01 [type:number] row 0, column 1
+     * @member m02 [type:number] row 0, column 2
+     * @member m03 [type:number] row 0, column 3
+     * @member m10 [type:number] row 1, column 0
+     * @member m11 [type:number] row 1, column 1
+     * @member m12 [type:number] row 1, column 2
+     * @member m13 [type:number] row 1, column 3
+     * @member m20 [type:number] row 2, column 0
+     * @member m21 [type:number] row 2, column 1
+     * @member m22 [type:number] row 2, column 2
+     * @member m23 [type:number] row 2, column 3
+     * @member m30 [type:number] row 3, column 0
+     * @member m31 [type:number] row 3, column 1
+     * @member m32 [type:number] row 3, column 2
+     * @member m33 [type:number] row 3, column 3
+     * @member c0 [type:vector4] column 0
+     * @member c1 [type:vector4] column 1
+     * @member c2 [type:vector4] column 2
+     * @member c3 [type:vector4] column 3
+     * @examples
+     *
+     * Transform a point using a translation matrix:
+     *
+     * ```lua
+     * local transform = vmath.matrix4_translation(vmath.vector3(100, 50, 0))
+     * local point = transform * vmath.vector4(10, 20, 0, 1)
+     * print(point) --> vmath.vector4(110, 70, 0, 1)
+     * ```
+     */
+
+    /*# Dynamically sized numeric vector
+     *
+     * A vector containing an arbitrary number of floating-point values, created
+     * with [ref:vmath.vector]. Unlike [type:vector3] and [type:vector4], its length
+     * is determined by the table supplied to the constructor. Dynamically sized
+     * vectors are primarily used to define custom animation easing curves.
+     *
+     * @typedef
+     * @name vector
+     * @param value [type:userdata] dynamically sized vector
+     * @examples
+     *
+     * ```lua
+     * local easing = vmath.vector({ 0, 0.1, 0.8, 1 })
+     * go.animate(".", "position.x", go.PLAYBACK_ONCE_FORWARD, 100, easing, 1)
+     * ```
+     */
+
+    /*# Quaternion rotation
+     *
+     * A four-component value representing a 3D rotation. Create one with
+     * [ref:vmath.quat] or a specialized constructor such as
+     * [ref:vmath.quat_rotation_z]. Quaternion components are available as `x`,
+     * `y`, `z`, and `w`.
+     *
+     * @class
+     * @name quaternion
+     * @member x [type:number] x component
+     * @member y [type:number] y component
+     * @member z [type:number] z component
+     * @member w [type:number] w component
+     * @examples
+     *
+     * ```lua
+     * local rotation = vmath.quat_rotation_z(math.rad(90))
+     * go.set_rotation(rotation)
+     * ```
+     */
+
 #define SCRIPT_LIB_NAME "vmath"
 #define SCRIPT_TYPE_NAME_VECTOR "vector" // Vector of unspecific length
 #define SCRIPT_TYPE_NAME_VECTOR3 "vector3"
@@ -883,7 +1008,7 @@ namespace dmScript
      * value position in the vector.
      *
      * @name vmath.vector
-     * @param t [type:table] table of numbers
+     * @param t [type:number[]] table of numbers
      * @return v [type:vector] new vector
      * @examples
      *
@@ -2676,8 +2801,8 @@ namespace dmScript
      *
      * @name vmath.euler_to_quat
      * @param x [type:number|vector3] rotation around x-axis in degrees or vector3 with euler angles in degrees
-     * @param y [type:number] rotation around y-axis in degrees
-     * @param z [type:number] rotation around z-axis in degrees
+     * @param [y] [type:number] rotation around y-axis in degrees
+     * @param [z] [type:number] rotation around z-axis in degrees
      * @return q [type:quaternion] quaternion describing an equivalent rotation (231 (YZX) rotation sequence)
      * @examples
      * 

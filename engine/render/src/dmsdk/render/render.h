@@ -577,8 +577,8 @@ namespace dmRender
 
     /*#
      * Sets one or more named constants to the buffer with a specified data type.
-     * Currently only dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER and dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4
-     * are supported.
+     * Currently only dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR
+     * and dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4 are supported.
      * @name SetNamedConstant
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
      * @param name_hash [type: dmhash_t] the name of the constant

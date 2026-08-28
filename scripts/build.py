@@ -235,7 +235,7 @@ PACKAGES_MACOS_X86_64=[
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
@@ -264,7 +264,7 @@ PACKAGES_MACOS_ARM64=[
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_WIN32=[
@@ -307,8 +307,7 @@ PACKAGES_WIN32_64=[
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
@@ -337,8 +336,7 @@ PACKAGES_LINUX_X86_64=[
     "aapt2-36.1.0",
     "apkc-0.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
@@ -466,7 +464,6 @@ BOB_TOOL_PACKAGE_PREFIXES = (
     'ogg-',
     'spirv-tools-',
     'strip_android-',
-    'strip_android_aarch64-',
     'tint-',
 )
 
@@ -1639,7 +1636,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("glfw_android.jar", "vkquality.jar")
+                external_jars = ("glfw_android.jar",)
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -2860,7 +2857,6 @@ class Configuration(object):
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
-                         'ext/share/java/vkquality.jar': 'lib/vkquality.jar',
                          'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
                          'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
                          'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',

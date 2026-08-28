@@ -1434,9 +1434,7 @@ namespace dmPhysics
 
             int size = result_callback.m_collisionObjects.size();
 
-            if (results.Capacity() < size)
-                results.SetCapacity(size);
-            results.SetSize(size);
+            results.EnsureSize(size);
 
             for (int i = 0; i < size; ++i)
             {

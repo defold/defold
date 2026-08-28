@@ -377,6 +377,15 @@ namespace dmGameSystem
  * @param value [type:userdata]
  */
 
+/*# Bullet version information
+ * @struct
+ * @name bullet3d.version_info
+ * @member version [type:string] full Bullet version string
+ * @member number [type:integer] compact numeric Bullet version
+ * @member major [type:integer] major version number
+ * @member minor [type:integer] minor version number
+ */
+
 /*# Get the Bullet world for the current collection
  *
  * This function raises an error unless the collection uses 3D physics.
@@ -420,5 +429,5 @@ namespace dmGameSystem
 
 /*# Get the Bullet version
  * @name bullet3d.get_version
- * @return info [type:table] version fields: string `version` and integer `number`, `major`, and `minor`
+ * @return info [type:bullet3d.version_info] version information
  */

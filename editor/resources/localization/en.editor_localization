@@ -724,6 +724,8 @@ prefs.label.code.zoom-on-scroll = Zoom on Scroll
 prefs.label.code.hover = Hover popup
 prefs.help.code.hover = Show code documentation popup on hover
 prefs.label.code.auto-closing-parens = Auto-insert closing parens
+prefs.label.code.format-on-save = Format on save
+prefs.help.code.format-on-save = Run the language server formatter on open files when saving
 
 # Extensions tab
 prefs.label.extensions.build-server = Build Server

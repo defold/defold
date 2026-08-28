@@ -144,6 +144,7 @@ namespace dmGraphics
         ShaderDesc::Language                m_Language;
         dmArray<OpenGLVertexAttribute>      m_Attributes;
         dmArray<OpenGLScratchUniformBuffer> m_UniformBuffers;
+        Type                                m_TextureUnitTypes[DM_MAX_TEXTURE_UNITS];
     };
 
     /*
