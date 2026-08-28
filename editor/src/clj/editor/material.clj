@@ -34,6 +34,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
+            [util.fn :as fn]
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline MaterialBuilder]
@@ -180,6 +181,13 @@
     :constant-type-worldview-inverse :world-view-inv
     :constant-type-worldviewproj-inverse :world-view-proj-inv))
 
+(defn- transpile-shader-source-raw
+  [shader-proj-path ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
+  (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
+
+(def ^:private transpile-shader-source-cached
+  (fn/memoize {:limit 8} transpile-shader-source-raw))
+
 (defn- transpile-shader-source
   [shader-resource-node-id shader-resource ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
   ;; TODO(instancing): The shader-source has been preprocessed and will contain
@@ -187,7 +195,7 @@
   ;; and line numbers here.
   (let [shader-proj-path (resource/proj-path shader-resource)]
     (try
-      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int)
+      (transpile-shader-source-cached shader-proj-path shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int)
       (catch Exception exception
         (let [ex-data (ex-data exception)]
           (if-not (shader-gen/shader-transpile-ex-data? ex-data)
@@ -222,7 +230,7 @@
         (:strip-resource-binding-namespace-regex-str combined-shader-info))
       (shader/with-preview-light-capacity (:preview-light-capacity combined-shader-info))))
 
-(g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
+(g/defnk produce-shader [combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
   (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info
 
         uniform-values-by-name
@@ -238,7 +246,7 @@
                            (pair resolved-sampler-name nil))))
                   samplers))]
 
-    (shader/make-shader-lifecycle _node-id shader-request-data attribute-reflection-infos uniform-values-by-name)))
+    (shader/make-shader-lifecycle shader-request-data shader-request-data attribute-reflection-infos uniform-values-by-name)))
 
 (g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
   ;; Replace any default filter modes with the setting from game.project.

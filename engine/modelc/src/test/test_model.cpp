@@ -628,6 +628,58 @@ TEST(ModelGLTF, SparseAccessorValuesAreTightlyPacked)
     dmModelImporter::DestroyScene(scene);
 }
 
+TEST(ModelGLTF, SharedMaterialTextureTransformIsBakedIntoQuantizedTexCoords)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"extensionsUsed\":[\"KHR_mesh_quantization\",\"KHR_texture_transform\"],"
+        "\"extensionsRequired\":[\"KHR_mesh_quantization\"],"
+        "\"buffers\":[{"
+            "\"byteLength\":48,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAGQAAAAAAGQA\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},"
+            "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":12}"
+        "],"
+        "\"accessors\":["
+            "{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+            "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"VEC2\"}"
+        "],"
+        "\"images\":[{\"uri\":\"image.png\"}],"
+        "\"textures\":[{\"source\":0}],"
+        "\"materials\":[{\"pbrMetallicRoughness\":{"
+            "\"baseColorTexture\":{\"index\":0,\"extensions\":{\"KHR_texture_transform\":{"
+                "\"offset\":[0.25,0.5],\"scale\":[0.01,0.02]"
+            "}}},"
+            "\"metallicRoughnessTexture\":{\"index\":0,\"extensions\":{\"KHR_texture_transform\":{"
+                "\"offset\":[0.25,0.5],\"scale\":[0.01,0.02]"
+            "}}}"
+        "}}],"
+        "\"meshes\":[{\"primitives\":[{"
+            "\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"material\":0"
+        "}]}]"
+        "}";
+
+    dmModelImporter::Scene* scene = LoadGltfJson(json);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(1U, scene->m_Models.Size());
+    ASSERT_EQ(1U, scene->m_Models[0].m_Meshes.Size());
+
+    const dmArray<float>& texcoords = scene->m_Models[0].m_Meshes[0].m_TexCoords0;
+    ASSERT_EQ(6U, texcoords.Size());
+    ASSERT_NEAR(0.25f, texcoords[0], 1e-6f);
+    ASSERT_NEAR(0.5f, texcoords[1], 1e-6f);
+    ASSERT_NEAR(1.25f, texcoords[2], 1e-6f);
+    ASSERT_NEAR(0.5f, texcoords[3], 1e-6f);
+    ASSERT_NEAR(0.25f, texcoords[4], 1e-6f);
+    ASSERT_NEAR(-1.5f, texcoords[5], 1e-6f);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 TEST(ModelGLTF, RejectsAnimationWithoutTargetNode)
 {
     const char* json =

@@ -943,6 +943,104 @@ static void AddDynamicMaterial(Scene* scene, Material* material)
 
 static bool ValidateAttributeAccessorType(Scene* scene, cgltf_attribute* attribute, bool morph_target);
 
+struct UvTransform
+{
+    float m_Offset[2];
+    float m_Scale[2];
+    float m_Rotation;
+    bool  m_Found;
+    bool  m_Conflict;
+};
+
+static void AddTextureViewUvTransform(const cgltf_texture_view* view, uint32_t texcoord, UvTransform* transform)
+{
+    if (!view->texture)
+        return;
+
+    uint32_t view_texcoord = (uint32_t)view->texcoord;
+    if (view->has_transform && view->transform.has_texcoord)
+        view_texcoord = (uint32_t)view->transform.texcoord;
+    if (view_texcoord != texcoord)
+        return;
+
+    float offset_x = view->has_transform ? view->transform.offset[0] : 0.0f;
+    float offset_y = view->has_transform ? view->transform.offset[1] : 0.0f;
+    float scale_x = view->has_transform ? view->transform.scale[0] : 1.0f;
+    float scale_y = view->has_transform ? view->transform.scale[1] : 1.0f;
+    float rotation = view->has_transform ? view->transform.rotation : 0.0f;
+
+    if (!transform->m_Found)
+    {
+        transform->m_Offset[0] = offset_x;
+        transform->m_Offset[1] = offset_y;
+        transform->m_Scale[0] = scale_x;
+        transform->m_Scale[1] = scale_y;
+        transform->m_Rotation = rotation;
+        transform->m_Found = true;
+    }
+    else if (transform->m_Offset[0] != offset_x ||
+             transform->m_Offset[1] != offset_y ||
+             transform->m_Scale[0] != scale_x ||
+             transform->m_Scale[1] != scale_y ||
+             transform->m_Rotation != rotation)
+    {
+        transform->m_Conflict = true;
+    }
+}
+
+// Models expose one UV value per texture coordinate channel. A material transform can only be
+// baked into that channel when every texture sampling it uses the same transform.
+static bool GetSharedMaterialUvTransform(const cgltf_material* material, uint32_t texcoord, UvTransform* transform)
+{
+    if (!material)
+        return false;
+
+    memset(transform, 0, sizeof(*transform));
+
+#define ADD_TEXTURE_VIEW(VIEW) AddTextureViewUvTransform(&(VIEW), texcoord, transform)
+    ADD_TEXTURE_VIEW(material->pbr_metallic_roughness.base_color_texture);
+    ADD_TEXTURE_VIEW(material->pbr_metallic_roughness.metallic_roughness_texture);
+    ADD_TEXTURE_VIEW(material->pbr_specular_glossiness.diffuse_texture);
+    ADD_TEXTURE_VIEW(material->pbr_specular_glossiness.specular_glossiness_texture);
+    ADD_TEXTURE_VIEW(material->clearcoat.clearcoat_texture);
+    ADD_TEXTURE_VIEW(material->clearcoat.clearcoat_roughness_texture);
+    ADD_TEXTURE_VIEW(material->clearcoat.clearcoat_normal_texture);
+    ADD_TEXTURE_VIEW(material->transmission.transmission_texture);
+    ADD_TEXTURE_VIEW(material->volume.thickness_texture);
+    ADD_TEXTURE_VIEW(material->specular.specular_texture);
+    ADD_TEXTURE_VIEW(material->specular.specular_color_texture);
+    ADD_TEXTURE_VIEW(material->sheen.sheen_color_texture);
+    ADD_TEXTURE_VIEW(material->sheen.sheen_roughness_texture);
+    ADD_TEXTURE_VIEW(material->iridescence.iridescence_texture);
+    ADD_TEXTURE_VIEW(material->iridescence.iridescence_thickness_texture);
+    ADD_TEXTURE_VIEW(material->normal_texture);
+    ADD_TEXTURE_VIEW(material->occlusion_texture);
+    ADD_TEXTURE_VIEW(material->emissive_texture);
+#undef ADD_TEXTURE_VIEW
+
+    bool identity = transform->m_Offset[0] == 0.0f &&
+                    transform->m_Offset[1] == 0.0f &&
+                    transform->m_Scale[0] == 1.0f &&
+                    transform->m_Scale[1] == 1.0f &&
+                    transform->m_Rotation == 0.0f;
+    return transform->m_Found && !transform->m_Conflict && !identity;
+}
+
+static void TransformTexCoords(float* coords, uint32_t vertex_count, uint32_t component_count, const UvTransform* transform)
+{
+    float  sin_rotation = sinf(transform->m_Rotation);
+    float  cos_rotation = cosf(transform->m_Rotation);
+    float* coords_end   = coords + vertex_count * component_count;
+    while (coords < coords_end)
+    {
+        float u = coords[0] * transform->m_Scale[0];
+        float v = coords[1] * transform->m_Scale[1];
+        coords[0] = transform->m_Offset[0] + cos_rotation * u - sin_rotation * v;
+        coords[1] = transform->m_Offset[1] + sin_rotation * u + cos_rotation * v;
+        coords += component_count;
+    }
+}
+
 static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     InitSize(model->m_Meshes, gltf_mesh->primitives_count, gltf_mesh->primitives_count);
@@ -1066,6 +1164,10 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                 }
                 else if (attribute->type == cgltf_attribute_type_texcoord)
                 {
+                    UvTransform transform;
+                    if (GetSharedMaterialUvTransform(prim->material, attribute->index, &transform))
+                        TransformTexCoords(fdata, mesh->m_VertexCount, num_components, &transform);
+
                     bool flip_v = true; // Possibly move to the option
                     if (flip_v)
                     {

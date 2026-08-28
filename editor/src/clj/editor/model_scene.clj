@@ -355,19 +355,27 @@
                         [sampler gpu-texture-generator])))
               texture-binding-infos)
 
-        explicit-textures
-        (into {}
+        explicit-texture-work
+        (into []
               (keep-indexed
                 (fn [unit-index {:keys [name] :as sampler}]
                   (when-let [gpu-texture-generator (sampler-name->gpu-texture-generator name)]
-                    (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
-                      [name
-                       (-> (if (g/error-value? gpu-texture)
-                             @texture/placeholder
-                             gpu-texture)
-                           (texture/set-params (material/sampler->tex-params sampler))
-                           (texture/set-base-unit unit-index))]))))
+                    [unit-index sampler gpu-texture-generator])))
               samplers)
+
+        ;; This generates CPU-side texture request data. GL upload happens later when the texture lifecycle is bound.
+        explicit-textures
+        (into {}
+              (coll/pmapv
+                (fn [[unit-index {:keys [name] :as sampler} gpu-texture-generator]]
+                  (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
+                    [name
+                     (-> (if (g/error-value? gpu-texture)
+                           @texture/placeholder
+                           gpu-texture)
+                         (texture/set-params (material/sampler->tex-params sampler))
+                         (texture/set-base-unit unit-index))]))
+                explicit-texture-work))
 
         fallback-texture (if (pos? (count explicit-textures))
                            (val (first explicit-textures))
@@ -631,6 +639,20 @@
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
       renderable-mesh-set-or-error-value)))
 
+(def ^:private model-aabb-outline-renderable
+  (render-util/make-aabb-outline-renderable #{:model}))
+
+(defn- render-selected-model-aabb-outline [gl render-args renderables _renderable-count]
+  (let [selected-renderables (coll/filterv-> renderables #(= :self-selected (:selected %)))]
+    (when (coll/not-empty selected-renderables)
+      ((:render-fn model-aabb-outline-renderable)
+       gl render-args selected-renderables (count selected-renderables)))))
+
+(def ^:private selected-model-aabb-outline-renderable
+  (assoc model-aabb-outline-renderable
+    :batch-key ::selected-model-aabb-outline
+    :render-fn render-selected-model-aabb-outline))
+
 (defn- make-mesh-scene [scene-node-id renderable-mesh]
   {:pre [(g/node-id? scene-node-id)]}
   (let [{:keys [aabb material-data material-index material-name renderable-buffers]} renderable-mesh
@@ -661,41 +683,47 @@
          :passes [pass/opaque pass/opaque-selection]
          :user-data user-data}]
 
-    {:aabb aabb
+    {:node-id scene-node-id
+     :aabb aabb
      :renderable renderable}))
 
-(defn- make-model-scene [scene-node-id renderable-model]
+(defn- make-model-scene [renderable-model mesh-scene-info-by-index]
   (let [{:keys [pose-with-skeleton pose-without-skeleton mesh-index aabb renderable-meshes]} renderable-model
-        mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
+        {:keys [node-id node-outline-key]} (mesh-scene-info-by-index mesh-index)
+        mesh-scenes (mapv #(make-mesh-scene node-id %)
                           renderable-meshes)]
-    {:pose pose-with-skeleton
+    {:node-id node-id
+     :node-outline-key node-outline-key
+     :pose pose-with-skeleton
      :pose-with-skeleton pose-with-skeleton
      :pose-without-skeleton pose-without-skeleton
      :mesh-index mesh-index
      :aabb aabb
+     :renderable selected-model-aabb-outline-renderable
      :children mesh-scenes}))
 
-(defn- make-scene [scene-node-id renderable-mesh-set]
+(defn- make-scene [scene-node-id renderable-mesh-set mesh-scene-infos]
   (let [{:keys [aabb renderable-models renderable-raw-models]} renderable-mesh-set
+        mesh-scene-info-by-index (coll/pair-map-by :mesh-index mesh-scene-infos)
 
         child-scenes
         (into [{:node-id scene-node-id
                 :aabb aabb
-                :renderable (render-util/make-aabb-outline-renderable #{:model})}]
-              (map #(make-model-scene scene-node-id %))
+                :renderable model-aabb-outline-renderable}]
+              (map #(make-model-scene % mesh-scene-info-by-index))
               renderable-models)]
 
     {:node-id scene-node-id
      :aabb aabb
-     :raw-model-scenes (mapv #(make-model-scene scene-node-id %)
+     :raw-model-scenes (mapv #(make-model-scene % mesh-scene-info-by-index)
                              renderable-raw-models)
      :renderable {:tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
                   :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
      :children child-scenes}))
 
-(g/defnk produce-source-scene [_node-id renderable-mesh-set]
-  (make-scene _node-id renderable-mesh-set))
+(g/defnk produce-source-scene [_node-id mesh-scene-infos renderable-mesh-set]
+  (make-scene _node-id renderable-mesh-set mesh-scene-infos))
 
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
   (update scene :children coll/mapv->
@@ -918,6 +946,12 @@
 
   (display-order [:index :name :name-generated :primitive-count :vertex-count])
 
+  (output mesh-scene-info g/Any
+          (g/fnk [_node-id index]
+            {:mesh-index index
+             :node-id _node-id
+             :node-outline-key (format "gltf-mesh-%d" index)}))
+
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id index outline-label]
             {:node-id _node-id
@@ -1016,13 +1050,18 @@
       descriptors
       base-labels)))
 
-(defn- create-gltf-metadata-item-tx [group-node node-type properties]
+(defn- create-gltf-metadata-item-tx
+  [group-node model-scene-node node-type properties scene-info-output-label]
   (g/make-nodes (g/node-id->graph-id group-node)
     [item-node [node-type properties]]
     (g/connect item-node :_node-id group-node :nodes)
-    (g/connect item-node :node-outline group-node :child-outlines)))
+    (g/connect item-node :node-outline group-node :child-outlines)
+    (if-not scene-info-output-label
+      []
+      (g/connect item-node scene-info-output-label model-scene-node :mesh-scene-infos))))
 
-(defn- create-gltf-metadata-group-tx [model-scene-node kind node-type descriptors property-keys]
+(defn- create-gltf-metadata-group-tx
+  [model-scene-node kind node-type descriptors property-keys scene-info-output-label]
   (when-not (coll/empty? descriptors)
     (g/make-nodes (g/node-id->graph-id model-scene-node)
       [group-node [GltfMetadataGroupNode :kind kind]]
@@ -1031,7 +1070,10 @@
       (into []
             (map
               (fn [descriptor]
-                (create-gltf-metadata-item-tx group-node node-type (select-keys descriptor property-keys))))
+                (create-gltf-metadata-item-tx
+                  group-node model-scene-node node-type
+                  (select-keys descriptor property-keys)
+                  scene-info-output-label)))
             (add-gltf-outline-labels descriptors)))))
 
 (g/defnode GltfPreviewTextureBinding
@@ -1144,14 +1186,17 @@
           (comp (keep identity) cat)
           [(create-gltf-metadata-group-tx
              self :meshes GltfMeshInfoNode meshes
-             [:index :name :name-generated :outline-label :primitive-count :vertex-count])
+             [:index :name :name-generated :outline-label :primitive-count :vertex-count]
+             :mesh-scene-info)
            (create-gltf-metadata-group-tx
              self :materials GltfMaterialInfoNode materials
-             [:index :material :name :outline-label :samplers])
+             [:index :material :name :outline-label :samplers]
+             nil)
            (create-gltf-metadata-group-tx
              self :textures GltfTextureInfoNode textures
              [:basisu :image :image-index :image-name :index :mag-filter :mime-type :min-filter
-              :name :outline-label :sampler-index :source-kind :uri :wrap-s :wrap-t])])))
+              :name :outline-label :sampler-index :source-kind :uri :wrap-s :wrap-t]
+             nil)])))
 
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
@@ -1163,6 +1208,7 @@
 
   (input external-buffer-sha256s g/Str :array)
   (input material-scene-infos g/Any :array)
+  (input mesh-scene-infos g/Any :array)
   (input project-settings g/Any)
 
   (output content g/Any :cached produce-content)

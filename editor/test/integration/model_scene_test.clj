@@ -17,12 +17,18 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.camera :as camera]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.gl.pass :as pass]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.material :as material]
+            [editor.model-scene :as model-scene]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.scene :as scene]
+            [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -32,6 +38,7 @@
   (:import [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
+           [java.util.concurrent CyclicBarrier TimeUnit]
            [javax.vecmath Point3d Vector4d]))
 
 (vtx/defvertex vtx-pos-nrm-tex
@@ -142,6 +149,30 @@
            (get-in coalesced-properties [:properties property-key :values])))
     (is (true? (get-in coalesced-properties [:properties property-key :read-only?])))))
 
+(deftest preview-textures-are-generated-in-parallel
+  (let [texture-count 4
+        sampler-names (into [] (map #(str "texture" %)) (range texture-count))
+        samplers (mapv #(hash-map :name %) sampler-names)
+        texture-binding-infos (mapv #(hash-map :sampler % :gpu-texture-generator ::generator)
+                                    sampler-names)
+        worker-barrier (CyclicBarrier. texture-count)
+        worker-thread-ids (atom #{})
+        gpu-texture @texture/black-pixel]
+    (with-redefs [texture-util/generate-gpu-texture
+                  (fn [_gpu-texture-generator]
+                    (swap! worker-thread-ids conj (.threadId (Thread/currentThread)))
+                    (.await worker-barrier 5 TimeUnit/SECONDS)
+                    gpu-texture)]
+      (let [gpu-textures
+            (model-scene/produce-gpu-textures
+              {:_node-id ::preview-material
+               :samplers samplers
+               :texture-binding-infos texture-binding-infos})]
+        (is (= (set sampler-names) (set (coll/keys gpu-textures))))
+        (is (= [[0] [1] [2] [3]]
+               (mapv #(vec (:texture-units (gpu-textures %))) sampler-names)))
+        (is (= texture-count (count @worker-thread-ids)))))))
+
 (deftest aabb
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/builtins/assets/gltf/cube.gltf")
@@ -251,13 +282,36 @@
                   (is (g/node-id? node-id))
                   (is (true? read-only)))
 
-                (let [mesh-node-id (:node-id mesh-outline)]
+                (let [mesh-node-id (:node-id mesh-outline)
+                      preview-scene (g/node-value source-node-id :scene)
+                      mesh-model-scene (nth (:children preview-scene) 1)
+                      scene-render-data
+                      (scene/produce-scene-render-data
+                        {:scene preview-scene
+                         :selection [mesh-node-id]
+                         :hidden-renderable-tags #{}
+                         :hidden-node-outline-key-paths #{}
+                         :local-camera (camera/make-camera)})
+                      mesh-picking-renderables
+                      (coll/filterv-> (get-in scene-render-data [:renderables pass/opaque-selection])
+                                     #(= mesh-node-id (:picking-node-id %)))
+                      mesh-outline-renderable
+                      (coll/first-where #(and (= mesh-node-id (:node-id %))
+                                              (= :self-selected (:selected %)))
+                                        (get-in scene-render-data [:renderables pass/outline]))]
                   (assert-read-only-property mesh-node-id :index 0)
                   (assert-read-only-property mesh-node-id :name "Mesh 0")
                   (assert-read-only-property mesh-node-id :name-generated true)
                   (assert-read-only-property mesh-node-id :primitive-count 2)
                   (assert-read-only-property mesh-node-id :vertex-count 6)
-                  (assert-selected-property app-view mesh-node-id :primitive-count 2))
+                  (assert-selected-property app-view mesh-node-id :primitive-count 2)
+                  (is (= mesh-node-id (:node-id mesh-model-scene)))
+                  (is (= "gltf-mesh-0" (:node-outline-key mesh-model-scene)))
+                  (is (= 2 (count (:children mesh-model-scene))))
+                  (is (coll/every? #(= mesh-node-id (:node-id %))
+                                   (:children mesh-model-scene)))
+                  (is (= 2 (count mesh-picking-renderables)))
+                  (is (some? mesh-outline-renderable)))
 
                 (doseq [[material-index material-outline]
                         (into [] (map-indexed vector) material-outlines)]

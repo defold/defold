@@ -888,6 +888,15 @@
            (ui/succeeding-selection tree-view))))
   (alt-selection [_this _evaluation-context] []))
 
+(defn resource-tree-cell-text [resource]
+  (let [resource-name (resource/resource-name resource)]
+    (if-not (resource/gltf-resource? resource)
+      resource-name
+      (let [{:keys [index kind name]} (resource/gltf-resource-asset-info resource)]
+        (if (#{:image :material} kind)
+          (format "%s [%d].%s" name index (resource/ext resource))
+          resource-name)))))
+
 (defn- describe-tree-cell [localization-state on-drag-dropped item]
   (cond
     (nil? item)
@@ -898,7 +907,7 @@
      :graphic {:fx/type ui/image-icon :path "icons/32/Icons_03-Builtins.png" :size 16.0}}
 
     :else
-    {:text (resource/resource-name item)
+    {:text (resource-tree-cell-text item)
      :style-class (into ["cell" "indexed-cell" "tree-cell"] (resource/style-classes item))
      :on-drag-over drag-over
      :on-drag-entered drag-entered

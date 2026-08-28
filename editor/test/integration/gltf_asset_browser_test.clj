@@ -115,11 +115,17 @@
       (fs/create-file! (io/file models-directory "robot.glb") (glb-content "GlbPaint"))
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world project-path)]
-          (doseq [source-proj-path ["/models/robot.gltf" "/models/robot.glb"]]
+          (doseq [[source-proj-path material-label]
+                  [["/models/robot.gltf" "GltfPaint [0].material"]
+                   ["/models/robot.glb" "GlbPaint [0].material"]]]
             (testing source-proj-path
               (let [source-resource (workspace/find-resource workspace source-proj-path)
+                    image-resource (workspace/find-resource workspace (str source-proj-path "/images/0.png"))
+                    material-resource (workspace/find-resource workspace (str source-proj-path "/materials/0.material"))
                     meshes-resource (workspace/find-resource workspace (str source-proj-path "/meshes"))]
                 (is (some? source-resource))
+                (is (= "Albedo [0].png" (asset-browser/resource-tree-cell-text image-resource)))
+                (is (= material-label (asset-browser/resource-tree-cell-text material-resource)))
                 (is (some? meshes-resource))
                 (when (and source-resource meshes-resource)
                   (let [mesh-resources (resource/children meshes-resource)
@@ -139,6 +145,8 @@
                       (is (.isLeaf mesh-tree-item)))
                     (doseq [mesh-resource mesh-resources]
                       (is (resource/gltf-resource? mesh-resource))
+                      (is (= (resource/resource-name mesh-resource)
+                             (asset-browser/resource-tree-cell-text mesh-resource)))
                       (is (= :file (resource/source-type mesh-resource)))
                       (is (resource/read-only? mesh-resource))
                       (is (false? (resource/openable? mesh-resource)))
