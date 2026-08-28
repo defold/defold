@@ -29,20 +29,39 @@
   (:import [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Result]))
 
 (g/defnode ResourceSettingNode
-  (property resource-connections g/Any) ; [target-node-id [connections]]
+  (property resource-connections g/Any) ; [target-node-id [[source-label target-label]]]]
   (property path g/Any)
   (property value resource/Resource
             (dynamic visible (g/constantly false))
-            (value (gu/passthrough resource))
+            (value (g/fnk [resource value]
+                     ;; We only connect the :resource input when we have a
+                     ;; resource node. A "missing" ResourceNode will be created
+                     ;; for non-existing paths, but not if the resource refers
+                     ;; to a folder.
+                     (or resource value)))
             (set (fn [evaluation-context self old-value new-value]
-                   (concat
-                     ;; connect resource node to this
-                     (project/resource-setter evaluation-context self old-value new-value [:resource :resource])
-                     (when-let [resource-connections (g/node-value self :resource-connections evaluation-context)]
-                       (let [[target-node connections] resource-connections]
-                         ;; connect extra resource node outputs directly to target-node (GameProjectNode for instance)
-                         (apply project/resource-setter evaluation-context target-node old-value new-value
-                                connections)))))))
+                   (let [project (project/get-project (:basis evaluation-context) self)
+                         _ (assert (g/node-id? project))
+                         resource-connections (g/node-value self :resource-connections evaluation-context)
+
+                         all-connections
+                         (cond-> [[self [[:resource :resource]]]]
+                           (coll/not-empty resource-connections)
+                           (conj resource-connections))]
+
+                     (g/eager-tx-data
+                       (concat
+                         (when (some-> old-value resource/source-type (= :file))
+                           (e/mapcat
+                             (fn [[target-node connections]]
+                               (project/disconnect-resource-node evaluation-context project old-value target-node connections))
+                             all-connections))
+                         (when (some-> new-value resource/source-type (= :file))
+                           (e/mapcat
+                             (fn [[target-node connections]]
+                               (:tx-data (project/connect-resource-node evaluation-context project new-value target-node connections)))
+                             all-connections))))))))
+
   (input resource resource/Resource)
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
   (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))

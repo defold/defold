@@ -947,21 +947,25 @@
 
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"
-    (let [game-project (test-util/resource-node project "/game.project")]
+    (let [game-project (test-util/resource-node project "/game.project")
+          example-cert-resource (workspace/find-resource workspace "/example_cert.pem")
+          example-cert-contents (slurp example-cert-resource)]
       (with-setting "network/ssl_certificates" nil
         (project-build! project game-project)
-        (is (false? (.exists (build-path workspace "assets/some.stuff"))))
-        (is (false? (.exists (build-path workspace "assets/some2.stuff")))))
-      (with-setting "network/ssl_certificates" (workspace/find-resource workspace "/assets")
+        (is (false? (.exists (build-path workspace "example_cert.pem")))))
+      (with-setting "network/ssl_certificates" example-cert-resource
         (project-build! project game-project)
-        (check-file-contents workspace
-                             [["assets/some.stuff" "some.stuff"]
-                              ["assets/some2.stuff" "some2.stuff"]]))
-      (with-setting "network/ssl_certificates" (workspace/file-resource workspace "/nonexistent_path")
+        (check-file-contents workspace [["example_cert.pem" example-cert-contents]]))
+      (with-setting "network/ssl_certificates" (workspace/file-resource workspace "/nonexistent_cert.pem")
         (let [build-error (:error (project-build! project game-project))
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
-          (is (= "SSL certificates directory not found: '/nonexistent_path'" error-message)))))))
+          (is (= "SSL certificates resource not found: '/nonexistent_cert.pem'" error-message))))
+      (with-setting "network/ssl_certificates" (workspace/file-resource workspace "/assets")
+        (let [build-error (:error (project-build! project game-project))
+              error-message (some :message (tree-seq :causes :causes build-error))]
+          (is (g/error? build-error))
+          (is (= "SSL certificates must denote a file: '/assets'" error-message)))))))
 
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
@@ -986,16 +990,14 @@
       (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
-        (with-setting "network/ssl_certificates" (workspace/find-resource workspace "/assets")
+        (with-setting "network/ssl_certificates" (workspace/find-resource workspace "/example_cert.pem")
           (project-build! project game-project)
-          (let [initial-some-mtime (mtime (build-path workspace "assets/some.stuff"))
-                initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))]
+          (let [initial-mtime (mtime (build-path workspace "example_cert.pem"))]
             (Thread/sleep 1000)
-            (spit (abs-project-path workspace "assets/some.stuff") "new stuff")
+            (spit (abs-project-path workspace "example_cert.pem") "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----")
             (workspace/resource-sync! workspace)
             (project-build! project game-project)
-            (is (not (= initial-some-mtime (mtime (build-path workspace "assets/some.stuff")))))
-            (is (= initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))))))))))
+            (is (not (= initial-mtime (mtime (build-path workspace "example_cert.pem")))))))))))
 
 (deftest dependencies-are-removed-from-game-project
   (with-loaded-project project-path
