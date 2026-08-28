@@ -332,7 +332,7 @@
   (future/completed [[] true]))
 
 (defn- make-invoke-bob-fn [project]
-  (fn invoke-bob! [options commands _]
+  (fn invoke-bob! [options commands]
     (future/io
       (let [ret (bob/invoke! project options commands)]
         (when (or (:error ret) (:exception ret))

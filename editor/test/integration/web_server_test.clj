@@ -36,6 +36,7 @@
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.http-client :as http]
@@ -276,6 +277,63 @@
                                 (is (not= first-clj second-clj))
                                 (is (= new-value second-clj))))))))))))))))))
 
+(deftest bob-endpoint-test
+  (with-clean-system
+    (let [token "test-token"
+          invocations (atom [])
+          bob-result (atom {})]
+      (with-open [server (http-server/start!
+                           (web-server/make-dynamic-handler
+                             (command-requests/router
+                               nil
+                               test-util/localization
+                               nil
+                               token
+                               (fn invoke-bob! [options commands]
+                                 (swap! invocations conj [options commands])
+                                 @bob-result))))]
+        (let [request! (fn request! [body authorization]
+                         @(http/request (str (http-server/local-url server) "/bob")
+                                        :method "POST"
+                                        :headers (cond-> {"content-type" "application/json"}
+                                                   authorization (assoc "authorization" authorization))
+                                        :body (json/write-str body)
+                                        :as :string))]
+          (testing "Requires bearer token"
+            (doseq [authorization [nil "Bearer wrong-token"]]
+              (let [{:keys [status]} (request! {} authorization)]
+                (is (= 401 status))))
+            (is (coll/empty? @invocations)))
+
+          (testing "Validates request structure"
+            (doseq [body [[]
+                          {"options" []}
+                          {"commands" {}}
+                          {"commands" ["build" 1]}]]
+              (let [{:keys [status]} (request! body (str "Bearer " token))]
+                (is (= 400 status))))
+            (is (coll/empty? @invocations)))
+
+          (testing "Invokes Bob with options and commands"
+            (let [options {"platform" "x86_64-linux"
+                           "archive" true}
+                  commands ["build" "bundle"]
+                  {:keys [status body]} (request! {"options" options
+                                                   "commands" commands}
+                                                  (str "Bearer " token))]
+              (is (= 200 status))
+              (is (= {:success true :issues []} (json/read-str body :key-fn keyword)))
+              (is (= [[options commands]] @invocations))))
+
+          (testing "Reports Bob errors"
+            (reset! bob-result {:error (g/error-fatal "Bob failed")})
+            (let [{:keys [status body]} (request! {} (str "Bearer " token))
+                  response (json/read-str body :key-fn keyword)]
+              (is (= 422 status))
+              (is (false? (:success response)))
+              (is (= [{:message "Bob failed" :severity "error"}]
+                     (:issues response))))))))))
+
 (deftest web-server-test
   (test-util/with-loaded-project
     (let [root (doto (Region.)
@@ -306,7 +364,7 @@
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
                                              (scene/routes project app-view)
-                                             (command-requests/router root test-util/localization progress/null-render-progress!)
+                                             (command-requests/router root test-util/localization progress/null-render-progress! "test-token" (fn [_ _]))
                                              (doc/routes)])))]
           (let [url (http-server/local-url server)]
             (let [{:keys [status headers body]} @(http/request (str url "/") :as :string)]
@@ -333,9 +391,9 @@
                       post-compile (get-in paths ["/command/compile" "post"])
                       post-run (get-in paths ["/command/run" "post"])]
                   (is (not (contains? paths "/command/build")))
-                  (is (get-in post-build-html5 ["responses" "200"]))
-                  (is (get-in post-compile ["responses" "200"]))
-                  (is (get-in post-run ["responses" "200"]))
+                  (is (get-in post-build-html5 ["responses" "default"]))
+                  (is (get-in post-compile ["responses" "default"]))
+                  (is (get-in post-run ["responses" "default"]))
                   (let [focus-parameter (coll/first-where #(= "focus" (get % "name")) (get post-run "parameters"))]
                     (is (= "query" (get focus-parameter "in")))
                     (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
