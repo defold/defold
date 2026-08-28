@@ -156,8 +156,8 @@
 
 (defn- constant->val [constant]
   (case (:type constant)
-    :constant-type-user (let [[x y z w] (:value constant)]
-                          (Vector4d. x y z w))
+    (:constant-type-user :constant-type-user-color) (let [[x y z w] (:value constant)]
+                                                      (Vector4d. x y z w))
     :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
                                   (doto (Matrix4d.)
                                     (.setElement 0 0 x)
@@ -260,15 +260,16 @@
                       filter-min)))))
           samplers)))
 
-(defn- vector-type->form-field-type [vector-type]
-  (case vector-type
-    :vector-type-scalar :vec4
-    :vector-type-vec2 :vec4
-    :vector-type-vec3 :vec4
-    :vector-type-vec4 :vec4
-    :vector-type-mat2 :mat4
-    :vector-type-mat3 :mat4
-    :vector-type-mat4 :mat4))
+(defn- vector-type->form-field-type [semantic-type vector-type data-type normalize]
+  (let [color (and (= :semantic-type-color semantic-type)
+                   (or (= :type-float data-type) normalize))]
+    (case vector-type
+      :vector-type-scalar :vec4
+      :vector-type-vec2 :vec4
+      (:vector-type-vec3 :vector-type-vec4) (if color :color :vec4)
+      :vector-type-mat2 :mat4
+      :vector-type-mat3 :mat4
+      :vector-type-mat4 :mat4)))
 
 (def unsupported-semantic-types
   #{:semantic-type-bone-weights
@@ -278,7 +279,9 @@
   [{:path [:semantic-type]
     :localization-key "material.attributes.semantic-type"
     :type :choicebox
-    :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
+    :options (vec (sort-by first
+                           (remove #(unsupported-semantic-types (first %))
+                                   (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
     :localization-key "material.attributes.step-function"
@@ -302,7 +305,8 @@
     :default graphics/default-attribute-vector-type}
    {:path [:values]
     :localization-key "material.attributes.value"
-    :type (vector-type->form-field-type graphics/default-attribute-vector-type)
+    :type (vector-type->form-field-type graphics/default-attribute-semantic-type graphics/default-attribute-vector-type
+                                        graphics/default-attribute-data-type false)
     :default (graphics.types/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
    {:path [:normalize]
     :localization-key "material.attributes.normalize"
@@ -350,7 +354,9 @@
                 value-vertex-attribute-field-index
                 (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
                       vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
-                      type (vector-type->form-field-type vector-type)
+                      data-type (:data-type selected-attribute graphics/default-attribute-data-type)
+                      normalize (:normalize selected-attribute false)
+                      type (vector-type->form-field-type semantic-type vector-type data-type normalize)
                       default (graphics.types/default-attribute-doubles semantic-type vector-type)]
                   {:path [:values]
                    :localization-key "material.attributes.value"

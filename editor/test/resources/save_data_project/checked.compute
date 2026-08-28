@@ -13,6 +13,16 @@ constants {
   name: "constant_2"
   type: CONSTANT_TYPE_VIEWPROJ
 }
+constants {
+  name: "constant_3"
+  type: CONSTANT_TYPE_USER_COLOR
+  value {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+    w: 0.4
+  }
+}
 samplers {
   name: "texture0"
   wrap_u: WRAP_MODE_MIRRORED_REPEAT

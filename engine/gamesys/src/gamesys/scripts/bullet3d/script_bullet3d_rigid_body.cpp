@@ -638,7 +638,7 @@ namespace dmGameSystem
  * body to a world.
  *
  * @name bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY
- * @constant
+ * @constant [type:integer]
  */
 
 /*# Test whether a handle refers to a valid rigid body
@@ -831,19 +831,19 @@ namespace dmGameSystem
 /*# Get rigid body flags
  * @name bullet3d.rigid_body.get_flags
  * @param body [type:btRigidBody] rigid body
- * @return flags [type:number] rigid body flags
+ * @return flags [type:integer] rigid body flags
  */
 
 /*# Set rigid body flags
  * @name bullet3d.rigid_body.set_flags
  * @param body [type:btRigidBody] rigid body
- * @param flags [type:number] rigid body flags
+ * @param flags [type:integer] rigid body flags
  */
 
 /*# Test a rigid body flag
  * @name bullet3d.rigid_body.has_flag
  * @param body [type:btRigidBody] rigid body
- * @param flag [type:number] flag or mask
+ * @param flag [type:integer] flag or mask
  * @return set [type:boolean] `true` when all requested flag bits are set
  */
 
@@ -1014,5 +1014,5 @@ namespace dmGameSystem
  *
  * @name bullet3d.rigid_body.compute_aabb
  * @param body [type:btRigidBody] rigid body
- * @return aabb [type:table] table whose `lower` and `upper` fields are world-space vector3 bounds in Defold units
+ * @return aabb [type:bullet3d.world.aabb] world-space bounds in Defold units
  */

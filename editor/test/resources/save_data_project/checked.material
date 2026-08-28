@@ -17,6 +17,16 @@ vertex_constants {
   name: "viewproj"
   type: CONSTANT_TYPE_VIEWPROJ
 }
+vertex_constants {
+  name: "tint"
+  type: CONSTANT_TYPE_USER_COLOR
+  value {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+    w: 0.4
+  }
+}
 fragment_constants {
   name: "screensize"
   type: CONSTANT_TYPE_USER
