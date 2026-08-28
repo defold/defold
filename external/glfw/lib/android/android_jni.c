@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "android_jni.h"
-#include "android_log.h"
 #include <assert.h>
 
 
