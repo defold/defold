@@ -452,6 +452,8 @@ static void LogFrameBufferError(GLenum status)
     }
 }
 
+#if !defined(ANDROID)
+
 #define CHECK_GL_FRAMEBUFFER_ERROR \
     { \
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
@@ -461,6 +463,30 @@ static void LogFrameBufferError(GLenum status)
             assert(false);\
         } \
     } \
+
+#else
+
+// Android may invalidate the EGL surface while a GL operation is in flight.
+// Verify the surface before treating an incomplete framebuffer as a fatal
+// render-target error, mirroring the lifecycle handling in CHECK_GL_ERROR.
+#define CHECK_GL_FRAMEBUFFER_ERROR \
+    { \
+        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
+        if (status != GL_FRAMEBUFFER_COMPLETE) \
+        { \
+            LogFrameBufferError(status);\
+            if (dmPlatform::AndroidVerifySurface(g_Context->m_BaseContext.m_Window)) \
+            { \
+                assert(false);\
+            } \
+            else \
+            { \
+                dmLogWarning("Framebuffer incomplete while Android surface is being destroyed. Skipping assert.");\
+            } \
+        } \
+    } \
+
+#endif
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
