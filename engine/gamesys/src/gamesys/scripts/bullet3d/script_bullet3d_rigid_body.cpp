@@ -637,32 +637,17 @@ namespace dmGameSystem
  * @language Lua
  */
 
-/*# Disable automatic world gravity for a rigid body
+/*# Rigid body flags
  *
- * Set this bit with `bullet3d.rigid_body.set_flags()` before assigning custom
- * body gravity that must survive later world-gravity changes or re-adding the
- * body to a world.
+ * Combine these constants into the complete flag mask accepted by
+ * `bullet3d.rigid_body.set_flags()`.
  *
- * @name bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY
- * @constant [type:integer]
- */
-
-/*# Enable explicit gyroscopic force integration
- * @name bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT
- * @constant [type:integer]
- */
-
-/*# Enable implicit world-space gyroscopic force integration
- * @name bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD
- * @constant [type:integer]
- */
-
-/*# Enable implicit body-space gyroscopic force integration
- *
- * This flag is enabled by default for newly constructed rigid bodies.
- *
- * @name bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY
- * @constant [type:integer]
+ * @enum
+ * @name bullet3d.rigid_body.FLAG
+ * @member BT_DISABLE_WORLD_GRAVITY Disable automatic world gravity. Set this bit before assigning custom body gravity that must survive later world-gravity changes or re-adding the body to a world.
+ * @member BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT Enable explicit gyroscopic force integration.
+ * @member BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD Enable implicit world-space gyroscopic force integration.
+ * @member BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY Enable implicit body-space gyroscopic force integration. This flag is enabled by default for newly constructed rigid bodies.
  */
 
 /*# Test whether a handle refers to a valid rigid body

@@ -699,19 +699,10 @@ namespace dmGameSystem
  * @member DISABLE_DEACTIVATION Disable automatic deactivation.
  * @member DISABLE_SIMULATION Disable simulation.
  */
-/*# Dynamic collision object flag
- *
- * This is the zero-valued default. Compare the complete collision-flags value
- * with this constant; do not pass it to `has_collision_flag`, since zero is
- * not a bit that can be tested.
- *
- * @name bullet3d.collision_object.CF_DYNAMIC_OBJECT
- * @constant [type:integer]
- */
-
 /*# Collision object flags
  * @enum
  * @name bullet3d.collision_object.COLLISION_FLAG
+ * @member CF_DYNAMIC_OBJECT Zero-valued default dynamic-object flag. Compare the complete collision-flags value with this constant; do not pass it to `has_collision_flag`, since zero is not a bit that can be tested.
  * @member CF_STATIC_OBJECT Static collision object flag.
  * @member CF_KINEMATIC_OBJECT Kinematic collision object flag.
  * @member CF_NO_CONTACT_RESPONSE Disable contact response flag.
