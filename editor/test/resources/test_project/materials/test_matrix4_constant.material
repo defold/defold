@@ -1,0 +1,36 @@
+name: "Matrix4 Constant"
+tags: "test"
+vertex_program: "/materials/test.vp"
+fragment_program: "/materials/test.fp"
+fragment_constants {
+  name: "user_matrix"
+  type: CONSTANT_TYPE_USER_MATRIX4
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  value {
+    x: 5.0
+    y: 6.0
+    z: 7.0
+    w: 8.0
+  }
+  value {
+    x: 9.0
+    y: 10.0
+    z: 11.0
+    w: 12.0
+  }
+  value {
+    x: 13.0
+    y: 14.0
+    z: 15.0
+    w: 16.0
+  }
+}
+fragment_constants {
+  name: "missing_matrix"
+  type: CONSTANT_TYPE_USER_MATRIX4
+}
