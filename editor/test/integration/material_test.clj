@@ -54,7 +54,12 @@
               [9.0 10.0 11.0 12.0]
               [13.0 14.0 15.0 16.0]]
              (mapv #(mapv double %) (:value (first saved-constants)))))
-      (is (= 4 (count (:value (second saved-constants))))))))
+      (is (= 4 (count (:value (second saved-constants)))))
+      (is (= (into (mapv float [1.0 2.0 3.0 4.0])
+                   (repeat 12 protobuf/float-zero))
+             (:value (nth fragment-constants 2))))
+      (is (= 4 (count (:value (nth saved-constants 2)))))
+      (is (some? (g/node-value node-id :shader))))))
 
 (deftest matrix4-material-constant-type-switch
   (test-util/with-loaded-project

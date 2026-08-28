@@ -34,3 +34,13 @@ fragment_constants {
   name: "missing_matrix"
   type: CONSTANT_TYPE_USER_MATRIX4
 }
+fragment_constants {
+  name: "legacy_matrix"
+  type: CONSTANT_TYPE_USER_MATRIX4
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+}

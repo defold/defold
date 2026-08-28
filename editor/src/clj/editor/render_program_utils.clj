@@ -139,7 +139,7 @@
       (assoc constant :value protobuf/vector4-zero)
 
       (= :constant-type-user-matrix4 constant-type)
-      (protobuf/sanitize constant :value #(into [] (comp (take 4) cat) %))
+      (protobuf/sanitize constant :value #(into [] cat (coll/resize % 4 protobuf/vector4-zero)))
 
       :else
       (protobuf/sanitize constant :value hack-downgrade-constant-value))))
