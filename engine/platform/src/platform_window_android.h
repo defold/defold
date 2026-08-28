@@ -31,6 +31,7 @@ namespace dmPlatform
     JavaVM*        GetAndroidJavaVM();
     jobject        GetAndroidActivity();
     android_app*   GetAndroidApp();
+    ANativeWindow* AcquireAndroidWindow();
     ANativeWindow* WaitForAndroidWindow();
     bool           IsAndroidWindowCurrent(ANativeWindow* window);
     void           ReleaseAndroidWindow(ANativeWindow* window);

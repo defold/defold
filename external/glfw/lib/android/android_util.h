@@ -81,6 +81,7 @@ void reset_egl_failure_retries(_GLFWwin_android* win);
 int _glfwAndroidIsAppResumed(void);
 
 ANativeWindow* _glfwAndroidAcquireWindow(void);
+GLFWAPI ANativeWindow* glfwAcquireAndroidWindow(void);
 GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void);
 GLFWAPI int glfwAndroidIsWindowCurrent(ANativeWindow* window);
 GLFWAPI void glfwReleaseAndroidWindow(ANativeWindow* window);

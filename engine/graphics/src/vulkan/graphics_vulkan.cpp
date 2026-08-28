@@ -1481,7 +1481,11 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
+        void** native_window_out = 0;
+#if ANDROID
+        native_window_out = &context->m_AndroidVulkanWindow;
+#endif
+        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI), native_window_out);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
