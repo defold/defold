@@ -2554,6 +2554,17 @@ class Configuration(object):
 
         self.build_tracker.end_command(log_cmd_build)
 
+        if compatible_configure:
+            log_cmd_stage = f'CMake stage Bob Light dependencies {name}'
+            self.build_tracker.start_command(log_cmd_stage)
+
+            cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
+            if is_verbose:
+                cmake_stage_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_stage_args, cwd = self.defold_root)
+
+            self.build_tracker.end_command(log_cmd_stage)
+
         # Keep install as a separate phase. Use cmake --install instead of the
         # generated install target so the install phase does not re-enter 'all'.
         # When a same-platform host pass reuses the full engine configuration,
