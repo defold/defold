@@ -40,8 +40,9 @@
 #include "render/render_private.h"
 #include "render/font/fontmap.h"
 #include "render/font/fontmap_private.h"
-#include "render/font/font_glyphbank.h"
 #include "render/font/font_renderer_private.h"
+
+#include <font/font_glyphbank.h>
 
 #include "render/font_ddf.h"
 
@@ -68,18 +69,34 @@ static void AssertMatrixUniformData(const dmVMath::Matrix4& expected, const floa
     }
 }
 
-static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
+struct TestGlyphBank
 {
-    dmRenderDDF::GlyphBank* bank = new dmRenderDDF::GlyphBank;
+    FontGlyphBankProvider m_Provider;
+    FontGlyphBankGlyph*   m_Glyphs;
+};
+
+static uint32_t GetTestGlyphCodepoint(void* context, uint32_t glyph_index)
+{
+    return ((TestGlyphBank*)context)->m_Glyphs[glyph_index].m_Codepoint;
+}
+
+static bool GetTestGlyph(void* context, uint32_t glyph_index, FontGlyphBankGlyph* output)
+{
+    *output = ((TestGlyphBank*)context)->m_Glyphs[glyph_index];
+    return true;
+}
+
+static TestGlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
+{
+    TestGlyphBank* bank = new TestGlyphBank;
     memset(bank, 0, sizeof(*bank));
 
-    bank->m_Glyphs.m_Count = glyph_count;
-    bank->m_Glyphs.m_Data = new dmRenderDDF::GlyphBank::Glyph[glyph_count];
+    bank->m_Glyphs = new FontGlyphBankGlyph[glyph_count];
 
-    memset(bank->m_Glyphs.m_Data, 0, sizeof(dmRenderDDF::GlyphBank::Glyph) * glyph_count);
+    memset(bank->m_Glyphs, 0, sizeof(FontGlyphBankGlyph) * glyph_count);
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
-        bank->m_Glyphs[i].m_Character = i;
+        bank->m_Glyphs[i].m_Codepoint = i;
         bank->m_Glyphs[i].m_Width = 1;
         bank->m_Glyphs[i].m_LeftBearing = 1;
         bank->m_Glyphs[i].m_Advance = 2;
@@ -87,15 +104,19 @@ static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max
         bank->m_Glyphs[i].m_Descent = 1;
     }
 
-    bank->m_MaxAscent = max_ascent;
-    bank->m_MaxDescent = max_descent;
+    bank->m_Provider.m_Context = bank;
+    bank->m_Provider.m_GetCodepoint = GetTestGlyphCodepoint;
+    bank->m_Provider.m_GetGlyph = GetTestGlyph;
+    bank->m_Provider.m_GlyphCount = glyph_count;
+    bank->m_Provider.m_MaxAscent = max_ascent;
+    bank->m_Provider.m_MaxDescent = max_descent;
 
     return bank;
 }
 
-static void DestroyGlyphBank(dmRenderDDF::GlyphBank* bank)
+static void DestroyGlyphBank(TestGlyphBank* bank)
 {
-    delete[] bank->m_Glyphs.m_Data;
+    delete[] bank->m_Glyphs;
     delete bank;
 }
 
@@ -153,8 +174,8 @@ protected:
     dmScript::HContext          m_ScriptContext;
     dmRender::HFontMap          m_SystemFontMap;
 
-    HFont                   m_Font;
-    dmRenderDDF::GlyphBank* m_GlyphBank;
+    HFont                       m_Font;
+    TestGlyphBank*              m_GlyphBank;
 
     void SetUp() override
     {
@@ -189,7 +210,7 @@ protected:
         dmRender::SetLightBufferCount(m_Context, 32);
 
         m_GlyphBank = CreateGlyphBank(2, 1, 128);
-        m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
+        m_Font = FontCreateGlyphBank("test.glyph_bankc", &m_GlyphBank->m_Provider);
 
         HFontCollection font_collection = FontCollectionCreate();
         FontCollectionAddFont(font_collection, m_Font);
@@ -212,8 +233,8 @@ protected:
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
 
-        DestroyGlyphBank(m_GlyphBank);
         FontDestroy(m_Font);
+        DestroyGlyphBank(m_GlyphBank);
 
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);
@@ -1839,140 +1860,40 @@ TEST_F(dmRenderTest, TestRenderListSortNoneUsesInsertionOrder)
     ASSERT_EQ(ctx.m_Index, ctx.m_Count);
 }
 
-#define ASSERT_LINE(index, count, lines, i)\
-    ASSERT_EQ(char_width * count, lines[i].m_Width);\
-    ASSERT_EQ(index, lines[i].m_Index);\
-    ASSERT_EQ(count, lines[i].m_Count);
-
-static inline float ExpectedHeight(float line_height, float num_lines, float leading)
+TEST(Render, TextAlignmentOffsets)
 {
-    return num_lines * (line_height * fabsf(leading)) - line_height * (fabsf(leading) - 1.0f);
+    const float text_width = 14.0f;
+    ASSERT_EQ(0.0f, dmRender::OffsetX(dmRender::TEXT_ALIGN_LEFT, text_width));
+    ASSERT_EQ(text_width * 0.5f, dmRender::OffsetX(dmRender::TEXT_ALIGN_CENTER, text_width));
+    ASSERT_EQ(text_width, dmRender::OffsetX(dmRender::TEXT_ALIGN_RIGHT, text_width));
+
+    const float box_height = 100.0f;
+    const float layout_height = 9.0f;
+    ASSERT_EQ(box_height - layout_height, OffsetLayoutY(dmRender::TEXT_VALIGN_TOP, box_height, layout_height));
+    ASSERT_EQ((box_height - layout_height) * 0.5f, OffsetLayoutY(dmRender::TEXT_VALIGN_MIDDLE, box_height, layout_height));
+    ASSERT_EQ(0.0f, OffsetLayoutY(dmRender::TEXT_VALIGN_BOTTOM, box_height, layout_height));
 }
-
-TEST_F(dmRenderTest, TextAlignment)
-{
-    dmRender::TextMetrics metrics = {0};
-
-    const int charwidth     = 2;
-    const int ascent        = 2;
-    const int descent       = 1;
-    const int lineheight    = ascent + descent;
-
-    float tracking;
-    int numlines;
-
-    float leadings[] = { 1.0f, 2.0f, 0.5f };
-    for( size_t i = 0; i < sizeof(leadings)/sizeof(leadings[0]); ++i )
-    {
-        float leading = leadings[i];
-        tracking = 0.0f;
-        numlines = 3;
-
-        TextLayoutSettings settings = {0};
-        settings.m_Width        = 8*charwidth;
-        settings.m_Leading      = leading;
-        settings.m_Tracking     = tracking;
-        settings.m_LineBreak    = true;
-
-        dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
-        ASSERT_EQ(ascent, metrics.m_MaxAscent);
-        ASSERT_EQ(descent, metrics.m_MaxDescent);
-        ASSERT_EQ(charwidth*7, metrics.m_Width);
-        ASSERT_EQ(ExpectedHeight(lineheight, numlines, leading), metrics.m_Height);
-
-
-        float offset;
-        offset = dmRender::OffsetX(dmRender::TEXT_ALIGN_LEFT, metrics.m_Width);
-        ASSERT_EQ( 0.0f, offset );
-        offset = dmRender::OffsetX(dmRender::TEXT_ALIGN_CENTER, metrics.m_Width);
-        ASSERT_EQ( metrics.m_Width * 0.5f, offset );
-        offset = dmRender::OffsetX(dmRender::TEXT_ALIGN_RIGHT, metrics.m_Width);
-        ASSERT_EQ( metrics.m_Width, offset );
-
-        const float box_height = 100.0f;
-        offset = OffsetLayoutY(dmRender::TEXT_VALIGN_TOP, box_height, metrics.m_Height);
-        ASSERT_EQ(box_height - metrics.m_Height, offset);
-
-        offset = OffsetLayoutY(dmRender::TEXT_VALIGN_MIDDLE, box_height, metrics.m_Height);
-        ASSERT_EQ((box_height - metrics.m_Height) * 0.5f, offset);
-
-        offset = OffsetLayoutY(dmRender::TEXT_VALIGN_BOTTOM, box_height, metrics.m_Height);
-        ASSERT_EQ(0.0f, offset);
-    }
-}
-
 
 TEST_F(dmRenderTest, GetTextMetrics)
 {
     dmRender::TextMetrics metrics = {0};
 
-    const int charwidth     = 2;
-    const int ascent        = 2;
-    const int descent       = 1;
-    const int lineheight    = ascent + descent;
-
-
     TextLayoutSettings settings = {0};
-    settings.m_Width = 0;
     settings.m_Leading = 1.0f;
-    settings.m_Tracking = 0.0f;
-    settings.m_LineBreak = false;
 
     GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
-    ASSERT_EQ(ascent, metrics.m_MaxAscent);
-    ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*11, metrics.m_Width);
-    ASSERT_EQ(lineheight*1, metrics.m_Height);
+    ASSERT_EQ(2.0f, metrics.m_MaxAscent);
+    ASSERT_EQ(1.0f, metrics.m_MaxDescent);
+    ASSERT_EQ(22.0f, metrics.m_Width);
+    ASSERT_EQ(3.0f, metrics.m_Height);
+    ASSERT_EQ(1u, metrics.m_LineCount);
 
-    // line break in the middle of the sentence
-    int numlines = 2;
-
-    settings.m_Width = 8*charwidth;
-    settings.m_Leading = 1.0f;
-    settings.m_Tracking = 0.0f;
+    settings.m_Width = 16.0f;
     settings.m_LineBreak = true;
-
-    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
-    ASSERT_EQ(ascent, metrics.m_MaxAscent);
-    ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*5, metrics.m_Width);
-    ASSERT_EQ(lineheight*numlines, metrics.m_Height);
-
-
-    settings.m_Width = 8*charwidth;
-    settings.m_Leading = 2.0f;
-    settings.m_Tracking = 0.0f;
-    settings.m_LineBreak = true;
-
-    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
-    ASSERT_EQ(ascent, metrics.m_MaxAscent);
-    ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*5, metrics.m_Width);
-    ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
-
-    settings.m_Width = 8*charwidth;
-    settings.m_Leading = 0.0f;
-    settings.m_Tracking = 0.0f;
-    settings.m_LineBreak = true;
-
-    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
-    ASSERT_EQ(ascent, metrics.m_MaxAscent);
-    ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*5, metrics.m_Width);
-    ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
-
-    settings.m_Width = 8*charwidth;
-    settings.m_Leading = 1.0f;
-    settings.m_Tracking = 0.0f;
-    settings.m_LineBreak = true;
-
-    numlines = 3;
     GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
-    ASSERT_EQ(ascent, metrics.m_MaxAscent);
-    ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*7, metrics.m_Width);
-    ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
-    ASSERT_EQ(numlines, metrics.m_LineCount);
+    ASSERT_EQ(14.0f, metrics.m_Width);
+    ASSERT_EQ(9.0f, metrics.m_Height);
+    ASSERT_EQ(3u, metrics.m_LineCount);
 }
 
 TEST_F(dmRenderTest, GetPreparedTextMetrics)

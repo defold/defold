@@ -47,11 +47,12 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.StringUtil;
+import com.dynamo.font.proto.GlyphBankProto;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.FontTextureFormat;
-import com.dynamo.render.proto.Font.GlyphBank;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 import org.apache.commons.lang3.StringUtils;
@@ -492,7 +493,7 @@ public class Fontc {
         this.fontDesc = fontDesc;
         glyphs = new ArrayList<Glyph>();
         bmfont = null;
-        glyphBankBuilder = GlyphBank.newBuilder().setImageFormat(fontDesc.getOutputFormat());
+        glyphBankBuilder = GlyphBank.newBuilder().setImageFormat(GlyphBankProto.FontTextureFormat.forNumber(fontDesc.getOutputFormat().getNumber()));
         if (bitmapFont) {
             buildBMFont(fontStream);
             generateGlyphBank(preview, bitmapPath, bitmapStream, compressGlyphData, true);

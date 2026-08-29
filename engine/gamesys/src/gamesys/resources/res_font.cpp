@@ -543,7 +543,7 @@ namespace dmGameSystem
         }
     }
 
-    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmRenderDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
+    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmFontDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
     {
         params->m_GlyphChannels      = glyph_bank->m_GlyphChannels;
         params->m_CacheWidth         = glyph_bank->m_CacheWidth;
@@ -633,7 +633,7 @@ namespace dmGameSystem
         else
         {
             hfont = dmGameSystem::GetFont(resource->m_GlyphBankResource);
-            dmRenderDDF::GlyphBank* glyph_bank = GetGlyphBank(resource->m_GlyphBankResource);
+            dmFontDDF::GlyphBank* glyph_bank = GetGlyphBank(resource->m_GlyphBankResource);
             SetupParamsForGlyphBank(ddf, path, glyph_bank, &params);
         }
 
@@ -1008,9 +1008,9 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    // static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font)
+    // static void PrintGlyph(uint32_t codepoint, dmFontDDF::GlyphBank::Glyph* glyph, FontResource* font)
     // {
-    //     dmRenderDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
+    //     dmFontDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
 
     //     printf("    ");
     //     printf("c: '%c' 0x%0X w: %.2f    ", codepoint, codepoint, glyph->m_Width);
@@ -1032,7 +1032,7 @@ namespace dmGameSystem
     //     printf("\n");
     // }
 
-    // static void PrintGlyphs(FontResource* font, const uint32_t* key, dmRenderDDF::GlyphBank::Glyph** pglyph)
+    // static void PrintGlyphs(FontResource* font, const uint32_t* key, dmFontDDF::GlyphBank::Glyph** pglyph)
     // {
     //     PrintGlyph(*key, *pglyph, font);
     // }

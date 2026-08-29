@@ -43,7 +43,8 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
-           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
+           [com.dynamo.font.proto GlyphBankProto$GlyphBank]
+           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -94,7 +95,7 @@
            (assoc glyph-bank :glyphs glyphs))))
 
 (defn- compile-glyph-bank
-  ^Font$GlyphBank [font-desc font-resource font-resource-map]
+  ^GlyphBankProto$GlyphBank [font-desc font-resource font-resource-map]
   (let [font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)]
     (with-open [font-stream (io/input-stream font-resource)]
       (if-let [[bitmap-path bitmap-resource] (bitmap-resource-entry font-resource-map)]

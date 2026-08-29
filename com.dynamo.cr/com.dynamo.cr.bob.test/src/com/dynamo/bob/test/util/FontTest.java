@@ -42,10 +42,10 @@ import com.dynamo.bob.font.BMFont.ChannelData;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.EditorFontMap;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.GlyphBank;
-import com.dynamo.render.proto.Font.GlyphBank.Glyph;
 import com.dynamo.render.proto.Font.FontTextureFormat;
 
 public class FontTest {

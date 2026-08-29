@@ -36,7 +36,6 @@ set(RENDER_PUBLIC_HEADERS
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
-  "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h")
 file(GLOB_RECURSE RENDER_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${RENDER_SRC_DIR}/dmsdk/*.h"
@@ -125,7 +124,6 @@ install(FILES
   DESTINATION include/render)
 install(FILES
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
-  "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h"
   DESTINATION include/render/font)
 install(DIRECTORY "${RENDER_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

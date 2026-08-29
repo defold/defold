@@ -28,6 +28,7 @@
 #include "gamesys/resources/res_compute.h"
 #include "gamesys/resources/res_font.h"
 #include "gamesys/resources/res_font_private.h"
+#include "gamesys/resources/res_glyph_bank.h"
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_ttf.h"
@@ -3481,6 +3482,62 @@ TEST_F(FontTest, GlyphBankTest)
     ASSERT_NE((FontGlyph*)0, glyph_2);
 
     ASSERT_NE(glyph_1->m_Bitmap.m_Data, glyph_2->m_Bitmap.m_Data);
+
+    dmResource::Release(m_Factory, font_1);
+    dmResource::Release(m_Factory, font_2);
+}
+
+TEST_F(FontTest, GlyphBankRecreateKeepsFontHandle)
+{
+    dmGameSystem::FontResource* font_1;
+    dmGameSystem::FontResource* font_2;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_1.fontc", (void**)&font_1));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_2.fontc", (void**)&font_2));
+
+    HFont    hfont_1 = dmGameSystem::GetFont(font_1->m_GlyphBankResource);
+    HFont    hfont_2 = dmGameSystem::GetFont(font_2->m_GlyphBankResource);
+    uint32_t glyph_index_1 = FontGetGlyphIndex(hfont_1, 'A');
+    uint32_t glyph_index_2 = FontGetGlyphIndex(hfont_2, 'A');
+    ASSERT_NE(0U, glyph_index_1);
+    ASSERT_NE(0U, glyph_index_2);
+
+    FontGlyphOptions options = {};
+    options.m_GenerateImage = true;
+    FontGlyph original_glyph;
+    FontGlyph replacement_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(hfont_1, glyph_index_1, &options, &original_glyph));
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(hfont_2, glyph_index_2, &options, &replacement_glyph));
+
+    const char* replacement_path = font_2->m_DDF->m_GlyphBank;
+    char        replacement_host_path[256];
+    dmTestUtil::MakeHostPathf(replacement_host_path, sizeof(replacement_host_path), "build/src/gamesys/test/%s%s", GetContentFolder(), replacement_path);
+    uint32_t replacement_size = 0;
+    uint8_t* replacement_data = dmTestUtil::ReadFile(replacement_host_path, &replacement_size);
+    ASSERT_NE((uint8_t*)0, replacement_data);
+
+    const char*         target_path = font_1->m_DDF->m_GlyphBank;
+    HResourceDescriptor descriptor = dmResource::FindByHash(m_Factory, dmHashString64(target_path));
+    ASSERT_NE((HResourceDescriptor)0, descriptor);
+    HResourceType resource_type;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "glyph_bankc", &resource_type));
+
+    dmResource::ResourceRecreateParams params = {};
+    params.m_Factory = m_Factory;
+    params.m_Type = resource_type;
+    params.m_FilenameHash = dmHashString64(target_path);
+    params.m_Filename = target_path;
+    params.m_Buffer = replacement_data;
+    params.m_BufferSize = replacement_size;
+    params.m_FileSize = replacement_size;
+    params.m_Resource = descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResGlyphBankRecreate(&params));
+    dmMemory::AlignedFree(replacement_data);
+
+    FontGlyph recreated_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(hfont_1, FontGetGlyphIndex(hfont_1, 'A'), &options, &recreated_glyph));
+    ASSERT_NE(original_glyph.m_Bitmap.m_Data, recreated_glyph.m_Bitmap.m_Data);
+    ASSERT_EQ(replacement_glyph.m_Bitmap.m_DataSize, recreated_glyph.m_Bitmap.m_DataSize);
+    ASSERT_EQ(0, memcmp(replacement_glyph.m_Bitmap.m_Data, recreated_glyph.m_Bitmap.m_Data, recreated_glyph.m_Bitmap.m_DataSize));
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
