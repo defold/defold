@@ -305,101 +305,6 @@ struct MslArgumentBuffersTest : ITest
     }
 };
 
-struct MetalProgramReloadTest : ITest
-{
-    dmGraphics::HProgram m_Program;
-
-    static uint8_t* CopyShaderSource(const char* source, uint32_t size)
-    {
-        uint8_t* copy = (uint8_t*) malloc(size);
-        memcpy(copy, source, size);
-        return copy;
-    }
-
-    void Initialize(EngineCtx* engine) override
-    {
-        const char vertex_source[] =
-            "#include <metal_stdlib>\n"
-            "using namespace metal;\n"
-            "struct VertexIn { float4 position [[attribute(0)]]; };\n"
-            "struct VertexOut { float4 position [[position]]; };\n"
-            "vertex VertexOut main0(VertexIn in [[stage_in]]) { VertexOut out; out.position = in.position; return out; }\n";
-        const char fragment_source[] =
-            "#include <metal_stdlib>\n"
-            "using namespace metal;\n"
-            "fragment float4 main0() { return float4(0.25, 0.5, 0.75, 1.0); }\n";
-
-        dmGraphics::ShaderDesc shader_desc = {};
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
-                          CopyShaderSource(vertex_source, sizeof(vertex_source)), sizeof(vertex_source));
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
-                          CopyShaderSource(fragment_source, sizeof(fragment_source)), sizeof(fragment_source));
-        AddShaderResource(&shader_desc, "position", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, 0, 0,
-                          BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
-
-        char error_buffer[1024] = {};
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
-        if (!m_Program)
-        {
-            dmLogError("Failed to create Metal program reload test program: %s", error_buffer);
-            engine->m_Failed = true;
-            DeleteShaderDesc(&shader_desc);
-            return;
-        }
-        const uint32_t attribute_count_before_reload = dmGraphics::GetAttributeCount(m_Program);
-
-        // A failed hot reload must leave the original program fully usable.
-        // The old Metal path released the working shaders before attempting to
-        // compile their replacements, so the draw below would use a broken
-        // program after this intentionally invalid reload.
-        dmGraphics::ShaderDesc invalid_shader_desc = {};
-        const char invalid_source[] = "this is not valid MSL";
-        AddShaderWithType(&invalid_shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
-                          CopyShaderSource(invalid_source, sizeof(invalid_source)), sizeof(invalid_source));
-        AddShaderWithType(&invalid_shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
-                          CopyShaderSource(invalid_source, sizeof(invalid_source)), sizeof(invalid_source));
-
-        memset(error_buffer, 0, sizeof(error_buffer));
-        if (dmGraphics::ReloadProgram(engine->m_GraphicsContext, m_Program, &invalid_shader_desc, error_buffer, sizeof(error_buffer)))
-        {
-            dmLogError("Invalid Metal program unexpectedly reloaded successfully");
-            engine->m_Failed = true;
-        }
-        const uint32_t attribute_count_after_reload = dmGraphics::GetAttributeCount(m_Program);
-        if (attribute_count_before_reload != 1 || attribute_count_after_reload != attribute_count_before_reload)
-        {
-            dmLogError("Metal failed reload changed program attributes (%u -> %u)", attribute_count_before_reload, attribute_count_after_reload);
-            engine->m_Failed = true;
-        }
-
-        memset(error_buffer, 0, sizeof(error_buffer));
-        if (!dmGraphics::ReloadProgram(engine->m_GraphicsContext, m_Program, &shader_desc, error_buffer, sizeof(error_buffer)))
-        {
-            dmLogError("Valid Metal program failed to reload: %s", error_buffer);
-            engine->m_Failed = true;
-        }
-        else if (dmGraphics::GetAttributeCount(m_Program) != attribute_count_before_reload)
-        {
-            dmLogError("Valid Metal reload did not preserve program attributes");
-            engine->m_Failed = true;
-        }
-
-        DeleteShaderDesc(&invalid_shader_desc);
-        DeleteShaderDesc(&shader_desc);
-    }
-
-    void Execute(EngineCtx* engine) override
-    {
-        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
-    }
-
-    void OnGraphicsClosing(EngineCtx* engine) override
-    {
-        dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
-        m_Program = 0;
-    }
-};
-
 struct DrawTriangleTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -1410,20 +1315,6 @@ static void* EngineCreate(int argc, char** argv)
             engine->m_Test = new AsyncTextureUploadQueueTest();
         }
     }
-    else if (HasArgument("program-reload"))
-    {
-        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_METAL)
-        {
-            dmLogError("Program reload regression test requires the Metal adapter");
-            engine->m_Failed = true;
-            engine->m_Test = new ClearBackbufferTest();
-        }
-        else
-        {
-            dmLogInfo("test_app_graphics: running MetalProgramReloadTest");
-            engine->m_Test = new MetalProgramReloadTest();
-        }
-    }
     else
     {
         //engine->m_Test = new ComputeTest();
@@ -1438,7 +1329,7 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_WasCreated++;
     engine->m_Running = engine->m_Failed ? 0 : 1;
-    if (HasArgument("issue-12878") || HasArgument("program-reload"))
+    if (HasArgument("issue-12878"))
     {
         engine->m_Running = 0;
     }

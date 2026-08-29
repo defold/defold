@@ -43,6 +43,8 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
+    void DestroyProgram(Program* program);
+
     static GraphicsAdapterFunctionTable MetalRegisterFunctionTable();
     static bool                         MetalIsSupported();
     static HContext                     MetalGetContext();
@@ -207,15 +209,6 @@ namespace dmGraphics
             pipeline->m_ComputePipelineState->release();
             pipeline->m_ComputePipelineState = 0;
         }
-    }
-
-    static void ClearMetalPipelineCache(MetalContext* context)
-    {
-        context->m_PipelineCache.Iterate(static_cast<void (*)(MetalContext*, const unsigned long long*, MetalPipeline*)>([](MetalContext*, const unsigned long long*, MetalPipeline* value) {
-            ReleaseMetalPipeline(value);
-        }), context);
-        context->m_PipelineCache.Clear();
-        context->m_CurrentPipeline = 0;
     }
 
     static void ReleaseMetalDeviceBuffer(MetalDeviceBuffer* device_buffer)
@@ -3738,60 +3731,11 @@ namespace dmGraphics
         return true;
     }
 
-    static MetalProgram* NewEmptyMetalProgram()
-    {
-        MetalProgram* program = new MetalProgram();
-        memset(program->m_BaseProgram.m_ResourceBindings, 0, sizeof(program->m_BaseProgram.m_ResourceBindings));
-        program->m_BaseProgram.m_MaxSet     = 0;
-        program->m_BaseProgram.m_MaxBinding = 0;
-        program->m_VertexModule             = 0;
-        program->m_FragmentModule           = 0;
-        program->m_ComputeModule            = 0;
-        memset(program->m_ArgumentEncoders, 0, sizeof(program->m_ArgumentEncoders));
-        memset(program->m_ArgumentBufferBindings, 0, sizeof(program->m_ArgumentBufferBindings));
-        memset(program->m_ResourceToMslIndex, 0, sizeof(program->m_ResourceToMslIndex));
-        memset(program->m_WorkGroupSize, 0, sizeof(program->m_WorkGroupSize));
-        program->m_UniformData            = 0;
-        program->m_Hash                   = 0;
-        program->m_UniformDataSizeAligned = 0;
-        program->m_UniformBufferCount     = 0;
-        program->m_StorageBufferCount     = 0;
-        program->m_TextureSamplerCount    = 0;
-        return program;
-    }
-
-    static void MoveMetalProgram(MetalProgram* dst, MetalProgram* src)
-    {
-        memcpy(dst->m_BaseProgram.m_ResourceBindings, src->m_BaseProgram.m_ResourceBindings, sizeof(dst->m_BaseProgram.m_ResourceBindings));
-        dst->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Swap(src->m_BaseProgram.m_ShaderMeta.m_UniformBuffers);
-        dst->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Swap(src->m_BaseProgram.m_ShaderMeta.m_StorageBuffers);
-        dst->m_BaseProgram.m_ShaderMeta.m_Textures.Swap(src->m_BaseProgram.m_ShaderMeta.m_Textures);
-        dst->m_BaseProgram.m_ShaderMeta.m_Inputs.Swap(src->m_BaseProgram.m_ShaderMeta.m_Inputs);
-        dst->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Swap(src->m_BaseProgram.m_ShaderMeta.m_TypeInfos);
-        dst->m_BaseProgram.m_Uniforms.Swap(src->m_BaseProgram.m_Uniforms);
-        dst->m_BaseProgram.m_UniformBufferLayouts.Swap(src->m_BaseProgram.m_UniformBufferLayouts);
-        dst->m_BaseProgram.m_MaxSet     = src->m_BaseProgram.m_MaxSet;
-        dst->m_BaseProgram.m_MaxBinding = src->m_BaseProgram.m_MaxBinding;
-
-        dst->m_VertexModule   = src->m_VertexModule;
-        dst->m_FragmentModule = src->m_FragmentModule;
-        dst->m_ComputeModule  = src->m_ComputeModule;
-        memcpy(dst->m_ArgumentEncoders, src->m_ArgumentEncoders, sizeof(dst->m_ArgumentEncoders));
-        memcpy(dst->m_ArgumentBufferBindings, src->m_ArgumentBufferBindings, sizeof(dst->m_ArgumentBufferBindings));
-        memcpy(dst->m_ResourceToMslIndex, src->m_ResourceToMslIndex, sizeof(dst->m_ResourceToMslIndex));
-        memcpy(dst->m_WorkGroupSize, src->m_WorkGroupSize, sizeof(dst->m_WorkGroupSize));
-        dst->m_UniformData            = src->m_UniformData;
-        dst->m_Hash                   = src->m_Hash;
-        dst->m_UniformDataSizeAligned = src->m_UniformDataSizeAligned;
-        dst->m_UniformBufferCount     = src->m_UniformBufferCount;
-        dst->m_StorageBufferCount     = src->m_StorageBufferCount;
-        dst->m_TextureSamplerCount    = src->m_TextureSamplerCount;
-    }
-
     static HProgram MetalNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         MetalContext* context = (MetalContext*) _context;
-        MetalProgram* program = NewEmptyMetalProgram();
+        MetalProgram* program = new MetalProgram;
+        memset(program, 0, sizeof(MetalProgram));
 
         if (!CreateMetalProgram(context, program, ddf, error_buffer, error_buffer_size))
         {
@@ -3835,25 +3779,16 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalProgram* metal_program = (MetalProgram*) program;
-        MetalProgram* replacement = NewEmptyMetalProgram();
 
-        if (!CreateMetalProgram(context, replacement, ddf, error_buffer, error_buffer_size))
-        {
-            delete replacement;
-            return false;
-        }
-
-        // Only discard the working program once the replacement has compiled
-        // and all reflection/argument-buffer state has been created successfully.
         ReleaseMetalProgramNativeResources(metal_program);
-        DestroyProgram(&metal_program->m_BaseProgram);
-        ClearMetalPipelineCache(context);
+        memset(&metal_program->m_BaseProgram, 0, sizeof(metal_program->m_BaseProgram));
 
-        // Swap the owning dmArray storage and copy the remaining POD/native
-        // handles into the stable public program handle.
-        MoveMetalProgram(metal_program, replacement);
-        delete replacement;
-        return true;
+        bool ok = CreateMetalProgram(context, metal_program, ddf, 0, 0);
+        if (ok)
+        {
+            context->m_CurrentPipeline = 0;
+        }
+        return ok;
     }
 
     static uint32_t MetalGetAttributeCount(HProgram prog)

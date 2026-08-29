@@ -3302,8 +3302,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static bool DX12ReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        DX12ShaderProgram* program = (DX12ShaderProgram*) _program;
-        DestroyProgram(&program->m_BaseProgram);
         return true;
     }
 

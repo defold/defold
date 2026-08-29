@@ -4072,9 +4072,6 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        OpenGLProgram* program = (OpenGLProgram*) _program;
-        DestroyProgram(&program->m_BaseProgram);
-
         ShaderDesc::Shader* ddf_vp = 0x0;
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
@@ -4085,6 +4082,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLProgram* program = (OpenGLProgram*) _program;
 
         if (ddf_cp)
         {

@@ -3716,9 +3716,6 @@ bail:
 
     static bool VulkanReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        VulkanProgram* program = (VulkanProgram*) _program;
-        DestroyProgram(&program->m_BaseProgram);
-
         ShaderDesc::Shader* ddf_vp = 0x0;
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
@@ -3729,6 +3726,7 @@ bail:
         }
 
         VulkanContext* context = (VulkanContext*) _context;
+        VulkanProgram* program = (VulkanProgram*) _program;
 
         if (ddf_cp)
         {
