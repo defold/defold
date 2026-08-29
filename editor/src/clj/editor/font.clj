@@ -501,31 +501,6 @@
             attribute
             (recur (inc attribute-index))))))))
 
-(defn- markup-node-has-ancestor-tag?
-  [^objects nodes ^FontRenderer$MarkupNode node ^String tag]
-  (loop [node-index (.-parent node)]
-    (if (neg? node-index)
-      false
-      (let [^FontRenderer$MarkupNode ancestor (aget nodes node-index)]
-        (if (= tag (.-tag ancestor))
-          true
-          (recur (.-parent ancestor)))))))
-
-(defn- markup-node-has-descendant-tag?
-  [^objects nodes node-index ^String tag]
-  (loop [candidate-index (inc node-index)]
-    (if (= candidate-index (alength nodes))
-      false
-      (let [^FontRenderer$MarkupNode candidate (aget nodes candidate-index)]
-        (if (and (= tag (.-tag candidate))
-                 (loop [ancestor-index (.-parent candidate)]
-                   (cond
-                     (= node-index ancestor-index) true
-                     (neg? ancestor-index) false
-                     :else (recur (.-parent ^FontRenderer$MarkupNode (aget nodes ancestor-index))))))
-          true
-          (recur (inc candidate-index)))))))
-
 (defn- parse-markup-font-size
   [^String value ^double base-font-size]
   (let [value-length (.length value)
@@ -561,83 +536,156 @@
                                                           (markup-node-attribute node "value"))]
     (parse-markup-font-size (.-value attribute) base-font-size)))
 
-(defn- markup-span-outline-info
+(defn- markup-span-layer-info
   [^objects nodes node-index ^double base-font-size]
   (loop [node-index node-index
          font-scale nil
          has-outline-tag false
          outline-size nil
-         outline-size-set false]
+         outline-size-set false
+         has-shadow-tag false
+         shadow-blur nil
+         shadow-blur-set false]
     (if (neg? node-index)
-      (when has-outline-tag
-        {:default-outline (not outline-size-set)
-         :outline-size (when outline-size-set
-                         (/ (double outline-size)
-                            (double (or font-scale 1.0))))})
+      (let [font-scale (double (or font-scale 1.0))]
+        {:default-outline (and has-outline-tag (not outline-size-set))
+         :outline-size (when (and has-outline-tag outline-size-set)
+                         (/ (double outline-size) font-scale))
+         :has-shadow has-shadow-tag
+         :default-shadow-blur (and has-shadow-tag (not shadow-blur-set))
+         :shadow-blur (when (and has-shadow-tag shadow-blur-set)
+                        (/ (double shadow-blur) font-scale))})
       (let [^FontRenderer$MarkupNode node (aget nodes node-index)
             parent-index (.-parent node)]
         (case (.-tag node)
           "size"
-          (when-let [font-size (markup-node-font-size node base-font-size)]
+          (if-let [font-size (markup-node-font-size node base-font-size)]
             (recur parent-index
                    (or font-scale (/ font-size base-font-size))
                    has-outline-tag
                    outline-size
-                   outline-size-set))
+                   outline-size-set
+                   has-shadow-tag
+                   shadow-blur
+                   shadow-blur-set)
+            (recur parent-index
+                   font-scale
+                   has-outline-tag
+                   outline-size
+                   outline-size-set
+                   has-shadow-tag
+                   shadow-blur
+                   shadow-blur-set))
 
           "outline"
           (if-let [^FontRenderer$MarkupAttribute size-attribute (markup-node-attribute node "size")]
-            (when-let [size (parse-double (.-value size-attribute))]
-              (when (and (Double/isFinite (double size))
-                         (not (neg? (double size))))
+            (let [size (parse-double (.-value size-attribute))]
+              (if (and (some? size)
+                       (Double/isFinite (double size))
+                       (not (neg? (double size))))
                 (recur parent-index
                        font-scale
                        true
                        (if outline-size-set outline-size size)
-                       true)))
+                       true
+                       has-shadow-tag
+                       shadow-blur
+                       shadow-blur-set)
+                (recur parent-index
+                       font-scale
+                       has-outline-tag
+                       outline-size
+                       outline-size-set
+                       has-shadow-tag
+                       shadow-blur
+                       shadow-blur-set)))
             (recur parent-index
                    font-scale
                    true
                    outline-size
-                   outline-size-set))
+                   outline-size-set
+                   has-shadow-tag
+                   shadow-blur
+                   shadow-blur-set))
+
+          "shadow"
+          (if-let [^FontRenderer$MarkupAttribute blur-attribute (markup-node-attribute node "blur")]
+            (let [blur (parse-double (.-value blur-attribute))]
+              (if (and (some? blur)
+                       (Double/isFinite (double blur))
+                       (not (neg? (double blur))))
+                (recur parent-index
+                       font-scale
+                       has-outline-tag
+                       outline-size
+                       outline-size-set
+                       true
+                       (if shadow-blur-set shadow-blur blur)
+                       true)
+                (recur parent-index
+                       font-scale
+                       has-outline-tag
+                       outline-size
+                       outline-size-set
+                       has-shadow-tag
+                       shadow-blur
+                       shadow-blur-set)))
+            (recur parent-index
+                   font-scale
+                   has-outline-tag
+                   outline-size
+                   outline-size-set
+                   true
+                   shadow-blur
+                   shadow-blur-set))
 
           (recur parent-index
                  font-scale
                  has-outline-tag
                  outline-size
-                 outline-size-set))))))
+                 outline-size-set
+                 has-shadow-tag
+                 shadow-blur
+                 shadow-blur-set))))))
 
-(defn- markup-outline-info
+(defn- markup-span-layer-infos
   [^FontRenderer$MarkupDocument document ^double base-font-size]
   (let [^objects nodes (.-nodes document)
         ^objects spans (.-spans document)]
     (loop [span-index 0
            has-default-outline false
-           outline-sizes (transient [])]
+           outline-sizes (transient [])
+           layer-infos (transient [])]
       (if (= span-index (alength spans))
         {:has-default-outline has-default-outline
-         :outline-sizes (persistent! outline-sizes)}
+         :outline-sizes (persistent! outline-sizes)
+         :layer-infos (persistent! layer-infos)}
         (let [^FontRenderer$MarkupSpan span (aget spans span-index)
-              {:keys [default-outline outline-size]} (markup-span-outline-info nodes (.-node span) base-font-size)]
+              {:keys [default-outline outline-size] :as layer-info} (markup-span-layer-info nodes (.-node span) base-font-size)
+              outlined (or default-outline
+                           (and (some? outline-size)
+                                (pos? (double outline-size))))]
           (recur (inc span-index)
                  (or has-default-outline default-outline)
                  (cond-> outline-sizes
-                   (some? outline-size) (conj! outline-size))))))))
+                   (some? outline-size) (conj! outline-size))
+                 (conj! layer-infos (assoc layer-info :outlined outlined))))))))
 
 (defn- markup-layer-info
   [^FontRenderer$MarkupDocument document ^double base-font-size]
   (let [^objects nodes (.-nodes document)
-        {:keys [has-default-outline outline-sizes]} (markup-outline-info document base-font-size)]
+        {:keys [has-default-outline outline-sizes layer-infos]} (markup-span-layer-infos document base-font-size)]
     (loop [node-index 1
            has-layer-tag false
            has-outline-tag false
-           shadows []]
+           has-shadow-tag false]
       (if (= node-index (alength nodes))
         {:has-layer-tag has-layer-tag
          :has-outline-tag has-outline-tag
+         :has-shadow-tag has-shadow-tag
          :has-default-outline has-default-outline
          :outline-sizes outline-sizes
-         :shadows shadows}
+         :layer-infos layer-infos}
         (let [^FontRenderer$MarkupNode node (aget nodes node-index)
               tag (.-tag node)]
           (case tag
@@ -645,35 +693,27 @@
             (recur (inc node-index)
                    true
                    true
-                   shadows)
+                   has-shadow-tag)
 
             "shadow"
-            (let [^FontRenderer$MarkupAttribute blur-attribute (markup-node-attribute node "blur")
-                  blur (if blur-attribute
-                         (or (parse-double (.-value blur-attribute)) 0.0)
-                         0.0)]
-              (recur (inc node-index)
-                     true
-                     has-outline-tag
-                     (conj shadows {:blur (double blur)
-                                    :default-blur (nil? blur-attribute)
-                                    :inside-outline (or (markup-node-has-ancestor-tag? nodes node "outline")
-                                                        (markup-node-has-descendant-tag? nodes node-index "outline"))})))
+            (recur (inc node-index)
+                   true
+                   has-outline-tag
+                   true)
 
             (recur (inc node-index)
                    has-layer-tag
                    has-outline-tag
-                   shadows)))))))
+                   has-shadow-tag)))))))
 
 (defn- markup-layer-capability-error
   [node-id property font-map text ^FontRenderer$MarkupDocument document]
   (let [base-font-size (double (or (:size font-map) 1.0))
-        {:keys [has-layer-tag has-outline-tag has-default-outline outline-sizes shadows]} (markup-layer-info document base-font-size)
-        has-shadow-tag (pos? (count shadows))
-        max-shadow-blur (reduce (fn [max-blur {:keys [blur]}]
-                                  (max max-blur (double blur)))
+        {:keys [has-layer-tag has-outline-tag has-shadow-tag has-default-outline outline-sizes layer-infos]} (markup-layer-info document base-font-size)
+        max-shadow-blur (reduce (fn [max-blur {:keys [shadow-blur]}]
+                                  (max max-blur (double (or shadow-blur 0.0))))
                                 0.0
-                                shadows)
+                                layer-infos)
         requests-outline (and has-outline-tag
                               (or has-default-outline
                                   (coll/any? #(pos? (double %)) outline-sizes)))
@@ -686,12 +726,13 @@
                                             (pos? outline-alpha)
                                             (or (pos? shadow-alpha)
                                                 (pos? blur-capacity)))
-        requests-unoutlined-blurred-shadow (coll/any? (fn [{:keys [blur default-blur inside-outline]}]
-                                                        (and (not inside-outline)
-                                                             (or (pos? (double blur))
-                                                                 (and default-blur
+        requests-unoutlined-blurred-shadow (coll/any? (fn [{:keys [has-shadow default-shadow-blur shadow-blur outlined]}]
+                                                        (and has-shadow
+                                                             (not outlined)
+                                                             (or (pos? (double (or shadow-blur 0.0)))
+                                                                 (and default-shadow-blur
                                                                       (pos? blur-capacity)))))
-                                                      shadows)]
+                                                      layer-infos)]
     (cond
       (and (= :bitmap render-kind) has-layer-tag)
       (g/->error node-id property :warning text

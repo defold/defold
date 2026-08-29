@@ -135,6 +135,46 @@
                                                                     :shadow-alpha 1.0
                                                                     :use-rich-text true}
                                                                    "<shadow x='2'><outline>Text</outline></shadow>")
+        bitmap-partially-outlined-shadow-error (font/markup-error 0 :text
+                                                                   {:outline-alpha 1.0
+                                                                    :outline-width 3.0
+                                                                    :rich-text-render-kind :defold
+                                                                    :rich-text-shadow-blur-capacity 4.0
+                                                                    :shadow-alpha 1.0
+                                                                    :use-rich-text true}
+                                                                   "<shadow x='2'>A<outline>B</outline>C</shadow>")
+        bitmap-fully-outlined-shadow-error (font/markup-error 0 :text
+                                                               {:outline-alpha 1.0
+                                                                :outline-width 3.0
+                                                                :rich-text-render-kind :defold
+                                                                :rich-text-shadow-blur-capacity 4.0
+                                                                :shadow-alpha 1.0
+                                                                :use-rich-text true}
+                                                               "<shadow x='2'><outline>A</outline><outline>B</outline></shadow>")
+        bitmap-disabled-inner-outline-shadow-error (font/markup-error 0 :text
+                                                                        {:outline-alpha 1.0
+                                                                         :outline-width 3.0
+                                                                         :rich-text-render-kind :defold
+                                                                         :rich-text-shadow-blur-capacity 4.0
+                                                                         :shadow-alpha 1.0
+                                                                         :use-rich-text true}
+                                                                        "<outline><shadow x='2'>A<outline size='0'>B</outline></shadow></outline>")
+        bitmap-inherited-zero-blur-shadow-error (font/markup-error 0 :text
+                                                                   {:outline-alpha 1.0
+                                                                    :outline-width 3.0
+                                                                    :rich-text-render-kind :defold
+                                                                    :rich-text-shadow-blur-capacity 4.0
+                                                                    :shadow-alpha 1.0
+                                                                    :use-rich-text true}
+                                                                   "<shadow blur='0'><shadow x='2'>A</shadow></shadow>")
+        bitmap-overridden-zero-blur-shadow-error (font/markup-error 0 :text
+                                                                    {:outline-alpha 1.0
+                                                                     :outline-width 3.0
+                                                                     :rich-text-render-kind :defold
+                                                                     :rich-text-shadow-blur-capacity 4.0
+                                                                     :shadow-alpha 1.0
+                                                                     :use-rich-text true}
+                                                                    "<shadow x='2'><shadow blur='0'>A</shadow></shadow>")
         unreserved-outline-error (font/markup-error 0 :text
                                                     {:outline-width 0.0
                                                      :rich-text-render-kind :distance-field
@@ -171,7 +211,12 @@
                                                  {:rich-text-render-kind :distance-field
                                                   :rich-text-shadow-blur-capacity 0.0
                                                   :use-rich-text true}
-                                                 "<shadow blur='2'>Text</shadow>")]
+                                                 "<shadow blur='2'>Text</shadow>")
+        overridden-unreserved-blur-error (font/markup-error 0 :text
+                                                             {:rich-text-render-kind :distance-field
+                                                              :rich-text-shadow-blur-capacity 0.0
+                                                              :use-rich-text true}
+                                                             "<shadow blur='2'><shadow blur='0'>Text</shadow></shadow>")]
     (is (g/error-warning? bm-font-error))
     (is (s/includes? (test-util/localization (g/error-message bm-font-error)) "not supported by BMFont"))
     (is (nil? bm-font-attribute-text-error))
@@ -183,6 +228,13 @@
     (is (s/includes? (test-util/localization (g/error-message bitmap-hidden-outline-shadow-error)) "spans without an outline tag render crisp"))
     (is (nil? bitmap-nested-outline-shadow-error))
     (is (nil? bitmap-containing-outline-shadow-error))
+    (is (g/error-warning? bitmap-partially-outlined-shadow-error))
+    (is (s/includes? (test-util/localization (g/error-message bitmap-partially-outlined-shadow-error)) "spans without an outline tag render crisp"))
+    (is (nil? bitmap-fully-outlined-shadow-error))
+    (is (g/error-warning? bitmap-disabled-inner-outline-shadow-error))
+    (is (s/includes? (test-util/localization (g/error-message bitmap-disabled-inner-outline-shadow-error)) "spans without an outline tag render crisp"))
+    (is (nil? bitmap-inherited-zero-blur-shadow-error))
+    (is (nil? bitmap-overridden-zero-blur-shadow-error))
     (is (g/error-warning? unreserved-outline-error))
     (is (s/includes? (test-util/localization (g/error-message unreserved-outline-error)) "will not be rendered"))
     (is (nil? disabled-outline-error))
@@ -194,7 +246,8 @@
     (is (g/error-warning? scaled-down-distance-field-outline-error))
     (is (s/includes? (test-util/localization (g/error-message scaled-down-distance-field-outline-error)) "will be clamped"))
     (is (g/error-warning? unreserved-blur-error))
-    (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))))
+    (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))
+    (is (nil? overridden-unreserved-blur-error))))
 
 (deftest native-sdf-limit-test
   (let [native-sdf-limit (ns-resolve 'editor.font 'native-sdf-limit)]
