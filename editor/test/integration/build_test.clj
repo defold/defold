@@ -866,7 +866,7 @@
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
-  (let [path-list (string/split path #"/")]
+  (let [path-list (string/split path #"\.")]
     `(let [old-value# (game-project/get-setting ~'game-project ~path-list)]
        (game-project/set-setting! ~'game-project ~path-list ~value)
        (try
@@ -883,29 +883,29 @@
 (deftest build-with-custom-resources
   (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")]
-      (with-setting "project/custom_resources" "root.stuff"
+      (with-setting "project.custom_resources" "root.stuff"
         (project-build! project game-project)
         (check-file-contents workspace [["root.stuff" "root.stuff"]])
-      (with-setting "project/custom_resources" "/root.stuff"
+      (with-setting "project.custom_resources" "/root.stuff"
         (project-build! project game-project)
         (check-file-contents workspace [["root.stuff" "root.stuff"]])
-      (with-setting "project/custom_resources" "assets"
+      (with-setting "project.custom_resources" "assets"
         (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
-      (with-setting "project/custom_resources" "/assets"
+      (with-setting "project.custom_resources" "/assets"
         (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
-      (with-setting "project/custom_resources" "assets, root.stuff"
+      (with-setting "project.custom_resources" "assets, root.stuff"
         (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]
                               ["root.stuff" "root.stuff"]]))
-      (with-setting "project/custom_resources" "assets, root.stuff, /more_assets/"
+      (with-setting "project.custom_resources" "assets, root.stuff, /more_assets/"
         (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
@@ -913,13 +913,13 @@
                               ["root.stuff" "root.stuff"]
                               ["more_assets/some_more.stuff" "some_more.stuff"]
                               ["more_assets/some_more2.stuff" "some_more2.stuff"]]))
-      (with-setting "project/custom_resources" ""
+      (with-setting "project.custom_resources" ""
         (project-build! project game-project)
         (doseq [path ["assets/some.stuff" "assets/some2.stuff"
                       "root.stuff"
                       "more_assets/some_more.stuff" "more_assets/some_more2.stuff"]]
           (is (false? (.exists (build-path workspace path))))))
-      (with-setting "project/custom_resources" "nonexistent_path"
+      (with-setting "project.custom_resources" "nonexistent_path"
         (let [build-error (:error (project-build! project game-project))
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
@@ -938,10 +938,10 @@
            (URI/create dependency-url)
            nil
            (Library$Problem$Missing.))])
-      (with-setting "project/dependencies_metadata" true
+      (with-setting "project.dependencies_metadata" true
         (is (nil? (:error (project-build! project game-project))))
         (is (= expected-metadata-json (slurp build-metadata-file))))
-      (with-setting "project/dependencies_metadata" false
+      (with-setting "project.dependencies_metadata" false
         (is (nil? (:error (project-build! project game-project))))
         (is (false? (.exists build-metadata-file)))))))
 
@@ -950,22 +950,28 @@
     (let [game-project (test-util/resource-node project "/game.project")
           example-cert-resource (workspace/find-resource workspace "/example_cert.pem")
           example-cert-contents (slurp example-cert-resource)]
-      (with-setting "network/ssl_certificates" nil
+      (with-setting "network.ssl_certificates" nil
         (project-build! project game-project)
         (is (false? (.exists (build-path workspace "example_cert.pem")))))
-      (with-setting "network/ssl_certificates" example-cert-resource
+      (with-setting "network.ssl_certificates" example-cert-resource
         (project-build! project game-project)
         (check-file-contents workspace [["example_cert.pem" example-cert-contents]]))
-      (with-setting "network/ssl_certificates" (workspace/file-resource workspace "/nonexistent_cert.pem")
+      (with-setting "network.ssl_certificates" (workspace/file-resource workspace "/nonexistent_cert.pem")
         (let [build-error (:error (project-build! project game-project))
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
-          (is (= "SSL certificates resource not found: '/nonexistent_cert.pem'" error-message))))
-      (with-setting "network/ssl_certificates" (workspace/file-resource workspace "/assets")
+          (is (= (localization/message "error.property-resource-not-found"
+                                       {"property" "network.ssl_certificates"
+                                        "resource" "/nonexistent_cert.pem"})
+                 error-message))))
+      (with-setting "network.ssl_certificates" (workspace/file-resource workspace "/assets")
         (let [build-error (:error (project-build! project game-project))
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
-          (is (= "SSL certificates must denote a file: '/assets'" error-message)))))))
+          (is (= (localization/message "error.property-resource-is-a-folder"
+                                       {"property" "network.ssl_certificates"
+                                        "resource" "/assets"})
+                 error-message)))))))
 
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
@@ -973,7 +979,7 @@
       (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
-        (with-setting "project/custom_resources" "assets"
+        (with-setting "project.custom_resources" "assets"
           (project-build! project game-project)
           (let [initial-some-mtime (mtime (build-path workspace "assets/some.stuff"))
                 initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))]
@@ -990,14 +996,19 @@
       (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
-        (with-setting "network/ssl_certificates" (workspace/find-resource workspace "/example_cert.pem")
+        (with-setting "network.ssl_certificates" (workspace/find-resource workspace "/example_cert.pem")
           (project-build! project game-project)
-          (let [initial-mtime (mtime (build-path workspace "example_cert.pem"))]
-            (Thread/sleep 1000)
-            (spit (abs-project-path workspace "example_cert.pem") "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----")
-            (workspace/resource-sync! workspace)
-            (project-build! project game-project)
-            (is (not (= initial-mtime (mtime (build-path workspace "example_cert.pem")))))))))))
+          (let [build-file (build-path workspace "example_cert.pem")
+                initial-mtime (mtime build-file)]
+            (testing "Not rebuilt unless modified."
+              (Thread/sleep 1000)
+              (project-build! project game-project)
+              (is (= initial-mtime (mtime build-file))))
+            (testing "Rebuild when modified."
+              (spit (abs-project-path workspace "example_cert.pem") "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----")
+              (workspace/resource-sync! workspace)
+              (project-build! project game-project)
+              (is (not (= initial-mtime (mtime build-file)))))))))))
 
 (deftest dependencies-are-removed-from-game-project
   (with-loaded-project project-path
@@ -1053,10 +1064,10 @@
   (with-loaded-project "test/resources/max_paged_count_project"
     (let [game-project (test-util/resource-node project "/game.project")]
       (testing "paged atlas with 9 pages fails build when exclude_gles_sm100 is false"
-        (with-setting "shader/exclude_gles_sm100" false
+        (with-setting "shader.exclude_gles_sm100" false
           (let [build-results (project-build! project game-project)]
             (is (g/error? (:error build-results))))))
       (testing "paged atlas with 9 pages passes build when exclude_gles_sm100 is true"
-        (with-setting "shader/exclude_gles_sm100" true
+        (with-setting "shader.exclude_gles_sm100" true
           (let [build-results (project-build! project game-project)]
             (is (not (g/error? (:error build-results))))))))))

@@ -29,6 +29,7 @@
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
@@ -266,25 +267,10 @@
 
   (output ssl-certificates-resource resource/Resource
           (g/fnk [_node-id settings-map]
-            (let [resource (get settings-map ["network" "ssl_certificates"])]
-              (cond
-                (nil? resource)
-                nil
-
-                (not (resource/exists? resource))
-                (g/map->error
-                  {:_node-id _node-id
-                   :severity :fatal
-                   :message (format "SSL certificates resource not found: '%s'" (resource/proj-path resource))})
-
-                (not (= :file (resource/source-type resource)))
-                (g/map->error
-                  {:_node-id _node-id
-                   :severity :fatal
-                   :message (format "SSL certificates must denote a file: '%s'" (resource/proj-path resource))})
-
-                :else
-                resource))))
+            (let [setting-path ["network" "ssl_certificates"]
+                  resource (get settings-map setting-path)]
+              (or (validation/setting-error :fatal _node-id setting-path validation/prop-resource-not-exists? resource)
+                  resource))))
 
   (output custom-resources-directory-resources g/Any
           (g/fnk [_node-id resource-map settings-map]
