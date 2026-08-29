@@ -21,6 +21,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcBeginBatch;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcCreate;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcCreateGlyphBank;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroy;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroyMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDecodeImage;
@@ -55,6 +56,7 @@ import java.util.Arrays;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontcGlyph;
+import com.dynamo.bob.font.generated.FontcGlyphBankGlyph;
 import com.dynamo.bob.font.generated.FontcGlyphMetrics;
 import com.dynamo.bob.font.generated.FontcImage;
 import com.dynamo.bob.font.generated.FontcLayout;
@@ -120,6 +122,52 @@ public final class FontRenderer implements AutoCloseable {
         public boolean hasOutline;
         public boolean hasShadow;
         public boolean useTextShaping;
+    }
+
+    /** One prebaked glyph and its byte range in a {@link GlyphBank}. */
+    public static final class GlyphBankGlyph {
+        public final int codepoint;
+        public final float width;
+        public final float advance;
+        public final float leftBearing;
+        public final float ascent;
+        public final float descent;
+        public final int dataOffset;
+        public final int dataSize;
+
+        public GlyphBankGlyph(int codepoint, float width, float advance, float leftBearing,
+                              float ascent, float descent, int dataOffset, int dataSize) {
+            this.codepoint = codepoint;
+            this.width = width;
+            this.advance = advance;
+            this.leftBearing = leftBearing;
+            this.ascent = ascent;
+            this.descent = descent;
+            this.dataOffset = dataOffset;
+            this.dataSize = dataSize;
+        }
+    }
+
+    /** Uncompressed prebaked glyph data used for BMFont editor previews. */
+    public static final class GlyphBank {
+        public final GlyphBankGlyph[] glyphs;
+        public final byte[] glyphData;
+        public final int glyphPadding;
+        public final int glyphChannels;
+        public final float maxAscent;
+        public final float maxDescent;
+
+        public GlyphBank(GlyphBankGlyph[] glyphs, byte[] glyphData, int glyphPadding,
+                         int glyphChannels, float maxAscent, float maxDescent) {
+            if (glyphs == null || glyphData == null)
+                throw new NullPointerException();
+            this.glyphs = glyphs;
+            this.glyphData = glyphData;
+            this.glyphPadding = glyphPadding;
+            this.glyphChannels = glyphChannels;
+            this.maxAscent = maxAscent;
+            this.maxDescent = maxDescent;
+        }
     }
 
     public static final class Properties {
@@ -412,6 +460,62 @@ public final class FontRenderer implements AutoCloseable {
         }
         if (handle.equals(MemorySegment.NULL))
             throw new IllegalArgumentException("Unable to create native font renderer for " + name);
+        state = new State(handle);
+        cleanable = CLEANER.register(this, state);
+    }
+
+    /**
+     * Creates a native renderer from uncompressed prebaked glyph-bank data.
+     *
+     * <p>The native context copies the complete bank before this constructor returns.</p>
+     */
+    public FontRenderer(String name, GlyphBank glyphBank, Params params) {
+        if (name == null || glyphBank == null || params == null)
+            throw new NullPointerException();
+        if (glyphBank.glyphs.length == 0 || glyphBank.glyphChannels <= 0 || glyphBank.glyphChannels > 4 ||
+                glyphBank.glyphPadding < 0 || params.size <= 0.0f || params.cacheWidth <= 0 || params.cacheHeight <= 0 ||
+                params.cacheCellPadding < 0 || params.sdfBasePadding <= 0.0f || params.sdfSpread <= 0.0f ||
+                params.sdfEdgeValue <= 0 || params.sdfEdgeValue > 255 ||
+                (params.layerMask & ~(LAYER_FACE | LAYER_OUTLINE | LAYER_SHADOW)) != 0 ||
+                (params.layerMask & LAYER_FACE) == 0)
+            throw new IllegalArgumentException("Invalid native glyph-bank renderer parameters");
+
+        MemorySegment handle;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativeGlyphs = FontcGlyphBankGlyph.allocateArray(glyphBank.glyphs.length, arena);
+            for (int index = 0; index < glyphBank.glyphs.length; ++index) {
+                GlyphBankGlyph glyph = glyphBank.glyphs[index];
+                if (glyph == null)
+                    throw new NullPointerException("glyphBank.glyphs[" + index + "]");
+                MemorySegment nativeGlyph = FontcGlyphBankGlyph.asSlice(nativeGlyphs, index);
+                FontcGlyphBankGlyph.m_Codepoint(nativeGlyph, glyph.codepoint);
+                FontcGlyphBankGlyph.m_Width(nativeGlyph, glyph.width);
+                FontcGlyphBankGlyph.m_Advance(nativeGlyph, glyph.advance);
+                FontcGlyphBankGlyph.m_LeftBearing(nativeGlyph, glyph.leftBearing);
+                FontcGlyphBankGlyph.m_Ascent(nativeGlyph, glyph.ascent);
+                FontcGlyphBankGlyph.m_Descent(nativeGlyph, glyph.descent);
+                FontcGlyphBankGlyph.m_DataOffset(nativeGlyph, glyph.dataOffset);
+                FontcGlyphBankGlyph.m_DataSize(nativeGlyph, glyph.dataSize);
+            }
+            MemorySegment nativeGlyphData = glyphBank.glyphData.length == 0
+                    ? MemorySegment.NULL
+                    : arena.allocateFrom(JAVA_BYTE, glyphBank.glyphData);
+            MemorySegment nativeParams = FontcParams.allocate(arena);
+            writeParams(nativeParams, params);
+            MemorySegment handlePointer = arena.allocate(FontRendererFFM.HFontRenderer);
+            int result;
+            synchronized (NATIVE_SESSION_LIFECYCLE_LOCK) {
+                result = FontcCreateGlyphBank(arena.allocateFrom(name), nativeGlyphs, glyphBank.glyphs.length,
+                        nativeGlyphData, glyphBank.glyphData.length, glyphBank.glyphPadding, glyphBank.glyphChannels,
+                        glyphBank.maxAscent, glyphBank.maxDescent, nativeParams, handlePointer);
+            }
+            if (result != FontRendererFFM.FONT_RENDERER_RESULT_OK())
+                throw new IllegalArgumentException("Unable to create native glyph-bank renderer for " + name +
+                        " (native result " + result + ")");
+            handle = handlePointer.get(ADDRESS, 0);
+        }
+        if (handle.equals(MemorySegment.NULL))
+            throw new IllegalArgumentException("Unable to create native glyph-bank renderer for " + name);
         state = new State(handle);
         cleanable = CLEANER.register(this, state);
     }

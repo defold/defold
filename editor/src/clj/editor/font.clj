@@ -40,10 +40,9 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [schema.core :as schema]
-            [service.log :as log]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -417,7 +416,7 @@
 (defn- font-map->glyphs [font-map]
   (into {} (map (fn [g] [(:character g) g])) (:glyphs font-map)))
 
-(defonce/record NativeRendererSpec [name font-bytes render-params measure-params supported-codepoints supported-codepoint-array use-rich-text])
+(defonce/record NativeRendererSpec [name font-bytes glyph-bank render-params measure-params supported-codepoints supported-codepoint-array use-rich-text])
 
 (defn- filter-native-preview-plain-text
   "Removes codepoints unavailable to a statically generated font before plain
@@ -436,15 +435,21 @@
 
 (defn- create-native-renderer
   ^FontRenderer [^NativeRendererSpec renderer-spec]
-  (FontRenderer. (.-name renderer-spec)
-                 (.-font-bytes renderer-spec)
-                 (.-render-params renderer-spec)))
+  (let [^String name (.-name renderer-spec)
+        ^FontRenderer$Params params (.-render-params renderer-spec)]
+    (if-let [^FontRenderer$GlyphBank glyph-bank (.-glyph-bank renderer-spec)]
+      (FontRenderer. name glyph-bank params)
+      (let [^bytes font-bytes (.-font-bytes renderer-spec)]
+        (FontRenderer. name font-bytes params)))))
 
 (defn- create-native-measure-renderer
   ^FontRenderer [^NativeRendererSpec renderer-spec]
-  (FontRenderer. (.-name renderer-spec)
-                 (.-font-bytes renderer-spec)
-                 (.-measure-params renderer-spec)))
+  (let [^String name (.-name renderer-spec)
+        ^FontRenderer$Params params (.-measure-params renderer-spec)]
+    (if-let [^FontRenderer$GlyphBank glyph-bank (.-glyph-bank renderer-spec)]
+      (FontRenderer. name glyph-bank params)
+      (let [^bytes font-bytes (.-font-bytes renderer-spec)]
+        (FontRenderer. name font-bytes params)))))
 
 (defn- native-layout-text
   [font-map text line-break? max-width text-tracking text-leading]
@@ -495,13 +500,6 @@
             attribute
             (recur (inc attribute-index))))))))
 
-(defn- parse-markup-number
-  ^Double [^String value]
-  (try
-    (Double/valueOf value)
-    (catch NumberFormatException _
-      nil)))
-
 (defn- markup-node-has-ancestor-tag?
   [^objects nodes ^FontRenderer$MarkupNode node ^String tag]
   (loop [node-index (.-parent node)]
@@ -511,6 +509,21 @@
         (if (= tag (.-tag ancestor))
           true
           (recur (.-parent ancestor)))))))
+
+(defn- markup-node-has-descendant-tag?
+  [^objects nodes node-index ^String tag]
+  (loop [candidate-index (inc node-index)]
+    (if (= candidate-index (alength nodes))
+      false
+      (let [^FontRenderer$MarkupNode candidate (aget nodes candidate-index)]
+        (if (and (= tag (.-tag candidate))
+                 (loop [ancestor-index (.-parent candidate)]
+                   (cond
+                     (= node-index ancestor-index) true
+                     (neg? ancestor-index) false
+                     :else (recur (.-parent ^FontRenderer$MarkupNode (aget nodes ancestor-index))))))
+          true
+          (recur (inc candidate-index)))))))
 
 (defn- markup-layer-info
   [^FontRenderer$MarkupDocument document]
@@ -533,7 +546,7 @@
             "outline"
             (let [^FontRenderer$MarkupAttribute size-attribute (markup-node-attribute node "size")
                   outline-size (when size-attribute
-                                 (parse-markup-number (.-value size-attribute)))]
+                                 (parse-double (.-value size-attribute)))]
               (recur (inc node-index)
                      true
                      true
@@ -545,7 +558,7 @@
             "shadow"
             (let [^FontRenderer$MarkupAttribute blur-attribute (markup-node-attribute node "blur")
                   blur (if blur-attribute
-                         (or (parse-markup-number (.-value blur-attribute)) 0.0)
+                         (or (parse-double (.-value blur-attribute)) 0.0)
                          0.0)]
               (recur (inc node-index)
                      true
@@ -554,7 +567,8 @@
                      outline-sizes
                      (conj shadows {:blur (double blur)
                                     :default-blur (nil? blur-attribute)
-                                    :inside-outline (markup-node-has-ancestor-tag? nodes node "outline")})))
+                                    :inside-outline (or (markup-node-has-ancestor-tag? nodes node "outline")
+                                                        (markup-node-has-descendant-tag? nodes node-index "outline"))})))
 
             (recur (inc node-index)
                    has-layer-tag
@@ -1159,6 +1173,25 @@
     :cache-height cache-height
     :render-mode render-mode))
 
+(defn- make-native-glyph-bank
+  ^FontRenderer$GlyphBank [font-map]
+  (let [glyphs (mapv (fn [glyph]
+                       (FontRenderer$GlyphBankGlyph. (int (:character glyph))
+                                                     (float (:width glyph))
+                                                     (float (:advance glyph))
+                                                     (float (:left-bearing glyph))
+                                                     (float (:ascent glyph))
+                                                     (float (:descent glyph))
+                                                     (int (:glyph-data-offset glyph))
+                                                     (int (:glyph-data-size glyph))))
+                     (:glyphs font-map))]
+    (FontRenderer$GlyphBank. (into-array FontRenderer$GlyphBankGlyph glyphs)
+                             (.toByteArray ^ByteString (:glyph-data font-map))
+                             (int (:glyph-padding font-map))
+                             (int (:glyph-channels font-map))
+                             (float (:max-ascent font-map))
+                             (float (:max-descent font-map)))))
+
 (defn- make-native-renderer-spec
   ^NativeRendererSpec [font font-desc font-map type use-font-layout use-rich-text runtime-generation]
   (let [render-params (FontRenderer$Params.)
@@ -1199,7 +1232,10 @@
     (set! (.-hasShadow measure-params) (.-hasShadow render-params))
     (set! (.-useTextShaping measure-params) (.-useTextShaping render-params))
     (let [name (resource/proj-path font)
-          font-bytes (resource/resource->bytes font)
+          glyph-bank (when (= :bitmap type)
+                       (make-native-glyph-bank font-map))
+          font-bytes (when-not glyph-bank
+                       (resource/resource->bytes font))
           supported-codepoints (when-not (or runtime-generation
                                              (:all-chars font-desc))
                                  (into #{(int \newline)
@@ -1211,6 +1247,7 @@
                                       (int-array supported-codepoints))]
       (->NativeRendererSpec name
                             font-bytes
+                            glyph-bank
                             render-params
                             measure-params
                             supported-codepoints
@@ -1219,7 +1256,6 @@
 
 (defn- font-compilation-error [node-id font ^Exception error]
   (let [message (.getMessage error)]
-    (log/error :msg (str "Failed to generate bitmap from Font. " message) :exception error)
     (g/->error node-id :font :fatal font (localization/message "error.font-bitmap-generation-failed" {"error" message}))))
 
 (defn- make-font-map [_node-id font type pb-msg font-resource-map use-font-layout use-rich-text runtime-generation]
@@ -1248,7 +1284,8 @@
                          :use-rich-text use-rich-text)]
           (cond-> font-map
             (or (= :defold type)
-                (= :distance-field type))
+                (= :distance-field type)
+                (= :bitmap type))
             (assoc :native-renderer-spec (make-native-renderer-spec font pb-msg font-map type use-font-layout use-rich-text runtime-generation))))
         (catch Exception error
           (font-compilation-error _node-id font error)))))

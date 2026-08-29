@@ -52,6 +52,15 @@
           (is (not (g/error? (g/node-value node-id :text-layout))))
           (is (not (g/error? (g/node-value node-id :build-targets)))))))))
 
+(deftest invalid-font-does-not-become-label-text-property-error-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          invalid-font (workspace/resolve-workspace-resource workspace "/fonts/unknown.font")]
+      (test-util/with-prop [node-id :font invalid-font]
+        (is (g/error-fatal? (test-util/prop-error node-id :font)))
+        (is (nil? (g/node-value node-id :markup-error)))
+        (is (nil? (test-util/prop-error node-id :text)))))))
+
 (deftest label-aabb-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]

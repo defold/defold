@@ -45,6 +45,7 @@ HEADER_CLASS = "FontRendererFFM"
 SYMBOLS_CLASS = "FontRendererSymbols"
 FUNCTIONS = (
     "FontcCreate",
+    "FontcCreateGlyphBank",
     "FontcDestroy",
     "FontcParseMarkup",
     "FontcDestroyMarkup",
@@ -71,6 +72,7 @@ FUNCTIONS = (
 )
 STRUCTS = (
     "FontcParams",
+    "FontcGlyphBankGlyph",
     "FontcLayout",
     "FontcGlyph",
     "FontcGlyphMetrics",

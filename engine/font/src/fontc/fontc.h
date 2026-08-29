@@ -87,6 +87,20 @@ extern "C"
         uint32_t m_UseTextShaping;
     } FontcParams;
 
+    /* One prebaked glyph and its raw bitmap slice in a FontcCreateGlyphBank
+     * data buffer. Bitmap dimensions include glyph_padding on every side. */
+    typedef struct FontcGlyphBankGlyph
+    {
+        uint32_t m_Codepoint;
+        float    m_Width;
+        float    m_Advance;
+        float    m_LeftBearing;
+        float    m_Ascent;
+        float    m_Descent;
+        uint32_t m_DataOffset;
+        uint32_t m_DataSize;
+    } FontcGlyphBankGlyph;
+
     typedef struct FontcLayout
     {
         float    m_Width;
@@ -242,6 +256,38 @@ extern "C"
                                                 uint32_t           font_byte_count,
                                                 const FontcParams* params,
                                                 HFontRenderer*     renderer);
+
+    /*# Creates a renderer from a prebaked glyph bank
+     *
+     * Glyphs must be sorted by codepoint. Bitmap slices are uncompressed and
+     * contain glyph_channels bytes per pixel. All input data is copied before
+     * this function returns.
+     *
+     * @name FontcCreateGlyphBank
+     * @param name [type: const char*] Font resource name, used for diagnostics.
+     * @param glyphs [type: const FontcGlyphBankGlyph*] Sorted prebaked glyphs.
+     * @param glyph_count [type: uint32_t] Number of glyphs.
+     * @param glyph_data [type: const uint8_t*] Raw concatenated glyph bitmaps.
+     * @param glyph_data_count [type: uint32_t] Size of glyph data in bytes.
+     * @param glyph_padding [type: uint32_t] Bitmap padding on every glyph side.
+     * @param glyph_channels [type: uint32_t] Number of channels per bitmap pixel.
+     * @param max_ascent [type: float] Maximum font ascent.
+     * @param max_descent [type: float] Maximum positive font descent.
+     * @param params [type: const FontcParams*] Immutable renderer configuration.
+     * @param renderer [type: HFontRenderer*] Receives the created context on success.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcCreateGlyphBank(const char*                name,
+                                                         const FontcGlyphBankGlyph* glyphs,
+                                                         uint32_t                   glyph_count,
+                                                         const uint8_t*             glyph_data,
+                                                         uint32_t                   glyph_data_count,
+                                                         uint32_t                   glyph_padding,
+                                                         uint32_t                   glyph_channels,
+                                                         float                      max_ascent,
+                                                         float                      max_descent,
+                                                         const FontcParams*         params,
+                                                         HFontRenderer*             renderer);
 
     /*#
      * Destroys a font renderer context and all resources owned by it.

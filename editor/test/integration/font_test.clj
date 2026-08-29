@@ -25,9 +25,12 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
-  (:import [com.dynamo.bob.font FontRenderer$Params FontRenderer$Properties]
+  (:import [ch.qos.logback.classic Logger]
+           [ch.qos.logback.core.read ListAppender]
+           [com.dynamo.bob.font FontRenderer$GlyphBank FontRenderer$Params FontRenderer$Properties]
            [com.dynamo.render.proto Font$FontDesc]
-           [javax.vecmath Matrix4d]))
+           [javax.vecmath Matrix4d]
+           [org.slf4j LoggerFactory]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -124,6 +127,14 @@
                                                                 :shadow-alpha 1.0
                                                                 :use-rich-text true}
                                                                "<outline><shadow x='2'>Text</shadow></outline>")
+        bitmap-containing-outline-shadow-error (font/markup-error 0 :text
+                                                                   {:outline-alpha 1.0
+                                                                    :outline-width 3.0
+                                                                    :rich-text-render-kind :defold
+                                                                    :rich-text-shadow-blur-capacity 4.0
+                                                                    :shadow-alpha 1.0
+                                                                    :use-rich-text true}
+                                                                   "<shadow x='2'><outline>Text</outline></shadow>")
         unreserved-outline-error (font/markup-error 0 :text
                                                     {:outline-width 0.0
                                                      :rich-text-render-kind :distance-field
@@ -159,6 +170,7 @@
     (is (g/error-warning? bitmap-hidden-outline-shadow-error))
     (is (s/includes? (test-util/localization (g/error-message bitmap-hidden-outline-shadow-error)) "spans without an outline tag render crisp"))
     (is (nil? bitmap-nested-outline-shadow-error))
+    (is (nil? bitmap-containing-outline-shadow-error))
     (is (g/error-warning? unreserved-outline-error))
     (is (s/includes? (test-util/localization (g/error-message unreserved-outline-error)) "will not be rendered"))
     (is (nil? disabled-outline-error))
@@ -323,6 +335,35 @@
         (is (= 10 (get-in unknown-constant-error [:user-data :byte-offset])))
         (is (s/includes? (test-util/localization (g/error-message unknown-constant-error))
                          "unknown value for attribute"))))))
+
+(deftest bmfont-uses-glyph-bank-native-rich-text-preview
+  (test-util/with-loaded-project "test/resources/reload_unchanged_project"
+    (let [font-node (test-util/resource-node project "/editable/bitmap-font.font")
+          font-map (g/node-value font-node :font-map)
+          renderer-spec (:native-renderer-spec font-map)
+          [plain-width plain-height] (font/measure font-map "A")
+          [markup-width markup-height] (font/measure font-map "<color=#ff0000>A</color>")]
+      (is (= :bitmap (g/node-value font-node :type)))
+      (is (instance? FontRenderer$GlyphBank (:glyph-bank renderer-spec)))
+      (is (nil? (:font-bytes renderer-spec)))
+      (is (pos? plain-width))
+      (is (pos? plain-height))
+      (is (= plain-width markup-width))
+      (is (= plain-height markup-height)))))
+
+(deftest invalid-font-compilation-does-not-log-exception
+  (test-util/with-loaded-project "test/resources/font_error_project"
+    (let [font-node (test-util/resource-node project "/main/broken.font")
+          ^Logger logger (LoggerFactory/getLogger "editor.font")
+          ^ListAppender appender (doto (ListAppender.)
+                                   (.start))]
+      (.addAppender logger appender)
+      (try
+        (is (g/error-fatal? (g/node-value font-node :font-map)))
+        (is (zero? (count (.-list appender))))
+        (finally
+          (.detachAppender logger appender)
+          (.stop appender))))))
 
 (deftest native-shadow-blur-capacity-does-not-depend-on-alpha
   (test-util/with-loaded-project

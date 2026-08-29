@@ -335,8 +335,9 @@
   (input material-samplers g/Any)
 
   (output save-value g/Any :cached produce-save-value)
-  (output markup-error g/Any :cached (g/fnk [_node-id font-map text]
-                                            (font/markup-error _node-id :text font-map text)))
+  (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
+                                            (when-not (g/error-value? font-map)
+                                              (font/markup-error _node-id :text font-map text))))
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking]
                                            (font/layout-text font-map text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot size]

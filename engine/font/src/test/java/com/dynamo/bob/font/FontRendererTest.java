@@ -92,6 +92,27 @@ public class FontRendererTest {
         return new FontRenderer(fontResource, fontBytes, params);
     }
 
+    private static FontRenderer createGlyphBankRenderer() {
+        int glyphPadding = 1;
+        int glyphChannels = 4;
+        int bitmapWidth = 4;
+        int bitmapHeight = 5;
+        byte[] glyphData = new byte[bitmapWidth * bitmapHeight * glyphChannels];
+        for (int index = 0; index < glyphData.length; ++index)
+            glyphData[index] = (byte)(index + 1);
+        FontRenderer.GlyphBankGlyph[] glyphs = {
+            new FontRenderer.GlyphBankGlyph(' ', 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0, 0),
+            new FontRenderer.GlyphBankGlyph('A', 2.0f, 3.0f, 0.0f, 4.0f, -1.0f, 0, glyphData.length)
+        };
+        FontRenderer.GlyphBank glyphBank = new FontRenderer.GlyphBank(
+                glyphs, glyphData, glyphPadding, glyphChannels, 4.0f, 0.0f);
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 3.0f;
+        params.cacheWidth = 32;
+        params.cacheHeight = 32;
+        return new FontRenderer("test.fnt", glyphBank, params);
+    }
+
     @Test
     public void testLayoutSelection() throws Exception {
         try (FontRenderer legacy = createRenderer(32.0f, 512, 512, false);
@@ -99,6 +120,38 @@ public class FontRendererTest {
             float legacyWidth = legacy.measure("AV", false, 0.0f, 1.0f, 0.0f).width;
             float skribidiWidth = skribidi.measure("AV", false, 0.0f, 1.0f, 0.0f).width;
             assertTrue(skribidiWidth < legacyWidth);
+        }
+    }
+
+    @Test
+    public void testGlyphBankMeasureAndRichTextRender() {
+        try (FontRenderer renderer = createGlyphBankRenderer()) {
+            FontRenderer.Layout plain = renderer.measure("A", false, 0.0f, 1.0f, 0.0f);
+            FontRenderer.Layout markup = renderer.measureMarkup("<size=2em>A</size>", false, 0.0f, 1.0f, 0.0f);
+            assertEquals(2.0f, plain.width, 0.001f);
+            assertTrue(markup.width > plain.width);
+            assertEquals(2, renderer.getSupportedGlyphMetrics().length);
+
+            FontRenderer.GeneratedGlyph glyph = renderer.generateGlyph('A');
+            assertEquals(2, glyph.glyphIndex);
+            assertEquals(4, glyph.width);
+            assertEquals(5, glyph.height);
+            assertEquals(4, glyph.channels);
+            assertEquals(80, glyph.pixels.remaining());
+
+            renderer.setProperties(properties(10.0f, 1.0f, 0));
+            renderer.setMarkup("<color=#ff0000>A</color>");
+            renderer.beginBatch();
+            FontRenderer.Texture texture = renderer.generateTexture(0);
+            assertEquals(4, texture.channels);
+            assertNotNull(texture.pixels);
+            assertEquals(6, getVertices(renderer, IDENTITY).vertexCount);
+            for (int row = 0; row < 5; ++row) {
+                for (int column = 0; column < 16; ++column) {
+                    byte expected = row == 0 && column < 4 ? (byte)0xff : (byte)(row * 16 + column + 1);
+                    assertEquals(expected, texture.pixels.get((row * 32 * 4) + column));
+                }
+            }
         }
     }
 
