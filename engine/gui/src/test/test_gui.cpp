@@ -4345,6 +4345,9 @@ TEST_F(dmGuiTest, LayerRenderingHierarchies)
     ASSERT_EQ(1u, order[n2]);
     ASSERT_EQ(2u, order[n3]);
     ASSERT_EQ(3u, order[n4]);
+    ASSERT_EQ(dmGui::GetNodeLayerIndex(m_Scene, n1), dmGui::GetNodeLayerIndex(m_Scene, n2));
+    ASSERT_EQ(dmGui::GetNodeLayerIndex(m_Scene, n3), dmGui::GetNodeLayerIndex(m_Scene, n4));
+    ASSERT_LT(dmGui::GetNodeLayerIndex(m_Scene, n1), dmGui::GetNodeLayerIndex(m_Scene, n3));
 
     // Reverse
     dmGui::SetNodeLayer(m_Scene, n1, "l2");

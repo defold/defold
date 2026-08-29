@@ -5630,6 +5630,58 @@ TEST_F(GuiTest, GuiRichTextLinkTargetFontReload)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiRichTextLinkInteractionUsesRenderLayerOrder)
+{
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HScene scene = gui_component->m_Scene;
+    dmGui::HNode  front = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, front);
+    const char* front_text = "<link id=docs src=https://www.defold.com role=front>Link</link>";
+    const char* back_text  = "<link id=docs src=https://www.defold.com role=back>Link</link>";
+    dmGui::SetNodeText(scene, front, front_text);
+
+    dmGui::HNode back = 0;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(scene, front, &back));
+    ASSERT_NE((dmGui::HNode)0, back);
+    dmGui::SetNodeText(scene, back, back_text);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddLayer(scene, "front"));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeLayer(scene, front, "front"));
+    dmGui::MoveNodeBelow(scene, front, back);
+    ASSERT_GT(dmGui::GetNodeLayerIndex(scene, front), dmGui::GetNodeLayerIndex(scene, back));
+
+    GuiTextSubmitResult prepared = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(2u, prepared.m_TextEntryCount);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+
+    dmGui::SetNodeVisible(scene, front, false);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NE((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_STREQ(back_text, TextLayoutGetObjectSource(gui_component->m_HoveredLayoutObject.m_Layout));
+
+    dmGui::SetNodeVisible(scene, front, true);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NE((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_STREQ(front_text, TextLayoutGetObjectSource(gui_component->m_HoveredLayoutObject.m_Layout));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiRichTextAnimationAdvances)
 {
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };

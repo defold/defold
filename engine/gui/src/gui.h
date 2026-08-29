@@ -1032,6 +1032,7 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
     dmhash_t GetNodeLayerId(HScene scene, HNode node);
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node);
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 

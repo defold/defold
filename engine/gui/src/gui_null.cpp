@@ -637,6 +637,11 @@ namespace dmGui
         return 0;
     }
 
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
+    {
+        return 0;
+    }
+
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
     {
         return RESULT_OK;

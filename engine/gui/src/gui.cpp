@@ -3737,6 +3737,11 @@ namespace dmGui
         return n->m_Node.m_LayerHash;
     }
 
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
+    {
+        return GetLayerIndex(scene, GetNode(scene, node));
+    }
+
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
     {
         uint16_t* layer_index = scene->m_Layers.Get(layer_id);

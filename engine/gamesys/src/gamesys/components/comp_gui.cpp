@@ -3295,7 +3295,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static void HitTestGuiLayoutObjects(dmGui::HScene scene, dmGui::HNode parent, float x, float y, dmArray<uint32_t>& codepoints, GuiLayoutObjectTarget* target)
+    static void HitTestGuiLayoutObjects(dmGui::HScene scene, dmGui::HNode parent, float x, float y, dmArray<uint32_t>& codepoints, GuiLayoutObjectTarget* target, uint16_t* target_layer)
     {
         for (dmGui::HNode node = dmGui::GetFirstChildNode(scene, parent); node; node = dmGui::GetNextNode(scene, node))
         {
@@ -3337,18 +3337,20 @@ namespace dmGameSystem
                         hit_test.m_VAlign = valign;
 
                         const uint32_t object_index = TextLayoutHitTestObject(layout, hit_test);
-                        if (object_index != UINT32_MAX)
+                        const uint16_t node_layer = dmGui::GetNodeLayerIndex(scene, node);
+                        if (object_index != UINT32_MAX && (!target->m_Layout || node_layer >= *target_layer))
                         {
                             target->m_Layout       = layout;
                             target->m_FontResource = font_resource;
                             target->m_ObjectId     = TextLayoutGetObjects(layout)[object_index].m_Id;
                             target->m_FontVersion  = ResFontGetVersion(font_resource);
+                            *target_layer          = node_layer;
                         }
                     }
                 }
             }
 
-            HitTestGuiLayoutObjects(scene, node, x, y, codepoints, target);
+            HitTestGuiLayoutObjects(scene, node, x, y, codepoints, target, target_layer);
         }
     }
 
@@ -3361,7 +3363,8 @@ namespace dmGameSystem
 
         GuiLayoutObjectTarget hovered = {};
         dmArray<uint32_t>     codepoints;
-        HitTestGuiLayoutObjects(component->m_Scene, 0, action.m_X, action.m_Y, codepoints, &hovered);
+        uint16_t              hovered_layer = 0;
+        HitTestGuiLayoutObjects(component->m_Scene, 0, action.m_X, action.m_Y, codepoints, &hovered, &hovered_layer);
 
         if (!EqualGuiLayoutObjectTargets(hovered, component->m_HoveredLayoutObject))
         {
