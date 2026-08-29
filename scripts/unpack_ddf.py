@@ -31,7 +31,16 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
 GENERATED_PROTO_MODULES = {
-    'input.input_ddf_pb2': (os.path.join(REPO_ROOT, "engine", "input", "proto"), "input/input_ddf.proto"),
+    'font.glyphbank_ddf_pb2': (
+        os.path.join(REPO_ROOT, "engine", "font", "proto"),
+        "font/glyphbank_ddf.proto",
+        ((os.path.join(REPO_ROOT, "engine", "ddf", "src"), "ddf/ddf_extensions.proto"),),
+    ),
+    'input.input_ddf_pb2': (
+        os.path.join(REPO_ROOT, "engine", "input", "proto"),
+        "input/input_ddf.proto",
+        (),
+    ),
 }
 
 def prepend_python_paths(paths):
@@ -54,6 +63,7 @@ if dynamo_home is not None:
 
 python_paths.extend([
     os.path.join(REPO_ROOT, "engine", "ddf", "build", "src"),
+    os.path.join(REPO_ROOT, "engine", "font", "build", "proto"),
     os.path.join(REPO_ROOT, "engine", "input", "build", "python"),
     os.path.join(REPO_ROOT, "engine", "gamesys", "build", "proto"),
     os.path.join(REPO_ROOT, "engine", "render", "build", "proto"),
@@ -64,6 +74,7 @@ python_paths.extend([
     os.path.join(REPO_ROOT, "engine", "engine", "build", "proto"),
     os.path.join(REPO_ROOT, "engine", "particle", "build", "proto"),
 ])
+python_paths.extend(sorted(glob.glob(os.path.join(REPO_ROOT, "engine", "font", "build", "*", "python"))))
 prepend_python_paths(python_paths)
 
 from google.protobuf import text_format
@@ -90,14 +101,16 @@ def ensure_generated_module(module_name):
     if proto_info is None:
         return
 
-    proto_dir, proto_file = proto_info
-    proto_path = os.path.join(proto_dir, proto_file)
-    if not os.path.isfile(proto_path):
+    proto_dir, proto_file, dependencies = proto_info
+    proto_inputs = ((proto_dir, proto_file),) + dependencies
+    proto_paths = [os.path.join(input_dir, input_file) for input_dir, input_file in proto_inputs]
+    if not all(os.path.isfile(path) for path in proto_paths):
         return
 
     out_dir = os.path.join(tempfile.gettempdir(), "defold_unpack_ddf_proto")
-    module_path = os.path.join(out_dir, *module_name.split('.')) + ".py"
-    if os.path.isfile(module_path) and os.path.getmtime(module_path) >= os.path.getmtime(proto_path):
+    generated_paths = [os.path.join(out_dir, os.path.splitext(input_file)[0] + "_pb2.py") for _, input_file in proto_inputs]
+    latest_proto_mtime = max(os.path.getmtime(path) for path in proto_paths)
+    if all(os.path.isfile(path) and os.path.getmtime(path) >= latest_proto_mtime for path in generated_paths):
         prepend_python_paths([out_dir])
         return
 
@@ -106,15 +119,22 @@ def ensure_generated_module(module_name):
         return
 
     os.makedirs(out_dir, exist_ok=True)
+    include_dirs = [input_dir for input_dir, _ in proto_inputs]
+    if dynamo_home is not None:
+        protobuf_include_dir = os.path.join(dynamo_home, "ext", "include")
+        if os.path.isdir(protobuf_include_dir):
+            include_dirs.append(protobuf_include_dir)
+    include_args = ["-I%s" % input_dir for input_dir in dict.fromkeys(include_dirs)]
     try:
-        subprocess.check_call([protoc, "--python_out=%s" % out_dir, "-I%s" % proto_dir, proto_path], stdout=subprocess.DEVNULL)
+        subprocess.check_call([protoc, "--python_out=%s" % out_dir] + include_args + proto_paths, stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError:
         return
 
-    package_dir = os.path.dirname(module_path)
-    os.makedirs(package_dir, exist_ok=True)
-    with open(os.path.join(package_dir, "__init__.py"), "a"):
-        pass
+    for generated_path in generated_paths:
+        package_dir = os.path.dirname(generated_path)
+        os.makedirs(package_dir, exist_ok=True)
+        with open(os.path.join(package_dir, "__init__.py"), "a"):
+            pass
     prepend_python_paths([out_dir])
 
 def load_type(module_name, type_name):
