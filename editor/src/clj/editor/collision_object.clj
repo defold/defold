@@ -71,6 +71,7 @@
                   :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"
                   :physics-types #{"2D" "3D"}}
    :type-capsule {:label "Capsule"
+                  :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
                   :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
                   :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"
                   :physics-types #{"3D"}}})
@@ -80,13 +81,10 @@
   (get-in shape-type-ui [shape-type :label]))
 
 (defn- shape-type-message
-  "The displayed name of the shape type under the given physics type. A shape
-  type that only exists in 3D physics keeps its 3D name under 2D physics, where
-  it can still be named by the unsupported-shape error."
   [shape-type physics-type]
   (let [{:keys [message-2d message-3d]} (shape-type-ui shape-type)]
     (case physics-type
-      "2D" (or message-2d message-3d)
+      "2D" message-2d
       "3D" message-3d)))
 
 (defn- shape-type-icon
