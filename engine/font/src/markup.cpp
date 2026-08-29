@@ -977,6 +977,7 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
 {
     const uint32_t tag_start = context->m_Cursor;
     const bool     closing = tag_start + 1 < context->m_Length && context->m_Source[tag_start + 1] == '/';
+    const uint16_t style_node_index = context->m_StyleNodeIndex;
 
     if (style_fragment && closing)
     {
@@ -1000,11 +1001,12 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
         return MARKUP_RESULT_SYNTAX_ERROR;
     }
 
-    if (self_closing)
+    if (self_closing || closing)
     {
-        MarkupStyleNode& node = context->m_Markup->m_StyleNodes.Back();
+        const uint32_t   node_index = self_closing ? context->m_Markup->m_StyleNodes.Size() - 1 : style_node_index;
+        MarkupStyleNode& node = context->m_Markup->m_StyleNodes[node_index];
 
-        if (node.m_Tag.m_Length == 6 && memcmp(context->m_Source + node.m_Tag.m_Offset, "sprite", 6) == 0)
+        if (node.m_Type == MARKUP_TAG_SPRITE && node.m_TextLength == 0)
         {
             MarkupString source = { context->m_Cursor, 0 };
             PushText(context, 0xfffc, source);

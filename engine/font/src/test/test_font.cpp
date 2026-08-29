@@ -1742,6 +1742,71 @@ static void AssertLayoutObjectAttribute(HTextLayout layout, const TextLayoutObje
     ASSERT_EQ(0, memcmp(expected_value, source + attribute.m_ValueOffset, attribute.m_ValueLength));
 }
 
+static void CreateTestSpriteLayout(HFontCollection collection, const char* source, LayoutObjectTestContext* context, HTextLayout* layout)
+{
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, (uint32_t)strlen(source), &markup, 0));
+
+    TextLayoutSettings settings = {};
+    settings.m_Width = 1000.0f;
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_ResolveObject = ResolveTestLayoutObject;
+    settings.m_ReleaseObject = ReleaseTestLayoutObject;
+    settings.m_ObjectContext = context;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, layout));
+    MarkupDestroy(markup);
+}
+
+TEST_F(FontTest, LayoutTreatsEmptyPairedSpriteAsSelfClosing)
+{
+    LayoutObjectTestContext self_closing_context = {};
+    LayoutObjectTestContext paired_context = {};
+    HTextLayout             self_closing_layout = 0;
+    HTextLayout             paired_layout = 0;
+    CreateTestSpriteLayout(m_FontCollection, "A<sprite src=/icon.atlas width=2em/>B", &self_closing_context, &self_closing_layout);
+    CreateTestSpriteLayout(m_FontCollection, "A<sprite src=/icon.atlas width=2em></sprite>B", &paired_context, &paired_layout);
+
+    ASSERT_EQ(1u, self_closing_context.m_ResolveCount);
+    ASSERT_EQ(self_closing_context.m_ResolveCount, paired_context.m_ResolveCount);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(self_closing_layout));
+    ASSERT_EQ(TextLayoutGetObjectCount(self_closing_layout), TextLayoutGetObjectCount(paired_layout));
+
+    const TextLayoutObject& self_closing_object = TextLayoutGetObjects(self_closing_layout)[0];
+    const TextLayoutObject& paired_object       = TextLayoutGetObjects(paired_layout)[0];
+    ASSERT_EQ(1u, self_closing_object.m_TextOffset);
+    ASSERT_EQ(self_closing_object.m_TextOffset, paired_object.m_TextOffset);
+    ASSERT_EQ(1u, self_closing_object.m_TextLength);
+    ASSERT_EQ(self_closing_object.m_TextLength, paired_object.m_TextLength);
+    ASSERT_EQ(self_closing_object.m_Width, paired_object.m_Width);
+    ASSERT_EQ(self_closing_object.m_Height, paired_object.m_Height);
+
+    ASSERT_EQ(3u, TextLayoutGetGlyphCount(self_closing_layout));
+    ASSERT_EQ(TextLayoutGetGlyphCount(self_closing_layout), TextLayoutGetGlyphCount(paired_layout));
+    const TextGlyph* self_closing_glyphs = TextLayoutGetGlyphs(self_closing_layout);
+    const TextGlyph* paired_glyphs       = TextLayoutGetGlyphs(paired_layout);
+
+    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(self_closing_layout); ++i)
+    {
+        ASSERT_EQ(self_closing_glyphs[i].m_Codepoint, paired_glyphs[i].m_Codepoint);
+        ASSERT_EQ(self_closing_glyphs[i].m_Flags, paired_glyphs[i].m_Flags);
+        ASSERT_EQ(self_closing_glyphs[i].m_Cluster, paired_glyphs[i].m_Cluster);
+        ASSERT_EQ(self_closing_glyphs[i].m_X, paired_glyphs[i].m_X);
+        ASSERT_EQ(self_closing_glyphs[i].m_Y, paired_glyphs[i].m_Y);
+        ASSERT_EQ(self_closing_glyphs[i].m_Advance, paired_glyphs[i].m_Advance);
+        ASSERT_EQ(self_closing_glyphs[i].m_Width, paired_glyphs[i].m_Width);
+        ASSERT_EQ(self_closing_glyphs[i].m_Height, paired_glyphs[i].m_Height);
+    }
+
+    ASSERT_EQ(0xfffcu, paired_glyphs[1].m_Codepoint);
+    ASSERT_EQ((uint16_t)TEXT_GLYPH_FLAG_OBJECT, paired_glyphs[1].m_Flags);
+
+    TextLayoutRelease(self_closing_layout);
+    TextLayoutRelease(paired_layout);
+    ASSERT_EQ(1u, self_closing_context.m_ReleaseCount);
+    ASSERT_EQ(self_closing_context.m_ReleaseCount, paired_context.m_ReleaseCount);
+}
+
 TEST_F(FontTest, LayoutResolvesAndOwnsMarkupObjects)
 {
     const char source[] =

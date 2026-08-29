@@ -239,6 +239,33 @@ TEST(Markup, SelfClosingTag)
     MarkupDestroy(markup);
 }
 
+TEST(Markup, EmptyPairedSpriteMatchesSelfClosingTag)
+{
+    const char self_closing_source[] = "A<sprite src=/icon.atlas width=2em/>B";
+    const char paired_source[]       = "A<sprite src=/icon.atlas width=2em></sprite>B";
+    HMarkup   self_closing_markup    = 0;
+    HMarkup   paired_markup          = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(self_closing_source, sizeof(self_closing_source) - 1, &self_closing_markup, 0));
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(paired_source, sizeof(paired_source) - 1, &paired_markup, 0));
+
+    const uint32_t expected[] = { 'A', 0xfffc, 'B' };
+    AssertText(self_closing_markup, expected, DM_ARRAY_SIZE(expected));
+    AssertText(paired_markup, expected, DM_ARRAY_SIZE(expected));
+    ASSERT_EQ(MarkupGetSpanCount(self_closing_markup), MarkupGetSpanCount(paired_markup));
+    ASSERT_EQ(MarkupGetStyleNodeCount(self_closing_markup), MarkupGetStyleNodeCount(paired_markup));
+
+    const MarkupStyleNode& self_closing_node = MarkupGetStyleNodes(self_closing_markup)[1];
+    const MarkupStyleNode& paired_node       = MarkupGetStyleNodes(paired_markup)[1];
+    ASSERT_EQ(self_closing_node.m_Type, paired_node.m_Type);
+    ASSERT_EQ(self_closing_node.m_Parent, paired_node.m_Parent);
+    ASSERT_EQ(self_closing_node.m_TextOffset, paired_node.m_TextOffset);
+    ASSERT_EQ(self_closing_node.m_TextLength, paired_node.m_TextLength);
+    ASSERT_EQ(self_closing_node.m_AttributeCount, paired_node.m_AttributeCount);
+
+    MarkupDestroy(self_closing_markup);
+    MarkupDestroy(paired_markup);
+}
+
 TEST(Markup, NamedConstants)
 {
     const char text[] = "<wave fit=span direction=reverse>X</wave><ul pattern=dashed>Y</ul>";
