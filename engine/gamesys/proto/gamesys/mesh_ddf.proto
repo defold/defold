@@ -38,4 +38,5 @@ message MeshDesc
     optional IndexBufferFormat index_buffer_format = 8 [(runtime_only)=true];
     optional uint32 index_count = 9 [(runtime_only)=true];
     optional uint32 vertex_count = 10 [(runtime_only)=true];
+    optional uint32 vertex_buffer_size = 11 [(runtime_only)=true];
 }

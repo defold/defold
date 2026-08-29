@@ -204,20 +204,39 @@ namespace dmGameSystem
         return true;
     }
 
-    dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params)
+    bool CreateBufferResource(dmBufferDDF::BufferDesc* ddf, dmhash_t name_hash, BufferResource** out_resource)
     {
         BufferResource* buffer_resource = new BufferResource();
         memset(buffer_resource, 0, sizeof(BufferResource));
-        buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params->m_PreloadData;
-        ResourceDescriptorSetResource(params->m_Resource, buffer_resource);
-        buffer_resource->m_NameHash = dmHashString64(params->m_Filename);
+        buffer_resource->m_BufferDDF = ddf;
+        buffer_resource->m_NameHash = name_hash;
 
         if (!BuildBuffer(buffer_resource))
         {
-            return dmResource::RESULT_INVALID_DATA;
+            ReleaseResources(0, buffer_resource);
+            delete buffer_resource;
+            return false;
         }
 
         dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
+        *out_resource = buffer_resource;
+        return true;
+    }
+
+    void DestroyBufferResource(BufferResource* resource)
+    {
+        if (!resource)
+            return;
+        ReleaseResources(0, resource);
+        delete resource;
+    }
+
+    dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params)
+    {
+        BufferResource* buffer_resource = 0;
+        if (!CreateBufferResource((dmBufferDDF::BufferDesc*) params->m_PreloadData, dmHashString64(params->m_Filename), &buffer_resource))
+            return dmResource::RESULT_INVALID_DATA;
+        ResourceDescriptorSetResource(params->m_Resource, buffer_resource);
 
         return dmResource::RESULT_OK;
     }
@@ -225,8 +244,7 @@ namespace dmGameSystem
     dmResource::Result ResBufferDestroy(const dmResource::ResourceDestroyParams* params)
     {
         BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, buffer_resource);
-        delete buffer_resource;
+        DestroyBufferResource(buffer_resource);
         return dmResource::RESULT_OK;
     }
 
@@ -248,6 +266,7 @@ namespace dmGameSystem
         }
 
         dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
+        dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
 
         return dmResource::RESULT_OK;
     }

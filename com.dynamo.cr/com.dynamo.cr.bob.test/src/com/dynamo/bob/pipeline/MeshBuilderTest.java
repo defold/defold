@@ -30,6 +30,7 @@ import com.dynamo.bob.Progress;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc.IndexBufferFormat;
 
@@ -84,7 +85,11 @@ public class MeshBuilderTest extends AbstractProtoBuilderTest {
 
         ByteBuffer meshc = ByteBuffer.wrap(meshcContent).order(ByteOrder.LITTLE_ENDIAN);
         int headerSize = meshc.getInt();
-        meshc.position(Integer.BYTES + headerSize);
+        int vertexDataOffset = Integer.BYTES + headerSize;
+        BufferDesc vertexBuffer = BufferDesc.parseFrom(Arrays.copyOfRange(meshcContent, vertexDataOffset, vertexDataOffset + mesh.getVertexBufferSize()));
+        assertEquals(1, vertexBuffer.getStreamsCount());
+        assertEquals("position", vertexBuffer.getStreams(0).getName());
+        meshc.position(vertexDataOffset + mesh.getVertexBufferSize());
         assertEquals(0, Short.toUnsignedInt(meshc.getShort()));
         assertEquals(1, Short.toUnsignedInt(meshc.getShort()));
         assertEquals(2, Short.toUnsignedInt(meshc.getShort()));

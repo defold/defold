@@ -46,7 +46,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]])
-  (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
+  (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
@@ -94,11 +94,12 @@
     :position-stream position-stream
     :normal-stream normal-stream))
 
-(defn- pack-meshc ^bytes [^bytes header ^bytes index-data]
-  (-> (doto (ByteBuffer/allocate (+ Integer/BYTES (alength header) (alength index-data)))
+(defn- pack-meshc ^bytes [^bytes header ^bytes vertex-data ^bytes index-data]
+  (-> (doto (ByteBuffer/allocate (+ Integer/BYTES (alength header) (alength vertex-data) (alength index-data)))
         (.order ByteOrder/LITTLE_ENDIAN)
         (.putInt (alength header))
         (.put header)
+        (.put vertex-data)
         (.put index-data))
       (.array)))
 
@@ -113,7 +114,7 @@
                            [label (resource/proj-path (get dep-resources res))])
                          (:dep-resources user-data)))
         header (protobuf/map->bytes MeshProto$MeshDesc pb)]
-    {:resource resource :content (pack-meshc header (:index-data user-data))}))
+    {:resource resource :content (pack-meshc header (:vertex-data user-data) (:index-data user-data))}))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
@@ -203,9 +204,12 @@
                not-empty
                g/error-aggregate)
       (let [index-stream-desc (stream-by-name streams index-stream)
-            vertex-count (max-stream-length (vertex-streams streams index-stream))
+            vertex-streams (vertex-streams streams index-stream)
+            vertex-count (max-stream-length vertex-streams)
+            ^bytes vertex-data (protobuf/map->bytes BufferProto$BufferDesc (buffer/streams->pb-map vertex-streams))
             pb-msg (cond-> (select-keys save-value [:material :vertices :textures :primitive-type :position-stream :normal-stream :index-stream])
-                     true (assoc :vertex-count vertex-count)
+                     true (assoc :vertex-count vertex-count
+                                 :vertex-buffer-size (alength vertex-data))
                      index-stream-desc (assoc :index-buffer-format (case (:type index-stream-desc)
                                                                      :value-type-uint16 :indexbuffer-format-16
                                                                      :value-type-uint32 :indexbuffer-format-32)
@@ -220,6 +224,7 @@
             :resource (workspace/make-build-resource resource)
             :build-fn build-pb
             :user-data {:pb pb-msg
+                        :vertex-data vertex-data
                         :index-data (pack-index-data index-stream-desc)
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))

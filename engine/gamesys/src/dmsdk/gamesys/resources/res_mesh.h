@@ -29,7 +29,8 @@ namespace dmGameSystem
     struct MeshResource
     {
         dmMeshDDF::MeshDesc*    m_MeshDDF;
-        BufferResource*         m_BufferResource;
+        BufferResource*         m_BufferResource;       // Vertex-only buffer owned by the mesh resource.
+        BufferResource*         m_SourceBufferResource; // Referenced .bufferc used by the vertices property.
         BufferResource*         m_IndexBufferResource;
         MaterialResource*       m_Material;
 
@@ -49,8 +50,13 @@ namespace dmGameSystem
         dmBufferDDF::ValueType          m_NormalStreamType;
 
         /// Needed to keep track of data change on resource reload.
+        dmBuffer::HBuffer               m_SourceBuffer;
         uint32_t                        m_BufferVersion;
     };
+
+    /// Copies changed vertex streams from the authored source buffer into the
+    /// vertex-only runtime buffer embedded in the compiled mesh.
+    bool SyncMeshVertexBuffer(MeshResource* mesh_resource);
 }
 
 #endif // DMSDK_GAMESYS_RES_MESH_H

@@ -108,6 +108,16 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         return vertexCount;
     }
 
+    private static BufferDesc buildVertexBuffer(BufferDesc buffer, String indexStreamName) {
+        BufferDesc.Builder vertexBuffer = BufferDesc.newBuilder();
+        for (StreamDesc stream : buffer.getStreamsList()) {
+            if (indexStreamName.isEmpty() || !stream.getName().equals(indexStreamName)) {
+                vertexBuffer.addStreams(stream);
+            }
+        }
+        return vertexBuffer.build();
+    }
+
     private static byte[] validateAndPackIndices(IResource meshResource, BufferDesc vertices, String indexStreamName, MeshDesc.Builder meshDescBuilder) throws CompileExceptionError {
         StreamDesc stream = findStream(vertices, indexStreamName);
         if (stream == null) {
@@ -174,11 +184,16 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         }
         BufferDesc vertices = BufferDesc.parseFrom(verticesResource.getContent());
         byte[] indexData = new byte[0];
+        String indexStreamName = "";
         if (meshDescBuilder.hasIndexStream() && !meshDescBuilder.getIndexStream().isEmpty()) {
-            indexData = validateAndPackIndices(resource, vertices, meshDescBuilder.getIndexStream(), meshDescBuilder);
+            indexStreamName = meshDescBuilder.getIndexStream();
+            indexData = validateAndPackIndices(resource, vertices, indexStreamName, meshDescBuilder);
         } else {
             meshDescBuilder.setVertexCount(getElementCount(vertices));
         }
+
+        byte[] vertexData = buildVertexBuffer(vertices, indexStreamName).toByteArray();
+        meshDescBuilder.setVertexBufferSize(vertexData.length);
 
         List<String> newTextureList = new ArrayList<String>();
         for (String t : meshDescBuilder.getTexturesList()) {
@@ -191,9 +206,10 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         meshDescBuilder.addAllTextures(newTextureList);
 
         byte[] header = meshDescBuilder.build().toByteArray();
-        ByteArrayOutputStream out = new ByteArrayOutputStream(Integer.BYTES + header.length + indexData.length);
+        ByteArrayOutputStream out = new ByteArrayOutputStream(Integer.BYTES + header.length + vertexData.length + indexData.length);
         out.write(ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(header.length).array());
         out.write(header);
+        out.write(vertexData);
         out.write(indexData);
         out.close();
         task.output(0).setContent(out.toByteArray());
