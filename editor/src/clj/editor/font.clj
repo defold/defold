@@ -42,7 +42,7 @@
             [schema.core :as schema]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat]
            [com.google.protobuf ByteString]
@@ -526,14 +526,111 @@
           true
           (recur (inc candidate-index)))))))
 
+(defn- parse-markup-font-size
+  [^String value ^double base-font-size]
+  (let [value-length (.length value)
+        font-size
+        (cond
+          (s/ends-with? value "%")
+          (some-> (parse-double (subs value 0 (dec value-length)))
+                  (* base-font-size)
+                  (/ 100.0))
+
+          (s/ends-with? value "em")
+          (some-> (parse-double (subs value 0 (- value-length 2)))
+                  (* base-font-size))
+
+          :else
+          (let [number-string (if (s/ends-with? value "px")
+                                (subs value 0 (- value-length 2))
+                                value)
+                number (parse-double number-string)]
+            (when (some? number)
+              (if (and (pos? value-length)
+                       (#{\+ \-} (.charAt value 0)))
+                (+ base-font-size number)
+                number))))]
+    (when (and (some? font-size)
+               (Double/isFinite (double font-size))
+               (pos? (double font-size)))
+      (double font-size))))
+
+(defn- markup-node-font-size
+  [^FontRenderer$MarkupNode node ^double base-font-size]
+  (when-let [^FontRenderer$MarkupAttribute attribute (or (markup-node-attribute node "")
+                                                          (markup-node-attribute node "value"))]
+    (parse-markup-font-size (.-value attribute) base-font-size)))
+
+(defn- markup-span-outline-info
+  [^objects nodes node-index ^double base-font-size]
+  (loop [node-index node-index
+         font-scale nil
+         has-outline-tag false
+         outline-size nil
+         outline-size-set false]
+    (if (neg? node-index)
+      (when has-outline-tag
+        {:default-outline (not outline-size-set)
+         :outline-size (when outline-size-set
+                         (/ (double outline-size)
+                            (double (or font-scale 1.0))))})
+      (let [^FontRenderer$MarkupNode node (aget nodes node-index)
+            parent-index (.-parent node)]
+        (case (.-tag node)
+          "size"
+          (when-let [font-size (markup-node-font-size node base-font-size)]
+            (recur parent-index
+                   (or font-scale (/ font-size base-font-size))
+                   has-outline-tag
+                   outline-size
+                   outline-size-set))
+
+          "outline"
+          (if-let [^FontRenderer$MarkupAttribute size-attribute (markup-node-attribute node "size")]
+            (when-let [size (parse-double (.-value size-attribute))]
+              (when (and (Double/isFinite (double size))
+                         (not (neg? (double size))))
+                (recur parent-index
+                       font-scale
+                       true
+                       (if outline-size-set outline-size size)
+                       true)))
+            (recur parent-index
+                   font-scale
+                   true
+                   outline-size
+                   outline-size-set))
+
+          (recur parent-index
+                 font-scale
+                 has-outline-tag
+                 outline-size
+                 outline-size-set))))))
+
+(defn- markup-outline-info
+  [^FontRenderer$MarkupDocument document ^double base-font-size]
+  (let [^objects nodes (.-nodes document)
+        ^objects spans (.-spans document)]
+    (loop [span-index 0
+           has-default-outline false
+           outline-sizes (transient [])]
+      (if (= span-index (alength spans))
+        {:has-default-outline has-default-outline
+         :outline-sizes (persistent! outline-sizes)}
+        (let [^FontRenderer$MarkupSpan span (aget spans span-index)
+              {:keys [default-outline outline-size]} (markup-span-outline-info nodes (.-node span) base-font-size)]
+          (recur (inc span-index)
+                 (or has-default-outline default-outline)
+                 (cond-> outline-sizes
+                   (some? outline-size) (conj! outline-size))))))))
+
 (defn- markup-layer-info
-  [^FontRenderer$MarkupDocument document]
-  (let [^objects nodes (.-nodes document)]
+  [^FontRenderer$MarkupDocument document ^double base-font-size]
+  (let [^objects nodes (.-nodes document)
+        {:keys [has-default-outline outline-sizes]} (markup-outline-info document base-font-size)]
     (loop [node-index 1
            has-layer-tag false
            has-outline-tag false
-           has-default-outline false
-           outline-sizes []
            shadows []]
       (if (= node-index (alength nodes))
         {:has-layer-tag has-layer-tag
@@ -545,16 +642,10 @@
               tag (.-tag node)]
           (case tag
             "outline"
-            (let [^FontRenderer$MarkupAttribute size-attribute (markup-node-attribute node "size")
-                  outline-size (when size-attribute
-                                 (parse-double (.-value size-attribute)))]
-              (recur (inc node-index)
-                     true
-                     true
-                     (or has-default-outline (nil? size-attribute))
-                     (cond-> outline-sizes
-                       (some? outline-size) (conj outline-size))
-                     shadows))
+            (recur (inc node-index)
+                   true
+                   true
+                   shadows)
 
             "shadow"
             (let [^FontRenderer$MarkupAttribute blur-attribute (markup-node-attribute node "blur")
@@ -564,8 +655,6 @@
               (recur (inc node-index)
                      true
                      has-outline-tag
-                     has-default-outline
-                     outline-sizes
                      (conj shadows {:blur (double blur)
                                     :default-blur (nil? blur-attribute)
                                     :inside-outline (or (markup-node-has-ancestor-tag? nodes node "outline")
@@ -574,13 +663,12 @@
             (recur (inc node-index)
                    has-layer-tag
                    has-outline-tag
-                   has-default-outline
-                   outline-sizes
                    shadows)))))))
 
 (defn- markup-layer-capability-error
   [node-id property font-map text ^FontRenderer$MarkupDocument document]
-  (let [{:keys [has-layer-tag has-outline-tag has-default-outline outline-sizes shadows]} (markup-layer-info document)
+  (let [base-font-size (double (or (:size font-map) 1.0))
+        {:keys [has-layer-tag has-outline-tag has-default-outline outline-sizes shadows]} (markup-layer-info document base-font-size)
         has-shadow-tag (pos? (count shadows))
         max-shadow-blur (reduce (fn [max-blur {:keys [blur]}]
                                   (max max-blur (double blur)))

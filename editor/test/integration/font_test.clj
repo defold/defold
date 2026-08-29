@@ -155,6 +155,18 @@
                                                          :rich-text-render-kind :distance-field
                                                          :use-rich-text true}
                                                         "<outline size='4'>Text</outline>")
+        scaled-up-distance-field-outline-error (font/markup-error 0 :text
+                                                                  {:outline-width 2.0
+                                                                   :rich-text-render-kind :distance-field
+                                                                   :size 16
+                                                                   :use-rich-text true}
+                                                                  "<size=200%><outline size='4'>Text</outline></size>")
+        scaled-down-distance-field-outline-error (font/markup-error 0 :text
+                                                                    {:outline-width 2.0
+                                                                     :rich-text-render-kind :distance-field
+                                                                     :size 16
+                                                                     :use-rich-text true}
+                                                                    "<size=50%><outline size='2'>Text</outline></size>")
         unreserved-blur-error (font/markup-error 0 :text
                                                  {:rich-text-render-kind :distance-field
                                                   :rich-text-shadow-blur-capacity 0.0
@@ -178,6 +190,9 @@
     (is (s/includes? (test-util/localization (g/error-message mixed-outline-error)) "will not be rendered"))
     (is (g/error-warning? distance-field-outline-error))
     (is (s/includes? (test-util/localization (g/error-message distance-field-outline-error)) "will be clamped"))
+    (is (nil? scaled-up-distance-field-outline-error))
+    (is (g/error-warning? scaled-down-distance-field-outline-error))
+    (is (s/includes? (test-util/localization (g/error-message scaled-down-distance-field-outline-error)) "will be clamped"))
     (is (g/error-warning? unreserved-blur-error))
     (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))))
 
