@@ -16,6 +16,9 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -28,8 +31,11 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
+import com.dynamo.gamesys.proto.MeshProto.MeshDesc.IndexBufferFormat;
 
 public class MeshBuilderTest extends AbstractProtoBuilderTest {
+
+    private byte[] meshcContent;
 
     private static final String VERTICES = """
             [{"name":"position", "type":"float32", "count":3,
@@ -43,9 +49,9 @@ public class MeshBuilderTest extends AbstractProtoBuilderTest {
         addFile("/vertices.buffer", VERTICES);
     }
 
-    private MeshDesc buildMesh(String indices) throws Exception {
-        addFile("/indices.buffer", indices);
-        String mesh = "material: \"/mesh.material\"\nvertices: \"/vertices.buffer\"\nindices: \"/indices.buffer\"\n";
+    private MeshDesc buildMesh(String indexStream, String indexStreamName) throws Exception {
+        addFile("/vertices.buffer", VERTICES.substring(0, VERTICES.lastIndexOf(']')) + "," + indexStream + "]");
+        String mesh = "material: \"/mesh.material\"\nvertices: \"/vertices.buffer\"\nindex_stream: \"" + indexStreamName + "\"\n";
         addFile("/test.mesh", mesh);
         getProject().setInputs(Collections.singletonList("/test.mesh"));
         List<TaskResult> results = getProject().build(Progress.discarding(), "build");
@@ -57,7 +63,10 @@ public class MeshBuilderTest extends AbstractProtoBuilderTest {
             Task task = result.getTask();
             for (IResource output : task.getOutputs()) {
                 if (output.getPath().endsWith(".meshc")) {
-                    meshDesc = MeshDesc.parseFrom(output.getContent());
+                    byte[] content = output.getContent();
+                    meshcContent = content;
+                    int headerSize = ByteBuffer.wrap(content).order(ByteOrder.LITTLE_ENDIAN).getInt();
+                    meshDesc = MeshDesc.parseFrom(Arrays.copyOfRange(content, Integer.BYTES, Integer.BYTES + headerSize));
                 }
             }
         }
@@ -66,29 +75,42 @@ public class MeshBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testIndexedMesh() throws Exception {
-        MeshDesc mesh = buildMesh("[{\"name\":\"index\", \"type\":\"uint16\", \"count\":1, \"data\":[0,1,2,0,2,3]}]");
+        MeshDesc mesh = buildMesh("{\"name\":\"index\", \"type\":\"uint16\", \"count\":1, \"data\":[0,1,2,0,2,3]}", "index");
         assertEquals("/vertices.bufferc", mesh.getVertices());
-        assertEquals("/indices.bufferc", mesh.getIndices());
+        assertEquals("index", mesh.getIndexStream());
+        assertEquals(IndexBufferFormat.INDEXBUFFER_FORMAT_16, mesh.getIndexBufferFormat());
+        assertEquals(6, mesh.getIndexCount());
+        assertEquals(4, mesh.getVertexCount());
+
+        ByteBuffer meshc = ByteBuffer.wrap(meshcContent).order(ByteOrder.LITTLE_ENDIAN);
+        int headerSize = meshc.getInt();
+        meshc.position(Integer.BYTES + headerSize);
+        assertEquals(0, Short.toUnsignedInt(meshc.getShort()));
+        assertEquals(1, Short.toUnsignedInt(meshc.getShort()));
+        assertEquals(2, Short.toUnsignedInt(meshc.getShort()));
+        assertEquals(0, Short.toUnsignedInt(meshc.getShort()));
+        assertEquals(2, Short.toUnsignedInt(meshc.getShort()));
+        assertEquals(3, Short.toUnsignedInt(meshc.getShort()));
+        assertEquals(meshc.limit(), meshc.position());
     }
 
     @Test(expected = CompileExceptionError.class)
-    public void testIndexBufferMustHaveOneStream() throws Exception {
-        buildMesh("[{\"name\":\"a\", \"type\":\"uint16\", \"count\":1, \"data\":[0]},"
-                + "{\"name\":\"b\", \"type\":\"uint16\", \"count\":1, \"data\":[1]}]");
+    public void testIndexStreamMustExist() throws Exception {
+        buildMesh("{\"name\":\"index\", \"type\":\"uint16\", \"count\":1, \"data\":[0]}", "missing");
     }
 
     @Test(expected = CompileExceptionError.class)
     public void testIndexBufferMustBeScalar() throws Exception {
-        buildMesh("[{\"name\":\"index\", \"type\":\"uint16\", \"count\":2, \"data\":[0,1]}]");
+        buildMesh("{\"name\":\"index\", \"type\":\"uint16\", \"count\":2, \"data\":[0,1]}", "index");
     }
 
     @Test(expected = CompileExceptionError.class)
     public void testIndexBufferMustBeUnsigned16Or32() throws Exception {
-        buildMesh("[{\"name\":\"index\", \"type\":\"int32\", \"count\":1, \"data\":[0]}]");
+        buildMesh("{\"name\":\"index\", \"type\":\"int32\", \"count\":1, \"data\":[0]}", "index");
     }
 
     @Test(expected = CompileExceptionError.class)
     public void testIndexMustReferenceVertex() throws Exception {
-        buildMesh("[{\"name\":\"index\", \"type\":\"uint32\", \"count\":1, \"data\":[4]}]");
+        buildMesh("{\"name\":\"index\", \"type\":\"uint32\", \"count\":1, \"data\":[4]}", "index");
     }
 }

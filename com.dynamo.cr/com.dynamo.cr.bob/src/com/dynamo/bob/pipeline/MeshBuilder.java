@@ -18,6 +18,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +36,7 @@ import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.BufferProto.StreamDesc;
 import com.dynamo.gamesys.proto.BufferProto.ValueType;
+import com.dynamo.gamesys.proto.MeshProto.MeshDesc.IndexBufferFormat;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MeshDesc.class, messageClass = MeshDesc.class)
@@ -71,6 +74,10 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         return elementCount;
     }
 
+    private static int getStreamElementCount(StreamDesc stream) {
+        return stream.getValueCount() > 0 ? getValueCount(stream) / stream.getValueCount() : 0;
+    }
+
     private static IResource findTaskInput(Task task, String path) {
         String resourcePath = Project.stripLeadingSlash(path);
         for (int i = 1; i < task.getInputs().size(); ++i) {
@@ -82,25 +89,41 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         return null;
     }
 
-    private static void validateIndices(IResource meshResource, IResource verticesResource, IResource indicesResource) throws CompileExceptionError, IOException {
-        BufferDesc vertices = BufferDesc.parseFrom(verticesResource.getContent());
-        BufferDesc indices = BufferDesc.parseFrom(indicesResource.getContent());
+    private static StreamDesc findStream(BufferDesc buffer, String name) {
+        for (StreamDesc stream : buffer.getStreamsList()) {
+            if (stream.getName().equals(name)) {
+                return stream;
+            }
+        }
+        return null;
+    }
 
-        if (indices.getStreamsCount() != 1) {
-            throw new CompileExceptionError(meshResource, 0, "Index buffer must contain exactly one stream.");
+    private static int getVertexCount(BufferDesc vertices, String indexStreamName) {
+        int vertexCount = 0;
+        for (StreamDesc stream : vertices.getStreamsList()) {
+            if (!stream.getName().equals(indexStreamName)) {
+                vertexCount = Math.max(vertexCount, getStreamElementCount(stream));
+            }
+        }
+        return vertexCount;
+    }
+
+    private static byte[] validateAndPackIndices(IResource meshResource, BufferDesc vertices, String indexStreamName, MeshDesc.Builder meshDescBuilder) throws CompileExceptionError {
+        StreamDesc stream = findStream(vertices, indexStreamName);
+        if (stream == null) {
+            throw new CompileExceptionError(meshResource, 0, "Index stream '" + indexStreamName + "' was not found in the vertex buffer.");
         }
 
-        StreamDesc stream = indices.getStreams(0);
         if (stream.getValueCount() != 1) {
-            throw new CompileExceptionError(meshResource, 0, "Index buffer stream must have count 1.");
+            throw new CompileExceptionError(meshResource, 0, "Index stream must have count 1.");
         }
 
         ValueType valueType = stream.getValueType();
         if (valueType != ValueType.VALUE_TYPE_UINT16 && valueType != ValueType.VALUE_TYPE_UINT32) {
-            throw new CompileExceptionError(meshResource, 0, "Index buffer stream must use uint16 or uint32 values.");
+            throw new CompileExceptionError(meshResource, 0, "Index stream must use uint16 or uint32 values.");
         }
 
-        int vertexCount = getElementCount(vertices);
+        int vertexCount = getVertexCount(vertices, indexStreamName);
         long maxValue = valueType == ValueType.VALUE_TYPE_UINT16 ? 0xffffL : 0xffffffffL;
         for (int index : stream.getUiList()) {
             long unsignedIndex = Integer.toUnsignedLong(index);
@@ -111,6 +134,23 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
                 throw new CompileExceptionError(meshResource, 0, "Index value " + unsignedIndex + " is outside the vertex buffer with " + vertexCount + " elements.");
             }
         }
+
+        int indexSize = valueType == ValueType.VALUE_TYPE_UINT16 ? Short.BYTES : Integer.BYTES;
+        ByteBuffer indexData = ByteBuffer.allocate(stream.getUiCount() * indexSize).order(ByteOrder.LITTLE_ENDIAN);
+        for (int index : stream.getUiList()) {
+            if (indexSize == Short.BYTES) {
+                indexData.putShort((short) index);
+            } else {
+                indexData.putInt(index);
+            }
+        }
+
+        meshDescBuilder.setIndexBufferFormat(valueType == ValueType.VALUE_TYPE_UINT16
+                ? IndexBufferFormat.INDEXBUFFER_FORMAT_16
+                : IndexBufferFormat.INDEXBUFFER_FORMAT_32);
+        meshDescBuilder.setIndexCount(stream.getUiCount());
+        meshDescBuilder.setVertexCount(vertexCount);
+        return indexData.array();
     }
 
     @Override
@@ -128,18 +168,16 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         BuilderUtil.checkResource(this.project, resource, "material", meshDescBuilder.getMaterial());
         meshDescBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(meshDescBuilder.getMaterial(), ".material", ".materialc"));
 
-        if (meshDescBuilder.hasIndices() && !meshDescBuilder.getIndices().isEmpty()) {
-            BuilderUtil.checkResource(this.project, resource, "indices", meshDescBuilder.getIndices());
-            String indicesInputPath = ResourceUtil.replaceExt(meshDescBuilder.getIndices(), ".buffer", ".bufferc");
-            String indicesPath = ResourceUtil.minifyPathAndReplaceExt(meshDescBuilder.getIndices(), ".buffer", ".bufferc");
-            meshDescBuilder.setIndices(indicesPath);
-
-            IResource verticesResource = findTaskInput(task, verticesInputPath);
-            IResource indicesResource = findTaskInput(task, indicesInputPath);
-            if (verticesResource == null || indicesResource == null) {
-                throw new CompileExceptionError(resource, 0, "Unable to validate mesh index buffer build inputs.");
-            }
-            validateIndices(resource, verticesResource, indicesResource);
+        IResource verticesResource = findTaskInput(task, verticesInputPath);
+        if (verticesResource == null) {
+            throw new CompileExceptionError(resource, 0, "Unable to inspect mesh vertex buffer build input.");
+        }
+        BufferDesc vertices = BufferDesc.parseFrom(verticesResource.getContent());
+        byte[] indexData = new byte[0];
+        if (meshDescBuilder.hasIndexStream() && !meshDescBuilder.getIndexStream().isEmpty()) {
+            indexData = validateAndPackIndices(resource, vertices, meshDescBuilder.getIndexStream(), meshDescBuilder);
+        } else {
+            meshDescBuilder.setVertexCount(getElementCount(vertices));
         }
 
         List<String> newTextureList = new ArrayList<String>();
@@ -152,8 +190,11 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         meshDescBuilder.clearTextures();
         meshDescBuilder.addAllTextures(newTextureList);
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-        meshDescBuilder.build().writeTo(out);
+        byte[] header = meshDescBuilder.build().toByteArray();
+        ByteArrayOutputStream out = new ByteArrayOutputStream(Integer.BYTES + header.length + indexData.length);
+        out.write(ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(header.length).array());
+        out.write(header);
+        out.write(indexData);
         out.close();
         task.output(0).setContent(out.toByteArray());
     }

@@ -27,5 +27,15 @@ message MeshDesc
     optional PrimitiveType primitive_type = 4 [default = PRIMITIVE_TRIANGLES];
     optional string position_stream = 5;
     optional string normal_stream = 6;
-    optional string indices = 7 [(resource)=true];
+    optional string index_stream = 7;
+
+    enum IndexBufferFormat
+    {
+        INDEXBUFFER_FORMAT_16 = 0;
+        INDEXBUFFER_FORMAT_32 = 1;
+    }
+
+    optional IndexBufferFormat index_buffer_format = 8 [(runtime_only)=true];
+    optional uint32 index_count = 9 [(runtime_only)=true];
+    optional uint32 vertex_count = 10 [(runtime_only)=true];
 }

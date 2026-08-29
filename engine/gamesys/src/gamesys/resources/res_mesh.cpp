@@ -28,6 +28,102 @@ namespace dmGameSystem
 {
     static dmGraphics::HContext g_GraphicsContext = 0x0;
 
+    struct MeshPreloadData
+    {
+        dmMeshDDF::MeshDesc* m_DDF;
+        uint8_t*             m_IndexData;
+        uint32_t             m_IndexDataSize;
+    };
+
+    static void FreePreloadData(MeshPreloadData* preload_data)
+    {
+        if (!preload_data)
+            return;
+        if (preload_data->m_DDF)
+            dmDDF::FreeMessage(preload_data->m_DDF);
+        free(preload_data->m_IndexData);
+        delete preload_data;
+    }
+
+    static dmResource::Result LoadMeshData(const void* buffer, uint32_t buffer_size, MeshPreloadData** out_preload_data)
+    {
+        if (buffer_size < sizeof(uint32_t))
+            return dmResource::RESULT_FORMAT_ERROR;
+
+        const uint8_t* bytes = (const uint8_t*) buffer;
+        uint32_t header_size = (uint32_t) bytes[0] |
+                               ((uint32_t) bytes[1] << 8) |
+                               ((uint32_t) bytes[2] << 16) |
+                               ((uint32_t) bytes[3] << 24);
+        if (header_size > buffer_size - sizeof(uint32_t))
+            return dmResource::RESULT_FORMAT_ERROR;
+
+        dmMeshDDF::MeshDesc* ddf = 0;
+        dmDDF::Result e = dmDDF::LoadMessage(bytes + sizeof(uint32_t), header_size, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
+        if (e != dmDDF::RESULT_OK)
+            return dmResource::RESULT_DDF_ERROR;
+
+        uint32_t index_size = ddf->m_IndexBufferFormat == dmMeshDDF::MeshDesc::INDEXBUFFER_FORMAT_16 ? sizeof(uint16_t) : sizeof(uint32_t);
+        uint64_t expected_payload_size = (uint64_t) ddf->m_IndexCount * index_size;
+        uint32_t payload_size = buffer_size - sizeof(uint32_t) - header_size;
+        if (expected_payload_size != payload_size)
+        {
+            dmDDF::FreeMessage(ddf);
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        MeshPreloadData* preload_data = new MeshPreloadData();
+        preload_data->m_DDF = ddf;
+        preload_data->m_IndexDataSize = payload_size;
+        preload_data->m_IndexData = payload_size ? (uint8_t*) malloc(payload_size) : 0;
+        if (payload_size)
+            memcpy(preload_data->m_IndexData, bytes + sizeof(uint32_t) + header_size, payload_size);
+        *out_preload_data = preload_data;
+        return dmResource::RESULT_OK;
+    }
+
+    static bool BuildIndexBufferResource(MeshResource* mesh_resource, const uint8_t* index_data, uint32_t index_data_size, const char* filename)
+    {
+        if (mesh_resource->m_MeshDDF->m_IndexCount == 0)
+            return index_data_size == 0;
+
+        dmBuffer::StreamDeclaration stream_decl;
+        stream_decl.m_Name = dmHashString64(mesh_resource->m_MeshDDF->m_IndexStream);
+        stream_decl.m_Type = mesh_resource->m_MeshDDF->m_IndexBufferFormat == dmMeshDDF::MeshDesc::INDEXBUFFER_FORMAT_16
+                           ? dmBuffer::VALUE_TYPE_UINT16
+                           : dmBuffer::VALUE_TYPE_UINT32;
+        stream_decl.m_Count = 1;
+
+        BufferResource* index_buffer_resource = new BufferResource();
+        memset(index_buffer_resource, 0, sizeof(BufferResource));
+        dmBuffer::Result result = dmBuffer::Create(mesh_resource->m_MeshDDF->m_IndexCount, &stream_decl, 1, &index_buffer_resource->m_Buffer);
+        if (result != dmBuffer::RESULT_OK)
+        {
+            delete index_buffer_resource;
+            return false;
+        }
+
+        void* stream_data = 0;
+        uint32_t count = 0;
+        uint32_t components = 0;
+        uint32_t stride = 0;
+        result = dmBuffer::GetStream(index_buffer_resource->m_Buffer, stream_decl.m_Name, &stream_data, &count, &components, &stride);
+        if (result != dmBuffer::RESULT_OK || count != mesh_resource->m_MeshDDF->m_IndexCount || components != 1 || stride != 1)
+        {
+            dmBuffer::Destroy(index_buffer_resource->m_Buffer);
+            delete index_buffer_resource;
+            return false;
+        }
+
+        memcpy(stream_data, index_data, index_data_size);
+        index_buffer_resource->m_NameHash = dmHashString64(filename);
+        index_buffer_resource->m_ElementCount = count;
+        index_buffer_resource->m_Stride = dmBuffer::GetStructSize(index_buffer_resource->m_Buffer);
+        dmBuffer::GetContentVersion(index_buffer_resource->m_Buffer, &index_buffer_resource->m_Version);
+        mesh_resource->m_IndexBufferResource = index_buffer_resource;
+        return true;
+    }
+
     static bool IsBufferTypeSupportedGraphicsType(dmBuffer::ValueType value_type) {
         if (value_type == dmBuffer::VALUE_TYPE_UINT64 ||
             value_type == dmBuffer::VALUE_TYPE_INT64) {
@@ -189,17 +285,6 @@ namespace dmGameSystem
             return result;
         }
 
-        if (resource->m_MeshDDF->m_Indices[0] != 0)
-        {
-            result = dmResource::Get(factory, resource->m_MeshDDF->m_Indices, (void**) &resource->m_IndexBufferResource);
-            if (result != dmResource::RESULT_OK)
-            {
-                dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Vertices);
-                dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
-                return result;
-            }
-        }
-
         TextureResource* textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(TextureResource*));
 
@@ -247,8 +332,6 @@ namespace dmGameSystem
         {
             dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
             dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Vertices);
-            if (resource->m_IndexBufferResource)
-                dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Indices);
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 if (textures[i])
@@ -319,7 +402,9 @@ namespace dmGameSystem
 
         if (resource->m_IndexBufferResource != 0x0)
         {
-            dmResource::Release(factory, resource->m_IndexBufferResource);
+            if (resource->m_IndexBufferResource->m_Buffer)
+                dmBuffer::Destroy(resource->m_IndexBufferResource->m_Buffer);
+            delete resource->m_IndexBufferResource;
             resource->m_IndexBufferResource = 0x0;
         }
 
@@ -353,23 +438,20 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams* params)
     {
-        dmMeshDDF::MeshDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_DDF_ERROR;
-        }
+        MeshPreloadData* preload_data = 0;
+        dmResource::Result result = LoadMeshData(params->m_Buffer, params->m_BufferSize, &preload_data);
+        if (result != dmResource::RESULT_OK)
+            return result;
+        dmMeshDDF::MeshDesc* ddf = preload_data->m_DDF;
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Vertices);
-        if (ddf->m_Indices[0] != 0)
-            dmResource::PreloadHint(params->m_HintInfo, ddf->m_Indices);
         for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             dmResource::PreloadHint(params->m_HintInfo, ddf->m_Textures[i]);
         }
 
-        *params->m_PreloadData = ddf;
+        *params->m_PreloadData = preload_data;
         return dmResource::RESULT_OK;
     }
 
@@ -381,8 +463,14 @@ namespace dmGameSystem
 
         MeshResource* mesh_resource = new MeshResource();
         memset(mesh_resource, 0, sizeof(MeshResource));
-        mesh_resource->m_MeshDDF = (dmMeshDDF::MeshDesc*) params->m_PreloadData;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, mesh_resource, params->m_Filename);
+        MeshPreloadData* preload_data = (MeshPreloadData*) params->m_PreloadData;
+        mesh_resource->m_MeshDDF = preload_data->m_DDF;
+        preload_data->m_DDF = 0;
+        bool index_buffer_result = BuildIndexBufferResource(mesh_resource, preload_data->m_IndexData, preload_data->m_IndexDataSize, params->m_Filename);
+        FreePreloadData(preload_data);
+        dmResource::Result r = index_buffer_result
+                             ? AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, mesh_resource, params->m_Filename)
+                             : dmResource::RESULT_INVALID_DATA;
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, mesh_resource);
@@ -393,9 +481,11 @@ namespace dmGameSystem
             delete mesh_resource;
         }
 
-        mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
-
-        dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, mesh_resource);
+        if (r == dmResource::RESULT_OK)
+        {
+            mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
+            dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, mesh_resource);
+        }
         return r;
     }
 
@@ -410,15 +500,18 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmMeshDDF::MeshDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_DDF_ERROR;
-        }
+        MeshPreloadData* preload_data = 0;
+        dmResource::Result result = LoadMeshData(params->m_Buffer, params->m_BufferSize, &preload_data);
+        if (result != dmResource::RESULT_OK)
+            return result;
         MeshResource* mesh_resource = (MeshResource*)dmResource::GetResource(params->m_Resource);
         ReleaseResources(params->m_Factory, mesh_resource);
-        mesh_resource->m_MeshDDF = ddf;
+        mesh_resource->m_MeshDDF = preload_data->m_DDF;
+        preload_data->m_DDF = 0;
+        bool index_buffer_result = BuildIndexBufferResource(mesh_resource, preload_data->m_IndexData, preload_data->m_IndexDataSize, params->m_Filename);
+        FreePreloadData(preload_data);
+        if (!index_buffer_result)
+            return dmResource::RESULT_INVALID_DATA;
         return AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, mesh_resource, params->m_Filename);
     }
 }

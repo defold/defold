@@ -90,7 +90,6 @@ namespace dmGameSystem
                     out_data_typed[c] = ddf_stream.DDF_FIELD.m_Data[data_i]; \
                 } else { \
                     out_data_typed[c] = C_DEFAULT; \
-                    dmLogError("Trying to get stream data outside of input DDF array."); \
                 } \
             } \
             out_data_typed += stride; \
