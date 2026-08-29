@@ -1002,16 +1002,15 @@ public final class FontRenderer implements AutoCloseable {
     private static MarkupError markupError(byte[] markup, int nativeByteOffset, int errorType) {
         int byteOffset = Math.min(nativeByteOffset, markup.length);
         int line = 1;
-        int column = 1;
+        int lineByteOffset = 0;
         for (int index = 0; index < byteOffset; ++index) {
             int value = markup[index] & 0xff;
             if (value == '\n') {
                 ++line;
-                column = 1;
-            } else if ((value & 0xc0) != 0x80) {
-                ++column;
+                lineByteOffset = index + 1;
             }
         }
+        int column = new String(markup, lineByteOffset, byteOffset - lineByteOffset, StandardCharsets.UTF_8).length() + 1;
         return new MarkupError(byteOffset, line, column, errorType, markupErrorDescription(errorType));
     }
 

@@ -346,6 +346,16 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testMarkupErrorColumnUsesUtf16CodeUnits() {
+        FontRenderer.MarkupParseResult result = FontRenderer.parseMarkup("valid\n\uD83D\uDE00<s ize=14>Text</size>");
+        assertNull(result.document);
+        assertNotNull(result.error);
+        assertEquals(11, result.error.byteOffset);
+        assertEquals(2, result.error.line);
+        assertEquals(4, result.error.column);
+    }
+
+    @Test
     public void testMarkupShadowAlphaDoesNotDependOnBaseShadowAlpha() throws Exception {
         try (FontRenderer renderer = createRenderer(32.0f)) {
             FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
