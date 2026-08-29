@@ -5564,6 +5564,72 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiRichTextLinkTargetFontReload)
+{
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+    dmGui::SetNodeText(gui_component->m_Scene, node, "<link id=docs src=https://www.defold.com>Link</link>");
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+
+    dmGameSystem::FontResource* font_resource = (dmGameSystem::FontResource*)dmGui::GetNodeFont(gui_component->m_Scene, node);
+    ASSERT_NE((void*)0, font_resource);
+    const uint32_t font_version = dmGameSystem::ResFontGetVersion(font_resource);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ(font_resource, gui_component->m_HoveredLayoutObject.m_FontResource);
+    ASSERT_EQ(font_version, gui_component->m_HoveredLayoutObject.m_FontVersion);
+
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_PressedLayoutObject.m_Layout);
+    ASSERT_EQ(font_version, gui_component->m_PressedLayoutObject.m_FontVersion);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/font_dyn_glyph_bank_test_1.fontc", 0));
+    ASSERT_EQ(font_version + 1, dmGameSystem::ResFontGetVersion(font_resource));
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_PressedLayoutObject.m_Layout);
+
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ((HTextLayout)0, gui_component->m_PressedLayoutObject.m_Layout);
+    ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    input_action.m_Released = 0;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NE((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_NE(initial.m_TextLayout, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ(font_resource, gui_component->m_HoveredLayoutObject.m_FontResource);
+    ASSERT_EQ(font_version + 1, gui_component->m_HoveredLayoutObject.m_FontVersion);
+    ASSERT_NEAR(0.25f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiRichTextAnimationAdvances)
 {
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };

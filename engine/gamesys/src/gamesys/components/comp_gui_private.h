@@ -28,6 +28,7 @@
 namespace dmGameSystem
 {
     struct CompGuiContext;
+    struct FontResource;
     struct GuiSceneResource;
     struct MaterialResource;
 
@@ -35,8 +36,12 @@ namespace dmGameSystem
 
     struct GuiLayoutObjectTarget
     {
-        HTextLayout m_Layout;
-        uint64_t    m_ObjectId;
+        // HTextLayout borrows the font collection. The resource generation guards
+        // collection access after a font recreation.
+        HTextLayout   m_Layout;
+        FontResource* m_FontResource;
+        uint64_t      m_ObjectId;
+        uint32_t      m_FontVersion;
     };
 
     struct GuiComponent

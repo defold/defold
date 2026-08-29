@@ -97,7 +97,10 @@ namespace dmGameSystem
 
     static bool EqualGuiLayoutObjectTargets(const GuiLayoutObjectTarget& a, const GuiLayoutObjectTarget& b)
     {
-        return a.m_Layout == b.m_Layout && a.m_ObjectId == b.m_ObjectId;
+        return a.m_Layout == b.m_Layout &&
+               a.m_FontResource == b.m_FontResource &&
+               a.m_ObjectId == b.m_ObjectId &&
+               a.m_FontVersion == b.m_FontVersion;
     }
 
     static void ResetGuiLayoutObjectTarget(GuiLayoutObjectTarget* target)
@@ -106,8 +109,10 @@ namespace dmGameSystem
         {
             TextLayoutRelease(target->m_Layout);
         }
-        target->m_Layout = 0;
-        target->m_ObjectId = 0;
+        target->m_Layout       = 0;
+        target->m_FontResource = 0;
+        target->m_ObjectId     = 0;
+        target->m_FontVersion  = 0;
     }
 
     static void SetGuiLayoutObjectTarget(GuiLayoutObjectTarget* target, const GuiLayoutObjectTarget& value)
@@ -125,11 +130,18 @@ namespace dmGameSystem
         }
     }
 
+    static bool IsGuiLayoutObjectTargetCurrent(const GuiLayoutObjectTarget& target)
+    {
+        return target.m_Layout &&
+               target.m_FontResource &&
+               target.m_FontVersion == ResFontGetVersion(target.m_FontResource);
+    }
+
     static const TextLayoutObject* FindGuiLayoutObject(const GuiLayoutObjectTarget& target);
 
     static void SetGuiLayoutObjectStyle(const GuiLayoutObjectTarget& target, dmhash_t style)
     {
-        if (target.m_Layout && target.m_ObjectId)
+        if (IsGuiLayoutObjectTargetCurrent(target) && target.m_ObjectId)
         {
             const TextLayoutObject* object = FindGuiLayoutObject(target);
             if (object && object->m_Tag == TAG_LINK)
@@ -3327,8 +3339,10 @@ namespace dmGameSystem
                         const uint32_t object_index = TextLayoutHitTestObject(layout, hit_test);
                         if (object_index != UINT32_MAX)
                         {
-                            target->m_Layout = layout;
-                            target->m_ObjectId = TextLayoutGetObjects(layout)[object_index].m_Id;
+                            target->m_Layout       = layout;
+                            target->m_FontResource = font_resource;
+                            target->m_ObjectId     = TextLayoutGetObjects(layout)[object_index].m_Id;
+                            target->m_FontVersion  = ResFontGetVersion(font_resource);
                         }
                     }
                 }
