@@ -27,4 +27,5 @@ message MeshDesc
     optional PrimitiveType primitive_type = 4 [default = PRIMITIVE_TRIANGLES];
     optional string position_stream = 5;
     optional string normal_stream = 6;
+    optional string indices = 7 [(resource)=true];
 }

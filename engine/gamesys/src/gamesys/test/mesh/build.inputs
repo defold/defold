@@ -1,2 +1,6 @@
 /mesh/no_data.mesh
+/mesh/indexed_quad.mesh
+/mesh/indexed_quad.go
+/mesh/indexed_quad_world.mesh
+/mesh/indexed_quad_world.go
 /mesh/test_comp.go

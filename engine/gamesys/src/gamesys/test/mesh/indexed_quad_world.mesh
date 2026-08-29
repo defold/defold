@@ -1,0 +1,5 @@
+material: "/material/world_vertexspace.material"
+vertices: "/mesh/indexed_quad.buffer"
+indices: "/mesh/quad_indices.buffer"
+primitive_type: PRIMITIVE_TRIANGLES
+position_stream: "position"
