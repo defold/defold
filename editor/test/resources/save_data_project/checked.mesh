@@ -1,5 +1,6 @@
 material: "/builtins/materials/model.material"
 vertices: "/checked.buffer"
+indices: "/checked_indices.buffer"
 textures: "/referenced/images/white.png"
 primitive_type: PRIMITIVE_TRIANGLE_STRIP
 position_stream: "position"
