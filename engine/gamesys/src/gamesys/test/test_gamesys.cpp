@@ -6745,7 +6745,12 @@ INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_ma
 
 /* Buffer */
 
-const char* valid_buffer_resources[] = {"/mesh/no_data.bufferc", "/mesh/triangle.bufferc", "/mesh/indexed_quad.bufferc"};
+const char* valid_buffer_resources[] = {
+    "/mesh/no_data.bufferc",
+    "/mesh/triangle.bufferc",
+    "/mesh/indexed_quad_generated_vertices.bufferc",
+    "/mesh/indexed_quad_generated_indices.bufferc",
+};
 INSTANTIATE_TEST_CASE_P(Buffer, ResourceTest, jc_test_values_in(valid_buffer_resources));
 
 /* Mesh */
