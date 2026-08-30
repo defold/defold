@@ -2827,8 +2827,18 @@ namespace dmGraphics
                 back->setReadMask(pipeline_state.m_StencilCompareMask);
                 back->setWriteMask(pipeline_state.m_StencilWriteMask);
 
-                ds->setFrontFaceStencil(front);
-                ds->setBackFaceStencil(back);
+                if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+                {
+                    ds->setFrontFaceStencil(front);
+                    ds->setBackFaceStencil(back);
+                }
+                else
+                {
+                    // Offscreen rendering has the opposite effective winding,
+                    // matching the cull-face adjustment in DrawSetup().
+                    ds->setFrontFaceStencil(back);
+                    ds->setBackFaceStencil(front);
+                }
                 front->release();
                 back->release();
             }
