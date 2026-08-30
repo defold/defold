@@ -20,9 +20,6 @@
 
 namespace dmGameSystem
 {
-    bool CreateBufferResource(dmBufferDDF::BufferDesc* ddf, dmhash_t name_hash, BufferResource** out_resource);
-    void DestroyBufferResource(BufferResource* resource);
-
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams* params);
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params);

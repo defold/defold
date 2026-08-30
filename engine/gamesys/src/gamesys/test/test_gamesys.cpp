@@ -1831,37 +1831,26 @@ TEST_F(MeshComponentTest, RenderIndexedLocalAndWorldSpace)
 
     uint32_t vertex_stream_count = 0;
     uint32_t vertex_count = 0;
-    uint32_t source_count = 0;
+    uint32_t index_stream_count = 0;
+    uint32_t index_count = 0;
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetNumStreams(mesh_resource->m_BufferResource->m_Buffer, &vertex_stream_count));
     ASSERT_EQ(1u, vertex_stream_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(mesh_resource->m_BufferResource->m_Buffer, &vertex_count));
     ASSERT_EQ(4u, vertex_count);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(mesh_resource->m_SourceBufferResource->m_Buffer, &source_count));
-    ASSERT_EQ(6u, source_count);
+    ASSERT_NE((void*) 0, mesh_resource->m_IndexBufferResource);
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetNumStreams(mesh_resource->m_IndexBufferResource->m_Buffer, &index_stream_count));
+    ASSERT_EQ(1u, index_stream_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(mesh_resource->m_IndexBufferResource->m_Buffer, &index_count));
+    ASSERT_EQ(6u, index_count);
 
     dmBuffer::ValueType index_type;
     uint32_t index_components = 0;
     ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING,
               dmBuffer::GetStreamType(mesh_resource->m_BufferResource->m_Buffer, dmHashString64("index"), &index_type, &index_components));
-
-    float* source_positions = 0;
-    float* vertex_positions = 0;
-    uint32_t source_position_components = 0;
-    uint32_t source_position_stride = 0;
-    uint32_t vertex_position_components = 0;
-    uint32_t vertex_position_stride = 0;
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStream(mesh_resource->m_SourceBufferResource->m_Buffer, dmHashString64("position"),
-                                                       (void**) &source_positions, 0, &source_position_components, &source_position_stride));
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStream(mesh_resource->m_BufferResource->m_Buffer, dmHashString64("position"),
-                                                       (void**) &vertex_positions, 0, &vertex_position_components, &vertex_position_stride));
-    const float original_position = source_positions[0];
-    source_positions[0] = 7.0f;
-    dmBuffer::UpdateContentVersion(mesh_resource->m_SourceBufferResource->m_Buffer);
-    ASSERT_TRUE(dmGameSystem::SyncMeshVertexBuffer(mesh_resource));
-    ASSERT_EQ(7.0f, vertex_positions[0]);
-    source_positions[0] = original_position;
-    dmBuffer::UpdateContentVersion(mesh_resource->m_SourceBufferResource->m_Buffer);
-    ASSERT_TRUE(dmGameSystem::SyncMeshVertexBuffer(mesh_resource));
+    ASSERT_EQ(dmBuffer::RESULT_OK,
+              dmBuffer::GetStreamType(mesh_resource->m_IndexBufferResource->m_Buffer, dmHashString64("index"), &index_type, &index_components));
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT16, index_type);
+    ASSERT_EQ(1u, index_components);
     dmResource::Release(m_Factory, mesh_resource);
 
     dmGameObject::HInstance local = Spawn(m_Factory, m_Collection, "/mesh/indexed_quad.goc", dmHashString64("/local"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

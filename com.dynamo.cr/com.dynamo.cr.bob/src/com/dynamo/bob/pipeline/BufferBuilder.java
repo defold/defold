@@ -139,9 +139,8 @@ public class BufferBuilder extends Builder {
         }
     }
 
-    @Override
-    public void build(Task task) throws CompileExceptionError, IOException {
-        ByteArrayInputStream bufferJsonIs = new ByteArrayInputStream(task.input(0).getContent());
+    static BufferDesc parseBuffer(IResource input) throws CompileExceptionError, IOException {
+        ByteArrayInputStream bufferJsonIs = new ByteArrayInputStream(input.getContent());
 
         BufferDesc.Builder bufferDescBuilder = BufferDesc.newBuilder();
 
@@ -157,23 +156,23 @@ public class BufferBuilder extends Builder {
 
                 // name field
                 if (streamNode.get("name") == null) {
-                    throw new CompileExceptionError(task.input(0), 0, "Stream is missing required name field.");
+                    throw new CompileExceptionError(input, 0, "Stream is missing required name field.");
                 }
                 String streamName = streamNode.get("name").asText();
 
                 // type field (we also make sure it is a supported type)
                 if (streamNode.get("type") == null) {
-                    throw new CompileExceptionError(task.input(0), 0, "Stream '" + streamName + "' is missing required type field.");
+                    throw new CompileExceptionError(input, 0, "Stream '" + streamName + "' is missing required type field.");
                 }
                 String streamTypeString = streamNode.get("type").asText();
                 ValueType streamType = stringTypeToDDFType(streamTypeString);
                 if (streamType == null) {
-                    throw new CompileExceptionError(task.input(0), 0, "Unknown stream type: " + streamTypeString + " (allowed types: " + allowedTypeStrings + ").");
+                    throw new CompileExceptionError(input, 0, "Unknown stream type: " + streamTypeString + " (allowed types: " + allowedTypeStrings + ").");
                 }
 
                 // count field
                 if (streamNode.get("count") == null) {
-                    throw new CompileExceptionError(task.input(0), 0, "Stream '" + streamName + "' is missing required count field.");
+                    throw new CompileExceptionError(input, 0, "Stream '" + streamName + "' is missing required count field.");
                 }
                 int streamValueCount = streamNode.get("count").asInt();
 
@@ -192,11 +191,16 @@ public class BufferBuilder extends Builder {
                 bufferDescBuilder.addStreams(streamDescBuilder.build());
             }
         } catch (JsonParseException e) {
-            throw new CompileExceptionError(task.input(0), 0, "JSON error while parsing buffer resource: " + e.getMessage());
+            throw new CompileExceptionError(input, 0, "JSON error while parsing buffer resource: " + e.getMessage());
         }
 
+        return bufferDescBuilder.build();
+    }
+
+    @Override
+    public void build(Task task) throws CompileExceptionError, IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-        bufferDescBuilder.build().writeTo(out);
+        parseBuffer(task.input(0)).writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
     }

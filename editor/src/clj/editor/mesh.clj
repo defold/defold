@@ -17,7 +17,6 @@
             [dynamo.graph :as g]
             [editor.buffer :as buffer]
             [editor.buffers :as buffers]
-            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -34,6 +33,7 @@
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render-util :as render-util]
@@ -52,7 +52,7 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.graphics.types ElementType]
            [editor.types AABB]
-           [java.nio ByteBuffer ByteOrder IntBuffer ShortBuffer]
+           [java.nio ByteBuffer IntBuffer ShortBuffer]
            [javax.vecmath Matrix4d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -94,35 +94,9 @@
     :position-stream position-stream
     :normal-stream normal-stream))
 
-(defn- pack-meshc ^bytes [^bytes header ^bytes vertex-data ^bytes index-data]
-  (-> (doto (ByteBuffer/allocate (+ Integer/BYTES (alength header) (alength vertex-data) (alength index-data)))
-        (.order ByteOrder/LITTLE_ENDIAN)
-        (.putInt (alength header))
-        (.put header)
-        (.put vertex-data)
-        (.put index-data))
-      (.array)))
-
-(defn- build-pb [resource dep-resources user-data]
-  (let [pb  (:pb user-data)
-        pb  (reduce (fn [pb [label resource]]
-                      (if (vector? label)
-                        (assoc-in pb label resource)
-                        (assoc pb label resource)))
-                    pb
-                    (map (fn [[label res]]
-                           [label (resource/proj-path (get dep-resources res))])
-                         (:dep-resources user-data)))
-        header (protobuf/map->bytes MeshProto$MeshDesc pb)]
-    {:resource resource :content (pack-meshc header (:vertex-data user-data) (:index-data user-data))}))
-
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
-(defn- res-fields->resources [pb-msg deps-by-source fields]
-  (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
-    (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
 (defn- prop-stream-id-error-message [stream-id stream-ids vertex-space prop-message]
   (when (seq stream-ids)
@@ -172,18 +146,6 @@
         vertex-count (max-stream-length (vertex-streams streams index-stream))]
     (validation/prop-error :fatal _node-id :index-stream index-stream-error-message index-stream index-stream-desc vertex-count)))
 
-(defn- pack-index-data ^bytes [{:keys [data type]}]
-  (if (seq data)
-    (let [index-size (case type :value-type-uint16 Short/BYTES :value-type-uint32 Integer/BYTES)
-          ^ByteBuffer byte-buffer (doto (ByteBuffer/allocate (* index-size (count data)))
-                                    (.order ByteOrder/LITTLE_ENDIAN))]
-      (doseq [index data]
-        (case type
-          :value-type-uint16 (.putShort byte-buffer (unchecked-short index))
-          :value-type-uint32 (.putInt byte-buffer (unchecked-int index))))
-      (.array byte-buffer))
-    (byte-array 0)))
-
 (defn position-stream-name? [stream-name specified-position-stream-name]
   (if-not (str/blank? specified-position-stream-name)
     (= stream-name specified-position-stream-name)
@@ -194,7 +156,7 @@
     (= stream-name specified-normal-stream-name)
     (= stream-name "normal")))
 
-(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets material vertices vertex-space position-stream normal-stream index-stream stream-ids streams]
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets material vertices textures vertex-space position-stream normal-stream index-stream stream-ids streams]
   (or (some->> [(prop-resource-error :fatal _node-id :material material material-message)
                 (prop-resource-error :fatal _node-id :vertices vertices vertices-message)
                 (validate-stream-id _node-id :position-stream position-stream-message position-stream stream-ids vertices vertex-space)
@@ -203,31 +165,35 @@
                (filterv some?)
                not-empty
                g/error-aggregate)
-      (let [index-stream-desc (stream-by-name streams index-stream)
-            vertex-streams (vertex-streams streams index-stream)
-            vertex-count (max-stream-length vertex-streams)
-            ^bytes vertex-data (protobuf/map->bytes BufferProto$BufferDesc (buffer/streams->pb-map vertex-streams))
-            pb-msg (cond-> (select-keys save-value [:material :vertices :textures :primitive-type :position-stream :normal-stream :index-stream])
-                     true (assoc :vertex-count vertex-count
-                                 :vertex-buffer-size (alength vertex-data))
-                     index-stream-desc (assoc :index-buffer-format (case (:type index-stream-desc)
-                                                                     :value-type-uint16 :indexbuffer-format-16
-                                                                     :value-type-uint32 :indexbuffer-format-32)
-                                              :index-count (count (:data index-stream-desc))))
-            dep-build-targets (flatten dep-build-targets)
-            deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-            dep-resources (res-fields->resources pb-msg deps-by-source [:material :vertices])
-            dep-resources (into dep-resources
-                            (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-pb
-            :user-data {:pb pb-msg
-                        :vertex-data vertex-data
-                        :index-data (pack-index-data index-stream-desc)
-                        :dep-resources dep-resources}
-            :deps dep-build-targets})])))
+      (let [dep-build-targets (vec (flatten dep-build-targets))
+            base-pb-msg (merge (select-keys save-value [:primitive-type :position-stream :normal-stream :index-stream])
+                               {:material material
+                                :textures textures})
+            index-stream-desc (stream-by-name streams index-stream)]
+        (if-not index-stream-desc
+          [(pipeline/make-protobuf-build-target
+             _node-id resource MeshProto$MeshDesc
+             (assoc base-pb-msg :vertices vertices)
+             dep-build-targets)]
+          (let [workspace (resource/workspace resource)
+                vertex-resource (workspace/make-memory-resource workspace :editable "buffer" (str (resource/proj-path resource) ":generated-vertices"))
+                index-resource (workspace/make-memory-resource workspace :editable "buffer" (str (resource/proj-path resource) ":generated-indices"))
+                vertex-target (pipeline/make-protobuf-build-target
+                                _node-id vertex-resource BufferProto$BufferDesc
+                                (buffer/streams->pb-map (vertex-streams streams index-stream)))
+                index-target (pipeline/make-protobuf-build-target
+                               _node-id index-resource BufferProto$BufferDesc
+                               (buffer/streams->pb-map [index-stream-desc]))
+                vertex-source-target? (fn [build-target]
+                                        (= vertices (some-> build-target :resource :resource)))
+                mesh-deps (into [vertex-target index-target]
+                                (remove vertex-source-target?)
+                                dep-build-targets)
+                pb-msg (assoc base-pb-msg
+                         :vertices (-> vertex-target :resource :resource)
+                         :indices (-> index-target :resource :resource))]
+            [(pipeline/make-protobuf-build-target
+               _node-id resource MeshProto$MeshDesc pb-msg mesh-deps)])))))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
   (into {} (map (fn [unit-index sampler gpu-texture-generator]

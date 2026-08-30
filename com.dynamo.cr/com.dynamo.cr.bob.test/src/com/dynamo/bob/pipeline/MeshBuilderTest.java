@@ -16,9 +16,6 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,11 +29,12 @@ import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
-import com.dynamo.gamesys.proto.MeshProto.MeshDesc.IndexBufferFormat;
 
 public class MeshBuilderTest extends AbstractProtoBuilderTest {
 
-    private byte[] meshcContent;
+    private BufferDesc generatedVertexBuffer;
+    private BufferDesc generatedIndexBuffer;
+    private int meshTaskOutputCount;
 
     private static final String VERTICES = """
             [{"name":"position", "type":"float32", "count":3,
@@ -64,10 +62,12 @@ public class MeshBuilderTest extends AbstractProtoBuilderTest {
             Task task = result.getTask();
             for (IResource output : task.getOutputs()) {
                 if (output.getPath().endsWith(".meshc")) {
-                    byte[] content = output.getContent();
-                    meshcContent = content;
-                    int headerSize = ByteBuffer.wrap(content).order(ByteOrder.LITTLE_ENDIAN).getInt();
-                    meshDesc = MeshDesc.parseFrom(Arrays.copyOfRange(content, Integer.BYTES, Integer.BYTES + headerSize));
+                    meshDesc = MeshDesc.parseFrom(output.getContent());
+                    meshTaskOutputCount = task.getOutputs().size();
+                } else if (output.getPath().endsWith("_generated_vertices.bufferc")) {
+                    generatedVertexBuffer = BufferDesc.parseFrom(output.getContent());
+                } else if (output.getPath().endsWith("_generated_indices.bufferc")) {
+                    generatedIndexBuffer = BufferDesc.parseFrom(output.getContent());
                 }
             }
         }
@@ -77,26 +77,24 @@ public class MeshBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testIndexedMesh() throws Exception {
         MeshDesc mesh = buildMesh("{\"name\":\"index\", \"type\":\"uint16\", \"count\":1, \"data\":[0,1,2,0,2,3]}", "index");
-        assertEquals("/vertices.bufferc", mesh.getVertices());
+        assertEquals("/test_generated_vertices.bufferc", mesh.getVertices());
+        assertEquals("/test_generated_indices.bufferc", mesh.getIndices());
         assertEquals("index", mesh.getIndexStream());
-        assertEquals(IndexBufferFormat.INDEXBUFFER_FORMAT_16, mesh.getIndexBufferFormat());
-        assertEquals(6, mesh.getIndexCount());
-        assertEquals(4, mesh.getVertexCount());
+        assertEquals(3, meshTaskOutputCount);
 
-        ByteBuffer meshc = ByteBuffer.wrap(meshcContent).order(ByteOrder.LITTLE_ENDIAN);
-        int headerSize = meshc.getInt();
-        int vertexDataOffset = Integer.BYTES + headerSize;
-        BufferDesc vertexBuffer = BufferDesc.parseFrom(Arrays.copyOfRange(meshcContent, vertexDataOffset, vertexDataOffset + mesh.getVertexBufferSize()));
-        assertEquals(1, vertexBuffer.getStreamsCount());
-        assertEquals("position", vertexBuffer.getStreams(0).getName());
-        meshc.position(vertexDataOffset + mesh.getVertexBufferSize());
-        assertEquals(0, Short.toUnsignedInt(meshc.getShort()));
-        assertEquals(1, Short.toUnsignedInt(meshc.getShort()));
-        assertEquals(2, Short.toUnsignedInt(meshc.getShort()));
-        assertEquals(0, Short.toUnsignedInt(meshc.getShort()));
-        assertEquals(2, Short.toUnsignedInt(meshc.getShort()));
-        assertEquals(3, Short.toUnsignedInt(meshc.getShort()));
-        assertEquals(meshc.limit(), meshc.position());
+        assertEquals(1, generatedVertexBuffer.getStreamsCount());
+        assertEquals("position", generatedVertexBuffer.getStreams(0).getName());
+        assertEquals(1, generatedIndexBuffer.getStreamsCount());
+        assertEquals("index", generatedIndexBuffer.getStreams(0).getName());
+        assertEquals(List.of(0, 1, 2, 0, 2, 3), generatedIndexBuffer.getStreams(0).getUiList());
+    }
+
+    @Test
+    public void testNonIndexedMeshUsesOriginalBufferResource() throws Exception {
+        MeshDesc mesh = buildMesh("{\"name\":\"other\", \"type\":\"float32\", \"count\":1, \"data\":[0,0,0,0]}", "");
+        assertEquals("/vertices.bufferc", mesh.getVertices());
+        assertEquals("", mesh.getIndices());
+        assertEquals(1, meshTaskOutputCount);
     }
 
     @Test(expected = CompileExceptionError.class)

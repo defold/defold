@@ -18,8 +18,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +25,6 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
@@ -36,7 +33,6 @@ import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.BufferProto.StreamDesc;
 import com.dynamo.gamesys.proto.BufferProto.ValueType;
-import com.dynamo.gamesys.proto.MeshProto.MeshDesc.IndexBufferFormat;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MeshDesc.class, messageClass = MeshDesc.class)
@@ -64,29 +60,8 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         }
     }
 
-    private static int getElementCount(BufferDesc buffer) {
-        int elementCount = 0;
-        for (StreamDesc stream : buffer.getStreamsList()) {
-            if (stream.getValueCount() > 0) {
-                elementCount = Math.max(elementCount, getValueCount(stream) / stream.getValueCount());
-            }
-        }
-        return elementCount;
-    }
-
     private static int getStreamElementCount(StreamDesc stream) {
         return stream.getValueCount() > 0 ? getValueCount(stream) / stream.getValueCount() : 0;
-    }
-
-    private static IResource findTaskInput(Task task, String path) {
-        String resourcePath = Project.stripLeadingSlash(path);
-        for (int i = 1; i < task.getInputs().size(); ++i) {
-            IResource input = task.input(i);
-            if (input.getPath().equals(resourcePath) || input.getPath().endsWith("/" + resourcePath)) {
-                return input;
-            }
-        }
-        return null;
     }
 
     private static StreamDesc findStream(BufferDesc buffer, String name) {
@@ -118,7 +93,7 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         return vertexBuffer.build();
     }
 
-    private static byte[] validateAndPackIndices(IResource meshResource, BufferDesc vertices, String indexStreamName, MeshDesc.Builder meshDescBuilder) throws CompileExceptionError {
+    private static StreamDesc validateIndices(IResource meshResource, BufferDesc vertices, String indexStreamName) throws CompileExceptionError {
         StreamDesc stream = findStream(vertices, indexStreamName);
         if (stream == null) {
             throw new CompileExceptionError(meshResource, 0, "Index stream '" + indexStreamName + "' was not found in the vertex buffer.");
@@ -145,22 +120,32 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
             }
         }
 
-        int indexSize = valueType == ValueType.VALUE_TYPE_UINT16 ? Short.BYTES : Integer.BYTES;
-        ByteBuffer indexData = ByteBuffer.allocate(stream.getUiCount() * indexSize).order(ByteOrder.LITTLE_ENDIAN);
-        for (int index : stream.getUiList()) {
-            if (indexSize == Short.BYTES) {
-                indexData.putShort((short) index);
-            } else {
-                indexData.putInt(index);
-            }
+        return stream;
+    }
+
+    @Override
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        MeshDesc.Builder meshDescBuilder = getSrcBuilder(input);
+        if (!meshDescBuilder.hasIndexStream() || meshDescBuilder.getIndexStream().isEmpty()) {
+            return super.create(input);
         }
 
-        meshDescBuilder.setIndexBufferFormat(valueType == ValueType.VALUE_TYPE_UINT16
-                ? IndexBufferFormat.INDEXBUFFER_FORMAT_16
-                : IndexBufferFormat.INDEXBUFFER_FORMAT_32);
-        meshDescBuilder.setIndexCount(stream.getUiCount());
-        meshDescBuilder.setVertexCount(vertexCount);
-        return indexData.array();
+        IResource verticesResource = BuilderUtil.checkResource(project, input, "vertices", meshDescBuilder.getVertices());
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addInput(verticesResource)
+                .addOutput(input.changeExt(params.outExt()))
+                .addOutput(input.changeExt("_generated_vertices.bufferc"))
+                .addOutput(input.changeExt("_generated_indices.bufferc"));
+
+        createSubTask(meshDescBuilder.getMaterial(), "material", taskBuilder);
+        for (String texture : meshDescBuilder.getTexturesList()) {
+            if (!texture.isEmpty()) {
+                createSubTask(texture, "textures", taskBuilder);
+            }
+        }
+        return taskBuilder.build();
     }
 
     @Override
@@ -172,28 +157,23 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
 
         IResource resource = task.input(0);
         BuilderUtil.checkResource(this.project, resource, "vertices", meshDescBuilder.getVertices());
-        String verticesInputPath = ResourceUtil.replaceExt(meshDescBuilder.getVertices(), ".buffer", ".bufferc");
         String verticesPath = ResourceUtil.minifyPathAndReplaceExt(meshDescBuilder.getVertices(), ".buffer", ".bufferc");
         meshDescBuilder.setVertices(verticesPath);
         BuilderUtil.checkResource(this.project, resource, "material", meshDescBuilder.getMaterial());
         meshDescBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(meshDescBuilder.getMaterial(), ".material", ".materialc"));
 
-        IResource verticesResource = findTaskInput(task, verticesInputPath);
-        if (verticesResource == null) {
-            throw new CompileExceptionError(resource, 0, "Unable to inspect mesh vertex buffer build input.");
-        }
-        BufferDesc vertices = BufferDesc.parseFrom(verticesResource.getContent());
-        byte[] indexData = new byte[0];
-        String indexStreamName = "";
         if (meshDescBuilder.hasIndexStream() && !meshDescBuilder.getIndexStream().isEmpty()) {
-            indexStreamName = meshDescBuilder.getIndexStream();
-            indexData = validateAndPackIndices(resource, vertices, indexStreamName, meshDescBuilder);
-        } else {
-            meshDescBuilder.setVertexCount(getElementCount(vertices));
-        }
+            BufferDesc sourceBuffer = BufferBuilder.parseBuffer(task.input(1));
+            String indexStreamName = meshDescBuilder.getIndexStream();
+            StreamDesc indexStream = validateIndices(resource, sourceBuffer, indexStreamName);
+            BufferDesc vertexBuffer = buildVertexBuffer(sourceBuffer, indexStreamName);
+            BufferDesc indexBuffer = BufferDesc.newBuilder().addStreams(indexStream).build();
 
-        byte[] vertexData = buildVertexBuffer(vertices, indexStreamName).toByteArray();
-        meshDescBuilder.setVertexBufferSize(vertexData.length);
+            meshDescBuilder.setVertices(BuilderUtil.getRelativePath(project, task.output(1)));
+            meshDescBuilder.setIndices(BuilderUtil.getRelativePath(project, task.output(2)));
+            task.output(1).setContent(vertexBuffer.toByteArray());
+            task.output(2).setContent(indexBuffer.toByteArray());
+        }
 
         List<String> newTextureList = new ArrayList<String>();
         for (String t : meshDescBuilder.getTexturesList()) {
@@ -205,12 +185,8 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
         meshDescBuilder.clearTextures();
         meshDescBuilder.addAllTextures(newTextureList);
 
-        byte[] header = meshDescBuilder.build().toByteArray();
-        ByteArrayOutputStream out = new ByteArrayOutputStream(Integer.BYTES + header.length + vertexData.length + indexData.length);
-        out.write(ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(header.length).array());
-        out.write(header);
-        out.write(vertexData);
-        out.write(indexData);
+        ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
+        meshDescBuilder.build().writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
     }

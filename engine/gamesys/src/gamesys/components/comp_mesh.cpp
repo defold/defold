@@ -495,11 +495,6 @@ namespace dmGameSystem
         return component->m_BufferResource ? component->m_BufferResource : component->m_Resource->m_BufferResource;
     }
 
-    static inline dmGameSystem::BufferResource* GetBufferPropertyResource(const MeshComponent* component)
-    {
-        return component->m_BufferResource ? component->m_BufferResource : component->m_Resource->m_SourceBufferResource;
-    }
-
     static inline dmGameSystem::BufferResource* GetIndexBufferResource(const MeshComponent* component)
     {
         return component->m_Resource->m_IndexBufferResource;
@@ -507,9 +502,7 @@ namespace dmGameSystem
 
     static inline uint32_t GetVertexCount(const MeshComponent* component)
     {
-        return component->m_BufferResource
-             ? component->m_BufferResource->m_ElementCount
-             : component->m_Resource->m_MeshDDF->m_VertexCount;
+        return GetBufferResource(component)->m_ElementCount;
     }
 
     static inline MaterialResource* GetMaterialResource(const MeshComponent* component, const MeshResource* resource)
@@ -719,8 +712,6 @@ namespace dmGameSystem
             {
                 continue;
             }
-
-            SyncMeshVertexBuffer(component.m_Resource);
 
             dmRender::HMaterial material = GetMaterial(&component, component.m_Resource);
             if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
@@ -1303,7 +1294,7 @@ namespace dmGameSystem
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
         if (params.m_PropertyId == PROP_VERTICES) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetBufferPropertyResource(component), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetBufferResource(component), out_value);
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
