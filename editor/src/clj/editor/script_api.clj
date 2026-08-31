@@ -23,7 +23,8 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.yaml :as yaml]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.eduction :as e]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -154,17 +155,17 @@
   (output build-errors g/Any produce-build-errors)
   (output completions si/ScriptCompletions produce-completions))
 
-(defn- additional-load-fn
+(defn- connect-fn
   [project self resource]
   (let [si (project/script-intelligence project)]
-    (concat (g/connect self :completions si :lua-completions)
-            (when (resource/file-resource? resource)
-              ;; Only connect to the script-intelligence build errors if this is
-              ;; a file resource. The assumption is that if it is a file
-              ;; resource then it is being actively worked on. Otherwise, it
-              ;; belongs to an external dependency and should not stop the build
-              ;; on errors.
-              (g/connect self :build-errors si :build-errors)))))
+    (e/concat
+      (g/connect self :completions si :lua-completions)
+      (when (resource/file-resource? resource)
+        ;; Only connect to the script-intelligence build errors if this is a
+        ;; file resource. The assumption is that if it is a file resource then
+        ;; it is being actively worked on. Otherwise, it belongs to an external
+        ;; dependency and should not stop the build on errors.
+        (g/connect self :build-errors si :build-errors)))))
 
 (defn register-resource-types
   [workspace]
@@ -175,7 +176,7 @@
     :view-types [:code :default]
     :view-opts nil
     :node-type ScriptApiNode
-    :additional-load-fn additional-load-fn
+    :connect-fn connect-fn
     :textual? true
     :lazy-loaded true
     :language "yaml"))

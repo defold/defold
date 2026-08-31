@@ -19,7 +19,8 @@
             [editor.code.script :as script]
             [editor.editor-extensions.runtime :as rt]
             [editor.localization :as localization]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.eduction :as e])
   (:import [clojure.lang Util]))
 
 (def ^:private editor-extension-compilation-failed-message
@@ -53,13 +54,13 @@
     :view-opts script/lua-code-opts
     :node-type EditorScript
     :lazy-loaded false
-    :additional-load-fn
+    :connect-fn
     (fn [project self resource]
       (let [extensions (g/node-value project :editor-extensions)]
         (if (resource/file-resource? resource)
-          (concat
+          (e/concat
             (g/connect self :prototype extensions :project-prototypes)
             (g/connect self :reload-signature extensions :project-reload-signatures))
-          (concat
+          (e/concat
             (g/connect self :prototype extensions :library-prototypes)
             (g/connect self :reload-signature extensions :library-reload-signatures)))))))
