@@ -29,7 +29,7 @@
   (:import [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Result]))
 
 (g/defnode ResourceSettingNode
-  (property resource-connections g/Any) ; [target-node-id [[source-label target-label] ...]]]
+  (property resource-connections g/Any) ; [target-node-id [[source-label target-label] ...]]
   (property path g/Any)
   (property value resource/Resource
             (dynamic visible (g/constantly false))
