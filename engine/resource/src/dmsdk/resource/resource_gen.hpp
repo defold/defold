@@ -48,7 +48,7 @@ namespace dmResource
      * @language C++
      * @member  RESULT_OK
      * @member  RESULT_INVALID_DATA
-     * @member  RESULT_DDF_ERROR
+     * @member  RESULT_PROTOBUF_ERROR
      * @member  RESULT_RESOURCE_NOT_FOUND
      * @member  RESULT_MISSING_FILE_EXTENSION
      * @member  RESULT_ALREADY_REGISTERED
