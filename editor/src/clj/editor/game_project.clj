@@ -29,6 +29,7 @@
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
@@ -290,16 +291,12 @@
                   raw-settings
                   ["project" "custom_resources"])))))
 
-  (output ssl-certificates-directory-resource g/Any
+  (output ssl-certificates-resource resource/Resource
           (g/fnk [_node-id settings-map]
-            (let [directory-resource (get settings-map ["network" "ssl_certificates"])]
-              (if (or (nil? directory-resource)
-                      (resource/exists? directory-resource))
-                directory-resource
-                (g/map->error
-                  {:_node-id _node-id
-                   :severity :fatal
-                   :message (format "SSL certificates directory not found: '%s'" (resource/proj-path directory-resource))})))))
+            (let [setting-path ["network" "ssl_certificates"]
+                  resource (get settings-map setting-path)]
+              (or (validation/setting-error :fatal _node-id setting-path validation/prop-resource-not-exists? resource)
+                  resource))))
 
   (output custom-resources-directory-resources g/Any
           (g/fnk [_node-id resource-map custom-resources-setting]
@@ -318,25 +315,24 @@
                 directory-resources))))
 
   (output custom-resource+versions g/Any :cached
-          (g/fnk [custom-resources-directory-resources resource-snapshot ssl-certificates-directory-resource]
+          (g/fnk [custom-resources-directory-resources resource-snapshot ssl-certificates-resource]
             ;; We depend on the resource-snapshot to ensure this output reflects
             ;; the on-disk state of all the involved resources.
             (let [status-map (:status-map resource-snapshot)
 
-                  directory-resources
-                  (cond-> custom-resources-directory-resources
-                    ssl-certificates-directory-resource (conj ssl-certificates-directory-resource))
+                  file-resources
+                  (cond-> (coll/into-> custom-resources-directory-resources []
+                            (map resource/resource-seq)
+                            coll/flatten-xf
+                            (filter file-resource?))
 
-                  custom-resources
-                  (coll/into-> directory-resources []
-                    (map resource/resource-seq)
-                    coll/flatten-xf
-                    (distinct)
-                    (filter file-resource?))]
+                    ssl-certificates-resource
+                    (conj ssl-certificates-resource))]
 
               ;; We include the version only to ensure this output is
               ;; invalidated if any of the included files change on disk.
-              (coll/into-> custom-resources []
+              (coll/into-> file-resources []
+                (distinct)
                 (map (fn [resource]
                        (let [proj-path (resource/proj-path resource)
                              resource-status (status-map proj-path)
