@@ -102,7 +102,7 @@
                               lines
                               (:lines (data/apply-edits lines [] [] edits)))
                   reindented (or (:lines (data/reindent (data/indent-level-pattern 4) "    "
-                                                        script/lua-grammar formatted
+                                                        script/lua-grammar [] formatted
                                                         [(data/->CursorRange
                                                            (data/->Cursor 0 0)
                                                            (data/->Cursor (dec (count formatted))

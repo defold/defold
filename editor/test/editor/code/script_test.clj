@@ -58,6 +58,7 @@
                    indent-level-pattern
                    indent-string
                    script/lua-grammar
+                   []
                    lines
                    []
                    (layout-info lines)
@@ -84,6 +85,7 @@
                    indent-level-pattern
                    indent-string
                    script/lua-grammar
+                   []
                    lines
                    []
                    (layout-info lines)
@@ -115,6 +117,7 @@
                    indent-level-pattern
                    indent-string
                    script/lua-grammar
+                   []
                    lines
                    [outer-word-range]
                    (layout-info lines)
@@ -136,6 +139,7 @@
                    indent-level-pattern
                    indent-string
                    script/lua-grammar
+                   []
                    lines
                    [outer-word-range]
                    (layout-info lines)
@@ -396,7 +400,7 @@
   (let [last-row (dec (count lines))
         cursor-range (data/->CursorRange (data/->Cursor 0 0)
                                          (data/->Cursor last-row (count (lines last-row))))]
-    (or (:lines (data/reindent (data/indent-level-pattern tab-spaces) indent-string script/lua-grammar
+    (or (:lines (data/reindent (data/indent-level-pattern tab-spaces) indent-string script/lua-grammar []
                                lines [cursor-range] nil (layout-info lines)))
         lines)))
 
@@ -406,7 +410,7 @@
 (defn- reindent-rows [lines from-row to-row]
   (let [cursor-range (data/->CursorRange (data/->Cursor from-row 0)
                                          (data/->Cursor to-row (count (lines to-row))))]
-    (or (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar
+    (or (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar []
                                lines [cursor-range] nil (layout-info lines)))
         lines)))
 

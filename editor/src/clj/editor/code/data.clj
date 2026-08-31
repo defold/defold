@@ -2552,7 +2552,7 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
+(defn replace-typed-chars [indent-level-pattern indent-string grammar syntax-info lines regions ^LayoutInfo layout splices]
   (let [result (-> (splice lines regions
                            (mapv (fn [[cursor-range replacement-lines introduced-regions]]
                                    [cursor-range
@@ -2569,7 +2569,7 @@
                      indent-level-pattern
                      indent-string
                      grammar
-                     [])
+                     syntax-info)
                    (update-document-width-after-splice layout))]
     (cond-> result (:regions result) (update :regions coll/mapv-> dissoc ::indentation-anchor))))
 
@@ -3105,13 +3105,13 @@
   (put-selection-on-clipboard! lines cursor-ranges clipboard)
   nil)
 
-(defn paste [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout clipboard]
+(defn paste [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (cond
     (can-paste-multi-selection? clipboard cursor-ranges)
-    (insert-lines-seqs indent-level-pattern indent-string grammar [] lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+    (insert-lines-seqs indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
 
     (can-paste-plain-text? clipboard)
-    (insert-text indent-level-pattern indent-string grammar [] lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
+    (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
 
 (defn can-paste? [cursor-ranges clipboard]
   (or (can-paste-plain-text? clipboard)
@@ -3249,9 +3249,9 @@
                      (cursor-in-leading-whitespace? lines (.to cursor-range))))
               cursor-ranges)))
 
-(defn indent [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout]
+(defn indent [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout]
   (if-not (can-indent? lines cursor-ranges)
-    (insert-text indent-level-pattern indent-string grammar [] lines cursor-ranges regions layout indent-string)
+    (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout indent-string)
     (let [indent-line #(if (empty? %) % (str indent-string %))
           rows (cursor-ranges->rows lines cursor-ranges)]
       (-> (transform-indentation rows lines cursor-ranges regions indent-line)
@@ -3263,13 +3263,13 @@
         rows (cursor-ranges->rows lines cursor-ranges)]
     (transform-indentation rows lines cursor-ranges regions deindent-line)))
 
-(defn reindent [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout]
+(defn reindent [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout]
   (let [affected-cursor-ranges (map (fn [cursor-range]
                                       (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
                                             end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
                                         (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
                                     cursor-ranges)]
-    (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar [] lines cursor-ranges regions)
+    (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)
         (update-document-width-after-splice layout))))
 
 (defn select-and-frame [lines ^LayoutInfo layout cursor-range]

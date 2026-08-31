@@ -2108,7 +2108,9 @@
                                        splices)]
                          (vec (sort-by first splices)))
                        splices)
-         props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout all-splices)]
+         syntax-info (g/with-auto-evaluation-context evaluation-context
+                       (get-cursor-ranges-syntax-info view-node replacement-cursor-ranges evaluation-context))
+         props (data/replace-typed-chars indent-level-pattern indent-string grammar syntax-info lines regions layout all-splices)]
      (when (some? props)
        (hide-hover! view-node)
        (hide-suggestions! view-node)
@@ -2476,13 +2478,16 @@
   (hide-hover! view-node)
   (hide-suggestions! view-node)
   (set-properties! view-node nil
-                   (data/indent (get-property view-node :indent-level-pattern)
-                                (get-property view-node :indent-string)
-                                (get-property view-node :grammar)
-                                (get-property view-node :lines)
-                                (get-property view-node :cursor-ranges)
-                                (get-property view-node :regions)
-                                (get-property view-node :layout))))
+                   (g/with-auto-evaluation-context evaluation-context
+                     (let [cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+                       (data/indent (get-property view-node :indent-level-pattern evaluation-context)
+                                    (get-property view-node :indent-string evaluation-context)
+                                    (get-property view-node :grammar evaluation-context)
+                                    (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
+                                    (get-property view-node :lines evaluation-context)
+                                    cursor-ranges
+                                    (get-property view-node :regions evaluation-context)
+                                    (get-property view-node :layout evaluation-context))))))
 
 (defn- deindent! [view-node]
   (hide-hover! view-node)
@@ -2859,14 +2864,17 @@
   (hide-hover! view-node)
   (hide-suggestions! view-node)
   (set-properties! view-node nil
-                   (data/paste (get-property view-node :indent-level-pattern)
-                               (get-property view-node :indent-string)
-                               (get-property view-node :grammar)
-                               (get-property view-node :lines)
-                               (get-property view-node :cursor-ranges)
-                               (get-property view-node :regions)
-                               (get-property view-node :layout)
-                               clipboard)))
+                   (g/with-auto-evaluation-context evaluation-context
+                     (let [cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+                       (data/paste (get-property view-node :indent-level-pattern evaluation-context)
+                                   (get-property view-node :indent-string evaluation-context)
+                                   (get-property view-node :grammar evaluation-context)
+                                   (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
+                                   (get-property view-node :lines evaluation-context)
+                                   cursor-ranges
+                                   (get-property view-node :regions evaluation-context)
+                                   (get-property view-node :layout evaluation-context)
+                                   clipboard)))))
 
 (defn split-selection-into-lines! [view-node]
   (hide-hover! view-node)
@@ -2973,13 +2981,16 @@
                 (get-property view-node :cursor-ranges evaluation-context)))
   (run [view-node]
     (set-properties! view-node nil
-                     (data/reindent (get-property view-node :indent-level-pattern)
-                                    (get-property view-node :indent-string)
-                                    (get-property view-node :grammar)
-                                    (get-property view-node :lines)
-                                    (get-property view-node :cursor-ranges)
-                                    (get-property view-node :regions)
-                                    (get-property view-node :layout)))))
+                     (g/with-auto-evaluation-context evaluation-context
+                       (let [cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+                         (data/reindent (get-property view-node :indent-level-pattern evaluation-context)
+                                        (get-property view-node :indent-string evaluation-context)
+                                        (get-property view-node :grammar evaluation-context)
+                                        (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
+                                        (get-property view-node :lines evaluation-context)
+                                        cursor-ranges
+                                        (get-property view-node :regions evaluation-context)
+                                        (get-property view-node :layout evaluation-context)))))))
 
 (handler/defhandler :code.convert-indentation :code-view
   (label [user-data]

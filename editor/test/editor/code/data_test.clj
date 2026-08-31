@@ -418,7 +418,7 @@
             (let [last-row (dec (count lines))
                   cursor-range (->CursorRange (->Cursor 0 0)
                                               (->Cursor last-row (count (lines last-row))))]
-              (:lines (data/reindent (data/indent-level-pattern 4) "    " json/grammar
+              (:lines (data/reindent (data/indent-level-pattern 4) "    " json/grammar []
                                      lines [cursor-range] nil (layout-info lines)))))]
     (is (= ["{"
             "    \"a\": ["
@@ -1213,7 +1213,7 @@
         grammar nil
         clipboard (make-test-clipboard {})
         cut! (fn [lines cursor-ranges] (data/cut! lines cursor-ranges nil (layout-info lines) clipboard))
-        paste! (fn [lines cursor-ranges] (data/paste indent-level-pattern indent-string grammar lines cursor-ranges nil (layout-info lines) clipboard))
+        paste! (fn [lines cursor-ranges] (data/paste indent-level-pattern indent-string grammar [] lines cursor-ranges nil (layout-info lines) clipboard))
         mime-type (var-get #'data/clipboard-mime-type-multi-selection)
         clipboard-content (fn [] (data/get-content clipboard mime-type))]
     (is (= {:cursor-ranges [(cr [0 0] [0 0])
