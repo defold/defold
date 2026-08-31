@@ -136,13 +136,17 @@
 (defn- stream-by-name [streams stream-name]
   (coll/first-where #(= stream-name (:name %)) streams))
 
+(defn- selected-index-stream [streams index-stream]
+  (when-not (str/blank? index-stream)
+    (stream-by-name streams index-stream)))
+
 (defn- vertex-streams [streams index-stream]
   (if (str/blank? index-stream)
     streams
     (filterv #(not= index-stream (:name %)) streams)))
 
 (defn- validate-index-stream [_node-id index-stream streams]
-  (let [index-stream-desc (stream-by-name streams index-stream)
+  (let [index-stream-desc (selected-index-stream streams index-stream)
         vertex-count (max-stream-length (vertex-streams streams index-stream))]
     (validation/prop-error :fatal _node-id :index-stream index-stream-error-message index-stream index-stream-desc vertex-count)))
 
@@ -169,7 +173,7 @@
             base-pb-msg (merge (select-keys save-value [:primitive-type :position-stream :normal-stream :index-stream])
                                {:material material
                                 :textures textures})
-            index-stream-desc (stream-by-name streams index-stream)]
+            index-stream-desc (selected-index-stream streams index-stream)]
         (if-not index-stream-desc
           [(pipeline/make-protobuf-build-target
              _node-id resource MeshProto$MeshDesc
@@ -426,7 +430,7 @@
     {:aabb aabb
      :renderable {:passes [pass/selection]}}
 
-    (let [index-stream-desc (stream-by-name streams index-stream)
+    (let [index-stream-desc (selected-index-stream streams index-stream)
           vertex-streams (vertex-streams streams index-stream)
           vertex-count (max-stream-length vertex-streams)
           attribute-infos (mapv #(stream->attribute-info % position-stream normal-stream) vertex-streams)
