@@ -118,7 +118,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-darwin:
@@ -182,7 +182,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-web:
@@ -227,7 +227,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-android:
@@ -312,7 +312,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-linux-x64:
@@ -381,7 +381,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-linux-arm64:
@@ -421,7 +421,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-switch:
@@ -642,7 +642,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   test-bob:
@@ -683,7 +683,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   build-sdk:
@@ -706,7 +706,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   # ---- BUILD EDITOR ------------------
@@ -716,13 +716,7 @@ jobs:
     if: github.event_name != 'pull_request'
     timeout-minutes: 30
     steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Python dependencies', run: 'pip install requests' },
       {
@@ -755,15 +749,9 @@ jobs:
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
     steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-x86_64-linux-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-x86_64-linux-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-x86_64-linux-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       {
@@ -793,7 +781,7 @@ jobs:
         if: github.event.action == 'contrib-build',
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
         with: {
-          name: 'dynamo-home-x86_64-linux',
+          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}",
           path: 'tmp/dynamo_home'
         }
       },
@@ -817,13 +805,13 @@ jobs:
           retention-days: 2
         }
       },
-      { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
+      { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
       {
         name: 'Notify if build status changed',
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -834,15 +822,9 @@ jobs:
     if: ${{ !cancelled() && needs.build-bob.result == 'success' && needs.build-sdk.result != 'failure' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
     timeout-minutes: 60
     steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-x86_64-linux-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-x86_64-linux-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-x86_64-linux-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       {
@@ -863,7 +845,7 @@ jobs:
         if: github.event.action == 'contrib-build',
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
         with: {
-          name: 'dynamo-home-x86_64-linux',
+          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}",
           path: 'tmp/dynamo_home'
         }
       },
@@ -871,13 +853,13 @@ jobs:
         name: 'Test editor',
         run: 'ci/ci.sh test-editor --platform=x86_64-linux ${{ env.OPTION_EDITOR_LOCAL }}'
       },
-      { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
+      { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
       {
         name: 'Notify if build status changed',
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -894,15 +876,9 @@ jobs:
           - platform: arm64-macos
             runner: macos-26
     steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       {
@@ -935,7 +911,7 @@ jobs:
         if: github.event.action == 'contrib-build',
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
         with: {
-          name: 'dynamo-home-${{ matrix.platform }}',
+          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}",
           path: 'tmp/dynamo_home'
         }
       },
@@ -968,13 +944,13 @@ jobs:
           retention-days: 2
         }
       },
-      { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
+      { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
       {
         name: 'Notify if build status changed',
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -987,15 +963,9 @@ jobs:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
@@ -1030,7 +1000,7 @@ jobs:
         if: github.event.action == 'contrib-build',
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
         with: {
-          name: 'dynamo-home-${{ matrix.platform }}',
+          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}",
           path: 'tmp/dynamo_home'
         }
       },
@@ -1071,7 +1041,7 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -1143,5 +1113,5 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
