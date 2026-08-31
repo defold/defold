@@ -202,6 +202,10 @@
     (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
       (fs/create-file! (io/file models-directory "preview.gltf") (preview-gltf-content))
       (fs/create-file! (io/file models-directory "preview.glb") (preview-glb-content))
+      (doseq [shader-filename ["pbr.vp" "pbr.fp"]]
+        (fs/copy-file!
+          (io/file "test/resources/test_project/defold-pbr/shaders" shader-filename)
+          (io/file project-path "defold-pbr/shaders" shader-filename)))
 
       (test-support/with-clean-system
         (let [workspace (test-util/setup-workspace! world project-path)
