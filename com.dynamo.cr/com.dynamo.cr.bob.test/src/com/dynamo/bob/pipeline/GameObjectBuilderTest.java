@@ -39,6 +39,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         src.append("  properties { id: \"vec4\" value: \"4, 5, 6, 7\" type: PROPERTY_TYPE_VECTOR4 }\n");
         src.append("  properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n");
         src.append("  properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
+        src.append("  properties { id: \"text\" value: \"hello\" type: PROPERTY_TYPE_TEXT }\n");
         src.append("}\n");
         PrototypeDesc prototype = getMessage(build("/test.go", src.toString()), PrototypeDesc.class);
         for (ComponentDesc cd : prototype.getComponentsList()) {
@@ -50,6 +51,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
             PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
             PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
             PropertiesTestUtil.assertBoolean(properties, true, 0);
+            PropertiesTestUtil.assertText(properties, "hello", 0);
         }
     }
 

@@ -20,13 +20,14 @@ import os
 import base64
 import re
 from argparse import ArgumentParser
-from ci_helper import is_platform_supported, is_platform_private, is_repo_private
+from ci_helper import is_platform_supported, is_platform_private, is_repo_private, should_build_private_platform
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
 SENSITIVE_OPTIONS = (
     '--github-token',
+    '--token',
     '--gcloud-service-key',
     '--notarization-password',
 )
@@ -157,7 +158,7 @@ def install_linux(args):
     call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
-    clang_version = 17
+    clang_version = 20
     clang_path = "/usr/bin"
     clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
 
@@ -276,7 +277,8 @@ def build_engine(channel, platform, args):
                     'arm64-linux',
                     'x86_64-linux',
                     'armv7-android',
-                    'arm64-android'):
+                    'arm64-android',
+                    'x86_64-android'):
         install_sdk = ''
 
     cmd_args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
@@ -440,6 +442,56 @@ def release(channel, platform=None):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
+# Channels that generate and ship editor release notes.
+RELEASE_NOTES_CHANNELS = ("alpha", "beta", "stable")
+
+# Channels where missing notes fail the release. Alpha builds continuously off an
+# in-progress board, so it ships notes best-effort rather than blocking a build.
+MANDATORY_RELEASE_NOTES_CHANNELS = ("beta", "stable")
+
+def gen_release_notes(channel):
+    if channel not in RELEASE_NOTES_CHANNELS:
+        print("Channel '%s' does not ship release notes - skipping" % channel)
+        return
+
+    version = open("VERSION").read().strip()
+    notes_md = os.path.join("releasenotes", "%s.md" % version)
+    notes_json = os.path.join("releasenotes", "%s.json" % version)
+
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
+
+    # Manually-authored notes win: if the files are already on disk, use them
+    # as-is and don't hit the API or overwrite them.
+    if notes_md_exists or notes_json_exists:
+        if not notes_md_exists:
+            raise Exception("%s already exists, but matching %s is missing" % (notes_json, notes_md))
+        if not notes_json_exists:
+            raise Exception("%s already exists, but matching %s is missing" % (notes_md, notes_json))
+        print("%s and %s already exist - using manually-authored notes as-is" % (notes_md, notes_json))
+        return
+
+    # Run the generator. It exits non-zero if it errors or can't confirm a fix is
+    # on the channel's release branch. --use-github-compare makes that check use
+    # the GitHub API, needed because CI clones are shallow.
+    mandatory = channel in MANDATORY_RELEASE_NOTES_CHANNELS
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
+        sys.executable, version, channel, get_github_token()),
+        failonerror = mandatory)
+
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
+    if mandatory:
+        if not notes_md_exists:
+            raise Exception("No release notes markdown produced for %s on channel '%s'" % (version, channel))
+        if not notes_json_exists:
+            raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
+    elif notes_md_exists != notes_json_exists:
+        raise Exception("Incomplete release notes produced for %s on channel '%s'; expected both %s and %s" % (
+            version, channel, notes_md, notes_json))
+    elif not notes_json_exists:
+        print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
+
 def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
@@ -488,13 +540,17 @@ def release_settings_for_branch(branch):
 def should_release_branch(branch):
     return release_settings_for_branch(branch)[1]
 
+def release_notes_required_for_branch(branch):
+    channel = release_settings_for_branch(branch)[0]
+    return channel in RELEASE_NOTES_CHANNELS
+
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
     return os.environ.get('GITHUB_BASE_REF', '')
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -529,6 +585,12 @@ def main(argv):
         print("true" if platform and is_platform_supported(platform) else "false")
         return
 
+    if args.commands == ["should-build-private-platform"]:
+        branch = get_branch()
+        repository = os.environ.get('GITHUB_REPOSITORY', '')
+        print("true" if should_build_private_platform(branch, repository) else "false")
+        return
+
     if platform and not is_platform_supported(platform):
         print("Platform {} is private and the repo '{}' cannot build for this platform. Skipping".format(platform, os.environ.get('GITHUB_REPOSITORY', '')))
         return;
@@ -550,6 +612,10 @@ def main(argv):
 
     if args.commands == ["should-release"]:
         print("true" if should_release_branch(branch) else "false")
+        return
+
+    if args.commands == ["requires-release-notes"]:
+        print("true" if release_notes_required_for_branch(branch) else "false")
         return
 
     channel, make_release = release_settings_for_branch(branch)
@@ -574,6 +640,8 @@ def main(argv):
             test_editor(channel, platform, args)
         elif command == "archive-editor":
             archive_editor2(channel, platform, args)
+        elif command == "gen-release-notes":
+            gen_release_notes(channel)
         elif command == "bob":
             build_bob(channel, branch, args)
         elif command == "test-bob":

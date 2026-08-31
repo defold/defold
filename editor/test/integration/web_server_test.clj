@@ -287,9 +287,16 @@
                                 (succeeding-selection [_this _evaluation-context])
                                 (alt-selection [_this _evaluation-context]))))
           view-graph (g/node-id->graph-id app-view)
-          console (g/make-node! view-graph console/ConsoleNode)
-          console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]
-      (g/connect! console :_node-id console-view :resource-node)
+
+          [_console console-view]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes view-graph
+                [console console/ConsoleNode
+                 console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
+                (g/connect console :_node-id console-view :resource-node))))]
+
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
@@ -320,11 +327,20 @@
                 (let [get-ref (get-in json-body ["paths" "/ref" "get"])
                       param-names (into #{} (map #(get % "name")) (get get-ref "parameters"))]
                   (is get-ref)
-                  (is (every? param-names ["environment" "language" "q"])))
-                (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
-                  (is (= "Execute an editor command" (get post-command "summary")))
-                  (is (string/includes? (get post-command "description") "`build-html5`"))
-                  (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
+                  (is (coll/every? param-names ["environment" "language" "q"])))
+                (let [paths (get json-body "paths")
+                      post-build-html5 (get-in paths ["/command/build-html5" "post"])
+                      post-compile (get-in paths ["/command/compile" "post"])
+                      post-run (get-in paths ["/command/run" "post"])]
+                  (is (not (contains? paths "/command/build")))
+                  (is (get-in post-build-html5 ["responses" "200"]))
+                  (is (get-in post-compile ["responses" "200"]))
+                  (is (get-in post-run ["responses" "200"]))
+                  (let [focus-parameter (coll/first-where #(= "focus" (get % "name")) (get post-run "parameters"))]
+                    (is (= "query" (get focus-parameter "in")))
+                    (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
+            (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
+              (is (= 400 status)))
             (let [{:keys [status headers body]} @(http/request
                                                     (str url "/preview/collection/components/test.gui?width=32&height=32")
                                                     :as :byte-array)]
@@ -338,15 +354,15 @@
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))
               (is (not (coll/empty? json-body)))
-              (is (every? #(= "runtime" (:environment %)) json-body))
-              (is (every? #(= "Lua" (:language %)) json-body))
+              (is (coll/every? #(= "runtime" (:environment %)) json-body))
+              (is (coll/every? #(= "Lua" (:language %)) json-body))
               (is (coll/any? #(= "go.property" (:name %)) json-body)))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=editor&q=editor.prefs.get") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))
               (is (not (coll/empty? json-body)))
-              (is (every? #(= "editor" (:environment %)) json-body))
+              (is (coll/every? #(= "editor" (:environment %)) json-body))
               (is (coll/any? #(= "editor.prefs.get" (:name %)) json-body)))
             (let [{:keys [status body]} @(http/request (str url "/ref?q=game%20object") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
@@ -364,9 +380,9 @@
               (is (coll/any? #(= "runtime" (:environment %)) json-body))
               (is (coll/any? #(= "Lua" (:language %)) json-body))
               (is (coll/any? #(= "C++" (:language %)) json-body))
-              (is (every? (fn [element]
-                            (#{"Lua" "C++"} (:language element)))
-                          json-body)))
+              (is (coll/every? (fn [element]
+                                 (#{"Lua" "C++"} (:language element)))
+                               json-body)))
             (let [{:keys [status headers body]} @(http/request (str url "/engine-profiler/") :as :string)]
               (is (= 200 status))
               (is (= "text/html" (get headers "content-type")))
@@ -402,9 +418,10 @@
               (is (= 405 status))
               (is (= "OPTIONS, POST" (get headers "allow")))
               (is (= "405 Method Not Allowed\n" body)))
-            (with-redefs [ui/open-url (promise)]
-              (let [{:keys [status body]} @(http/request (str url "/command/report-issue") :method "POST" :as :string)]
-                (is (= 202 status))
-                (is (= "202 Accepted\n" body)))
-              (when (is (realized? ui/open-url))
-                (is (string/includes? @ui/open-url "github.com/defold/defold/issues"))))))))))
+            (let [opened-url (promise)]
+              (with-redefs [ui/open-url opened-url]
+                (let [{:keys [status body]} @(http/request (str url "/command/report-issue") :method "POST" :as :string)]
+                  (is (= 200 status))
+                  (is (= "200 OK\n" body)))
+                (when (is (realized? opened-url))
+                  (is (string/includes? @opened-url "github.com/defold/defold/issues")))))))))))

@@ -18,7 +18,6 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.separator :as fx.separator]
-            [cljfx.fx.slider :as fx.slider]
             [cljfx.fx.toggle-button :as fx.toggle-button]
             [cljfx.fx.toggle-group :as fx.toggle-group]
             [clojure.string :as string]
@@ -31,9 +30,8 @@
             [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
-           [javafx.beans.value ChangeListener]
            [javafx.css Styleable]
-           [javafx.event ActionEvent Event]
+           [javafx.event ActionEvent]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
@@ -45,6 +43,12 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^List axes [:x :y :z])
+
+(def ^:private ^:dynamic *suppress-dispose*
+  "Bound true only while the color row hides its popup for a pick (see
+  `make-color-row`), so the on-closed handler skips disposing the popup content
+  (it is about to be shown again)."
+  false)
 
 (defn- make-toggle-row [{:keys [key label accelerator command disabled? state swap-state on-selected-changed style-class]}]
   {:fx/type fx/ext-on-instance-lifecycle
@@ -98,27 +102,10 @@
         value (+ (.getValue slider) (* direction step))]
     (-> value (max min-value) (min max-value))))
 
-(defn- ext-safe-popup-slider
+(defn- ext-popup-slider
   [{:keys [popup] :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^Slider slider]
-                 (let [pressed? (volatile! false)
-                       install! (fn [^Node thumb]
-                                  (doto thumb
-                                    (.addEventFilter MouseEvent/MOUSE_PRESSED  (ui/event-handler _ (vreset! pressed? true)))
-                                    (.addEventFilter MouseEvent/MOUSE_RELEASED (ui/event-handler _ (vreset! pressed? false)))
-                                    (.addEventFilter MouseEvent/MOUSE_DRAGGED  (ui/event-handler e (when-not @pressed?
-                                                                                                     (.consume ^Event e))))))
-                       try-install! (fn []
-                                      (when-let [thumb (.lookup slider ".thumb")]
-                                        (install! thumb)
-                                        true))]
-                   (when-not (try-install!)
-                     (.addListener (.skinProperty slider)
-                                   (reify ChangeListener
-                                     (changed [this _ _ _]
-                                       (when (try-install!)
-                                         (.removeListener (.skinProperty slider) this)))))))
                  (.addEventFilter slider ScrollEvent/SCROLL
                                   (ui/event-handler event
                                     (when (and (not (.isDisabled slider))
@@ -130,7 +117,7 @@
                  (doto slider
                    (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
                    (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
-   :desc (assoc (dissoc props :popup) :fx/type fx.slider/lifecycle)})
+   :desc (assoc (dissoc props :popup) :fx/type fxui/slider)})
 
 (defn- make-slider-row [{:keys [popup key label disabled? min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
@@ -144,7 +131,7 @@
                 {:fx/type fxui/label
                  :style-class "slider-value-label"
                  :text (slider-value->string (key state))}
-                (cond-> {:fx/type ext-safe-popup-slider
+                (cond-> {:fx/type ext-popup-slider
                          :popup popup
                          :min min
                          :max max
@@ -187,6 +174,11 @@
                                     (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                       (swap-state assoc key color)
                                       (on-value-changed color)))
+                ;; During a pick, hide the popup so it doesn't cover the magnifier (*suppress-dispose*
+                ;; keeps on-closed from tearing it down), then show it again in place afterward.
+                :on-dropper-activated (fn [] (binding [*suppress-dispose* true] (.hide ^PopupControl popup)))
+                :on-dropper-deactivated (fn [] (let [^PopupControl p popup]
+                                                 (.show p (.getOwnerNode p) (.getAnchorX p) (.getAnchorY p))))
                 :ignore-alpha false}}]})
 
 (defn- make-vec3-floats-row [{:keys [key state swap-state on-value-changed]}]
@@ -258,7 +250,7 @@
                           :accelerator (keymap/display-text keymap (:command descriptor) "")
                           :on-selected-changed (:on-value-changed descriptor))
       :slider      (assoc descriptor-with-state :fx/type make-slider-row :label (label))
-      :color       (assoc descriptor-with-state :fx/type make-color-row  :label (label))
+      :color       (assoc descriptor-with-state :fx/type make-color-row :label (label))
       :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row)
       :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row :label (label))
       :reset-all   {:fx/type make-reset-button
@@ -292,9 +284,9 @@
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 (defn- make-popup
-  ^PopupControl [^Styleable owner ^Node content]
+  ^PopupControl [^Styleable styleable-parent ^Node content]
   (let [popup (proxy [PopupControl] []
-                (getStyleableParent [] owner))
+                (getStyleableParent [] styleable-parent))
         *skinnable (atom popup)
         popup-skin (reify Skin
                      (getSkinnable [_] @*skinnable)
@@ -352,8 +344,14 @@
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
      (let [content (StackPane.)
-           popup (make-popup owner content)
+           ;; The popup inherits its CSS through this node (see make-popup); the #toolbar element is a
+           ;; stable ancestor to anchor styling to.
+           styleable-parent (or (ui/closest-node-where (fn [^Node n] (= "toolbar" (.getId n))) owner)
+                                owner)
+           popup (make-popup styleable-parent content)
            anchor ^Point2D (pref-popup-position (.getParent owner) width)
+           screen-x (.getX anchor)
+           screen-y (.getY anchor)
            advance! (fn [state]
                       (ui/advance-ui-user-data-component!
                         content ::popup
@@ -372,11 +370,14 @@
        (ui/user-data! owner ::popup popup)
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-         (ui/on-closed! (fn [e]
-                          (ui/advance-ui-user-data-component! content ::popup nil)
-                          (when on-closed (on-closed))
-                          (ui/user-data! owner ::popup nil)))
-         (.show owner (.getX anchor) (.getY anchor)))
+         ;; The color row hides the popup during a pick with *suppress-dispose* bound (see
+         ;; make-color-row), so we skip disposal and it gets shown again.
+         (ui/on-closed! (fn [_]
+                          (when-not *suppress-dispose*
+                            (ui/advance-ui-user-data-component! content ::popup nil)
+                            (when on-closed (on-closed))
+                            (ui/user-data! owner ::popup nil))))
+         (.show owner screen-x screen-y))
        ;; WORKAROUND: scene-visibility opens the popup right next to the outline's split pane divider, when you mouse over
        ;; the edge, the cursor gets set to H_RESIZE. If you move your cursor fast enough from the divider to the popup, the H_RESIZE
        ;; persists and only gets reset to DEFAULT when you leave the popup and reenter. The scene apparently still thinks it's
@@ -384,9 +385,9 @@
        ;; Note that this might just be linux specific, but wouldn't hurt to just do it for everyone.
        (.addEventHandler content MouseEvent/MOUSE_ENTERED
                          (ui/event-handler e
-                                           (let [scene (.getScene owner)]
-                                             (.setCursor scene Cursor/NONE)
-                                             (.setCursor scene Cursor/DEFAULT))))
+                           (let [scene (.getScene owner)]
+                             (.setCursor scene Cursor/NONE)
+                             (.setCursor scene Cursor/DEFAULT))))
        ;; Request focus so the first UI element loses focus
        (.requestFocus content)
        advance!))))

@@ -22,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -233,7 +232,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -322,6 +321,7 @@ public class GameProjectBuilder extends Builder {
     static public void transformGameProjectFile(BobProjectProperties properties) {
         String gamepadsPath = properties.getStringValue("input", "gamepads", DEFAULT_GAMEPADS);
         String gamepadDbPath = properties.getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
+        String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
 
         properties.removePrivateFields();
 
@@ -340,6 +340,9 @@ public class GameProjectBuilder extends Builder {
 
         properties.putStringValue("input", "gamepads", getGamepadsOutputPath(gamepadsPath, gamepadDbPath));
         properties.putStringValue("input", "gamepad_database", null);
+        if (customResources.length > 0) {
+            properties.putStringValue("project", "custom_resources", String.join(",", customResources));
+        }
     }
 
     private static void setOutputContentFromFile(IResource output, File sourceFile) throws IOException {
@@ -392,12 +395,12 @@ public class GameProjectBuilder extends Builder {
             logger.info("Creation of the excluded resources list.");
             tstart = System.currentTimeMillis();
             boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-            List<String> excludedResources;
+            Set<String> excludedResources;
             if (shouldPublishLU) {
                 excludedResources = resourceGraph.createExcludedResourcesList();
             }
             else {
-                excludedResources = new ArrayList<String>();
+                excludedResources = new HashSet<String>();
             }
             tend = System.currentTimeMillis();
             logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);

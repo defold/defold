@@ -39,6 +39,33 @@ DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch
 
 namespace dmGraphics
 {
+    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts)
+    {
+        requested_sample_count = GetDefaultSampleCount(requested_sample_count);
+        supported_sample_counts |= 1;
+
+        uint32_t closest_sample_count = 1;
+        for (uint32_t sample_count = 1; sample_count != 0 && sample_count <= requested_sample_count; sample_count <<= 1)
+        {
+            if (supported_sample_counts & sample_count)
+            {
+                closest_sample_count = sample_count;
+            }
+        }
+        return closest_sample_count;
+    }
+
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name)
+    {
+        uint32_t requested = GetDefaultSampleCount(requested_sample_count);
+        uint32_t conformed = GetClosestSupportedSampleCount(requested, supported_sample_counts);
+        if (requested != conformed)
+        {
+            dmLogWarning("%s render target requested sample_count %u, using supported sample_count %u.", adapter_name, requested, conformed);
+        }
+        return conformed;
+    }
+
     static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
@@ -285,29 +312,6 @@ namespace dmGraphics
     }
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
-
-    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
-
-    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
-    {
-        switch(language)
-        {
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
-            default:break;
-        }
-        return "<unknown ShaderDesc::Language>";
-    }
-
-    #undef SHADERDESC_ENUM_TO_STR_CASE
-
-
 
     AttachmentToBufferType::AttachmentToBufferType()
     {
@@ -1920,7 +1924,8 @@ namespace dmGraphics
 
         if (IsColorBufferType(buffer_type))
         {
-            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
+            uint32_t index = GetBufferTypeIndex(buffer_type);
+            return rt->m_TextureColorResolve[index] ? rt->m_TextureColorResolve[index] : rt->m_TextureColor[index];
         }
         else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
         {
@@ -1957,6 +1962,13 @@ namespace dmGraphics
 
         width  = params ? params->m_Width : 0;
         height = params ? params->m_Height : 0;
+    }
+    uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target)
+    {
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
+        return rt ? GetDefaultSampleCount(rt->m_SampleCount) : 0;
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
@@ -2199,10 +2211,10 @@ namespace dmGraphics
     {
         g_functions.m_DisableProgram(context);
     }
-    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
+    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         DestroyProgram((Program*) program);
-        return g_functions.m_ReloadProgram(context, program, ddf);
+        return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
     uint32_t GetAttributeCount(HProgram prog)
     {

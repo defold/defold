@@ -268,10 +268,11 @@ namespace dmGraphics
             uint32_t         m_ColorWriteMaskBits;
             MTL::PixelFormat m_ColorFormats[MAX_BUFFER_COLOR_ATTACHMENTS];
             MTL::PixelFormat m_DepthStencilFormat;
+            // MetalGetSupportedSampleCounts admits values through 64.
+            uint8_t          m_SampleCount;
             uint8_t          m_ClearColor   : 1;
             uint8_t          m_ClearDepth   : 1;
             uint8_t          m_ClearStencil : 1;
-            uint8_t          m_SampleCount  : 4;
         };
 
         struct ClearShader

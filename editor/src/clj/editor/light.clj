@@ -608,11 +608,13 @@
 
   (property color types/Color (default [1.0 1.0 1.0])
             (dynamic label (properties/label-dynamic :light :color))
+            (dynamic tooltip (properties/tooltip-dynamic :light :color))
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha true})))
 
   (property intensity g/Num (default 1.0)
             (dynamic label (properties/label-dynamic :light :intensity))
+            (dynamic tooltip (properties/tooltip-dynamic :light :intensity))
             (dynamic error (g/fnk [_node-id intensity] (validate-intensity _node-id intensity)))
             (dynamic edit-type (g/constantly {:type g/Num
                                               :min 0.0})))
@@ -676,6 +678,7 @@
 
   (property range g/Num (default 10.0)
             (dynamic label (properties/label-dynamic :light :range))
+            (dynamic tooltip (properties/tooltip-dynamic :light :range))
             (dynamic error (g/fnk [_node-id range] (validate-range _node-id range)))
             (dynamic edit-type (g/constantly {:type g/Num
                                               :min 0.0})))
@@ -734,6 +737,7 @@
 
   (property inner-cone-angle g/Num (default 0.0)
             (dynamic label (properties/label-dynamic :light :inner-cone-angle))
+            (dynamic tooltip (properties/tooltip-dynamic :light :inner-cone-angle))
             (dynamic error (g/fnk [_node-id inner-cone-angle] (validate-inner-cone-angle _node-id inner-cone-angle)))
             (dynamic edit-type (g/fnk [outer-cone-angle]
                                  {:type g/Num
@@ -747,6 +751,7 @@
 
   (property outer-cone-angle g/Num (default 45.0)
             (dynamic label (properties/label-dynamic :light :outer-cone-angle))
+            (dynamic tooltip (properties/tooltip-dynamic :light :outer-cone-angle))
             (dynamic error (g/fnk [_node-id outer-cone-angle] (validate-outer-cone-angle _node-id outer-cone-angle)))
             (dynamic edit-type (g/fnk [inner-cone-angle]
                                  {:type g/Num

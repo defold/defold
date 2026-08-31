@@ -262,10 +262,10 @@
     (and (<= (.x min-p) (.x p) (.x max-p))
          (<= (.y min-p) (.y p) (.y max-p)))))
 
-(defn- reset-controller! [controller op-seq]
+(defn- reset-controller! [controller]
   (g/transact
+    {:undoable false}
     (concat
-      (g/operation-sequence op-seq)
       (g/set-property controller :start nil)
       (g/set-property controller :current nil)
       (g/set-property controller :op-seq nil)
@@ -307,7 +307,8 @@
                                                 :curve-view.delete-control-point
                                                 (let [[nid property id] data]
                                                   [(g/update-property nid property types/geom-delete [id])
-                                                   (g/set-property self :handle :curve-click)])
+                                                   (g/non-undoable
+                                                     (g/set-property self :handle :curve-click))])
 
                                                 :curve-view.add-control-point
                                                 (let [[nid property ^Point3d p] data
@@ -318,7 +319,8 @@
                                                       select-fn (g/node-value self :select-fn)]
                                                   (select-fn [[nid property id]] op-seq)
                                                   [(g/set-property nid property new-curve)
-                                                   (g/set-property self :handle :curve-click)]))))
+                                                   (g/non-undoable
+                                                     (g/set-property self :handle :curve-click))]))))
                                           true)
                                         (when (or (= handle :control-point) (= handle :tangent))
                                           (let [op-seq (gensym)
@@ -330,8 +332,8 @@
                                                       sub-selection [data]]
                                                   (select-fn sub-selection op-seq)))
                                               (g/transact
+                                                {:undoable false}
                                                 (concat
-                                                  (g/operation-sequence op-seq)
                                                   (g/set-property self :op-seq op-seq)
                                                   (g/set-property self :start cursor-pos)
                                                   (g/set-property self :current cursor-pos)
@@ -341,7 +343,7 @@
                                               true)))))]
                        (if handled? nil action))
       :mouse-released (do
-                        (reset-controller! self op-seq)
+                        (reset-controller! self)
                         (if handle
                           nil
                           action))
@@ -355,9 +357,11 @@
                                                                  (update ids [nid prop] (fn [v] (conj (or v []) idx))))
                                                                {} sub-selection)]
                                       (g/transact
+                                        {:undoable false}
+                                        (g/set-property self :current cursor-pos))
+                                      (g/transact
                                         (concat
                                           (g/operation-sequence op-seq)
-                                          (g/set-property self :current cursor-pos)
                                           (for [[[nid prop] ids] selected-ids
                                                 :let [curve (g/node-value nid prop evaluation-context)]]
                                             (g/set-property nid prop (types/geom-transform curve ids trans)))))
@@ -668,7 +672,9 @@
      view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view localization opts _reloading?]
    (let [[node-id] (g/tx-nodes-added
-                     (g/transact (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
+                     (g/transact
+                       {:undoable false}
+                       (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       background background/Background
@@ -722,11 +728,15 @@
                                    (call [this item]
                                      (let [hidden-curves (g/node-value node-id :hidden-curves)]
                                        (doto (SimpleBooleanProperty. (not (contains? hidden-curves (:keyword item))))
-                                         (ui/observe (fn [observable old new]
+                                         (ui/observe (fn [_observable _old new]
                                                        (let [kw (:keyword item)]
                                                          (if new
-                                                           (g/update-property! node-id :hidden-curves disj kw)
-                                                           (g/update-property! node-id :hidden-curves conj kw)))))))))]
+                                                           (g/transact
+                                                             {:undoable false}
+                                                             (g/update-property node-id :hidden-curves disj kw))
+                                                           (g/transact
+                                                             {:undoable false}
+                                                             (g/update-property node-id :hidden-curves conj kw))))))))))]
            (let [items (ui/selection list)]
              (ui/observe-list list items (fn [_ values] (on-list-selection app-view values))))
            (doto (.getSelectionModel list)

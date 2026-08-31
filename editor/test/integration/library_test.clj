@@ -129,14 +129,6 @@
                   or (:node-id (test-util/outline int-gui [0 0 0]))]
               (is (= [or] (g/overrides original))))))))))
 
-(defn- fetch-libraries! [workspace library-uris render-fn]
-  (->> (library/fetch!
-         (workspace/project-directory workspace)
-         library-uris
-         render-fn)
-       (workspace/set-project-dependencies! workspace))
-  (workspace/resource-sync! workspace))
-
 (deftest fetch-libraries
   (with-clean-system
     (with-open [server (http-server/start! test-util/lib-server-handler)]
@@ -150,17 +142,17 @@
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         (is (.isFile dependency-metadata-file))
         (is (.contains (slurp dependency-metadata-file) uri))
         ;; disable dependency metadata, fetch libraries, we should still update the metadata file
         (game-project/set-setting! game-project ["project" "dependencies_metadata"] false)
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
         (is (.isFile dependency-metadata-file))
         ;; remove dependency again, fetch libraries, we should no longer have the file
         (game-project/set-setting! game-project ["project" "dependencies"] nil)
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
         (is (not (.exists dependency-metadata-file)))
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
@@ -174,7 +166,7 @@
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-local-extension-dir
@@ -190,10 +182,9 @@
       (System/setProperty (str property-prefix ".path") (.getCanonicalPath local-extension-dir))
       (try
         (write-deps! game-project-resource "{{defold.extension.test-local.url}}")
-        (let [results (library/fetch!
+        (let [results (test-util/fetch-library-results!
                         project-directory
-                        (project/read-dependencies game-project-resource)
-                        progress/null-render-progress!)
+                        (project/read-dependencies game-project-resource))
               result ^Library$Result (first results)
               archive ^Library$Archive (.archive result)]
           (is (not= original-uri (.uri result)))

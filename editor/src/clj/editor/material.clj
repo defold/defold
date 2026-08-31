@@ -73,9 +73,9 @@
       (-> editable-attribute
           (dissoc :values)
           (protobuf/assign attribute-value-keyword
-                           (when (and (not (graphics/engine-provided-attribute? editable-attribute))
-                                      (coll/not-empty stored-values))
-                             {:v stored-values}))))))
+            (when (and (not (graphics/engine-provided-attribute? editable-attribute))
+                       (coll/not-empty stored-values))
+              {:v stored-values}))))))
 
 (defn- save-value-attributes [editable-attributes]
   (mapv editable-attribute->attribute editable-attributes))
@@ -156,8 +156,8 @@
 
 (defn- constant->val [constant]
   (case (:type constant)
-    :constant-type-user (let [[x y z w] (:value constant)]
-                          (Vector4d. x y z w))
+    (:constant-type-user :constant-type-user-color) (let [[x y z w] (:value constant)]
+                                                      (Vector4d. x y z w))
     :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
                                   (doto (Matrix4d.)
                                     (.setElement 0 0 x)
@@ -200,7 +200,7 @@
                                      shader-resource)
                   error-cursor-range (some-> ex-data :error-line-number code.data/line-number->CursorRange)
                   user-data (cond-> {:resource error-resource}
-                                    error-cursor-range (assoc :cursor-range error-cursor-range))]
+                              error-cursor-range (assoc :cursor-range error-cursor-range))]
               (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
 
 (g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
@@ -260,15 +260,16 @@
                       filter-min)))))
           samplers)))
 
-(defn- vector-type->form-field-type [vector-type]
-  (case vector-type
-    :vector-type-scalar :vec4
-    :vector-type-vec2 :vec4
-    :vector-type-vec3 :vec4
-    :vector-type-vec4 :vec4
-    :vector-type-mat2 :mat4
-    :vector-type-mat3 :mat4
-    :vector-type-mat4 :mat4))
+(defn- vector-type->form-field-type [semantic-type vector-type data-type normalize]
+  (let [color (and (= :semantic-type-color semantic-type)
+                   (or (= :type-float data-type) normalize))]
+    (case vector-type
+      :vector-type-scalar :vec4
+      :vector-type-vec2 :vec4
+      (:vector-type-vec3 :vector-type-vec4) (if color :color :vec4)
+      :vector-type-mat2 :mat4
+      :vector-type-mat3 :mat4
+      :vector-type-mat4 :mat4)))
 
 (def unsupported-semantic-types
   #{:semantic-type-bone-weights
@@ -278,7 +279,9 @@
   [{:path [:semantic-type]
     :localization-key "material.attributes.semantic-type"
     :type :choicebox
-    :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
+    :options (vec (sort-by first
+                           (remove #(unsupported-semantic-types (first %))
+                                   (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
     :localization-key "material.attributes.step-function"
@@ -302,7 +305,8 @@
     :default graphics/default-attribute-vector-type}
    {:path [:values]
     :localization-key "material.attributes.value"
-    :type (vector-type->form-field-type graphics/default-attribute-vector-type)
+    :type (vector-type->form-field-type graphics/default-attribute-semantic-type graphics/default-attribute-vector-type
+                                        graphics/default-attribute-data-type false)
     :default (graphics.types/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
    {:path [:normalize]
     :localization-key "material.attributes.normalize"
@@ -350,7 +354,9 @@
                 value-vertex-attribute-field-index
                 (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
                       vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
-                      type (vector-type->form-field-type vector-type)
+                      data-type (:data-type selected-attribute graphics/default-attribute-data-type)
+                      normalize (:normalize selected-attribute false)
+                      type (vector-type->form-field-type semantic-type vector-type data-type normalize)
                       default (graphics.types/default-attribute-doubles semantic-type vector-type)]
                   {:path [:values]
                    :localization-key "material.attributes.value"
@@ -505,9 +511,9 @@
                       :bytes bytes
                       :name-key name-key)
 
-                    (some? error-message)
-                    (assoc
-                      :error (g/->error _node-id :attributes :fatal nil error-message)))))
+              (some? error-message)
+              (assoc
+                :error (g/->error _node-id :attributes :fatal nil error-message)))))
         attributes))
 
 (defmulti handle-sampler-names-changed
@@ -539,20 +545,20 @@
             (dynamic visible (g/constantly false)))
 
   (property vertex-program resource/Resource ; Required protobuf field.
-    (dynamic visible (g/constantly false))
-    (value (gu/passthrough vertex-resource))
-    (set (fn [evaluation-context self old-value new-value]
-           (project/resource-setter evaluation-context self old-value new-value
-                                    [:resource :vertex-resource]
-                                    [:shader-source-info :vertex-shader-source-info]))))
+            (dynamic visible (g/constantly false))
+            (value (gu/passthrough vertex-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :vertex-resource]
+                                            [:shader-source-info :vertex-shader-source-info]))))
 
   (property fragment-program resource/Resource ; Required protobuf field.
-    (dynamic visible (g/constantly false))
-    (value (gu/passthrough fragment-resource))
-    (set (fn [evaluation-context self old-value new-value]
-           (project/resource-setter evaluation-context self old-value new-value
-                                    [:resource :fragment-resource]
-                                    [:shader-source-info :fragment-shader-source-info]))))
+            (dynamic visible (g/constantly false))
+            (value (gu/passthrough fragment-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :fragment-resource]
+                                            [:shader-source-info :fragment-shader-source-info]))))
 
   (property max-page-count g/Int (default (protobuf/default Material$MaterialDesc :max-page-count))
             (dynamic visible (g/constantly false)))
@@ -648,4 +654,4 @@
     :icon "icons/32/Icons_31-Material.png"
     :icon-class :property
     :category (localization/message "resource.category.shaders")
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

@@ -59,6 +59,8 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
+    static const char* MODEL_MAX_COUNT_KEY = "model.max_count";
+
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED   = 0xffff;
     static const uint8_t ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS = 30;
 
@@ -857,12 +859,11 @@ namespace dmGameSystem
 
             GetRenderItemMorphWeights(render_item->m_Component, render_item, &weights, &weights_count);
 
+            // Apply at most this mesh's own morph-target count; extra weights are ignored (set_blend_weights docs).
+            weights_count = dmMath::Min(weights_count, render_item->m_Mesh->m_MorphTargetCount);
+
             dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
-            if (scratch.Capacity() < vec4_slots)
-            {
-                scratch.SetCapacity(vec4_slots);
-            }
-            scratch.SetSize(vec4_slots);
+            scratch.EnsureSize(vec4_slots);
             FillMorphWeightsFloatSlots(weights, weights_count, (float*) scratch.Begin(), weight_capacity);
             morph_target_weights_channels[0] = (float*) scratch.Begin();
 
@@ -1185,6 +1186,7 @@ namespace dmGameSystem
             dmLogError("Failed to create a rig instance needed by model: %d.", res);
             if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
                 dmLogError("Try increasing the model.max_count value in game.project");
+                return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
             }
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
@@ -1197,8 +1199,8 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Model", "model.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Model", MODEL_MAX_COUNT_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = world->m_Components.Alloc();
         ModelComponent* component = new ModelComponent;
@@ -1451,12 +1453,11 @@ namespace dmGameSystem
         const float* weights = 0;
         GetRenderItemMorphWeights(component, render_item, &weights, &weights_count);
 
+        // Apply at most this mesh's own morph-target count; extra weights are ignored (set_blend_weights docs).
+        weights_count = dmMath::Min(weights_count, mesh_morph_count);
+
         dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
-        if (scratch.Capacity() < shader_vec4_slots)
-        {
-            scratch.SetCapacity(shader_vec4_slots);
-        }
-        scratch.SetSize(shader_vec4_slots);
+        scratch.EnsureSize(shader_vec4_slots);
         FillMorphWeightsVector4Slots(weights, weights_count, scratch.Begin(), shader_vec4_slots);
 
         dmRender::SetNamedConstant(ro->m_ConstantBuffer, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, scratch.Begin(), shader_vec4_slots);
@@ -2285,11 +2286,7 @@ namespace dmGameSystem
 
     void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
     {
-        if (component->m_BlendWeightsOverride.Capacity() < count)
-        {
-            component->m_BlendWeightsOverride.SetCapacity(count);
-        }
-        component->m_BlendWeightsOverride.SetSize(count);
+        component->m_BlendWeightsOverride.EnsureSize(count);
         memcpy(component->m_BlendWeightsOverride.Begin(), weights, count * sizeof(float));
         component->m_BlendWeightsOverrideActive = 1;
         component->m_ReHash = 1;
@@ -3088,6 +3085,16 @@ namespace dmGameSystem
         *world_batch_count           = world->m_RenderBatchWorldVSCount;
         *local_batch_count           = world->m_RenderBatchLocalVSUninstancedCount;
         *local_instanced_batch_count = world->m_RenderBatchLocalVSInstancedCount;
+    }
+
+    // The scratch buffers hold the morph weight uniforms written during the last frame, one per
+    // render object. The render objects themselves are stack allocated during the dispatch, so they
+    // can't be inspected once the render list has been drawn.
+    void GetModelWorldScratchConstantBuffers(void* model_world, dmGameSystem::HComponentRenderConstants** constant_buffers, uint32_t* count)
+    {
+        ModelWorld* world = (ModelWorld*) model_world;
+        *constant_buffers = world->m_ScratchConstantBuffers.Begin();
+        *count            = world->m_ScratchConstantBuffersCount;
     }
 
     void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants)

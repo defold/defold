@@ -249,8 +249,8 @@ public class ProjectBuildTest {
         assertEquals("SDL Project Pad", maps.getMappings(0).getDevice());
         assertEquals("Manual Project Pad", maps.getMappings(1).getDevice());
         assertFalse(maps.getMappings(0).hasDeadZone());
-        assertTrue(maps.getMappings(0).hasGuid());
-        assertFalse(maps.getMappings(1).hasGuid());
+        assertTrue(maps.getMappings(0).hasRawMapping());
+        assertFalse(maps.getMappings(1).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(1).getDeadZone(), 0.0f);
     }
 
@@ -290,8 +290,8 @@ public class ProjectBuildTest {
         assertEquals("Xbox 360 Controller", maps.getMappings(0).getDevice());
         assertEquals("Default Manual Pad", maps.getMappings(1).getDevice());
         assertFalse(maps.getMappings(0).hasDeadZone());
-        assertTrue(maps.getMappings(0).hasGuid());
-        assertFalse(maps.getMappings(1).hasGuid());
+        assertTrue(maps.getMappings(0).hasRawMapping());
+        assertFalse(maps.getMappings(1).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(1).getDeadZone(), 0.0f);
     }
 
@@ -335,7 +335,7 @@ public class ProjectBuildTest {
         GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
         assertEquals(1, maps.getMappingsCount());
         assertEquals("Default Manual Pad", maps.getMappings(0).getDevice());
-        assertFalse(maps.getMappings(0).hasGuid());
+        assertFalse(maps.getMappings(0).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 
@@ -558,6 +558,32 @@ public class ProjectBuildTest {
         outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
 
         checkProjectSetting(outputProps, "project", "custom_property", null);
+    }
+
+    @Test
+    public void testArchiveBuildMergesExtensionCustomResources() throws IOException, CompileExceptionError, MultipleCompileException, ParseException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources = /project_resource.txt\n");
+        createFile(contentRoot, "project_resource.txt", "project");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/ext.properties", "[project]\ncustom_resources.default = /extension1_resource.txt\n");
+        createFile(contentRoot, "extension1_resource.txt", "extension1");
+        createFile(contentRoot, "extension2/ext.manifest", "name: Extension2\n");
+        createFile(contentRoot, "extension2/ext.properties", "[project]\ncustom_resources.default = /extension2_resource.txt\n");
+        createFile(contentRoot, "extension2_resource.txt", "extension2");
+
+        buildArchive(false);
+
+        Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
+        assertTrue(hasResource(bundledManifestData, "/project_resource.txt"));
+        assertTrue(hasResource(bundledManifestData, "/extension1_resource.txt"));
+        assertTrue(hasResource(bundledManifestData, "/extension2_resource.txt"));
+
+        BobProjectProperties outputProperties = new BobProjectProperties();
+        outputProperties.load(new FileInputStream(new File(contentRoot, "build/game.projectc")));
+        String[] serializedCustomResources = outputProperties.getStringArrayValue("project", "custom_resources", new String[0]);
+        assertEquals(new HashSet<>(Arrays.asList("/project_resource.txt", "/extension1_resource.txt", "/extension2_resource.txt")),
+                     new HashSet<>(Arrays.asList(serializedCustomResources)));
     }
 
     @Test

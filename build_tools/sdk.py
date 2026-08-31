@@ -62,13 +62,9 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 VERSION_IPHONEOS_MIN="11.0"
 VERSION_MACOSX_MIN="10.15"
 
-SWIFT_VERSION="5.5"
+SWIFT_VERSION="6.2"
 
-VERSION_LINUX_CLANG="16.0.0"
-PACKAGES_LINUX_CLANG="clang-16.0.0"
-PACKAGES_LINUX_X86_64_TOOLCHAIN="clang+llvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04"
-PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu"
-
+VERSION_LINUX_CLANG="20.1.8"
 ## **********************************************************************************************
 # Android
 
@@ -129,12 +125,6 @@ defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK
 defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK
 
-defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['x86_64-linux']['pattern'] = 'x86_64-linux/clang-%s' % VERSION_LINUX_CLANG
-
-defold_info['arm64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['arm64-linux']['pattern'] = 'arm64-linux/clang-%s' % VERSION_LINUX_CLANG
-
 ## **********************************************************************************************
 
 def log_verbose(verbose, msg):
@@ -145,19 +135,27 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     dirs = [x for x in os.listdir(path)]
     return _get_latest_version_from_list(dirs, replace_patterns)
 
+def _parse_folder_version(s, replace_patterns=[]):
+    for pattern, replace in replace_patterns:
+        s = s.replace(pattern, replace)
+    # handle -ext to fix Android versions like android-34-ext12
+    if '-ext' in s:
+        s = re.sub(r'-ext\d+$', '', s)
+    # skip anything that isn't a plain numeric version, e.g. the preview platforms
+    # 'android-37.2-beta2' or named releases like 'android-Baklava'
+    if not re.match(r'^\d+(\.\d+)*$', s):
+        return None
+    return tuple(int(token) for token in s.split('.'))
+
+def _sort_versions(entries, replace_patterns=[]):
+    versions = [(_parse_folder_version(x, replace_patterns), x) for x in entries]
+    versions = [x for x in versions if x[0] is not None]
+    return [x[1] for x in sorted(versions, reverse=True)]
+
 def _get_latest_version_from_list(entries, replace_patterns=[]):
+    entries = _sort_versions(entries, replace_patterns)
     if len(entries) == 0:
         return None
-
-    def _replace_pattern(s, patterns):
-        for pattern, replace in patterns:
-            s = s.replace(pattern, replace)
-        # handle -ext to fix Android versions like android-34-ext12
-        if '-ext' in s:
-            s = re.sub(r'-ext\d+$', '', s)
-        return s
-
-    entries = sorted(entries, key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return entries[0]
 
 def _get_version_major_prefix(version):
@@ -167,12 +165,7 @@ def _get_version_major_prefix(version):
     return version
 
 def _sort_version_strings(values):
-    def _normalize_version(s):
-        if '-ext' in s:
-            s = re.sub(r'-ext\d+$', '', s)
-        return s
-
-    return sorted(values, key=lambda x: tuple(int(token) for token in _normalize_version(x).split('.')), reverse=True)
+    return _sort_versions(values)
 
 def _get_host_exe_suffix():
     if sys.platform == 'win32':
@@ -310,7 +303,14 @@ def get_android_local_build_tools_path(platform):
     if not os.path.exists(build_tools_path):
         raise SDKException(f"  Failed to find {build_tools_path}")
 
+    # prefer the version pinned by the build scripts, the same one the packaged sdk uses
+    path = os.path.join(build_tools_path, ANDROID_BUILD_TOOLS_VERSION)
+    if os.path.exists(path):
+        return path
+
     version = _get_latest_version_from_folders(build_tools_path)
+    if not version:
+        raise SDKException(f"  No build tools versions installed in {build_tools_path}")
     return os.path.join(build_tools_path, version)
 
 def get_android_local_sdk_version(platform):
@@ -319,8 +319,17 @@ def get_android_local_sdk_version(platform):
 def get_android_local_jar_path(verbose=False):
     sdkfolder = get_android_local_sdk_path()
     platforms_folder = os.path.join(sdkfolder, 'platforms')
+
+    # prefer the api level pinned by the build scripts, the same one the packaged sdk uses
+    path = os.path.join(platforms_folder, ANDROID_PACKAGE, 'android.jar')
+    if os.path.exists(path):
+        log_verbose(verbose, f"  Detected android jar {path}")
+        return path
+
     android_version = _get_latest_version_from_folders(platforms_folder, [('android-', '')])
-    path = os.path.join(sdkfolder, 'platforms', android_version, 'android.jar')
+    if not android_version:
+        raise SDKException(f"  No android platforms installed in {platforms_folder}")
+    path = os.path.join(platforms_folder, android_version, 'android.jar')
     if not os.path.exists(path):
         raise SDKException(f"Path {path} not found")
     return path
@@ -334,7 +343,7 @@ def get_android_bintools_path(ndk, platform):
     return f'{ndk}/toolchains/llvm/prebuilt/{ndk_os}-x86_64/bin'
 
 def get_android_api_version(platform):
-    if platform == 'arm64-android':
+    if platform in ('arm64-android', 'x86_64-android'):
         return ANDROID_64_NDK_API_VERSION
     else:
         return ANDROID_NDK_API_VERSION
@@ -342,6 +351,8 @@ def get_android_api_version(platform):
 def get_android_clang_name(platform, api_version):
     if platform == 'arm64-android':
         return f'aarch64-linux-android{api_version}-clang'
+    elif platform == 'x86_64-android':
+        return f'x86_64-linux-android{api_version}-clang'
     else:
         return f'armv7a-linux-androideabi{api_version}-clang'
 
@@ -351,6 +362,7 @@ def get_android_clang_name(platform, api_version):
 # Linux
 
 _is_wsl = None
+_local_compiler_info = None
 
 def is_wsl():
     global _is_wsl
@@ -365,33 +377,52 @@ def is_wsl():
             _is_wsl = "Microsoft" in data
     return _is_wsl
 
-def get_local_compiler_from_bash():
-    path = run.shell_command('which clang++')
-    if path != None:
-        return "clang++"
-    path = run.shell_command('which g++')
-    if path != None:
-        return "g++"
-    return None
-
-def get_local_compiler_path():
-    tool = get_local_compiler_from_bash()
-    if tool is None:
-        return None
-
-    path = run.shell_command('which %s' % tool)
+def _get_compiler_root_from_path(path):
     substr = '/bin'
     if substr in path:
         i = path.find(substr)
-        path = path[:i]
-        return path
+        return path[:i]
     return None
 
+def _get_local_compiler_info():
+    global _local_compiler_info
+    if _local_compiler_info is not None:
+        return _local_compiler_info
+
+    compiler_path = shutil.which('clang++')
+    if compiler_path is not None:
+        _local_compiler_info = {
+            'name': 'clang++',
+            'path': compiler_path,
+            'root': _get_compiler_root_from_path(compiler_path),
+            'version': run.shell_command('clang++ -dumpversion').strip(),
+        }
+        return _local_compiler_info
+
+    compiler_path = shutil.which('g++')
+    if compiler_path is not None:
+        _local_compiler_info = {
+            'name': 'g++',
+            'path': compiler_path,
+            'root': _get_compiler_root_from_path(compiler_path),
+            'version': run.shell_command('g++ -dumpversion').strip(),
+        }
+        return _local_compiler_info
+
+    _local_compiler_info = {}
+    return _local_compiler_info
+
+def get_local_compiler_from_bash():
+    info = _get_local_compiler_info()
+    return info.get('name', None)
+
+def get_local_compiler_path():
+    info = _get_local_compiler_info()
+    return info.get('root', None)
+
 def get_local_compiler_version():
-    tool = get_local_compiler_from_bash()
-    if tool is None:
-        return None
-    return run.shell_command('%s -dumpversion' % tool).strip()
+    info = _get_local_compiler_info()
+    return info.get('version', None)
 
 
 ## **********************************************************************************************
@@ -946,7 +977,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         folders.append(get_android_sdk_path(sdkfolder))
         folders.append(get_android_ndk_path(sdkfolder))
 
@@ -991,7 +1022,7 @@ def check_local_sdk(platform, verbose=False):
         if info is None:
             raise SDKException(error)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         path = get_android_local_sdk_path()
         ndkpath = get_android_local_ndk_path(platform, verbose)
         return path is not None and ndkpath is not None
@@ -1010,6 +1041,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
         info['xcode-clang'] = defold_info['xcode-clang']['version']
+        info['clang-version'] = info['xcode-clang']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
@@ -1019,6 +1051,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
+        info['clang-version'] = defold_info[platform]['version']
         # We download the package for the host platform, and rely on its ability cross compile
         info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
@@ -1026,7 +1059,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         info['version']     = ANDROID_BUILD_TOOLS_VERSION
         info['sdk']         = get_android_sdk_path(sdkfolder)
         info['ndk']         = get_android_ndk_path(sdkfolder)
@@ -1052,6 +1085,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
         info['xcode-clang'] = get_local_darwin_clang_version()
+        info['clang-version'] = info['xcode-clang']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
@@ -1064,13 +1098,14 @@ def _get_local_sdk_info(platform, verbose=False):
     elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
+        info['clang-version'] = info[platform]['version']
         info[platform]['path'] = get_local_compiler_path()
 
     elif platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_local_sdk_info(platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         ndk_os = 'linux'
         if sys.platform == 'darwin':
             ndk_os = 'darwin'
@@ -1206,23 +1241,59 @@ def _get_clang_arch_from_platform(platform):
 class TestSdkException(Exception):
     pass
 
+def _get_clang_from_info(info):
+    clang = info.get('clang', None)
+    if clang is not None:
+        return clang
+
+    clang = shutil.which('clang++')
+    if clang is None:
+        raise TestSdkException("Path not found for clang!")
+
+    info['clang'] = clang
+    return clang
+
+def _parse_version_tuple(version):
+    match = re.search(r'(\d+(?:\.\d+)+)', version)
+    if not match:
+        raise TestSdkException(f"Failed to parse version from '{version}'")
+    return tuple(int(token) for token in match.group(1).split('.'))
+
+def _test_version_clang(platform, info, can_run, verbose):
+    required_version = None
+
+    if platform in ['arm64-linux', 'x86_64-linux']:
+        required_version = VERSION_LINUX_CLANG
+    elif platform in ['arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+        required_version = VERSION_XCODE_CLANG
+
+    if required_version is None:
+        return
+
+    version_str = info.get('clang-version', None)
+    if version_str is None:
+        raise TestSdkException(f"Failed to get clang version for {platform}")
+    actual_version = _parse_version_tuple(version_str)
+    minimum_version = _parse_version_tuple(required_version)
+    actual_version_str = '.'.join(str(token) for token in actual_version)
+
+    log.log(f"clang version for {platform}: required={required_version}, actual={actual_version_str}")
+
+    if actual_version < minimum_version:
+        raise TestSdkException(f"Invalid clang version for {platform}: found {actual_version}, expected at least {required_version}")
+
 def _compile_file_clang(platform, info, srcfile, exefile, verbose):
     # if we can rely on the PATH variable
     use_local_path = False
+    clang = 'clang++'
     if platform in ['arm64-linux', 'x86_64-linux', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
         use_local_path = True
-
-        clang = run.shell_command(f'which clang++')
+        clang = _get_clang_from_info(info)
         if verbose:
             log.log(clang)
-
-        if not clang:
-            raise TestSdkException("Path not found for clang!")
-
-    clang = 'clang++'
     cmd = [clang]
 
-    if platform in ['arm64-android', 'armv7-android']:
+    if platform in ['arm64-android', 'armv7-android', 'x86_64-android']:
         clang = os.path.join(info['bintools'], info['clangname'])
         cmd = [clang]
 
@@ -1268,11 +1339,12 @@ def test_sdk(platform, info, verbose=False):
     if platform in ['arm64-linux', 'x86_64-linux',
                     'arm64-macos', 'x86_64-macos',
                     'arm64-ios', 'x86_64-ios',
-                    'arm64-android', 'armv7-android']:
+                    'arm64-android', 'armv7-android', 'x86_64-android']:
         use_clang = True
 
     try:
         if use_clang:
+            _test_version_clang(platform, info, can_run, verbose)
             _test_compiler_clang(platform, info, can_run, verbose)
 
     except TestSdkException as e:
@@ -1290,7 +1362,7 @@ def get_toolchain_root(sdkinfo, platform):
 
 
 def get_strip_executable(platform, sdkinfo):
-    if platform in ('armv7-android', 'arm64-android'):
+    if platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         return os.path.join(sdkinfo['bintools'], 'llvm-strip')
 
     if platform in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):

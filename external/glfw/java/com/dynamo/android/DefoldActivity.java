@@ -250,7 +250,6 @@ public class DefoldActivity extends NativeActivity {
     public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
-        DefoldVkQuality.runPreflight(this);
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 
@@ -571,13 +570,17 @@ public class DefoldActivity extends NativeActivity {
         mGameControllerDeviceIds.clear();
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
-            int sources = device.getSources();
-            // Filter game controller discovery to gamepads and joysticks. DPAD-only devices
-            // are still handled as key input in android_init.c, but should not be registered
-            // as gamepads here.
-            if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
-                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)) {
-                mGameControllerDeviceIds.add(deviceId);
+            // a device can become disconnected or reconfigured in between the
+            // call to getDeviceIds() and getDevice()
+            if (device != null) {
+                int sources = device.getSources();
+                // Filter game controller discovery to gamepads and joysticks. DPAD-only devices
+                // are still handled as key input in android_init.c, but should not be registered
+                // as gamepads here.
+                if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
+                    ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)) {
+                    mGameControllerDeviceIds.add(deviceId);
+                }
             }
         }
 
@@ -600,7 +603,10 @@ public class DefoldActivity extends NativeActivity {
         String name = "Android Controller";
         InputDevice device = InputDevice.getDevice(deviceId);
         if (device != null) {
-            name = device.getName();
+            String deviceName = device.getName();
+            if (deviceName != null && !deviceName.isEmpty()) {
+                name = deviceName;
+            }
         }
         return name;
     }
@@ -618,7 +624,10 @@ public class DefoldActivity extends NativeActivity {
             if (descriptor != null && !descriptor.isEmpty()) {
                 return descriptor;
             }
-            return device.getName();
+            String deviceName = device.getName();
+            if (deviceName != null && !deviceName.isEmpty()) {
+                return deviceName;
+            }
         }
         return "Android Controller";
     }

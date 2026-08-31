@@ -34,7 +34,6 @@
             [cljfx.fx.table-view :as fx.table-view]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.text-formatter :as fx.text-formatter]
-            [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -51,6 +50,8 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
+            [editor.markdown :as markdown]
+            [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
@@ -69,6 +70,7 @@
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.paint Color]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -149,7 +151,7 @@
 
 (defn- text-field [props]
   (assoc props :fx/type fx.text-field/lifecycle
-               :style-class ["text-field" "cljfx-form-text-field"]))
+         :style-class ["text-field" "cljfx-form-text-field"]))
 
 (defn- add-image-fit-size [{:keys [fit-size] :as props}]
   (-> props
@@ -162,15 +164,15 @@
               (assoc :graphic {:fx/type fx.image-view/lifecycle
                                :image (icons/get-image (:image props))}))
 
-          (contains? props :fit-size)
-          add-image-fit-size))
+    (contains? props :fit-size)
+    add-image-fit-size))
 
 (defn- icon-button [props]
   (cond-> (assoc props :fx/type fx.button/lifecycle
-                       :style-class ["button" "cljfx-form-icon-button"])
+                 :style-class ["button" "cljfx-form-icon-button"])
 
-          (contains? props :image)
-          add-image))
+    (contains? props :image)
+    add-image))
 
 (defmulti form-input-view
   "Form input component function
@@ -218,7 +220,7 @@
 (defn- default-cell-input-view [field]
   (wrap-cancel-on-escape
     (assoc field :fx/type form-input-view
-                 :on-value-changed (:on-commit field))
+           :on-value-changed (:on-commit field))
     (:on-cancel field)))
 
 (defmethod cell-input-view :default [field]
@@ -360,7 +362,7 @@
    [:dispatch (assoc on-value-changed :fx/event event)]])
 
 (defmethod handle-event :commit-on-enter [{:keys [^KeyEvent fx/event on-commit state-path ui-state]}]
-  (when (and (= KeyCode/ENTER (.getCode event)))
+  (when (= KeyCode/ENTER (.getCode event))
     (let [value (get-in ui-state (conj state-path :value) ::no-value)]
       (when-not (= value ::no-value)
         {:dispatch (assoc on-commit :fx/event value)}))))
@@ -385,10 +387,51 @@
                                 :state-path state-path
                                 :on-value-changed on-value-changed})
       (cond-> (contains? state :form-input-state)
-              (assoc :state (:form-input-state state)))
+        (assoc :state (:form-input-state state)))
       (wrap-cancel-on-escape on-cancel)
       (wrap-commit-on-enter on-commit state-path)
       (wrap-focus-text-field)))
+
+;; endregion
+
+;; region color input
+
+(defn- clamp-unit ^double [^double n] (min 1.0 (max 0.0 n)))
+
+(defn- color->value
+  "Assocs the color into the old value to retain its vector and number types."
+  [value ^Color color]
+  (let [coerce (if (math/float32? (first value)) float double)]
+    (cond-> (assoc value
+              0 (coerce (.getRed color))
+              1 (coerce (.getGreen color))
+              2 (coerce (.getBlue color)))
+            (= 4 (count value))
+            (assoc 3 (coerce (.getOpacity color))))))
+
+;; The color picker calls :on-value-changed directly, so we need the
+;; map-event-handler to dispatch the form event ourselves.
+(ui/defc form-color-picker-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}
+             {:fx/type fx/ext-get-env :env [:prefs]}]}
+  [{:keys [value on-value-changed map-event-handler prefs]}]
+  (let [[r g b a] value]
+    {:fx/type fxui/color-picker
+     :max-width normal-field-width
+     :prefs prefs
+     :ignore-alpha (not= 4 (count value))
+     :value (Color. (clamp-unit (double r))
+                    (clamp-unit (double g))
+                    (clamp-unit (double b))
+                    (clamp-unit (double (or a 1.0))))
+     :on-value-changed (fn [^Color color]
+                         (map-event-handler
+                           (assoc on-value-changed :fx/event (color->value value color))))}))
+
+(defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
+  {:fx/type form-color-picker-view
+   :value (ensure-value value field)
+   :on-value-changed on-value-changed})
 
 ;; endregion
 
@@ -575,10 +618,10 @@
         {:show-dialog :file-not-in-project}))
 
     :resource
-    (when-some [selected-resources (not-empty (resource-dialog/make
-                                                workspace project
-                                                {:ext (:filter element)
-                                                 :selection :multiple}))]
+    (when-some [selected-resources (coll/not-empty (resource-dialog/make
+                                                     workspace project
+                                                     {:ext (:filter element)
+                                                      :selection :multiple}))]
       (add-list-elements selected-resources map-event))
 
     ;; default
@@ -625,7 +668,7 @@
                :resource-string-converter resource-string-converter
                :state-path (conj state-path :edit :state))
         (cond-> (contains? edit :state)
-                (assoc :state (:state edit))))))
+          (assoc :state (:state edit))))))
 
 (defn- display-value-text [{:keys [type] :as field} value]
   (case type
@@ -682,7 +725,7 @@
                     :as field}]
   (let [{:keys [selected-indices edit]} state
         disable-add (not (form/has-default? element))
-        disable-remove (empty? selected-indices)
+        disable-remove (coll/empty? selected-indices)
         add-event {:event-type :add-list-element
                    :value value
                    :on-added on-added
@@ -777,16 +820,16 @@
                                    :or {value []}
                                    :as field}]
   (assoc field :fx/type list-input
-               :max-width normal-field-width
-               :on-edited {:event-type :edit-list-item
-                           :value value
-                           :on-value-changed on-value-changed}
-               :on-added {:event-type :add-list-items
-                          :value value
-                          :on-value-changed on-value-changed}
-               :on-removed {:event-type :remove-list-items
-                            :value value
-                            :on-value-changed on-value-changed}))
+         :max-width normal-field-width
+         :on-edited {:event-type :edit-list-item
+                     :value value
+                     :on-value-changed on-value-changed}
+         :on-added {:event-type :add-list-items
+                    :value value
+                    :on-value-changed on-value-changed}
+         :on-removed {:event-type :remove-list-items
+                      :value value
+                      :on-value-changed on-value-changed}))
 
 ;; endregion
 
@@ -932,8 +975,8 @@
   (let [edit (get-in ui-state (conj state-path :edit))]
     (cond-> [[:set-ui-state (update-in ui-state state-path dissoc :edit)]]
 
-            (some? (:value edit))
-            (conj [:dispatch (assoc on-value-changed :fx/event (value-with-edit value edit))]))))
+      (some? (:value edit))
+      (conj [:dispatch (assoc on-value-changed :fx/event (value-with-edit value edit))]))))
 
 (defmethod handle-event :commit-table-edit [{:keys [fx/event
                                                     edit-path
@@ -1002,24 +1045,24 @@
   (let [{:keys [edit]} state
         edit-path (into [(:index edit)] (:path column))
         input-state-path (conj state-path :edit :state)]
-      (-> column
-          (assoc :fx/type cell-input-view
-                 :value item
-                 :max-width normal-field-width
-                 :on-value-changed {:event-type :keep-table-edit
-                                    :state-path state-path}
-                 :on-cancel {:event-type :cancel-table-edit
-                             :state-path state-path}
-                 :on-commit {:event-type :commit-table-edit
-                             :edit-path edit-path
-                             :state-path state-path
-                             :value value
-                             :on-value-changed on-value-changed}
-                 :localization-state localization-state
-                 :resource-string-converter resource-string-converter
-                 :state-path input-state-path)
-          (cond-> (contains? edit :state)
-                  (assoc :state (:state edit))))))
+    (-> column
+        (assoc :fx/type cell-input-view
+               :value item
+               :max-width normal-field-width
+               :on-value-changed {:event-type :keep-table-edit
+                                  :state-path state-path}
+               :on-cancel {:event-type :cancel-table-edit
+                           :state-path state-path}
+               :on-commit {:event-type :commit-table-edit
+                           :edit-path edit-path
+                           :state-path state-path
+                           :value value
+                           :on-value-changed on-value-changed}
+               :localization-state localization-state
+               :resource-string-converter resource-string-converter
+               :state-path input-state-path)
+        (cond-> (contains? edit :state)
+          (assoc :state (:state edit))))))
 
 (defn- table-cell-value-factory [path [i x]]
   [i (get-in x path)])
@@ -1117,7 +1160,7 @@
                                     :or {value []}
                                     :as field}]
   (let [{:keys [selected-indices edit]} state
-        disable-remove (empty? selected-indices)
+        disable-remove (coll/empty? selected-indices)
         default-row (form/table-row-defaults field)
         disable-add (nil? default-row)
         on-added {:event-type :on-table-element-added
@@ -1133,9 +1176,7 @@
      :refs (when edit
              (let [i (:index edit)
                    path (:path edit)
-                   edited-column (some #(when (= (:path edit) (:path %))
-                                          %)
-                                       columns)
+                   edited-column (coll/first-where #(= path (:path %)) columns)
                    edited-value (or (:value edit)
                                     (get-in value (into [i] path)))]
                {[::edit i path] (edited-table-cell-view edited-column field edited-value)}))
@@ -1278,8 +1319,8 @@
                  :localization-state localization-state
                  :resource-string-converter resource-string-converter}
 
-                (contains? state :key)
-                (assoc :state (:key state)))
+          (contains? state :key)
+          (assoc :state (:key state)))
 
         selected-item-fields
         (when selected-index
@@ -1314,31 +1355,31 @@
                                                 :grid-pane/margin {:top 5}
                                                 :opacity 0.6
                                                 :text (get-label-text localization-state field)}]
-                                              (and (form/optional-field? field)
-                                                   (not= field-value ::no-value))
-                                              (conj {:fx/type icon-button
-                                                     :grid-pane/column 1
-                                                     :image "icons/32/Icons_S_02_Reset.png"
-                                                     :on-action {:event-type :2panel-value-clear
-                                                                 :index selected-index
-                                                                 :value-path (:path field)
-                                                                 :set fn-setter
-                                                                 :value value
-                                                                 :on-value-changed on-value-changed}}))}
+                                        (and (form/optional-field? field)
+                                             (not= field-value ::no-value))
+                                        (conj {:fx/type icon-button
+                                               :grid-pane/column 1
+                                               :image "icons/32/Icons_S_02_Reset.png"
+                                               :on-action {:event-type :2panel-value-clear
+                                                           :index selected-index
+                                                           :value-path (:path field)
+                                                           :set fn-setter
+                                                           :value value
+                                                           :on-value-changed on-value-changed}}))}
                            (cond->
                              (assoc field :fx/type form-input-view
-                                          :value (if (= ::no-value field-value)
-                                                   (form/field-default field)
-                                                   field-value)
-                                          :on-value-changed {:event-type :2panel-value-set
-                                                             :index selected-index
-                                                             :value-path (:path field)
-                                                             :value value
-                                                             :set fn-setter
-                                                             :on-value-changed on-value-changed}
-                                          :state-path field-state-path
-                                          :localization-state localization-state
-                                          :resource-string-converter resource-string-converter)
+                                    :value (if (= ::no-value field-value)
+                                             (form/field-default field)
+                                             field-value)
+                                    :on-value-changed {:event-type :2panel-value-set
+                                                       :index selected-index
+                                                       :value-path (:path field)
+                                                       :value value
+                                                       :set fn-setter
+                                                       :on-value-changed on-value-changed}
+                                    :state-path field-state-path
+                                    :localization-state localization-state
+                                    :resource-string-converter resource-string-converter)
                              (not= ::no-value field-state)
                              (assoc :state field-state))]}))))
                  (:sections
@@ -1356,7 +1397,7 @@
 
 ;; endregion
 
-(defn- make-row [values ui-state resource-string-converter row field localization-state]
+(defn- make-row [values ui-state resource-string-converter row field localization-state project]
   (let [{:keys [path visible]} field
         value (get values path ::no-value)
         state-path [:components path]
@@ -1367,103 +1408,110 @@
                 :build-targets)
         help-text (get-help-text localization-state field)]
     (cond-> []
-            :always
-            (conj (cond->
-                    {:fx/type fx.label/lifecycle
-                     :fx/key [:label path]
-                     :grid-pane/row row
-                     :grid-pane/column 0
-                     :grid-pane/valignment :top
-                     :grid-pane/margin {:top 5}
-                     :visible visible
-                     :managed visible
-                     :alignment :top-left
-                     :text (get-label-text localization-state field)}
-                    help-text
-                    (assoc :tooltip {:fx/type fx.tooltip/lifecycle
-                                     :text help-text})))
-            (and (form/optional-field? field)
-                 (not= value ::no-value))
-            (conj {:fx/type icon-button
-                   :fx/key [:clear path]
-                   :grid-pane/row row
-                   :grid-pane/column 1
-                   :grid-pane/valignment :top
-                   :grid-pane/halignment :right
-                   :visible visible
-                   :managed visible
-                   :image "icons/32/Icons_S_02_Reset.png"
-                   :on-action {:event-type :clear
-                               :path path}})
+      :always
+      (conj (cond->
+              {:fx/type fx.label/lifecycle
+               :fx/key [:label path]
+               :grid-pane/row row
+               :grid-pane/column 0
+               :grid-pane/valignment :top
+               :grid-pane/margin {:top 5}
+               :visible visible
+               :managed visible
+               :alignment :top-left
+               :text (get-label-text localization-state field)}
+              help-text
+              (fxui/apply-tooltip
+                {:fx/type fxui/tooltip
+                 :content-display :graphic-only
+                 :style {:-fx-padding 0}
+                 :graphic {:fx/type markdown/view
+                           :content help-text
+                           :max-width 350.0
+                           :project project}})))
+      (and (form/optional-field? field)
+           (not= value ::no-value))
+      (conj {:fx/type icon-button
+             :fx/key [:clear path]
+             :grid-pane/row row
+             :grid-pane/column 1
+             :grid-pane/valignment :top
+             :grid-pane/halignment :right
+             :visible visible
+             :managed visible
+             :image "icons/32/Icons_S_02_Reset.png"
+             :on-action {:event-type :clear
+                         :path path}})
 
-            :always
-            (conj {:fx/type fx.v-box/lifecycle
-                   :fx/key [:control path]
-                   :style-class (case (:severity error)
-                                  :fatal ["cljfx-form-error"]
-                                  :warning ["cljfx-form-warning"]
-                                  [])
-                   :grid-pane/row row
-                   :grid-pane/column 2
-                   :visible visible
-                   :managed visible
-                   :min-height line-height
-                   :alignment :center-left
-                   :children [(cond-> field
-                                      :always
-                                      (assoc :fx/type form-input-view
-                                             :localization-state localization-state
-                                             :resource-string-converter resource-string-converter
-                                             :value (if (= ::no-value value)
-                                                      (form/field-default field)
-                                                      value)
-                                             :on-value-changed {:event-type :set
-                                                                :path path}
-                                             :state-path state-path)
+      :always
+      (conj {:fx/type fx.v-box/lifecycle
+             :fx/key [:control path]
+             :style-class (case (:severity error)
+                            :fatal ["cljfx-form-error"]
+                            :warning ["cljfx-form-warning"]
+                            [])
+             :grid-pane/row row
+             :grid-pane/column 2
+             :visible visible
+             :managed visible
+             :min-height line-height
+             :alignment :center-left
+             :children [(cond-> field
+                          :always
+                          (assoc :fx/type form-input-view
+                                 :localization-state localization-state
+                                 :resource-string-converter resource-string-converter
+                                 :value (if (= ::no-value value)
+                                          (form/field-default field)
+                                          value)
+                                 :on-value-changed {:event-type :set
+                                                    :path path}
+                                 :state-path state-path)
 
-                                      (not= ::no-value state)
-                                      (assoc :state state))]}))))
+                          (not= ::no-value state)
+                          (assoc :state state))]}))))
 
-(defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible localization-state]}]
+(defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible localization-state project]}]
   {:fx/type fx.v-box/lifecycle
    :visible visible
    :managed visible
    :children (cond-> []
 
-                     :always
-                     (conj {:fx/type fx.label/lifecycle
-                            :style-class ["label" "cljfx-form-title"]
-                            :text title})
+               :always
+               (conj {:fx/type fx.label/lifecycle
+                      :style-class ["label" "cljfx-form-title"]
+                      :text title})
 
-                     help
-                     (conj {:fx/type fx.label/lifecycle :text help})
+               help
+               (conj {:fx/type fx.label/lifecycle :text help})
 
-                     :always
-                     (conj {:fx/type fx.grid-pane/lifecycle
-                            :style-class "cljfx-form-fields"
-                            :vgap line-spacing
-                            :column-constraints [{:fx/type fx.column-constraints/lifecycle
-                                                  :min-width 150
-                                                  :max-width 150}
-                                                 {:fx/type fx.column-constraints/lifecycle
-                                                  :min-width line-height
-                                                  :max-width line-height}
-                                                 {:fx/type fx.column-constraints/lifecycle
-                                                  :hgrow :always
-                                                  :min-width 200
-                                                  :max-width large-field-width}]
-                            :children (first
-                                        (reduce
-                                          (fn [[acc row] field]
-                                            [(into acc (make-row values
-                                                                 ui-state
-                                                                 resource-string-converter
-                                                                 row
-                                                                 field
-                                                                 localization-state))
-                                             (if (:visible field) (inc row) row)])
-                                          [[] 0]
-                                          fields))}))})
+               :always
+               (conj {:fx/type fx.grid-pane/lifecycle
+                      :style-class "cljfx-form-fields"
+                      :vgap line-spacing
+                      :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                                            :min-width 150
+                                            :max-width 150}
+                                           {:fx/type fx.column-constraints/lifecycle
+                                            :min-width line-height
+                                            :max-width line-height}
+                                           {:fx/type fx.column-constraints/lifecycle
+                                            :hgrow :always
+                                            :min-width 200
+                                            :max-width large-field-width}]
+                      :children (first
+                                  (reduce
+                                    (fn [[acc row] field]
+                                      [(into acc (make-row values
+                                                           ui-state
+                                                           resource-string-converter
+                                                           row
+                                                           field
+                                                           localization-state
+                                                           project))
+                                       (if (:visible field) (inc row) row)])
+                                    [[] 0]
+                                    fields))}))})
 
 ;; region filtering
 
@@ -1493,11 +1541,11 @@
   (let [value (get values (:path field) ::no-value)
         visible (and (or section-visible
                          (text-util/includes-ignore-case? (get-label-text localization-state field) filter-term)
-                         (boolean (some #(text-util/includes-ignore-case? % filter-term)
-                                        (filterable-strings
-                                          (assoc field :value (if (= value ::no-value)
-                                                                (form/field-default field)
-                                                                value))))))
+                         (coll/any? #(text-util/includes-ignore-case? % filter-term)
+                                    (filterable-strings
+                                      (assoc field :value (if (= value ::no-value)
+                                                            (form/field-default field)
+                                                            value)))))
                      (or (not (:deprecated field))
                          (some? (settings/get-setting-error
                                   (if (= value ::no-value) nil value)
@@ -1517,7 +1565,7 @@
                        (map #(annotate-field % values filter-term visible localization-state)))
                      fields)]
     (-> section
-        (assoc :visible (boolean (some :visible fields))
+        (assoc :visible (coll/any? :visible fields)
                :title title
                :fields fields)
         (cond-> help (assoc :help help)))))
@@ -1568,7 +1616,7 @@
 
 ;; endregion
 
-(defn- make-section-views [sections values ui-state resource-string-converter localization-state]
+(defn- make-section-views [sections values ui-state resource-string-converter localization-state project]
   (first
     (reduce
       (fn
@@ -1578,9 +1626,10 @@
                               :values values
                               :ui-state ui-state
                               :localization-state localization-state
+                              :project project
                               :resource-string-converter resource-string-converter)
                visible (:visible section)]
-           (if (empty? acc)
+           (if (coll/empty? acc)
              [(conj acc section-view) visible]
              [(into acc [{:fx/type fx.separator/lifecycle
                           :style-class "cljfx-form-separator"
@@ -1643,7 +1692,7 @@
 
 ;; endregion
 
-(defn- form-view [{:keys [parent form-data ui-state resource-string-converter localization-state]}]
+(defn- form-view [{:keys [parent form-data ui-state resource-string-converter localization-state project]}]
   (let [{:keys [sections values group-order default-section-name]} form-data
         filter-term (:filter-term ui-state)
         annotated-sections (mapv #(annotate-section % values filter-term localization-state) sections)
@@ -1662,7 +1711,8 @@
                                             (sort-by #(group-order (key %) ##Inf)))
                                 visible-titles (into #{} (map :title) visible-sections)
                                 selected-section-title (or (-> ui-state :selected-section-title (or default-section-name) visible-titles)
-                                                           (some-> groups first val first visible-titles))]
+                                                           (some-> groups first val first visible-titles))
+                                selected-section (coll/first-where #(= selected-section-title (:title %)) visible-sections)]
                             {:fx/type fx.h-box/lifecycle
                              :anchor-pane/top 0
                              :anchor-pane/right 0
@@ -1684,28 +1734,25 @@
                                                      :sections (mapcat val groups)
                                                      :selected-section-title selected-section-title
                                                      :groups groups}]}
-                                        {:fx/type fx/ext-let-refs
+                                        {:fx/type fx/ext-on-instance-lifecycle
                                          :h-box/hgrow :always
-                                         :refs (into {}
-                                                     (map (juxt :title
-                                                                #(assoc % :fx/type section-view
-                                                                          :values values
-                                                                          :ui-state ui-state
-                                                                          :localization-state localization-state
-                                                                          :resource-string-converter resource-string-converter)))
-                                                     annotated-sections)
-                                         :desc {:fx/type fx/ext-on-instance-lifecycle
-                                                :on-created #(ui/context! % :form {:root parent} nil)
-                                                :desc {:fx/type fx.scroll-pane/lifecycle
-                                                       :id "scroll-pane"
-                                                       :view-order 1
-                                                       :fit-to-width true
-                                                       :content {:fx/type fx.v-box/lifecycle
-                                                                 :style-class "cljfx-form"
-                                                                 :children (if selected-section-title
-                                                                             [{:fx/type fx/ext-get-ref
-                                                                               :ref selected-section-title}]
-                                                                             [])}}}}]})
+                                         :on-created #(ui/context! % :form {:root parent} nil)
+                                         :desc {:fx/type fx.scroll-pane/lifecycle
+                                                :id "scroll-pane"
+                                                :view-order 1
+                                                :fit-to-width true
+                                                :content (cond-> {:fx/type fx.v-box/lifecycle
+                                                                  :style-class "cljfx-form"}
+                                                           selected-section
+                                                           (assoc :children
+                                                             [(assoc selected-section
+                                                                :fx/type section-view
+                                                                :fx/key selected-section-title
+                                                                :values values
+                                                                :ui-state ui-state
+                                                                :localization-state localization-state
+                                                                :project project
+                                                                :resource-string-converter resource-string-converter)]))}}]})
 
                           {:fx/type fx/ext-on-instance-lifecycle
                            :anchor-pane/top 0
@@ -1724,14 +1771,15 @@
                                                         values
                                                         ui-state
                                                         resource-string-converter
-                                                        localization-state)}}})]}}))
+                                                        localization-state
+                                                        project)}}})]}}))
 
 (defn- wrap-force-refresh [f view-id]
   (fn [event]
     (f event)
     (g/node-value view-id :form-view)))
 
-(defn- create-renderer [view-id parent workspace project localization]
+(defn- create-renderer [view-id parent workspace project prefs localization]
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
@@ -1753,8 +1801,10 @@
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
                                (when (form/can-clear? ops)
                                  (g/transact (form/clear-value ops path)))))
-                    :set-ui-state (fn [ui-state _]
-                                    (g/set-property! view-id :ui-state ui-state))
+                    :set-ui-state (fn [ui-state _event]
+                                    (g/transact
+                                      {:undoable false}
+                                      (g/set-property view-id :ui-state ui-state)))
                     :cancel-edit (fn [x _]
                                    (cond
                                      (instance? Cell x)
@@ -1785,25 +1835,33 @@
                     fxui/wrap-dedupe-desc
                     (fx/wrap-map-desc
                       (fn [{:keys [form-data ui-state]}]
-                        {:fx/type fx/ext-watcher
-                         :ref localization
-                         :key :localization-state
-                         :desc {:fx/type form-view
-                                :form-data form-data
-                                :ui-state ui-state
-                                :parent parent
-                                :resource-string-converter resource-string-converter}}))))))
+                        {:fx/type fx/ext-set-env
+                         :env {:prefs prefs}
+                         :desc {:fx/type fx/ext-watcher
+                                :ref localization
+                                :key :localization-state
+                                :desc {:fx/type form-view
+                                       :form-data form-data
+                                       :ui-state ui-state
+                                       :parent parent
+                                       :project project
+                                       :resource-string-converter resource-string-converter}}}))))))
 
-(defn- make-form-view-node [graph parent resource-node workspace project localization]
+(defn- make-form-view-node [graph parent resource-node workspace project prefs localization]
   (g/make-nodes graph [view CljfxFormView]
-    (g/set-property view :renderer (create-renderer view parent workspace project localization))
+    (g/set-property view :renderer (create-renderer view parent workspace project prefs localization))
     (g/connect resource-node :form-data view :form-data)))
 
-(def make-form-view-node! (comp first g/tx-nodes-added g/transact make-form-view-node))
+(defn make-form-view-node! [graph parent resource-node workspace project prefs localization]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (make-form-view-node graph parent resource-node workspace project prefs localization)))))
 
 (defn- make-form-view [graph parent resource-node opts]
-  (let [{:keys [workspace project tab localization]} opts
-        view-id (make-form-view-node! graph parent resource-node workspace project localization)
+  (let [{:keys [workspace project prefs tab localization]} opts
+        view-id (make-form-view-node! graph parent resource-node workspace project prefs localization)
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
@@ -1817,11 +1875,11 @@
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :cljfx-form-view
-                                :label (localization/message "resource.view.form")
-                                :make-view-fn make-form-view))
+    :id :form
+    :label (localization/message "resource.view.form")
+    :make-view-fn make-form-view))
 
 (handler/defhandler :edit.find :form
   (run [^Node root]
-       (when-let [node (.lookup root "#filter-text-field")]
-         (.requestFocus node))))
+    (when-let [node (.lookup root "#filter-text-field")]
+      (.requestFocus node))))

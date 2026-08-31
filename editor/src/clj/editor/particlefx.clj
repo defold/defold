@@ -861,7 +861,8 @@
   (inherits EmitterProperties)
   (inherits ParticleProperties)
 
-  (property id g/Str (default (protobuf/default Particle$Emitter :id)))
+  (property id g/Str (default (protobuf/default Particle$Emitter :id))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :id)))
   (property pivot types/Vec3 (default scene/default-position)
             (dynamic label (properties/label-dynamic :particlefx :pivot))
             (dynamic tooltip (properties/tooltip-dynamic :particlefx :pivot)))

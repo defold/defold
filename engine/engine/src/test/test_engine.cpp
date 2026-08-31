@@ -414,6 +414,16 @@ TEST_F(EngineTest, Reboot)
     ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, RebootWithPendingAsyncBufferLoad)
+{
+    char project_path[256];
+    char project_config[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
+    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.main_collection=/reboot_load_buffer_async/start.collectionc", "--config=test.reboot_load_buffer_async_phase=first", "--config=dmengine.unload_builtins=0", project_config, project_path};
+    ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, ConnectionReboot)
 {
     const char* argv[] = {"test_engine", "--config=dmengine.unload_builtins=0"};
@@ -623,6 +633,25 @@ TEST_F(EngineTest, ISSUE_12362)
 {
     char project_path[256];
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-12362/issue-12362.collectionc", "--config=network.http_cache_enabled=0", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
+// Reproduces Sentry issue 7087016600 using only project resources and Lua APIs.
+TEST_F(EngineTest, LuaModuleHashCollision)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-12785/main.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
+// The collection proxy contains a script that fails during regular update and a sprite
+// that is rendered without frustum culling. Rendering still runs after the script error,
+// so the proxy collection's late update must run and allocate the sprite vertex buffer.
+// Without that late update, ASan reports a heap-buffer-overflow in sprite rendering.
+TEST_F(EngineTest, ISSUE_12703)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-12703/issue-12703.collectionc", "--config=bootstrap.render=/issue-12703/issue-12703.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 

@@ -28,6 +28,8 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -166,6 +168,13 @@ public class HTML5Bundler implements IBundler {
             properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
         }
 
+        // If the game archive is hosted somewhere else than index.html (typically a CDN) we let
+        // the engine_template.html emit a preconnect hint for that origin. Must be done after the
+        // local launch check above, since that resets the archive location prefix.
+        String archiveOrigin = getUrlOrigin((String)properties.get("DEFOLD_ARCHIVE_LOCATION_PREFIX"));
+        properties.put("DEFOLD_HAS_ARCHIVE_ORIGIN", archiveOrigin != null);
+        properties.put("DEFOLD_ARCHIVE_ORIGIN", archiveOrigin != null ? archiveOrigin : "");
+
         properties.put("DEFOLD_CUSTOM_CSS_INLINE", "");
         IResource customCSS = project.getResource("html5", "cssfile");
         if (customCSS != null) {
@@ -285,6 +294,35 @@ public class HTML5Bundler implements IBundler {
             finally {
                 IOUtils.closeQuietly(output);
             }
+        }
+    }
+
+    /**
+     * Get the origin (scheme://host[:port]) of an absolute or protocol relative url.
+     * @param url The url to get the origin from
+     * @return The origin, or null if the url is relative (ie same origin as index.html)
+     */
+    public static String getUrlOrigin(String url) {
+        if (url == null) {
+            return null;
+        }
+        // a protocol relative url ("//cdn.example.com/foo") inherits the scheme of the page
+        boolean protocolRelative = url.startsWith("//");
+        try {
+            URI uri = new URI(protocolRelative ? "https:" + url : url);
+            String host = uri.getHost();
+            String scheme = uri.getScheme();
+            if (host == null) {
+                return null;
+            }
+            if (!protocolRelative && !"http".equals(scheme) && !"https".equals(scheme)) {
+                return null;
+            }
+            String port = uri.getPort() != -1 ? ":" + uri.getPort() : "";
+            return (protocolRelative ? "//" : scheme + "://") + host + port;
+        }
+        catch (URISyntaxException e) {
+            return null;
         }
     }
 

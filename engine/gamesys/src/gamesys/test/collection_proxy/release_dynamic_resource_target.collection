@@ -1,0 +1,5 @@
+name: "release_dynamic_resource_target"
+instances {
+  id: "go"
+  prototype: "/collection_proxy/release_dynamic_resource_target.go"
+}

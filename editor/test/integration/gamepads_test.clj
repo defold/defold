@@ -130,9 +130,9 @@
                 gamepad-db-mapping (mapping-by-device maps (:gamepad-db-device platform-case))]
             (is (not (.exists (io/file (workspace/build-path workspace) "input/gamecontrollerdb.txt"))))
             (is (some? default-mapping))
-            (is (not (.hasGuid default-mapping)))
+            (is (not (.hasRawMapping default-mapping)))
             (is (some? gamepad-db-mapping))
-            (is (.hasGuid gamepad-db-mapping))
+            (is (.hasRawMapping gamepad-db-mapping))
             (is (nil? (mapping-by-device maps (:ignored-default-gamepads-device platform-case))))
             (is (nil? (mapping-by-device maps (:ignored-gamepad-db-device platform-case))))
             (is (not-any? (fn [^Input$GamepadMapRuntime mapping]

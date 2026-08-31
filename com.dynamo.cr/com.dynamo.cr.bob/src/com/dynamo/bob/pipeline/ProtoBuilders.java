@@ -34,6 +34,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.TextureUtil;
@@ -66,7 +67,7 @@ public class ProtoBuilders {
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();
-        String suffix = "." + FilenameUtils.getExtension(str);
+        String suffix = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(str));
         String replacement = types.getOrDefault(suffix, null);
         if (replacement != null) {
             return replacement;

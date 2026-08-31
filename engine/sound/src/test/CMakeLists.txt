@@ -205,3 +205,18 @@ if(TARGET_PLATFORM MATCHES "linux$")
   target_link_libraries(test_sound_openal PRIVATE sound_openal)
   sound_configure_test(test_sound_openal OFF)
 endif()
+
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  _defold_find_wasm_runner(_sound_js_test_runner)
+  if(_sound_js_test_runner)
+    add_custom_target(run_test_library_sound_js
+      COMMAND "${_sound_js_test_runner}" "${SOUND_TEST_ROOT}/test_library_sound.js"
+      WORKING_DIRECTORY "${SOUND_ROOT}"
+      USES_TERMINAL)
+    if(TARGET run_tests)
+      add_dependencies(run_tests run_test_library_sound_js)
+    endif()
+  else()
+    message(WARNING "Bun or Node.js not found; run_test_library_sound_js is unavailable")
+  endif()
+endif()

@@ -64,6 +64,7 @@ java_version = sdk.VERSION_EDITOR_JDK
 REQUIRED_ANDROID_VKQUALITY_FILES = (
     "libexec/armv7-android/libvkquality.so",
     "libexec/arm64-android/libvkquality.so",
+    "libexec/x86_64-android/libvkquality.so",
 )
 
 platform_to_java = {'x86_64-linux': 'x64_linux',
@@ -710,7 +711,21 @@ def notarize_dmg(app, options):
             else:
                 log("Retrying notarization...")
 
+def place_release_notes(options):
+    # Must run before prerelease: stages the notes onto the classpath (resources/,
+    # like editor.css). Best-effort, cleared each build so only this version ships.
+    dest_dir = os.path.join('resources', 'release-notes')
+    rmtree(dest_dir)
+    notes_src = os.path.join('..', 'releasenotes', '%s.json' % options.version)
+    if os.path.exists(notes_src):
+        mkdirs(dest_dir)
+        shutil.copy(notes_src, os.path.join(dest_dir, '%s.json' % options.version))
+        log("Staged release notes: %s" % notes_src)
+    else:
+        log("No release notes at %s; bundling none" % notes_src)
+
 def build(options):
+    place_release_notes(options)
     for platform in options.target_platform:
         log("Building editor for %s..." % platform)
         jdk = get_jdk(platform)

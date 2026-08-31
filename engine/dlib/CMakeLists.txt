@@ -168,11 +168,11 @@ foreach(_feature IN ITEMS
   elseif(_feature STREQUAL "dlib/sslsocket")
     if(DLIB_USE_MBEDTLS AND DLIB_TARGET_OS MATCHES "^(macos|ios)$")
       set(_preferred_tags mbedtls)
-    elseif(DLIB_TARGET_OS MATCHES "^(android|linux|win32|xbone)$")
+    elseif(NOT DLIB_TARGET_OS MATCHES "^(macos|ios|web)$")
       set(_extra_tags mbedtls)
     endif()
   elseif(_feature STREQUAL "dlib/sys")
-    if(DLIB_TARGET_OS MATCHES "^(android|linux|macos|ios|web|nx64|ps4|ps5)$")
+    if(DLIB_TARGET_OS MATCHES "^(android|linux|macos|ios|web|nx64)$")
       set(_extra_tags posix)
     endif()
   elseif(_feature STREQUAL "dlib/spinlock")
@@ -234,6 +234,10 @@ else()
        "${DLIB_MBEDTLS_DIR}/tf-psa-crypto/utilities/*.c")
 endif()
 
+if(DM_MBEDTLS_CUSTOM_NET)
+  dlib_remove_matching(DLIB_MBEDTLS_SOURCES "/net_sockets\\.c$")
+endif()
+
 defold_add_library(mbedtls STATIC ${DLIB_MBEDTLS_SOURCES})
 set_target_properties(mbedtls PROPERTIES OUTPUT_NAME dmbedtls)
 target_include_directories(mbedtls PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
@@ -273,11 +277,15 @@ endif()
 
 defold_add_library(image STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 
 defold_add_library(image_noasan STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image_noasan PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image_noasan PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image_noasan
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(image_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(image_null STATIC "${DLIB_CORE_DIR}/image_null.cpp")
@@ -301,11 +309,15 @@ set_target_properties(profile_null_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET d
 
 defold_add_library(profile STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
-target_compile_definitions(profile PUBLIC ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(profile
+  PUBLIC ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 
 defold_add_library(profile_noasan STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile_noasan PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
-target_compile_definitions(profile_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(profile_noasan
+  PUBLIC ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(profile_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")

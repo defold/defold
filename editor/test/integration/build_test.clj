@@ -441,7 +441,7 @@
                                               build-artifacts))]
           (is (= 2 (count-exts (keys content-by-target) "goc")))
           (is (= 1 (count-exts (keys content-by-target) "spritec")))))
-      (g/undo! (g/node-id->graph-id project))
+      (g/undo! :undo/global)
       (testing "Verify equivalent sprites are not merged after being changed in memory"
         (test-util/prop! comp-node :blend-mode :blend-mode-add)
         (let [build-artifacts (project-build-artifacts! project resource-node)
@@ -549,7 +549,7 @@
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
             glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
-        (is (= 256 (:cache-height glyph-bank))))))
+        (is (= 512 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
     (with-build-results "/fonts/gradient.font"
       (let [content (get content-by-source "/fonts/gradient.font")
@@ -799,6 +799,8 @@
 (deftest build-game-project-properties
   (with-loaded-project "test/resources/game_project_properties"
                        (let [game-project (test-util/resource-node project "/game.project")]
+                         (game-project/set-setting! game-project ["display" "height"] 1234)
+                         (game-project/set-setting! game-project ["project" "dependencies"] [(URI/create "http://test.com/not-responding.zip")])
                          (let [br (project-build! project game-project)]
                            (is (not (contains? br :error)))
                            (with-open [r (io/reader (build-path workspace "game.projectc"))]
@@ -815,6 +817,9 @@
 
                                ;; Default number value
                                (check-project-setting built-properties ["display" "width"] "960")
+
+                               ;; In-memory setting change
+                               (check-project-setting built-properties ["display" "height"] "1234")
 
                                ;; Custom property
                                (check-project-setting built-properties ["custom" "love"] "defold")
@@ -894,6 +899,11 @@
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "project/custom_resources" "foo/../assets"
+        (project-build! project game-project)
+        (check-file-contents workspace
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]]))
       (with-setting "project/custom_resources" "assets, root.stuff"
         (project-build! project game-project)
         (check-file-contents workspace
@@ -919,6 +929,50 @@
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
           (is (= "Custom resources directory not found: '/nonexistent_path'" error-message)))))))))
+
+(deftest build-with-custom-resources-from-ext-properties-default
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+          ext-dir (io/file (abs-project-path workspace "ext"))
+          ext-properties-file (io/file ext-dir "ext.properties")]
+      (.mkdirs ext-dir)
+      (spit ext-properties-file "[project]\ncustom_resources.default = assets\n")
+      (workspace/resource-sync! workspace)
+      (let [project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (project-build! project game-project)
+        (is (string/includes? (slurp (build-path workspace "game.projectc"))
+                              "custom_resources = /assets"))
+        (check-file-contents workspace
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]])))))
+
+(deftest build-with-custom-resources-from-unsaved-ext-properties-default
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+          ext-dir (io/file (abs-project-path workspace "ext"))
+          ext-properties-file (io/file ext-dir "ext.properties")]
+      (.mkdirs ext-dir)
+      (spit ext-properties-file "[project]\ncustom_resources.default = assets\n")
+      (workspace/resource-sync! workspace)
+      (let [project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")
+            ext-properties (test-util/resource-node project "/ext/ext.properties")]
+        (project-build! project game-project)
+        (check-file-contents workspace
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]])
+
+        (test-util/set-code-editor-lines!
+          ext-properties
+          (string/split-lines "[project]\ncustom_resources.default = more_assets\n"))
+
+        (project-build! project game-project)
+        (is (string/includes? (slurp (build-path workspace "game.projectc"))
+                              "custom_resources = /more_assets"))
+        (check-file-contents workspace
+                             [["more_assets/some_more.stuff" "some_more.stuff"]
+                              ["more_assets/some_more2.stuff" "some_more2.stuff"]])))))
 
 (deftest build-with-dependencies-metadata
   (with-loaded-project "test/resources/custom_resources_project"

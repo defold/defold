@@ -14,13 +14,15 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.awt.FontFormatException;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.IOException;
+import java.util.Locale;
+
+import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -29,14 +31,21 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
+import com.dynamo.bob.font.BMFont;
+import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.render.proto.Font.GlyphBank;
 import com.dynamo.render.proto.Font.FontDesc;
 
 @ProtoParams(srcClass = FontDesc.class, messageClass = GlyphBank.class)
 @BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc", isCacheble = true)
 public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
+
+    private static String getBitmapPath(byte[] fontBytes) throws IOException, BMFontFormatException {
+        BMFont bmfont = new BMFont();
+        bmfont.parse(new ByteArrayInputStream(fontBytes));
+        return FilenameUtils.getName(bmfont.page.get(0));
+    }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -64,38 +73,35 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
     	FontDesc.Builder builder = getSrcBuilder(task.firstInput());
         FontDesc fontDesc = builder.build();
 
-        final IResource inputFontFile = BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
-        BufferedInputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(inputFontFile.getContent()));
+        IResource inputFontFile = BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
+        byte[] fontBytes = inputFontFile.getContent();
+        String bitmapPath = null;
+        byte[] bitmapBytes = null;
+        if (fontDesc.getFont().toLowerCase(Locale.ROOT).endsWith(".fnt")) {
+            try {
+                bitmapPath = getBitmapPath(fontBytes);
+            } catch (BMFontFormatException e) {
+                throw new CompileExceptionError(task.input(0), 0, e.getMessage(), e);
+            }
+            IResource bitmapResource = inputFontFile.getResource(bitmapPath);
+            if (!bitmapResource.exists())
+                throw new FileNotFoundException("Could not find resource: " + bitmapResource.getPath());
+            bitmapBytes = bitmapResource.getContent();
+        }
         Fontc fontc = new Fontc();
 
-        try {
-            fontc.compile(fontStream, fontDesc, false, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    IResource res = inputFontFile.getResource(resourceName);
-                    if (!res.exists()) {
-                        throw new FileNotFoundException("Could not find resource: " + res.getPath());
-                    }
-
-                    try {
-                        return new BufferedInputStream(new ByteArrayInputStream(res.getContent()));
-                    } catch (IOException e) {
-                        throw new FileNotFoundException("Could not find resource: " + res.getPath());
-                    }
-                }
-            });
+        try (InputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(fontBytes));
+             InputStream bitmapStream = bitmapBytes == null ? null : new BufferedInputStream(new ByteArrayInputStream(bitmapBytes))) {
+            fontc.compile(fontStream, fontDesc, false, bitmapPath, bitmapStream);
 
             task.output(0).setContent(fontc.getGlyphBank().toByteArray());
 
-        } catch (FontFormatException e) {
+        } catch (IOException e) {
             task.output(0).remove();
             throw new CompileExceptionError(task.input(0), 0, e.getMessage());
         } catch (TextureGeneratorException e) {
             task.output(0).remove();
             throw new CompileExceptionError(task.input(0), 0, e.getMessage());
-        } finally {
-            fontStream.close();
         }
     }
 }

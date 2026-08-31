@@ -20,6 +20,7 @@ end
 local function test_get_info(self)
 	local info = resource.get_render_target_info("/resource/render_target_valid.render_targetc")
 	assert(info.handle ~= nil)
+	assert(info.sample_count == 4)
 	assert(#info.attachments == 3)
 	assert(info.attachments[1].width == 128)
 	assert(info.attachments[1].height == 128)
@@ -51,6 +52,7 @@ local function test_attachment_get_info(self)
     assert(info_from_handle.attachments[1].texture == nil)
     assert(info_from_handle.attachments[2].texture == nil)
     assert(info_from_handle.attachments[3].texture == nil)
+    assert(info_from_handle.sample_count == info.sample_count)
 end
 
 function init(self)

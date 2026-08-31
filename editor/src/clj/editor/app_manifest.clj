@@ -26,7 +26,7 @@
 
 (def windows #{:x86-win32 :x86_64-win32})
 
-(def android #{:armv7-android :arm64-android})
+(def android #{:armv7-android :arm64-android :x86_64-android})
 
 (def ios #{:armv7-ios :arm64-ios :x86_64-ios})
 
@@ -37,7 +37,7 @@
 (def vulkan
   #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     :arm64-ios})
 
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
@@ -50,7 +50,7 @@
   #{;; ios
     :armv7-ios :arm64-ios :x86_64-ios
     ;; android
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     ;; osx
     :x86_64-osx :arm64-osx
     ;; linux
@@ -81,8 +81,10 @@
     "font"
     "font_skribidi"
     "gamesys"
+    "gamesys_gui"
     "gamesys_model"
     "gamesys_model_null"
+    "gamesys_particle"
     "gamesys_rig"
     "gamesys_rig_null"
     "graphics"
@@ -97,6 +99,8 @@
     "graphics_vulkan"
     "graphics_webgpu"
     "graphics_webgpu_wagyu"
+    "gui"
+    "gui_null"
     "hid"
     "hid_null"
     "image"
@@ -112,6 +116,7 @@
     "mbedtls_noasan"
     "model"
     "particle"
+    "particle_null"
     "physics"
     "physics_2d"
     "physics_2d_defold"
@@ -131,13 +136,13 @@
     "record"
     "record_null"
     "render"
-    "render_font_default"
     "resource"
     "rig"
     "rig_null"
     "script"
     "script_box2d"
     "script_box2d_defold"
+    "script_bullet3d"
     "sound"
     "sound_nosimd"
     "sound_null"
@@ -498,6 +503,24 @@
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
 
+(def gui-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_gui" "gui"])
+      (libs-toggles all-platforms ["gui_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeGui" "ResourceTypeGuiScript" "ComponentTypeGui"]))))
+
+(def particle-fx-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_particle" "particle"])
+      (libs-toggles all-platforms ["particle_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeParticleFX" "ComponentTypeParticleFX" "ScriptLibParticleFX"]))))
+
+(def tilemap-setting
+  (make-check-box-setting
+    (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeTileMap" "ComponentTypeTileMap" "ScriptLibTileMap"])))
+
 (def sound-decoder-wav-setting
   (make-check-box-setting
     (concat
@@ -542,7 +565,8 @@
 (def use-android-support-lib-setting
   (make-check-box-setting
     [(boolean-toggle :armv7-android :jetifier false)
-     (boolean-toggle :arm64-android :jetifier false)]))
+     (boolean-toggle :arm64-android :jetifier false)
+     (boolean-toggle :x86_64-android :jetifier false)]))
 
 (def physics-setting
   ;; by default, legacy 2d and 3d are included in `physics` lib
@@ -550,7 +574,12 @@
         exclude-default (exclude-libs-toggles all-platforms ["physics"])
 
         ;; must use at least one of these when excluding default
-        exclude-3d (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-3d-legacy (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-3d (into []
+                         cat
+                         [exclude-3d-legacy
+                          (exclude-libs-toggles all-platforms ["script_bullet3d"])
+                          (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBullet3DExt"])])
         exclude-legacy-2d (exclude-libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"])
 
         ;; must be used when excluding 2d completely:
@@ -563,15 +592,26 @@
         include-legacy-2d (libs-toggles all-platforms ["physics_2d_defold"])
         include-2d-v3 (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"])
         include-3d (libs-toggles all-platforms ["physics_3d"])]
+    ;; The current signatures come first so writes include the Bullet script
+    ;; exclusions. The duplicate legacy signatures keep old manifests readable.
     (make-choice-setting
       {:2d :none :3d false}
       (concat exclude-all exclude-default exclude-3d exclude-legacy-2d exclude-all-2d)
 
+      {:2d :none :3d false}
+      (concat exclude-all exclude-default exclude-3d-legacy exclude-legacy-2d exclude-all-2d)
+
       {:2d :legacy :3d false}
       (concat exclude-default exclude-3d include-legacy-2d)
 
+      {:2d :legacy :3d false}
+      (concat exclude-default exclude-3d-legacy include-legacy-2d)
+
       {:2d :v3 :3d false}
       (concat exclude-default exclude-3d exclude-legacy-2d include-2d-v3)
+
+      {:2d :v3 :3d false}
+      (concat exclude-default exclude-3d-legacy exclude-legacy-2d include-2d-v3)
 
       {:2d :none :3d true}
       (concat exclude-default exclude-legacy-2d exclude-all-2d include-3d)
@@ -596,7 +636,7 @@
 
 
 (def generic-vulkan
-  (disj vulkan :armv7-android :arm64-android :arm64-ios))
+  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
@@ -790,6 +830,7 @@
                   ;; android
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]
+                  [:x86_64-android platform-pattern]
                   ;; osx
                   [:arm64-osx platform-pattern]
                   [:x86_64-osx platform-pattern]
@@ -868,6 +909,24 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-gui g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-gui))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-gui))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter gui-setting))
+            (set (setting-property-setter gui-setting)))
+  (property exclude-particle-fx g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter particle-fx-setting))
+            (set (setting-property-setter particle-fx-setting)))
+  (property exclude-tilemap g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-tilemap))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-tilemap))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter tilemap-setting))
+            (set (setting-property-setter tilemap-setting)))
   (property exclude-sound-decoder-wav g/Any
             (dynamic label (properties/label-dynamic :appmanifest :exclude-sound-decoder-wav))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-sound-decoder-wav))
@@ -981,4 +1040,4 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
-    :lazy-loaded true))
+    :lazy-loaded false))

@@ -102,13 +102,23 @@ namespace dmGraphics
         TextureParams m_StencilBufferParams;
         TextureParams m_DepthStencilTextureParams;
         HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_TextureColorResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture      m_TextureDepth;
         HTexture      m_TextureStencil;
         HTexture      m_TextureDepthStencil;
+        uint32_t      m_SampleCount;
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
         uint8_t       m_IsBound;
     };
+
+    static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)
+    {
+        return sample_count == 0 ? 1 : sample_count;
+    }
+
+    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts);
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name);
 
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;

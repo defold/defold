@@ -16,6 +16,7 @@
 #include <dlib/configfile.h>
 #include <dlib/log.h>
 #include <ddf/ddf.h>
+#include <extension/extension.hpp>
 #include <gameobject/gameobject.h>
 #include <render/render.h>
 #include <script/script.h>
@@ -44,6 +45,19 @@ namespace dmGameSystem
      * @name Tilemap
      * @namespace tilemap
      * @language Lua
+     */
+
+    /*# Tile transformations
+     * A transform is the arithmetic sum of one or both flip members and/or one
+     * rotation member. Flipping is applied before clockwise rotation.
+     *
+     * @enum
+     * @name tilemap.TRANSFORM
+     * @member tilemap.H_FLIP flip tile horizontally
+     * @member tilemap.ROTATE_180 rotate tile 180 degrees clockwise
+     * @member tilemap.ROTATE_270 rotate tile 270 degrees clockwise
+     * @member tilemap.ROTATE_90 rotate tile 90 degrees clockwise
+     * @member tilemap.V_FLIP flip tile vertically
      */
 
     /*# [type:hash] tile source
@@ -147,17 +161,13 @@ namespace dmGameSystem
      * That is, it is not possible to extend the size of a tile map by setting tiles outside the edges.
      * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by the URL and the layer name parameters.
      *
-     * Transform bitmask is arithmetic sum of one or both FLIP constants (`tilemap.H_FLIP`, `tilemap.V_FLIP`) and/or one of ROTATION constants
-     * (`tilemap.ROTATE_90`, `tilemap.ROTATE_180`, `tilemap.ROTATE_270`).
-     * Flip always applies before rotation (clockwise).
-     *
      * @name tilemap.set_tile
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @param tile [type:number] index of new tile to set. 0 resets the cell
-     * @param [transform_bitmask] [type:number] optional flip and/or rotation should be applied to the tile
+     * @param x [type:integer] x-coordinate of the tile
+     * @param y [type:integer] y-coordinate of the tile
+     * @param tile [type:integer] index of new tile to set. 0 resets the cell
+     * @param [transform_bitmask] [type:tilemap.TRANSFORM] optional flip and/or rotation should be applied to the tile
      * @examples
      *
      * ```lua
@@ -368,9 +378,9 @@ namespace dmGameSystem
      * @name tilemap.get_tile
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @return tile [type:number] index of the tile
+     * @param x [type:integer] x-coordinate of the tile
+     * @param y [type:integer] y-coordinate of the tile
+     * @return tile [type:integer] index of the tile
      * @examples
      *
      * ```lua
@@ -393,9 +403,9 @@ namespace dmGameSystem
      * @name tilemap.get_tile_info
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @return tile_info [type:table] index of the tile
+     * @param x [type:integer] x-coordinate of the tile
+     * @param y [type:integer] y-coordinate of the tile
+     * @return tile_info [type:{ index:integer, h_flip:boolean, v_flip:boolean, rotate_90:boolean }] full tile information
      * @examples
      *
      * ```lua
@@ -424,7 +434,7 @@ namespace dmGameSystem
      * @name tilemap.get_tiles
      * @param url [type:string|hash|url] the tilemap
      * @param layer [type:string|hash] the name of the layer for the tiles
-     * @return tiles [type:table] a table of rows representing the layer
+     * @return tiles [type:table<integer, table<integer, integer>>] a table of rows representing the layer
      * @examples
      *
      * ```lua
@@ -494,10 +504,10 @@ namespace dmGameSystem
      *
      * @name tilemap.get_bounds
      * @param url [type:string|hash|url] the tile map
-     * @return x [type:number] x coordinate of the bottom left corner
-     * @return y [type:number] y coordinate of the bottom left corner
-     * @return w [type:number] number of columns (width) in the tile map
-     * @return h [type:number] number of rows (height) in the tile map
+     * @return x [type:integer] x coordinate of the bottom left corner
+     * @return y [type:integer] y coordinate of the bottom left corner
+     * @return w [type:integer] number of columns (width) in the tile map
+     * @return h [type:integer] number of rows (height) in the tile map
      * @examples
      *
      * ```lua
@@ -600,31 +610,6 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    /*# flip tile horizontally
-     *
-     * @name tilemap.H_FLIP
-     * @constant
-     */
-    /*# flip tile vertically
-     *
-     * @name tilemap.V_FLIP
-     * @constant
-     */
-    /*# rotate tile 90 degrees clockwise
-     *
-     * @name tilemap.ROTATE_90
-     * @constant
-     */
-    /*# rotate tile 180 degrees clockwise
-     *
-     * @name tilemap.ROTATE_180
-     * @constant
-     */
-    /*# rotate tile 270 degrees clockwise
-     *
-     * @name tilemap.ROTATE_270
-     * @constant
-     */
 
     void ScriptTileMapRegister(const ScriptLibContext& context)
     {
@@ -672,4 +657,14 @@ namespace dmGameSystem
 
         lua_pop(L, 1);
     }
+
+    static dmExtension::Result ScriptTileMapInitialize(dmExtension::Params* params)
+    {
+        ScriptLibContext context;
+        context.m_LuaState = params->m_L;
+        ScriptTileMapRegister(context);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibTileMap, "ScriptTileMap", 0, 0, ScriptTileMapInitialize, 0, 0, 0)
 }
