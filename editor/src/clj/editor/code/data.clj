@@ -2085,9 +2085,7 @@
                       (nil? top)
                       [continued nil]
 
-                      (and leading
-                           (coll/not-empty closes)
-                           (frame-closed-by? top (closes 0)))
+                      (and leading (frame-closed-by? top leading))
                       [(:level top) nil]
 
                       :else
@@ -2186,7 +2184,7 @@
     (counts line in-long-string tab-spaces)
     (let [close (boolean (ends-indentation? grammar line))
           open (boolean (begins-indentation? grammar line))]
-      {:leading close
+      {:leading (when close :any)
        :closes (if close [:any] [])
        :opens (if open [{:kind :any :col nil}] [])
        :unfinished-assign false
@@ -2197,6 +2195,7 @@
   (let [queried-row (long queried-row)
         tab-spaces (long tab-spaces)
         multiline-string-scope (:multiline-string-scope (:indent grammar))
+        restart-scan? (:restart-scan? (:indent grammar))
         syntax-info-row-count (count syntax-info)
         ^long start-row (loop [row queried-row
                                candidate nil]
@@ -2204,13 +2203,7 @@
                             (or candidate 0)
                             (let [^String line (get lines row)]
                               (cond
-                                ;; A long string can hold anything, so give up and
-                                ;; start from the top. The indexOf calls skip the
-                                ;; pattern on lines without either bracket.
-                                (and (or (<= 0 (.indexOf line (int \[)))
-                                         (<= 0 (.indexOf line (int \]))))
-                                     (re-find #"\[=*\[|\]=*\]" line))
-                                0
+                                (and restart-scan? (restart-scan? line)) 0
 
                                 (some? candidate) (recur (dec row) candidate)
 
@@ -2222,16 +2215,15 @@
 
                                 (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row) nil)
 
-                                ;; A line that leads with a bracket closer continues
-                                ;; whatever opened above, so being unindented does not
-                                ;; make it a top-level statement.
-                                (let [{:keys [leading closes]} (line-indent-counts grammar line false tab-spaces)]
-                                  (and leading (coll/not-empty closes) (not= :block (first closes))))
+                                (when-let [kind (:leading (line-indent-counts grammar line false tab-spaces))]
+                                  (not= :block kind))
                                 (recur (dec row) nil)
 
-                                ;; Nothing to ask: keep climbing for long brackets.
-                                (or (nil? multiline-string-scope)
-                                    (< syntax-info-row-count row))
+                                (nil? multiline-string-scope) row
+
+                                ;; Without syntax information, keep climbing in case
+                                ;; an earlier line forces us to restart from the top.
+                                (< syntax-info-row-count row)
                                 (recur (dec row) row)
 
                                 ;; The contexts left open at the end of the row above

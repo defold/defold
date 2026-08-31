@@ -96,8 +96,9 @@
 ;; The summary cancels matched opens/closes and reports what's left:
 ;; - :closes - kinds of the closers with no matching opener on this line;
 ;;   these may pop matching enclosing frames and affect later lines
-;; - :leading - whether the line starts with a closer. Only a matching closer
-;;   at the start should dedent it; one at the end is continuation punctuation
+;; - :leading - the kind of the closer the line starts with, or nil if it does
+;;   not start with one. Only a matching closer at the start should dedent the
+;;   line; one at the end is continuation punctuation
 ;; - :opens - one entry per still-open bracket/keyword, holding its :kind and
 ;;   its :col, which is either:
 ;;     * the column to align its contents to (just past the bracket, with
@@ -268,7 +269,7 @@
                     (subvec leftover (count closes)))]
     {:closes closes
      :opens opens
-     :leading (some? (re-find lua-close-line-pattern line))
+     :leading (when (re-find lua-close-line-pattern line) (first closes))
      :unfinished-assign (boolean unfinished-assign)
      :has-code (not (neg? last-code))
      :in-long-string in-long-string}))
@@ -276,7 +277,11 @@
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
-   :indent {:counts #(lua-indent-counts %1 %2 %3)
+   :indent {:counts lua-indent-counts
+            :restart-scan? (fn [^String line]
+                             (and (or (<= 0 (.indexOf line (int \[)))
+                                      (<= 0 (.indexOf line (int \]))))
+                                  (re-find #"\[=*\[|\]=*\]" line)))
             :end lua-close-line-pattern
             :multiline-string-scope "string.quoted.other.multiline.lua"}
    :line-comment "--"
