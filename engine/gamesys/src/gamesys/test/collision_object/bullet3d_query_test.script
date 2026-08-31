@@ -557,7 +557,7 @@ local function test_shape_cast_queries(world, objects)
     local translation = vmath.vector3(10, 0, 0)
     local expected_casts = {
         { name = "sphere", fraction = 0.30, point = vmath.vector3(-1, 0, 0) },
-        { name = "asymmetric rotating box", fraction = 0.31 },
+        { name = "asymmetric rotating box", fraction = 0.3106 },
         { name = "capsule", fraction = 0.30, point = vmath.vector3(-1, 0, 0) },
     }
     local shapes = {

@@ -596,7 +596,7 @@ namespace dmGameSystem
         {
         }
 
-        virtual bool process(const btBroadphaseProxy* proxy)
+        bool process(const btBroadphaseProxy* proxy) override
         {
             if (!HasResultCapacity(m_Results->Size(), m_MaxResults))
             {
@@ -626,16 +626,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_Closest(closest)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& ray_result, bool normal_in_world_space)
+        btScalar addSingleResult(btCollisionWorld::LocalRayResult& ray_result, bool normal_in_world_space) override
         {
             if (ray_result.m_hitFraction <= 0.0f)
             {
@@ -682,16 +682,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_Closest(closest)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult& convex_result, bool normal_in_world_space)
+        btScalar addSingleResult(btCollisionWorld::LocalConvexResult& convex_result, bool normal_in_world_space) override
         {
             if (convex_result.m_hitFraction <= 0.0f)
             {
@@ -737,16 +737,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_MaxResults(max_results)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
+        btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1) override
         {
             (void)part_id_0;
             (void)index_0;
@@ -784,16 +784,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_MaxResults(max_results)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
+        btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1) override
         {
             (void)part_id_0;
             (void)index_0;
@@ -1870,6 +1870,11 @@ namespace dmGameSystem
  */
 
 /*# Set world gravity
+ *
+ * Bullet propagates the new value to active dynamic bodies unless they have
+ * `bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY` set. Such bodies retain their
+ * custom body gravity.
+ *
  * @name bullet3d.world.set_gravity
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param gravity [type:vector3] finite gravity in Defold units per second squared
@@ -1970,7 +1975,7 @@ namespace dmGameSystem
  *
  * Casts immediately from `origin` to `origin + translation` and returns all
  * matching hits sorted by fraction. Translation must be non-zero.
- * Bullet 2.77 normally does not report a ray whose start and end are both inside
+ * Bullet's convex ray test normally does not report a ray whose start and end are both inside
  * the same convex hull. Set `filter.report_initial_overlaps = true` to perform
  * an exact point-overlap test at the origin and synthesize one deduplicated hit
  * per initially touching or overlapping object with `fraction = 0`, zero `normal`,
@@ -2033,7 +2038,7 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param origin [type:vector3] ray origin in world space
  * @param translation [type:vector3] non-zero ray displacement in world units
- * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] result callback
+ * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] function called as `callback(self, hits)`
  * @param [filter] [type:bullet3d.world.query_filter] query filter
  * @param [max_results] [type:integer] maximum sorted hits, or zero for all
  * @examples
@@ -2102,7 +2107,7 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param shape [type:bullet3d.shape.definition] convex query shape with optional target rotation
  * @param translation [type:vector3] non-zero sweep displacement in world units
- * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] result callback
+ * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] function called as `callback(self, hits)`
  * @param [filter] [type:bullet3d.world.query_filter] query filter
  * @param [max_results] [type:integer] maximum sorted hits, or zero for all
  */
