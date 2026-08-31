@@ -89,23 +89,97 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'bld-eng-windows (win32)', platform: win32, runner: windows-2025-vs2026, timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, gcloud: true, codesign: true}
-          - {name: 'bld-eng-windows (x86_64-win32)', platform: x86_64-win32, runner: windows-2025-vs2026, timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, gcloud: true, codesign: true}
-          - {name: 'bld-eng-darwin (x86_64-macos)', platform: x86_64-macos, runner: macos-26, timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, codesign: true}
-          - {name: 'bld-eng-darwin (arm64-macos)', platform: arm64-macos, runner: macos-26, timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, codesign: true}
-          - {name: 'bld-eng-darwin (arm64-ios, true)', platform: arm64-ios, runner: macos-26, timeout: 30, engine_args: '--skip-tests --skip-builtins --skip-docs', dotnet: true, codesign: true}
-          - {name: 'bld-eng-darwin (x86_64-ios, true)', platform: x86_64-ios, runner: macos-26, timeout: 30, engine_args: '--skip-tests --skip-builtins --skip-docs', dotnet: true, codesign: true}
-          - {name: 'bld-eng-web (wasm-web)', platform: wasm-web, runner: ubuntu-22.04, timeout: 45, engine_args: '--skip-builtins --skip-docs --skip-tests', emsdk: true}
-          - {name: 'bld-eng-web (wasm_pthread-web)', platform: wasm_pthread-web, runner: ubuntu-22.04, timeout: 45, engine_args: '--skip-builtins --skip-docs --skip-tests', emsdk: true}
-          - {name: 'bld-eng-android (armv7-android, true)', platform: armv7-android, runner: ubuntu-latest, timeout: 60, engine_args: '--skip-tests --skip-builtins --skip-docs', android: true}
-          - {name: 'bld-eng-android (arm64-android, true)', platform: arm64-android, runner: ubuntu-latest, timeout: 60, engine_args: '--skip-tests --skip-builtins --skip-docs', android: true}
+          - name: 'bld-eng-windows (win32)'
+            platform: win32
+            runner: windows-2025-vs2026
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            gcloud: true
+            codesign: true
+          - name: 'bld-eng-windows (x86_64-win32)'
+            platform: x86_64-win32
+            runner: windows-2025-vs2026
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            gcloud: true
+            codesign: true
+          - name: 'bld-eng-darwin (x86_64-macos)'
+            platform: x86_64-macos
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-darwin (arm64-macos)'
+            platform: arm64-macos
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-darwin (arm64-ios, true)'
+            platform: arm64-ios
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-darwin (x86_64-ios, true)'
+            platform: x86_64-ios
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-web (wasm-web)'
+            platform: wasm-web
+            runner: ubuntu-22.04
+            timeout: 45
+            engine_args: '--skip-builtins --skip-docs --skip-tests'
+            emsdk: true
+          - name: 'bld-eng-web (wasm_pthread-web)'
+            platform: wasm_pthread-web
+            runner: ubuntu-22.04
+            timeout: 45
+            engine_args: '--skip-builtins --skip-docs --skip-tests'
+            emsdk: true
+          - name: 'bld-eng-android (armv7-android, true)'
+            platform: armv7-android
+            runner: ubuntu-latest
+            timeout: 60
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            android: true
+          - name: 'bld-eng-android (arm64-android, true)'
+            platform: arm64-android
+            runner: ubuntu-latest
+            timeout: 60
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            android: true
           # Without emulator the unit tests would be skipped; x86_64 runs them on a
           # hardware accelerated emulator, see 'Build engine and run tests on emulator'.
-          - {name: 'bld-eng-android (x86_64-android)', platform: x86_64-android, runner: ubuntu-latest, timeout: 60, engine_args: '--skip-builtins --skip-docs', android: true, emulator: true}
+          - name: 'bld-eng-android (x86_64-android)'
+            platform: x86_64-android
+            runner: ubuntu-latest
+            timeout: 60
+            engine_args: '--skip-builtins --skip-docs'
+            android: true
+            emulator: true
           # x86_64-linux is the only engine build that runs without --skip-docs and
           # --skip-builtins, so it is the only source of ref-doc.zip and builtins.zip.
-          - {name: 'bld-eng-linux-x64 (x86_64-linux)', platform: x86_64-linux, runner: ubuntu-22.04, timeout: 30, engine_args: '', dotnet: true, docs: true}
-          - {name: 'bld-eng-linux-arm64 (arm64-linux)', platform: arm64-linux, runner: ubuntu-22.04-arm, timeout: 30, engine_args: '--verbose'}
+          - name: 'bld-eng-linux-x64 (x86_64-linux)'
+            platform: x86_64-linux
+            runner: ubuntu-22.04
+            timeout: 30
+            engine_args: ''
+            dotnet: true
+            docs: true
+          - name: 'bld-eng-linux-arm64 (arm64-linux)'
+            platform: arm64-linux
+            runner: ubuntu-22.04-arm
+            timeout: 30
+            engine_args: '--verbose'
     runs-on: ${{ matrix.runner }}
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: ${{ matrix.timeout }}
@@ -296,9 +370,21 @@ jobs:
     strategy:
       matrix:
         include:
-          - {id: switch, title: 'Switch', repo: 'defold/defold-switch', ref: "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}", platform: 'arm64-nx64'}
-          - {id: ps, title: 'PlayStation', repo: 'defold/defold-ps4', ref: "${{ vars.PS_PRIVATE_REF || 'dev' }}", platform: 'x86_64-ps4,x86_64-ps5'}
-          - {id: xbox, title: 'Xbox', repo: 'defold/defold-xbox', ref: "${{ vars.XBOX_PRIVATE_REF || 'dev' }}", platform: 'x86_64-xbone'}
+          - id: switch
+            title: 'Switch'
+            repo: 'defold/defold-switch'
+            ref: "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}"
+            platform: 'arm64-nx64'
+          - id: ps
+            title: 'PlayStation'
+            repo: 'defold/defold-ps4'
+            ref: "${{ vars.PS_PRIVATE_REF || 'dev' }}"
+            platform: 'x86_64-ps4,x86_64-ps5'
+          - id: xbox
+            title: 'Xbox'
+            repo: 'defold/defold-xbox'
+            ref: "${{ vars.XBOX_PRIVATE_REF || 'dev' }}"
+            platform: 'x86_64-xbone'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -494,10 +580,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - {platform: x86_64-linux, runner: ubuntu-22.04, name: 'build-editor-linux'}
-          - {platform: x86_64-macos, runner: macos-26-intel, name: 'build-editor-macos (x86_64-macos, macos-26-intel)'}
-          - {platform: arm64-macos, runner: macos-26, name: 'build-editor-macos (arm64-macos, macos-26)'}
-          - {platform: x86_64-win32, runner: windows-2025-vs2026, name: 'build-editor-windows (x86_64-win32)'}
+          - platform: x86_64-linux
+            runner: ubuntu-22.04
+            name: 'build-editor-linux'
+          - platform: x86_64-macos
+            runner: macos-26-intel
+            name: 'build-editor-macos (x86_64-macos, macos-26-intel)'
+          - platform: arm64-macos
+            runner: macos-26
+            name: 'build-editor-macos (arm64-macos, macos-26)'
+          - platform: x86_64-win32
+            runner: windows-2025-vs2026
+            name: 'build-editor-windows (x86_64-win32)'
     steps:
       - *step_checkout
       - *step_cache_dcache
