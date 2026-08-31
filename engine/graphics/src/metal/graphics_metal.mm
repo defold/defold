@@ -389,13 +389,6 @@ namespace dmGraphics
         }
     }
 
-    static int MetalAsyncStopBarrierCallback(HJobContext, HJob, void*, void* data)
-    {
-        int32_atomic_t* barrier_pending = (int32_atomic_t*) data;
-        dmAtomicStore32(barrier_pending, 0);
-        return 0;
-    }
-
     static void MetalStopAsyncProcessing(MetalContext* context)
     {
         if (!context->m_AsyncProcessingSupport)
@@ -404,10 +397,10 @@ namespace dmGraphics
             return;
         }
 
-        int32_atomic_t barrier_pending;
         {
-            // Serialize shutdown with MetalSetTextureAsync(). Jobs queued before
-            // this barrier finish before context-owned Metal resources are released.
+            // Serialize shutdown with MetalSetTextureAsync(). If an upload wins
+            // this lock, it increments the pending count before shutdown can
+            // observe it. If shutdown wins, no more uploads can be queued.
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
             if (dmAtomicGet32(&context->m_DeleteContextRequested))
@@ -416,22 +409,15 @@ namespace dmGraphics
             }
 
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
-
-            // The graphics job context currently has one worker, so a queued
-            // barrier executes after every previously submitted texture upload.
-            assert(JobSystemGetWorkerCount(context->m_JobContext) == 1);
-            dmAtomicStore32(&barrier_pending, 1);
-
-            Job job = {0};
-            job.m_Process = MetalAsyncStopBarrierCallback;
-            job.m_Data = (void*) &barrier_pending;
-
-            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
-            JobSystemPushJob(context->m_JobContext, hjob);
         }
 
-        while (dmAtomicGet32(&barrier_pending))
+        // Completion callbacks own entries in m_SetTextureAsyncState and still
+        // reference this context. Drain them on the main thread before teardown.
+        // Tracking accepted uploads instead of queue order also supports job
+        // systems with zero or multiple workers.
+        while (dmAtomicGet32(&context->m_PendingAsyncTextureJobs))
         {
+            JobSystemUpdate(context->m_JobContext, 0);
             dmTime::Sleep(100);
         }
     }
@@ -5129,12 +5115,13 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
+        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+        dmAtomicDecrement32(&context->m_PendingAsyncTextureJobs);
+
         if (ap.m_Callback)
         {
             ap.m_Callback(ap.m_Texture, ap.m_UserData);
         }
-
-        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
     static void MetalSetTextureAsync(HContext _context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
@@ -5143,7 +5130,7 @@ namespace dmGraphics
         if (context->m_AsyncProcessingSupport)
         {
             {
-                bool prepare_ok = false;
+                bool queued = false;
                 {
                     DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
                     if (dmAtomicGet32(&context->m_DeleteContextRequested))
@@ -5151,13 +5138,13 @@ namespace dmGraphics
                         return;
                     }
                     MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-                    prepare_ok = MetalPrepareTextureForUploading(context, tex, params);
-                    if (prepare_ok)
+                    if (MetalPrepareTextureForUploading(context, tex, params))
                     {
                         int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
                         dmAtomicStore32(&tex->m_Base.m_DataState, data_state | (1 << params.m_MipMap));
 
                         uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
+                        dmAtomicIncrement32(&context->m_PendingAsyncTextureJobs);
 
                         Job job = {0};
                         job.m_Process = AsyncProcessTextureCallback;
@@ -5166,11 +5153,17 @@ namespace dmGraphics
                         job.m_Data = (void*) (uintptr_t) param_array_index;
 
                         HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
-                        JobSystemPushJob(context->m_JobContext, hjob);
+                        queued = JobSystemPushJob(context->m_JobContext, hjob) == JOBSYSTEM_RESULT_OK;
+                        if (!queued)
+                        {
+                            ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+                            dmAtomicDecrement32(&context->m_PendingAsyncTextureJobs);
+                            dmAtomicStore32(&tex->m_Base.m_DataState, data_state);
+                        }
                     }
                 }
 
-                if (!prepare_ok)
+                if (!queued)
                 {
                     if (callback)
                     {

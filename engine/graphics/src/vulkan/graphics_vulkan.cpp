@@ -5312,6 +5312,10 @@ bail:
 
     void VulkanStopAsyncProcessing(VulkanContext* context)
     {
+        // TODO: Unlike Metal, this still relies on a single-worker FIFO barrier
+        // and does not drain completion callbacks before context teardown. Move
+        // Vulkan to explicit pending-job tracking after the Metal flow has been
+        // validated.
         if (!context->m_AsyncProcessingSupport)
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
