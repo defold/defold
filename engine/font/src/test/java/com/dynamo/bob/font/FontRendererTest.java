@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.font;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -35,7 +36,10 @@ import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 
 public class FontRendererTest {
-    private static final int VERTEX_STRIDE = 96;
+    private static final int VERTEX_STRIDE = 56;
+    private static final int VERTEX_FACE_COLOR_OFFSET = 16;
+    private static final int VERTEX_SHADOW_COLOR_OFFSET = 24;
+    private static final int VERTEX_SDF_SHADOW_OFFSET = 40;
     private static final float[] IDENTITY = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
@@ -88,6 +92,27 @@ public class FontRendererTest {
         return new FontRenderer(fontResource, fontBytes, params);
     }
 
+    private static FontRenderer createGlyphBankRenderer() {
+        int glyphPadding = 1;
+        int glyphChannels = 4;
+        int bitmapWidth = 4;
+        int bitmapHeight = 5;
+        byte[] glyphData = new byte[bitmapWidth * bitmapHeight * glyphChannels];
+        for (int index = 0; index < glyphData.length; ++index)
+            glyphData[index] = (byte)(index + 1);
+        FontRenderer.GlyphBankGlyph[] glyphs = {
+            new FontRenderer.GlyphBankGlyph(' ', 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0, 0),
+            new FontRenderer.GlyphBankGlyph('A', 2.0f, 3.0f, 0.0f, 4.0f, -1.0f, 0, glyphData.length)
+        };
+        FontRenderer.GlyphBank glyphBank = new FontRenderer.GlyphBank(
+                glyphs, glyphData, glyphPadding, glyphChannels, 4.0f, 0.0f);
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 3.0f;
+        params.cacheWidth = 32;
+        params.cacheHeight = 32;
+        return new FontRenderer("test.fnt", glyphBank, params);
+    }
+
     @Test
     public void testLayoutSelection() throws Exception {
         try (FontRenderer legacy = createRenderer(32.0f, 512, 512, false);
@@ -95,6 +120,38 @@ public class FontRendererTest {
             float legacyWidth = legacy.measure("AV", false, 0.0f, 1.0f, 0.0f).width;
             float skribidiWidth = skribidi.measure("AV", false, 0.0f, 1.0f, 0.0f).width;
             assertTrue(skribidiWidth < legacyWidth);
+        }
+    }
+
+    @Test
+    public void testGlyphBankMeasureAndRichTextRender() {
+        try (FontRenderer renderer = createGlyphBankRenderer()) {
+            FontRenderer.Layout plain = renderer.measure("A", false, 0.0f, 1.0f, 0.0f);
+            FontRenderer.Layout markup = renderer.measureMarkup("<size=2em>A</size>", false, 0.0f, 1.0f, 0.0f);
+            assertEquals(2.0f, plain.width, 0.001f);
+            assertTrue(markup.width > plain.width);
+            assertEquals(2, renderer.getSupportedGlyphMetrics().length);
+
+            FontRenderer.GeneratedGlyph glyph = renderer.generateGlyph('A');
+            assertEquals(2, glyph.glyphIndex);
+            assertEquals(4, glyph.width);
+            assertEquals(5, glyph.height);
+            assertEquals(4, glyph.channels);
+            assertEquals(80, glyph.pixels.remaining());
+
+            renderer.setProperties(properties(10.0f, 1.0f, 0));
+            renderer.setMarkup("<color=#ff0000>A</color>");
+            renderer.beginBatch();
+            FontRenderer.Texture texture = renderer.generateTexture(0);
+            assertEquals(4, texture.channels);
+            assertNotNull(texture.pixels);
+            assertEquals(6, getVertices(renderer, IDENTITY).vertexCount);
+            for (int row = 0; row < 5; ++row) {
+                for (int column = 0; column < 16; ++column) {
+                    byte expected = row == 0 && column < 4 ? (byte)0xff : (byte)(row * 16 + column + 1);
+                    assertEquals(expected, texture.pixels.get((row * 32 * 4) + column));
+                }
+            }
         }
     }
 
@@ -181,6 +238,138 @@ public class FontRendererTest {
             TestVertices emptyVertices = getVertices(renderer, IDENTITY);
             assertEquals(0, emptyVertices.vertexCount);
             assertEquals(0, emptyVertices.vertices.remaining());
+        }
+    }
+
+    @Test
+    public void testRichTextMeasureAndRender() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Layout plain = renderer.measure("Large red text", false, 0.0f, 1.0f, 0.0f);
+            FontRenderer.Layout markup = renderer.measureMarkup("<size=2em>Large</size> <color=#ff0000>red</color> text", false, 0.0f, 1.0f, 0.0f);
+            assertTrue(markup.width > plain.width);
+            assertNull(markup.markupDocument);
+            assertNotNull(renderer.measureMarkupWithDocument("<color=#fff>text</color>", false, 0.0f, 1.0f, 0.0f).markupDocument);
+
+            renderer.setProperties(properties(100.0f, 1.0f, 0));
+            renderer.setMarkup("<color=#ff0000>red</color>");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertEquals(18, vertices.vertexCount);
+            assertEquals(255, Byte.toUnsignedInt(vertices.vertices.get(VERTEX_FACE_COLOR_OFFSET)));
+            assertEquals(0,   Byte.toUnsignedInt(vertices.vertices.get(VERTEX_FACE_COLOR_OFFSET + 1)));
+            assertEquals(0,   Byte.toUnsignedInt(vertices.vertices.get(VERTEX_FACE_COLOR_OFFSET + 2)));
+
+            assertEquals(0.0f, renderer.measureMarkup("", false, 0.0f, 1.0f, 0.0f).width, 0.001f);
+            renderer.setText("");
+            long emptyTextHash = renderer.hash();
+            renderer.setMarkup("");
+            assertTrue(emptyTextHash != renderer.hash());
+            assertEquals(0, getVertices(renderer, IDENTITY).vertexCount);
+
+            FontRenderer.Layout inlineObject = renderer.measureMarkup("A<sprite/>B", false, 0.0f, 1.0f, 0.0f);
+            assertTrue(inlineObject.width > renderer.measure("AB", false, 0.0f, 1.0f, 0.0f).width);
+            renderer.setMarkup("A<sprite/>B");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            TestVertices inlineVertices = getVertices(renderer, IDENTITY);
+            assertEquals(36, inlineVertices.vertexCount);
+            assertEquals(32.0f,
+                         Math.abs(inlineVertices.vertices.getFloat(7 * VERTEX_STRIDE) - inlineVertices.vertices.getFloat(6 * VERTEX_STRIDE)),
+                         0.001f);
+            assertEquals(32.0f,
+                         Math.abs(inlineVertices.vertices.getFloat(19 * VERTEX_STRIDE + Float.BYTES) - inlineVertices.vertices.getFloat(18 * VERTEX_STRIDE + Float.BYTES)),
+                         0.001f);
+            assertEquals(1.0f,
+                         Math.abs(inlineVertices.vertices.getFloat(20 * VERTEX_STRIDE) - inlineVertices.vertices.getFloat(18 * VERTEX_STRIDE)),
+                         0.001f);
+
+            renderer.setMarkup("<ul>AB</ul><strike>CD</strike>");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            assertEquals(36, getVertices(renderer, IDENTITY).vertexCount);
+
+            FontRenderer.MarkupError error = renderer.measureMarkup("valid\n<color>bad</size>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(error);
+            assertEquals(2, error.line);
+            assertEquals(11, error.column);
+            assertEquals(8, error.errorType);
+            assertTrue(error.message.contains("mismatched closing tag"));
+
+            FontRenderer.MarkupError unknownTag = renderer.measureMarkup("<s ize=14>Text</size>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(unknownTag);
+            assertEquals(1, unknownTag.byteOffset);
+            assertTrue(unknownTag.message.contains("unknown tag"));
+
+            FontRenderer.MarkupError unknownAttribute = renderer.measureMarkup("<size sdf=14>Text</size>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(unknownAttribute);
+            assertEquals(6, unknownAttribute.byteOffset);
+            assertTrue(unknownAttribute.message.contains("unknown attribute"));
+
+            FontRenderer.MarkupError unknownConstant = renderer.measureMarkup("<wave fit=word>Text</wave>", false, 0.0f, 1.0f, 0.0f).markupError;
+            assertNotNull(unknownConstant);
+            assertEquals(10, unknownConstant.byteOffset);
+            assertTrue(unknownConstant.message.contains("unknown value for attribute"));
+        }
+    }
+
+    @Test
+    public void testFilterMarkupPreservesNativeSyntax() {
+        assertEquals("<link id=\"<shadow blur=2>\">A&amp;<sprite/></link>C",
+                FontRenderer.filterMarkup("<link id=\"<shadow blur=2>\">A&amp;B中<sprite/></link>C",
+                        new int[] {'A', '&', 'C'}));
+    }
+
+    @Test
+    public void testParseMarkupDocument() {
+        String source = "<link id=\"<shadow blur=9>\"><outline size=1><shadow blur=2>A&amp;</shadow></outline></link>";
+        FontRenderer.MarkupParseResult result = FontRenderer.parseMarkup(source);
+        assertNull(result.error);
+        assertNotNull(result.document);
+        assertEquals(source, result.document.source);
+        assertArrayEquals(new int[] {'A', '&'}, result.document.text);
+        assertEquals(4, result.document.nodes.length);
+        assertEquals("link", result.document.nodes[1].tag);
+        assertEquals(0, result.document.nodes[1].parent);
+        assertEquals("<shadow blur=9>", result.document.nodes[1].attributes[0].value);
+        assertEquals("outline", result.document.nodes[2].tag);
+        assertEquals(1, result.document.nodes[2].parent);
+        assertEquals("shadow", result.document.nodes[3].tag);
+        assertEquals(2, result.document.nodes[3].parent);
+        assertEquals("2", result.document.nodes[3].attributes[0].value);
+        assertEquals(1, result.document.spans.length);
+        assertEquals(3, result.document.spans[0].node);
+
+        FontRenderer.MarkupParseResult invalid = FontRenderer.parseMarkup("<color>text</size>");
+        assertNull(invalid.document);
+        assertNotNull(invalid.error);
+    }
+
+    @Test
+    public void testMarkupErrorColumnUsesUtf16CodeUnits() {
+        FontRenderer.MarkupParseResult result = FontRenderer.parseMarkup("valid\n\uD83D\uDE00<s ize=14>Text</size>");
+        assertNull(result.document);
+        assertNotNull(result.error);
+        assertEquals(11, result.error.byteOffset);
+        assertEquals(2, result.error.line);
+        assertEquals(4, result.error.column);
+    }
+
+    @Test
+    public void testMarkupShadowAlphaDoesNotDependOnBaseShadowAlpha() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+            properties.shadowColor = new float[] {1.0f, 1.0f, 1.0f, 0.5f};
+            properties.baseShadowAlpha = 0.0f;
+            renderer.setProperties(properties);
+            renderer.setMarkup("<shadow x=1 color=#00000080>A</shadow>");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertEquals(12, vertices.vertexCount);
+            assertEquals(64, Byte.toUnsignedInt(vertices.vertices.get(VERTEX_SHADOW_COLOR_OFFSET + 3)));
+            assertEquals(1.875f, vertices.vertices.getFloat(VERTEX_SDF_SHADOW_OFFSET), 0.0f);
         }
     }
 

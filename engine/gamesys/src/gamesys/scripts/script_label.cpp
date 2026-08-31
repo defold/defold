@@ -28,6 +28,8 @@
 
 namespace dmGameSystem
 {
+static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
+
 /*# Label API documentation
  *
  * Functions to manipulate a label component.
@@ -371,11 +373,115 @@ static int GetText(lua_State* L)
     return 1;
 }
 
-static const luaL_reg Module_methods[] =
+static const char* GetLayoutObjectTagName(dmhash_t tag)
 {
-    {"set_text", SetText},
-    {"get_text", GetText},
-    {0, 0}
+    return tag == TAG_SPRITE ? "sprite" : "link";
+}
+
+/*# gets the markup objects for a label
+ *
+ * Returns the sprites and links found in the label's current layout.
+ * Each entry contains `type`, `id`, the zero-based UTF-32 `text_offset`,
+ * `text_length`, resolved `x`, `y`, `width`
+ * and `height`, and an `attributes` table. The position is the lower-left
+ * object corner relative to the label's upper-left layout origin.
+ * Inline resource rendering is not part of this MVP; sprites use their explicit
+ * dimensions or a one-em square fallback.
+ *
+ * @name label.get_layout_objects
+ * @param url [type:string|hash|url] the label to inspect
+ * @return objects [type:table] layout objects in source order
+ * @examples
+ *
+ * ```lua
+ * local objects = label.get_layout_objects("#label")
+ * for _, object in ipairs(objects) do
+ *     if object.type == "link" then
+ *         print(object.attributes.src, object.text_offset, object.text_length)
+ *     elseif object.type == "sprite" then
+ *         print(object.attributes.src, object.x, object.y, object.width, object.height)
+ *     end
+ * end
+ * ```
+ */
+static int GetLayoutObjects(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    CheckGoInstance(L);
+    dmGameSystem::LabelComponent* component = 0;
+    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
+
+    HTextLayout                      layout = dmGameSystem::CompLabelGetTextLayout(component);
+    const uint32_t                   object_count = layout ? TextLayoutGetObjectCount(layout) : 0;
+    const TextLayoutObject*          objects = layout ? TextLayoutGetObjects(layout) : 0;
+    const TextLayoutObjectAttribute* attributes = layout ? TextLayoutGetObjectAttributes(layout) : 0;
+    const char*                      source = layout ? TextLayoutGetObjectSource(layout) : "";
+    float                            layout_width = 0.0f;
+    float                            layout_height = 0.0f;
+
+    if (layout)
+    {
+        TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    }
+
+    (void)layout_height;
+    lua_createtable(L, object_count, 0);
+
+    for (uint32_t i = 0; i < object_count; ++i)
+    {
+        const TextLayoutObject& object = objects[i];
+        lua_createtable(L, 0, 9);
+        lua_pushstring(L, GetLayoutObjectTagName(object.m_Tag));
+        lua_setfield(L, -2, "type");
+        dmScript::PushHash(L, object.m_Id);
+        lua_setfield(L, -2, "id");
+        lua_pushnumber(L, object.m_TextOffset);
+        lua_setfield(L, -2, "text_offset");
+        lua_pushnumber(L, object.m_TextLength);
+        lua_setfield(L, -2, "text_length");
+        lua_pushnumber(L, object.m_Width);
+        lua_setfield(L, -2, "width");
+        lua_pushnumber(L, object.m_Height);
+        lua_setfield(L, -2, "height");
+        float x = 0.0f;
+        float y = 0.0f;
+        TextLayoutGetObjectPosition(layout, &object, 0.0f, 0.0f, layout_width, &x, &y);
+        lua_pushnumber(L, x);
+        lua_setfield(L, -2, "x");
+        lua_pushnumber(L, y);
+        lua_setfield(L, -2, "y");
+        lua_createtable(L, 0, object.m_AttributeCount);
+
+        for (uint32_t j = 0; j < object.m_AttributeCount; ++j)
+        {
+            const TextLayoutObjectAttribute& attribute = attributes[object.m_AttributeIndex + j];
+
+            if (attribute.m_NameLength)
+            {
+                lua_pushlstring(L, source + attribute.m_NameOffset, attribute.m_NameLength);
+            }
+            else
+            {
+                lua_pushstring(L, "value");
+            }
+
+            lua_pushlstring(L, source + attribute.m_ValueOffset, attribute.m_ValueLength);
+            lua_settable(L, -3);
+        }
+
+        lua_setfield(L, -2, "attributes");
+        lua_rawseti(L, -2, i + 1);
+    }
+
+    return 1;
+}
+
+static const luaL_reg Module_methods[] = {
+    { "set_text", SetText },
+    { "get_text", GetText },
+    { "get_layout_objects", GetLayoutObjects },
+    { 0, 0 }
 };
 
 static void LuaInit(lua_State* L)
@@ -395,4 +501,4 @@ void ScriptLabelFinalize(const ScriptLibContext& context)
 {
 }
 
-}
+} // namespace dmGameSystem

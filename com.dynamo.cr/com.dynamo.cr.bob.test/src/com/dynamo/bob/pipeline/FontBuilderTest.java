@@ -32,8 +32,9 @@ import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.font.proto.GlyphBankProto.FontTextureFormat;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
 import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.GlyphBank;
 
 import com.google.protobuf.Message;
 
@@ -78,6 +79,16 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+    }
+
+    @Test
+    public void testLegacyGlyphBankWireFormat() throws Exception {
+        // Produced by the former com.dynamo.render.proto.Font.GlyphBank schema.
+        byte[] bitmapGlyphBank = new byte[] { 0x50, 0x00 };
+        byte[] distanceFieldGlyphBank = new byte[] { 0x50, 0x01 };
+
+        assertEquals(FontTextureFormat.TYPE_BITMAP, GlyphBank.parseFrom(bitmapGlyphBank).getImageFormat());
+        assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, GlyphBank.parseFrom(distanceFieldGlyphBank).getImageFormat());
     }
 
     @Test(timeout = 3000)

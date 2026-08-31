@@ -34,11 +34,12 @@
             [util.coll :as coll]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
+           [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto DataProto$Data CollectionProxy$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
+           [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
            [java.net URI]
@@ -547,7 +548,7 @@
             desc (protobuf/bytes->map-with-defaults Font$FontMap content)
             glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
-            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
+            glyph-bank (protobuf/bytes->map-with-defaults GlyphBankProto$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
         (is (= 512 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
@@ -556,7 +557,7 @@
             desc (protobuf/bytes->map-with-defaults Font$FontMap content)
             glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
-            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
+            glyph-bank (protobuf/bytes->map-with-defaults GlyphBankProto$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
         (is (= 512 (:cache-height glyph-bank)))))))
 

@@ -9,13 +9,24 @@ add_compile_definitions(DLIB_LOG_DOMAIN="FONT")
 
 set(FONT_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(FONT_SRC_DIR "${FONT_ROOT}/src")
+set(FONT_PROTO_ROOT "${FONT_ROOT}/proto")
+set(FONT_GLYPHBANK_PROTO "${FONT_PROTO_ROOT}/font/glyphbank_ddf.proto")
+set(FONT_GLYPHBANK_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/font")
+set(FONT_GLYPHBANK_PROTO_CC "${FONT_GLYPHBANK_GEN_DIR}/glyphbank_ddf.cpp")
+set(FONT_GLYPHBANK_PROTO_H "${FONT_GLYPHBANK_GEN_DIR}/glyphbank_ddf.h")
+set(FONT_GLYPHBANK_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/font")
+set(FONT_GLYPHBANK_PROTO_PY "${FONT_GLYPHBANK_PROTO_PY_DIR}/glyphbank_ddf_pb2.py")
+set(FONT_GLYPHBANK_PROTO_PY_INIT "${FONT_GLYPHBANK_PROTO_PY_DIR}/__init__.py")
+set(FONT_GLYPHBANK_BPROTO "${FONT_GLYPHBANK_GEN_DIR}/glyphbank_ddf.bproto")
 set(FONT_RENDER_SRC_DIR "${FONT_SRC_DIR}/render")
 set(FONTC_SRC_DIR "${FONT_SRC_DIR}/fontc")
 set(FONT_HARFBUZZ_SRC_DIR "${FONT_SRC_DIR}/harfbuzz")
 set(FONT_TRUETYPE_SRC_DIR "${FONT_SRC_DIR}/truetype")
 set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
+  "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"
+  "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/text_layout.h")
 set(FONT_RENDER_PUBLIC_HEADERS
   "${FONT_RENDER_SRC_DIR}/font_render.h")
@@ -37,20 +48,47 @@ file(GLOB_RECURSE FONT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${FONT_SRC_DIR}/dmsdk/*.h"
   "${FONT_SRC_DIR}/dmsdk/*.hpp")
 
+if(TARGET ddf)
+  defold_protoc_gen_cpp("${FONT_GLYPHBANK_PROTO_CC}" "${FONT_GLYPHBANK_PROTO}" INCLUDES "${FONT_PROTO_ROOT}")
+  defold_protoc_gen_py("${FONT_GLYPHBANK_PROTO_PY}" "${FONT_GLYPHBANK_PROTO}" PYTHON_ROOT "${CMAKE_CURRENT_BINARY_DIR}/python" INCLUDES "${FONT_PROTO_ROOT}")
+  defold_protoc_gen_bproto("${FONT_GLYPHBANK_BPROTO}" "${FONT_GLYPHBANK_PROTO}" INCLUDES "${FONT_PROTO_ROOT}")
+  add_custom_target(font_glyphbank_ddf_sources DEPENDS "${FONT_GLYPHBANK_PROTO_CC}" "${FONT_GLYPHBANK_PROTO_H}")
+  add_custom_target(font_glyphbank_ddf_header DEPENDS "${FONT_GLYPHBANK_PROTO_H}")
+  add_custom_target(font_glyphbank_ddf_py ALL DEPENDS "${FONT_GLYPHBANK_PROTO_PY}" "${FONT_GLYPHBANK_PROTO_PY_INIT}")
+  add_custom_target(font_glyphbank_ddf_bproto ALL DEPENDS "${FONT_GLYPHBANK_BPROTO}")
+endif()
+
 file(GLOB FONT_SOURCES CONFIGURE_DEPENDS "${FONT_SRC_DIR}/*.cpp")
+list(FILTER FONT_SOURCES EXCLUDE REGEX "/markup(_null)?\\.cpp$")
+list(FILTER FONT_SOURCES EXCLUDE REGEX "/text_layout_markup\\.cpp$")
 list(APPEND FONT_SOURCES
   "${FONT_TRUETYPE_SRC_DIR}/font_truetype.cpp"
   "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
+set(FONT_LIBRARY_SOURCES ${FONT_SOURCES})
+set(FONT_LIBRARY_DEPENDENCIES ${FONT_DEPENDENCIES})
+if(TARGET ddf)
+  list(APPEND FONT_LIBRARY_SOURCES "${FONT_GLYPHBANK_PROTO_CC}")
+  list(APPEND FONT_LIBRARY_DEPENDENCIES ddf)
+endif()
 
 set(FONT_GLYPH_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/glyph_vertex.cpp")
+set(FONT_LAYOUT_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/layout_vertex.cpp")
 set(FONT_RENDER_SOURCES
   "${FONT_RENDER_SRC_DIR}/font_render.cpp"
-  "${FONT_GLYPH_VERTEX_SOURCE}")
+  "${FONT_GLYPH_VERTEX_SOURCE}"
+  "${FONT_LAYOUT_VERTEX_SOURCE}")
+set(FONT_RICHTEXT_SOURCES
+  "${FONT_SRC_DIR}/markup.cpp"
+  "${FONT_SRC_DIR}/text_layout_markup.cpp")
 
-defold_add_library(font STATIC ${FONT_SOURCES})
+defold_add_library(font STATIC ${FONT_LIBRARY_SOURCES})
 target_include_directories(font PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
 target_compile_definitions(font PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
-defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
+if(TARGET ddf)
+  target_include_directories(font PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+  add_dependencies(font font_glyphbank_ddf_sources font_glyphbank_ddf_py font_glyphbank_ddf_bproto)
+endif()
+defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_LIBRARY_DEPENDENCIES})
 
 # The full-layout path gets mapping, metrics, and outlines from HarfBuzz. Keep
 # the standalone TrueType/OpenType parser in the legacy font library only.
@@ -58,14 +96,36 @@ set(FONT_SKRIBIDI_SOURCES ${FONT_SOURCES})
 list(FILTER FONT_SKRIBIDI_SOURCES EXCLUDE REGEX "/font_truetype\\.cpp$")
 list(APPEND FONT_SKRIBIDI_SOURCES
   "${FONT_HARFBUZZ_SRC_DIR}/font_harfbuzz.cpp")
-defold_add_library(font_skribidi STATIC ${FONT_SKRIBIDI_SOURCES})
+set(FONT_SKRIBIDI_LIBRARY_SOURCES ${FONT_SKRIBIDI_SOURCES})
+set(FONT_SKRIBIDI_LIBRARY_DEPENDENCIES ${FONT_SKRIBIDI_DEPENDENCIES})
+if(TARGET ddf)
+  list(APPEND FONT_SKRIBIDI_LIBRARY_SOURCES "${FONT_GLYPHBANK_PROTO_CC}")
+  list(APPEND FONT_SKRIBIDI_LIBRARY_DEPENDENCIES ddf)
+endif()
+defold_add_library(font_skribidi STATIC ${FONT_SKRIBIDI_LIBRARY_SOURCES})
 target_include_directories(font_skribidi PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
 target_compile_definitions(font_skribidi PRIVATE
   "DLIB_LOG_DOMAIN=\"FONT\""
   FONT_USE_HARFBUZZ
   FONT_USE_SKRIBIDI)
-defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_SKRIBIDI_DEPENDENCIES})
+if(TARGET ddf)
+  target_include_directories(font_skribidi PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+  add_dependencies(font_skribidi font_glyphbank_ddf_sources font_glyphbank_ddf_py font_glyphbank_ddf_bproto)
+endif()
+defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_SKRIBIDI_LIBRARY_DEPENDENCIES})
 set_target_properties(font_skribidi PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
+defold_add_library(font_richtext STATIC ${FONT_RICHTEXT_SOURCES})
+target_include_directories(font_richtext PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}")
+target_compile_definitions(font_richtext PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font_richtext "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
+set_target_properties(font_richtext PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
+defold_add_library(font_richtext_null STATIC "${FONT_SRC_DIR}/markup_null.cpp")
+target_include_directories(font_richtext_null PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}")
+target_compile_definitions(font_richtext_null PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font_richtext_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
+set_target_properties(font_richtext_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
 
 if(NOT DEFOLD_ENGINE_LIB_SET STREQUAL "host")
   defold_add_library(font_render STATIC ${FONT_RENDER_SOURCES})
@@ -101,7 +161,9 @@ if(FONT_RENDERER_IS_DESKTOP)
 
   add_library(fontc_shared SHARED
     "${FONTC_SRC_DIR}/fontc.cpp"
-    "${FONT_GLYPH_VERTEX_SOURCE}")
+    "${FONT_GLYPH_VERTEX_SOURCE}"
+    "${FONT_LAYOUT_VERTEX_SOURCE}"
+    ${FONT_RICHTEXT_SOURCES})
   defold_target_skip_sanitizer(fontc_shared)
   target_include_directories(fontc_shared PRIVATE "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONTC_SRC_DIR}")
   target_compile_definitions(fontc_shared PRIVATE
@@ -121,9 +183,16 @@ if(FONT_RENDERER_IS_DESKTOP)
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererFFM.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererSymbols.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcGlyph.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcGlyphBankGlyph.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcGlyphMetrics.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcImage.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcLayout.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupAttribute.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupData.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupError.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupNode.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupSpan.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupString.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcParams.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcProperties.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcTexture.java")
@@ -171,7 +240,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   install(FILES "${FONT_RENDERER_JAR}" DESTINATION share/java)
 endif()
 
-defold_install_targets(TARGETS font font_skribidi
+defold_install_targets(TARGETS font font_skribidi font_richtext font_richtext_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
@@ -202,6 +271,16 @@ set(FONT_SDK_HEADER_TARGETS
   font_internal_sdk_headers
   font_dmsdk_sdk_headers
   dlib_sdk_headers)
+if(TARGET ddf)
+  defold_add_sdk_headers_target(font_generated_sdk_headers
+    DESTINATION include/font
+    SOURCE_ROOT "${FONT_GLYPHBANK_GEN_DIR}"
+    FILES "${FONT_GLYPHBANK_PROTO_H}"
+    DEPENDS font_glyphbank_ddf_header)
+  list(APPEND FONT_SDK_HEADER_TARGETS
+    font_generated_sdk_headers
+    ddf_sdk_headers)
+endif()
 if(TARGET font_render)
   defold_add_sdk_headers_target(font_render_sdk_headers
     DESTINATION include/font
@@ -223,13 +302,21 @@ add_custom_target(font_sdk_headers
 
 install(FILES
   "${FONT_SRC_DIR}/font.h"
+  "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"
+  "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/text_layout.h"
   DESTINATION include/font)
 install(FILES ${FONT_RENDER_PUBLIC_HEADERS} DESTINATION include/font)
 install(FILES ${FONT_INTERNAL_HEADERS} DESTINATION include/font/internal)
 install(FILES ${FONT_RENDER_VERTEX_HEADERS} DESTINATION include/font/render)
 install(DIRECTORY "${FONT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+if(TARGET ddf)
+  install(FILES "${FONT_GLYPHBANK_PROTO_H}" DESTINATION include/font)
+  install(FILES "${FONT_GLYPHBANK_PROTO}" DESTINATION share/proto/font)
+  install(FILES "${FONT_GLYPHBANK_BPROTO}" DESTINATION share/proto/font)
+  install(FILES "${FONT_GLYPHBANK_PROTO_PY_INIT}" "${FONT_GLYPHBANK_PROTO_PY}" DESTINATION lib/python/font)
+endif()
 
 if(BUILD_TESTS)
   add_subdirectory(src/test)
