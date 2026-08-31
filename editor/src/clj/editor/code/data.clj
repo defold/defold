@@ -18,7 +18,8 @@
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.defonce :as defonce])
+            [util.defonce :as defonce]
+            [util.diff :as diff])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
            [java.util Collections]
@@ -2159,7 +2160,30 @@
                  line-indent-level))))))
 
 (defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
-  (let [fixed-rows (volatile! #{})]
+  (let [tab-trigger-boundary-by-row
+        (reduce
+          (fn [acc ^CursorRange region]
+            (if (and (::indentation-anchor region)
+                     (case (:type region) (:tab-trigger-word :tab-trigger-exit) true false))
+              (let [start (cursor-range-start region)
+                    end (cursor-range-end region)
+                    start-row (.row start)
+                    end-row (.row end)
+                    end-row-exclusive (if (or (= start-row end-row) (pos? (.col end)))
+                                        (inc end-row)
+                                        end-row)]
+                (loop [row start-row
+                       acc acc]
+                  (if (= end-row-exclusive row)
+                    acc
+                    (let [col (if (= start-row row) (.col start) 0)]
+                      (recur (inc row)
+                             (update acc row (fnil max col) col))))))
+
+              acc))
+          {}
+          regions)
+        fixed-rows (volatile! #{})]
     (splice-indentation lines cursor-ranges regions
                         (into []
                               (mapcat (fn [^CursorRange cursor-range]
@@ -2184,6 +2208,12 @@
                                                   (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
                                                         typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
                                                         line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
+                                                        last-line (= end-row next-row)
+                                                        tab-trigger-indentation-boundary (get tab-trigger-boundary-by-row row)
+                                                        indentation-boundary (Math/min (long (or tab-trigger-indentation-boundary Long/MAX_VALUE))
+                                                                                       (long (if last-line (.col end) (count line))))
+                                                        unindented-line (str (string/triml (subs line 0 indentation-boundary))
+                                                                             (subs line indentation-boundary))
                                                         indented-line (cond
                                                                         ;; Insert typed whitespace (except newlines) without adjusting indentation.
                                                                         (and typed? (whitespace-character-at-index? line (.col start)))
@@ -2196,16 +2226,15 @@
                                                                         line
 
                                                                         ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
-                                                                        (= end-row next-row)
-                                                                        (let [unindented-line (str (string/triml (subs line 0 (.col end))) (subs line (.col end)))]
-                                                                          (indent-line unindented-line indent-string line-indent-level))
+                                                                        last-line
+                                                                        (indent-line unindented-line indent-string line-indent-level)
 
                                                                         ;; On in-between lines, we only want to keep whitespace that comes before code.
                                                                         :else
-                                                                        (let [unindented-line (string/triml line)]
-                                                                          (if (seq unindented-line)
-                                                                            (indent-line unindented-line indent-string line-indent-level)
-                                                                            "")))
+                                                                        (if (or tab-trigger-indentation-boundary
+                                                                                (pos? (count unindented-line)))
+                                                                          (indent-line unindented-line indent-string line-indent-level)
+                                                                          ""))
                                                         splices (if (= line indented-line)
                                                                   splices
                                                                   (conj! splices [line-cursor-range [indented-line]]))]
@@ -2224,13 +2253,13 @@
                                           [line-cursor-range [new-line]])))))
                             rows)))
 
-(defn- fix-indentation-after-splice [{:keys [lines cursor-ranges regions] :as splice-properties} indent-level-pattern indent-string grammar]
-  (when (some? splice-properties)
+(defn- fix-indentation-after-splice [{:keys [lines cursor-ranges regions] :as splice-properties} affected-cursor-ranges indent-level-pattern indent-string grammar]
+  (when splice-properties
     (assert (vector? lines))
     (assert (vector? cursor-ranges))
     (if (nil? (:indent grammar))
       splice-properties
-      (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
+      (let [indentation-properties (fix-indentation (or affected-cursor-ranges cursor-ranges) indent-level-pattern indent-string grammar lines cursor-ranges regions)]
         (merge splice-properties
                (dissoc indentation-properties :invalidated-row))))))
 
@@ -2252,9 +2281,9 @@
         splice-properties))))
 
 (defn- insert-lines-seqs [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
-  (when-not (empty? lines-seqs)
+  (when-not (coll/empty? lines-seqs)
     (-> (splice lines regions (map #(pair (adjust-cursor-range lines %1) %2) cursor-ranges lines-seqs))
-        (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+        (fix-indentation-after-splice nil indent-level-pattern indent-string grammar)
         (update-document-width-after-splice layout)
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
@@ -2417,9 +2446,24 @@
                visible-occurrences))))
 
 (defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
-  (-> (splice lines regions splices)
-      (fix-indentation-after-splice indent-level-pattern indent-string grammar)
-      (update-document-width-after-splice layout)))
+  (let [result (-> (splice lines regions
+                           (mapv (fn [[cursor-range replacement-lines introduced-regions]]
+                                   [cursor-range
+                                    replacement-lines
+                                    (coll/mapv-> introduced-regions assoc ::indentation-anchor true)])
+                                 splices))
+                   (fix-indentation-after-splice
+                     (introduce-replacement-ranges
+                       (mapv (fn [[cursor-range replacement-lines]]
+                               [cursor-range
+                                replacement-lines
+                                [(->CursorRange document-start-cursor (document-end-cursor replacement-lines))]])
+                             splices))
+                     indent-level-pattern
+                     indent-string
+                     grammar)
+                   (update-document-width-after-splice layout))]
+    (cond-> result (:regions result) (update :regions coll/mapv-> dissoc ::indentation-anchor))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -2497,7 +2541,7 @@
                             :else
                             (pair cursor-range (util/split-lines typed))))
                         cursor-ranges))
-                    (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+                    (fix-indentation-after-splice nil indent-level-pattern indent-string grammar)
                     (update-document-width-after-splice layout))
         {:keys [lines]} changes]
     (-> changes
@@ -3337,6 +3381,187 @@
                                                 (update :to dissoc ::sticky)
                                                 (dissoc ::cursor))))
                                     new-regions))))
+
+(defn- whitespace-run-end
+  ^long [^String line ^long start]
+  (let [line-length (count line)]
+    (loop [i start]
+      (if (and (< i line-length)
+               (Character/isWhitespace (.charAt line i)))
+        (recur (inc i))
+        i))))
+
+(defn- respaced-row-edits
+  "Edits for a row a formatter only respaced, or nil if it changed in other ways.
+  Editing the gaps between words rather than the span around them keeps a cursor
+  next to the word it was next to."
+  [^long row ^String line ^String new-line]
+  (let [line-length (count line)
+        new-line-length (count new-line)]
+    (loop [start 0
+           new-start 0
+           edits []]
+      (let [end (whitespace-run-end line start)
+            new-end (whitespace-run-end new-line new-start)
+            new-run (subs new-line new-start new-end)
+            edits (if (= (subs line start end) new-run)
+                    edits
+                    (conj edits (pair (->CursorRange (->Cursor row start) (->Cursor row end))
+                                      [new-run])))
+            at-end (= line-length end)
+            new-at-end (= new-line-length new-end)]
+        (cond
+          (and at-end new-at-end) edits
+          (or at-end new-at-end) nil
+          (not= (.charAt line end) (.charAt new-line new-end)) nil
+          :else (recur (inc end) (inc new-end) edits))))))
+
+(defn- rows->diff-string [rows]
+  (if (coll/empty? rows)
+    ""
+    (str (coll/join-to-string "\n" rows) "\n")))
+
+(defn- replacement-edits
+  "Diff a replacement of the rows in [span-begin-row span-end-row) into minimal
+  per-line edits. Both sides are terminated so one diff row is one row."
+  [lines ^long span-begin-row ^long span-end-row replacement-lines]
+  (let [{:keys [right-lines edits]} (diff/find-edits (rows->diff-string (subvec lines span-begin-row span-end-row))
+                                                     (rows->diff-string replacement-lines))
+        line-count (long (count lines))
+        line-edits (coll/into-> edits []
+                     (mapcat
+                       (fn [{:keys [left right] :as edit}]
+                         (when-not (diff/nop-edit? edit)
+                           (let [begin-row (+ span-begin-row (long (:begin left)))
+                                 end-row (+ span-begin-row (long (:end left)))
+                                 row-count (- end-row begin-row)
+                                 new-lines (subvec right-lines (long (:begin right)) (long (:end right)))]
+                             (cond
+                               ;; Rows still line up, so rewrite each in place to leave
+                               ;; cursors and regions on the row they started on.
+                               (and (pos? row-count) (= row-count (count new-lines)))
+                               (coll/into-> (range begin-row end-row) []
+                                 (mapcat
+                                   (fn [^long row]
+                                     (let [line (lines row)
+                                           new-line (new-lines (- row begin-row))]
+                                       (when (not= line new-line)
+                                         (or (respaced-row-edits row line new-line)
+                                             ;; The row changed in more than spacing, so rewrite it whole.
+                                             [(pair (->CursorRange (->Cursor row 0)
+                                                                   (->Cursor row (count line)))
+                                                    [new-line])]))))))
+
+                               ;; Rows no longer line up, so rewrite the hunk in one go.
+                               (and (pos? row-count) (pos? (count new-lines)))
+                               (let [last-row (dec end-row)]
+                                 [(pair (->CursorRange (->Cursor begin-row 0)
+                                                       (->Cursor last-row (count (lines last-row))))
+                                        new-lines)])
+
+                               ;; Added or removed rows take the line break after them.
+                               (< end-row line-count)
+                               [(pair (->CursorRange (->Cursor begin-row 0)
+                                                     (->Cursor end-row 0))
+                                      (conj new-lines ""))]
+
+                               ;; The last row has no line break after it, so write one.
+                               (<= line-count begin-row)
+                               (let [document-end (document-end-cursor lines)]
+                                 [(pair (->CursorRange document-end document-end)
+                                        (into [""] new-lines))])
+
+                               ;; Removing the last rows takes the line break in front instead.
+                               :else
+                               [(pair (->CursorRange (if (pos? begin-row)
+                                                       (let [prev-row (dec begin-row)]
+                                                         (->Cursor prev-row (count (lines prev-row))))
+                                                       (->Cursor 0 0))
+                                                     (document-end-cursor lines))
+                                      [""])]))))))]
+    line-edits))
+
+(defn- whole-row-replacement
+  "Returns [start-row end-row replacement-lines] if the formatter edit replaces
+  whole rows; otherwise returns nil."
+  [lines cursor-range replacement-lines]
+  (let [start (cursor-range-start cursor-range)
+        end (cursor-range-end cursor-range)
+        begin-row (.row start)
+        end-row (.row end)
+        line-count (count lines)]
+    (when (and (zero? (.col start))
+               (< begin-row line-count))
+      (cond
+        ;; Ends at the document end, so the rest of the document is replaced.
+        (cursor-before-or-same? (document-end-cursor lines) end)
+        [begin-row line-count replacement-lines]
+
+        ;; Ends where a later row starts. The trailing empty line is the line
+        ;; break in front of that row, which stays where it is.
+        (and (zero? (.col end))
+             (< begin-row end-row))
+        (when (= "" (peek replacement-lines))
+          [begin-row end-row (pop replacement-lines)])
+
+        ;; Ends where its own row ends.
+        (= (.col end) (count (lines end-row)))
+        [begin-row (inc end-row) replacement-lines]))))
+
+(defn- merge-rows-into-runs
+  "Group ascending rows into [begin end) runs, merging runs less than two rows
+  apart so a contiguous block is one request rather than several."
+  [rows]
+  (reduce (fn [runs ^long row]
+            (let [[begin-row end-row] (peek runs)]
+              (if (and end-row (<= (- row (long end-row)) 1))
+                (conj (pop runs) (pair begin-row (inc row)))
+                (conj runs (pair row (inc row))))))
+          []
+          rows))
+
+(defn- trim-blank-rows
+  "Narrow a [begin end) row run to its outermost non-blank rows, or nil if it has
+  none. Servers tend to delete the blank rows they are handed."
+  [lines [^long begin-row ^long end-row]]
+  (loop [first-row begin-row]
+    (cond
+      (= first-row end-row)
+      nil
+
+      (string/blank? (lines first-row))
+      (recur (inc first-row))
+
+      :else
+      (loop [last-row (dec end-row)]
+        (if (string/blank? (lines last-row))
+          (recur (dec last-row))
+          (pair first-row (inc last-row)))))))
+
+(defn format-row-spans
+  "Whole-row cursor ranges covering the rows the cursor ranges touch, ready to
+  send to a formatter."
+  [lines cursor-ranges]
+  (coll/into-> (merge-rows-into-runs (cursor-ranges->rows lines cursor-ranges)) []
+    (keep
+      (fn [run]
+        (when-let [[^long begin-row ^long end-row] (trim-blank-rows lines run)]
+          (let [last-row (dec end-row)]
+            (->CursorRange (->Cursor begin-row 0)
+                           (->Cursor last-row (count (lines last-row))))))))))
+
+(defn format-document-edits
+  "Turn a formatting response into edits that keep cursors in place
+
+  Servers answer with edits spanning whole rows, which we diff so only the parts
+  that actually changed get spliced. Anything else passes through untouched."
+  [lines edits]
+  (coll/into-> edits []
+    (mapcat
+      (fn [[cursor-range replacement-lines :as edit]]
+        (if-let [[begin-row end-row new-lines] (whole-row-replacement lines cursor-range replacement-lines)]
+          (replacement-edits lines begin-row end-row new-lines)
+          [edit])))))
 
 (defn apply-edits
   ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements]

@@ -26,10 +26,19 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defn- parse
+  ^LuaScanner$Result [code valid-resource-kind?]
+  (if (string? code)
+    (^[String boolean Predicate] LuaScanner/parse code true valid-resource-kind?)
+    (^[Reader boolean Predicate] LuaScanner/parse (io/reader code) true valid-resource-kind?)))
+
+(defn modules
+  "Returns the module names required by the supplied Lua code."
+  [code]
+  (.modules (parse code (constantly false))))
+
 (defn lua-info [basis workspace valid-resource-kind? code]
-  (let [^LuaScanner$Result result (if (string? code)
-                                    (^[String boolean Predicate] LuaScanner/parse code true valid-resource-kind?)
-                                    (^[Reader boolean Predicate] LuaScanner/parse (io/reader code) true valid-resource-kind?))]
+  (let [^LuaScanner$Result result (parse code valid-resource-kind?)]
     (cond->
       {:code (.code result)
        :modules (.modules result)

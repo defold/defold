@@ -22,10 +22,13 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -70,6 +73,7 @@ public class BobProjectProperties {
     private class ProjectProperty {
         private String value;
         private String defaultValue;
+        private final List<String> defaultValues = new ArrayList<String>();
         PropertyType type;
         private Boolean isPrivate;
 
@@ -95,6 +99,7 @@ public class BobProjectProperties {
                     break;
                 case "default":
                     this.defaultValue = value;
+                    this.defaultValues.add(value);
                     break;
                 case "help":
                     // no need in bob
@@ -145,6 +150,7 @@ public class BobProjectProperties {
         }
 
         public void overrideBy(ProjectProperty prop) {
+            this.defaultValues.addAll(prop.defaultValues);
             try {
                 Field[] fields = ProjectProperty.class.getDeclaredFields();
                 for(Field f : fields) {
@@ -326,6 +332,48 @@ public class BobProjectProperties {
      */
     public String[] getStringArrayValue(String category, String key) {
         return getStringArrayValue(category, key, new String[0]);
+    }
+
+    private static void addStringArrayValues(LinkedHashSet<String> values, String rawValue) {
+        if (rawValue == null) {
+            return;
+        }
+
+        for (String value : rawValue.split(",")) {
+            value = value.trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+    }
+
+    /**
+     * Get property as an array of strings, merging all contributed default values and the explicit value.
+     * This is intended for comma-separated string settings that may be contributed by meta property files
+     * and extended by the project's game.project.
+     * @param category property category
+     * @param key category key
+     * @param defaultValue returned if neither the default nor explicit value has any entries
+     * @return merged property values with duplicates removed while preserving order
+     */
+    public String[] getStringArrayValueMerged(String category, String key, String[] defaultValue) {
+        ProjectProperty val = getValue(category, key);
+        if (val == null) {
+            return defaultValue;
+        }
+
+        LinkedHashSet<String> values = new LinkedHashSet<String>();
+        for (String contributedDefaultValue : val.defaultValues) {
+            addStringArrayValues(values, contributedDefaultValue);
+        }
+        addStringArrayValues(values, val.value);
+
+        if (values.isEmpty()) {
+            return defaultValue;
+        }
+
+        List<String> merged = new ArrayList<String>(values);
+        return merged.toArray(new String[merged.size()]);
     }
 
     /**

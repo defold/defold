@@ -113,6 +113,8 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     "${DEFOLD_HOME}/engine/texc/src/*"
     "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/modelc/src/*"
+    "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/font/src/*"
     "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/shaderc/src/*")
   set(_DEFOLD_HOST_TOOLS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/host_tools-$<CONFIG>.stamp")
@@ -147,8 +149,8 @@ set(DEFOLD_ENGINE_LIBS
   shaderc
   ddf
   platform
-  font
   graphics
+  font
   particle
   lua
   hid
@@ -176,6 +178,7 @@ set(DEFOLD_HOST_LIBS
   jni
   texc
   modelc
+  font
   shaderc)
 set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})
 # Bob archives ship compiler JNI libraries for these desktop targets, even when
@@ -212,6 +215,11 @@ if(DEFOLD_ENGINE_LIB_SET STREQUAL "all" OR DEFOLD_ENGINE_LIB_SET STREQUAL "targe
   add_subdirectory("share/extender" "${DEFOLD_BUILD_HOME}/share/extender/build/${TARGET_PLATFORM}")
 endif()
 
+# Subprojects call project(), which can reinitialize an unset install prefix.
+# Reassert the SDK destination after configuring all subprojects so direct
+# CMake configurations cannot generate absolute /sdk, /lib, or /share paths.
+set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
+
 set(_DEFOLD_BOB_LIGHT_DEPENDS
   "${DEFOLD_BOB_DIR}/build.gradle"
   "${DEFOLD_GRADLEW}")
@@ -219,7 +227,7 @@ if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
 endif()
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
-foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared)
+foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared fontc_shared)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_COPY_COMMANDS
@@ -246,6 +254,15 @@ if(TARGET modelimporter_jar)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${DEFOLD_MODELC_BINARY_DIR}/modelimporter.jar"
       "${DEFOLD_SDK_ROOT}/share/java/modelimporter.jar")
+endif()
+if(TARGET font_renderer_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    font_renderer_jar
+    "${DEFOLD_FONT_BINARY_DIR}/fontrenderer.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_FONT_BINARY_DIR}/fontrenderer.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/fontrenderer.jar")
 endif()
 if(TARGET texturecompiler_jar)
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS

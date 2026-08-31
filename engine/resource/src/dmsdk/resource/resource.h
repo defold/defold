@@ -107,6 +107,7 @@ struct ResourceRecreateParams;
  * @member RESOURCE_RESULT_UNKNOWN_ERROR
  * @member RESOURCE_RESULT_LUA_ERROR
  * @member RESOURCE_RESULT_SCRIPT_CREATION_ERROR
+ * @member RESOURCE_RESULT_TOO_MANY_COMPONENTS
  * Note: also add to ResultToString() in resource.cpp
  */
 typedef enum ResourceResult
@@ -135,6 +136,7 @@ typedef enum ResourceResult
     RESOURCE_RESULT_UNKNOWN_ERROR             = -21,
     RESOURCE_RESULT_LUA_ERROR                 = -22,
     RESOURCE_RESULT_SCRIPT_CREATION_ERROR     = -23,
+    RESOURCE_RESULT_TOO_MANY_COMPONENTS       = -24,
 } ResourceResult;
 
 

@@ -153,6 +153,11 @@ $ext-line-height: 26px;
         -fx-highlight-fill: -df-background-input;
         -fx-highlight-text-fill: -df-text-selected;
         -fx-padding: 1px 1px;
+        &:readonly {
+            -fx-text-fill: -df-text-dark;
+            -fx-text-inner-color: -df-text-dark;
+            -fx-highlight-text-fill: -df-text-dark;
+        }
         &:hover { -fx-border-color: -df-component-light; }
         &:focused {
             -fx-border-width: 1px 1px 2px 1px;

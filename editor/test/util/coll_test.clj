@@ -15,6 +15,7 @@
 (ns util.coll-test
   (:require [clojure.core :as core]
             [clojure.test :refer :all]
+            [internal.util :as iutil]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.fn :as fn])
@@ -30,6 +31,76 @@
 (defonce/record PairAB [a b])
 
 (def ^:dynamic *pmapv-binding-test-value* nil)
+
+(deftest keys-and-vals-test
+  (testing "Match core keys and vals semantics."
+    (doseq [make-map [(constantly nil)
+                      #(array-map :a 1 :b 2)
+                      #(hash-map :a 1 :b 2)
+                      #(sorted-map :b 2 :a 1)
+                      #(Hashtable. {1 :a 2 :b})]]
+      (let [core-map (make-map)
+            coll-map (make-map)]
+        (is (= (into [] (core/keys core-map))
+               (into [] (coll/keys coll-map))))
+        (is (= (into [] (core/vals core-map))
+               (into [] (coll/vals coll-map)))))))
+
+  (testing "Return reducibles that support early termination."
+    (is (instance? clojure.lang.IReduceInit (coll/keys {})))
+    (is (instance? clojure.lang.IReduceInit (coll/vals {})))
+    (is (= :a (reduce iutil/first-rf nil (coll/keys (array-map :a 1 :b 2)))))
+    (is (= 1 (reduce iutil/first-rf nil (coll/vals (array-map :a 1 :b 2)))))))
+
+(deftest sort-test
+  (testing "Returns an eagerly-sorted reducible."
+    (is (= [] (into [] (coll/sort nil))))
+    (is (= [1 2 3] (into [] (coll/sort [3 1 2]))))
+    (is (instance? clojure.lang.IReduceInit (coll/sort [3 1 2]))))
+
+  (testing "Accepts a comparator."
+    (is (= [3 2 1] (into [] (coll/sort > [1 3 2])))))
+
+  (testing "Accepts reducible inputs."
+    (is (= [2 4 6]
+           (into [] (coll/sort (eduction (map #(* 2 ^long %)) [3 1 2]))))))
+
+  (testing "Supports early termination."
+    (is (= 1 (reduce iutil/first-rf nil (coll/sort [3 1 2])))))
+
+  (testing "Matches core.sort result and input-mutation semantics."
+    (doseq [[description comparator make-input]
+            [["nil" compare (constantly nil)]
+             ["string" compare (constantly "cab")]
+             ["vector" compare #(vector 3 1 2)]
+             ["list" compare #(list 3 1 2)]
+             ["eduction" compare #(eduction (map identity) [3 1 2])]
+             ["custom comparator" > #(vector 3 1 2)]
+             ["object array" compare #(object-array [3 1 2])]
+             ["boolean array" compare #(boolean-array [true false true])]
+             ["byte array" compare #(byte-array [(byte 3) (byte 1) (byte 2)])]
+             ["char array" compare #(char-array [\c \a \b])]
+             ["short array" compare #(short-array [(short 3) (short 1) (short 2)])]
+             ["int array" compare #(int-array [3 1 2])]
+             ["long array" compare #(long-array [3 1 2])]
+             ["float array" compare #(float-array [3.0 1.0 2.0])]
+             ["double array" compare #(double-array [3.0 1.0 2.0])]]]
+      (testing description
+        (let [core-input (make-input)
+              coll-input (make-input)]
+          (is (= (into [] (core/sort comparator core-input))
+                 (into [] (coll/sort comparator coll-input))))
+          (is (= (into [] core-input)
+                 (into [] coll-input)))))))
+
+  (testing "Is stable."
+    (let [items [{:key 1 :value :first}
+                 {:key 2 :value :middle}
+                 {:key 1 :value :last}]]
+      (is (= [{:key 1 :value :first}
+              {:key 1 :value :last}
+              {:key 2 :value :middle}]
+             (into [] (coll/sort #(compare (:key %1) (:key %2)) items)))))))
 
 (defn- java-map
   ^Hashtable [& key-vals]
@@ -98,7 +169,7 @@
             (let [transformed-coll (coll/transform-> coll
                                      (take 1))]
               (is (= (class coll) (class transformed-coll)))
-              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= 1 (coll/bounded-count 2 transformed-coll)))
               (is (= (first coll) (first transformed-coll)))
               (is (identical? (meta coll) (meta transformed-coll)))))))
 
@@ -109,7 +180,7 @@
                                      (take 1)
                                      (mapcat (juxt identity identity identity))
                                      (drop 2))]
-              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= 1 (coll/bounded-count 2 transformed-coll)))
               (is (= (first coll) (first transformed-coll)))
               (is (identical? (meta coll) (meta transformed-coll)))))))))
 
@@ -146,7 +217,7 @@
                                             [(key entry)
                                              (inc (long (val entry)))]))
                                      (drop 2))]
-              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= 1 (coll/bounded-count 2 transformed-coll)))
               (is (= (map inc (vals coll)) (vals transformed-coll)))
               (is (identical? (meta coll) (meta transformed-coll))))))))))
 
@@ -313,11 +384,11 @@
 
 (deftest empty-with-meta-test
   (letfn [(check! [coll]
-            (is (not (core/empty? coll)) "Tested collections should have items to ensure emptiness is tested.")
+            (is (not (coll/empty? coll)) "Tested collections should have items to ensure emptiness is tested.")
             (let [original-meta {:version "original"}
                   coll-with-meta (with-meta coll original-meta)
                   empty-coll (coll/empty-with-meta coll-with-meta)]
-              (is (core/empty? empty-coll))
+              (is (coll/empty? empty-coll))
               (is (identical? original-meta (meta empty-coll)))))]
     (check! [1])
     (check! (vector-of :long 1))
@@ -1043,8 +1114,8 @@
       (doseq [map-fn [array-map hash-map sorted-map]]
         (let [original-map (with-meta (map-fn :a 1
                                               :m (with-meta (map-fn :a 11)
-                                                            original-meta))
-                                      original-meta)
+                                                   original-meta))
+                             original-meta)
               merged-map (coll/deep-merge original-map
                                           {:a 2 :m {:a 22}})]
           (is (= {:a 2
@@ -1094,7 +1165,7 @@
       (doseq [empty-coll ['() [] #{} (sorted-set) (vector-of :long)]]
         (let [coll (with-meta (into empty-coll
                                     (range 5))
-                              {:meta-key "meta-value"})
+                     {:meta-key "meta-value"})
               [odds evens] (coll/separate-by odd? coll)]
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))
@@ -1104,7 +1175,7 @@
         (let [coll (with-meta (into empty-coll
                                     (map (juxt identity identity))
                                     (range 5))
-                              {:meta-key "meta-value"})
+                     {:meta-key "meta-value"})
               [odds evens] (coll/separate-by (comp odd? key) coll)]
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))))
@@ -1177,7 +1248,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/update-vals original-map inc)]
         (is (= {:a 2 :b 3} altered-map))
         (is (identical? original-meta (meta altered-map))))))
@@ -1207,7 +1278,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/update-vals-kv original-map
                                              (fn [k ^long v]
                                                (case k
@@ -1245,7 +1316,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/map-vals inc original-map)]
         (is (= {:a 2 :b 3} altered-map))
         (is (identical? original-meta (meta altered-map))))))
@@ -1276,7 +1347,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/map-vals-kv (fn [k ^long v]
                                             (case k
                                               :b (+ 10 v)
@@ -1389,7 +1460,7 @@
                                        [:> index value]]))
                [:a :b]))))
 
-(defrecord SearchTestRecord [name])
+(defonce/record SearchTestRecord [name])
 
 (deftest search-test
   (testing "Traverses maps and seqs."
@@ -1622,8 +1693,8 @@
           nested-meta {:nested-meta-key "nested-meta-value"}
           original-map (with-meta {:a (with-meta {:b 1
                                                   :c 2}
-                                                 nested-meta)}
-                                  original-meta)
+                                        nested-meta)}
+                         original-meta)
           altered-map (coll/removing-assoc-in original-map [:a :b] nil)]
       (is (= {:a {:c 2}} altered-map))
       (is (identical? original-meta (meta altered-map)))
@@ -1763,8 +1834,8 @@
           nested-meta {:nested-meta-key "nested-meta-value"}
           original-map (with-meta {:a (with-meta {:b 1
                                                   :c 2}
-                                                 nested-meta)}
-                                  original-meta)
+                                        nested-meta)}
+                         original-meta)
           altered-map (coll/removing-update-in original-map [:a :b] (constantly nil))]
       (is (= {:a {:c 2}} altered-map))
       (is (identical? original-meta (meta altered-map)))
@@ -2049,7 +2120,6 @@
               [{:type :wanted :index 1}]
               {:key {:type :wanted :index 2}}]))))
 
-
   (testing "As transducer."
     (is (= [{:type :wanted :index 0}
             {:type :wanted :index 1}
@@ -2093,6 +2163,7 @@
       (is (= 0 (coll/first-index-where pred (range 10))))
       (is (= 1 (count (fn/call-logger-calls pred)))))))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest some-test
   (testing "some behavior"
     (are [pred coll ret] (= ret (some pred coll) (coll/some pred coll))
@@ -2101,6 +2172,7 @@
       #(= % 100) (range 50) nil
       #(= % 100) [] nil)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest any?-test
   (testing "any? behavior"
     (are [pred coll ret] (= ret (boolean (some pred coll)) (coll/any? pred coll))
@@ -2111,6 +2183,7 @@
       odd? [2 4 6] false
       odd? [2 4 5 6] true)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest not-any?-test
   (testing "not-any? behavior"
     (are [pred coll ret] (= ret (not-any? pred coll) (coll/not-any? pred coll))
@@ -2121,6 +2194,7 @@
       odd? [2 4 6] true
       odd? [2 4 5 6] false)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest every?-test
   (testing "every? behavior"
     (are [pred coll ret] (= ret (every? pred coll) (coll/every? pred coll))
@@ -2131,6 +2205,7 @@
       even? [2 4 6] true
       even? [2 4 5 6] false)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest not-every?-test
   (testing "not-every? behavior"
     (are [pred coll ret] (= ret (not-every? pred coll) (coll/not-every? pred coll))
@@ -2233,7 +2308,7 @@
       (dotimes [_ 100]
         (when (< ^long @cancellation-count (dec task-count))
           (Thread/sleep 10)))
-      (is (empty? @completed-values))
+      (is (coll/empty? @completed-values))
       (is (= (dec task-count) @cancellation-count)))))
 
 (deftest ptree-test

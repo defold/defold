@@ -181,7 +181,7 @@
  * 
  * 
  * @name os.time
- * @param [table] [type:table]
+ * @param [table] [type:{ year:integer, month:integer, day:integer, hour?:integer, min?:integer, sec?:integer, isdst?:boolean }]
  */
 
 /*# returns a name for a temporary file
@@ -206,4 +206,3 @@
  * 
  * @name os.tmpname
  */
-

@@ -25,13 +25,45 @@
 #include <dmsdk/dlib/android.h>
 
 #include <android/asset_manager.h>
+#include <fcntl.h>
 #include <sys/types.h>
+#include <unistd.h>
+
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
 
 namespace dmSys
 {
+    FILE* FileOpen64(const char* path)
+    {
+        int fd = open(path, O_RDONLY | O_LARGEFILE);
+        if (fd < 0)
+            return 0;
+
+        FILE* file = fdopen(fd, "rb");
+        if (!file)
+        {
+            close(fd);
+            return 0;
+        }
+        setvbuf(file, 0, _IONBF, 0);
+        return file;
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
+    }
+
+    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        return dmSysPosix::GetHostFileName(buffer, buffer_size, path);
     }
 
     void SetNetworkConnectivityHost(const char* host)
@@ -254,25 +286,18 @@ namespace dmSys
 
         jclass    locale_class = env->FindClass("java/util/Locale");
         jmethodID get_default_method = env->GetStaticMethodID(locale_class, "getDefault", "()Ljava/util/Locale;");
-        jmethodID get_country_method = env->GetMethodID(locale_class, "getCountry", "()Ljava/lang/String;");
-        jmethodID get_language_method = env->GetMethodID(locale_class, "getLanguage", "()Ljava/lang/String;");
+        // Preserve the Locale's explicit BCP 47 script subtag, if present.
+        // https://developer.android.com/reference/java/util/Locale#toLanguageTag()
+        jmethodID to_language_tag_method = env->GetMethodID(locale_class, "toLanguageTag", "()Ljava/lang/String;");
         jobject   locale = (jobject)env->CallStaticObjectMethod(locale_class, get_default_method);
-        jstring   countryObj = (jstring)env->CallObjectMethod(locale, get_country_method);
-        jstring   languageObj = (jstring)env->CallObjectMethod(locale, get_language_method);
+        jstring   language_tag_obj = (jstring)env->CallObjectMethod(locale, to_language_tag_method);
 
         char      lang[32] = { 0 };
-        if (languageObj)
+        if (language_tag_obj)
         {
-            const char* language = env->GetStringUTFChars(languageObj, NULL);
-            dmStrlCpy(lang, language, sizeof(lang));
-            env->ReleaseStringUTFChars(languageObj, language);
-        }
-        if (countryObj)
-        {
-            dmStrlCat(lang, "_", sizeof(lang));
-            const char* country = env->GetStringUTFChars(countryObj, NULL);
-            dmStrlCat(lang, country, sizeof(lang));
-            env->ReleaseStringUTFChars(countryObj, country);
+            const char* language_tag = env->GetStringUTFChars(language_tag_obj, NULL);
+            dmStrlCpy(lang, language_tag, sizeof(lang));
+            env->ReleaseStringUTFChars(language_tag_obj, language_tag);
         }
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);

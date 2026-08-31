@@ -388,6 +388,7 @@ namespace dmHID
                 dmStrlCpy(name, sdl_name, MAX_GAMEPAD_NAME_LENGTH);
             }
         }
+        dmStrTrim(name, MAX_GAMEPAD_NAME_LENGTH, name);
     }
 
     bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)

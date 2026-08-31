@@ -50,18 +50,18 @@ struct CallbackContext
 };
 
 /*#
- * associates a ttf resource to a .fontc file.
- * @note The ttf font is loaded via the resource system. There are a few ways it can be accessed:
+ * associates a TTF or OTF resource to a .fontc file.
+ * @note The font is loaded via the resource system. There are a few ways it can be accessed:
  *     - It was already loaded in the resource system
  *     - It is bundled via our game data
  *     - It is accessible via a live update mount
  *
- * @note The reference count will increase for the .ttf font
+ * @note The reference count will increase for the .ttf or .otf font
  *
  *
  * @name font.add_font
  * @param fontc [type:string|hash] The path to the .fontc resource
- * @param ttf [type:string|hash] The path to the .ttf resource
+ * @param font [type:string|hash] The path to the .ttf or .otf resource
  *
  * @examples
  *
@@ -110,12 +110,12 @@ static int AddFont(lua_State* L)
 }
 
 /*#
- * associates a ttf resource to a .fontc file
- * @note The reference count will decrease for the .ttf font
+ * associates a TTF or OTF resource to a .fontc file
+ * @note The reference count will decrease for the .ttf or .otf font
  *
  * @name font.remove_font
  * @param fontc [type:string|hash] The path to the .fontc resource
- * @param ttf [type:string|hash] The path to the .ttf resource
+ * @param font [type:string|hash] The path to the .ttf or .otf resource
  *
  * @examples
  *
@@ -154,23 +154,25 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
-
-    lua_State* L = dmScript::GetCallbackLuaContext(cbk);
-    DM_LUA_STACK_CHECK(L, 0);
-
-    if (dmScript::SetupCallback(cbk))
+    if (dmScript::IsCallbackValid(cbk))
     {
-        int nargs = 3;
-        lua_pushinteger(L, (int)ctx->m_Request);
-        lua_pushboolean(L, result != 0);
-        if (0 != errmsg)
-            lua_pushstring(L, errmsg);
-        else
-            lua_pushnil(L);
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
 
-        dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
+        if (dmScript::SetupCallback(cbk))
+        {
+            int nargs = 3;
+            lua_pushinteger(L, (int)ctx->m_Request);
+            lua_pushboolean(L, result != 0);
+            if (0 != errmsg)
+                lua_pushstring(L, errmsg);
+            else
+                lua_pushnil(L);
 
-        dmScript::TeardownCallback(cbk);
+            dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
+
+            dmScript::TeardownCallback(cbk);
+        }
     }
     dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
     delete ctx;
@@ -183,13 +185,13 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
  * @name font.prewarm_text
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @param text [type:string] The text to layout
- * @param [callback] [type:function(self, request_id, result, errstring)] (optional) A callback function that is called after the request is finished
+ * @param [callback] [type:fun(self:script_instance, request_id:integer, result:boolean, errstring?:string)] (optional) A callback function that is called after the request is finished
  *
  * `self`
- * : [type:object] The current object.
+ * : [type:script_instance] The current script instance.
  *
  * `request_id`
- * : [type:number] The request id
+ * : [type:integer] The request id
  *
  * `result`
  * : [type:boolean] True if request was succesful
@@ -197,7 +199,7 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
  * `errstring`
  * : [type:string] `nil` if the request was successful
  *
- * @return request_id [type:number] Returns the asynchronous request id
+ * @return request_id [type:integer] Returns the asynchronous request id
  *
  * @examples
  *
@@ -254,25 +256,26 @@ static int PrewarmText(lua_State* L)
     return 1;
 }
 
+/*# Associated font file information
+ * @struct
+ * @name font.file_info
+ * @member path [type:string] path to the `.ttf` or `.otf` font file
+ * @member path_hash [type:hash] hashed font-file path
+ */
+
+/*# Font resource information
+ * @struct
+ * @name font.info
+ * @member path [type:hash] path hash of the `.fontc` resource
+ * @member fonts [type:font.file_info[]] associated font files
+ */
+
 /*#
  * Gets information about a font, such as the associated font files
  *
  * @name font.get_info
  * @param fontc [type:string|hash] The path to the .fontc resource
- * @return info [type:table] the information table contains these fields:
- *
- * `path`
- * : [type:hash] The path hash of the current file.
- *
- * `fonts`
- * : [type:table] An array of associated font (e.g. .ttf) files. Each item is a table that contains:
- *
- *      `path`
- *      : [type:string] The path of the font file
- *
- *      `path_hash`
- *      : [type:hash] The path of the font file
- *
+ * @return info [type:font.info] font resource information
  */
 static int GetFontInfo(lua_State* L)
 {

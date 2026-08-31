@@ -18,6 +18,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.cljfx-form-view :as cljfx-form-view]
+            [editor.code.data :as data]
             [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
@@ -40,6 +41,7 @@
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.view :as view]
@@ -245,34 +247,33 @@
           default-err (StringWriter.)
           override-out (StringWriter.)
           override-err (StringWriter.)
-            rt (rt/make
-                 :out default-out
-                 :err default-err
-                 :env {"suspend" (rt/suspendable-lua-fn [_]
-                                    (future/io (Thread/sleep 10)))
-                       "with_output_override" (rt/suspendable-lua-fn [{:keys [rt]} f]
-                                                (rt/invoke-suspending-1 rt {:override-out override-out
-                                                                            :override-err override-err}
-                                                                        f))})]
-        (->> (rt/read "print('default before')
-	                     io.stderr:write('default err before\\n')
-	                     with_output_override(function()
-	                       print('override')
-	                       io.stderr:write('override err\\n')
-	                       suspend()
-	                       print('override after')
-	                       io.stderr:write('override err after\\n')
-	                     end)
-	                     print('default after')
-	                     io.stderr:write('default err after\\n')")
-             (rt/bind rt)
-             (rt/invoke-suspending-1 rt)
-             (deref))
-        (is (= "default before\ndefault after\n" (.toString default-out)))
-        (is (= "default err before\ndefault err after\n" (.toString default-err)))
-        (is (= "override\noverride after\n" (.toString override-out)))
-        (is (= "override err\noverride err after\n" (.toString override-err))))))
-
+          rt (rt/make
+               :out default-out
+               :err default-err
+               :env {"suspend" (rt/suspendable-lua-fn [_]
+                                 (future/io (Thread/sleep 10)))
+                     "with_output_override" (rt/suspendable-lua-fn [{:keys [rt]} f]
+                                              (rt/invoke-suspending-1 rt {:override-out override-out
+                                                                          :override-err override-err}
+                                                                      f))})]
+      (->> (rt/read "print('default before')
+	                   io.stderr:write('default err before\\n')
+	                   with_output_override(function()
+	                     print('override')
+	                     io.stderr:write('override err\\n')
+	                     suspend()
+	                     print('override after')
+	                     io.stderr:write('override err after\\n')
+	                   end)
+	                   print('default after')
+	                   io.stderr:write('default err after\\n')")
+           (rt/bind rt)
+           (rt/invoke-suspending-1 rt)
+           (deref))
+      (is (= "default before\ndefault after\n" (.toString default-out)))
+      (is (= "default err before\ndefault err after\n" (.toString default-err)))
+      (is (= "override\noverride after\n" (.toString override-out)))
+      (is (= "override err\noverride err after\n" (.toString override-err))))))
 
 (deftest suspending-lua-failure-test
   (test-support/with-clean-system
@@ -324,7 +325,7 @@
       (save-project! project)
       (future/completed nil))))
 
-(defn- open-resource-noop! [_]
+(defn- open-resource-noop! [_resource _opts]
   (future/completed nil))
 
 (defn- fetch-libraries-noop! []
@@ -361,8 +362,8 @@
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [script-node (test-util/resource-node project "/test.editor_script")
           reload-needed? (fn []
-                            (g/with-auto-evaluation-context evaluation-context
-                              (extensions/reload-needed? project evaluation-context)))]
+                           (g/with-auto-evaluation-context evaluation-context
+                             (extensions/reload-needed? project evaluation-context)))]
       (reload-editor-scripts! project)
       (is (not (reload-needed?)))
 
@@ -416,7 +417,7 @@
                 (catch Throwable e e))))
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-node-id :position)))
         (is (= 2.5 (test-util/prop sprite-node-id :playback-rate))))
-      
+
       ;; Reuse the same outline command from the Edit menu to verify that an
       ;; outline selection query still works outside the Outline view:
       (let [handler+context (handler/active
@@ -432,7 +433,7 @@
                 (catch Throwable e e))))
         (is (= [3 3 3] (test-util/prop sprite-node-id :position)))
         (is (= 4 (test-util/prop sprite-node-id :playback-rate))))
-      
+
       ;; Run the separate scene command from the Scene context menu.
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
@@ -511,7 +512,7 @@
                           [:out (re-find #"\w+" line)]))
                    (string/split-lines
                      (process/exec! "git" "log" "--oneline" "--max-count=10")))
-            @output)))))
+             @output)))))
 
 (deftest transact-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_test"
@@ -583,17 +584,31 @@
 
 (deftest open-resource-test
   (test-util/with-loaded-project "test/resources/editor_extensions/open_resource_project"
+    (g/transact
+      (concat
+        (cljfx-form-view/register-view-types workspace)
+        (code-view/register-view-types workspace)))
+    (resource-types/register-resource-types! workspace)
     (let [output (atom [])]
       (reload-editor-scripts! project
                               :display-output! #(swap! output conj [%1 %2])
-                              :open-resource! #(swap! output conj [:open-resource (resource/proj-path %)]))
+                              :open-resource! (fn [resource opts]
+                                                (swap! output conj [:open-resource
+                                                                    (resource/proj-path resource)
+                                                                    (some-> opts :selected-view-type :id)
+                                                                    (:cursor-range opts)])))
       (run-edit-menu-test-command!)
       ;; see test.editor script: it uses editor.open_resource with different resource
       ;; paths and prints results
-      (is (= [[:open-resource "/game.project"]
+      (is (= [[:open-resource "/game.project" nil nil]
               [:out "Open '/game.project': ok"]
-              [:out "Open '/does_not_exist.txt': ok"]
-              [:out "Open 'not_a_resource_path.go': error"]]
+              [:out "Open '/does_not_exist.txt': error"]
+              [:out "Open 'not_a_resource_path.go': error"]
+              [:open-resource "/game.project" :form nil]
+              [:out "Open form view: ok"]
+              [:open-resource "/test.editor_script" :code (data/->CursorRange (data/->Cursor 2 1) (data/->Cursor 2 1))]
+              [:out "Open code position: ok"]
+              [:out "Open args without view: error"]]
              @output)))))
 
 (deftest coercer-test

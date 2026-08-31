@@ -27,6 +27,7 @@
 
 #include <dlib/jobsystem.h>
 #include <dlib/set.h>
+#include <font/internal/glyph_gen.h>
 #include <resource/resource.h>
 
 #include "fontgen.h"
@@ -146,23 +147,6 @@ static void FontGenJobDataSetup(FontGenJobData* jobdata, uint32_t num_glyphs, dm
 }
 
 
-static float CalcSdfValueU8(float padding, float width)
-{
-    float on_edge_value = dmGameSystem::FontGenGetEdgeValue(); // [0 .. 255] e.g. 191
-    const float base_edge = SDF_EDGE_VALUE * 255.0f;
-
-    // Described in the stb_truetype.h as "what value the SDF should increase by when moving one SDF "pixel" away from the edge"
-    float pixel_dist_scale = (float)on_edge_value/padding;
-
-    return (base_edge - (pixel_dist_scale * width));
-}
-
-static float Remap(float value, float outline_edge)
-{
-    float unit = value / outline_edge;
-    return dmMath::Clamp(unit, 0.0f, 1.0f) * SDF_EDGE_VALUE * 255.0f;
-}
-
 // Called on the worker thread
 static int JobGenerateGlyph(HJobContext job_thread, HJob hjob, void* context, void* data)
 {
@@ -181,58 +165,19 @@ static int JobGenerateGlyph(HJobContext job_thread, HJob hjob, void* context, vo
 
     HFont font = item->m_Font;
 
-    FontGlyphOptions options;
-    options.m_Scale = item->m_Scale;
-    options.m_GenerateImage = true;
-
-    if (FontGetType(font) == FONT_TYPE_STBTTF)
-    {
-        options.m_StbttSDFPadding       = item->m_StbttSdfPadding;
-        options.m_StbttSDFOnEdgeValue   = item->m_StbttEdgeValue;
-    }
+    FontGlyphGenParams params;
+    params.m_Scale         = item->m_Scale;
+    params.m_SdfPadding    = item->m_StbttSdfPadding;
+    params.m_SdfEdgeValue  = item->m_StbttEdgeValue;
+    params.m_OutlineWidth  = item->m_OutlineWidth;
+    params.m_ShadowBlur    = item->m_ShadowBlur;
 
     FontGlyph* glyph = item->m_Glyph;
-    FontResult fr = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    FontResult fr = FontGenerateGlyph(font, glyph_index, &params, glyph);
     if (FONT_RESULT_NOT_SUPPORTED == fr)
     {
         dmLogError("Glyph index %u not found in font '%s'", glyph_index, FontGetPath(font));
         return 1;
-    }
-
-    if (item->m_ShadowBlur > 0.0f && glyph->m_Bitmap.m_Data)
-    {
-        // To support the old shadow algorithm, we need to rescale the values,
-        // so that values >outline border are within the shapes
-
-        // TODO: Tbh, it feels like we should be able to use a single distance field channel.
-        // We should look into it if we ever choose the new code path as the default.
-
-        // Make a copy
-        glyph->m_Bitmap.m_Channels = 3;
-        uint32_t w = glyph->m_Bitmap.m_Width;
-        uint32_t h = glyph->m_Bitmap.m_Height;
-        uint32_t ch = glyph->m_Bitmap.m_Channels;
-        uint32_t newsize = w*h*ch;
-
-        uint8_t* rgb = (uint8_t*)malloc(newsize);
-
-        float outline_width      = item->m_OutlineWidth;
-        float outline_edge_value = CalcSdfValueU8(options.m_StbttSDFPadding, outline_width);
-
-        for (int y = 0; y < h; ++y)
-        {
-            for (int x = 0; x < w; ++x)
-            {
-                uint8_t value = glyph->m_Bitmap.m_Data[y * w + x];
-                uint8_t shadow_value = Remap(value, outline_edge_value);
-
-                rgb[y * (w * ch) + (x * ch) + 0] = value;
-                rgb[y * (w * ch) + (x * ch) + 1] = 0;
-                rgb[y * (w * ch) + (x * ch) + 2] = shadow_value;
-            }
-        }
-        free((void*)glyph->m_Bitmap.m_Data);
-        glyph->m_Bitmap.m_Data = rgb;
     }
 
 // TODO: Protect this using an atomic

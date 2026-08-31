@@ -322,42 +322,66 @@ namespace dmGameObject
     void AddDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
         Collection* collection = hcollection->m_Collection;
-        dmMutex::Lock(collection->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
+        // The creating collection tracks each dynamic resource once so it can release
+        // it when the collection is deleted. Avoid recording the same resource twice,
+        // since that would release it twice.
+        for (uint32_t i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        {
+            if (collection->m_DynamicResources[i] == resource_hash)
+            {
+                return;
+            }
+        }
         if (collection->m_DynamicResources.Remaining() == 0)
         {
             collection->m_DynamicResources.OffsetCapacity(1);
         }
         collection->m_DynamicResources.Push(resource_hash);
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     void RemoveDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
     {
-        Collection* collection = hcollection->m_Collection;
-        dmMutex::Lock(collection->m_Mutex);
-        for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        Register* regist = hcollection->m_Collection->m_Register;
+        DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
+        // Search every collection in the register to remove the actual owner's entry.
+        // We need to do this to avoid the following scenario (#13002):
+        //
+        // 1. Collection A creates the resource and records its hash.
+        // 2. Collection B calls resource.release().
+        // 3. Searching only B finds nothing, so A's entry is still in the register.
+        // 4. When A unloads, its stale entry resolves to a deleted descriptor and asserts.
+        for (uint32_t collection_index = 0; collection_index < regist->m_Collections.Size(); ++collection_index)
         {
-            if (collection->m_DynamicResources[i] == resource_hash)
+            Collection* collection = regist->m_Collections[collection_index];
+            DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
+            for (uint32_t resource_index = 0; resource_index < collection->m_DynamicResources.Size(); ++resource_index)
             {
-                collection->m_DynamicResources.EraseSwap(i);
+                if (collection->m_DynamicResources[resource_index] == resource_hash)
+                {
+                    collection->m_DynamicResources.EraseSwap(resource_index);
+                    break;
+                }
             }
         }
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     static void ReleaseDynamicResources(Collection* collection)
     {
-        dmMutex::Lock(collection->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
         for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
         {
             HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
-            assert(rd);
+            if (!rd)
+            {
+                dmLogError("Unable to find '%s' when releasing dynamic resources", dmHashReverseSafe64(collection->m_DynamicResources[i]));
+                continue;
+            }
             void* resource = dmResource::GetResource(rd);
             dmResource::Release(collection->m_Factory, resource);
         }
         collection->m_DynamicResources.SetSize(0);
         collection->m_DynamicResources.SetCapacity(0);
-        dmMutex::Unlock(collection->m_Mutex);
     }
 
     void DeleteCollections(HRegister regist)
@@ -879,17 +903,17 @@ namespace dmGameObject
         UndoNewInstance(hcollection->m_Collection, instance);
     }
 
-    bool CreateComponents(Collection* collection, HInstance instance) {
+    CreateResult CreateComponents(Collection* collection, HInstance instance) {
         DM_PROFILE("CreateComponents");
 
         Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
-        bool ok = true;
         if (proto->m_ComponentCount > 0xFFFF ) {
             dmLogWarning("Too many components in game object: %u (max is 65536)", proto->m_ComponentCount);
-            return false;
+            return CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
+        CreateResult r = CREATE_RESULT_OK;
         for (uint32_t i = 0; i < proto->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
@@ -924,12 +948,12 @@ namespace dmGameObject
             }
             else
             {
-                ok = false;
+                r = create_result;
                 break;
             }
         }
 
-        if (!ok)
+        if (CREATE_RESULT_OK != r)
         {
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < components_created; ++i)
@@ -954,10 +978,10 @@ namespace dmGameObject
             }
         }
 
-        return ok;
+        return r;
     }
 
-    bool CreateComponents(HCollection hcollection, HInstance instance) {
+    CreateResult CreateComponents(HCollection hcollection, HInstance instance) {
         return CreateComponents(hcollection->m_Collection, instance);
     }
 
@@ -1013,8 +1037,8 @@ namespace dmGameObject
         }
         HInstance instance = NewInstance(hcollection, proto, prototype_name);
         if (instance != 0) {
-            bool result = CreateComponents(hcollection, instance);
-            if (!result) {
+            CreateResult result = CreateComponents(hcollection, instance);
+            if (result != CREATE_RESULT_OK) {
                 // We can not call Delete here. Delete call DestroyFunction for every component
                 ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
@@ -1271,7 +1295,7 @@ namespace dmGameObject
             }
         }
 
-        bool success = CreateComponents(collection, instance);
+        bool success = CreateComponents(collection, instance) == CREATE_RESULT_OK;
         if (!success) {
             ReleaseIdentifier(collection, instance);
             UndoNewInstance(collection, instance);
@@ -1586,7 +1610,7 @@ namespace dmGameObject
             assert(instance_id);
 
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, *instance_id);
-            bool success = dmGameObject::CreateComponents(collection, instance);
+            bool success = dmGameObject::CreateComponents(collection, instance) == CREATE_RESULT_OK;
             if (success) {
                 created.Push(instance);
                 // Set properties
@@ -3815,6 +3839,25 @@ namespace dmGameObject
         return result;
     }
 
+    PropertyResult GetPropertyAsText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char** out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_TEXT == out_prop.m_Variant.m_Type)
+            {
+                *out_value = out_prop.m_Variant.m_Text;
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+
     PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value)
     {
         PropertyOptions options;
@@ -4200,6 +4243,14 @@ namespace dmGameObject
         return r;
     }
 
+    PropertyResult SetPropertyFromText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char* value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+
     PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value)
     {
         PropertyOptions options;
@@ -4243,8 +4294,8 @@ namespace dmGameObject
         dmHashClone64(&new_instance->m_CollectionPathHashState, &instance->m_CollectionPathHashState, true);
         new_instance->m_Generated = instance->m_Generated;
         HCollection hcollection = collection->m_HCollection;
-        bool res = CreateComponents(hcollection, new_instance);
-        if (!res) {
+        CreateResult res = CreateComponents(hcollection, new_instance);
+        if (res != CREATE_RESULT_OK) {
             dmHashRelease64(&new_instance->m_CollectionPathHashState);
             DeallocInstance(new_instance);
             return;
