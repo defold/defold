@@ -489,7 +489,6 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names, uint32_t request_count)
     {
-        dmLogInfo("NewPreloader() %d", request_count);
         if (names.Empty() || request_count == 0 || request_count > INT32_MAX)
         {
             return 0;
