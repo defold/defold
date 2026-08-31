@@ -424,7 +424,18 @@ jobs:
                 payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
-  bld-eng-switch:
+  bld-eng-private:
+    # One job for the three private console platforms. They differ only in the private
+    # repository to dispatch to and the targets to build, so the display name is pinned to
+    # the historical per-platform job names and the targets ride in matrix.platform, which
+    # is what the shared Slack notifier renders.
+    name: 'bld-eng-${{ matrix.id }}'
+    strategy:
+      matrix:
+        include:
+          - { id: switch, title: 'Switch',      repo: 'defold/defold-switch', ref: "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}", platform: 'arm64-nx64' }
+          - { id: ps,     title: 'PlayStation', repo: 'defold/defold-ps4',    ref: "${{ vars.PS_PRIVATE_REF || 'dev' }}",     platform: 'x86_64-ps4,x86_64-ps5' }
+          - { id: xbox,   title: 'Xbox',        repo: 'defold/defold-xbox',   ref: "${{ vars.XBOX_PRIVATE_REF || 'dev' }}",   platform: 'x86_64-xbone' }
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -438,7 +449,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"'
-      - name: 'Dispatch private Switch build'
+      - name: 'Dispatch private ${{ matrix.title }} build'
         if: steps.private_changes.outputs.should_build == 'true'
         shell: bash
         env:
@@ -463,15 +474,15 @@ jobs:
           request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
 
           gh workflow run private-ci.yml \
-            --repo defold/defold-switch \
-            --ref "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}" \
+            --repo ${{ matrix.repo }} \
+            --ref "${{ matrix.ref }}" \
             -f public_repo="${{ github.repository }}" \
             -f public_branch="$public_branch" \
             -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
             -f source_run_id="${{ github.run_id }}" \
             -f source_run_attempt="${{ github.run_attempt }}" \
             -f request_id="$request_id" \
-            -f targets="arm64-nx64" \
+            -f targets="${{ matrix.platform }}" \
             -f channel="$channel" \
             -f release="$release"
       - {
@@ -479,125 +490,9 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
         with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / arm64-nx64\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
 
-  bld-eng-ps:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))) && github.event.action != 'contrib-build'
-    steps:
-      - { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } } # v6.0.2
-      - name: 'Check private platform changes'
-        id: private_changes
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"'
-      - name: 'Dispatch private PlayStation build'
-        if: steps.private_changes.outputs.should_build == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
-        run: |
-          public_branch="${{ env.BUILD_BRANCH || github.ref_name }}"
-          channel="alpha"
-          release="false"
-          case "$public_branch" in
-            master)
-              channel="stable"
-              release="true"
-              ;;
-            beta)
-              channel="beta"
-              release="true"
-              ;;
-            dev)
-              release="true"
-              ;;
-          esac
-          request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
-
-          gh workflow run private-ci.yml \
-            --repo defold/defold-ps4 \
-            --ref "${{ vars.PS_PRIVATE_REF || 'dev' }}" \
-            -f public_repo="${{ github.repository }}" \
-            -f public_branch="$public_branch" \
-            -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
-            -f source_run_id="${{ github.run_id }}" \
-            -f source_run_attempt="${{ github.run_attempt }}" \
-            -f request_id="$request_id" \
-            -f targets="x86_64-ps4,x86_64-ps5" \
-            -f channel="$channel" \
-            -f release="$release"
-      - {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
-        with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / x86_64-ps4,x86_64-ps5\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-
-
-  bld-eng-xbox:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))) && github.event.action != 'contrib-build'
-    steps:
-      - { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } } # v6.0.2
-      - name: 'Check private platform changes'
-        id: private_changes
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"'
-      - name: 'Dispatch private Xbox build'
-        if: steps.private_changes.outputs.should_build == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
-        run: |
-          public_branch="${{ env.BUILD_BRANCH || github.ref_name }}"
-          channel="alpha"
-          release="false"
-          case "$public_branch" in
-            master)
-              channel="stable"
-              release="true"
-              ;;
-            beta)
-              channel="beta"
-              release="true"
-              ;;
-            dev)
-              release="true"
-              ;;
-          esac
-          request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
-
-          gh workflow run private-ci.yml \
-            --repo defold/defold-xbox \
-            --ref "${{ vars.XBOX_PRIVATE_REF || 'dev' }}" \
-            -f public_repo="${{ github.repository }}" \
-            -f public_branch="$public_branch" \
-            -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
-            -f source_run_id="${{ github.run_id }}" \
-            -f source_run_attempt="${{ github.run_attempt }}" \
-            -f request_id="$request_id" \
-            -f targets="x86_64-xbone" \
-            -f channel="$channel" \
-            -f release="$release"
-      - {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
-        with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / x86_64-xbone\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
 
   # ---- BUILD BOB AND SDK ------------------
 
