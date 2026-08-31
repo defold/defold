@@ -5,16 +5,18 @@
 //========================================================================
 
 #include "android_window_backend.h"
+#include "android_util.h"
 
 static int g_PendingResizeBecauseOfInsets = 0;
 
 static void UpdateNoApiWindowSize(void)
 {
-    ANativeWindow* window = _glfwWinAndroid.app ? _glfwWinAndroid.app->window : 0;
+    ANativeWindow* window = glfwAcquireAndroidWindow();
     if (window)
     {
         int w = ANativeWindow_getWidth(window);
         int h = ANativeWindow_getHeight(window);
+        glfwReleaseAndroidWindow(window);
         if ((_glfwWin.width != w || _glfwWin.height != h) && _glfwWin.windowSizeCallback)
         {
             _glfwWin.windowSizeCallback(w, h);

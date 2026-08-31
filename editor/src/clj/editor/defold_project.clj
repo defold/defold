@@ -1917,7 +1917,7 @@
     (render-progress! (swap! progress progress/advance 1 (localization/message "progress.loading-project")))
     (let [project (make-project graph workspace-id extensions)
           populated-project (load-project! project (progress/nest-render-progress render-progress! @progress 8))]
-      ;; Prime the auto completion cache
+      ;; Prime the script API completion cache
       (g/node-value (script-intelligence project) :lua-completions)
       (du/log-statistics! "Project loaded")
       populated-project)))

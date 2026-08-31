@@ -36,7 +36,8 @@
             [util.path :as path])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Result]
            [com.fasterxml.jackson.databind ObjectMapper]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -166,9 +167,22 @@
 (defn- file-resource? [resource]
   (= (resource/source-type resource) :file))
 
-(defn- parse-custom-resource-paths [cr-setting]
-  (let [paths (remove string/blank? (map string/trim (string/split (or cr-setting "")  #",")))]
-    (map (comp strip-trailing-slash fs/with-leading-slash) paths)))
+(defn- parse-custom-resource-paths [custom-resources-setting]
+  (into []
+        (comp
+          (map string/trim)
+          (remove string/blank?)
+          (map #(FilenameUtils/normalize % true))
+          (map (comp strip-trailing-slash fs/with-leading-slash)))
+        (string/split (or custom-resources-setting "") #",")))
+
+(defn- merge-custom-resource-path-settings [settings]
+  (->> settings
+       (into []
+             (comp
+               (mapcat parse-custom-resource-paths)
+               (distinct)))
+       (coll/join-to-string ", ")))
 
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
@@ -186,7 +200,7 @@
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]
    ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]]})
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
                         gamepads-pb
                         gamepad-database-lines
@@ -215,7 +229,7 @@
                                       {:node-id _node-id
                                        :resource (workspace/make-build-resource resource)
                                        :build-fn build-game-project
-                                       :user-data {:settings-map settings-map
+                                       :user-data {:settings-map (assoc settings-map ["project" "custom_resources"] custom-resources-setting)
                                                    :meta-settings (:settings meta-info)
                                                    :path->built-resource-settings path->built-resource-settings}
                                        :deps dep-build-targets})]
@@ -249,6 +263,7 @@
   (input form-data g/Any)
   (output form-data g/Any :cached (gu/passthrough form-data))
 
+  (input raw-settings g/Any)
   (input resource-settings g/Any)
 
   (input gamepads-resource resource/Resource)
@@ -265,6 +280,17 @@
 
   (input build-errors g/Any :array)
 
+  (output custom-resources-setting g/Any :cached
+          (g/fnk [meta-info raw-settings]
+            (merge-custom-resource-path-settings
+              (conj
+                (settings-core/get-default-setting-values
+                  (:settings meta-info)
+                  ["project" "custom_resources"])
+                (settings-core/get-setting
+                  raw-settings
+                  ["project" "custom_resources"])))))
+
   (output ssl-certificates-resource resource/Resource
           (g/fnk [_node-id settings-map]
             (let [setting-path ["network" "ssl_certificates"]
@@ -273,9 +299,8 @@
                   resource))))
 
   (output custom-resources-directory-resources g/Any
-          (g/fnk [_node-id resource-map settings-map]
-            (let [custom-resources-setting (get settings-map ["project" "custom_resources"])
-                  directory-proj-paths (parse-custom-resource-paths custom-resources-setting)
+          (g/fnk [_node-id resource-map custom-resources-setting]
+            (let [directory-proj-paths (parse-custom-resource-paths custom-resources-setting)
 
                   directory-resources
                   (coll/into-> directory-proj-paths []
@@ -349,6 +374,7 @@
         (g/connect settings-node :settings-map self :settings-map)
         (g/connect settings-node :save-value self :save-value)
         (g/connect settings-node :form-data self :form-data)
+        (g/connect settings-node :raw-settings self :raw-settings)
         (g/connect settings-node :meta-info self :meta-info)
         (g/connect settings-node :resource-settings self :resource-settings)
         (g/connect settings-node :setting-errors self :build-errors)
