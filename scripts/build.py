@@ -2900,6 +2900,17 @@ class Configuration(object):
                          'ext/lib/x86_64-android/libvkquality.so': 'libexec/x86_64-android/libvkquality.so'}
 
         switch_files = {}
+
+        # bob loads these natively on whichever desktop platform it runs on, so it needs
+        # all of them and not just the host's. scripts/copy.sh takes them out of
+        # $DYNAMO_HOME/archive/$SHA1; without an archive they come straight from the
+        # engine builds in $DYNAMO_HOME instead.
+        desktop_native_files = {}
+        for plf in ('x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32'):
+            for lib in ('texc', 'modelc', 'shaderc', 'fontc'):
+                name = format_lib('%s_shared' % lib, plf)
+                desktop_native_files['lib/%s/%s' % (plf, name)] = 'lib/%s/%s' % (plf, name)
+
         win32_engine_platform = self._engine_artifact_platform('win32')
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
@@ -2908,11 +2919,13 @@ class Configuration(object):
                                  'share/java/fontrenderer.jar': 'lib/fontrenderer.jar',
                                  'share/java/modelimporter.jar': 'lib/modelimporter.jar',
                                  'share/java/shaderc.jar': 'lib/shaderc.jar',
+                                 'share/java/texturecompiler.jar': 'lib/texturecompiler.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
                                  'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
                                  'lib/%s/%s' % (self.host, fontc_name): 'lib/%s/%s' % (self.host, fontc_name),
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
+                     'desktop-natives': desktop_native_files,
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'web-bundling': js_files,

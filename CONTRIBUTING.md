@@ -64,6 +64,7 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
 * For new code or changes to existing code:
   * Should be covered by tests (unit, integration or system tests).
     * All tests must pass CI before a Pull Request is approved and can be merged.
+    * CI does not run automatically on a PR from a fork. A maintainer reviews the change and applies the `ok to test` label, which builds your commit as a branch in this repository. Pushing new commits removes the label, so a maintainer has to review and label again. See [README_CI.md](/README_CI.md#external-contributions).
   * Must follow the defined coding style.
     * Use the .clang_format file for engine code.
   * Should if possible be tested on all target platforms (preferably on physical hardware).
