@@ -26,13 +26,15 @@
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lsp.project :as lsp.project]
             [editor.lsp.server :as lsp.server]
+            [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.async-support :as async-support]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [java.io PipedInputStream PipedOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -133,6 +135,18 @@
       (lsp/rename lsp prepared-range new-name ret)
       @ret)))
 
+(defn- format-document [lsp resource indent-type]
+  (await-lsp lsp
+    (let [ret (promise)]
+      (lsp/format-document! lsp resource indent-type ret)
+      @ret)))
+
+(defn- format-ranges [lsp resource cursor-ranges indent-type]
+  (await-lsp lsp
+    (let [ret (promise)]
+      (lsp/format-ranges! lsp resource cursor-ranges indent-type ret)
+      @ret)))
+
 (defn- await-until [pred]
   (async-support/eventually
     (a/go-loop []
@@ -199,6 +213,24 @@
 
 (def ^:private foo-json-lines ["{\"asd\": 1}"])
 
+(deftest lua-language-server-only-trusts-bundled-plugin-test
+  (let [trust-action {:title "Trust and load this plugin\n"}
+        reject-action {:title "Don't load this plugin\n"}
+        bundled-plugin-path (str (path/of "/defold"
+                                          "shared"
+                                          "lua-language-server"
+                                          "plugin.lua"))
+        request {:actions [trust-action reject-action]
+                 :message (str "The current settings try to load the plugin at this location:"
+                               bundled-plugin-path
+                               "\n\nNote that malicious plugin may harm your computer\n")}
+        handler #'lsp.server/lua-language-server-show-message-request-handler]
+    (with-redefs [system/defold-unpack-path (constantly "/defold")]
+      (is (= trust-action (handler request)))
+      (is (= trust-action (handler (assoc request :actions [reject-action trust-action]))))
+      (is (nil? (handler (assoc request :actions [reject-action]))))
+      (is (nil? (handler (update request :message string/replace bundled-plugin-path "/tmp/plugin.lua")))))))
+
 (deftest lsp-server-test
   (testing "Initialize + open text document -> should publish diagnostics"
     (with-scratch-project "test/resources/lsp_project"
@@ -206,7 +238,8 @@
             out (a/chan 10)]
         (lsp.server/make
           project
-          (make-test-server-launcher default-handlers)
+          {:languages #{"json"}
+           :launcher (make-test-server-launcher default-handlers)}
           in out
           :on-publish-diagnostics #(apply vector :on-publish-diagnostics %&)
           :on-initialized #(vector :on-initialized %))
@@ -218,7 +251,9 @@
                   :find-references false
                   :document-symbol false
                   :hover false
-                  :rename false}]
+                  :rename false
+                  :formatting false
+                  :range-formatting false}]
                 [:on-publish-diagnostics
                  (test-util/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
@@ -905,4 +940,110 @@
       (is (= #code/range[[0 0] [0 1]] rename-region))
       (is (await= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
                   (rename lsp rename-region "foo")))
+      (set-servers! lsp #{}))))
+
+(deftest format-document-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-node-lsp project)
+          resource (test-util/resource workspace "/foo.json")
+          requested-options (atom nil)
+          make-formatting-server (fn [formatting-handler]
+                                   #{{:languages #{"json"}
+                                      :launcher (make-test-server-launcher
+                                                  {"initialize" (constantly {:capabilities {:documentFormattingProvider true}})
+                                                   "initialized" (constantly nil)
+                                                   "textDocument/formatting" formatting-handler
+                                                   "shutdown" (constantly nil)
+                                                   "exit" (constantly nil)})}})]
+      (testing "the whole-document reply is converted to an editor edit"
+        (set-servers! lsp (make-formatting-server
+                            (fn [{:keys [options]} _]
+                              (reset! requested-options options)
+                              [{:range {:start {:line 0 :character 0}
+                                        :end {:line 1 :character 0}}
+                                :newText "{\n  \"asd\": 1\n}\n"}])))
+        (is (= {:edits [[#code/range [[0 0] [1 0]] ["{" "  \"asd\": 1" "}" ""]]]}
+               (format-document lsp resource :two-spaces)))
+        (testing "using the editor's indentation settings"
+          (is (= {:tabSize 2 :insertSpaces true} @requested-options))
+          (format-document lsp resource :tabs)
+          (is (= {:tabSize 4 :insertSpaces false} @requested-options))
+          (format-document lsp resource :four-spaces)
+          (is (= {:tabSize 4 :insertSpaces true} @requested-options))))
+
+      (testing "a null reply means the document is already formatted"
+        (set-servers! lsp (make-formatting-server (constantly nil)))
+        (is (= {:edits []} (format-document lsp resource :two-spaces))))
+
+      (testing "a server without formatting support is not asked"
+        (set-servers! lsp #{{:languages #{"json"}
+                             :launcher (make-test-server-launcher
+                                         {"initialize" (constantly {:capabilities {}})
+                                          "initialized" (constantly nil)
+                                          "shutdown" (constantly nil)
+                                          "exit" (constantly nil)})}})
+        (is (nil? (format-document lsp resource :two-spaces))))
+
+      (set-servers! lsp #{}))))
+
+(deftest format-ranges-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-node-lsp project)
+          resource (test-util/resource workspace "/foo.json")
+          cursor-ranges [#code/range [[0 0] [0 10]]]
+          make-formatting-server (fn [range-formatting-handler]
+                                   {:languages #{"json"}
+                                    :launcher (make-test-server-launcher
+                                                {"initialize" (constantly {:capabilities {:documentRangeFormattingProvider true}})
+                                                 "initialized" (constantly nil)
+                                                 "textDocument/rangeFormatting" range-formatting-handler
+                                                 "shutdown" (constantly nil)
+                                                 "exit" (constantly nil)})})
+          echo-server (fn [new-text]
+                        (make-formatting-server
+                          (fn [{:keys [range]} _]
+                            [{:range range :newText new-text}])))]
+      (testing "the reply is tagged with the range it answers"
+        (set-servers! lsp #{(echo-server "a")})
+        (is (= [{:requested-cursor-range #code/range [[0 0] [0 10]]
+                 :edits [[#code/range [[0 0] [0 10]] ["a"]]]}]
+               (format-ranges lsp resource cursor-ranges :two-spaces))))
+
+      (testing "only one server's reply is used per range"
+        (set-servers! lsp #{(echo-server "a") (echo-server "b")})
+        (let [responses (format-ranges lsp resource cursor-ranges :two-spaces)
+              {:keys [requested-cursor-range edits]} (first responses)]
+          (is (= 1 (count responses)))
+          (is (= #code/range [[0 0] [0 10]] requested-cursor-range))
+          ;; whichever server won, its reply is used whole
+          (is (contains? #{["a"] ["b"]} (second (first edits))))))
+
+      (testing "every range is answered by the same server"
+        ;; a wins the first range but fails the second one, so keeping the first
+        ;; reply per range would pair a's first range with b's second one. Only
+        ;; b answered both, and its replies are the coherent ones.
+        (let [multiple-cursor-ranges [#code/range [[0 0] [0 10]]
+                                      #code/range [[1 0] [1 10]]]
+              a-answered-first-range (promise)
+              first-range? (fn [range] (zero? (long (get-in range [:start :line]))))]
+          (set-servers! lsp #{(make-formatting-server
+                                (fn [{:keys [range]} _]
+                                  (if (first-range? range)
+                                    [{:range range :newText "a"}]
+                                    ;; Requests are answered in order, so the
+                                    ;; first range is on its way by now
+                                    (do (deliver a-answered-first-range true)
+                                        (throw (ex-info "cannot format range" {}))))))
+                              (make-formatting-server
+                                (fn [{:keys [range]} _]
+                                  (when (first-range? range)
+                                    ;; Let a answer the first range first, or
+                                    ;; there is no mixed reply to rule out.
+                                    ;; Time out rather than hang the suite.
+                                    (deref a-answered-first-range 5000 nil))
+                                  [{:range range :newText "b"}]))})
+          (let [responses (format-ranges lsp resource multiple-cursor-ranges :two-spaces)]
+            (is (= multiple-cursor-ranges (mapv :requested-cursor-range responses)))
+            (is (= [["b"] ["b"]] (mapv #(-> % :edits first second) responses))))))
+
       (set-servers! lsp #{}))))

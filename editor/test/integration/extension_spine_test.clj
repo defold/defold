@@ -346,7 +346,7 @@
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))
                               error-message-of-faulty-node (:message error-item-of-faulty-node)]
-                          (is (re-matches #"Spine Json file '.*' doesn't end with '\.spinejson'" error-message-of-faulty-node))
+                          (is (re-matches #"Spine Data file '.*' must end with '\.spinejson' or '\.skel'" error-message-of-faulty-node))
                           (is (= [error-resource error-resource-node]
                                  (error-item-open-info-without-opts error-item-of-parent-resource)))
                           (is (= [error-resource error-resource-node]

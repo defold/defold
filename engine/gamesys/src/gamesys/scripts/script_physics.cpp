@@ -43,6 +43,134 @@ static uint32_t PHYSICS_CONTEXT_HASH = 0;
 
 namespace dmGameSystem
 {
+    static dmScript::Result CollisionResponseDecoder(lua_State* L, const dmDDF::Descriptor*, const char* data)
+    {
+        DM_PROFILE("CollisionResponseDecoder");
+        const dmPhysicsDDF::CollisionResponse* message = (const dmPhysicsDDF::CollisionResponse*)data;
+
+        lua_createtable(L, 0, 5);
+        dmScript::PushHash(L, message->m_OtherId);
+        lua_setfield(L, -2, "other_id");
+        dmScript::PushHash(L, message->m_Group);
+        lua_setfield(L, -2, "group");
+        dmScript::PushVector3(L, dmVMath::Vector3(message->m_OtherPosition));
+        lua_setfield(L, -2, "other_position");
+        dmScript::PushHash(L, message->m_OtherGroup);
+        lua_setfield(L, -2, "other_group");
+        dmScript::PushHash(L, message->m_OwnGroup);
+        lua_setfield(L, -2, "own_group");
+        return dmScript::RESULT_OK;
+    }
+
+    static dmScript::Result ContactPointResponseDecoder(lua_State* L, const dmDDF::Descriptor*, const char* data)
+    {
+        DM_PROFILE("ContactPointResponseDecoder");
+        const dmPhysicsDDF::ContactPointResponse* message = (const dmPhysicsDDF::ContactPointResponse*)data;
+
+        lua_createtable(L, 0, 13);
+        dmScript::PushVector3(L, dmVMath::Vector3(message->m_Position));
+        lua_setfield(L, -2, "position");
+        dmScript::PushVector3(L, message->m_Normal);
+        lua_setfield(L, -2, "normal");
+        dmScript::PushVector3(L, message->m_RelativeVelocity);
+        lua_setfield(L, -2, "relative_velocity");
+        lua_pushnumber(L, message->m_Distance);
+        lua_setfield(L, -2, "distance");
+        lua_pushnumber(L, message->m_AppliedImpulse);
+        lua_setfield(L, -2, "applied_impulse");
+        lua_pushnumber(L, message->m_LifeTime);
+        lua_setfield(L, -2, "life_time");
+        lua_pushnumber(L, message->m_Mass);
+        lua_setfield(L, -2, "mass");
+        lua_pushnumber(L, message->m_OtherMass);
+        lua_setfield(L, -2, "other_mass");
+        dmScript::PushHash(L, message->m_OtherId);
+        lua_setfield(L, -2, "other_id");
+        dmScript::PushVector3(L, dmVMath::Vector3(message->m_OtherPosition));
+        lua_setfield(L, -2, "other_position");
+        dmScript::PushHash(L, message->m_Group);
+        lua_setfield(L, -2, "group");
+        dmScript::PushHash(L, message->m_OtherGroup);
+        lua_setfield(L, -2, "other_group");
+        dmScript::PushHash(L, message->m_OwnGroup);
+        lua_setfield(L, -2, "own_group");
+        return dmScript::RESULT_OK;
+    }
+
+    static dmScript::Result TriggerResponseDecoder(lua_State* L, const dmDDF::Descriptor*, const char* data)
+    {
+        DM_PROFILE("TriggerResponseDecoder");
+        const dmPhysicsDDF::TriggerResponse* message = (const dmPhysicsDDF::TriggerResponse*)data;
+
+        lua_createtable(L, 0, 5);
+        dmScript::PushHash(L, message->m_OtherId);
+        lua_setfield(L, -2, "other_id");
+        lua_pushboolean(L, message->m_Enter);
+        lua_setfield(L, -2, "enter");
+        dmScript::PushHash(L, message->m_Group);
+        lua_setfield(L, -2, "group");
+        dmScript::PushHash(L, message->m_OtherGroup);
+        lua_setfield(L, -2, "other_group");
+        dmScript::PushHash(L, message->m_OwnGroup);
+        lua_setfield(L, -2, "own_group");
+        return dmScript::RESULT_OK;
+    }
+
+    static dmScript::Result RayCastResponseDecoder(lua_State* L, const dmDDF::Descriptor*, const char* data)
+    {
+        DM_PROFILE("RayCastResponseDecoder");
+        const dmPhysicsDDF::RayCastResponse* message = (const dmPhysicsDDF::RayCastResponse*)data;
+
+        lua_createtable(L, 0, 6);
+        lua_pushnumber(L, message->m_Fraction);
+        lua_setfield(L, -2, "fraction");
+        dmScript::PushVector3(L, dmVMath::Vector3(message->m_Position));
+        lua_setfield(L, -2, "position");
+        dmScript::PushVector3(L, message->m_Normal);
+        lua_setfield(L, -2, "normal");
+        dmScript::PushHash(L, message->m_Id);
+        lua_setfield(L, -2, "id");
+        dmScript::PushHash(L, message->m_Group);
+        lua_setfield(L, -2, "group");
+        lua_pushinteger(L, (int)message->m_RequestId);
+        lua_setfield(L, -2, "request_id");
+        return dmScript::RESULT_OK;
+    }
+
+    static dmScript::Result RayCastMissedDecoder(lua_State* L, const dmDDF::Descriptor*, const char* data)
+    {
+        DM_PROFILE("RayCastMissedDecoder");
+        const dmPhysicsDDF::RayCastMissed* message = (const dmPhysicsDDF::RayCastMissed*)data;
+
+        lua_createtable(L, 0, 1);
+        lua_pushinteger(L, (int)message->m_RequestId);
+        lua_setfield(L, -2, "request_id");
+        return dmScript::RESULT_OK;
+    }
+
+    static dmScript::Result VelocityResponseDecoder(lua_State* L, const dmDDF::Descriptor*, const char* data)
+    {
+        DM_PROFILE("VelocityResponseDecoder");
+        const dmPhysicsDDF::VelocityResponse* message = (const dmPhysicsDDF::VelocityResponse*)data;
+
+        lua_createtable(L, 0, 2);
+        dmScript::PushVector3(L, message->m_LinearVelocity);
+        lua_setfield(L, -2, "linear_velocity");
+        dmScript::PushVector3(L, message->m_AngularVelocity);
+        lua_setfield(L, -2, "angular_velocity");
+        return dmScript::RESULT_OK;
+    }
+
+    static void RegisterPhysicsDDFDecoders()
+    {
+        dmScript::RegisterDDFDecoder(dmPhysicsDDF::CollisionResponse::m_DDFDescriptor, &CollisionResponseDecoder);
+        dmScript::RegisterDDFDecoder(dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor, &ContactPointResponseDecoder);
+        dmScript::RegisterDDFDecoder(dmPhysicsDDF::TriggerResponse::m_DDFDescriptor, &TriggerResponseDecoder);
+        dmScript::RegisterDDFDecoder(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, &RayCastResponseDecoder);
+        dmScript::RegisterDDFDecoder(dmPhysicsDDF::RayCastMissed::m_DDFDescriptor, &RayCastMissedDecoder);
+        dmScript::RegisterDDFDecoder(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor, &VelocityResponseDecoder);
+    }
+
     /*# Collision object physics API documentation
      *
      * Functions and messages for collision object physics interaction
@@ -55,92 +183,52 @@ namespace dmGameSystem
      * @language Lua
      */
 
-    /*# spring joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:
-     * @param length [type:number] The natural length between the anchor points.
-     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. A value of 0 disables softness.
-     * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
-     *
-     * @name physics.JOINT_TYPE_SPRING
-     * @constant
+    /*# Joint types
+     * @enum
+     * @name physics.JOINT_TYPE
+     * @member physics.JOINT_TYPE_FIXED Fixed joint; uses `max_length` from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_HINGE Hinge joint; uses the angular-limit and motor fields from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_SLIDER Slider joint; uses the translation-limit and motor fields from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_SPRING Spring joint; uses `length`, `frequency`, and `damping` from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_WELD Weld joint; uses `reference_angle`, `frequency`, and `damping` from [ref:physics.joint_properties].
+     * @member physics.JOINT_TYPE_WHEEL Wheel joint; uses the axis, motor, frequency, and damping fields from [ref:physics.joint_properties].
      */
 
-    /*# fixed joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_FIXED` type:
-     * @param max_length [type:number] The maximum length of the rope.
-     *
-     * @name physics.JOINT_TYPE_FIXED
-     * @constant
+    /*# Shape types
+     * @enum
+     * @name physics.SHAPE_TYPE
+     * @member physics.SHAPE_TYPE_BOX Box shape.
+     * @member physics.SHAPE_TYPE_CAPSULE Capsule shape; supported only by 3D physics.
+     * @member physics.SHAPE_TYPE_HULL Convex hull shape.
+     * @member physics.SHAPE_TYPE_SPHERE Sphere shape.
      */
 
-    /*# hinge joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_HINGE` type:
-     * @param reference_angle [type:number] The bodyB angle minus bodyA angle in the reference state (radians).
-     * @param lower_angle [type:number] The lower angle for the joint limit (radians).
-     * @param upper_angle [type:number] The upper angle for the joint limit (radians).
-     * @param max_motor_torque [type:number] The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
-     * @param motor_speed [type:number] The desired motor speed. Usually in radians per second.
-     * @param enable_limit [type:boolean] A flag to enable joint limits.
-     * @param enable_motor [type:boolean] A flag to enable the joint motor.
-     * @param joint_angle [type:number] [mark:READ ONLY]Current joint angle in radians.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     * @param joint_speed [type:number] [mark:READ ONLY]Current joint angle speed in radians per second.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     *
-     * @name physics.JOINT_TYPE_HINGE
-     * @constant
+    /*# Ray-cast options
+     * @struct
+     * @name physics.raycast_options
+     * @member all? [type:boolean] Return every hit instead of only the closest hit.
      */
 
-    /*# slider joint type
+    /*# Collision shape data
      *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_SLIDER` type:
-     * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.
-     * @param reference_angle [type:number] The constrained angle between the bodies: bodyB_angle - bodyA_angle.
-     * @param enable_limit [type:boolean] Enable/disable the joint limit.
-     * @param lower_translation [type:number] The lower translation limit, usually in meters.
-     * @param upper_translation [type:number] The upper translation limit, usually in meters.
-     * @param enable_motor [type:boolean] Enable/disable the joint motor.
-     * @param max_motor_force [type:number] The maximum motor torque, usually in N-m.
-     * @param motor_speed [type:number] The desired motor speed in radians per second.
-     * @param joint_translation [type:number] [mark:READ ONLY]Current joint translation, usually in meters.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     * @param joint_speed [type:number] [mark:READ ONLY]Current joint translation speed, usually in meters per second.
-     * (Read only field, available from `physics.get_joint_properties()`)
+     * The available geometry fields depend on `type`.
      *
-     * @name physics.JOINT_TYPE_SLIDER
-     * @constant
+     * @struct
+     * @name physics.shape_data
+     * @member type [type:physics.SHAPE_TYPE] shape type
+     * @member diameter? [type:number] sphere diameter or capsule pole diameter
+     * @member dimensions? [type:vector3] box dimensions
+     * @member height? [type:number] capsule height
      */
 
-    /*# weld joint type
+    /*# Physics world event
      *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_WELD` type:
-     * @param reference_angle [type:number] [mark:READ ONLY]The bodyB angle minus bodyA angle in the reference state (radians).
-     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. Rotation only. Disable softness with a value of 0.
-     * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
+     * An event delivered to a physics world listener. Inspect its `type` field to
+     * determine which event-specific fields are available.
      *
-     * @name physics.JOINT_TYPE_WELD
-     * @constant
-     */
-
-    /*# wheel joint type
-     *
-     * The following properties are available when connecting a joint of `JOINT_TYPE_WHEEL` type:
-     * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.
-     * @param max_motor_torque [type:number] The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
-     * @param motor_speed [type:number] The desired motor speed in radians per second.
-     * @param enable_motor [type:boolean] Enable/disable the joint motor.
-     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. Rotation only. Disable softness with a value of 0.
-     * @param damping [type:number] The spring damping ratio. 0 = no damping, 1 = critical damping.
-     * @param joint_translation [type:number] [mark:READ ONLY]Current joint translation, usually in meters.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     * @param joint_speed [type:number] [mark:READ ONLY]Current joint translation speed, usually in meters per second.
-     * (Read only field, available from `physics.get_joint_properties()`)
-     *
-     * @name physics.JOINT_TYPE_WHEEL
-     * @constant
+     * @typedef
+     * @name physics.event
+     * @param value [type:message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed] physics event data
      */
 
     struct PhysicsScriptContext
@@ -283,8 +371,8 @@ namespace dmGameSystem
      * @name physics.raycast_async
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
-     * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] [type:number] a number in range [0,255]. It will be sent back in the response for identification, 0 by default
+     * @param groups [type:hash[]] a lua table containing the hashed groups for which to test collisions against
+     * @param [request_id] [type:integer] a number in range [0,255]. It will be sent back in the response for identification, 0 by default
      * @examples
      *
      * How to perform a ray cast asynchronously:
@@ -397,13 +485,9 @@ namespace dmGameSystem
      * @name physics.raycast
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
-     * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [options] [type:table] a lua table containing options for the raycast.
-     *
-     * `all`
-     * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
-     *
-     * @return result [type:table|nil] It returns a list. If missed it returns `nil`. See [ref:ray_cast_response] for details on the returned values.
+     * @param groups [type:hash[]] a lua table containing the hashed groups for which to test collisions against
+     * @param [options] [type:physics.raycast_options] optional ray-cast options
+     * @return result [type:message.physics.ray_cast_response[]|message.physics.ray_cast_response|nil] It returns a list. If missed it returns `nil`. See [ref:ray_cast_response] for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
@@ -673,6 +757,53 @@ namespace dmGameSystem
         return;
     }
 
+    /*# configurable joint properties
+     * The available fields depend on the joint type.
+     * @struct
+     * @name physics.joint_properties
+     * @member collide_connected? [type:boolean] whether the connected objects should collide
+     * @member length? [type:number] Natural spring length between the anchor points.
+     * @member frequency? [type:number] Mass-spring-damper frequency in Hertz; zero disables softness.
+     * @member damping? [type:number] Damping ratio, where zero is no damping and one is critical damping.
+     * @member max_length? [type:number] Maximum fixed-joint rope length.
+     * @member local_axis_a? [type:vector3] Local translation unit axis in the first body.
+     * @member reference_angle? [type:number] Angle of the second body relative to the first body, in radians.
+     * @member lower_angle? [type:number] Lower angular limit in radians.
+     * @member upper_angle? [type:number] Upper angular limit in radians.
+     * @member lower_translation? [type:number] Lower translation limit, usually in meters.
+     * @member upper_translation? [type:number] Upper translation limit, usually in meters.
+     * @member max_motor_torque? [type:number] Maximum motor torque used to reach the desired speed, usually in N-m.
+     * @member max_motor_force? [type:number] Maximum motor force used to reach the desired speed.
+     * @member motor_speed? [type:number] Desired motor speed.
+     * @member enable_limit? [type:boolean] Whether joint limits are enabled.
+     * @member enable_motor? [type:boolean] Whether the joint motor is enabled.
+     */
+
+    /*# returned joint properties
+     * The available optional fields depend on the joint type.
+     * @struct
+     * @name physics.joint_properties_info
+     * @member collide_connected [type:boolean] whether the connected objects collide
+     * @member length? [type:number] spring length
+     * @member frequency? [type:number] spring frequency
+     * @member damping? [type:number] damping ratio
+     * @member max_length? [type:number] fixed-joint maximum length
+     * @member local_axis_a? [type:vector3] local joint axis
+     * @member reference_angle? [type:number] reference angle
+     * @member lower_angle? [type:number] lower angular limit
+     * @member upper_angle? [type:number] upper angular limit
+     * @member lower_translation? [type:number] lower translation limit
+     * @member upper_translation? [type:number] upper translation limit
+     * @member max_motor_torque? [type:number] maximum motor torque
+     * @member max_motor_force? [type:number] maximum motor force
+     * @member motor_speed? [type:number] motor speed
+     * @member enable_limit? [type:boolean] whether limits are enabled
+     * @member enable_motor? [type:boolean] whether the motor is enabled
+     * @member joint_angle? [type:number] Read-only current hinge angle in radians.
+     * @member joint_speed? [type:number] Read-only current hinge angular speed or slider/wheel translation speed.
+     * @member joint_translation? [type:number] Read-only current slider or wheel translation, usually in meters.
+     */
+
     /*# create a physics joint
      *
      * Create a physics joint between two collision object components.
@@ -680,17 +811,13 @@ namespace dmGameSystem
      * Note: Currently only supported in 2D physics.
      *
      * @name physics.create_joint
-     * @param joint_type [type:number] the joint type
+     * @param joint_type [type:physics.JOINT_TYPE] the joint type
      * @param collisionobject_a [type:string|hash|url] first collision object
      * @param joint_id [type:string|hash] id of the joint
      * @param position_a [type:vector3] local position where to attach the joint on the first collision object
      * @param collisionobject_b [type:string|hash|url] second collision object
      * @param position_b [type:vector3] local position where to attach the joint on the second collision object
-     * @param [properties] [type:table] optional joint specific properties table
-     *
-     * See each joint type for possible properties field. The one field that is accepted for all joint types is:
-     * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
-     *
+     * @param [properties] [type:physics.joint_properties] optional joint-specific properties
      */
     static int Physics_CreateJoint(lua_State* L)
     {
@@ -772,10 +899,7 @@ namespace dmGameSystem
      * @name physics.get_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @return properties [type:table] properties table. See the joint types for what fields are available, the only field available for all types is:
-     *
-     * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
-     *
+     * @return properties [type:physics.joint_properties_info] joint properties
      */
     static int Physics_GetJointProperties(lua_State* L)
     {
@@ -884,7 +1008,7 @@ namespace dmGameSystem
      * @name physics.set_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @param properties [type:table] joint specific properties table
+     * @param properties [type:physics.joint_properties] joint specific properties table
      *
      * Note: The `collide_connected` field cannot be updated/changed after a connection has been made.
      *
@@ -1164,6 +1288,8 @@ namespace dmGameSystem
      *
      * @name physics.wakeup
      * @param url [type:string|hash|url] the collision object to wake.
+     * @examples
+     *
      * ```lua
      * function on_input(self, action_id, action)
      *     if action_id == hash("test") and action.pressed then
@@ -1195,6 +1321,8 @@ namespace dmGameSystem
      * @name physics.set_group
      * @param url [type:string|hash|url] the collision object affected.
      * @param group [type:string] the new group name to be assigned.
+     * @examples
+     *
      * ```lua
      * local function change_collision_group()
      *      physics.set_group("#collisionobject", "enemy")
@@ -1225,6 +1353,8 @@ namespace dmGameSystem
      * @name physics.get_group
      * @param url [type:string|hash|url] the collision object to return the group of.
      * @return group [type:hash] hash value of the group.
+     * @examples
+     *
      * ```lua
      * local function check_is_enemy()
      *     local group = physics.get_group("#collisionobject")
@@ -1255,6 +1385,8 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collision object to change the mask of.
      * @param group [type:string] the name of the group (maskbit) to modify in the mask.
      * @param maskbit [type:boolean] boolean value of the new maskbit. 'true' to enable, 'false' to disable.
+     * @examples
+     *
      * ```lua
      * local function make_invincible()
      *     -- no longer collide with the "bullet" group
@@ -1290,6 +1422,8 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collision object to check the mask of.
      * @param group [type:string] the name of the group to check for.
      * @return maskbit [type:boolean] boolean value of the maskbit. 'true' if present, 'false' otherwise.
+     * @examples
+     *
      * ```lua
      * local function is_invincible()
      *     -- check if the collisionobject would collide with the "bullet" group
@@ -1316,25 +1450,9 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*#
-     * @name physics.SHAPE_TYPE_SPHERE
-     * @constant
-     */
 
-    /*#
-     * @name physics.SHAPE_TYPE_BOX
-     * @constant
-     */
 
-    /*#
-     * @name physics.SHAPE_TYPE_CAPSULE
-     * @constant
-     */
 
-    /*#
-     * @name physics.SHAPE_TYPE_HULL
-     * @constant
-     */
 
     /*# get collision shape info
      * Gets collision shape data from a collision object
@@ -1342,35 +1460,8 @@ namespace dmGameSystem
      * @name physics.get_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @return table [type:table] A table containing meta data about the physics shape
-     *
-     * `type`
-     * : [type:number] The shape type. Supported values:
-     *
-     * - `physics.SHAPE_TYPE_SPHERE`
-     * - `physics.SHAPE_TYPE_BOX`
-     * - `physics.SHAPE_TYPE_CAPSULE` *Only supported for 3D physics*
-     * - `physics.SHAPE_TYPE_HULL`
-     *
-     * The returned table contains different fields depending on which type the shape is.
-     *
-     * If the shape is a sphere:
-     *
-     * `diameter`
-     * : [type:number] the diameter of the sphere shape
-     *
-     * If the shape is a box:
-     *
-     * `dimensions`
-     * : [type:vector3] a `vmath.vector3` of the box dimensions
-     *
-     * If the shape is a capsule:
-     *
-     * `diameter`
-     * : [type:number] the diameter of the capsule poles
-     *
-     * `height`
-     * : [type:number] the height of the capsule
+     * @return table [type:physics.shape_data] collision shape data
+     * @examples
      *
      * ```lua
      * local function get_shape_meta()
@@ -1440,9 +1531,9 @@ namespace dmGameSystem
      * @name physics.set_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @param table [type:table] the shape data to update the shape with.
+     * @param table [type:physics.shape_data] updated collision shape data
      *
-     * See [ref:physics.get_shape] for a detailed description of each field in the data table.
+     * @examples
      *
      * ```lua
      * local function set_shape_data()
@@ -1533,6 +1624,7 @@ namespace dmGameSystem
 
             if (!dmGameSystem::SetShape(comp_world, comp, shape_ix, &shape_info))
             {
+                lua_pop(L, 1); // args table
                 return DM_LUA_ERROR( "Unable to set shape data at index %d", shape_ix);
             }
 #undef check_val
@@ -1548,13 +1640,13 @@ namespace dmGameSystem
      *
      * @name physics.set_event_listener
      *
-     * @param callback [type:function(self, events)|nil] A callback that receives information about all physics interactions in this physics world. Pass `nil` to remove the listener.
+     * @param callback [type:fun(self:script_instance, events:physics.event[])|nil] A callback that receives information about all physics interactions in this physics world. Pass `nil` to remove the listener.
      *
      * `self`
-     * : [type:object] The calling script
+     * : [type:script_instance] The calling script instance
      *
      * `events`
-     * : [type:table] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:
+     * : [type:physics.event[]] An array of event tables. Each event table contains a `type` field with the hashed name of one of these messages, together with fields specific to that event type:
      *
      * - [ref:contact_point_event]
      * - [ref:collision_event]
@@ -1749,127 +1841,217 @@ namespace dmGameSystem
         dmScript::TeardownCallback(cbk);
     }
 
-    static void PushCollision(lua_State* L, dmPhysicsDDF::Collision* collision)
+    static void PushVector3WithMetatable(lua_State* L, const dmVMath::Vector3& value, int metatable_index)
     {
-        lua_createtable(L, 0, 3);
-
-        dmScript::PushVector3(L, *((dmVMath::Vector3*) &collision->m_Position));
-        lua_setfield(L, -2, "position");
-        dmScript::PushHash(L, collision->m_Id);
-        lua_setfield(L, -2, "id");
-        dmScript::PushHash(L, collision->m_Group);
-        lua_setfield(L, -2, "group");
+        dmVMath::Vector3* userdata = (dmVMath::Vector3*)lua_newuserdata(L, sizeof(dmVMath::Vector3));
+        *userdata = value;
+        lua_pushvalue(L, metatable_index);
+        lua_setmetatable(L, -2);
     }
 
-    static void PushCollisionEvent(lua_State* L, dmPhysicsDDF::CollisionEvent* event)
+    enum PhysicsLuaKey
+    {
+        PHYSICS_LUA_KEY_A,
+        PHYSICS_LUA_KEY_B,
+        PHYSICS_LUA_KEY_TYPE,
+        PHYSICS_LUA_KEY_POSITION,
+        PHYSICS_LUA_KEY_ID,
+        PHYSICS_LUA_KEY_GROUP,
+        PHYSICS_LUA_KEY_INSTANCE_POSITION,
+        PHYSICS_LUA_KEY_NORMAL,
+        PHYSICS_LUA_KEY_RELATIVE_VELOCITY,
+        PHYSICS_LUA_KEY_MASS,
+        PHYSICS_LUA_KEY_DISTANCE,
+        PHYSICS_LUA_KEY_APPLIED_IMPULSE,
+        PHYSICS_LUA_KEY_ENTER,
+        PHYSICS_LUA_KEY_FRACTION,
+        PHYSICS_LUA_KEY_REQUEST_ID,
+        PHYSICS_LUA_KEY_COUNT,
+    };
+
+    static const char* PHYSICS_LUA_KEY_NAMES[PHYSICS_LUA_KEY_COUNT] =
+    {
+        "a",
+        "b",
+        "type",
+        "position",
+        "id",
+        "group",
+        "instance_position",
+        "normal",
+        "relative_velocity",
+        "mass",
+        "distance",
+        "applied_impulse",
+        "enter",
+        "fraction",
+        "request_id",
+    };
+
+    struct PhysicsLuaKeys
+    {
+        int m_StackIndices[PHYSICS_LUA_KEY_COUNT];
+    };
+
+    static void PushPhysicsLuaKeys(lua_State* L, PhysicsLuaKeys* keys)
+    {
+        for (uint32_t i = 0; i < PHYSICS_LUA_KEY_COUNT; ++i)
+        {
+            lua_pushstring(L, PHYSICS_LUA_KEY_NAMES[i]);
+            keys->m_StackIndices[i] = lua_gettop(L);
+        }
+    }
+
+    static void SetPhysicsLuaField(lua_State* L, int table_index, const PhysicsLuaKeys& keys, PhysicsLuaKey key)
+    {
+        lua_pushvalue(L, keys.m_StackIndices[key]);
+        lua_insert(L, -2);
+        lua_rawset(L, table_index);
+    }
+
+    static void PushCollision(lua_State* L, dmPhysicsDDF::Collision* collision, int vector3_metatable_index, const PhysicsLuaKeys& keys)
+    {
+        lua_createtable(L, 0, 3);
+        const int table_index = lua_gettop(L);
+
+        PushVector3WithMetatable(L, *((dmVMath::Vector3*) &collision->m_Position), vector3_metatable_index);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_POSITION);
+        dmScript::PushHash(L, collision->m_Id);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
+        dmScript::PushHash(L, collision->m_Group);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
+    }
+
+    static void PushCollisionEvent(lua_State* L, dmPhysicsDDF::CollisionEvent* event, int vector3_metatable_index, const PhysicsLuaKeys& keys)
     {
         DM_PROFILE("PushCollisionEvent");
 
         lua_createtable(L, 0, 2);
+        const int table_index = lua_gettop(L);
 
-        PushCollision(L, &event->m_A);
-        lua_setfield(L, -2, "a");
+        PushCollision(L, &event->m_A, vector3_metatable_index, keys);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_A);
 
-        PushCollision(L, &event->m_B);
-        lua_setfield(L, -2, "b");
+        PushCollision(L, &event->m_B, vector3_metatable_index, keys);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_B);
     }
 
-    static void PushContactPoint(lua_State* L, dmPhysicsDDF::ContactPoint* point)
+    static void PushContactPoint(lua_State* L, dmPhysicsDDF::ContactPoint* point, int vector3_metatable_index, const PhysicsLuaKeys& keys)
     {
         lua_createtable(L, 0, 7);
+        const int table_index = lua_gettop(L);
 
-        dmScript::PushVector3(L, *((dmVMath::Vector3*) &point->m_Position));
-        lua_setfield(L, -2, "position");
+        PushVector3WithMetatable(L, *((dmVMath::Vector3*) &point->m_Position), vector3_metatable_index);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_POSITION);
 
-        dmScript::PushVector3(L, *((dmVMath::Vector3*) &point->m_InstancePosition));
-        lua_setfield(L, -2, "instance_position");
+        PushVector3WithMetatable(L, *((dmVMath::Vector3*) &point->m_InstancePosition), vector3_metatable_index);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_INSTANCE_POSITION);
 
-        dmScript::PushVector3(L, point->m_Normal);
-        lua_setfield(L, -2, "normal");
+        PushVector3WithMetatable(L, point->m_Normal, vector3_metatable_index);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_NORMAL);
 
-        dmScript::PushVector3(L, point->m_RelativeVelocity);
-        lua_setfield(L, -2, "relative_velocity");
+        PushVector3WithMetatable(L, point->m_RelativeVelocity, vector3_metatable_index);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_RELATIVE_VELOCITY);
 
         lua_pushnumber(L, point->m_Mass);
-        lua_setfield(L, -2, "mass");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_MASS);
 
         dmScript::PushHash(L, point->m_Id);
-        lua_setfield(L, -2, "id");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
         dmScript::PushHash(L, point->m_Group);
-        lua_setfield(L, -2, "group");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
     }
 
-    static void PushContactPointEvent(lua_State* L, dmPhysicsDDF::ContactPointEvent* event)
+    static void PushContactPointEvent(lua_State* L, dmPhysicsDDF::ContactPointEvent* event, int vector3_metatable_index, const PhysicsLuaKeys& keys)
     {
         DM_PROFILE("PushContactPointEvent");
 
         lua_createtable(L, 0, 4);
+        const int table_index = lua_gettop(L);
 
-        PushContactPoint(L, &event->m_A);
-        lua_setfield(L, -2, "a");
+        PushContactPoint(L, &event->m_A, vector3_metatable_index, keys);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_A);
 
-        PushContactPoint(L, &event->m_B);
-        lua_setfield(L, -2, "b");
+        PushContactPoint(L, &event->m_B, vector3_metatable_index, keys);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_B);
 
         lua_pushnumber(L, event->m_Distance);
-        lua_setfield(L, -2, "distance");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_DISTANCE);
 
         lua_pushnumber(L, event->m_AppliedImpulse);
-        lua_setfield(L, -2, "applied_impulse");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_APPLIED_IMPULSE);
     }
 
-    static void PushTrigger(lua_State* L, dmPhysicsDDF::Trigger* trigger)
+    static void PushTrigger(lua_State* L, dmPhysicsDDF::Trigger* trigger, const PhysicsLuaKeys& keys)
     {
         lua_createtable(L, 0, 2);
+        const int table_index = lua_gettop(L);
 
         dmScript::PushHash(L, trigger->m_Id);
-        lua_setfield(L, -2, "id");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
         dmScript::PushHash(L, trigger->m_Group);
-        lua_setfield(L, -2, "group");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
     }
 
-    static void PushTriggerEvent(lua_State* L, dmPhysicsDDF::TriggerEvent* event)
+    static void PushTriggerEvent(lua_State* L, dmPhysicsDDF::TriggerEvent* event, const PhysicsLuaKeys& keys)
     {
         DM_PROFILE("PushTriggerEvent");
 
         lua_createtable(L, 0, 3);
+        const int table_index = lua_gettop(L);
 
         lua_pushboolean(L, event->m_Enter);
-        lua_setfield(L, -2, "enter");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ENTER);
 
-        PushTrigger(L, &event->m_A);
-        lua_setfield(L, -2, "a");
+        PushTrigger(L, &event->m_A, keys);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_A);
 
-        PushTrigger(L, &event->m_B);
-        lua_setfield(L, -2, "b");
+        PushTrigger(L, &event->m_B, keys);
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_B);
     }
 
-    static void PushRayCastResponse(lua_State* L, dmPhysicsDDF::RayCastResponse* event)
+    static void PushRayCastResponse(lua_State* L, dmPhysicsDDF::RayCastResponse* event, const PhysicsLuaKeys& keys)
     {
         DM_PROFILE("PushRayCastResponse");
 
         lua_createtable(L, 0, 6);
+        const int table_index = lua_gettop(L);
 
         dmScript::PushVector3(L, *((dmVMath::Vector3*) &event->m_Position));
-        lua_setfield(L, -2, "position");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_POSITION);
         dmScript::PushVector3(L, event->m_Normal);
-        lua_setfield(L, -2, "normal");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_NORMAL);
         lua_pushnumber(L, event->m_Fraction);
-        lua_setfield(L, -2, "fraction");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_FRACTION);
         dmScript::PushHash(L, event->m_Id);
-        lua_setfield(L, -2, "id");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
         dmScript::PushHash(L, event->m_Group);
-        lua_setfield(L, -2, "group");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
         lua_pushinteger(L, event->m_RequestId);
-        lua_setfield(L, -2, "request_id");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_REQUEST_ID);
     }
 
-    static void PushRayCastMissed(lua_State* L, dmPhysicsDDF::RayCastMissed* event)
+    static void PushRayCastMissed(lua_State* L, dmPhysicsDDF::RayCastMissed* event, const PhysicsLuaKeys& keys)
     {
         DM_PROFILE("PushRayCastMissed");
         lua_createtable(L, 0, 1);
+        const int table_index = lua_gettop(L);
         lua_pushinteger(L, event->m_RequestId);
-        lua_setfield(L, -2, "request_id");
+        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_REQUEST_ID);
+    }
+
+    static dmhash_t GetPhysicsMessageNameHash(PhysicsMessageType type)
+    {
+        switch (type)
+        {
+            case PHYSICS_MESSAGE_TYPE_COLLISION:         return dmPhysicsDDF::CollisionEvent::m_DDFDescriptor->m_NameHash;
+            case PHYSICS_MESSAGE_TYPE_CONTACT_POINT:     return dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor->m_NameHash;
+            case PHYSICS_MESSAGE_TYPE_TRIGGER:           return dmPhysicsDDF::TriggerEvent::m_DDFDescriptor->m_NameHash;
+            case PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE: return dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
+            case PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED:   return dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash;
+        }
+        assert(false);
+        return 0;
     }
 
     void RunBatchedEventCallback(dmScript::LuaCallbackInfo* cbk, uint32_t count, PhysicsMessage* infos, const uint8_t* payload)
@@ -1885,11 +2067,29 @@ namespace dmGameSystem
         lua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
 
+        // SetupCallback, the cached field keys, the largest event table, and
+        // transient values from creating uncached hashes can exceed Lua's
+        // guaranteed LUA_MINSTACK slots.
+        const int required_stack_slots = 32;
+        if (!lua_checkstack(L, required_stack_slots))
+        {
+            dmLogError("Failed to grow Lua stack for physics.set_event_listener() callback");
+            return;
+        }
+
         if (!dmScript::SetupCallback(cbk))
         {
             dmLogError("Failed to setup physics.set_event_listener() callback");
             return;
         }
+
+        // All vector3 values in the batch use the same metatable. Fetch it once
+        // instead of looking it up in the Lua registry for every vector value.
+        luaL_getmetatable(L, "vector3");
+        const int vector3_metatable_index = lua_gettop(L);
+
+        PhysicsLuaKeys keys;
+        PushPhysicsLuaKeys(L, &keys);
 
         lua_createtable(L, count, 0);
         // -1: events table
@@ -1899,31 +2099,29 @@ namespace dmGameSystem
             PhysicsMessage& msg = infos[i];
             void* data = (void*)&payload[msg.m_Offset];
 
-            if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::CollisionEvent::m_DDFDescriptor->m_NameHash)
+            switch (msg.m_Type)
             {
-                PushCollisionEvent(L, (dmPhysicsDDF::CollisionEvent*)data);
-            }
-            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor->m_NameHash)
-            {
-                PushContactPointEvent(L, (dmPhysicsDDF::ContactPointEvent*)data);
-            }
-            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::TriggerEvent::m_DDFDescriptor->m_NameHash)
-            {
-                PushTriggerEvent(L, (dmPhysicsDDF::TriggerEvent*)data);
-            }
-            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash)
-            {
-                PushRayCastResponse(L, (dmPhysicsDDF::RayCastResponse*)data);
-            }
-            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash)
-            {
-                PushRayCastMissed(L, (dmPhysicsDDF::RayCastMissed*)data);
+                case PHYSICS_MESSAGE_TYPE_COLLISION:
+                    PushCollisionEvent(L, (dmPhysicsDDF::CollisionEvent*)data, vector3_metatable_index, keys);
+                    break;
+                case PHYSICS_MESSAGE_TYPE_CONTACT_POINT:
+                    PushContactPointEvent(L, (dmPhysicsDDF::ContactPointEvent*)data, vector3_metatable_index, keys);
+                    break;
+                case PHYSICS_MESSAGE_TYPE_TRIGGER:
+                    PushTriggerEvent(L, (dmPhysicsDDF::TriggerEvent*)data, keys);
+                    break;
+                case PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE:
+                    PushRayCastResponse(L, (dmPhysicsDDF::RayCastResponse*)data, keys);
+                    break;
+                case PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED:
+                    PushRayCastMissed(L, (dmPhysicsDDF::RayCastMissed*)data, keys);
+                    break;
             }
             // -2: events table
             // -1: event
 
-            dmScript::PushHash(L, msg.m_Descriptor->m_NameHash);
-            lua_setfield(L, -2, "type");
+            dmScript::PushHash(L, GetPhysicsMessageNameHash(msg.m_Type));
+            SetPhysicsLuaField(L, lua_gettop(L) - 1, keys, PHYSICS_LUA_KEY_TYPE);
             // -2: events table
             // -1: event
 
@@ -1932,6 +2130,11 @@ namespace dmGameSystem
             // -1: events table
         }
         // -1: events table
+
+        // Move the result below the cached metatable and keys and then discard
+        // all cached stack values before invoking the callback.
+        lua_insert(L, vector3_metatable_index);
+        lua_settop(L, vector3_metatable_index);
 
         {
             DM_PROFILE("PCall");
@@ -1975,6 +2178,8 @@ namespace dmGameSystem
 
     void ScriptPhysicsRegister(const ScriptLibContext& context)
     {
+        RegisterPhysicsDDFDecoders();
+
         lua_State* L = context.m_LuaState;
         luaL_register(L, "physics", PHYSICS_FUNCTIONS);
 

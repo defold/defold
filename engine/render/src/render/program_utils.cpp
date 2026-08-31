@@ -348,6 +348,7 @@ namespace dmRender
         switch (type)
         {
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR:
             {
                 uint32_t num_values;
                 dmVMath::Vector4* values = GetConstantValues(constant, &num_values);

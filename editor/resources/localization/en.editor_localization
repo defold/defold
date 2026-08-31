@@ -420,6 +420,7 @@ notification.ensure-exists.reason.folder = the configured path points to a folde
 
 notification.lsp.language-server-missing.prompt = Cannot perform this action because there is no Language Server running for the {language} language.
 notification.lsp.language-server-missing.action.about = About LSP in Defold
+notification.lsp.formatting-failed.prompt = Cannot format {path} because no Language Server responded.
 
 # Asset browser notifications
 
@@ -579,6 +580,7 @@ dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Thread support
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
 dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
 dialog.bundle.label.sign-application = Sign Application
 dialog.bundle.label.code-signing-identity = Code Signing Identity
 dialog.bundle.label.provisioning-profile = Provisioning Profile
@@ -722,6 +724,8 @@ prefs.label.code.zoom-on-scroll = Zoom on Scroll
 prefs.label.code.hover = Hover popup
 prefs.help.code.hover = Show code documentation popup on hover
 prefs.label.code.auto-closing-parens = Auto-insert closing parens
+prefs.label.code.format-on-save = Format on save
+prefs.help.code.format-on-save = Run the language server formatter on open files when saving
 
 # Extensions tab
 prefs.label.extensions.build-server = Build Server
@@ -986,6 +990,7 @@ command.code.replace = Replace…
 command.code.replace-next = Replace Next
 command.code.toggle-comment = Toggle Comment
 command.code.reindent-lines = Reindent Lines
+command.code.format = Format Document/Selection
 command.code.convert-indentation = Convert Indentation
 command.code.convert-indentation.to-tabs = To Tabs
 command.code.convert-indentation.to-two-spaces = To Two Spaces
@@ -2444,6 +2449,8 @@ form.help.render-target.color-attachments = Defines the color textures that rece
 form.label.render-target.color-attachments.width = Width
 form.label.render-target.color-attachments.height = Height
 form.label.render-target.color-attachments.format = Format
+form.label.render-target.sample-count = Sample Count
+form.help.render-target.sample-count = Number of samples used by every color, depth, and stencil attachment. Unsupported values are reduced to the closest sample count available on the graphics backend.
 form.label.render-target.depth-stencil-attachment-width = Depth/Stencil Width
 form.help.render-target.depth-stencil-attachment-width = Width in pixels of the shared depth/stencil attachment. Set both width and height above `0` to create the attachment; leaving both at `0` disables it.
 form.label.render-target.depth-stencil-attachment-height = Depth/Stencil Height
@@ -2665,6 +2672,8 @@ quick-help.build-and-run-project = Build and Run Project
 quick-help.start-or-attach-debugger = Start or Attach Debugger
 
 # Error Messages
+error.engine.url-not-reported-before-exit = Engine exited before reporting its service URL.
+error.engine.url-not-reported-in-time = Engine service URL was not reported within 15 seconds. The game may still be running.
 error.assigned-image-has-internal-errors = The assigned image has internal errors.
 error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
 error.light.invalid-source = The light file could not be parsed. Fix the text format or revert your changes.
@@ -2685,11 +2694,13 @@ error.tile-source.total-width-exceeds-image-width = The total width ("Tile Width
 error.tile-source.total-height-exceeds-image-height = The total height ("Tile Height" + "Tile Margin") is greater than the "Image" height ({total_height} vs {image_height}).
 error.property-contains-url-prohibited-characters = "{property}" should not contain special URL symbols such as "#" or ":".
 error.property-cannot-start-or-end-with-space = "{property}" should not start or end with a space character.
+error.property-cannot-contain-nul = "{property}" cannot contain NUL characters.
 error.property-cannot-be-negative = "{property}" cannot be negative.
 error.property-must-be-greater-than-zero = "{property}" must be greater than zero.
 error.property-must-be-at-least = "{property}" must be at least {min}.
 error.property-must-be-at-most = "{property}" must be at most {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" cannot have more than {max} color attachments.
+error.render-target.sample-count-must-be-supported = Sample count must be one of 1, 2, 4, 8, or 16.
 error.render-target.color-attachment-width-must-be-greater-than-zero = Color attachment {index} must have a width greater than zero.
 error.render-target.color-attachment-height-must-be-greater-than-zero = Color attachment {index} must have a height greater than zero.
 error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is = Incorrect depth/stencil attachment: width is greater than zero, but height is zero.
@@ -2711,6 +2722,7 @@ error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.go-property-disallowed = go.property cannot be used in this file type.
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
+error.bob.failed-to-save-project = Failed to save the project before invoking Bob.
 error.blend-mode-add-alpha-replaced = `{old}` is deprecated and behaves exactly like `{new}` because Defold uses premultiplied alpha. Select `{new}` instead.
 error.duplicate-instance-id = "{id}" is in use by another instance.
 error.non-unique-ids = The following ids are not unique: {ids}.

@@ -2608,8 +2608,12 @@
   (.consume event)
   (let [character (.getCharacter event)]
     (when (and (keymap/typable? event)
-               ;; Ignore Alt+Space on macOS
-               (not (and (os/is-mac-os?) (= " " character) (.isAltDown event)))
+               ;; Ignore characters that macOS produces for shortcuts we bind as
+               ;; commands: a non-breaking space for Alt+Space, and Ï for
+               ;; Shift+Alt+F (:code.format).
+               (not (and (os/is-mac-os?)
+                         (.isAltDown event)
+                         (#{"\u00a0" "Ï"} character)))
                ;; Ignore characters in the control range and the ASCII delete
                ;; as it is done by JavaFX in `TextInputControlBehavior`'s
                ;; `defaultKeyTyped` method.
@@ -3052,6 +3056,106 @@
        :actions [{:message (localization/message "notification.lsp.language-server-missing.action.about")
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
+(defn- show-formatting-failed-notification! [resource]
+  (let [proj-path (resource/proj-path resource)]
+    (notifications/show!
+      (workspace/notifications (resource/workspace resource))
+      {:type :warning
+       :id [::formatting-failed proj-path]
+       :message (localization/message "notification.lsp.formatting-failed.prompt" {"path" proj-path})})))
+
+(defn- apply-formatting-edits! [view-node lines edits]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [current (get-property view-node :lines evaluation-context)]
+      ;; The edits describe the lines we sent, so drop the response if the
+      ;; document moved on while we waited.
+      (when (= current lines)
+        (let [line-edits (data/format-document-edits current edits)]
+          (when (coll/not-empty line-edits)
+            (set-properties! view-node nil
+                             (data/apply-edits
+                               current
+                               (get-property view-node :regions evaluation-context)
+                               (get-property view-node :cursor-ranges evaluation-context)
+                               line-edits
+                               (get-property view-node :layout evaluation-context)))))))))
+
+(defn- format-whole-document! [view-node lsp resource indent-type lines done! & {:as opts}]
+  (lsp/format-document!
+    lsp resource indent-type
+    (fn [response]
+      (ui/run-later
+        (try
+          (if response
+            (apply-formatting-edits! view-node lines (:edits response))
+            (show-formatting-failed-notification! resource))
+          (finally
+            (done!)))))
+    opts))
+
+(defn- format-selected-rows! [view-node lsp resource indent-type lines cursor-ranges]
+  (when-let [row-spans (coll/not-empty (data/format-row-spans lines cursor-ranges))]
+    (lsp/format-ranges!
+      lsp resource row-spans indent-type
+      (fn [responses]
+        (ui/run-later
+          (if (coll/empty? responses)
+            (show-formatting-failed-notification! resource)
+            (apply-formatting-edits!
+              view-node lines
+              (vec (sort-by key (into [] (mapcat :edits) responses))))))))))
+
+(defn async-format-on-save! [view-nodes done!]
+  (g/let-ec [basis (:basis evaluation-context)
+             pending
+             (into []
+                   (keep
+                     (fn [view-node]
+                       (when (g/node-instance? basis CodeEditorView view-node)
+                         (let [resource-node (get-property view-node :resource-node evaluation-context)
+                               resource (g/node-value resource-node :resource evaluation-context)
+                               lsp (lsp/get-node-lsp basis resource-node)]
+                           (when (and (resource/file-resource? resource)
+                                      (true? (g/node-value resource-node :dirty evaluation-context))
+                                      (lsp/has-language-servers-running-for-resource? lsp resource))
+                             {:view-node view-node
+                              :lsp lsp
+                              :resource resource
+                              :indent-type (get-property view-node :indent-type evaluation-context)
+                              :lines (get-property view-node :lines evaluation-context)})))))
+                   view-nodes)]
+    (if (coll/empty? pending)
+      (done!)
+      (let [remaining-volatile (volatile! (count pending))]
+        (doseq [{:keys [view-node lsp resource indent-type lines]} pending]
+          (format-whole-document!
+            view-node lsp resource indent-type lines
+            (fn []
+              (when (zero? (long (vswap! remaining-volatile #(dec (long %)))))
+                (done!)))
+            :timeout-ms 2000))))))
+
+(defn- formatting-selected-rows? [cursor-ranges]
+  (coll/not-every? data/cursor-range-empty? cursor-ranges))
+
+(handler/defhandler :code.format :code-view
+  (active? [editable] editable)
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)]
+      (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
+  (run [view-node]
+    (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
+               lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+               resource (g/node-value resource-node :resource evaluation-context)
+               indent-type (get-property view-node :indent-type evaluation-context)
+               lines (get-property view-node :lines evaluation-context)
+               cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+      (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
+        (show-no-language-server-for-resource-language-notification! resource)
+        (if (formatting-selected-rows? cursor-ranges)
+          (format-selected-rows! view-node lsp resource indent-type lines cursor-ranges)
+          (format-whole-document! view-node lsp resource indent-type lines fn/constantly-nil))))))
+
 (handler/defhandler :code.goto-definition :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -3061,7 +3165,7 @@
     (let [resource-node (get-property view-node :resource-node)
           resource (g/node-value resource-node :resource)
           lsp (lsp/get-node-lsp resource-node)]
-      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/goto-definition!
           lsp
           resource
@@ -3085,7 +3189,7 @@
     (let [resource-node (get-property view-node :resource-node)
           lsp (lsp/get-node-lsp resource-node)
           resource (g/node-value resource-node :resource)]
-      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/find-references!
           lsp
           resource
@@ -3116,7 +3220,7 @@
             lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
             resource (g/node-value resource-node :resource evaluation-context)
             localization (get-property view-node :localization evaluation-context)]
-        (if (not (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+        (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
           (show-no-language-server-for-resource-language-notification! resource)
           (let [document-symbols (get-property view-node :document-symbols evaluation-context)
                 items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
@@ -3602,6 +3706,7 @@
    {:command :code.toggle-comment :label (localization/message "command.code.toggle-comment")}
    {:command :code.reindent :label (localization/message "command.code.reindent-lines")}
    {:command :code.convert-indentation :expand true}
+   {:command :code.format :label (localization/message "command.code.format")}
    {:label :separator}
    {:command :code.sort-lines :user-data :case-insensitive}
    {:command :code.sort-lines :user-data :case-sensitive}

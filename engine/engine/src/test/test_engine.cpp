@@ -428,6 +428,16 @@ TEST_F(EngineTest, Reboot)
     ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, RebootWithPendingAsyncBufferLoad)
+{
+    char project_path[256];
+    char project_config[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
+    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.main_collection=/reboot_load_buffer_async/start.collectionc", "--config=test.reboot_load_buffer_async_phase=first", "--config=dmengine.unload_builtins=0", project_config, project_path};
+    ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, ConnectionReboot)
 {
     const char* argv[] = {"test_engine", "--config=dmengine.unload_builtins=0"};

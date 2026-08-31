@@ -109,7 +109,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         LightComponent* light  = new LightComponent;
@@ -121,7 +121,7 @@ namespace dmGameSystem
         if (!is_ambient && !CreateRenderLightInstance(context, light))
         {
             delete light;
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         world->m_Components.Push(light);
