@@ -59,7 +59,7 @@
                    (repeat 12 protobuf/float-zero))
              (:value (nth fragment-constants 2))))
       (is (= 4 (count (:value (nth saved-constants 2)))))
-      (is (some? (g/node-value node-id :shader))))))
+      (is (not (g/error? (g/node-value node-id :shader)))))))
 
 (deftest matrix4-material-constant-type-switch
   (test-util/with-loaded-project
