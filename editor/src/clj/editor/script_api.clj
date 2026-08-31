@@ -21,9 +21,9 @@
             [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
             [editor.localization :as localization]
-            [editor.lua :as lua]
             [editor.resource :as resource]
-            [editor.yaml :as yaml]))
+            [editor.yaml :as yaml]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -73,6 +73,34 @@
             string/join)
        "</dl>"))
 
+(defn- make-completion-map [ns-path+completions]
+  (letfn [(ensure-modules [acc ns-path]
+            (loop [acc acc
+                   index 0]
+              (if (= index (count ns-path))
+                acc
+                (let [parent-path (subvec ns-path 0 index)
+                      module-name (ns-path index)
+                      k [:module module-name]]
+                  (recur (update acc (coll/join-to-string "." parent-path)
+                                 (fn [m]
+                                   (if (contains? m k)
+                                     m
+                                     (assoc m k (code-completion/make module-name :type :module)))))
+                         (inc index))))))]
+    (let [context->key->completion
+          (reduce
+            (fn [acc [ns-path completion]]
+              (-> acc
+                  (ensure-modules ns-path)
+                  (update (coll/join-to-string "." ns-path) assoc [(:type completion) (:display-string completion)] completion)))
+            {}
+            ns-path+completions)]
+      (into {}
+            (map (fn [[context key->completion]]
+                   [context (vec (sort-by :display-string (vals key->completion)))]))
+            context->key->completion))))
+
 (defn lines->completion-info [lines]
   (letfn [(make-completions [ns-path {:keys [type name desc] :as el}]
             (case type
@@ -102,7 +130,7 @@
                 [[ns-path (code-completion/make name :type :variable :doc desc)]])))]
     (->> (yaml/load (data/lines-reader lines) keyword)
          (eduction (mapcat #(make-completions [] %)))
-         lua/make-completion-map)))
+         make-completion-map)))
 
 (g/defnk produce-completions
   [parse-result]

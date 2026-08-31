@@ -1486,7 +1486,11 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
+        void** native_window_out = 0;
+#if ANDROID
+        native_window_out = &context->m_AndroidVulkanWindow;
+#endif
+        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI), native_window_out);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -1589,12 +1593,14 @@ bail:
 #else
 
     #if ANDROID
-        // VkQuality is only useful when Vulkan can fall back to another linked graphics adapter.
-        // If Vulkan is the only linked adapter, continue with the regular Vulkan support probe.
-        const bool only_linked_graphics_adapter = GetLinkedGraphicsAdapterCount() == 1;
-        if (!only_linked_graphics_adapter && !AndroidVulkanIsRecommended())
+        bool use_vkquality = false;
+        for (uint32_t i = 0; i < GetRegisteredAdaptersCount(); ++i)
         {
-            return false;
+            if (GetAdapterFamily(GetRegisteredAdapter(i)) == ADAPTER_FAMILY_OPENGLES)
+            {
+                use_vkquality = true;
+                break;
+            }
         }
 
         if (!LoadVulkanLibrary())
@@ -1633,6 +1639,7 @@ bail:
 
         VkInstance inst;
         VkResult res = CreateInstance(&inst, vk_api_version, extensionNames, extensionNameCount, 0, 0, 0, 0);
+        bool is_supported = res == VK_SUCCESS;
 
         if (res == VK_SUCCESS)
         {
@@ -1650,6 +1657,12 @@ bail:
 
             if (res == VK_SUCCESS)
             {
+            #if ANDROID
+                if (use_vkquality && !AndroidVulkanIsRecommended(&physical_device.m_Properties))
+                {
+                    is_supported = false;
+                }
+            #endif
                 DestroyLogicalDevice(&logical_device);
                 DestroyPhysicalDevice(&physical_device);
             }
@@ -1657,7 +1670,7 @@ bail:
             DestroyInstance(&inst);
         }
 
-        return res == VK_SUCCESS;
+        return res == VK_SUCCESS && is_supported;
 #endif
     }
 

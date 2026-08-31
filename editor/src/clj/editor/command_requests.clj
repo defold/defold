@@ -20,10 +20,11 @@
             [editor.disk :as disk]
             [editor.future :as future]
             [editor.library :as library]
+            [editor.localization :as localization]
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
+            [editor.targets :as targets]
             [editor.ui :as ui]
-            [service.log :as log]
             [util.coll :as coll]
             [util.http-server :as http-server])
   (:import [com.dynamo.bob.util Library$Result]))
@@ -41,11 +42,20 @@
     "false" {:focus false}
     (throw (http-server/error (http-server/response 400 "Invalid focus value; expected true or false\n")))))
 
-(defn- build-response [result localization-state]
-  (future/then
-    result
-    (fn [{:keys [error warning]}]
-      (let [issues (coll/into-> [error warning] []
+(defn- build-response [{:keys [error target warning]} localization-state]
+  (let [target-url-result (when target
+                            (if-let [url (:url target)]
+                              url
+                              (let [url-promise (promise)
+                                    cancel! (targets/when-url-or-removed (:id target) url-promise)]
+                                (or (try
+                                      (deref url-promise 15000 ::timeout)
+                                      (finally
+                                        (cancel!)))
+                                    ::target-removed))))
+        success (and (not error) (not= ::target-removed target-url-result))
+        issues (-> [error warning]
+                   (coll/into-> []
                      (filter some?)
                      (mapcat #(:children (build-errors-view/build-resource-tree %)))
                      (mapcat :children)
@@ -56,282 +66,392 @@
                                                    :fatal :error
                                                    :info :information
                                                    severity)}
-                                      maybe-resource (assoc :resource (resource/proj-path maybe-resource))
-                                      cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
-        (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))))
+                                maybe-resource (assoc :resource (resource/proj-path maybe-resource))
+                                cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))
+                   (cond->
+                     (= ::target-removed target-url-result)
+                     (conj {:message (localization-state (localization/message "error.engine.url-not-reported-before-exit"))
+                            :severity :error})
 
-(defn- fetch-libraries-response [result localization-state]
-  (future/then
-    result
-    (fn [[lib-results reload-succeeded]]
-      (let [success (and reload-succeeded (coll/not-any? Library$Result/.problem lib-results))]
-        (http-server/json-response
-          {:success success
-           :libraries (coll/into-> lib-results []
-                        (map (fn [^Library$Result result]
-                               (let [problem (.problem result)]
-                                 (cond-> {:uri (str (.uri result))
-                                          :success (not problem)}
-                                   problem
-                                   (assoc :message (localization-state (library/result-message result))))))))}
-          (cond
-            (not reload-succeeded) 500
-            success 200
-            :else 422))))))
+                     (= ::timeout target-url-result)
+                     (conj {:message (localization-state (localization/message "error.engine.url-not-reported-in-time"))
+                            :severity :warning})))]
+    (http-server/json-response
+      (cond-> {:success success :issues issues} (string? target-url-result) (assoc :target {:url target-url-result}))
+      (if success 200 422))))
 
-(def ^:private supported-commands
-  ;; Notable exclusions:
-  ;; :save-all, :quit, anything that would open a modal dialog.
-  {:asset-portal
-   {:ui-handler :help.open-asset-portal
-    :help "Open the Asset Portal in a web browser."}
+(defn- fetch-libraries-response [[lib-results reload-succeeded] localization-state]
+  (let [success (and reload-succeeded (coll/not-any? Library$Result/.problem lib-results))]
+    (http-server/json-response
+      {:success success
+       :libraries (coll/into-> lib-results []
+                    (map (fn [^Library$Result result]
+                           (let [problem (.problem result)]
+                             (cond-> {:uri (str (.uri result))
+                                      :success (not problem)}
+                               problem
+                               (assoc :message (localization-state (library/result-message result))))))))}
+      (cond
+        (not reload-succeeded) 500
+        success 200
+        :else 422))))
 
-   :build
-   {:ui-handler :project.build
-    ;; Deprecated compatibility alias. Remove after 2027-07-15.
-    :deprecated true
-    :resource-sync true
-    :response-fn build-response}
-
-   :compile
-   {:ui-handler :project.compile
-    :help "Compile the project without running it."
-    :resource-sync true
-    :response-fn build-response}
-
-   :build-html5
-   {:ui-handler :project.build-html5
-    :help "Build the project for HTML5 and open it in a web browser."
-    :resource-sync true}
-
-   :debugger-break
-   {:ui-handler :debugger.break
-    :help "Break into the debugger."}
-
-   :debugger-continue
-   {:ui-handler :debugger.continue
-    :help "Resume execution in the debugger."}
-
-   :debugger-detach
-   {:ui-handler :debugger.detach
-    :help "Detach the debugger from the running project."}
-
-   :debugger-start
-   {:ui-handler :debugger.start
-    :help "Start the project with the debugger, or attach the debugger to the running project."
-    :resource-sync true}
-
-   :debugger-step-into
-   {:ui-handler :debugger.step-into
-    :help "Step into the current expression in the debugger."}
-
-   :debugger-step-out
-   {:ui-handler :debugger.step-out
-    :help "Step out of the current expression in the debugger."}
-
-   :debugger-step-over
-   {:ui-handler :debugger.step-over
-    :help "Step over the current expression in the debugger."}
-
-   :debugger-stop
-   {:ui-handler :debugger.stop
-    :help "Stop the debugger and the running project."}
-
-   :documentation
-   {:ui-handler :help.open-documentation
-    :help "Open the Defold documentation in a web browser."}
-
-   :donate-page
-   {:ui-handler :help.open-donations
-    :help "Open the Donate to Defold page in a web browser."}
-
-   :editor-logs
-   {:ui-handler :help.open-logs
-    :help "Show the directory containing the editor logs."}
-
-   :engine-profiler
-   {:ui-handler :run.open-profiler
-    :help "Open the Engine Profiler in a web browser."}
-
-   :engine-resource-profiler
-   {:ui-handler :run.open-resource-profiler
-    :help "Open the Engine Resource Profiler in a web browser."}
-
-   :fetch-libraries
-   {:ui-handler :project.fetch-libraries
-    :help "Download the latest version of the project library dependencies."
-    :resource-sync true
-    :response-fn fetch-libraries-response}
-
-   :hot-reload
-   {:ui-handler :run.hot-reload
-    :help "Hot-reload all modified files into the running project."
-    :resource-sync true}
-
-   :issues
-   {:ui-handler :help.open-issues
-    :help "Open the Defold Issue Tracker in a web browser."}
-
-   :clean-build
-   {:ui-handler :project.clean-build
-    :user-data {:skip-confirmation true}
-    :help "Clears build caches and rebuilds. Use only if builds fail oddly or miss changes."
-    :resource-sync true
-    :response-fn build-response}
-
-   :rebundle
-   {:ui-handler :project.rebundle
-    :help "Re-bundle the project using the previous Bundle dialog settings."
-    :resource-sync true}
-
-   :reload-extensions
-   {:ui-handler :project.reload-editor-scripts
-    :help "Reload editor extensions."
-    :resource-sync true}
-
-   :reload-stylesheets
-   {:ui-handler :dev.reload-css
-    :help "Reload editor stylesheets."}
-
-   :report-issue
-   {:ui-handler :help.report-issue
-    :help "Open the Report Issue page in a web browser."}
-
-   :report-suggestion
-   {:ui-handler :help.report-suggestion
-    :help "Open the Report Suggestion page in a web browser."}
-
-   :run
-   {:ui-handler :project.build
-    :help "Compile and run the project."
-    :request->user-data run-request-user-data
-    :resource-sync true
-    :response-fn build-response}
-
-   :show-build-errors
-   {:ui-handler :window.show-build-errors
-    :help "Show the Build Errors tab."}
-
-   :show-console
-   {:ui-handler :window.show-console
-    :help "Show the Console tab."}
-
-   :show-curve-editor
-   {:ui-handler :window.show-curve-editor
-    :help "Show the Curve Editor tab."}
-
-   :support-forum
-   {:ui-handler :help.open-forum
-    :help "Open the Defold Support Forum in a web browser."}
-
-   :toggle-pane-bottom
-   {:ui-handler :window.toggle-bottom-pane
-    :help "Toggle visibility of the bottom editor pane."}
-
-   :toggle-pane-left
-   {:ui-handler :window.toggle-left-pane
-    :help "Toggle visibility of the left editor pane."}
-
-   :toggle-pane-right
-   {:ui-handler :window.toggle-right-pane
-    :help "Toggle visibility of the right editor pane."}})
-
-(defn- command-openapi []
-  (let [command->help (coll/into-> supported-commands (sorted-map)
-                       (keep (fn [[command {:keys [deprecated help]}]]
-                               (when-not deprecated
-                                 (coll/pair (name command) help)))))]
-    {:summary "Execute an editor command"
-     :description (str "Available commands:\n"
-                       (coll/join-to-string
-                         "\n"
-                         (coll/into-> command->help :eduction
-                           (map (fn [[command help]]
-                                  (str "- `" command "`: " help))))))
-     :parameters [{:name "command"
-                   :in "path"
-                   :required true
-                   :description "Command to execute."
-                   :schema {:type "string"
-                            :enum (persistent!
-                                    (reduce-kv (fn [acc command _]
-                                                 (conj! acc command))
-                                               (transient [])
-                                               command->help))}}
-                  {:name "focus"
-                   :in "query"
-                   :description "Whether the launched game takes focus; only applies to `run`"
-                   :schema {:type "boolean"
-                            :default true}}]
-     :responses {"200" {:description "Command completed and returned a response body"}
-                 "202" {:description "Accepted"}
-                 "403" {:description "Forbidden"}
-                 "404" {:description "Unknown command"}
-                 "422" {:description "Command failed validation/build checks"}
-                 "500" {:description "Internal server error"}}}))
-
-(defn- resolve-ui-handler-ctx [ui-node ui-handler user-data]
+(defn- resolve-command-handler [ui-node command user-data]
   {:pre [(ui/node? ui-node)
-         (keyword? ui-handler)
+         (keyword? command)
          (map? user-data)]}
   @(fx/on-fx-thread
      (g/let-ec [command-contexts (ui/node-contexts ui-node true evaluation-context)]
-       (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
+       (ui/resolve-handler-ctx command-contexts command user-data))))
+
+(defn- resolve-command-handler! [ui-node command user-data]
+  (let [handler (resolve-command-handler ui-node command user-data)]
+    (case handler
+      (::ui/not-active ::ui/not-enabled) (throw (http-server/error http-server/forbidden))
+      handler)))
+
+(defn- execute-handler! [handler]
+  (future/unwrap @(fx/on-fx-thread (ui/execute-handler-ctx handler))))
+
+(defn- execute-command! [ui-node command user-data]
+  (execute-handler! (resolve-command-handler! ui-node command user-data)))
+
+(defn- resource-sync! [ui-node render-reload-progress! handler]
+  (let [{:keys [changes-view workspace]} (:env (second handler))
+        result (promise)]
+    (assert (g/node-id? changes-view))
+    (assert (g/node-id? workspace))
+    (disk/async-reload!
+      render-reload-progress! workspace [] changes-view
+      (fn async-reload-continuation [success]
+        ;; This callback is executed on the ui thread.
+        (when-not success
+          (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true))
+        (deliver result success)))
+    (when-not @result
+      (throw (http-server/error http-server/internal-server-error)))))
 
 (defn router [ui-node localization render-reload-progress!]
-  {"/command/{command}"
+  {"/command/asset-portal"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.open-asset-portal {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Asset Portal in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   ;; Deprecated compatibility alias. Remove after 2027-07-15.
+   "/command/build"
+   {"POST" (bound-fn [_request]
+             (future/io
+               (let [handler (resolve-command-handler! ui-node :project.build {})]
+                 (resource-sync! ui-node render-reload-progress! handler)
+                 (build-response (execute-handler! handler) @localization))))}
+
+   "/command/build-html5"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :project.build-html5 {})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (build-response (execute-handler! handler) @localization))))
+             {:openapi {:summary "Build the project for HTML5 and open it in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/clean-build"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :project.clean-build {:skip-confirmation true})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (build-response (execute-handler! handler) @localization))))
+             {:openapi {:summary "Clears build caches and rebuilds. Use only if builds fail oddly or miss changes."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/compile"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :project.compile {})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (build-response (execute-handler! handler) @localization))))
+             {:openapi {:summary "Compile the project without running it."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/debugger-break"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :debugger.break {})
+                 http-server/accepted))
+             {:openapi {:summary "Break into the debugger."
+                        :responses {"202" {:description "Accepted"}}}})}
+
+   "/command/debugger-continue"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :debugger.continue {})
+                 http-server/ok))
+             {:openapi {:summary "Resume execution in the debugger."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/debugger-detach"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :debugger.detach {})
+                 http-server/ok))
+             {:openapi {:summary "Detach the debugger from the running project."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/debugger-start"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :debugger.start {})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (build-response (execute-handler! handler) @localization))))
+             {:openapi {:summary "Start the project with the debugger, or attach the debugger to the running project."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/debugger-step-into"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :debugger.step-into {})
+                 http-server/ok))
+             {:openapi {:summary "Step into the current expression in the debugger."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/debugger-step-out"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :debugger.step-out {})
+                 http-server/ok))
+             {:openapi {:summary "Step out of the current expression in the debugger."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/debugger-step-over"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :debugger.step-over {})
+                 http-server/ok))
+             {:openapi {:summary "Step over the current expression in the debugger."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/debugger-stop"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :debugger.stop {})
+                 http-server/ok))
+             {:openapi {:summary "Stop the debugger and the running project."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/documentation"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.open-documentation {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Defold documentation in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/donate-page"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.open-donations {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Donate to Defold page in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/editor-logs"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.open-logs {})
+                 http-server/ok))
+             {:openapi {:summary "Show the directory containing the editor logs."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/engine-profiler"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :run.open-profiler {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Engine Profiler in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/engine-resource-profiler"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :run.open-resource-profiler {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Engine Resource Profiler in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/fetch-libraries"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :project.fetch-libraries {})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (fetch-libraries-response (execute-handler! handler) @localization))))
+             {:openapi {:summary "Download the latest version of the project library dependencies."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/hot-reload"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :run.hot-reload {})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (build-response (execute-handler! handler) @localization))))
+             {:openapi {:summary "Hot-reload all modified files into the running project."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/issues"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.open-issues {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Defold Issue Tracker in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/rebundle"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :project.rebundle {})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (execute-handler! handler)
+                   http-server/ok)))
+             {:openapi {:summary "Re-bundle the project using the previous Bundle dialog settings."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/reload-extensions"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :project.reload-editor-scripts {})]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (execute-handler! handler)
+                   http-server/ok)))
+             {:openapi {:summary "Reload editor extensions."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/reload-stylesheets"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :dev.reload-css {})
+                 http-server/ok))
+             {:openapi {:summary "Reload editor stylesheets."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/report-issue"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.report-issue {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Report Issue page in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/report-suggestion"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.report-suggestion {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Report Suggestion page in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/run"
    {"POST" (with-meta
              (bound-fn [request]
-               (let [command (-> request :path-params :command keyword)]
-                 (if-let [{:keys [ui-handler user-data request->user-data resource-sync response-fn]} (supported-commands command)]
-                   (let [ui-handler-ctx (resolve-ui-handler-ctx
-                                          ui-node
-                                          ui-handler
-                                          (cond-> (or user-data {})
-                                                  request->user-data (merge (request->user-data request))))]
-                     (case ui-handler-ctx
-                       (::ui/not-active ::ui/not-enabled) http-server/forbidden
-                       (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
-                             result-future (future/make)
-                             execute-command!
-                             (bound-fn execute-command! []
-                               (-> (try
-                                     (future/completed (ui/execute-handler-ctx ui-handler-ctx))
-                                     (catch Throwable e (future/failed e)))
-                                   (future/then
-                                     (fn [result]
-                                       (if response-fn
-                                         (response-fn result @localization)
-                                         http-server/accepted)))
-                                   (future/then
-                                     (fn [response]
-                                       (future/complete! result-future response)))
-                                   (future/catch
-                                     (fn [error]
-                                       (log/error :msg "Failed to handle command request"
-                                                  :request request
-                                                  :exception error)
-                                       (future/complete! result-future http-server/internal-server-error)))))]
-                         (assert (g/node-id? changes-view))
-                         (assert (g/node-id? workspace))
-                         (when-not (Boolean/getBoolean "defold.tests")
-                           (log/info :msg "Processing request" :command command))
-                         (if-not resource-sync
-                           (ui/run-later (execute-command!))
-                           (disk/async-reload!
-                             render-reload-progress! workspace [] changes-view
-                             (fn async-reload-continuation [success]
-                               ;; This callback is executed on the ui thread.
-                               (if success
-                                 (execute-command!)
-                                 (do
-                                   ;; Explicitly refresh the UI after the reload, since
-                                   ;; the ui-handler will not have done so on failure.
-                                   (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
-                                   (future/complete! result-future http-server/internal-server-error))))))
-                         result-future)))
-                   http-server/not-found)))
-             {:openapi (command-openapi)})}})
+               (future/io
+                 (let [handler (resolve-command-handler! ui-node :project.build (run-request-user-data request))]
+                   (resource-sync! ui-node render-reload-progress! handler)
+                   (build-response (execute-handler! handler) @localization))))
+             {:openapi {:summary "Compile and run the project."
+                        :parameters [{:name "focus"
+                                      :in "query"
+                                      :description "Whether the launched game takes focus."
+                                      :schema {:type "boolean"
+                                               :default true}}]
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/show-build-errors"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :window.show-build-errors {})
+                 http-server/ok))
+             {:openapi {:summary "Show the Build Errors tab."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/show-console"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :window.show-console {})
+                 http-server/ok))
+             {:openapi {:summary "Show the Console tab."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/show-curve-editor"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :window.show-curve-editor {})
+                 http-server/ok))
+             {:openapi {:summary "Show the Curve Editor tab."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/support-forum"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :help.open-forum {})
+                 http-server/ok))
+             {:openapi {:summary "Open the Defold Support Forum in a web browser."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/toggle-pane-bottom"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :window.toggle-bottom-pane {})
+                 http-server/ok))
+             {:openapi {:summary "Toggle visibility of the bottom editor pane."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/toggle-pane-left"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :window.toggle-left-pane {})
+                 http-server/ok))
+             {:openapi {:summary "Toggle visibility of the left editor pane."
+                        :responses {"200" {:description "OK"}}}})}
+
+   "/command/toggle-pane-right"
+   {"POST" (with-meta
+             (bound-fn [_request]
+               (future/io
+                 (execute-command! ui-node :window.toggle-right-pane {})
+                 http-server/ok))
+             {:openapi {:summary "Toggle visibility of the right editor pane."
+                        :responses {"200" {:description "OK"}}}})}})
 
 (comment
 

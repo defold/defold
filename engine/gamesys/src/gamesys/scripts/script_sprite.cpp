@@ -46,6 +46,13 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Sprite flipbook playback properties
+     * @struct
+     * @name sprite.play_properties
+     * @member offset? [type:number] Normalized initial animation cursor.
+     * @member playback_rate? [type:number] Positive animation playback rate.
+     */
+
     /*# [type:vector3] sprite size
      *
      * The size of the sprite, not allowing for any additional scaling that may be applied.
@@ -402,30 +409,21 @@ namespace dmGameSystem
      * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id [type:string|hash] hashed id of the animation to play
-     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
+     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.sprite.animation_done, sender:url)] function to call when the animation has completed.
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `message_id`
      * : [type:hash] The name of the completion message, `"animation_done"`.
      *
      * `message`
-     * : [type:table] Information about the completion:
-     *
-     * - [type:number] `current_tile` - the current tile of the sprite.
-     * - [type:hash] `id` - id of the animation that was completed.
+     * : [type:message.sprite.animation_done] Information about the completion.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the sprite component.
      *
-     * @param [play_properties] [type:table] optional table with properties:
-     *
-     * `offset`
-     * : [type:number] the normalized initial value of the animation cursor when the animation starts playing.
-     *
-     * `playback_rate`
-     * : [type:number] the rate with which the animation will be played. Must be positive.
+     * @param [play_properties] [type:sprite.play_properties] optional playback properties
      *
      * @examples
      *

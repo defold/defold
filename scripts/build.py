@@ -112,6 +112,11 @@ class build_private(object):
         return cls._call(platform, 'get_install_target_packages', [], platform)
 
     @classmethod
+    def get_external_package_name(cls, platform, library, default_name):
+        return cls._call(platform, 'get_external_package_name', default_name,
+                         platform, library, default_name)
+
+    @classmethod
     def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
         return cls._call(platform, 'install_sdk', None, configuration, platform)
 
@@ -230,7 +235,7 @@ PACKAGES_MACOS_X86_64=[
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
@@ -259,7 +264,7 @@ PACKAGES_MACOS_ARM64=[
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_WIN32=[
@@ -302,8 +307,7 @@ PACKAGES_WIN32_64=[
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
@@ -332,8 +336,7 @@ PACKAGES_LINUX_X86_64=[
     "aapt2-36.1.0",
     "apkc-0.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
@@ -461,7 +464,6 @@ BOB_TOOL_PACKAGE_PREFIXES = (
     'ogg-',
     'spirv-tools-',
     'strip_android-',
-    'strip_android_aarch64-',
     'tint-',
 )
 
@@ -494,14 +496,17 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw opus".split()
-EXTERNAL_CMAKE_LIBS = "bullet3d vkquality".split()
+EXTERNAL_WAF_LIBS = "glfw opus".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 bullet3d vkquality".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
+    "box2d": "3.1.0",
+    "box2d_v2": "2.2.1",
     "bullet3d": "3.25",
     "vkquality": "1.1-2642a0d",
 }
 EXTERNAL_PACKAGE_NAMES = {
+    "box2d_v2": "box2d_defold",
     "bullet3d": "bullet",
 }
 EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
@@ -1631,7 +1636,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("glfw_android.jar", "vkquality.jar")
+                external_jars = ("glfw_android.jar",)
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -2375,6 +2380,29 @@ class Configuration(object):
         if not os.path.exists(build_ninja):
             return True
 
+        # CMake's detected target system is immutable within an existing build
+        # tree. If a Windows build directory is later reused for a Generic
+        # console target, updating CMAKE_SYSTEM_NAME in the cache is not enough:
+        # generated link rules keep Windows image flags and system libraries.
+        # Force a clean configure when that generated platform metadata is stale.
+        if platform in ('x86_64-ps4', 'x86_64-ps5', 'arm64-nx64'):
+            cmake_files_dir = join(configure_state.get('builddir', ''), 'CMakeFiles')
+            system_files = []
+            if os.path.isdir(cmake_files_dir):
+                for entry in os.listdir(cmake_files_dir):
+                    system_file = join(cmake_files_dir, entry, 'CMakeSystem.cmake')
+                    if os.path.isfile(system_file):
+                        system_files.append(system_file)
+            for system_file in system_files:
+                try:
+                    with open(system_file, 'r') as f:
+                        system_content = f.read()
+                except OSError:
+                    continue
+                if 'set(CMAKE_SYSTEM_NAME "Generic")' not in system_content:
+                    self._log('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform))
+                    return False
+
         try:
             with open(build_ninja, 'r') as f:
                 content = f.read().replace('\\', '/')
@@ -2654,7 +2682,13 @@ class Configuration(object):
             reuse_builddir = host == target_platform
             target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir, use_existing_bob_light = True)
+            self._build_engine_libs_cmake(
+                'engine_libs',
+                target_lib_set,
+                target_platform,
+                skip_tests = self.skip_tests,
+                reuse_builddir = reuse_builddir,
+                use_existing_bob_light = True)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
@@ -2707,7 +2741,9 @@ class Configuration(object):
     def _build_external_lib_cmake(self, lib, platform):
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
         product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
-        package_name = '%s-%s' % (product_name, version)
+        default_package_name = '%s-%s' % (product_name, version)
+        package_name = build_private.get_external_package_name(
+            platform, lib, default_package_name)
         source_dir = join(self.defold_root, 'external', lib)
         build_dir = join(source_dir, 'build', platform)
         install_dir = join(self.dynamo_home, package_name)
@@ -2755,6 +2791,8 @@ class Configuration(object):
             package_directories = ['include', 'lib', 'share']
             if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
                 package_directories = ['lib']
+            package_directories = [name for name in package_directories
+                                   if os.path.exists(join(install_dir, name))]
             package_command = ['tar', 'zcvf', os.path.normpath(package_path)] + package_directories
             self.build_tracker.start_command('Package external %s' % lib)
             try:
@@ -2819,7 +2857,6 @@ class Configuration(object):
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
-                         'ext/share/java/vkquality.jar': 'lib/vkquality.jar',
                          'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
                          'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
                          'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',

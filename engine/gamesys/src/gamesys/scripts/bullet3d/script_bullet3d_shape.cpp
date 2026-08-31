@@ -692,39 +692,30 @@ namespace dmGameSystem
  * @param value [type:userdata]
  */
 
-/*# Sphere shape type
- *
- * Value `0`. Shape data contains a positive numeric `diameter` in Defold units.
- *
- * @name bullet3d.shape.SHAPE_TYPE_SPHERE
- * @constant
+/*# Collision shape types
+ * @enum
+ * @name bullet3d.shape.SHAPE_TYPE
+ * @member bullet3d.shape.SHAPE_TYPE_BOX Box shape type Value `1`. Shape data contains positive vector3 `dimensions` in Defold units.
+ * @member bullet3d.shape.SHAPE_TYPE_CAPSULE Capsule shape type Value `2`. Shape data contains a positive numeric `diameter` and positive numeric cylindrical-section `height` in Defold units.
+ * @member bullet3d.shape.SHAPE_TYPE_HULL Convex hull shape type Value `3`. Shape data contains a `vertices` array with at least four finite vector3 values in Defold units.
+ * @member bullet3d.shape.SHAPE_TYPE_SPHERE Sphere shape type Value `0`. Shape data contains a positive numeric `diameter` in Defold units.
  */
 
-/*# Box shape type
+/*# Bullet collision shape definition
  *
- * Value `1`. Shape data contains positive vector3 `dimensions` in Defold units.
+ * A sphere has `diameter`; a box has `dimensions`; a capsule has `diameter`
+ * and cylindrical-section `height`; and a convex hull has `vertices`.
+ * Query functions also accept optional `position`, `rotation`, and
+ * `target_rotation` fields. Lengths use Defold units.
  *
- * @name bullet3d.shape.SHAPE_TYPE_BOX
- * @constant
+ * @typedef
+ * @name bullet3d.shape.definition
+ * @param value [type:{ type:bullet3d.shape.SHAPE_TYPE, diameter:number, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, dimensions:vector3, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, diameter:number, height:number, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, vertices:vector3[], position?:vector3, rotation?:quaternion, target_rotation?:quaternion }] collision shape definition
  */
 
-/*# Capsule shape type
- *
- * Value `2`. Shape data contains a positive numeric `diameter` and positive
- * numeric cylindrical-section `height` in Defold units.
- *
- * @name bullet3d.shape.SHAPE_TYPE_CAPSULE
- * @constant
- */
 
-/*# Convex hull shape type
- *
- * Value `3`. Shape data contains a `vertices` array with at least four finite
- * vector3 values in Defold units.
- *
- * @name bullet3d.shape.SHAPE_TYPE_HULL
- * @constant
- */
+
+
 
 /*# Triangle mesh shape type
  *
@@ -737,20 +728,20 @@ namespace dmGameSystem
 /*# Get the number of shapes attached to a collision object.
  * @name bullet3d.collision_object.get_shape_count
  * @param object [type:btCollisionObject] collision object
- * @return count [type:number] shape count
+ * @return count [type:integer] shape count
  */
 
 /*# Get one attached shape by one-based index.
  * @name bullet3d.collision_object.get_shape
  * @param object [type:btCollisionObject] collision object
- * @param shape_index [type:number] one-based shape index
+ * @param shape_index [type:integer] one-based shape index
  * @return shape [type:btCollisionShape] borrowed logical shape handle
  */
 
 /*# Get all attached shapes.
  * @name bullet3d.collision_object.get_shapes
  * @param object [type:btCollisionObject] collision object
- * @return shapes [type:table] array of borrowed shape handles
+ * @return shapes [type:btCollisionShape[]] array of borrowed shape handles
  * @examples
  *
  * Enumerate the logical shapes attached to a collision object:
@@ -782,13 +773,13 @@ namespace dmGameSystem
 /*# Get the one-based child index.
  * @name bullet3d.shape.get_index
  * @param shape [type:btCollisionShape] shape handle
- * @return shape_index [type:number] one-based shape index
+ * @return shape_index [type:integer] one-based shape index
  */
 
 /*# Get the normalized Defold shape type.
  * @name bullet3d.shape.get_type
  * @param shape [type:btCollisionShape] shape handle
- * @return type [type:number] one of `bullet3d.shape.SHAPE_TYPE_*`
+ * @return type [type:bullet3d.shape.SHAPE_TYPE] collision shape type
  */
 
 /*# Get shape geometry data.
@@ -803,7 +794,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.shape.get_shape
  * @param shape [type:btCollisionShape] shape handle
- * @return data [type:table] typed shape geometry in Defold units
+ * @return data [type:bullet3d.shape.definition] typed shape geometry in Defold units
  */
 
 /*# Set shape geometry data.
@@ -815,7 +806,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.shape.set_shape
  * @param shape [type:btCollisionShape] shape handle
- * @param data [type:table] typed shape geometry in Defold units
+ * @param data [type:bullet3d.shape.definition] typed shape geometry in Defold units
  * @examples
  *
  * Increase the dimensions of the first box shape by 50 percent for this instance:

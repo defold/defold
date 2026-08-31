@@ -22,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -322,6 +321,7 @@ public class GameProjectBuilder extends Builder {
     static public void transformGameProjectFile(BobProjectProperties properties) {
         String gamepadsPath = properties.getStringValue("input", "gamepads", DEFAULT_GAMEPADS);
         String gamepadDbPath = properties.getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
+        String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
 
         properties.removePrivateFields();
 
@@ -340,6 +340,9 @@ public class GameProjectBuilder extends Builder {
 
         properties.putStringValue("input", "gamepads", getGamepadsOutputPath(gamepadsPath, gamepadDbPath));
         properties.putStringValue("input", "gamepad_database", null);
+        if (customResources.length > 0) {
+            properties.putStringValue("project", "custom_resources", String.join(",", customResources));
+        }
     }
 
     private static void setOutputContentFromFile(IResource output, File sourceFile) throws IOException {

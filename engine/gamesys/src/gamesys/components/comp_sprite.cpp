@@ -822,15 +822,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    template <typename T>
-    static void EnsureSize(dmArray<T>& array, uint32_t size)
-    {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
-        }
-        array.SetSize(size);
-    }
-
     static void FillSlice9Uvs(const float us[4], const float vs[4], bool rotated, float uvs[SPRITE_VERTEX_COUNT_SLICE9*2]) {
         int index = 0;
         for (int y=0; y<4; ++y)
@@ -956,7 +947,7 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+            uvs.EnsureSize(SPRITE_VERTEX_COUNT_SLICE9*2);
 
             uint32_t frame_index = anim_data->m_Frames[i];
             if (frame_index == 0xFFFFFFFF)
@@ -1023,7 +1014,7 @@ namespace dmGameSystem
         if (texture_num == 0)
         {
             dmArray<float>& uvs = scratch_uvs[0];
-            EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+            uvs.EnsureSize(SPRITE_VERTEX_COUNT_SLICE9*2);
 
             float us[4];
             float vs[4];
@@ -1063,12 +1054,12 @@ namespace dmGameSystem
 
         if (has_world_position_attribute)
         {
-            EnsureSize(*scratch_positions_world, SPRITE_VERTEX_COUNT_SLICE9);
+            scratch_positions_world->EnsureSize(SPRITE_VERTEX_COUNT_SLICE9);
         }
 
         if (has_local_position_attribute)
         {
-            EnsureSize(*scratch_positions_local, SPRITE_VERTEX_COUNT_SLICE9);
+            scratch_positions_local->EnsureSize(SPRITE_VERTEX_COUNT_SLICE9);
         }
 
         const float* world_matrix_channels[] = { (float*) &world_matrix };
@@ -1292,7 +1283,7 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            EnsureSize(uvs, 4*2);
+            uvs.EnsureSize(4*2);
 
             uint32_t frame_index = data->m_Frames[i];
             if (frame_index == 0xFFFFFFFF)
@@ -1344,7 +1335,7 @@ namespace dmGameSystem
         if (texture_num == 0)
         {
             dmArray<float>& uvs = scratch_uvs[0];
-            EnsureSize(uvs, 4*2);
+            uvs.EnsureSize(4*2);
 
             // top left
             uvs[0] = 0.0f;
@@ -1385,13 +1376,13 @@ namespace dmGameSystem
         float* orig_vertices = anim_data->m_Geometries[0]->m_Vertices.m_Data;
         int step = reverse ? -2 : 2;
 
-        EnsureSize(scratch_pos, num_vertices);
+        scratch_pos.EnsureSize(num_vertices);
 
         uint8_t textures_num = component->m_NumTextures;
         for (uint8_t i = 0; i < textures_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            EnsureSize(uvs, num_vertices * 2);
+            uvs.EnsureSize(num_vertices * 2);
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = &anim_data->m_PageIndices[i];
@@ -1574,7 +1565,7 @@ namespace dmGameSystem
 
                 if (has_local_position_attribute)
                 {
-                    EnsureSize(sprite_world->m_ScratchPositionLocal, sprite_world->m_ScratchPositionWorld.Size());
+                    sprite_world->m_ScratchPositionLocal.EnsureSize(sprite_world->m_ScratchPositionWorld.Size());
                 }
 
                 const float* world_matrix_channel[]    = { (float*) &world_matrix };

@@ -84,14 +84,16 @@ function(graphics_target_os out_var)
   set(${out_var} "${_target_os}" PARENT_SCOPE)
 endfunction()
 
-function(graphics_native_source out_var feature)
-  graphics_target_os(_target_os)
-  if(EXISTS "${GRAPHICS_SRC_DIR}/${_target_os}/graphics_native.cpp")
-    set(_native "${GRAPHICS_SRC_DIR}/${_target_os}/graphics_native.cpp")
+function(graphics_backend_source out_var feature)
+  if(DEFOLD_PLATFORM_GRAPHICS_BACKEND_SOURCE)
+    set(_backend "${DEFOLD_PLATFORM_GRAPHICS_BACKEND_SOURCE}")
   else()
-    set(_native "${GRAPHICS_SRC_DIR}/${feature}/graphics_native.cpp")
+    set(_backend "${GRAPHICS_SRC_DIR}/${feature}/graphics_${feature}_default.cpp")
   endif()
-  set(${out_var} "${_native}" PARENT_SCOPE)
+  if(NOT EXISTS "${_backend}")
+    message(FATAL_ERROR "Graphics backend source not found: ${_backend}")
+  endif()
+  set(${out_var} "${_backend}" PARENT_SCOPE)
 endfunction()
 
 function(graphics_common_setup target)
@@ -223,6 +225,9 @@ if(GRAPHICS_PLATFORM_SUPPORTS_OPENGL)
     target_compile_definitions(graphics PRIVATE GL_GLEXT_PROTOTYPES)
   endif()
   target_compile_definitions(graphics PUBLIC DM_GRAPHICS_USE_OPENGL)
+  if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|x86_64-ios|arm64-ios|arm64-macos|x86_64-macos)$")
+    target_compile_definitions(graphics PUBLIC DM_HAVE_OPENGL_COMPUTE_SUPPORT)
+  endif()
   defold_target_link_libraries(graphics "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics)
 endif()
@@ -261,9 +266,9 @@ endif()
 
 if(GRAPHICS_BUILD_VULKAN)
   file(GLOB GRAPHICS_VULKAN_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp" "${GRAPHICS_SRC_DIR}/vulkan/*.cpp")
-  list(FILTER GRAPHICS_VULKAN_SOURCES EXCLUDE REGEX "/vulkan/graphics_native\\.cpp$")
-  graphics_native_source(_graphics_vulkan_native "vulkan")
-  list(APPEND GRAPHICS_VULKAN_SOURCES "${_graphics_vulkan_native}")
+  list(FILTER GRAPHICS_VULKAN_SOURCES EXCLUDE REGEX "/vulkan/graphics_vulkan_default\\.cpp$")
+  graphics_backend_source(_graphics_vulkan_backend "vulkan")
+  list(APPEND GRAPHICS_VULKAN_SOURCES "${_graphics_vulkan_backend}")
   if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-win32|x86-win32|x86_64-linux|arm64-linux)$")
     list(APPEND GRAPHICS_VULKAN_SOURCES "${GRAPHICS_SRC_DIR}/vulkan/desktop/graphics_vulkan_surface.cpp")
     if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos)$")
@@ -338,6 +343,37 @@ if(GRAPHICS_BUILD_METAL)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_metal)
 endif()
 
+if(TARGET_PLATFORM MATCHES "^x86_64-ps[45]$")
+  if(TARGET_PLATFORM STREQUAL "x86_64-ps5")
+    set(GRAPHICS_PS_PLATFORM "ps5")
+    set(GRAPHICS_PS_DEFINE DM_GRAPHICS_PS5)
+  else()
+    set(GRAPHICS_PS_PLATFORM "ps4")
+    set(GRAPHICS_PS_DEFINE DM_GRAPHICS_PS4)
+  endif()
+
+  set(GRAPHICS_PS_SOURCE_DIR "${DEFOLD_PRIVATE_REPO_ROOT}/engine/graphics/src")
+  if(NOT EXISTS "${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_${GRAPHICS_PS_PLATFORM}.cpp")
+    message(FATAL_ERROR
+      "PlayStation graphics source not found: ${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_${GRAPHICS_PS_PLATFORM}.cpp")
+  endif()
+  set(GRAPHICS_PS_SOURCES
+    "${GRAPHICS_SRC_DIR}/graphics.cpp"
+    "${GRAPHICS_SRC_DIR}/graphics_vertices.cpp"
+    "${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_ps_shared.cpp"
+    "${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_${GRAPHICS_PS_PLATFORM}.cpp"
+    ${GRAPHICS_PROTO_OBJECTS})
+  defold_add_library(graphics_${GRAPHICS_PS_PLATFORM} STATIC ${GRAPHICS_PS_SOURCES})
+  graphics_common_setup(graphics_${GRAPHICS_PS_PLATFORM})
+  target_include_directories(graphics_${GRAPHICS_PS_PLATFORM} PUBLIC
+    "${GRAPHICS_SRC_DIR}"
+    "${GRAPHICS_PS_SOURCE_DIR}/ps4")
+  target_compile_definitions(graphics_${GRAPHICS_PS_PLATFORM} PUBLIC ${GRAPHICS_PS_DEFINE})
+  defold_target_link_libraries(graphics_${GRAPHICS_PS_PLATFORM} "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
+  set_target_properties(graphics_${GRAPHICS_PS_PLATFORM} PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
+  list(APPEND GRAPHICS_INSTALL_TARGETS graphics_${GRAPHICS_PS_PLATFORM})
+endif()
+
 defold_add_library(graphics_transcoder_null STATIC "${GRAPHICS_SRC_DIR}/transcoder/graphics_transcoder_null.cpp")
 target_include_directories(graphics_transcoder_null PUBLIC "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(graphics_transcoder_null graphics_proto_header)
@@ -354,6 +390,38 @@ defold_install_targets(TARGETS ${GRAPHICS_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+if(TARGET_PLATFORM MATCHES "^x86_64-ps[45]$")
+  find_package(Java REQUIRED COMPONENTS Development)
+  if(TARGET_PLATFORM STREQUAL "x86_64-ps5")
+    set(GRAPHICS_PS_SHADERCOMPILER_PLATFORM "ps5")
+  else()
+    set(GRAPHICS_PS_SHADERCOMPILER_PLATFORM "ps4")
+  endif()
+
+  set(GRAPHICS_PS_SHADERCOMPILER_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/java/${GRAPHICS_PS_SHADERCOMPILER_PLATFORM}")
+  set(GRAPHICS_PS_SHADERCOMPILER_JAR "${DEFOLD_SDK_ROOT}/share/java/plugins/${GRAPHICS_PS_SHADERCOMPILER_PLATFORM}shadercompiler.jar")
+  file(GLOB_RECURSE GRAPHICS_PS_SHADERCOMPILER_SOURCES CONFIGURE_DEPENDS
+    "${GRAPHICS_PS_SOURCE_DIR}/ps4/java/src/*.java")
+  add_custom_command(
+    OUTPUT "${GRAPHICS_PS_SHADERCOMPILER_JAR}"
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${GRAPHICS_PS_SHADERCOMPILER_CLASSES_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${GRAPHICS_PS_SHADERCOMPILER_CLASSES_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java/plugins"
+    COMMAND "${Java_JAVAC_EXECUTABLE}" -g -source 8 -target 8
+      -cp "${DEFOLD_BOB_LIGHT_JAR}"
+      -d "${GRAPHICS_PS_SHADERCOMPILER_CLASSES_DIR}"
+      ${GRAPHICS_PS_SHADERCOMPILER_SOURCES}
+    COMMAND "${Java_JAR_EXECUTABLE}" cf "${GRAPHICS_PS_SHADERCOMPILER_JAR}"
+      -C "${GRAPHICS_PS_SHADERCOMPILER_CLASSES_DIR}" .
+    DEPENDS "${DEFOLD_BOB_LIGHT_JAR}" ${GRAPHICS_PS_SHADERCOMPILER_SOURCES}
+    COMMENT "Building ${GRAPHICS_PS_SHADERCOMPILER_PLATFORM} shader compiler plugin"
+    VERBATIM)
+  add_custom_target(graphics_ps_shadercompiler_jar DEPENDS "${GRAPHICS_PS_SHADERCOMPILER_JAR}")
+  if(TARGET bob_light)
+    add_dependencies(graphics_ps_shadercompiler_jar bob_light)
+  endif()
+endif()
 
 defold_add_sdk_headers_target(graphics_public_sdk_headers
   DESTINATION include/graphics

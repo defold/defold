@@ -702,23 +702,69 @@
 
 ;; region language servers
 
-(defn- built-in-lua-language-server [annotations-sync-hash]
-  (let [lua-lsp-root (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua")]
-    {:languages #{"lua"}
-     :watched-files [{:pattern "**/.luacheckrc"}]
-     ;; We want to restart the language server every time annotations from
-     ;; dependencies change because lua language server does not watch
-     ;; `workspace.library` folder. Changing the map triggers the server restart
-     ::sync-hash (if (g/error-value? annotations-sync-hash) 0 annotations-sync-hash)
-     :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (os/is-win32?) ".exe"))
-                          (str "--configpath=" lua-lsp-root "/config.json")]}}))
+(defn- built-in-lua-language-servers [project-root annotations-sync-hash]
+  (let [unpack-path (system/defold-unpack-path)
+        lua-annotations-path (str (path/of unpack-path "shared" "lua-annotations"))
+        launcher {:command [(str unpack-path "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua/bin/lua-language-server" (when (os/is-win32?) ".exe"))
+                            ;; Enable text document diagnostics:
+                            "--preview=true"]}
+        shared-configuration {:Lua {:runtime {:pathStrict true}
+                                    :completion {:workspaceWord false :callSnippet "Replace"}
+                                    :diagnostics {:enable true
+                                                  :workspaceDelay -1
+                                                  :workspaceEvent "None"
+                                                  :groupFileStatus {:duplicate "Any"
+                                                                    :redefined "Any"
+                                                                    :type-check "Any"
+                                                                    :unused "Any"}
+                                                  :disable ["trailing-space" "unused-local"]}
+                                    :workspace {:checkThirdParty "Disable" :library [lua-annotations-path]}
+                                    :window {:progressBar false :statusBar false}}
+                              :files {:exclude
+                                      {"**/.git" true
+                                       "**/.hg" true
+                                       "**/.svn" true
+                                       "**/.DS_Store" true
+                                       "**/CVS" true
+                                       "**/Thumbs.db" true}}}]
+    #{{:languages #{"lua"}
+       :extensions #{"lua" "script" "gui_script" "render_script"}
+       :configuration (coll/deep-merge
+                        shared-configuration
+                        {:Lua
+                         {:runtime {:version "Lua 5.1"
+                                    :plugin (str (path/of unpack-path "shared" "lua-language-server" "plugin.lua"))}
+                          :diagnostics
+                          {:globals ["init" "final" "update" "late_update" "fixed_update" "on_message" "on_input" "on_reload"]}
+                          :workspace
+                          {:library [lua-annotations-path (str (path/of project-root ".internal" "lua-annotations"))]}}
+                         :files {:exclude {"**/*.editor_script" true}}})
+       :watched-files [{:pattern "**/.luacheckrc"}]
+       ;; We want to restart the language server every time annotations from
+       ;; dependencies change because lua language server does not watch
+       ;; `workspace.library` folder. Changing the map triggers the server restart
+       ::sync-hash (if (g/error-value? annotations-sync-hash) 0 annotations-sync-hash)
+       :launcher launcher}
+      {:languages #{"lua"}
+       :extensions #{"editor_script"}
+       :configuration (coll/deep-merge
+                        shared-configuration
+                        {:Lua {:runtime {:version "Lua 5.2"}}
+                         :files {:exclude
+                                 {"**/*.lua" true
+                                  "**/*.script" true
+                                  "**/*.gui_script" true
+                                  "**/*.render_script" true}}})
+       :watched-files [{:pattern "**/.luacheckrc"}]
+       :launcher launcher}}))
 
 (def language-servers-coercer
   (coerce/vector-of
     (coerce/hash-map
       :req {:languages (coerce/vector-of coerce/string :distinct true :min-count 1)
             :command (coerce/vector-of coerce/string :min-count 1)}
-      :opt {:watched_files (coerce/vector-of (coerce/hash-map :req {:pattern coerce/string}) :min-count 1)})))
+      :opt {:extensions (coerce/wrap-transform (coerce/vector-of coerce/string :distinct true :min-count 1) set)
+            :watched_files (coerce/vector-of (coerce/hash-map :req {:pattern coerce/string}) :min-count 1)})))
 
 (defn- ext-language-servers [state evaluation-context]
   (let [{:keys [rt]} state]
@@ -745,12 +791,14 @@
     ;; perform annotation sync asynchronously since it potentially involves writing a lot
     ;; of lua annotation files
     (error-reporting/catch-all!
-      (g/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)]
+      (g/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
+                 workspace (g/node-value project :workspace evaluation-context)
+                 project-root (g/raw-property-value (:basis evaluation-context) workspace :root)]
         (lsp/set-servers!
           lsp
-          (conj ext-language-servers
-                (built-in-lua-language-server sync-hash)
-                (lsp.project/language-server project)))))))
+          (-> ext-language-servers
+              (conj (lsp.project/language-server project))
+              (into (built-in-lua-language-servers project-root sync-hash))))))))
 
 ;; endregion
 
