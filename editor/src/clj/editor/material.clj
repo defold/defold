@@ -158,12 +158,14 @@
   (case (:type constant)
     (:constant-type-user :constant-type-user-color) (let [[x y z w] (:value constant)]
                                                       (Vector4d. x y z w))
-    :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
-                                  (doto (Matrix4d.)
-                                    (.setElement 0 0 x)
-                                    (.setElement 1 0 y)
-                                    (.setElement 2 0 z)
-                                    (.setElement 3 0 w)))
+    :constant-type-user-matrix4 (let [[m00 m10 m20 m30
+                                       m01 m11 m21 m31
+                                       m02 m12 m22 m32
+                                       m03 m13 m23 m33] (:value constant)]
+                                  (Matrix4d. (double-array [m00 m01 m02 m03
+                                                            m10 m11 m12 m13
+                                                            m20 m21 m22 m23
+                                                            m30 m31 m32 m33])))
     :constant-type-time (Vector4d. 0.0 0.0 0.0 0.0)
     :constant-type-viewproj :view-proj
     :constant-type-world :world
@@ -430,6 +432,9 @@
 
 (defn- set-form-value-fn [property value user-data]
   (case property
+    (:vertex-constants :fragment-constants)
+    (mapv render-program-utils/coerce-constant value)
+
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
     ;; updated data and vector type.
