@@ -79,8 +79,9 @@ currently does the following:
    connections.
 6. Save values are primed in the system cache.
 
-`game.project` is connected to project-wide settings before other resources are
-loaded. This is an example of a bootstrap dependency that must remain explicit.
+The `game.project` resource type uses its `:connect-fn` to connect the resource
+shell to project-wide settings before resource load-fns run. This is an example
+of a bootstrap dependency that must remain explicit.
 
 ### Existing partial-loading mechanisms
 
@@ -143,13 +144,15 @@ override mechanism. Two related checks are needed:
 > one substructure node to another must remain within the same ultimate
 > `ResourceNode` owner. A substructure node may feed its owning shell.
 
-A **global-effect edge** is an explicit connection emitted by a resource
-load-fn from either its resource shell or its owned substructure into an
-ownerless/global node. Examples of global nodes are `Project`, script
-intelligence, editor extensions, and project-wide localization/annotation
-services. These edges are not necessarily ownership violations, but they make
-global state depend on which load-fns have run. `:save-data` registrations are
-temporarily excluded from this category.
+A **global-effect edge** is an explicit connection from a resource shell or its
+owned substructure into an ownerless/global node. Examples of global nodes are
+`Project`, script intelligence, editor extensions, and project-wide
+localization/annotation services. These edges are not necessarily ownership
+violations. However, if they are installed by a load-fn, global state depends on
+which load-fns have run. Installing shell-originating registrations with a
+`:connect-fn` instead makes the complete contributor set available as soon as
+the resource shells exist. `:save-data` registrations are temporarily excluded
+from this category.
 
 This permits a resource load-fn to wire external shell and project outputs into
 newly-created nodes. It also permits the resource's substructure to aggregate
@@ -213,58 +216,59 @@ instead of treating every arc that touches substructure as a violation. It
 should report override-propagated arcs separately rather than folding them into
 explicit cross-owner counts.
 
-### Load-fn-installed global registrations
+### Global registrations
 
 The broader runtime scan starts with explicit arcs whose source is either a
 resource shell or its substructure and whose target has no resource owner. It
 then excludes the universal `:node-id+resource -> Project
 :node-id+resources` shell-registration arcs, removes `:save-data`, and verifies
-the remaining connection sites in source. On `save_data_project`, 52 observed
-arcs across 13 endpoint patterns are installed by resource load-fns:
+the remaining connection sites in source. On `save_data_project`, 56 observed
+arcs across 17 endpoint patterns connect into global nodes. Fifty-one are now
+installed by resource `:connect-fn`s. The five collision-related registrations
+remain load-fn-installed and are intentionally deferred for separate treatment:
 
-| Source role and type | Source output | Global target input | Count | Installer |
+| Source role and type | Source output | Global target input | Count | Current installer |
 | --- | --- | --- | ---: | --- |
-| Shell: `LuaNode`, `ScriptNode` | `:breakpoints` | `Project :breakpoints` | 15 | `editor.code.resource/load-fn` |
-| Shell: `LuaNode`, `ScriptNode` | `:required-module-info` | `ScriptIntelligenceNode :required-module-infos` | 11 | `editor.code.script/additional-load-fn` |
-| Shell: `LuaNode` from a dependency archive | `:resource-with-lines` | `ScriptAnnotations :script-annotations` | 8 | `editor.code.script/additional-load-fn` |
-| Shell: `ScriptApiNode` | `:completions` | `ScriptIntelligenceNode :lua-completions` | 5 | `editor.script-api/additional-load-fn` |
-| Shell: file-backed `ScriptApiNode` | `:build-errors` | `ScriptIntelligenceNode :build-errors` | 1 | `editor.script-api/additional-load-fn` |
+| Shell: `LuaNode`, `ScriptNode` | `:breakpoints` | `Project :breakpoints` | 15 | `editor.code.resource/connect-fn` |
+| Shell: `LuaNode`, `ScriptNode` | `:required-module-info` | `ScriptIntelligenceNode :required-module-infos` | 11 | `editor.code.script/connect-fn` |
+| Shell: `LuaNode` from a dependency archive | `:resource-with-lines` | `ScriptAnnotations :script-annotations` | 8 | `editor.code.script/connect-fn` |
+| Shell: `ScriptApiNode` | `:completions` | `ScriptIntelligenceNode :lua-completions` | 5 | `editor.script-api/connect-fn` |
+| Shell: file-backed `ScriptApiNode` | `:build-errors` | `ScriptIntelligenceNode :build-errors` | 1 | `editor.script-api/connect-fn` |
 | Shell: `CollisionObjectNode` | `:collision-group-node` | `Project :collision-group-nodes` | 2 | `editor.collision-object/load-collision-object` |
 | Substructure: `CollisionGroupNode` | `:collision-group-node` | `Project :collision-group-nodes` | 3 | `editor.tile-source/load-tile-source` via `attach-collision-group-node` |
-| Shell: `GameProperties` | `:proj-path+meta-info` | `Project :proj-path+meta-info-pairs` | 4 | `editor.game-properties/additional-load-fn` |
-| Shell: `EditorLocalizationNode` | `:resource-path+reader-fn` | `EditorLocalizationBundle :resource-path+reader-fns` | 1 | `editor.editor-localization/additional-load-fn` |
-| Shell: `EditorScript` | `:prototype` | `EditorExtensions :project-prototypes` | 1 | `editor.editor-script` additional load-fn |
-| Shell: `EditorScript` | `:reload-signature` | `EditorExtensions :project-reload-signatures` | 1 | `editor.editor-script` additional load-fn |
+| Shell: `GameProperties` | `:proj-path+meta-info` | `Project :proj-path+meta-info-pairs` | 4 | `editor.game-properties/connect-fn` |
+| Shell: `EditorLocalizationNode` | `:resource-path+reader-fn` | `EditorLocalizationBundle :resource-path+reader-fns` | 1 | `editor.editor-localization/connect-fn` |
+| Shell: `EditorScript` | `:prototype` | `EditorExtensions :project-prototypes` | 1 | `editor.editor-script` connect-fn |
+| Shell: `EditorScript` | `:reload-signature` | `EditorExtensions :project-reload-signatures` | 1 | `editor.editor-script` connect-fn |
+| Shell: `GameProjectNode` | `:settings-map` | `Project :settings` | 1 | `editor.game-project/connect-game-project` |
+| Shell: `GameProjectNode` | `:display-profiles-data` | `Project :display-profiles` | 1 | `editor.game-project/connect-game-project` |
+| Shell: `GameProjectNode` | `:texture-profiles-data` | `Project :texture-profiles` | 1 | `editor.game-project/connect-game-project` |
+| Shell: `GameProjectNode` | `:use-font-layout` | `Project :use-font-layout` | 1 | `editor.game-project/connect-game-project` |
 
 The two combined `LuaNode`/`ScriptNode` rows each collapse two
-source-type-specific patterns, so 13 runtime patterns appear as 11 table rows.
-Of the 52 arcs, 49 originate at resource shells and three at tile-source
+source-type-specific patterns, so 17 runtime patterns appear as 15 table rows.
+Of the 56 arcs, 53 originate at resource shells and three at tile-source
 substructure. No observed global registration originates at an override node.
-The `EditorScript` loader
-also has conditional `:library-prototypes` and `:library-reload-signatures`
-targets for non-file resources; that branch is a potential global effect but is
-not exercised by this fixture.
+The `EditorScript` connect-fn also has conditional `:library-prototypes` and
+`:library-reload-signatures` targets for non-file resources; that branch is a
+potential global effect but is not exercised by this fixture.
 
-Four additional `GameProjectNode -> Project` connections appear in the runtime
-scan but are not global-effect edges by this definition. They are installed in
-the initial-load prelude by `setup-game-project-tx-data`, before resource
-load-fns run:
+Forty-seven of the connect-time arcs were formerly installed by load-fns; the
+other four are the existing `game.project` bootstrap wiring. The game-project
+connect-fn also installs an incoming `ScriptIntelligenceNode :build-errors ->
+GameProjectNode :build-errors` connection, which is not a global-effect edge
+because it points into the resource shell. The same distinction leaves the
+incoming Lua preprocessor and completion connections in
+`editor.code.script/additional-load-fn`.
 
-- `:settings-map -> :settings`
-- `:display-profiles-data -> :display-profiles`
-- `:texture-profiles-data -> :texture-profiles`
-- `:use-font-layout -> :use-font-layout`
-
-This bootstrap wiring is useful precedent: the global dependency is known while
-`game.project` is still only a shell, so evaluation can discover and
-materialize that shell. By contrast, the 52 load-fn-installed registrations are
-absent before their resources materialize. Any global consumer can therefore
-observe an incomplete contributor set, and cannot discover missing contributors
+As a result, only the five collision-related contributors remain absent before
+their resources materialize. A global collision-group consumer can still
+observe an incomplete contributor set and cannot discover missing contributors
 by ordinary graph traversal.
 
 ### Collision groups demonstrate both shell and substructure effects
 
-The collision-group subsystem accounts for five of the 52 global-effect edges:
+The collision-group subsystem accounts for five of the 56 global-effect edges:
 
 - three `TileSource`-owned `CollisionGroupNode` substructure nodes connect
   `:collision-group-node` to `Project :collision-group-nodes`; and
@@ -513,9 +517,10 @@ for initial first-load deferral.
 - Reject explicit substructure-to-substructure arcs across resource owners.
   Report substructure-to-foreign-shell arcs separately and report
   override-propagated arcs in their own category.
-- Inventory every load-fn-installed connection from a resource shell or its
-  substructure into an ownerless/global node, excluding the temporarily
-  out-of-scope `:save-data` registrations.
+- Inventory every connection from a resource shell or its substructure into an
+  ownerless/global node, including whether it is installed at connect time or
+  load time, and excluding the temporarily out-of-scope `:save-data`
+  registrations.
 - Detect global relay paths where these values are redistributed to other
   resource shells or substructure.
 - Record project-open resource reads, materialized roots, node counts, and
@@ -580,8 +585,8 @@ Correctness coverage should include:
   settings;
 - deterministic node ids and collision-group behavior;
 - the refined isolation audit on `save_data_project`, including zero direct
-  cross-owner substructure arcs, the load-fn global-registration inventory, and
-  an explicit policy for every global relay;
+  cross-owner substructure arcs, the connect-time/load-time global-registration
+  inventory, and an explicit policy for every global relay;
 - `.defunload` policy remaining distinct from automatic on-demand loading.
 
 Performance evaluation should compare project-open wall time, number of files
