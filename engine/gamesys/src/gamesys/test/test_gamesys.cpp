@@ -10384,6 +10384,7 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_UWrap);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_VWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_WWrap);
     ASSERT_NEAR(0.0f, sampler_tex_b->m_MaxAnisotropy, EPSILON);
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_c);
@@ -10393,6 +10394,7 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_UWrap);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_VWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT, sampler_tex_c->m_WWrap);
     ASSERT_NEAR(14.0f, sampler_tex_c->m_MaxAnisotropy, EPSILON);
 
     dmResource::Release(m_Factory, (void*) compute_program_res);

@@ -3084,6 +3084,13 @@ static void LogFrameBufferError(GLenum status)
                         CHECK_GL_ERROR;
                     }
 
+                    if ((IsTextureType3D(tex->m_Base.m_Type) || tex->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_3D) &&
+                        tex->m_Sampler.m_AddressModeW != tex->m_SamplerDirty.m_AddressModeW)
+                    {
+                        glTexParameteri(gl_type, DMGRAPHICS_TEXTURE_WRAP_R, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeW));
+                        CHECK_GL_ERROR;
+                    }
+
                     if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy && tex->m_SamplerDirty.m_MaxAnisotropy > 1.0)
                     {
                         glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, tex->m_SamplerDirty.m_MaxAnisotropy);
@@ -5069,12 +5076,13 @@ static void LogFrameBufferError(GLenum status)
         return context->m_MaxTextureSize;
     }
 
-    static inline void SetSampler(OpenGLContext* context, OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, float max_anisotropy)
+    static inline void SetSampler(OpenGLContext* context, OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, TextureWrap wrap_w, float max_anisotropy)
     {
         sampler->m_MinFilter = min_filter;
         sampler->m_MagFilter = mag_Filter;
         sampler->m_AddressModeU = wrap_u;
         sampler->m_AddressModeV = wrap_v;
+        sampler->m_AddressModeW = wrap_w;
         sampler->m_MaxAnisotropy = dmMath::Min(max_anisotropy, context->m_MaxAnisotropy);
     }
 
@@ -5133,6 +5141,12 @@ static void LogFrameBufferError(GLenum status)
 
             glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeV));
             CHECK_GL_ERROR;
+
+            if (IsTextureType3D(texture->m_Base.m_Type) || texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_3D)
+            {
+                glTexParameteri(gl_type, DMGRAPHICS_TEXTURE_WRAP_R, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeW));
+                CHECK_GL_ERROR;
+            }
 
             if (context->m_AnisotropySupport && texture->m_Sampler.m_MaxAnisotropy > 1.0f)
             {
@@ -5196,7 +5210,7 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Base.m_ResourceSize = 0;
         tex->m_Base.m_Mip0ResourceSize = 0;
 
-        SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
+        SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, tex->m_Params.m_WWrap, 1.0f);
         tex->m_SamplerDirty = tex->m_Sampler;
 
         ApplySamplerState(context, tex);
@@ -5308,7 +5322,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void OpenGLSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
 
@@ -5319,7 +5333,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
 
-        SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
 
     // Called on worker thread
@@ -5475,7 +5489,7 @@ static void LogFrameBufferError(GLenum status)
             SetTextureResourceSize(&tex->m_Base, sizeof(OpenGLTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
         }
 
-        SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+        SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
 
         for (int i = 0; i < tex->m_Base.m_NumTextureIds; ++i)
         {
