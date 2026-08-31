@@ -815,8 +815,6 @@ namespace dmGraphics
 
     static void SetMainRenderTargetSize(MetalContext* context, uint32_t width, uint32_t height)
     {
-        context->m_BaseContext.m_Width  = width;
-        context->m_BaseContext.m_Height = height;
         context->m_MainScissor = {0, 0, width, height};
 
         MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);

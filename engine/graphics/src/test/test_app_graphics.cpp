@@ -1286,6 +1286,17 @@ static void* EngineCreate(int argc, char** argv)
         return 0;
     }
 
+    if (dmGraphics::GetWidth(engine->m_GraphicsContext) != graphics_context_params.m_Width ||
+        dmGraphics::GetHeight(engine->m_GraphicsContext) != graphics_context_params.m_Height)
+    {
+        dmLogError("Graphics context changed the configured logical size from %ux%u to %ux%u",
+            graphics_context_params.m_Width,
+            graphics_context_params.m_Height,
+            dmGraphics::GetWidth(engine->m_GraphicsContext),
+            dmGraphics::GetHeight(engine->m_GraphicsContext));
+        engine->m_Failed = true;
+    }
+
     if (HasArgument("issue-12878"))
     {
         dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
