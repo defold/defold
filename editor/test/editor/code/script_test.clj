@@ -543,7 +543,7 @@
      "    end"
      "}"]
 
-    ;; `until`does not close the `do` of a `while`.
+    ;; `until` does not close the `do` of a `while`.
     ["while a do"
      "    until"
      "end"]
