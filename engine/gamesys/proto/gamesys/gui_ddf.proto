@@ -293,3 +293,48 @@ message LayoutChanged
     required uint64 id = 1;
     required uint64 previous_id = 2;
 }
+
+/*# Sent to the GUI script when the pointer enters an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_hovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectHovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
+
+/*# Sent to the GUI script when the pointer leaves an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_unhovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectUnhovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
+
+/*# Sent to the GUI script when an interactive rich-text object is clicked.
+ *
+ * @message
+ * @name text_object_clicked
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectClicked
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}

@@ -25,6 +25,7 @@ extern "C"
 #endif
 
     typedef struct FontcContext* HFontRenderer;
+    typedef struct Markup*       HFontcMarkup;
 
     typedef enum FontRendererResult
     {
@@ -42,6 +43,26 @@ extern "C"
         FONT_RENDERER_LAYER_OUTLINE = 2,
         FONT_RENDERER_LAYER_SHADOW = 4,
     } FontRendererLayer;
+
+    /* Rich-text parser error classification returned by FontcParseMarkup. */
+    typedef enum FontcMarkupErrorType
+    {
+        FONTC_MARKUP_ERROR_NONE,
+        FONTC_MARKUP_ERROR_INCOMPLETE_TAG,
+        FONTC_MARKUP_ERROR_INCOMPLETE_ENTITY,
+        FONTC_MARKUP_ERROR_UNCLOSED_TAG,
+        FONTC_MARKUP_ERROR_INVALID_TAG,
+        FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE,
+        FONTC_MARKUP_ERROR_INVALID_ENTITY,
+        FONTC_MARKUP_ERROR_UNEXPECTED_CLOSING_TAG,
+        FONTC_MARKUP_ERROR_MISMATCHED_CLOSING_TAG,
+        FONTC_MARKUP_ERROR_INVALID_UTF8,
+        FONTC_MARKUP_ERROR_LIMIT_EXCEEDED,
+        FONTC_MARKUP_ERROR_UNSUPPORTED,
+        FONTC_MARKUP_ERROR_UNKNOWN_TAG,
+        FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
+        FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
+    } FontcMarkupErrorType;
 
     typedef struct FontcParams
     {
@@ -66,6 +87,20 @@ extern "C"
         uint32_t m_UseTextShaping;
     } FontcParams;
 
+    /* One prebaked glyph and its raw bitmap slice in a FontcCreateGlyphBank
+     * data buffer. Bitmap dimensions include glyph_padding on every side. */
+    typedef struct FontcGlyphBankGlyph
+    {
+        uint32_t m_Codepoint;
+        float    m_Width;
+        float    m_Advance;
+        float    m_LeftBearing;
+        float    m_Ascent;
+        float    m_Descent;
+        uint32_t m_DataOffset;
+        uint32_t m_DataSize;
+    } FontcGlyphBankGlyph;
+
     typedef struct FontcLayout
     {
         float    m_Width;
@@ -73,6 +108,8 @@ extern "C"
         uint32_t m_LineCount;
         float    m_MaxAscent;
         float    m_MaxDescent;
+        uint32_t m_ErrorByteOffset;
+        uint32_t m_ErrorType;
     } FontcLayout;
 
     typedef struct FontcGlyph
@@ -106,6 +143,7 @@ extern "C"
         float    m_FaceColor[4];
         float    m_OutlineColor[4];
         float    m_ShadowColor[4];
+        float    m_BaseShadowAlpha;
         float    m_Width;
         float    m_Height;
         float    m_Leading;
@@ -137,6 +175,66 @@ extern "C"
         uint32_t m_Channels;
     } FontcImage;
 
+    /* A UTF-8 byte range into FontcMarkupData::m_Source. Its length describes
+     * the complete name or value and is not limited to one codepoint. */
+    typedef struct FontcMarkupString
+    {
+        uint32_t m_Offset;
+        uint16_t m_Length;
+    } FontcMarkupString;
+
+    /* One parsed attribute. Name and value retain their exact source spelling. */
+    typedef struct FontcMarkupAttribute
+    {
+        FontcMarkupString m_Name;
+        FontcMarkupString m_Value;
+        uint8_t           m_Type;
+        uint8_t           m_Constant;
+    } FontcMarkupAttribute;
+
+    /* One node in the flat syntax tree. m_Parent is UINT16_MAX for the root;
+     * attributes occupy a slice starting at m_AttributeIndex. */
+    typedef struct FontcMarkupNode
+    {
+        FontcMarkupString m_Tag;
+        uint16_t          m_Parent;
+        uint16_t          m_AttributeIndex;
+        uint16_t          m_AttributeCount;
+        uint8_t           m_Type;
+        uint32_t          m_TextOffset;
+        uint32_t          m_TextLength;
+    } FontcMarkupNode;
+
+    /* A visible UTF-32 text range and its innermost active syntax-tree node. */
+    typedef struct FontcMarkupSpan
+    {
+        uint32_t m_TextOffset;
+        uint32_t m_TextLength;
+        uint16_t m_NodeIndex;
+    } FontcMarkupSpan;
+
+    typedef struct FontcMarkupError
+    {
+        uint32_t             m_ByteOffset;
+        FontcMarkupErrorType m_Type;
+    } FontcMarkupError;
+
+    /* Borrowed parsed arrays. Every pointer remains valid until the owning
+     * HFontcMarkup is destroyed. */
+    typedef struct FontcMarkupData
+    {
+        const char*                 m_Source;
+        uint32_t                    m_SourceLength;
+        const uint32_t*             m_Text;
+        uint32_t                    m_TextLength;
+        const FontcMarkupNode*      m_Nodes;
+        uint32_t                    m_NodeCount;
+        const FontcMarkupAttribute* m_Attributes;
+        uint32_t                    m_AttributeCount;
+        const FontcMarkupSpan*      m_Spans;
+        uint32_t                    m_SpanCount;
+    } FontcMarkupData;
+
     /*#
      * Creates a persistent font renderer context.
      *
@@ -159,6 +257,38 @@ extern "C"
                                                 const FontcParams* params,
                                                 HFontRenderer*     renderer);
 
+    /*# Creates a renderer from a prebaked glyph bank
+     *
+     * Glyphs must be sorted by codepoint. Bitmap slices are uncompressed and
+     * contain glyph_channels bytes per pixel. All input data is copied before
+     * this function returns.
+     *
+     * @name FontcCreateGlyphBank
+     * @param name [type: const char*] Font resource name, used for diagnostics.
+     * @param glyphs [type: const FontcGlyphBankGlyph*] Sorted prebaked glyphs.
+     * @param glyph_count [type: uint32_t] Number of glyphs.
+     * @param glyph_data [type: const uint8_t*] Raw concatenated glyph bitmaps.
+     * @param glyph_data_count [type: uint32_t] Size of glyph data in bytes.
+     * @param glyph_padding [type: uint32_t] Bitmap padding on every glyph side.
+     * @param glyph_channels [type: uint32_t] Number of channels per bitmap pixel.
+     * @param max_ascent [type: float] Maximum font ascent.
+     * @param max_descent [type: float] Maximum positive font descent.
+     * @param params [type: const FontcParams*] Immutable renderer configuration.
+     * @param renderer [type: HFontRenderer*] Receives the created context on success.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcCreateGlyphBank(const char*                name,
+                                                         const FontcGlyphBankGlyph* glyphs,
+                                                         uint32_t                   glyph_count,
+                                                         const uint8_t*             glyph_data,
+                                                         uint32_t                   glyph_data_count,
+                                                         uint32_t                   glyph_padding,
+                                                         uint32_t                   glyph_channels,
+                                                         float                      max_ascent,
+                                                         float                      max_descent,
+                                                         const FontcParams*         params,
+                                                         HFontRenderer*             renderer);
+
     /*#
      * Destroys a font renderer context and all resources owned by it.
      * Passing a null handle is allowed.
@@ -167,6 +297,48 @@ extern "C"
      * @param renderer [type: HFontRenderer] Context to destroy.
      */
     DM_DLLEXPORT void FontcDestroy(HFontRenderer renderer);
+
+    /*# Parses rich-text markup
+     *
+     * Parses UTF-8 rich text into a font-independent syntax tree. On success,
+     * the returned handle owns the parsed source, visible text, nodes,
+     * attributes, and spans until released with `FontcDestroyMarkup`.
+     *
+     * @name FontcParseMarkup
+     * @param markup [type: const char*] UTF-8 rich-text markup.
+     * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
+     * @param parsed_markup [type: HFontcMarkup*] Receives the parsed handle on success.
+     * @param error [type: FontcMarkupError*] Receives structured parser error information.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcParseMarkup(const char*       markup,
+                                                     uint32_t          markup_byte_count,
+                                                     HFontcMarkup*     parsed_markup,
+                                                     FontcMarkupError* error);
+
+    /*# Destroys parsed rich-text markup
+     *
+     * Passing a null handle is allowed. All pointers previously returned by
+     * `FontcGetMarkupData` become invalid.
+     *
+     * @name FontcDestroyMarkup
+     * @param parsed_markup [type: HFontcMarkup] Parsed markup handle.
+     */
+    DM_DLLEXPORT void FontcDestroyMarkup(HFontcMarkup parsed_markup);
+
+    /*# Gets parsed rich-text data
+     *
+     * Returns borrowed pointers into the parsed handle. Nodes form a flat tree
+     * using parent indices; spans identify the innermost active node for each
+     * visible-text range.
+     *
+     * @name FontcGetMarkupData
+     * @param parsed_markup [type: HFontcMarkup] Parsed markup handle.
+     * @param data [type: FontcMarkupData*] Receives borrowed parsed arrays.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetMarkupData(HFontcMarkup     parsed_markup,
+                                                       FontcMarkupData* data);
 
     /*#
      * Measures UTF-32 text using the renderer's font and text-layout mode.
@@ -192,6 +364,78 @@ extern "C"
                                                  float           leading,
                                                  float           tracking,
                                                  FontcLayout*    layout);
+
+    /*#
+     * Measures UTF-8 rich-text markup using the renderer's font and text-layout mode.
+     * This operation does not modify the retained renderer state.
+     *
+     * @name FontcMeasureMarkup
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param markup [type: const char*] UTF-8 rich-text markup.
+     * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
+     * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
+     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param leading [type: float] Line spacing used by the runtime text layout.
+     * @param tracking [type: float] Character spacing used by the runtime text layout.
+     * @param layout [type: FontcLayout*] Receives the measured layout.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
+                                                       const char*   markup,
+                                                       uint32_t      markup_byte_count,
+                                                       uint32_t      line_break,
+                                                       float         width,
+                                                       float         leading,
+                                                       float         tracking,
+                                                       FontcLayout*  layout);
+
+    /*# Measures previously parsed rich-text markup
+     *
+     * Shapes and measures an existing parsed-markup handle without reparsing
+     * its source. The parsed handle remains owned by the caller.
+     *
+     * @name FontcMeasureParsedMarkup
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param parsed_markup [type: HFontcMarkup] Parsed markup handle.
+     * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
+     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param leading [type: float] Line spacing used by the runtime text layout.
+     * @param tracking [type: float] Character spacing used by the runtime text layout.
+     * @param layout [type: FontcLayout*] Receives the measured layout.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
+                                                             HFontcMarkup  parsed_markup,
+                                                             uint32_t      line_break,
+                                                             float         width,
+                                                             float         leading,
+                                                             float         tracking,
+                                                             FontcLayout*  layout);
+
+    /*# Filters visible rich-text codepoints
+     *
+     * Parses UTF-8 rich-text markup with the native parser and copies it to the
+     * caller-owned output buffer, omitting visible codepoints not present in the
+     * allowed set. Markup syntax and entity spellings are preserved byte-for-byte.
+     * The output buffer must be at least `markup_byte_count` bytes.
+     *
+     * @name FontcFilterMarkup
+     * @param markup [type: const char*] UTF-8 rich-text markup.
+     * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
+     * @param allowed_codepoints [type: const uint32_t*] UTF-32 codepoints to retain.
+     * @param allowed_codepoint_count [type: uint32_t] Number of allowed codepoints.
+     * @param output [type: char*] Caller-owned output buffer.
+     * @param output_capacity [type: uint32_t] Output buffer size in bytes.
+     * @param output_byte_count [type: uint32_t*] Receives the number of bytes written.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcFilterMarkup(const char*     markup,
+                                                      uint32_t        markup_byte_count,
+                                                      const uint32_t* allowed_codepoints,
+                                                      uint32_t        allowed_codepoint_count,
+                                                      char*           output,
+                                                      uint32_t        output_capacity,
+                                                      uint32_t*       output_byte_count);
 
     /*#
      * Generates a standalone bitmap and metrics for one Unicode codepoint.
@@ -302,6 +546,21 @@ extern "C"
     DM_DLLEXPORT FontRendererResult FontcSetText(HFontRenderer   renderer,
                                                  const uint32_t* codepoints,
                                                  uint32_t        codepoint_count);
+
+    /*#
+     * Replaces the retained text with UTF-8 rich-text markup.
+     * The markup is copied into the context and immediately included in FontcHash.
+     * No texture or vertex data is generated by this call.
+     *
+     * @name FontcSetMarkup
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param markup [type: const char*] UTF-8 rich-text markup to copy.
+     * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcSetMarkup(HFontRenderer renderer,
+                                                   const char*   markup,
+                                                   uint32_t      markup_byte_count);
 
     /*#
      * Returns a hash of the retained properties and text.

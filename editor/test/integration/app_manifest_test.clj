@@ -167,6 +167,20 @@
                                 :mobile {:context {:libs []}}}}
                    setting
                    identity)))))))
+  (testing "rich text can be replaced with its null implementation"
+    (is (false? (app-manifest/get-setting-value {} app-manifest/rich-text-setting)))
+    (let [excluded-manifest (app-manifest/set-setting-value {} app-manifest/rich-text-setting true)
+          included-manifest (app-manifest/set-setting-value excluded-manifest app-manifest/rich-text-setting false)]
+      (is (true? (app-manifest/get-setting-value excluded-manifest app-manifest/rich-text-setting)))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                     "font_richtext"))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :libs]))
+                     "font_richtext_null"))
+      (is (false? (app-manifest/get-setting-value included-manifest app-manifest/rich-text-setting)))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                          "font_richtext")))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :libs]))
+                          "font_richtext_null")))))
   (testing "choice setting is a enum of options or nil (indeterminate) setting"
     (let [setting (app-manifest/make-choice-setting
                     :all [(app-manifest/boolean-toggle :desktop :enabled true)
@@ -407,7 +421,8 @@
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
-        (is (= :web-gl (g/node-value manifest :graphics-web)))))
+        (is (= :web-gl (g/node-value manifest :graphics-web)))
+        (is (true? (g/node-value manifest :use-rich-text)))))
     (testing "/app_manifest/exclude_physics_2d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_2d.appmanifest")]
         (is (= :none (g/node-value manifest :physics-2d)))
@@ -640,4 +655,9 @@
       (g/set-property! manifest :exclude-tilemap false)
       (is (false? (string/includes? (text) "gui_null")))
       (is (false? (string/includes? (text) "particle_null")))
-      (is (false? (string/includes? (text) "ResourceTypeTileMap"))))))
+      (is (false? (string/includes? (text) "ResourceTypeTileMap")))
+
+      (testing "indeterminate rich-text settings remain indeterminate"
+        (g/set-property! manifest :manifest
+                         {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
+        (is (nil? (g/node-value manifest :use-rich-text)))))))

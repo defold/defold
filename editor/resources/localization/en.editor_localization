@@ -1248,6 +1248,8 @@ property.appmanifest.graphics-web = Graphics (HTML5)
 property.appmanifest.graphics-web.tooltip = Select the graphics backend included in HTML5 builds. WebGL is the default; including both WebGL and WebGPU permits fallback but increases engine size.
 property.appmanifest.use-font-layout = Use full text layout system
 property.appmanifest.use-font-layout.tooltip = Include the full text layout system required for runtime SDF font generation from TrueType fonts. Runtime glyph rasterization also requires `font.runtime_generation` in `game.project`; it supports features such as right-to-left text.
+property.appmanifest.use-rich-text = Use Rich Text
+property.appmanifest.use-rich-text.tooltip = Include rich text parsing and style effects for labels and GUI text. Disable this to reduce engine size; markup will then render as plain text.
 
 # Properties: atlas
 
@@ -2747,6 +2749,7 @@ error.duplicate-instance-id = "{id}" is in use by another instance.
 error.non-unique-ids = The following ids are not unique: {ids}.
 error.only-components-allowed = Only components are allowed for "{property}". "{ext}" is not a component.
 error.property-resource-not-found = {property} "{resource}" could not be found.
+error.property-resource-is-a-folder = {property} "{resource}" is a folder, not a file.
 error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" refers to missing path "{path}".
 error.resource-not-found = "{resource}" could not be found.
 error.resource-is-a-broken-symlink = Symlink "{resource}" refers to missing path "{path}".
@@ -2767,6 +2770,13 @@ error.animation-not-found = "{animation}" could not be found in "{property}".
 error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
+error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Rich-text outline and shadow tags are not supported by BMFont fonts.
+error.font.no-reserved-data-for-rich-text-outlines = This font has no reserved data for rich-text outlines; the outline will not be rendered.
+error.font.bitmap-shadow-blur-includes-outline = This bitmap font's shadow blur includes its outline; rich-text shadow spans without an outline tag render crisp.
+error.font.per-span-shadow-blur-not-supported-by-bitmap-fonts = Per-span shadow blur is not supported by bitmap fonts; the shadow uses the available bitmap coverage.
+error.font.per-span-outline-size-fixed-for-bitmap-fonts = Per-span outline size is fixed for bitmap fonts; the outline uses the width reserved by the font resource.
+error.font.rich-text-outline-exceeds-reserved-width = The requested rich-text outline exceeds the width reserved by the font resource and will be clamped.
+error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur = This font has no reserved distance-field data for rich-text shadow blur; the shadow renders crisp.
 error.at-line = Line {line}: {error}
 error.render.title = RENDER ERROR:
 error.render.unknown-resource = unknown

@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // The rasterizer is based on the old stb_truetype rasterizer.
 #define SKB_SUBSAMPLES		5
@@ -558,7 +559,7 @@ void skb_canvas_pop_transform(skb_canvas_t* c)
 
 void skb_canvas_push_mask(skb_canvas_t* c)
 {
-	SKB_ARRAY_RESERVE(c->masks, c->masks_count+1);
+	SKB_TEMP_RESERVE(c->alloc, c->masks, c->masks_count+1);
 
 	skb_mask_t* cur_mask = c->masks_count > 0 ? &c->masks[c->masks_count-1] : NULL;
 	skb_mask_t* mask = &c->masks[c->masks_count++];
@@ -598,7 +599,7 @@ void skb_canvas_pop_mask(skb_canvas_t* c)
 
 void skb_canvas_push_layer(skb_canvas_t* c)
 {
-	SKB_ARRAY_RESERVE(c->layers, c->layers_count+1);
+	SKB_TEMP_RESERVE(c->alloc, c->layers, c->layers_count+1);
 	skb_image_layer_t* layer = &c->layers[c->layers_count++];
 
 	if (!layer->buffer) {
@@ -618,27 +619,158 @@ void skb_canvas_push_layer(skb_canvas_t* c)
 	}
 }
 
-static void skb__blend_over(const skb_image_layer_t* src, skb_image_layer_t* dst, int32_t offset_x, int32_t offset_y, int32_t width, int32_t height)
-{
-	const int32_t src_stride = src->stride;
-	const int32_t dst_stride = dst->stride;
-	const int32_t blend_w = width;
-
-	for (int32_t y = offset_y; y < (offset_y + height); y++) {
-		const skb_color_t* x_src = src->buffer + offset_x + (y * src_stride);
-		skb_color_t* x_dst = dst->buffer + offset_x + (y * dst_stride);
-		for (int32_t x = 0; x < blend_w; x++) {
-			if (x_src->a == 255)
-				*x_dst = *x_src;
-			else if (x_src->a > 0)
-				*x_dst = skb_color_blend(*x_dst, *x_src);
-			x_src++;
-			x_dst++;
-		}
-	}
+#define DEFINE_BLEND_FUNC(blend_func_name, blend_row_func) \
+static void blend_func_name(const skb_image_layer_t* src_img, skb_image_layer_t* dst_img, int32_t offset_x, int32_t offset_y, int32_t width, int32_t height) \
+{ \
+	const int32_t src_stride = src_img->stride; \
+	const int32_t dst_stride = dst_img->stride; \
+	const skb_color_t* src = src_img->buffer + offset_x + (offset_y * src_stride); \
+	const skb_color_t* src_end = src + (height * src_stride); \
+	skb_color_t* dst = dst_img->buffer + offset_x + (offset_y * dst_stride); \
+	while(src < src_end) { \
+		blend_row_func(src, dst, width); \
+		src += src_stride; \
+		dst += dst_stride; \
+	} \
 }
 
-void skb_canvas_pop_layer(skb_canvas_t* c)
+static inline void skb__blend_row_clear(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	memset(dst, 0, width * sizeof(skb_color_t));
+}
+DEFINE_BLEND_FUNC(skb__blend_clear, skb__blend_row_clear)
+
+static inline void skb__blend_row_src(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	memcpy(dst, src, width * sizeof(skb_color_t));
+}
+DEFINE_BLEND_FUNC(skb__blend_src, skb__blend_row_src)
+
+static inline void skb__blend_row_src_over(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	const skb_color_t* row_end = src + width;
+	while(src < row_end) {
+		if (src->a == 255) {
+			*dst = *src;
+		} else if (src->a > 0) {
+			*dst = skb_color_blend(*dst, *src);
+		}
+		src++;
+		dst++;
+	}
+}
+DEFINE_BLEND_FUNC(skb__blend_src_over, skb__blend_row_src_over)
+
+static inline void skb__blend_row_dest_over(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	const skb_color_t* row_end = src + width;
+	while(src < row_end) {
+		if (dst->a == 0) {
+			*dst = *src;
+		} else if (dst->a < 255) {
+			*dst = skb_color_blend(*src, *dst);
+		}
+		src++;
+		dst++;
+	}
+}
+DEFINE_BLEND_FUNC(skb__blend_dest_over, skb__blend_row_dest_over)
+
+static inline void skb__blend_row_src_in(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	const skb_color_t* row_end = src + width;
+	while(src < row_end) {
+		*dst = skb_color_mul_alpha(*src, dst->a);
+		src++;
+		dst++;
+	}
+}
+DEFINE_BLEND_FUNC(skb__blend_src_in, skb__blend_row_src_in)
+
+static inline void skb__blend_row_dest_in(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	const skb_color_t* row_end = src + width;
+	while(src < row_end) {
+		*dst = skb_color_mul_alpha(*dst, src->a);
+		src++;
+		dst++;
+	}
+}
+DEFINE_BLEND_FUNC(skb__blend_dest_in, skb__blend_row_dest_in)
+
+static inline void skb__blend_row_src_out(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	const skb_color_t* row_end = src + width;
+	while(src < row_end) {
+		*dst = skb_color_mul_alpha(*src, 255 - dst->a);
+		src++;
+		dst++;
+	}
+}
+DEFINE_BLEND_FUNC(skb__blend_src_out, skb__blend_row_src_out)
+
+static inline void skb__blend_row_dest_out(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	const skb_color_t* row_end = src + width;
+	while(src < row_end) {
+		*dst = skb_color_mul_alpha(*dst, 255 - src->a);
+		src++;
+		dst++;
+	}
+}
+DEFINE_BLEND_FUNC(skb__blend_dest_out, skb__blend_row_dest_out)
+
+static inline float skb__soft_light_single_channel(float s, float d) {
+	if (s <= 0.5f) {
+		return d - (1.0f - 2.0f * s) * d * (1.0f - d);
+	} else if (d <= 0.25f) {
+		return d + (2.0f * s - 1.0f) * d * ((16.0f * d - 12.0f) * d + 3.0f);
+	} else {
+		return d + (2.0f * s - 1.0f) * (sqrtf(d) - d);
+	}
+}
+static inline void skb__blend_row_soft_light(const skb_color_t* src, skb_color_t* dst, int32_t width)
+{
+	const skb_color_t* row_end = src + width;
+	while(src < row_end) {
+		// TODO: optimize
+		if (src->a == 0) {
+			// Leave dst as-is
+		} else if (dst->a == 0) {
+			*dst = *src;
+		} else {
+			// Convert to float 0-1 and unpremultiply
+			float s_a = src->a / 255.0f;
+			float d_a = dst->a / 255.0f;
+			float s_r = (src->r / 255.0f) / s_a;
+			float s_g = (src->g / 255.0f) / s_a;
+			float s_b = (src->b / 255.0f) / s_a;
+			float d_r = (dst->r / 255.0f) / d_a;
+			float d_g = (dst->g / 255.0f) / d_a;
+			float d_b = (dst->b / 255.0f) / d_a;
+			// Soft light per channel
+			float sl_r = skb__soft_light_single_channel(s_r, d_r);
+			float sl_g = skb__soft_light_single_channel(s_g, d_g);
+			float sl_b = skb__soft_light_single_channel(s_b, d_b);
+			float sl_a = s_a + d_a - s_a * d_a;
+			// Composite with alpha
+			sl_r = (1 - d_a) * s_r * s_a + (1 - s_a) * d_r * d_a + s_a * d_a * sl_r;
+			sl_g = (1 - d_a) * s_g * s_a + (1 - s_a) * d_g * d_a + s_a * d_a * sl_g;
+			sl_b = (1 - d_a) * s_b * s_a + (1 - s_a) * d_b * d_a + s_a * d_a * sl_b;
+			// Re-premultiply
+			*dst = skb_rgba(
+				(uint8_t)(sl_r * 255.0f + 0.5f),
+				(uint8_t)(sl_g * 255.0f + 0.5f),
+				(uint8_t)(sl_b * 255.0f + 0.5f),
+				(uint8_t)(sl_a * 255.0f + 0.5f));
+		}
+		src++;
+		dst++;
+	}
+}
+DEFINE_BLEND_FUNC(skb__blend_soft_light, skb__blend_row_soft_light)
+
+void skb_canvas_pop_layer(skb_canvas_t* c, skb_blend_mode_t mode)
 {
 	if (c->layers_count <= 1) return; // First item is the final layer, do not remove.
 	c->layers_count--;
@@ -648,7 +780,47 @@ void skb_canvas_pop_layer(skb_canvas_t* c)
 	skb_image_layer_t* fg_layer = &c->layers[c->layers_count];
 	skb_mask_t* mask = &c->masks[c->masks_count-1];
 
-	skb__blend_over(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+	switch (mode) {
+	case SKB_BLEND_CLEAR:
+		skb__blend_clear(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_SRC:
+		skb__blend_src(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_DEST:
+		// Do nothing - leave dest as-is
+		break;
+	case SKB_BLEND_SRC_OVER:
+		skb__blend_src_over(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_DEST_OVER:
+		skb__blend_dest_over(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_SRC_IN:
+		skb__blend_src_in(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_DEST_IN:
+		skb__blend_dest_in(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_SRC_OUT:
+		skb__blend_src_out(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_DEST_OUT:
+		skb__blend_dest_out(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	case SKB_BLEND_SOFT_LIGHT:
+		skb__blend_soft_light(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		break;
+	default:
+		if (mode < 0 || mode > 27) { // COLRv1: If an unrecognized value is encountered, COMPOSITE_CLEAR must be used.
+			skb_debug_log("Unrecognized value encountered for blend mode: %d; using CLEAR\n", mode);		
+			skb__blend_clear(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		} else {
+			skb_debug_log("Unsupported blend mode: %d; using SRC_OVER fallback\n", mode);		
+			skb__blend_src_over(fg_layer, bg_layer, mask->region.x, mask->region.y, mask->region.width, mask->region.height);
+		}
+		break;
+	}
 
 	skb_canvas_pop_mask(c);
 }
@@ -726,7 +898,7 @@ void skb_canvas_fill_solid_color(skb_canvas_t* c, skb_color_t color)
 
 		for (int32_t x = 0; x < fill_w; x++) {
 			if (*x_mask > 0)
-				*x_layer = skb_color_lerp(*x_layer, color, *x_mask);
+				*x_layer = skb_color_blend_with_mask(*x_layer, color, *x_mask);
 			x_mask++;
 			x_layer++;
 		}
@@ -790,7 +962,7 @@ void skb_canvas_fill_linear_gradient(skb_canvas_t* c, skb_vec2_t p0, skb_vec2_t 
 				const int32_t ti = skb__apply_spread((int32_t)(t * (SKB_GRADIENT_CACHE_SIZE)), spread);
 				const skb_color_t col = cache.colors[ti];
 				// Blend
-				*x_layer = skb_color_lerp(*x_layer, col, *x_mask);
+				*x_layer = skb_color_blend_with_mask(*x_layer, col, *x_mask);
 			}
 			x_mask++;
 			x_layer++;
@@ -859,7 +1031,7 @@ void skb_canvas_fill_radial_gradient(skb_canvas_t* c, skb_vec2_t p0, float r0, s
 				const int32_t ti = skb__apply_spread((int32_t)(t * (SKB_GRADIENT_CACHE_SIZE)), spread);
 				const skb_color_t col = cache.colors[ti];
 				// Blend
-				*x_layer = skb_color_lerp(*x_layer, col, *x_mask);
+				*x_layer = skb_color_blend_with_mask(*x_layer, col, *x_mask);
 			}
 			x_mask++;
 			x_layer++;
@@ -897,7 +1069,7 @@ skb_canvas_t* skb_canvas_create(skb_temp_alloc_t* alloc, skb_image_t* target)
 
 	// Push target layer or mask
 	if (target->bpp == 4) {
-		SKB_ARRAY_RESERVE(c->layers, c->layers_count+1);
+		SKB_TEMP_RESERVE(c->alloc, c->layers, c->layers_count+1);
 		skb_image_layer_t* layer = &c->layers[c->layers_count++];
 
 		layer->buffer = (skb_color_t*)target->buffer;
@@ -914,7 +1086,7 @@ skb_canvas_t* skb_canvas_create(skb_temp_alloc_t* alloc, skb_image_t* target)
 
 	} else {
 		// Render to just mask.
-		SKB_ARRAY_RESERVE(c->masks, c->masks_count+1);
+		SKB_TEMP_RESERVE(c->alloc, c->masks, c->masks_count+1);
 		skb_mask_t* mask = &c->masks[c->masks_count++];
 		mask->buffer = target->buffer;
 		mask->stride = target->stride_bytes;

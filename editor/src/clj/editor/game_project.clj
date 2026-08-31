@@ -29,6 +29,7 @@
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
@@ -166,22 +167,30 @@
 (defn- file-resource? [resource]
   (= (resource/source-type resource) :file))
 
-(defn- parse-custom-resource-paths [custom-resources-setting]
+(defn- parse-custom-resource-setting [custom-resources-setting]
   (into []
         (comp
           (map string/trim)
-          (remove string/blank?)
-          (map #(FilenameUtils/normalize % true))
-          (map (comp strip-trailing-slash fs/with-leading-slash)))
+          (remove string/blank?))
         (string/split (or custom-resources-setting "") #",")))
 
-(defn- merge-custom-resource-path-settings [settings]
-  (->> settings
-       (into []
-             (comp
-               (mapcat parse-custom-resource-paths)
-               (distinct)))
-       (coll/join-to-string ", ")))
+(defn- parse-custom-resource-paths [custom-resources-setting]
+  (into []
+        (comp
+          (map #(FilenameUtils/normalize % true))
+          (map (comp strip-trailing-slash fs/with-leading-slash))
+          (distinct))
+        (parse-custom-resource-setting custom-resources-setting)))
+
+(defn- merge-custom-resource-settings [default-settings project-setting]
+  (let [default-values (into [] (mapcat parse-custom-resource-setting) default-settings)
+        project-values (parse-custom-resource-setting project-setting)
+        merged-values (->> project-values
+                           (into default-values)
+                           (into [] (distinct)))]
+    (if (= project-values merged-values)
+      project-setting
+      (coll/join-to-string ", " merged-values))))
 
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
@@ -197,7 +206,8 @@
    ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]
-   ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]]})
+   ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]
+                                          [:use-rich-text :use-rich-text]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
@@ -255,6 +265,9 @@
   (input use-font-layout g/Any)
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
 
+  (input use-rich-text g/Any)
+  (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
+
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
   (output settings-map g/Any (gu/passthrough settings-map))
@@ -281,25 +294,20 @@
 
   (output custom-resources-setting g/Any :cached
           (g/fnk [meta-info raw-settings]
-            (merge-custom-resource-path-settings
-              (conj
-                (settings-core/get-default-setting-values
-                  (:settings meta-info)
-                  ["project" "custom_resources"])
-                (settings-core/get-setting
-                  raw-settings
-                  ["project" "custom_resources"])))))
+            (merge-custom-resource-settings
+              (settings-core/get-default-setting-values
+                (:settings meta-info)
+                ["project" "custom_resources"])
+              (settings-core/get-setting
+                raw-settings
+                ["project" "custom_resources"]))))
 
-  (output ssl-certificates-directory-resource g/Any
+  (output ssl-certificates-resource resource/Resource
           (g/fnk [_node-id settings-map]
-            (let [directory-resource (get settings-map ["network" "ssl_certificates"])]
-              (if (or (nil? directory-resource)
-                      (resource/exists? directory-resource))
-                directory-resource
-                (g/map->error
-                  {:_node-id _node-id
-                   :severity :fatal
-                   :message (format "SSL certificates directory not found: '%s'" (resource/proj-path directory-resource))})))))
+            (let [setting-path ["network" "ssl_certificates"]
+                  resource (get settings-map setting-path)]
+              (or (validation/setting-error :fatal _node-id setting-path validation/prop-resource-not-exists? resource)
+                  resource))))
 
   (output custom-resources-directory-resources g/Any
           (g/fnk [_node-id resource-map custom-resources-setting]
@@ -318,25 +326,24 @@
                 directory-resources))))
 
   (output custom-resource+versions g/Any :cached
-          (g/fnk [custom-resources-directory-resources resource-snapshot ssl-certificates-directory-resource]
+          (g/fnk [custom-resources-directory-resources resource-snapshot ssl-certificates-resource]
             ;; We depend on the resource-snapshot to ensure this output reflects
             ;; the on-disk state of all the involved resources.
             (let [status-map (:status-map resource-snapshot)
 
-                  directory-resources
-                  (cond-> custom-resources-directory-resources
-                    ssl-certificates-directory-resource (conj ssl-certificates-directory-resource))
+                  file-resources
+                  (cond-> (coll/into-> custom-resources-directory-resources []
+                            (map resource/resource-seq)
+                            coll/flatten-xf
+                            (filter file-resource?))
 
-                  custom-resources
-                  (coll/into-> directory-resources []
-                    (map resource/resource-seq)
-                    coll/flatten-xf
-                    (distinct)
-                    (filter file-resource?))]
+                    ssl-certificates-resource
+                    (conj ssl-certificates-resource))]
 
               ;; We include the version only to ensure this output is
               ;; invalidated if any of the included files change on disk.
-              (coll/into-> custom-resources []
+              (coll/into-> file-resources []
+                (distinct)
                 (map (fn [resource]
                        (let [proj-path (resource/proj-path resource)
                              resource-status (status-map proj-path)
