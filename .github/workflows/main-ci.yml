@@ -493,7 +493,6 @@ jobs:
                 payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
 
-
   # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
@@ -638,17 +637,34 @@ jobs:
       }
     ]
 
-  build-editor-linux:
+  build-editor:
+    # One job for every editor platform. matrix.name pins the check names to the ones the
+    # separate build-editor-linux / -macos / -windows jobs produced, so branch protection
+    # keeps working; the platform-specific steps are guarded on runner.os rather than on
+    # the platform, so a new runner needs no new branch here.
+    name: '${{ matrix.name }}'
     needs: [build-bob, gen-release-notes]
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
+    # The Windows job already ran every one of its steps under bash.
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      matrix:
+        include:
+          - { platform: x86_64-linux, runner: ubuntu-22.04,          name: 'build-editor-linux' }
+          - { platform: x86_64-macos, runner: macos-26-intel,        name: 'build-editor-macos (x86_64-macos, macos-26-intel)' }
+          - { platform: arm64-macos,  runner: macos-26,              name: 'build-editor-macos (arm64-macos, macos-26)' }
+          - { platform: x86_64-win32, runner: windows-2025-vs2026,   name: 'build-editor-windows (x86_64-win32)' }
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
+      { name: 'Set up Google Cloud SDK', if: runner.os == 'Windows', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
       {
         name: 'Download bob jar',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
@@ -658,7 +674,13 @@ jobs:
           path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
         }
       },
-      { name: 'Install dependencies', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      { name: 'Install dependencies', if: runner.os == 'Linux', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      {
+        name: 'Install dependencies',
+        if: runner.os == 'macOS',
+        run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
+      },
+      { name: 'Install dependencies', if: runner.os == 'Windows', run: 'ci/ci.sh install' },
       {
         name: 'Download release notes',
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
@@ -681,21 +703,41 @@ jobs:
         }
       },
       {
+        name: 'Download docs and builtins',
+        if: github.event.action == 'contrib-build' && runner.os != 'Linux',
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        with: {
+          name: 'engine-share',
+          path: 'tmp/dynamo_home/share'
+        }
+      },
+      {
         name: 'Build editor',
-        run: 'ci/ci.sh build-editor --platform=x86_64-linux --skip-tests ${{ env.OPTION_EDITOR_LOCAL }}'
+        if: runner.os == 'Linux',
+        run: 'ci/ci.sh build-editor --platform=${{ matrix.platform }} --skip-tests ${{ env.OPTION_EDITOR_LOCAL }}'
+      },
+      {
+        name: 'Build editor',
+        if: runner.os == 'macOS',
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
+      },
+      {
+        name: 'Build editor',
+        if: runner.os == 'Windows',
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
       {
         name: 'Archive editor',
         if: github.event.action != 'contrib-build',
-        run: 'ci/ci.sh archive-editor --skip-install-ext --platform=x86_64-linux'
+        run: 'ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}'
       },
       {
         name: 'Upload editor',
         if: github.event.action == 'contrib-build',
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
         with: {
-          name: 'editor-x86_64-linux',
-          path: 'editor/target/editor/Defold-x86_64-linux.*',
+          name: 'editor-${{ matrix.platform }}',
+          path: 'editor/target/editor/Defold-${{ matrix.platform }}.*',
           if-no-files-found: 'warn',
           retention-days: 2
         }
@@ -758,192 +800,8 @@ jobs:
       }
     ]
 
-  build-editor-macos:
-    needs: [build-bob, gen-release-notes]
-    runs-on: ${{ matrix.runner }}
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
-    timeout-minutes: 60
-    strategy:
-      matrix:
-        include:
-          - platform: x86_64-macos
-            runner: macos-26-intel
-          - platform: arm64-macos
-            runner: macos-26
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      {
-        name: 'Download bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'bob-jar',
-          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
-        }
-      },
-      {
-        name: 'Install dependencies',
-        run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
-      },
-      {
-        name: 'Download release notes',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        continue-on-error: true,
-        with: {
-          name: 'release-notes',
-          path: 'releasenotes'
-        }
-      },
-      {
-        name: 'Download engine build',
-        # A contrib build has no S3 credentials, so the editor is packed from the engine
-        # binaries in $DYNAMO_HOME (--engine-artifacts=dynamo-home) rather than from the
-        # archive, and --skip-distclean keeps them from being wiped.
-        if: github.event.action == 'contrib-build',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}",
-          path: 'tmp/dynamo_home'
-        }
-      },
-      {
-        name: 'Download docs and builtins',
-        if: github.event.action == 'contrib-build',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'engine-share',
-          path: 'tmp/dynamo_home/share'
-        }
-      },
-      {
-        name: 'Build editor',
-        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
-      },
-      {
-        name: 'Archive editor',
-        if: github.event.action != 'contrib-build',
-        run: 'ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Upload editor',
-        if: github.event.action == 'contrib-build',
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
-        with: {
-          name: 'editor-${{ matrix.platform }}',
-          path: 'editor/target/editor/Defold-${{ matrix.platform }}.*',
-          if-no-files-found: 'warn',
-          retention-days: 2
-        }
-      },
-      { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
-        with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-    ]
-
-  build-editor-windows:
-    needs: [build-bob, gen-release-notes]
-    runs-on: windows-2025-vs2026
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
-    timeout-minutes: 60
-    strategy:
-      matrix:
-        platform: [x86_64-win32]
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
-      {
-        name: 'Download bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'bob-jar',
-          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
-        }
-      },
-      {
-        name: 'Install dependencies',
-        shell: bash,
-        run: 'ci/ci.sh install'
-      },
-      {
-        name: 'Download release notes',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        continue-on-error: true,
-        with: {
-          name: 'release-notes',
-          path: 'releasenotes'
-        }
-      },
-      {
-        name: 'Download engine build',
-        # A contrib build has no S3 credentials, so the editor is packed from the engine
-        # binaries in $DYNAMO_HOME (--engine-artifacts=dynamo-home) rather than from the
-        # archive, and --skip-distclean keeps them from being wiped.
-        if: github.event.action == 'contrib-build',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}",
-          path: 'tmp/dynamo_home'
-        }
-      },
-      {
-        name: 'Download docs and builtins',
-        if: github.event.action == 'contrib-build',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'engine-share',
-          path: 'tmp/dynamo_home/share'
-        }
-      },
-      {
-        name: 'Build editor',
-        shell: bash,
-        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
-      },
-      {
-        name: 'Archive editor',
-        shell: bash,
-        if: github.event.action != 'contrib-build',
-        run: 'ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Upload editor',
-        if: github.event.action == 'contrib-build',
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
-        with: {
-          name: 'editor-${{ matrix.platform }}',
-          path: 'editor/target/editor/Defold-${{ matrix.platform }}.*',
-          if-no-files-found: 'warn',
-          retention-days: 2
-        }
-      },
-      { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
-        with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-    ]
-
-  # ---- RELEASE ------------------
-
   release:
-    needs: [build-editor-macos, build-editor-windows, build-editor-linux, test-editor-linux, test-bob]
+    needs: [build-editor, test-editor-linux, test-bob]
     runs-on: ubuntu-22.04
     # ci.py already refuses to release a branch other than master/beta/dev, but a contrib
     # branch must not even reach the release job.
