@@ -367,6 +367,7 @@
                                                     ;"-Djogl.verbose=true"
                                                     ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
+                                                    "-Djogl.windows.cpu_affinity_mode=0"
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:MaxRAMPercentage=75"
                                                     ;"-XX:+UnlockCommercialFeatures"
