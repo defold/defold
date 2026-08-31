@@ -193,7 +193,6 @@ namespace dmGameSystem
         uint16_t                                  m_Height;
         uint16_t                                  m_Depth;
         uint16_t                                  m_MaxMipMaps;
-        uint16_t                                  m_TextureBpp;
         uint16_t                                  m_UsageFlags;
         uint8_t                                   m_LayerCount;
     };
