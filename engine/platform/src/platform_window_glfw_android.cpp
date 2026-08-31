@@ -66,6 +66,11 @@ namespace dmPlatform
         return dmAndroid::GetAndroidApp();
     }
 
+    ANativeWindow* AcquireAndroidWindow()
+    {
+        return glfwAcquireAndroidWindow();
+    }
+
     ANativeWindow* WaitForAndroidWindow()
     {
         return glfwWaitForAndroidWindow();
