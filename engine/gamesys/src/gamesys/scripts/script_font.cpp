@@ -173,8 +173,8 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 
             dmScript::TeardownCallback(cbk);
         }
-        dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
     }
+    dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
     delete ctx;
 }
 
