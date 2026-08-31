@@ -907,6 +907,75 @@
      "1, 2, 3) -- close call"
      "        print(pos)"]))
 
+(deftest reindent-continues-argument-list-test
+  (are [expected lines] (= expected (reindent lines))
+    ;; A closer alone below a trailing comma is still part of the parameter
+    ;; list, so it keeps the alignment column instead of returning to the level
+    ;; of the line that opened it.
+    ["function foo(a,"
+     "             )"
+     "    print(1)"]
+    ["function foo(a,"
+     ")"
+     "print(1)"]
+
+    ;; Without the comma the parameter list is finished, and the closer goes
+    ;; back to the opening line's level.
+    ["function foo(a"
+     ")"
+     "    print(1)"]
+    ["function foo(a"
+     ")"
+     "print(1)"]
+
+    ;; It is the preceding line that decides, not the frame.
+    ["function foo(a,"
+     "             b"
+     ")"
+     "    print(1)"]
+    ["function foo(a,"
+     "b"
+     ")"
+     "print(1)"]
+
+    ;; Blank and comment lines carry the comma through.
+    ["function foo(a,"
+     ""
+     "             )"
+     "    print(1)"]
+    ["function foo(a,"
+     ""
+     ")"
+     "print(1)"]
+
+    ;; A comment after the comma does not hide it.
+    ["function foo(a, -- note"
+     "             )"
+     "    print(1)"]
+    ["function foo(a, -- note"
+     ")"
+     "print(1)"]
+
+    ;; Each frame is judged on its own line.
+    ["function foo(a,"
+     "             bar(b,"
+     "        c),"
+     "             )"
+     "    print(1)"]
+    ["function foo(a,"
+     "bar(b,"
+     "c),"
+     ")"
+     "print(1)"]
+
+    ;; Only parameter lists align, so a call closer still takes the level.
+    ["foo(a,"
+     ")"
+     "print(1)"]
+    ["foo(a,"
+     ")"
+     "print(1)"]))
+
 (deftest insert-indentation-parentheses-test
   ;; Pressing enter after these lines.
   (are [before after]
@@ -992,4 +1061,27 @@
     ;; But code after a block comment is, and it still sets the column.
     ["function foo( --[[ first ]] a,|"]
     ["function foo( --[[ first ]] a,"
-     "             |"]))
+     "             |"]
+
+    ;; Pressing enter before a closing parenthesis. A trailing comma means the
+    ;; parameter list continues, so the closer keeps the alignment column.
+    ["function foo(a,|)"]
+    ["function foo(a,"
+     "             |)"]
+
+    ;; No comma, so the closer keeps its old behaviour.
+    ["function foo(a|)"]
+    ["function foo(a"
+     "|)"]
+
+    ;; Already aligned parameters continue to align.
+    ["function foo(a,"
+     "             b,|)"]
+    ["function foo(a,"
+     "             b,"
+     "             |)"]
+
+    ;; A call has no alignment column to keep.
+    ["foo(a,|)"]
+    ["foo(a,"
+     "|)"]))

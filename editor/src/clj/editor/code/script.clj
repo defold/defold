@@ -105,8 +105,8 @@
 ;;       tabs expanded, so it matches where the text actually appears)
 ;;     * or nil, if no parameter follows the opening parenthesis, or if the
 ;;       opener is not a function parameter list
-;; - :unfinished-assign - whether the line ends on a bare `=`, leaving an
-;;   assignment for the lines below it to finish
+;; - :unfinished - :assign if the line ends on a bare `=`, :arg if it ends on a
+;;   comma, or nil. Either way the lines below it finish what it started
 ;; - :has-code - whether the line has any code on it at all
 ;;
 ;; A closer whose kind does not match is dropped. On well-formed code that
@@ -235,14 +235,16 @@
 (defn lua-indent-counts [^String line in-long-string tab-spaces]
   (let [[tokens in-long-string ^long last-code] (lua-lex-line line in-long-string)
         ;; A line whose last code character is a bare `=` leaves an assignment
-        ;; unfinished, so the lines that continue it are indented one level.
-        unfinished-assign (and (nil? in-long-string)
-                               (not (neg? last-code))
-                               (= \= (.charAt line last-code))
-                               (or (zero? last-code)
-                                   (case (.charAt line (dec last-code))
-                                     (\= \~ \< \>) false
-                                     true)))
+        ;; unfinished, and one ending on a comma leaves an argument list open.
+        unfinished (when (and (nil? in-long-string) (not (neg? last-code)))
+                     (case (.charAt line last-code)
+                       \, :arg
+                       \= (when (or (zero? last-code)
+                                    (case (.charAt line (dec last-code))
+                                      (\= \~ \< \>) false
+                                      true))
+                            :assign)
+                       nil))
         ;; Cancel matched pairs, leaving only structure that crosses this line.
         leftover (reduce (fn [stack t]
                            (let [top (peek stack)]
@@ -270,7 +272,7 @@
     {:closes closes
      :opens opens
      :leading (when (re-find lua-close-line-pattern line) (first closes))
-     :unfinished-assign (boolean unfinished-assign)
+     :unfinished unfinished
      :has-code (not (neg? last-code))
      :in-long-string in-long-string}))
 
