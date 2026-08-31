@@ -671,11 +671,10 @@ namespace dmEngine
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
     {
         // check up to four paths
-        char p0[DMPATH_MAX_PATH];   // projectc file if provided via last argument
         char p1[DMPATH_MAX_PATH];   // mount: game.projectc
         char p2[DMPATH_MAX_PATH];   // mount: build/default/game.projectc
         char p3[DMPATH_MAX_PATH];   // game.projectc if resource path is provided
-        char* paths[4] = { 0x0, p1, p2, 0x0};
+        const char* paths[4] = { 0x0, p1, p2, 0x0};
 
         if (argc > 1 && argv[argc-1][0] != '-')
         {
@@ -686,8 +685,7 @@ namespace dmEngine
             size_t suffix_len = strlen(suffix);
             if ((suffix_len <= arg_len) && strcmp(lastarg + arg_len - suffix_len, suffix) == 0)
             {
-                strncpy(p0, lastarg, sizeof(p0));
-                paths[0] = p0;
+                paths[0] = lastarg;
             }
         }
 
