@@ -1838,8 +1838,11 @@
     (g/user-data! resource-node :syntax-info syntax-info)
     syntax-info))
 
-(defn- get-current-syntax-info [resource-node]
-  (or (g/user-data resource-node :syntax-info) []))
+(defn- get-cursor-ranges-syntax-info [view-node cursor-ranges evaluation-context]
+  (get-valid-syntax-info
+    (get-property view-node :resource-node evaluation-context)
+    (get-property view-node :canvas-repaint-info evaluation-context)
+    (transduce (map #(inc (.-row (data/cursor-range-end %)))) max 1 cursor-ranges)))
 
 (defn- syntax-scope-before-cursor [view-node ^Cursor cursor evaluation-context]
   (if-let [syntax-info (coll/not-empty
@@ -2433,7 +2436,7 @@
         (data/delete (get-property view-node :lines evaluation-context)
                      (get-property view-node :grammar evaluation-context)
                      (prefs/get prefs [:code :auto-closing-parens])
-                     (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
+                     (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
                      cursor-ranges
                      (get-property view-node :regions evaluation-context)
                      (get-property view-node :layout evaluation-context)
@@ -2578,7 +2581,10 @@
                                 (get-property view-node :cursor-ranges evaluation-context)
                                 (get-property view-node :regions evaluation-context)
                                 (get-property view-node :layout evaluation-context)
-                                (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
+                                (get-cursor-ranges-syntax-info
+                                  view-node
+                                  (get-property view-node :cursor-ranges evaluation-context)
+                                  evaluation-context)
                                 typed)))
         (hide-hover! view-node)
         (if (and show-suggestions (implies-completions? view-node))
