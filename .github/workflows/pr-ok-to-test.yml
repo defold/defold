@@ -64,8 +64,8 @@ jobs:
         run: |
           base="${BASE_REF}"
           case "${base}" in
-            dev|beta|master) ;;
-            *) echo "::error::Only pull requests against dev, beta or master can be built (base is '${base}')"; exit 1 ;;
+            dev) ;;
+            *) echo "::error::Only pull requests against dev can be built"; exit 1 ;;
           esac
 
       - name: 'Checkout the base branch'
@@ -115,16 +115,24 @@ jobs:
       - name: 'Find the dispatched run'
         id: run
         # repository_dispatch returns 204 with no run id, so look for the run it started.
-        # Best effort: the comment falls back to the workflow page if it is not found in time.
+        # A run carries no reference to the dispatch that asked for it, so only a single
+        # candidate is accepted: if another pull request was labelled in the same window
+        # there is nothing to tell the two runs apart, and picking one would link the
+        # wrong build. Best effort either way - the comment falls back to the workflow page.
         run: |
           since='${{ steps.dispatch.outputs.since }}'
           url="https://github.com/${GH_REPO}/actions/workflows/main-ci.yml"
           for _ in $(seq 1 12); do
             sleep 5
             found=$(gh api "repos/${GH_REPO}/actions/runs?event=repository_dispatch&per_page=20" \
-                      --jq "[.workflow_runs[] | select(.name == \"CI - Main\") | select(.created_at >= \"${since}\")] | sort_by(.created_at) | last | .html_url" 2>/dev/null || true)
-            if [ -n "${found}" ] && [ "${found}" != "null" ]; then
+                      --jq "[.workflow_runs[] | select(.name == \"CI - Main\") | select(.created_at >= \"${since}\")] | .[].html_url" 2>/dev/null || true)
+            count=$(printf '%s\n' "${found}" | grep -c . || true)
+            if [ "${count}" -eq 1 ]; then
               url="${found}"
+              break
+            fi
+            if [ "${count}" -gt 1 ]; then
+              echo "::warning::${count} dispatched runs started in this window, linking the workflow rather than guessing"
               break
             fi
           done
@@ -149,7 +157,10 @@ jobs:
           gh pr comment "${PR_NUMBER}" --body-file comment.md
 
       - name: 'Withdraw the label if mirroring failed'
-        if: failure()
+        # Only while the build has not been asked for yet. After the dispatch main-ci is
+        # already cloning the branch, and deleting it would break a run that is under way -
+        # a failure in the steps after the dispatch costs a comment, not a build.
+        if: failure() && steps.dispatch.outcome != 'success'
         run: |
           gh pr edit "${PR_NUMBER}" --remove-label "${OK_TO_TEST_LABEL}" || true
           gh api -X DELETE "repos/${GH_REPO}/git/refs/heads/${MIRROR_BRANCH}" || true
@@ -168,8 +179,11 @@ jobs:
         # The label approves one reviewed commit, not the pull request. Anything pushed
         # after it has not been reviewed and must not run in a trusted context.
         run: |
-          gh pr edit "${PR_NUMBER}" --remove-label "${OK_TO_TEST_LABEL}"
+          # The branch goes first, and the label removal cannot stop it: the label may
+          # already have been withdrawn by the mirror job, and under 'bash -e' a failing
+          # 'gh pr edit' would abort the step before the branch was deleted.
           gh api -X DELETE "repos/${GH_REPO}/git/refs/heads/${MIRROR_BRANCH}" || true
+          gh pr edit "${PR_NUMBER}" --remove-label "${OK_TO_TEST_LABEL}" || true
           gh pr comment "${PR_NUMBER}" --body "New commits were pushed, so the \`${OK_TO_TEST_LABEL}\` label has been removed and \`${MIRROR_BRANCH}\` deleted. A maintainer needs to review the new commits and apply the label again to build them."
 
   # ---- CLEAN UP WHEN THE PULL REQUEST IS CLOSED ------------------

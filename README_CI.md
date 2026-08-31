@@ -71,7 +71,7 @@ the credentials:
 | S3 (`S3_ACCESS_KEY`, `S3_SECRET_KEY`) | yes | **no** |
 | Private repos (`SERVICES_GITHUB_TOKEN`, `DM_RELEASE_REPOSITORY`) | yes | **no** |
 | `DM_PACKAGES_URL`, `DM_ARCHIVE_DOMAIN` | yes | yes |
-| Actions cache (`actions/cache`, `setup-java`) | yes | **no cache steps at all** |
+| Actions cache (`actions/cache`, `setup-java`, `get-cmake`) | yes | **no cache steps at all** |
 | Console platforms (Switch, PlayStation, Xbox) | yes | **no** |
 | Release notes, release, API ref publish | yes | **no** |
 | Slack alarms (`SLACK_WEBHOOK`) | on `dev`/`beta`/`master` | **no**, and the webhook is withheld |
@@ -91,6 +91,10 @@ the Maven and Gradle caches all hold code that later builds execute, and the dow
 caches do not verify a checksum on a hit, a poisoned entry would run in a job that does
 hold the signing keys. So contrib runs get no cache steps, and pay a cold build instead.
 
+An action that caches on its own counts as a cache step: `lukka/get-cmake` is passed
+`useCloudCache: false`, and the shared `defold/github-actions-common` Android action, which
+keeps the SDK and NDK tree in the Actions cache, is passed `cache: false`.
+
 Because there is no S3, a contrib build hands its output between jobs as artifacts instead:
 the engine jobs upload `$DYNAMO_HOME` (`dynamo-home-<platform>`), `build-bob` restores them
 and builds with `--skip-archive`, and the editor jobs build with
@@ -105,24 +109,3 @@ but they still have to be reviewed before merging - the mirror job lists them in
 
 A pull request that changes CI itself is best built by a maintainer from a branch in this
 repository instead.
-
-### Repository settings this relies on
-
-* Default `GITHUB_TOKEN` permissions: **read**.
-* *Allow GitHub Actions to create and approve pull requests*: **off**. Otherwise contributor
-  code could open a pull request, approve it as the Actions bot and merge it.
-* Fork pull request workflow approval: **require approval for all external contributors**.
-
-### Known residual risk
-
-`ACTIONS_RUNTIME_TOKEN` is issued per run and is readable from the runner process by
-anything running as the same user, so code in a contrib job can call the cache API directly
-even though the workflow provisions no cache steps. That token is scoped by `GITHUB_REF`,
-which is `refs/heads/dev` for a `repository_dispatch`, so writing into the default branch's
-cache scope remains *possible* - it is merely no longer something the workflow does by
-accident. Closing it properly needs a separate scope: build mirrored pull requests in a
-sandbox repository, or verify a pinned checksum after every download-cache hit
-(`build_tools/http_cache.py` has an unused `_validate_file()`, `editor/tasks/leiningen/util/http_cache.clj`
-has no validation, `editor/tasks/leiningen/sass.clj` passes `validate-cached false`, and
-`editor/scripts/lein` still carries a `# TODO: checksum`). Both are worth doing; neither is
-part of this change.

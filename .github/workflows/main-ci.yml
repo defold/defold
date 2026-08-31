@@ -68,8 +68,8 @@ jobs:
   #
   #   &if_bob_enabled &should_release
   #   &step_checkout &step_cache_dcache &step_cache_lein &step_python &step_java
-  #   &step_download_bob &step_download_dynamo_home &step_remove_bob_maven
-  #   &step_stop_gradle &step_notify
+  #   &step_download_bob &step_download_dynamo_home &step_chmod_dynamo_home
+  #   &step_remove_bob_maven &step_stop_gradle &step_notify
   #
   # Each is defined at its first use; grep for '&<name>' to find it.
 
@@ -240,6 +240,11 @@ jobs:
             com.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties
       - name: 'Install CMake'
         uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb  # v4.3.4
+        with:
+          # This action stores its CMake and Ninja download in the Actions cache by
+          # default, under a key derived from the versions alone. A contrib build must
+          # not write there - see the cache steps above.
+          useCloudCache: ${{ github.event.action != 'contrib-build' }}
       - name: 'Set up Google Cloud SDK'
         if: matrix.gcloud
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db  # v3.0.1
@@ -260,11 +265,14 @@ jobs:
           version: "13.0"
       - name: 'Set up Android SDK'
         if: matrix.android
-        uses: defold/github-actions-common/.github/actions/android@8f32dd1cabf08f349200dd0135d07afc233fc322  # untagged pinned SHA
+        uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7  # untagged pinned SHA
         with:
           android-ndk: '25.2.9519653'
           android-api-level: '${{ env.ANDROID_API_LEVEL }}'
           android-build-tools: '36.1.0'
+          # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
+          # must not write there - see the cache steps above.
+          cache: ${{ github.event.action != 'contrib-build' }}
       - name: 'Setup dotnet'
         if: matrix.dotnet
         id: setup_dotnet
@@ -468,6 +476,14 @@ jobs:
           pattern: 'dynamo-home-*'
           merge-multiple: true
           path: 'tmp/dynamo_home'
+      - &step_chmod_dynamo_home
+        name: 'Restore the executable bit on the engine binaries'
+        # actions/upload-artifact does not preserve file permissions, so the binaries come
+        # back unexecutable. bob copies them into libexec/ and the editor packs them into
+        # its bundle, where they have to be runnable.
+        if: github.event.action == 'contrib-build'
+        shell: bash
+        run: 'chmod -R +x tmp/dynamo_home/bin'
       - name: 'Build bob'
         run: 'ci/ci.sh --skip-tests ${{ env.OPTION_SKIP_ARCHIVE }} bob'
       - name: 'Upload bob jar'
@@ -648,6 +664,7 @@ jobs:
         with:
           name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
           path: 'tmp/dynamo_home'
+      - *step_chmod_dynamo_home
       - name: 'Download docs and builtins'
         if: github.event.action == 'contrib-build' && runner.os != 'Linux'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
@@ -683,8 +700,10 @@ jobs:
   test-editor-linux:
     needs: [build-bob, build-sdk]
     runs-on: ubuntu-22.04
-    # build-sdk is skipped for a contrib build, which would skip this job as well.
-    if: ${{ !cancelled() && needs.build-bob.result == 'success' && needs.build-sdk.result != 'failure' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
+    # build-sdk is skipped for a contrib build, which would skip this job as well. Every
+    # other reason for build-sdk not succeeding - including a skip_sdk dispatch - still
+    # skips this job, as it did before.
+    if: ${{ !cancelled() && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || github.event.action == 'contrib-build') && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
     timeout-minutes: 60
     steps:
       - *step_checkout
@@ -696,6 +715,7 @@ jobs:
       - name: 'Install dependencies'
         run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
       - *step_download_dynamo_home
+      - *step_chmod_dynamo_home
       - name: 'Test editor'
         run: 'ci/ci.sh test-editor --platform=x86_64-linux ${{ env.OPTION_EDITOR_LOCAL }}'
       - *step_remove_bob_maven
