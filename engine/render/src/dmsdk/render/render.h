@@ -709,6 +709,19 @@ namespace dmRender
      * @return is_succeed [type:bool]
      */
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+
+    /*#
+     * @name SetMaterialSampler
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @param unit [type:uint32_t]
+     * @param u_wrap [type:dmGraphics::TextureWrap]
+     * @param v_wrap [type:dmGraphics::TextureWrap]
+     * @param min_filter [type:dmGraphics::TextureFilter]
+     * @param mag_filter [type:dmGraphics::TextureFilter]
+     * @param max_anisotropy [type:float]
+     * @return is_succeed [type:bool]
+     */
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
 
     /*#
