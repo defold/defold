@@ -75,155 +75,63 @@ jobs:
   # Each is defined at its first use; grep for '&<name>' to find it.
 
   # ---- BUILD ENGINE VERSIONS ------------------
-  bld-eng-windows:
+  bld-eng:
+    # One job for every engine platform. A row is a platform: its runner, its timeout, the
+    # extra ci.sh flags it needs, and flags selecting the toolchains to install. The check
+    # names are pinned to the ones the separate bld-eng-* jobs produced, so branch
+    # protection keeps working.
+    #
+    # fail-fast is off. Previously each platform group was its own matrix, so a failure
+    # cancelled the siblings in that group only; with one matrix, fail-fast would cancel
+    # every platform instead. Letting them all finish reports every platform on a bad
+    # commit at the cost of the minutes a cancel would have saved.
+    name: '${{ matrix.name }}'
     strategy:
+      fail-fast: false
       matrix:
-        platform: [win32, x86_64-win32]
-
-    runs-on: windows-2025-vs2026
-    if: &if_engine_build github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    timeout-minutes: 30
+        include:
+          - { name: 'bld-eng-windows (win32)',              platform: win32,            runner: windows-2025-vs2026, timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, gcloud: true, codesign: true }
+          - { name: 'bld-eng-windows (x86_64-win32)',       platform: x86_64-win32,     runner: windows-2025-vs2026, timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, gcloud: true, codesign: true }
+          - { name: 'bld-eng-darwin (x86_64-macos)',        platform: x86_64-macos,     runner: macos-26,            timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, codesign: true }
+          - { name: 'bld-eng-darwin (arm64-macos)',         platform: arm64-macos,      runner: macos-26,            timeout: 30, engine_args: '--skip-builtins --skip-docs', dotnet: true, codesign: true }
+          - { name: 'bld-eng-darwin (arm64-ios, true)',     platform: arm64-ios,        runner: macos-26,            timeout: 30, engine_args: '--skip-tests --skip-builtins --skip-docs', dotnet: true, codesign: true }
+          - { name: 'bld-eng-darwin (x86_64-ios, true)',    platform: x86_64-ios,       runner: macos-26,            timeout: 30, engine_args: '--skip-tests --skip-builtins --skip-docs', dotnet: true, codesign: true }
+          - { name: 'bld-eng-web (wasm-web)',               platform: wasm-web,         runner: ubuntu-22.04,        timeout: 45, engine_args: '--skip-builtins --skip-docs --skip-tests', emsdk: true }
+          - { name: 'bld-eng-web (wasm_pthread-web)',       platform: wasm_pthread-web, runner: ubuntu-22.04,        timeout: 45, engine_args: '--skip-builtins --skip-docs --skip-tests', emsdk: true }
+          - { name: 'bld-eng-android (armv7-android, true)', platform: armv7-android,   runner: ubuntu-latest,       timeout: 60, engine_args: '--skip-tests --skip-builtins --skip-docs', android: true }
+          - { name: 'bld-eng-android (arm64-android, true)', platform: arm64-android,   runner: ubuntu-latest,       timeout: 60, engine_args: '--skip-tests --skip-builtins --skip-docs', android: true }
+          # Without emulator the unit tests would be skipped; x86_64 runs them on a
+          # hardware accelerated emulator, see 'Build engine and run tests on emulator'.
+          - { name: 'bld-eng-android (x86_64-android)',     platform: x86_64-android,   runner: ubuntu-latest,       timeout: 60, engine_args: '--skip-builtins --skip-docs', android: true, emulator: true }
+          # x86_64-linux is the only engine build that runs without --skip-docs and
+          # --skip-builtins, so it is the only source of ref-doc.zip and builtins.zip.
+          - { name: 'bld-eng-linux-x64 (x86_64-linux)',     platform: x86_64-linux,     runner: ubuntu-22.04,        timeout: 30, engine_args: '', dotnet: true, docs: true }
+          - { name: 'bld-eng-linux-arm64 (arm64-linux)',    platform: arm64-linux,      runner: ubuntu-22.04-arm,    timeout: 30, engine_args: '--verbose' }
+    runs-on: ${{ matrix.runner }}
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
+    timeout-minutes: ${{ matrix.timeout }}
+    # The Windows steps all declared shell: bash already.
+    defaults:
+      run:
+        shell: bash
     steps: [
       &step_checkout { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       &step_cache_dcache { name: 'Cache Defold downloads', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies for docs', if: matrix.docs && github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-\n${{ runner.os }}-lein-maven-docs-\n${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-docs-\n${{ runner.os }}-lein-docs-" } }, # v5.0.5
       &step_python { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'XCode', if: runner.os == 'macOS', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       &step_java { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: "${{ github.event.action == 'contrib-build' && '' || 'gradle' }}", cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      &step_cmake { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
-      &step_dotnet {
-        name: 'Setup dotnet',
-        id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
-        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
-      },
-      &step_pin_dotnet {
-        name: 'Pin dotnet SDK',
-        shell: bash,
-        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
-      },
-      {
-        name: 'Install dependencies',
-        shell: bash,
-        run: 'ci/ci.sh install --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Build engine',
-        shell: bash,
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
-      },
-      &step_upload_dynamo_home {
-        name: 'Upload engine build for the jobs downstream',
-        # A contrib build has no S3 credentials, so bob and the editor pick the engine
-        # up from here instead of from the archive. See pr-ok-to-test.yml.
-        if: github.event.action == 'contrib-build',
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
-        with: {
-          name: 'dynamo-home-${{ matrix.platform }}',
-          path: "tmp/dynamo_home/bin\ntmp/dynamo_home/lib\ntmp/dynamo_home/share",
-          if-no-files-found: 'error',
-          retention-days: 1
-        }
-      },
-      {
-        name: 'Stop Gradle Daemon',
-        run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop'
-      },
-      &step_notify {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
-        with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-    ]
-
-  bld-eng-darwin:
-    strategy:
-      matrix:
-        include:
-          - platform: x86_64-macos
-          - platform: arm64-macos
-          - platform: arm64-ios
-            skip_tests: true
-          - platform: x86_64-ios
-            skip_tests: true
-    runs-on: macos-26
-    if: *if_engine_build
-    timeout-minutes: 30
-    steps: [
-      *step_checkout,
-      *step_cache_dcache,
-      *step_python,
-      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
-      *step_java,
-      *step_cmake,
-      *step_dotnet,
-      *step_pin_dotnet,
-      {
-        name: 'Install dependencies',
-        run: 'ci/ci.sh install --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}"'
-      },
-      {
-        name: 'Build engine',
-        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${extra_tests} --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }}'
-      },
-      *step_upload_dynamo_home,
-      {
-        name: 'Stop Gradle Daemon',
-        run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop'
-      },
-      *step_notify
-    ]
-
-  bld-eng-web:
-    strategy:
-      matrix:
-        platform: [wasm-web, wasm_pthread-web]
-    runs-on: ubuntu-22.04
-    if: *if_engine_build
-    timeout-minutes: 45
-    steps: [
-      *step_checkout,
-      *step_cache_dcache,
-      *step_python,
-      *step_java,
-      *step_cmake,
-      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984, with: {version: '4.0.6'}}, # v16
+      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
+      { name: 'Set up Google Cloud SDK', if: matrix.gcloud, uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
+      { name: 'Setup emsdk', if: matrix.emsdk, uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984, with: {version: '4.0.6'}}, # v16
       { name: 'Verify emsdk',
+        if: matrix.emsdk,
         run: 'emcc -v && export | grep EM'
       },
-      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0, with: {version: "13.0"}}, # v2.0.9
-      &step_install_deps { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      {
-        name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --skip-builtins --skip-docs --skip-tests'
-      },
-      *step_upload_dynamo_home,
-      &step_stop_gradle { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
-      *step_notify
-    ]
-
-  bld-eng-android:
-    strategy:
-      matrix:
-        include:
-          - platform: armv7-android
-            skip_tests: true
-          - platform: arm64-android
-            skip_tests: true
-          # Without skip_tests the unit tests run on a hardware accelerated emulator, see below
-          - platform: x86_64-android
-    runs-on: ubuntu-latest
-    if: *if_engine_build
-    timeout-minutes: 60
-    steps: [
-      *step_checkout,
-      *step_cache_dcache,
-      *step_python,
-      *step_java,
-      *step_cmake,
+      { name: 'Install LLVM and Clang', if: matrix.emsdk, uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0, with: {version: "13.0"}}, # v2.0.9
       {
         name: 'Set up Android SDK',
+        if: matrix.android,
         uses: defold/github-actions-common/.github/actions/android@8f32dd1cabf08f349200dd0135d07afc233fc322, # untagged pinned SHA
         with: {
           android-ndk: '25.2.9519653',
@@ -231,21 +139,44 @@ jobs:
           android-build-tools: '36.1.0'
         }
       },
-      *step_install_deps,
+      {
+        name: 'Setup dotnet',
+        if: matrix.dotnet,
+        id: setup_dotnet,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
+        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
+      },
+      {
+        name: 'Pin dotnet SDK',
+        if: matrix.dotnet,
+        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
+      },
+      {
+        # macOS installs the signing certificate into the keychain instead of passing a platform.
+        name: 'Install dependencies',
+        if: runner.os == 'macOS',
+        run: 'ci/ci.sh install --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}"'
+      },
+      { name: 'Install dependencies', if: runner.os != 'macOS', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Enable KVM',
-        if: "!matrix.skip_tests",
+        if: matrix.emulator,
         run: "echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules\nsudo udevadm control --reload-rules\nsudo udevadm trigger --name-match=kvm"
       },
       {
         name: 'Cache Android AVD',
-        if: "!matrix.skip_tests && github.event.action != 'contrib-build'",
+        if: "matrix.emulator && github.event.action != 'contrib-build'",
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, # v5.0.5
         with: { path: "~/.android/avd/*\n~/.android/adb*", key: "${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64" }
       },
       {
+        name: 'Install pinned Lua language server for docs validation',
+        if: matrix.docs,
+        run: 'python engine/docs/build_docs.py install-lua-language-server --project-clj editor/project.clj --platform ${{ matrix.platform }} --output-dir "$RUNNER_TEMP/defold-lua-language-server" --github-env "$GITHUB_ENV"'
+      },
+      {
         name: 'Build engine and run tests on emulator',
-        if: "!matrix.skip_tests",
+        if: matrix.emulator,
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d, # v2.38.0
         with: {
           api-level: '${{ env.ANDROID_API_LEVEL }}',
@@ -262,46 +193,28 @@ jobs:
         }
       },
       {
+        # matrix.engine_args carries the per-platform flags; codesign and the gcloud key
+        # come from env, which a matrix cannot reference, so they are appended here.
         name: 'Build engine',
-        if: matrix.skip_tests,
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --skip-tests --skip-builtins --skip-docs'
-      },
-      *step_upload_dynamo_home,
-      *step_stop_gradle,
-      *step_notify
-    ]
-
-  bld-eng-linux-x64:
-    strategy:
-      matrix:
-        platform: [x86_64-linux]
-    runs-on: ubuntu-22.04
-    if: *if_engine_build
-    timeout-minutes: 30
-    steps: [
-      *step_checkout,
-      *step_cache_dcache,
-      { name: 'Cache lein installation and Maven dependencies for docs', if: github.event.action != 'contrib-build', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-\n${{ runner.os }}-lein-maven-docs-\n${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-docs-\n${{ runner.os }}-lein-docs-" } }, # v5.0.5
-      *step_python,
-      *step_java,
-      *step_cmake,
-      *step_dotnet,
-      *step_pin_dotnet,
-      *step_install_deps,
-      {
-        name: 'Install pinned Lua language server for docs validation',
-        run: 'python engine/docs/build_docs.py install-lua-language-server --project-clj editor/project.clj --platform ${{ matrix.platform }} --output-dir "$RUNNER_TEMP/defold-lua-language-server" --github-env "$GITHUB_ENV"'
+        if: "!matrix.emulator",
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
       },
       {
-        name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }}'
+        name: 'Upload engine build for the jobs downstream',
+        # A contrib build has no S3 credentials, so bob and the editor pick the engine
+        # up from here instead of from the archive. See pr-ok-to-test.yml.
+        if: github.event.action == 'contrib-build',
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
+        with: {
+          name: 'dynamo-home-${{ matrix.platform }}',
+          path: "tmp/dynamo_home/bin\ntmp/dynamo_home/lib\ntmp/dynamo_home/share",
+          if-no-files-found: 'error',
+          retention-days: 1
+        }
       },
-      *step_upload_dynamo_home,
       {
         name: 'Upload docs and builtins for the editor jobs',
-        # x86_64-linux is the only engine build that runs without --skip-docs and
-        # --skip-builtins, so it is the only source of ref-doc.zip and builtins.zip.
-        if: github.event.action == 'contrib-build',
+        if: matrix.docs && github.event.action == 'contrib-build',
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
         with: {
           name: 'engine-share',
@@ -310,32 +223,22 @@ jobs:
           retention-days: 1
         }
       },
-      *step_stop_gradle,
-      *step_notify
+      {
+        name: 'Stop Gradle Daemon',
+        if: runner.os == 'Windows',
+        shell: pwsh,
+        run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop'
+      },
+      { name: 'Stop Gradle Daemon', if: runner.os != 'Windows', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
+      &step_notify {
+        name: 'Notify if build status changed',
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
+        if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))",
+        with: { webhook: '${{ env.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
+      }
     ]
 
-  bld-eng-linux-arm64:
-    strategy:
-      matrix:
-        platform: [arm64-linux]
-    runs-on: ubuntu-22.04-arm
-    if: *if_engine_build
-    timeout-minutes: 30
-    steps: [
-      *step_checkout,
-      *step_cache_dcache,
-      *step_python,
-      *step_java,
-      *step_cmake,
-      *step_install_deps,
-      {
-        name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --verbose'
-      },
-      *step_upload_dynamo_home,
-      *step_stop_gradle,
-      *step_notify
-    ]
 
   bld-eng-private:
     # One job for the three private console platforms. They differ only in the private
@@ -409,7 +312,7 @@ jobs:
   # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web]
+    needs: [bld-eng]
     runs-on: ubuntu-22.04
     if: &if_bob_enabled (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
@@ -443,7 +346,7 @@ jobs:
           retention-days: 2
         }
       },
-      *step_stop_gradle,
+      &step_stop_gradle { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       *step_notify
     ]
 
@@ -484,7 +387,7 @@ jobs:
     ]
 
   build-sdk:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web]
+    needs: [bld-eng]
     runs-on: ubuntu-22.04
     # The SDK is merged from the per-platform SDK archives on S3. A contrib build never
     # writes them, so there is nothing to merge.
