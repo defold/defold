@@ -373,18 +373,19 @@
 
 ;;; loading node
 
-(defn- connect-game-project [project self _resource]
+(defn- connect-game-project [project self resource]
   ;; Make sure the game.project node is properly connected before executing any
   ;; load-fns, since establishing these connections will invalidate any
   ;; dependent outputs in the cache.
-  (let [script-intelligence (g/node-value project :script-intelligence)]
-    (e/concat
-      (g/connect script-intelligence :build-errors self :build-errors)
-      (g/connect self :display-profiles-data project :display-profiles)
-      (g/connect self :texture-profiles-data project :texture-profiles)
-      (g/connect self :use-font-layout project :use-font-layout)
-      (g/connect self :use-rich-text project :use-rich-text)
-      (g/connect self :settings-map project :settings))))
+  (when (= "/game.project" (resource/proj-path resource)) ; There might be other `.project` files. We only want `/game.project` here.
+    (let [script-intelligence (g/node-value project :script-intelligence)]
+      (e/concat
+        (g/connect script-intelligence :build-errors self :build-errors)
+        (g/connect self :display-profiles-data project :display-profiles)
+        (g/connect self :texture-profiles-data project :texture-profiles)
+        (g/connect self :use-font-layout project :use-font-layout)
+        (g/connect self :use-rich-text project :use-rich-text)
+        (g/connect self :settings-map project :settings)))))
 
 (defn- load-game-project [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)
