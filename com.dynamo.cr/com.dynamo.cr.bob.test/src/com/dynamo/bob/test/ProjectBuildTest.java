@@ -581,9 +581,26 @@ public class ProjectBuildTest {
 
         BobProjectProperties outputProperties = new BobProjectProperties();
         outputProperties.load(new FileInputStream(new File(contentRoot, "build/game.projectc")));
+        String serializedCustomResourcesValue = outputProperties.getStringValue("project", "custom_resources");
         String[] serializedCustomResources = outputProperties.getStringArrayValue("project", "custom_resources", new String[0]);
+        assertEquals(3, serializedCustomResourcesValue.split(", ", -1).length);
         assertEquals(new HashSet<>(Arrays.asList("/project_resource.txt", "/extension1_resource.txt", "/extension2_resource.txt")),
                      new HashSet<>(Arrays.asList(serializedCustomResources)));
+    }
+
+    @Test
+    public void testArchiveBuildPreservesCustomResourcePathSpelling() throws IOException, CompileExceptionError, MultipleCompileException, ParseException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources = foo/../assets/\n");
+        createFile(contentRoot, "assets/resource.txt", "resource");
+
+        buildArchive(false);
+
+        assertTrue(new File(contentRoot, "build/assets/resource.txt").isFile());
+
+        BobProjectProperties outputProperties = new BobProjectProperties();
+        outputProperties.load(new FileInputStream(new File(contentRoot, "build/game.projectc")));
+        assertEquals("foo/../assets/", outputProperties.getStringValue("project", "custom_resources"));
     }
 
     @Test

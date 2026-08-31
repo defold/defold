@@ -167,22 +167,30 @@
 (defn- file-resource? [resource]
   (= (resource/source-type resource) :file))
 
-(defn- parse-custom-resource-paths [custom-resources-setting]
+(defn- parse-custom-resource-setting [custom-resources-setting]
   (into []
         (comp
           (map string/trim)
-          (remove string/blank?)
-          (map #(FilenameUtils/normalize % true))
-          (map (comp strip-trailing-slash fs/with-leading-slash)))
+          (remove string/blank?))
         (string/split (or custom-resources-setting "") #",")))
 
-(defn- merge-custom-resource-path-settings [settings]
-  (->> settings
-       (into []
-             (comp
-               (mapcat parse-custom-resource-paths)
-               (distinct)))
-       (coll/join-to-string ", ")))
+(defn- parse-custom-resource-paths [custom-resources-setting]
+  (into []
+        (comp
+          (map #(FilenameUtils/normalize % true))
+          (map (comp strip-trailing-slash fs/with-leading-slash))
+          (distinct))
+        (parse-custom-resource-setting custom-resources-setting)))
+
+(defn- merge-custom-resource-settings [default-settings project-setting]
+  (let [default-values (into [] (mapcat parse-custom-resource-setting) default-settings)
+        project-values (parse-custom-resource-setting project-setting)
+        merged-values (->> project-values
+                           (into default-values)
+                           (into [] (distinct)))]
+    (if (= project-values merged-values)
+      project-setting
+      (coll/join-to-string ", " merged-values))))
 
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
@@ -282,14 +290,13 @@
 
   (output custom-resources-setting g/Any :cached
           (g/fnk [meta-info raw-settings]
-            (merge-custom-resource-path-settings
-              (conj
-                (settings-core/get-default-setting-values
-                  (:settings meta-info)
-                  ["project" "custom_resources"])
-                (settings-core/get-setting
-                  raw-settings
-                  ["project" "custom_resources"])))))
+            (merge-custom-resource-settings
+              (settings-core/get-default-setting-values
+                (:settings meta-info)
+                ["project" "custom_resources"])
+              (settings-core/get-setting
+                raw-settings
+                ["project" "custom_resources"]))))
 
   (output ssl-certificates-resource resource/Resource
           (g/fnk [_node-id settings-map]
