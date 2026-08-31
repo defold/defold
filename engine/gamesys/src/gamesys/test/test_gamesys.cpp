@@ -3436,6 +3436,101 @@ static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJ
     return state->m_CallbackCount >= callback_count;
 }
 
+static int32_t ProcessBlockingFontJob(HJobContext job_context, HJob job, void* user_context, void* user_data)
+{
+    (void)job_context;
+    (void)job;
+    int32_atomic_t* started = (int32_atomic_t*)user_context;
+    int32_atomic_t* allow_finish = (int32_atomic_t*)user_data;
+    dmAtomicStore32(started, 1);
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (!dmAtomicGet32(allow_finish) && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    return 1;
+}
+
+// A completed prewarm request must not use callback/self references from a new
+// script instance that reused the destroyed instance's Lua context-table slot.
+TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font));
+    ASSERT_NE((void*)0, font);
+
+    // Occupy the only worker thread so both prewarm requests remain pending
+    // until the two script instances have been created and destroyed/reused.
+    int32_t blocker_started = 0;
+    int32_t blocker_allow_finish = 0;
+    Job blocker = {};
+    blocker.m_Process = ProcessBlockingFontJob;
+    blocker.m_Context = &blocker_started;
+    blocker.m_Data = &blocker_allow_finish;
+
+    HJob blocker_job = JobSystemCreateJob(m_JobContext, &blocker);
+    ASSERT_NE((HJob)0, blocker_job);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobContext, blocker_job));
+
+    uint64_t blocker_stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (!dmAtomicGet32(&blocker_started) && dmTime::GetMonotonicTime() < blocker_stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    ASSERT_EQ(1, dmAtomicGet32(&blocker_started));
+
+    // The first instance starts a prewarm request. Its Lua callback remembers
+    // this instance's context-table reference plus callback/self indices.
+    dmGameObject::HInstance first = Spawn(m_Factory, m_Collection, "/font/prewarm_callback_instance_reuse.goc", dmHashString64("/first"), 0,
+                                          Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, first);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Destroy the first instance before its prewarm job completes. The Lua
+    // registry can now reuse its released context-table reference.
+    dmGameObject::Delete(m_Collection, first, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // The replacement instance deterministically reuses that registry slot and
+    // creates another callback with the same table-local callback/self indices.
+    // SetupCallback() alone cannot distinguish the old and new instances.
+    dmGameObject::HInstance replacement = Spawn(m_Factory, m_Collection, "/font/prewarm_callback_instance_reuse.goc", dmHashString64("/replacement"), 0,
+                                                Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, replacement);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Let the blocker and both font jobs finish, then dispatch their callbacks
+    // on this thread through JobSystemUpdate().
+    dmAtomicStore32(&blocker_allow_finish, 1);
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (!font->m_PendingJobs.Empty() && dmTime::GetMonotonicTime() < stop_time)
+    {
+        JobSystemUpdate(m_JobContext, 0);
+        dmTime::Sleep(1000);
+    }
+
+    // IsCallbackValid() must reject the stale callback by unique script id.
+    // Without that check, the first completion resolves through the replacement
+    // context table and invokes its callback, making this count two instead of one.
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+
+    lua_getglobal(L, "prewarm_stale_callback_count");
+    ASSERT_EQ(0, lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "prewarm_replacement_callback_count");
+    ASSERT_EQ(1, lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    dmResource::Release(m_Factory, font);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Reloading a dynamic font with pending work must cancel the old jobs and
 // suppress callbacks after the old font state has been torn down.
 TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobs)

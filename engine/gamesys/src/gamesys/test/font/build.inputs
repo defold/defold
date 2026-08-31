@@ -2,4 +2,5 @@
 /font/glyph_bank_test_1.font
 /font/glyph_bank_test_2.font
 /font/invalid_material.font
+/font/prewarm_callback_instance_reuse.go
 /font/valid_font.font
