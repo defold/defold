@@ -1503,10 +1503,6 @@
     ;; Suggest fetching libraries if dependencies changed externally.
     (update-fetch-libraries-notification! project)))
 
-(g/defnk produce-collision-groups-data
-  [collision-group-nodes]
-  (collision-groups/make-collision-groups-data collision-group-nodes))
-
 (defn parse-filter-param
   [_node-id ^String s]
   (cond
@@ -1569,7 +1565,7 @@
   (input texture-profiles g/Any)
   (input use-font-layout g/Bool)
   (input use-rich-text g/Bool)
-  (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
+  (input collision-groups g/Str :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input dependencies g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
@@ -1621,9 +1617,13 @@
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output dependencies g/Any (gu/passthrough dependencies))
   (output nil-resource resource/Resource (g/constantly nil))
-  (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
   (output default-sampler-filter-modes g/Any :cached produce-default-sampler-filter-modes)
+  (output build-errors g/Any :cached
+          (g/fnk [_node-id collision-groups]
+            (g/package-errors
+              _node-id
+              (collision-groups/validate collision-groups))))
   (output build-settings g/Any (gu/passthrough build-settings))
   (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints)))
   (output meta-infos g/Any :cached
