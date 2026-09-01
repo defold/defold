@@ -2353,7 +2353,23 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < stream_count; ++i)
         {
-            const VertexStream& stream = stream_declaration->m_Streams[i];
+            VertexStream& stream = stream_declaration->m_Streams[i];
+
+            // Keep this aligned with the Vulkan macOS path. Both APIs can
+            // represent these formats natively, but enabling them should be a
+            // coordinated cross-backend behavior change.
+            // TODO: Support non-normalized unsigned byte/short vertex
+            // attributes consistently in Metal and Vulkan.
+            if (stream.m_Type == TYPE_UNSIGNED_BYTE && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_BYTE.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_BYTE;
+            }
+            else if (stream.m_Type == TYPE_UNSIGNED_SHORT && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_SHORT.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_SHORT;
+            }
 
             vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
             vd->m_Streams[i].m_Type      = stream.m_Type;
@@ -4123,7 +4139,7 @@ namespace dmGraphics
         }
         if (hints & TEXTURE_USAGE_FLAG_STORAGE)
         {
-            usage |= MTL::TextureUsageShaderWrite;
+            usage |= MTL::TextureUsageShaderRead | MTL::TextureUsageShaderWrite;
         }
         return usage;
     }
