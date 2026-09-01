@@ -520,6 +520,8 @@ namespace dmGraphics
 
         uint32_t                        m_WindowWidth;
         uint32_t                        m_WindowHeight;
+        float                           m_PolygonOffsetFactor;
+        float                           m_PolygonOffsetUnits;
 #if ANDROID
         void*                           m_AndroidVulkanWindow;
         uint32_t                        m_AndroidVulkanWindowWidth;
@@ -533,6 +535,7 @@ namespace dmGraphics
         uint32_t                        m_RenderTargetBound    : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
+        uint32_t                        m_PolygonOffsetChanged : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_ASTCSupport          : 1;
         // See OpenGL backend: separate flag for ASTC array textures
