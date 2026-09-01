@@ -825,13 +825,15 @@
                  :max-anisotropy 1.0
                  :name "albedo"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}
                 {:filter-mag :filter-mode-mag-linear
                  :filter-min :filter-mode-min-linear
                  :max-anisotropy 1.0
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}]
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}]
                (g/node-value legacy-textures-material :samplers))))
       (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
             legacy-attributes (g/node-value legacy-element-count-material :attributes)

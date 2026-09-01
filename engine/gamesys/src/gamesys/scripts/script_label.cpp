@@ -378,6 +378,21 @@ static const char* GetLayoutObjectTagName(dmhash_t tag)
     return tag == TAG_SPRITE ? "sprite" : "link";
 }
 
+/*# Rich-text layout object
+ *
+ * @struct
+ * @name label.layout_object
+ * @member type [type:string] object type, currently `link` or `sprite`
+ * @member id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @member text_offset [type:integer] zero-based UTF-32 offset in the visible text
+ * @member text_length [type:integer] visible UTF-32 text length covered by the object
+ * @member x [type:number] lower-left x-coordinate relative to the label's upper-left layout origin
+ * @member y [type:number] lower-left y-coordinate relative to the label's upper-left layout origin
+ * @member width [type:number] resolved object width
+ * @member height [type:number] resolved object height
+ * @member attributes [type:table<string, string>] markup attributes keyed by name
+ */
+
 /*# gets the markup objects for a label
  *
  * Returns the sprites and links found in the label's current layout.
@@ -390,7 +405,7 @@ static const char* GetLayoutObjectTagName(dmhash_t tag)
  *
  * @name label.get_layout_objects
  * @param url [type:string|hash|url] the label to inspect
- * @return objects [type:table] layout objects in source order
+ * @return objects [type:label.layout_object[]] layout objects in source order
  * @examples
  *
  * ```lua

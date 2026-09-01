@@ -155,6 +155,7 @@ namespace dmGameSystem
      * @member type [type:graphics.TEXTURE_TYPE] Sampler texture type.
      * @member u_wrap [type:graphics.TEXTURE_WRAP] Horizontal wrap mode.
      * @member v_wrap [type:graphics.TEXTURE_WRAP] Vertical wrap mode.
+     * @member w_wrap [type:graphics.TEXTURE_WRAP] Depth wrap mode.
      * @member min_filter [type:graphics.TEXTURE_FILTER] Minification filter.
      * @member mag_filter [type:graphics.TEXTURE_FILTER] Magnification filter.
      * @member max_anisotropy [type:number] Maximum anisotropy.
@@ -165,6 +166,7 @@ namespace dmGameSystem
      * @name material.sampler_options
      * @member u_wrap? [type:graphics.TEXTURE_WRAP] Horizontal wrap mode.
      * @member v_wrap? [type:graphics.TEXTURE_WRAP] Vertical wrap mode.
+     * @member w_wrap? [type:graphics.TEXTURE_WRAP] Depth wrap mode.
      * @member min_filter? [type:graphics.TEXTURE_FILTER] Minification filter.
      * @member mag_filter? [type:graphics.TEXTURE_FILTER] Magnification filter.
      * @member max_anisotropy? [type:number] Maximum anisotropy.
@@ -689,11 +691,11 @@ namespace dmGameSystem
         luaL_checktype(L, args_index, LUA_TTABLE);
         lua_pushvalue(L, args_index);
 
-        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
+        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_WWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
 
         lua_pop(L, 1);
 
-        dmRender::SetMaterialSampler(material_res->m_Material, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
+        dmRender::SetMaterialSampler(material_res->m_Material, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_WWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
 
         return 0;
     }

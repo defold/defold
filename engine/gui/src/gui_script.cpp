@@ -1759,6 +1759,21 @@ namespace dmGui
         return tag == TAG_SPRITE ? "sprite" : "link";
     }
 
+    /*# Rich-text layout object
+     *
+     * @struct
+     * @name gui.layout_object
+     * @member type [type:string] object type, currently `link` or `sprite`
+     * @member id [type:hash] the object's `id` attribute, or its generated layout object id
+     * @member text_offset [type:integer] zero-based UTF-32 offset in the visible text
+     * @member text_length [type:integer] visible UTF-32 text length covered by the object
+     * @member x [type:number] lower-left x-coordinate relative to the text node's upper-left layout origin
+     * @member y [type:number] lower-left y-coordinate relative to the text node's upper-left layout origin
+     * @member width [type:number] resolved object width
+     * @member height [type:number] resolved object height
+     * @member attributes [type:table<string, string>] markup attributes keyed by name
+     */
+
     /*# gets the markup objects for a text node
      * Returns the sprites and links found in the text node's current layout.
      * Each object's `x` and `y` identify its lower-left corner relative to the
@@ -1766,7 +1781,7 @@ namespace dmGui
      *
      * @name gui.get_layout_objects
      * @param node [type:node] text node to inspect
-     * @return objects [type:table] layout objects in source order
+     * @return objects [type:gui.layout_object[]] layout objects in source order
      */
     static int LuaGetLayoutObjects(lua_State* L)
     {

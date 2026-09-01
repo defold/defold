@@ -143,6 +143,7 @@ namespace dmGraphics
         TextureFilter      m_MagFilter;
         TextureWrap        m_AddressModeU;
         TextureWrap        m_AddressModeV;
+        TextureWrap        m_AddressModeW;
         float              m_MaxAnisotropy;
         float              m_MinLod;
         float              m_MaxLod;
@@ -317,6 +318,7 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
         int32_atomic_t                     m_DeleteContextRequested;
+        int32_atomic_t                     m_PendingAsyncTextureJobs;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state

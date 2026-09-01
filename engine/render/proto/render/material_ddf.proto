@@ -96,6 +96,7 @@ message MaterialDesc
         repeated uint64 name_indirections = 7 [(runtime_only)=true]; // sampler name -> list of shader uniform hashes
         optional string texture           = 8 [(resource)=true];
         optional uint64 name_hash         = 9 [(runtime_only)=true]; // Internal, for faster lookups
+        optional WrapMode wrap_w          = 10;
     }
 
     required string name                           = 1;
