@@ -15,6 +15,7 @@
 (ns editor.colors)
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn hex-color->color [str]
   (let [conv (fn [s] (/ (Integer/parseInt s 16) 255.0))]
@@ -23,6 +24,9 @@
       (conv (subs str 3 5))
       (conv (subs str 5 7))
       1.0)))
+
+(def white (hex-color->color "#ffffff"))
+(def black (hex-color->color "#000000"))
 
 (def defold-light-blue (hex-color->color "#60a8ff"))
 (def defold-blue (hex-color->color "#0084ff"))
@@ -75,31 +79,31 @@
 
 ; https://en.wikipedia.org/wiki/HSL_and_HSV
 
-(defn- hsc->rgb1 [h s c]
+(defn- hsc->rgb1 [^double h ^double s ^double c]
   (let [h' (/ h 60.0)
-        x (* c (- 1.0 (Math/abs (- (mod h' 2.0) 1.0))))]
+        x (* (- c) (- 1.0 (Math/abs (- (double (mod h' 2.0)) 1.0))))]
     (cond
-      (< h' 1) [c x 0.0]
-      (< h' 2) [x c 0.0]
-      (< h' 3) [0.0 c x]
-      (< h' 4) [0.0 x c]
-      (< h' 5) [x 0.0 c]
-      (< h' 6) [c 0.0 x])))
+      (< h' 1) (vector-of :double c x 0.0)
+      (< h' 2) (vector-of :double x c 0.0)
+      (< h' 3) (vector-of :double 0.0 c x)
+      (< h' 4) (vector-of :double 0.0 x c)
+      (< h' 5) (vector-of :double x 0.0 c)
+      (< h' 6) (vector-of :double c 0.0 x))))
 
-(defn hsv->rgb [h s v]
+(defn hsv->rgb [^double h ^double s ^double v]
   (let [c (* s v)
-        [r1 g1 b1] (hsc->rgb1 h s c)
+        [^double r1 ^double g1 ^double b1] (hsc->rgb1 h s c)
         m (- v c)]
-    [(+ r1 m) (+ g1 m) (+ b1 m)]))
+    (vector-of :double (+ r1 m) (+ g1 m) (+ b1 m))))
 
 (defn hsv->rgba [h s v]
   (alpha (hsv->rgb h s v) 1.0))
 
-(defn hsl->rgb [h s l]
+(defn hsl->rgb [^double h ^double s ^double l]
   (let [c (* s (- 1.0 (Math/abs (- (* 2.0 l) 1.0))))
-        [r1 g1 b1] (hsc->rgb1 h s c)
+        [^double r1 ^double g1 ^double b1] (hsc->rgb1 h s c)
         m (- l (* 0.5 c))]
-    [(+ r1 m) (+ g1 m) (+ b1 m)]))
+    (vector-of :double (+ r1 m) (+ g1 m) (+ b1 m))))
 
 (defn hsl->rgba [h s l]
   (alpha (hsl->rgb h s l) 1.0))
