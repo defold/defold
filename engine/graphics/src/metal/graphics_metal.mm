@@ -57,6 +57,7 @@ namespace dmGraphics
 
     static MetalTexture* MetalNewTextureInternal(const TextureCreationParams& params);
     static void          MetalSetTextureInternal(MetalContext* context, MetalTexture* texture, const TextureParams& params);
+    static void          MetalSetTextureParamsInternal(MetalContext* context, MetalTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
 
     struct ClearParams
     {
@@ -715,8 +716,7 @@ namespace dmGraphics
         if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))  // A8+ class
         {
             SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_ETC1);
-            // Leave TEXTURE_FORMAT_RGBA_ETC2 unsupported for now. Metal.hpp exposes
-            // ETC2 RGB/RGB8A1 formats, but not the RGBA8 ETC2 variant this format expects.
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_ETC2);
         }
 
         // ASTC support
@@ -732,11 +732,10 @@ namespace dmGraphics
             TEXTURE_FORMAT_LUMINANCE,
             TEXTURE_FORMAT_LUMINANCE_ALPHA,
             TEXTURE_FORMAT_RGBA,
-            TEXTURE_FORMAT_RGB_16BPP,
+            TEXTURE_FORMAT_RGB16F,
+            TEXTURE_FORMAT_RGB32F,
             TEXTURE_FORMAT_RGBA16F,
             TEXTURE_FORMAT_RGBA32F,
-            // RGB16F/RGB32F currently map to RGBA Metal formats, but the upload path
-            // does not expand RGB float data to RGBA yet, so they are not advertised.
             TEXTURE_FORMAT_R16F,
             TEXTURE_FORMAT_R32F,
             TEXTURE_FORMAT_RG16F,
@@ -759,11 +758,25 @@ namespace dmGraphics
         SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_DEPTH);
         SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_STENCIL);
 
+        // The packed 16-bit formats were added to macOS Metal in 11.0 and
+        // have been available on iOS since 8.0.
 #if defined(DM_PLATFORM_MACOS)
-        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_BC1);
-        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_BC3);
-        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_R_BC4);
-        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RG_BC5);
+        if (@available(macOS 11.0, *))
+#endif
+        {
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_16BPP);
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_16BPP);
+        }
+
+#if defined(DM_PLATFORM_MACOS)
+        if (context->m_Device->supportsBCTextureCompression())
+        {
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_BC1);
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_BC3);
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_R_BC4);
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RG_BC5);
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_BC7);
+        }
 #endif
     }
 
@@ -804,6 +817,8 @@ namespace dmGraphics
         context->m_MainScissor = {0, 0, width, height};
 
         MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        main_rt->m_Width = width;
+        main_rt->m_Height = height;
         main_rt->m_Scissor = {0, 0, width, height};
         main_rt->m_ColorTextureParams[0].m_Width = width;
         main_rt->m_ColorTextureParams[0].m_Height = height;
@@ -1213,6 +1228,18 @@ namespace dmGraphics
     {
         switch (wrap)
         {
+            case TEXTURE_WRAP_CLAMP_TO_BORDER:
+#if defined(DM_PLATFORM_IOS)
+                // Clamp-to-border was added in iOS 14. Clamp-to-zero has the
+                // same transparent-black behavior on older Metal targets.
+                if (@available(iOS 14.0, *))
+                {
+                    return MTL::SamplerAddressModeClampToBorderColor;
+                }
+                return MTL::SamplerAddressModeClampToZero;
+#else
+                return MTL::SamplerAddressModeClampToBorderColor;
+#endif
             case TEXTURE_WRAP_REPEAT:          return MTL::SamplerAddressModeRepeat;
             case TEXTURE_WRAP_MIRRORED_REPEAT: return MTL::SamplerAddressModeMirrorRepeat;
             case TEXTURE_WRAP_CLAMP_TO_EDGE:   return MTL::SamplerAddressModeClampToEdge;
@@ -1282,6 +1309,13 @@ namespace dmGraphics
         desc->setSAddressMode(wrapU);
         desc->setTAddressMode(wrapV);
         desc->setRAddressMode(wrapW);
+        if (wrapU == SamplerAddressModeClampToBorderColor ||
+            wrapV == SamplerAddressModeClampToBorderColor ||
+            wrapW == SamplerAddressModeClampToBorderColor)
+        {
+            // Vulkan and DX12 also default this API mode to transparent black.
+            desc->setBorderColor(SamplerBorderColorTransparentBlack);
+        }
         desc->setLodMinClamp(minLod);
         desc->setLodMaxClamp(maxLod);
         desc->setSupportArgumentBuffers(true);
@@ -1665,9 +1699,14 @@ namespace dmGraphics
 
             MTL::RenderPassColorAttachmentDescriptor* colorAttachment = rpDesc->colorAttachments()->object(i);
             MTL::LoadAction load_action = MetalLoadAction(rt->m_ColorBufferLoadOps[i]);
+            const bool is_memoryless = tex->m_Texture->storageMode() == MTL::StorageModeMemoryless;
             if (has_pending_color_clear)
             {
                 load_action = MTL::LoadActionClear;
+            }
+            else if (is_memoryless)
+            {
+                load_action = MTL::LoadActionDontCare;
             }
             else if (is_main_rt && context->m_MainRTBegunThisFrame)
             {
@@ -1692,12 +1731,12 @@ namespace dmGraphics
                 assert(resolve_tex && resolve_tex->m_Texture);
                 colorAttachment->setTexture(tex->m_Texture);
                 colorAttachment->setResolveTexture(resolve_tex->m_Texture);
-                colorAttachment->setStoreAction(MTL::StoreActionStoreAndMultisampleResolve);
+                colorAttachment->setStoreAction(is_memoryless ? MTL::StoreActionMultisampleResolve : MTL::StoreActionStoreAndMultisampleResolve);
             }
             else
             {
                 colorAttachment->setTexture(tex->m_Texture);
-                colorAttachment->setStoreAction(rt->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore);
+                colorAttachment->setStoreAction(is_memoryless || rt->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore);
             }
         }
 
@@ -1709,11 +1748,12 @@ namespace dmGraphics
             {
                 const bool has_depth = MetalFormatHasDepth(rt->m_DepthStencilFormat);
                 const bool has_stencil = MetalFormatHasStencil(rt->m_DepthStencilFormat);
+                const bool is_memoryless = tex->m_Texture->storageMode() == MTL::StorageModeMemoryless;
 
                 MTL::RenderPassDepthAttachmentDescriptor* depthAttachment = has_depth ? rpDesc->depthAttachment() : 0;
                 if (depthAttachment)
                 {
-                    MTL::LoadAction depth_load_action = has_pending_depth_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
+                    MTL::LoadAction depth_load_action = has_pending_depth_clear ? MTL::LoadActionClear : (is_memoryless ? MTL::LoadActionDontCare : MTL::LoadActionLoad);
                     depthAttachment->setLoadAction(depth_load_action);
                     depthAttachment->setClearDepth(rt->m_DepthClearValue);
                 }
@@ -1721,7 +1761,7 @@ namespace dmGraphics
                 MTL::RenderPassStencilAttachmentDescriptor* stencilAttachment = has_stencil ? rpDesc->stencilAttachment() : 0;
                 if (stencilAttachment)
                 {
-                    MTL::LoadAction stencil_load_action = has_pending_stencil_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
+                    MTL::LoadAction stencil_load_action = has_pending_stencil_clear ? MTL::LoadActionClear : (is_memoryless ? MTL::LoadActionDontCare : MTL::LoadActionLoad);
                     stencilAttachment->setLoadAction(stencil_load_action);
                     stencilAttachment->setClearStencil(rt->m_StencilClearValue);
                 }
@@ -1744,12 +1784,12 @@ namespace dmGraphics
                     if (depthAttachment)
                     {
                         depthAttachment->setTexture(tex->m_Texture);
-                        depthAttachment->setStoreAction(MTL::StoreActionStore);
+                        depthAttachment->setStoreAction(is_memoryless ? MTL::StoreActionDontCare : MTL::StoreActionStore);
                     }
                     if (stencilAttachment)
                     {
                         stencilAttachment->setTexture(tex->m_Texture);
-                        stencilAttachment->setStoreAction(MTL::StoreActionStore);
+                        stencilAttachment->setStoreAction(is_memoryless ? MTL::StoreActionDontCare : MTL::StoreActionStore);
                     }
                 }
             }
@@ -1766,8 +1806,8 @@ namespace dmGraphics
         pool->release();
 
         // Configure viewport/scissor
-        const uint32_t width  = rt->m_ColorTextureParams[0].m_Width;
-        const uint32_t height = rt->m_ColorTextureParams[0].m_Height;
+        const uint32_t width  = rt->m_Width;
+        const uint32_t height = rt->m_Height;
 
         MTL::Viewport viewport = {0.0, 0.0, (double)width, (double)height, 0.0, 1.0};
         encoder->setViewport(viewport);
@@ -1883,6 +1923,8 @@ namespace dmGraphics
         rt->m_ColorTextureParams[0].m_Height = drawable_height;
         rt->m_Base.m_ColorTextureParams[0].m_Width  = rt->m_ColorTextureParams[0].m_Width;
         rt->m_Base.m_ColorTextureParams[0].m_Height = rt->m_ColorTextureParams[0].m_Height;
+        rt->m_Width = drawable_width;
+        rt->m_Height = drawable_height;
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
@@ -2311,18 +2353,7 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < stream_count; ++i)
         {
-            VertexStream& stream = stream_declaration->m_Streams[i];
-
-            if (stream.m_Type == TYPE_UNSIGNED_BYTE && !stream.m_Normalize)
-            {
-                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_BYTE.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
-                stream.m_Type = TYPE_BYTE;
-            }
-            else if (stream.m_Type == TYPE_UNSIGNED_SHORT && !stream.m_Normalize)
-            {
-                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_SHORT.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
-                stream.m_Type = TYPE_SHORT;
-            }
+            const VertexStream& stream = stream_declaration->m_Streams[i];
 
             vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
             vd->m_Streams[i].m_Type      = stream.m_Type;
@@ -2932,7 +2963,7 @@ namespace dmGraphics
             case TEXTURE_FORMAT_RGB:               return MTL::PixelFormatRGBA8Unorm; // expand RGB to RGBA
             case TEXTURE_FORMAT_RGBA:              return MTL::PixelFormatRGBA8Unorm;
             case TEXTURE_FORMAT_RGB_16BPP:         return MTL::PixelFormatB5G6R5Unorm; // closest 16-bit
-            //case TEXTURE_FORMAT_RGBA_16BPP:        return MTL::PixelFormatRGBA4Unorm;
+            case TEXTURE_FORMAT_RGBA_16BPP:        return MTL::PixelFormatABGR4Unorm;
             case TEXTURE_FORMAT_DEPTH:             return MTL::PixelFormatInvalid;
             case TEXTURE_FORMAT_STENCIL:           return MTL::PixelFormatInvalid;
 
@@ -2944,12 +2975,12 @@ namespace dmGraphics
 
             // ETC2
             case TEXTURE_FORMAT_RGB_ETC1:          return MTL::PixelFormatETC2_RGB8;
-            //case TEXTURE_FORMAT_RGBA_ETC2:         return MTL::PixelFormatETC2_RGBA8;
+            case TEXTURE_FORMAT_RGBA_ETC2:         return MTL::PixelFormatEAC_RGBA8;
 
             // BC / DXT (macOS only)
             case TEXTURE_FORMAT_RGB_BC1:           return MTL::PixelFormatBC1_RGBA;
             case TEXTURE_FORMAT_RGBA_BC3:          return MTL::PixelFormatBC3_RGBA;
-            //case TEXTURE_FORMAT_RGBA_BC7:          return MTL::PixelFormatBC7_RGBA;
+            case TEXTURE_FORMAT_RGBA_BC7:          return MTL::PixelFormatBC7_RGBAUnorm;
             case TEXTURE_FORMAT_R_BC4:             return MTL::PixelFormatBC4_RUnorm;
             case TEXTURE_FORMAT_RG_BC5:            return MTL::PixelFormatBC5_RGUnorm;
 
@@ -3267,7 +3298,7 @@ namespace dmGraphics
 
         if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            metal_vp.originY = current_rt->m_ColorTextureParams[0].m_Height - context->m_MainViewport.m_Y;
+            metal_vp.originY = current_rt->m_Height - context->m_MainViewport.m_Y;
             metal_vp.height  = -(double) context->m_MainViewport.m_H;
         }
         else
@@ -3284,8 +3315,8 @@ namespace dmGraphics
 
         if (context->m_ScissorChanged)
         {
-            const uint32_t rt_width = current_rt->m_ColorTextureParams[0].m_Width;
-            const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
+            const uint32_t rt_width = current_rt->m_Width;
+            const uint32_t rt_height = current_rt->m_Height;
             MTL::ScissorRect scissor = {0, 0, rt_width, rt_height};
             if (pipeline_state_draw.m_ScissorTestEnabled)
             {
@@ -4080,7 +4111,41 @@ namespace dmGraphics
         context->m_PolygonOffsetChanged = true;
     }
 
-    static MTL::Texture* NewMetalRenderTargetTexture(MetalContext* context, const TextureParams& params, MTL::PixelFormat format, MTL::TextureUsage usage, uint32_t sample_count)
+    static inline MTL::TextureUsage GetMetalRenderTargetTextureUsage(uint8_t hints)
+    {
+        MTL::TextureUsage usage = MTL::TextureUsageRenderTarget;
+        // Metal has no texture-usage bit corresponding to a Vulkan input
+        // attachment. Treat input usage as shader-readable access; shaders can
+        // then use the attachment through the regular texture binding path.
+        if (hints & (TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT))
+        {
+            usage |= MTL::TextureUsageShaderRead;
+        }
+        if (hints & TEXTURE_USAGE_FLAG_STORAGE)
+        {
+            usage |= MTL::TextureUsageShaderWrite;
+        }
+        return usage;
+    }
+
+    static inline bool MetalSupportsMemorylessRenderTargets(MetalContext* context)
+    {
+        return context->m_Device->supportsFamily(MTL::GPUFamilyApple1);
+    }
+
+    static inline MTL::StorageMode GetMetalRenderTargetStorageMode(MetalContext* context, uint8_t hints)
+    {
+        const uint8_t incompatible_hints = TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE;
+        if ((hints & TEXTURE_USAGE_FLAG_MEMORYLESS) &&
+            !(hints & incompatible_hints) &&
+            MetalSupportsMemorylessRenderTargets(context))
+        {
+            return MTL::StorageModeMemoryless;
+        }
+        return MTL::StorageModePrivate;
+    }
+
+    static MTL::Texture* NewMetalRenderTargetTexture(MetalContext* context, const TextureParams& params, MTL::PixelFormat format, uint8_t usage_hints, uint32_t sample_count)
     {
         MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
         desc->setTextureType(sample_count > 1 ? MTL::TextureType2DMultisample : MTL::TextureType2D);
@@ -4091,8 +4156,8 @@ namespace dmGraphics
         desc->setArrayLength(1);
         desc->setMipmapLevelCount(1);
         desc->setSampleCount(sample_count);
-        desc->setStorageMode(MTL::StorageModePrivate);
-        desc->setUsage(usage);
+        desc->setStorageMode(GetMetalRenderTargetStorageMode(context, usage_hints));
+        desc->setUsage(GetMetalRenderTargetTextureUsage(usage_hints));
 
         MTL::Texture* native_texture = context->m_Device->newTexture(desc);
         desc->release();
@@ -4252,14 +4317,20 @@ namespace dmGraphics
             params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = rt->m_DepthStencilTextureParams;
         rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
-        uint32_t scissor_width  = rt->m_DepthStencilTextureParams.m_Width;
-        uint32_t scissor_height = rt->m_DepthStencilTextureParams.m_Height;
-        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS && scissor_width == 0 && scissor_height == 0; ++i)
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS && rt->m_Width == 0 && rt->m_Height == 0; ++i)
         {
-            scissor_width  = rt->m_ColorTextureParams[i].m_Width;
-            scissor_height = rt->m_ColorTextureParams[i].m_Height;
+            if (buffer_type_flags & GetBufferTypeFromIndex(i))
+            {
+                rt->m_Width  = rt->m_ColorTextureParams[i].m_Width;
+                rt->m_Height = rt->m_ColorTextureParams[i].m_Height;
+            }
         }
-        rt->m_Scissor = {0, 0, scissor_width, scissor_height};
+        if (rt->m_Width == 0 && rt->m_Height == 0)
+        {
+            rt->m_Width  = rt->m_DepthStencilTextureParams.m_Width;
+            rt->m_Height = rt->m_DepthStencilTextureParams.m_Height;
+        }
+        rt->m_Scissor = {0, 0, rt->m_Width, rt->m_Height};
 
         // Don't retain pointers to raw texture data in the render target.
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
@@ -4298,16 +4369,42 @@ namespace dmGraphics
             }
             rt->m_Base.m_ColorTextureParams[i] = color_buffer_params;
 
-            HTexture new_texture_color_handle = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
+            TextureCreationParams color_creation_params = params.m_ColorBufferCreationParams[i];
+            // Color render targets have historically always been sampleable on
+            // Metal. Preserve that behavior unless memoryless storage was
+            // explicitly requested.
+            if (!(color_creation_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS))
+            {
+                color_creation_params.m_UsageHintBits |= TEXTURE_USAGE_FLAG_SAMPLE;
+            }
+
+            const bool has_msaa = rt->m_Base.m_SampleCount > 1;
+            if ((color_creation_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) &&
+                !has_msaa &&
+                (color_creation_params.m_UsageHintBits & (TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE)))
+            {
+                dmLogWarning("Metal memoryless color attachments cannot also be shader-readable or writable; using private storage instead.");
+            }
+            else if ((color_creation_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) && !MetalSupportsMemorylessRenderTargets(context))
+            {
+                dmLogWarning("Metal memoryless render targets are not supported by this device; using private storage instead.");
+            }
+
+            HTexture new_texture_color_handle = NewTexture(_context, color_creation_params);
             MetalTexture* new_texture_color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
             assert(new_texture_color);
 
-            const bool has_msaa = rt->m_Base.m_SampleCount > 1;
             rt->m_TextureColor[color_index]        = new_texture_color_handle;
             rt->m_Base.m_TextureColor[color_index] = new_texture_color_handle;
 
-            MTL::TextureUsage color_usage = has_msaa ? MTL::TextureUsageRenderTarget : (MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-            MTL::Texture* native_color_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), color_usage, rt->m_Base.m_SampleCount);
+            uint8_t color_usage_hints = color_creation_params.m_UsageHintBits;
+            if (has_msaa)
+            {
+                // Shader access targets the resolve texture, so the multisample
+                // attachment itself can remain transient/memoryless.
+                color_usage_hints &= ~(TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE);
+            }
+            MTL::Texture* native_color_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), color_usage_hints, rt->m_Base.m_SampleCount);
             if (!native_color_texture)
             {
                 return FailMetalRenderTargetCreation(_context, rt, color_buffer_params.m_Width, color_buffer_params.m_Height);
@@ -4316,12 +4413,14 @@ namespace dmGraphics
 
             if (has_msaa)
             {
-                HTexture resolve_handle = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
+                TextureCreationParams resolve_creation_params = color_creation_params;
+                resolve_creation_params.m_UsageHintBits &= ~TEXTURE_USAGE_FLAG_MEMORYLESS;
+                HTexture resolve_handle = NewTexture(_context, resolve_creation_params);
                 MetalTexture* resolve_texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, resolve_handle);
                 assert(resolve_texture);
                 rt->m_Base.m_TextureColorResolve[color_index] = resolve_handle;
 
-                MTL::Texture* native_resolve_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead, 1);
+                MTL::Texture* native_resolve_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), resolve_creation_params.m_UsageHintBits, 1);
                 if (!native_resolve_texture)
                 {
                     return FailMetalRenderTargetCreation(_context, rt, color_buffer_params.m_Width, color_buffer_params.m_Height);
@@ -4334,8 +4433,39 @@ namespace dmGraphics
 
         if (has_depth || has_stencil)
         {
-            const TextureCreationParams& ds_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
+            TextureCreationParams ds_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
             const TextureParams& ds_params = has_depth ? params.m_DepthBufferParams : params.m_StencilBufferParams;
+
+            // TextureCreationParams defaults to SAMPLE for ordinary textures,
+            // while render targets use these dedicated flags to decide whether
+            // depth/stencil must be shader-readable.
+            if ((has_depth && params.m_DepthTexture) || (has_stencil && params.m_StencilTexture))
+            {
+                ds_create_params.m_UsageHintBits |= TEXTURE_USAGE_FLAG_SAMPLE;
+            }
+            else
+            {
+                ds_create_params.m_UsageHintBits &= ~TEXTURE_USAGE_FLAG_SAMPLE;
+            }
+            if (ds_create_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_STORAGE)
+            {
+                dmLogError("Metal does not support storage usage for depth/stencil render-target attachments.");
+                return FailMetalRenderTargetCreation(_context, rt, ds_params.m_Width, ds_params.m_Height);
+            }
+            if (rt->m_Base.m_SampleCount > 1 && (ds_create_params.m_UsageHintBits & (TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT)))
+            {
+                dmLogError("Metal does not support shader-readable multisampled depth/stencil render-target attachments because the backend has no depth resolve path.");
+                return FailMetalRenderTargetCreation(_context, rt, ds_params.m_Width, ds_params.m_Height);
+            }
+            if ((ds_create_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) &&
+                (ds_create_params.m_UsageHintBits & (TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT)))
+            {
+                dmLogWarning("Metal memoryless depth/stencil attachments cannot be shader-readable; using private storage instead.");
+            }
+            else if ((ds_create_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) && !MetalSupportsMemorylessRenderTargets(context))
+            {
+                dmLogWarning("Metal memoryless render targets are not supported by this device; using private storage instead.");
+            }
 
             rt->m_TextureDepthStencil        = NewTexture(_context, ds_create_params);
             rt->m_Base.m_TextureDepthStencil = rt->m_TextureDepthStencil;
@@ -4343,7 +4473,7 @@ namespace dmGraphics
             assert(depth_texture_ptr);
 
             rt->m_DepthStencilFormat = (has_depth && !has_stencil) ? MTL::PixelFormatDepth32Float : MTL::PixelFormatDepth32Float_Stencil8;
-            MTL::Texture* native_depth_stencil_texture = NewMetalRenderTargetTexture(context, ds_params, rt->m_DepthStencilFormat, MTL::TextureUsageRenderTarget, rt->m_Base.m_SampleCount);
+            MTL::Texture* native_depth_stencil_texture = NewMetalRenderTargetTexture(context, ds_params, rt->m_DepthStencilFormat, ds_create_params.m_UsageHintBits, rt->m_Base.m_SampleCount);
             if (!native_depth_stencil_texture)
             {
                 return FailMetalRenderTargetCreation(_context, rt, ds_params.m_Width, ds_params.m_Height);
@@ -4423,13 +4553,21 @@ namespace dmGraphics
 
             if (rt->m_TextureColor[i])
             {
-                MTL::TextureUsage usage = rt->m_Base.m_SampleCount > 1 ? MTL::TextureUsageRenderTarget : (MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-                color_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], usage, rt->m_Base.m_SampleCount);
+                MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                assert(texture);
+                uint8_t usage_hints = texture->m_Base.m_UsageHintFlags;
+                if (rt->m_Base.m_SampleCount > 1)
+                {
+                    usage_hints &= ~(TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE);
+                }
+                color_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], usage_hints, rt->m_Base.m_SampleCount);
                 allocation_failed = color_textures[i] == 0;
             }
             if (!allocation_failed && rt->m_Base.m_TextureColorResolve[i])
             {
-                color_resolve_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead, 1);
+                MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColorResolve[i]);
+                assert(texture);
+                color_resolve_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], texture->m_Base.m_UsageHintFlags, 1);
                 allocation_failed = color_resolve_textures[i] == 0;
             }
         }
@@ -4439,7 +4577,9 @@ namespace dmGraphics
         resized_depth_stencil_params.m_Height = height;
         if (!allocation_failed && rt->m_TextureDepthStencil)
         {
-            depth_stencil_texture = NewMetalRenderTargetTexture(context, resized_depth_stencil_params, rt->m_DepthStencilFormat, MTL::TextureUsageRenderTarget, rt->m_Base.m_SampleCount);
+            MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            assert(texture);
+            depth_stencil_texture = NewMetalRenderTargetTexture(context, resized_depth_stencil_params, rt->m_DepthStencilFormat, texture->m_Base.m_UsageHintFlags, rt->m_Base.m_SampleCount);
             allocation_failed = depth_stencil_texture == 0;
         }
 
@@ -4501,6 +4641,8 @@ namespace dmGraphics
         }
 
         context->m_ViewportChanged = 1;
+        rt->m_Width = width;
+        rt->m_Height = height;
         rt->m_Scissor = {0, 0, width, height};
         context->m_ScissorChanged = 1;
     }
@@ -4508,7 +4650,7 @@ namespace dmGraphics
     static inline MTL::ResourceUsage GetMetalUsageFromHints(uint8_t hints)
     {
         MTL::ResourceUsage usage = MTL::ResourceUsageRead;
-        if ((hints & TEXTURE_USAGE_FLAG_SAMPLE) != 0)
+        if ((hints & (TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT)) != 0)
         {
             usage |= MTL::ResourceUsageSample;
         }
@@ -4966,6 +5108,17 @@ namespace dmGraphics
         return true;
     }
 
+    static void RepackRGBComponentsToRGBA(uint32_t pixel_count, uint32_t component_size, const uint8_t* rgb, uint8_t* rgba, const void* alpha)
+    {
+        const uint32_t rgb_stride = component_size * 3;
+        const uint32_t rgba_stride = component_size * 4;
+        for (uint32_t i = 0; i < pixel_count; ++i)
+        {
+            memcpy(rgba + (uint64_t)i * rgba_stride, rgb + (uint64_t)i * rgb_stride, rgb_stride);
+            memcpy(rgba + (uint64_t)i * rgba_stride + rgb_stride, alpha, component_size);
+        }
+    }
+
     static void MetalUploadTextureData(MetalContext* context, MetalTexture* texture, const TextureParams& params)
     {
         if (!texture || !params.m_Data)
@@ -4990,6 +5143,23 @@ namespace dmGraphics
             format_upload = TEXTURE_FORMAT_RGBA;
             upload_params.m_DataSize = params.m_Width * params.m_Height * tex_depth * 4;
         }
+        else if (format_orig == TEXTURE_FORMAT_RGB16F || format_orig == TEXTURE_FORMAT_RGB32F)
+        {
+            const uint32_t component_size = format_orig == TEXTURE_FORMAT_RGB16F ? sizeof(uint16_t) : sizeof(float);
+            const uint16_t half_one = 0x3c00;
+            const float float_one = 1.0f;
+            const void* alpha = format_orig == TEXTURE_FORMAT_RGB16F ? (const void*)&half_one : (const void*)&float_one;
+            const TextureFormat rgba_format = format_orig == TEXTURE_FORMAT_RGB16F ? TEXTURE_FORMAT_RGBA16F : TEXTURE_FORMAT_RGBA32F;
+            const uint32_t upload_layer_count = GetMetalTextureUploadLayerCount(texture, params);
+            const uint32_t tex_depth = IsTextureType3D(texture->m_Base.m_Type) ? dmMath::Max(1U, (uint32_t)params.m_Depth) : 1;
+            const uint32_t pixel_count = params.m_Width * params.m_Height * tex_depth * upload_layer_count;
+
+            data_new = new uint8_t[(uint64_t)pixel_count * 4 * component_size];
+            RepackRGBComponentsToRGBA(pixel_count, component_size, tex_data_ptr, data_new, alpha);
+            tex_data_ptr = data_new;
+            format_upload = rgba_format;
+            upload_params.m_DataSize = params.m_Width * params.m_Height * tex_depth * 4 * component_size;
+        }
 
         // Font glyph subupdates omit m_DataSize; MetalCopyToTexture infers row
         // sizes from the update dimensions when the size is not provided.
@@ -5005,6 +5175,8 @@ namespace dmGraphics
             return;
         }
 
+        MetalSetTextureParamsInternal(context, texture, params.m_MinFilter, params.m_MagFilter,
+            params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
         MetalUploadTextureData(context, texture, params);
         SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
     }
@@ -5255,7 +5427,7 @@ namespace dmGraphics
 
             source_texture = color->m_Texture;
             source_texture->retain();
-            source_height = rt->m_ColorTextureParams[0].m_Height;
+            source_height = rt->m_Height;
             source_is_backbuffer = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
         }
 
