@@ -277,7 +277,7 @@
      :leading (when (re-find lua-close-line-pattern line) (first closes))
      :unfinished unfinished
      :has-code (not (neg? last-code))
-     :in-long-string in-long-bracket}))
+     :in-long-bracket in-long-bracket}))
 
 (def lua-grammar
   {:name "Lua"
