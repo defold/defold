@@ -238,7 +238,8 @@
   (let [[tokens in-long-bracket ^long last-code] (lua-lex-line line in-long-bracket)
         ;; A line whose last code character is a bare `=` leaves an assignment
         ;; unfinished, and one ending on a comma leaves an argument list open.
-        unfinished (when (and (nil? in-long-bracket) (not (neg? last-code)))
+        unfinished (when (and (not= :string (get in-long-bracket 1))
+                              (not (neg? last-code)))
                      (case (.charAt line last-code)
                        \, :arg
                        \= (when (or (zero? last-code)

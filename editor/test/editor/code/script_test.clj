@@ -378,6 +378,17 @@
     ["local value = --[[comment]]"
      "    |"]
 
+    ;; An unfinished assignment remains pending across a multiline comment.
+    [""
+     ""]
+    ["local value = --[["
+     "comment"
+     "]]|"]
+    ["local value = --[["
+     "comment"
+     "]]"
+     "    |"]
+
     ;; Code after the comment finishes it.
     [""
      ""]
@@ -838,12 +849,12 @@
      "    print(s)"
      "end"]
 
-    ;; Same for a block comment.
+    ;; A block comment is not a value, so the assignment continues after it.
     ["function f()"
      "    local s = --[[ see the note"
      "    this is a test thing("
      "    ]]"
-     "    print(s)"
+     "        print(s)"
      "end"]
 
     ;; Whitespace inside one is part of the string, so it is left alone.
