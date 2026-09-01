@@ -698,6 +698,7 @@ namespace dmGameSystem
  * @member bullet3d.shape.SHAPE_TYPE_BOX Box shape type Value `1`. Shape data contains positive vector3 `dimensions` in Defold units.
  * @member bullet3d.shape.SHAPE_TYPE_CAPSULE Capsule shape type Value `2`. Shape data contains a positive numeric `diameter` and positive numeric cylindrical-section `height` in Defold units.
  * @member bullet3d.shape.SHAPE_TYPE_HULL Convex hull shape type Value `3`. Shape data contains a `vertices` array with at least four finite vector3 values in Defold units.
+ * @member bullet3d.shape.SHAPE_TYPE_MESH Triangle mesh shape type Value `4`. Shape data contains only the `type`; triangle geometry is read-only.
  * @member bullet3d.shape.SHAPE_TYPE_SPHERE Sphere shape type Value `0`. Shape data contains a positive numeric `diameter` in Defold units.
  */
 
@@ -712,19 +713,6 @@ namespace dmGameSystem
  * @name bullet3d.shape.definition
  * @param value [type:{ type:bullet3d.shape.SHAPE_TYPE, diameter:number, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, dimensions:vector3, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, diameter:number, height:number, position?:vector3, rotation?:quaternion, target_rotation?:quaternion }|{ type:bullet3d.shape.SHAPE_TYPE, vertices:vector3[], position?:vector3, rotation?:quaternion, target_rotation?:quaternion }] collision shape definition
  */
-
-
-
-
-
-/*# Triangle mesh shape type
- *
- * Value `4`. Shape data contains only the `type`; triangle geometry is read-only.
- *
- * @name bullet3d.shape.SHAPE_TYPE_MESH
- * @constant
- */
-
 /*# Get the number of shapes attached to a collision object.
  * @name bullet3d.collision_object.get_shape_count
  * @param object [type:btCollisionObject] collision object
