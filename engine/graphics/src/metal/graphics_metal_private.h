@@ -318,6 +318,7 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
         int32_atomic_t                     m_DeleteContextRequested;
+        int32_atomic_t                     m_PendingAsyncTextureJobs;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state
