@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.code.util :as code.util]
-            [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.node-types :as node-types]
@@ -815,13 +814,12 @@
         "end_tile" default-end-tile-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project _ _ child-node-id attachment]
+(defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
         "id" (rt/->lua
                (id/gen "collision_group"
-                       (collision-groups/collision-groups
-                         (g/node-value project :collision-groups-data evaluation-context)))))
+                       (g/node-value parent-node-id :collision-groups evaluation-context))))
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defmethod init-attachment :editor.tile-map/LayerNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
