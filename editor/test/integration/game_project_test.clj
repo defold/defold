@@ -13,16 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.game-project-test
-  (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system spit-until-new-mtime]]
-            [integration.test-util :as test-util]
+            [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]
-            [service.log :as log])
+            [integration.test-util :as test-util]
+            [service.log :as log]
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
   (:import [java.io File]))
 
 (def ^:dynamic ^String *project-path*)
@@ -63,12 +63,27 @@
 (defn- title [settings]
   (settings ["project" "title"]))
 
+(defn- ensure-game-project-connections! [project game-project]
+  (let [script-intelligence (g/valid-node-value project :script-intelligence)]
+    (is (contains? (set (g/targets-of script-intelligence :build-errors))
+                   [game-project :build-errors]))
+    (is (contains? (set (g/sources-of project :display-profiles))
+                   [game-project :display-profiles-data]))
+    (is (contains? (set (g/sources-of project :texture-profiles))
+                   [game-project :texture-profiles-data]))
+    (is (contains? (set (g/sources-of project :use-font-layout))
+                   [game-project :use-font-layout]))
+    (is (contains? (set (g/sources-of project :settings))
+                   [game-project :settings-map]))))
+
 (deftest load-ok-project
   (with-clean-system
-    (let [[workspace project] (setup world)]
+    (let [[_workspace project] (setup world)]
       (testing "Settings loaded"
-        (let [settings (g/node-value project :settings)]
-          (is (= "Side-scroller" (title settings))))))))
+        (let [settings (g/node-value project :settings)
+              game-project (project/get-resource-node project "/game.project")]
+          (is (= "Side-scroller" (title settings)))
+          (ensure-game-project-connections! project game-project))))))
 
 (deftest load-incomplete-project
   (testing "Missing ResourceNodes are shared among all references to it."
@@ -89,14 +104,16 @@
   (with-clean-system
     (create-test-project)
     (write-file "game.project" "bad content")
-    (let [[workspace project] (log/without-logging (load-test-project world))]
+    (let [[workspace project] (log/without-logging (load-test-project world))
+          game-project (project/get-resource-node project "/game.project")]
       (testing "Defaults if can't load"
         (let [settings (g/node-value project :settings)]
           (is (= "unnamed" (title settings)))))
       (testing "Game project node is defective"
-        (let [gpn (project/get-resource-node project "/game.project")
-              gpn-settings-map (g/node-value gpn :settings-map)]
-          (is (error? :invalid-content gpn-settings-map)))))))
+        (let [gpn-settings-map (g/node-value game-project :settings-map)]
+          (is (error? :invalid-content gpn-settings-map))))
+      (testing "Connections"
+        (ensure-game-project-connections! project game-project)))))
 
 (deftest break-ok-project
   (with-clean-system
@@ -112,7 +129,8 @@
               gpn (project/get-resource-node project "/game.project")
               gpn-settings-map (g/node-value gpn :settings-map)]
           (is (= "unnamed" (title settings)))
-          (is (error? :invalid-content gpn-settings-map)))
+          (is (error? :invalid-content gpn-settings-map))
+          (ensure-game-project-connections! project gpn))
         (copy-file "game.project.backup" "game.project")
         (workspace/resource-sync! workspace))
       (testing "Restoring gives normal settings"
@@ -120,4 +138,5 @@
               gpn (project/get-resource-node project "/game.project")
               gpn-settings-map (g/node-value gpn :settings-map)]
           (is (= "Side-scroller" (title settings)))
-          (is (no-error? gpn-settings-map)))))))
+          (is (no-error? gpn-settings-map))
+          (ensure-game-project-connections! project gpn))))))
