@@ -2363,10 +2363,12 @@
     (assert (vector? cursor-ranges))
     (if (nil? (:indent grammar))
       splice-properties
-      (let [syntax-info (cond-> syntax-info
-                                (and invalidated-row syntax-info)
-                                (invalidate-syntax-info invalidated-row (count lines)))
-            indentation-properties (fix-indentation (or affected-cursor-ranges cursor-ranges) indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)]
+      (let [affected-cursor-ranges (or affected-cursor-ranges cursor-ranges)
+            syntax-info (-> (or syntax-info [])
+                            (cond-> invalidated-row (invalidate-syntax-info invalidated-row (count lines)))
+                            (ensure-syntax-info (inc (long (transduce (map #(-> % cursor-range-end .-row)) max 0 affected-cursor-ranges)))
+                                                lines grammar))
+            indentation-properties (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)]
         (merge splice-properties
                (dissoc indentation-properties :invalidated-row))))))
 
