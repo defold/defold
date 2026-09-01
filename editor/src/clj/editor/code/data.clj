@@ -2198,35 +2198,26 @@
         tab-spaces (long tab-spaces)
         multiline-scopes (:multiline-scopes (:indent grammar))
         restart-scan? (:restart-scan? (:indent grammar))
-        syntax-info-row-count (count syntax-info)
-        ^long start-row (loop [row queried-row
-                               candidate nil]
+        ^long start-row (loop [row queried-row]
                           (if-not (pos? row)
-                            (or candidate 0)
+                            0
                             (let [^String line (get lines row)]
                               (cond
                                 (and restart-scan? (restart-scan? line)) 0
 
-                                (some? candidate) (recur (dec row) candidate)
-
-                                (string/blank? line) (recur (dec row) nil)
+                                (string/blank? line) (recur (dec row))
 
                                 (when-let [^String line-comment (:line-comment grammar)]
                                   (.startsWith (string/triml line) line-comment))
-                                (recur (dec row) nil)
+                                (recur (dec row))
 
-                                (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row) nil)
+                                (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row))
 
                                 (when-let [kind (:leading (line-indent-counts grammar line false tab-spaces))]
                                   (not= :block kind))
-                                (recur (dec row) nil)
+                                (recur (dec row))
 
                                 (nil? multiline-scopes) row
-
-                                ;; Without syntax information, keep climbing in case
-                                ;; an earlier line forces us to restart from the top.
-                                (< syntax-info-row-count row)
-                                (recur (dec row) row)
 
                                 ;; The contexts left open at the end of the row above
                                 ;; say whether this one starts inside a multiline scope.
@@ -2357,6 +2348,10 @@
                                           [line-cursor-range [new-line]])))))
                             rows)))
 
+(defn- affected-syntax-info-end-row
+  ^long [affected-cursor-ranges]
+  (inc (long (transduce (map #(.-row (cursor-range-end %))) max 0 affected-cursor-ranges))))
+
 (defn- fix-indentation-after-splice [{:keys [invalidated-row lines cursor-ranges regions] :as splice-properties} affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info]
   (when splice-properties
     (assert (vector? lines))
@@ -2366,8 +2361,7 @@
       (let [affected-cursor-ranges (or affected-cursor-ranges cursor-ranges)
             syntax-info (-> (or syntax-info [])
                             (cond-> invalidated-row (invalidate-syntax-info invalidated-row (count lines)))
-                            (ensure-syntax-info (inc (long (transduce (map #(-> % cursor-range-end .-row)) max 0 affected-cursor-ranges)))
-                                                lines grammar))
+                            (ensure-syntax-info (affected-syntax-info-end-row affected-cursor-ranges) lines grammar))
             indentation-properties (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)]
         (merge splice-properties
                (dissoc indentation-properties :invalidated-row))))))
@@ -3266,11 +3260,14 @@
     (transform-indentation rows lines cursor-ranges regions deindent-line)))
 
 (defn reindent [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout]
-  (let [affected-cursor-ranges (map (fn [cursor-range]
-                                      (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
-                                            end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
-                                        (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
-                                    cursor-ranges)]
+  (let [affected-cursor-ranges (mapv (fn [cursor-range]
+                                       (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
+                                             end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
+                                         (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
+                                     cursor-ranges)
+        syntax-info (ensure-syntax-info (or syntax-info [])
+                                        (affected-syntax-info-end-row affected-cursor-ranges)
+                                        lines grammar)]
     (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)
         (update-document-width-after-splice layout))))
 
