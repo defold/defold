@@ -53,7 +53,7 @@ jobs:
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       {
@@ -106,7 +106,7 @@ jobs:
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       {
@@ -255,7 +255,7 @@ jobs:
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       {
