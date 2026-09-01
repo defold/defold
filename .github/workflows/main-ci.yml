@@ -190,7 +190,7 @@ jobs:
     steps:
       - &step_checkout
         name: 'Checkout'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: '${{env.BUILD_BRANCH}}'
       - &step_cache_dcache
@@ -228,7 +228,7 @@ jobs:
           xcode-version: '26.5.0'
       - &step_java
         name: 'Install Java'
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5.2.0
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c  # v6.0.0
         with:
           java-version: '25'
           distribution: 'temurin'
@@ -276,7 +276,7 @@ jobs:
       - name: 'Setup dotnet'
         if: matrix.dotnet
         id: setup_dotnet
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68  # v6.0.0
         with:
           dotnet-version: '${{ env.DOTNET_CHANNEL }}'
       - name: 'Pin dotnet SDK'
@@ -361,7 +361,7 @@ jobs:
         run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop'
       - &step_notify
         name: 'Notify if build status changed'
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc  # v3.0.5
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d  # v4.0.0
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))"
         with:
           webhook: '${{ env.SLACK_WEBHOOK }}'
@@ -400,7 +400,7 @@ jobs:
     if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))) && github.event.action != 'contrib-build'
     steps:
       - name: 'Checkout CI scripts'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: '${{env.BUILD_BRANCH}}'
           path: ci-check
@@ -448,7 +448,7 @@ jobs:
             -f channel="$channel" \
             -f release="$release"
       - name: 'Notify if build status changed'
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc  # v3.0.5
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d  # v4.0.0
         if: "failure() && github.event.action != 'contrib-build' && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))"
         with:
           webhook: '${{ env.SLACK_WEBHOOK }}'
@@ -731,7 +731,7 @@ jobs:
       contents: write
     steps:
       - name: 'Checkout CI scripts'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: '${{env.BUILD_BRANCH}}'
           path: ci-check
@@ -742,7 +742,7 @@ jobs:
           echo "should_release=$(python3 ci-check/ci/ci.py should-release)" >> "$GITHUB_OUTPUT"
           echo "requires_release_notes=$(python3 ci-check/ci/ci.py requires-release-notes)" >> "$GITHUB_OUTPUT"
       - name: 'Checkout'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: &should_release steps.release.outputs.should_release == 'true'
         with:
           ref: '${{env.BUILD_BRANCH}}'
