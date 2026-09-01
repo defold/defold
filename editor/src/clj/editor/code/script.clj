@@ -112,25 +112,27 @@
 ;; A closer whose kind does not match is dropped. On well-formed code that
 ;; never happens, since a closer's opener is always the innermost one still
 ;; open; on half-typed code it keeps the mistake from disturbing the rest.
-(defn lua-lex-line [^String line in-long-string]
+(defn lua-lex-line [^String line in-long-bracket]
   (let [len (long (.length line))]
     (loop [i 0
            ^Character in-quote nil
            escaped false
-           in-long-string in-long-string
+           in-long-bracket in-long-bracket
            after-function false
            tokens []
            last-code -1]
       (if (>= i len)
-        [tokens in-long-string last-code]
+        [tokens in-long-bracket last-code]
         (let [ch (.charAt line i)]
           (cond
-            in-long-string
+            in-long-bracket
             ;; Resume lexing after the matching long-bracket delimiter.
-            (let [close (long-bracket-end line i (long in-long-string))]
+            (let [[level kind] in-long-bracket
+                  close (long-bracket-end line i (long level))]
               (if (neg? close)
-                [tokens in-long-string last-code]
-                (recur close in-quote false nil after-function tokens (dec close))))
+                [tokens in-long-bracket last-code]
+                (recur close in-quote false nil after-function tokens
+                       (if (= :comment kind) last-code (dec close)))))
 
             in-quote
             (cond
@@ -147,7 +149,7 @@
                           -1)]
               (if (neg? level)
                 (recur len in-quote false nil after-function tokens last-code)
-                (recur (+ open level 2) in-quote false level after-function tokens last-code)))
+                (recur (+ open level 2) in-quote false [level :comment] after-function tokens last-code)))
 
             ;; Start of quote
             (or (= ch \") (= ch \'))
@@ -156,7 +158,7 @@
             ;; Start of a long string.
             (and (= ch \[) (<= 0 (long-bracket-level line i len \[)))
             (let [level (long-bracket-level line i len \[)]
-              (recur (+ i level 2) in-quote false level after-function tokens (+ i level 1)))
+              (recur (+ i level 2) in-quote false [level :string] after-function tokens (+ i level 1)))
 
             ;; Scan a whole identifier so keywords match only at word boundaries.
             (or (Character/isLetter ch) (= ch \_))
@@ -232,11 +234,11 @@
 (def ^:private lua-close-line-pattern
   #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])")
 
-(defn lua-indent-counts [^String line in-long-string tab-spaces]
-  (let [[tokens in-long-string ^long last-code] (lua-lex-line line in-long-string)
+(defn lua-indent-counts [^String line in-long-bracket tab-spaces]
+  (let [[tokens in-long-bracket ^long last-code] (lua-lex-line line in-long-bracket)
         ;; A line whose last code character is a bare `=` leaves an assignment
         ;; unfinished, and one ending on a comma leaves an argument list open.
-        unfinished (when (and (nil? in-long-string) (not (neg? last-code)))
+        unfinished (when (and (nil? in-long-bracket) (not (neg? last-code)))
                      (case (.charAt line last-code)
                        \, :arg
                        \= (when (or (zero? last-code)
@@ -274,7 +276,7 @@
      :leading (when (re-find lua-close-line-pattern line) (first closes))
      :unfinished unfinished
      :has-code (not (neg? last-code))
-     :in-long-string in-long-string}))
+     :in-long-string in-long-bracket}))
 
 (def lua-grammar
   {:name "Lua"
@@ -285,7 +287,7 @@
                                       (<= 0 (.indexOf line (int \]))))
                                   (re-find #"\[=*\[|\]=*\]" line)))
             :end lua-close-line-pattern
-            :multiline-string-scope "string.quoted.other.multiline.lua"}
+            :multiline-scopes #{"string.quoted.other.multiline.lua" "comment.block.lua"}}
    :line-comment "--"
    :auto-insert {:characters {\" \"
                               \' \'

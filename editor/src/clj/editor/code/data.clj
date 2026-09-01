@@ -2196,7 +2196,7 @@
 (defn- find-indent-state [indent-level-pattern grammar syntax-info lines queried-row tab-spaces]
   (let [queried-row (long queried-row)
         tab-spaces (long tab-spaces)
-        multiline-string-scope (:multiline-string-scope (:indent grammar))
+        multiline-scopes (:multiline-scopes (:indent grammar))
         restart-scan? (:restart-scan? (:indent grammar))
         syntax-info-row-count (count syntax-info)
         ^long start-row (loop [row queried-row
@@ -2221,7 +2221,7 @@
                                   (not= :block kind))
                                 (recur (dec row) nil)
 
-                                (nil? multiline-string-scope) row
+                                (nil? multiline-scopes) row
 
                                 ;; Without syntax information, keep climbing in case
                                 ;; an earlier line forces us to restart from the top.
@@ -2229,9 +2229,9 @@
                                 (recur (dec row) row)
 
                                 ;; The contexts left open at the end of the row above
-                                ;; say whether this one starts inside a long string.
-                                (= multiline-string-scope
-                                   (:name (:parent-pattern (ffirst (get syntax-info (dec row))))))
+                                ;; say whether this one starts inside a multiline scope.
+                                (contains? multiline-scopes
+                                           (:name (:parent-pattern (ffirst (get syntax-info (dec row))))))
                                 0
 
                                 :else row))))]

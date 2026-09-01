@@ -370,6 +370,21 @@
     ["    s = 'will end something'"
      "    |"]
 
+    ;; A closed block comment is not code, so the assignment it trails is still
+    ;; unfinished and the line below it continues.
+    [""
+     ""]
+    ["local value = --[[comment]]|"]
+    ["local value = --[[comment]]"
+     "    |"]
+
+    ;; Code after the comment finishes it.
+    [""
+     ""]
+    ["local value = --[[comment]] 42|"]
+    ["local value = --[[comment]] 42"
+     "|"]
+
     ;; Typing a closing bracket dedents its line, the same as a brace or a
     ;; parenthesis does.
     ["]"]
@@ -408,9 +423,10 @@
   (reindent-with indent-string (count indent-string) lines))
 
 (defn- reindent-rows [lines from-row to-row]
-  (let [cursor-range (data/->CursorRange (data/->Cursor from-row 0)
+  (let [syntax-info (data/ensure-syntax-info [] (count lines) lines script/lua-grammar)
+        cursor-range (data/->CursorRange (data/->Cursor from-row 0)
                                          (data/->Cursor to-row (count (lines to-row))))]
-    (or (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar []
+    (or (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar syntax-info
                                lines [cursor-range] nil (layout-info lines)))
         lines)))
 
@@ -605,6 +621,11 @@
      "    y = 2"
      "}"]
 
+    ;; A closed block comment is not code, so it does not finish the assignment
+    ;; the way a value would.
+    ["local value = --[[comment]]"
+     "    42"]
+
     ;; Comparison operators end in `=` without opening an assignment, so their
     ;; continuation lines are left flush like any other operator continuation.
     ["if a =="
@@ -640,10 +661,10 @@
     (dotimes [row (count lines)]
       (is (= (lines row) (reindented row)) (str "row " row)))))
 
-(deftest reindent-below-long-string-test
+(deftest reindent-below-multiline-scope-test
   ;; Reindenting part of a buffer replays from the nearest unindented line above
   ;; it, which must not be a line that only looks unindented because it is inside
-  ;; a long string.
+  ;; a long string or a block comment.
   (is (= ["function f()"
           "    local s = [["
           "SELECT ("
@@ -702,7 +723,40 @@
                          "]]"
                          "print(s)"
                          "end"]
-                        3 4))))
+                        3 4)))
+
+  ;; A block comment holds unindented prose just like a long string does.
+  (is (= ["function f()"
+          "    --[["
+          "unindented text"
+          "  second line"
+          "    ]]"
+          "    print(\"after\")"
+          "end"]
+         (reindent-rows ["function f()"
+                         "    --[["
+                         "unindented text"
+                         "  second line"
+                         "    ]]"
+                         "    print(\"after\")"
+                         "end"]
+                        3 6)))
+
+  ;; Its body is content, so a full reindent leaves it as it is.
+  (is (= ["function f()"
+          "    --[["
+          "unindented text"
+          "  second line"
+          "    ]]"
+          "    print(\"after\")"
+          "end"]
+         (reindent ["function f()"
+                    "    --[["
+                    "unindented text"
+                    "  second line"
+                    "    ]]"
+                    "print(\"after\")"
+                    "end"]))))
 
 (deftest insert-indentation-below-long-string-test
   ;; Pressing Enter can make a string-content row look like a replay anchor, so
