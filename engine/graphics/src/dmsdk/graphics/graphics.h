@@ -1886,14 +1886,14 @@ namespace dmGraphics
      * Sets one or more mat4 uniform values.
      *
      * Updates a shader uniform or uniform-buffer member starting at the supplied
-     * uniform location. Each matrix is provided as four consecutive `dmVMath::Vector4` values.
+     * uniform location.
      * @name SetConstantM4
      * @param context [type:dmGraphics::HContext] Graphics context
-     * @param data [type:const dmVMath::Vector4*] Matrix data to upload
+     * @param data [type:const dmVMath::Matrix4*] Matrix data to upload
      * @param count [type:int] Number of mat4 values to upload
      * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
      */
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location);
 
     /*#
      * Binds a texture sampler to a texture unit.

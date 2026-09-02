@@ -2050,6 +2050,12 @@ namespace dmGraphics
         return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
 
+    // SDK-friendly overload that preserves the Vector4-based adapter API.
+    void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location)
+    {
+        SetConstantM4(context, reinterpret_cast<const dmVMath::Vector4*>(data), count, base_location);
+    }
+
     ///////////////////////////////////////////////////
     ////////// ADAPTER SPECIFIC FUNCTIONS /////////////
     void CloseWindow(HContext context)
