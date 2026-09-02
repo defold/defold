@@ -138,7 +138,8 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
 
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
-    const uint32_t channels = FontGetGlyphChannelCount(params->m_OutputBitmap, params->m_HasOutline, params->m_HasShadow, params->m_ShadowBlur);
+    const bool     has_outline_data = params->m_OutlineWidth > 0.0f;
+    const uint32_t channels = FontGetGlyphChannelCount(params->m_OutputBitmap, has_outline_data, params->m_HasShadow, params->m_ShadowBlur);
     if (channels == 1 && !params->m_OutputBitmap)
         return result;
     const uint64_t pixel_count = (uint64_t)width * height * channels;
@@ -170,7 +171,7 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
                 rgb[offset + 0] = face_coverage;
                 if (channels == 3)
                 {
-                    const uint8_t outline_coverage = params->m_HasOutline ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias) : 0;
+                    const uint8_t outline_coverage = has_outline_data ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias) : 0;
                     rgb[offset + 1] = outline_coverage;
                     rgb[offset + 2] = params->m_HasShadow ? (params->m_HasOutline ? outline_coverage : face_coverage) : 0;
                 }

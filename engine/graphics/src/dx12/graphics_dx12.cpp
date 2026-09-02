@@ -63,7 +63,7 @@ namespace dmGraphics
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, DX12GetContext, ADAPTER_FAMILY_PRIORITY_DIRECTX);
 
-    static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
+    static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy);
     static void DX12DeleteTexture(HContext context, HTexture texture);
 
     static const dmhash_t HASH_SPIRV_Cross_NumWorkgroups = dmHashString64("SPIRV_Cross_NumWorkgroups");
@@ -500,7 +500,7 @@ namespace dmGraphics
 
         context->m_PipelineState = GetDefaultPipelineState();
 
-        CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
+        CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         // Populate the shared GraphicsContextLimits.
         // D3D12 doesn't expose all of these as a single struct — many of the
@@ -1438,37 +1438,49 @@ namespace dmGraphics
         return pitch;
     }
 
-    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat format_dst, TextureFormat format_src,
-        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, const uint32_t* num_rows, uint32_t array_count,
-        uint32_t mipmap_count, const uint32_t* slice_row_pitch, const uint8_t* pixels, uint8_t* upload_data, uint32_t mipmap)
+    // Fills the upload heap for the array slices [layer_base, layer_base + layer_count) from a
+    // tightly packed source holding exactly those slices.
+    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat format,
+        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t layer_base, uint32_t layer_count,
+        const uint8_t* pixels, uint8_t* upload_data)
     {
-        const uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
-        const uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
-        const uint64_t srcRowPitch = slice_row_pitch[0];  // Assuming only one mip being uploaded
-        const uint32_t copy_width = params.m_Width;
-        const uint32_t copy_height = params.m_Height;
-        const uint32_t copy_x = params.m_X;
-        const uint32_t copy_y = params.m_Y;
-
-        for (uint32_t array = 0; array < array_count; ++array)
+        // The source is packed at the requested update extent (the sub-rectangle for a sub-update),
+        // not at the full subresource, so deriving its pitch from the footprint would overread it.
+        uint32_t src_row_pitch;
+        uint32_t src_rows;
+        TextureFormatCompressedBlockSize block_size;
+        if (GetTextureFormatCompressedBlockSize(format, &block_size))
         {
-            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[array];
-            const uint64_t dstRowPitch = layout.Footprint.RowPitch;
-            const uint32_t depth = layout.Footprint.Depth;
+            src_row_pitch = ((params.m_Width  + block_size.m_Width  - 1) / block_size.m_Width) * block_size.m_ByteSize;
+            src_rows      =  (params.m_Height + block_size.m_Height - 1) / block_size.m_Height;
+        }
+        else
+        {
+            src_row_pitch = params.m_Width * (GetTextureFormatBitsPerPixel(format) / 8);
+            src_rows      = params.m_Height;
+        }
+
+        uint64_t src_offset = 0;
+        for (uint32_t i = 0; i < layer_count; ++i)
+        {
+            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[layer_base + i];
+            const uint64_t dstRowPitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded), full width
+            const uint32_t depth = params.m_SubUpdate ? dmMath::Max((uint32_t) 1, (uint32_t) params.m_Depth) : layout.Footprint.Depth;
 
             uint8_t* dst = upload_data + layout.Offset;
-            const uint8_t* src = pixels + array * copy_height * srcRowPitch * depth;
 
             for (uint32_t z = 0; z < depth; ++z)
             {
-                for (uint32_t row = 0; row < copy_height; ++row)
+                for (uint32_t row = 0; row < src_rows; ++row)
                 {
-                    const uint8_t* src_row = src + (z * copy_height + row) * srcRowPitch;
-                    uint8_t* dst_row = dst + (z * copy_height + row) * dstRowPitch;
+                    const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * src_rows + row) * src_row_pitch;
+                    uint8_t* dst_row = dst + (uint64_t) (z * src_rows + row) * dstRowPitch;
 
-                    memcpy(dst_row, src_row, copy_width * bpp_dst);
+                    memcpy(dst_row, src_row, src_row_pitch);
                 }
             }
+
+            src_offset += (uint64_t) src_rows * src_row_pitch * depth;
         }
     }
 
@@ -1528,15 +1540,13 @@ namespace dmGraphics
         CloseHandle(fence_event);
     }
 
-    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, TextureFormat format_src, const TextureParams& params, uint8_t* pixels)
+    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format, const TextureParams& params, uint8_t* pixels)
     {
         const uint32_t target_mip        = params.m_MipMap;
         const uint16_t tex_layer_count   = dmMath::Max(texture->m_LayerCount, (uint16_t) params.m_LayerCount);
         const uint32_t subresource_count = tex_layer_count; // only one mip, full array
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = {};
-        uint32_t num_rows[16];
-        uint64_t row_size_in_bytes[16];
         uint64_t total_upload_size = 0;
 
         // Calculate offset/footprint per array slice
@@ -1545,17 +1555,13 @@ namespace dmGraphics
             const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, tex_layer_count);
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
-            UINT rows = 0;
-            UINT64 rowSize = 0;
             UINT64 size = 0;
 
             context->m_Device->GetCopyableFootprints(
                 &texture->m_ResourceDesc, subresource, 1,
-                total_upload_size, &layout, &rows, &rowSize, &size);
+                total_upload_size, &layout, NULL, NULL, &size);
 
             fp[array] = layout;
-            num_rows[array] = rows;
-            row_size_in_bytes[array] = rowSize;
             total_upload_size += size;
         }
 
@@ -1585,13 +1591,14 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**)&upload_data);
         CHECK_HR_ERROR(hr);
 
-        // Compute only the target mip’s row pitch
-        uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
-        uint32_t slice_row_pitch[1] = { (uint32_t)(params.m_Width * bpp_src) };
+        // A sub-update's source holds only the slices at m_Slice. Walking the full array would read
+        // past its end, and splat the other pages with whatever is in the uninitialized upload heap.
+        const uint32_t layer_base  = params.m_SubUpdate ? dmMath::Min((uint32_t) params.m_Slice, subresource_count - 1) : 0;
+        const uint32_t layer_count = params.m_SubUpdate ?
+            dmMath::Min((uint32_t) dmMath::Max((uint8_t) 1, params.m_LayerCount), subresource_count - layer_base) :
+            subresource_count;
 
-        // Copy only the selected mip level's data
-        CopyTextureDataMipmapLevel(params, format_dst, format_src, fp, num_rows, tex_layer_count,
-            texture->m_Base.m_MipMapCount, slice_row_pitch, pixels, upload_data, target_mip);
+        CopyTextureDataMipmapLevel(params, format, fp, layer_base, layer_count, pixels, upload_data);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
         DX12OneTimeCommandList one_time_cmd_list = {};
@@ -1611,8 +1618,9 @@ namespace dmGraphics
         }
 
         // Copy per array slice
-        for (uint32_t array = 0; array < texture->m_LayerCount; ++array)
+        for (uint32_t i = 0; i < layer_count; ++i)
         {
+            const uint32_t array            = layer_base + i;
             const uint32_t subresourceIndex = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, texture->m_LayerCount);
 
             D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
@@ -3687,7 +3695,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return HANDLE_RESULT_OK;
     }
 
-    static int16_t GetTextureSamplerIndex(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
+    static int16_t GetTextureSamplerIndex(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy)
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
             minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
@@ -3701,6 +3709,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 sampler.m_MinFilter     == minfilter &&
                 sampler.m_AddressModeU  == uwrap     &&
                 sampler.m_AddressModeV  == vwrap     &&
+                sampler.m_AddressModeW  == wwrap     &&
                 sampler.m_MaxLod        == maxLod    &&
                 sampler.m_MaxAnisotropy == max_anisotropy)
             {
@@ -3776,7 +3785,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     }
 
-    int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
+    int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy)
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
             minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
@@ -3788,6 +3797,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         new_sampler.m_MagFilter     = magfilter;
         new_sampler.m_AddressModeU  = uwrap;
         new_sampler.m_AddressModeV  = vwrap;
+        new_sampler.m_AddressModeW  = wwrap;
         new_sampler.m_MaxLod        = maxLod;
         new_sampler.m_MaxAnisotropy = max_anisotropy;
 
@@ -3801,7 +3811,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         desc.Filter              = GetSamplerFilter(context, minfilter, magfilter);
         desc.AddressU            = GetAddressMode(uwrap);
         desc.AddressV            = GetAddressMode(vwrap);
-        desc.AddressW            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        desc.AddressW            = GetAddressMode(wwrap);
         desc.MinLOD              = 0;
         desc.MaxLOD              = D3D12_FLOAT32_MAX;
         desc.MipLODBias          = 0.0f;
@@ -3818,7 +3828,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return (int16_t) sampler_index;
     }
 
-    static void DX12SetTextureParamsInternal(DX12Context* context, DX12Texture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void DX12SetTextureParamsInternal(DX12Context* context, DX12Texture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
         float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
@@ -3832,22 +3842,23 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             sampler.m_MagFilter     != magfilter              ||
             sampler.m_AddressModeU  != uwrap                  ||
             sampler.m_AddressModeV  != vwrap                  ||
+            sampler.m_AddressModeW  != wwrap                  ||
             sampler.m_MaxLod        != texture->m_Base.m_MipMapCount ||
             sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
+            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, wwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
+                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, wwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             }
             texture->m_TextureSamplerIndex = sampler_index;
         }
     }
 
-    static void DX12SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void DX12SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
-        DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
 
     static void DX12SetTexture(HContext context, HTexture texture, const TextureParams& params)
@@ -3944,12 +3955,12 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             tex->m_ResourceDesc = desc;
         }
 
-        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_actual, params, (uint8_t*) tex_data_ptr);
+        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, params, (uint8_t*) tex_data_ptr);
 
         tex->m_Base.m_Format = format_actual;
         SetTextureResourceSize(&tex->m_Base, sizeof(DX12Texture));
 
-        DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+        DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
 
         if (format_orig == TEXTURE_FORMAT_RGB)
         {

@@ -2261,8 +2261,8 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
     for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
     {
         dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) i;
-        // ASTC doesn't have a "bits per pixel" value.
-        if (dmGraphics::IsTextureFormatASTC(format))
+        // Compressed formats have no meaningful bpp, calling it on them asserts
+        if (dmGraphics::IsTextureFormatCompressed(format))
         {
             continue;
         }
@@ -2295,6 +2295,106 @@ TEST_F(dmGraphicsTest, TestTextureFormatCompressedBlockSize)
     ASSERT_EQ(16u, block_size.m_ByteSize);
 
     ASSERT_FALSE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA, &block_size));
+}
+
+TEST_F(dmGraphicsTest, TestEstimateTextureResourceDataSize)
+{
+    dmGraphics::Texture tex = {};
+    tex.m_Type              = dmGraphics::TEXTURE_TYPE_2D;
+
+    // Without a supplied mip 0 size every level is computed from its own dimensions. Compressed
+    // mips floor at one whole block, so the small end of the chain doesn't decay towards zero.
+    tex.m_Format       = dmGraphics::TEXTURE_FORMAT_RGB_BC1;
+    tex.m_Width        = 4;
+    tex.m_Height       = 4;
+    tex.m_MipMapCount  = 3;
+    ASSERT_EQ(24u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // 16x16 BC1 is 4x4 blocks, then 2x2, then 1x1, then two more levels of a single block
+    tex.m_Width       = 16;
+    tex.m_Height      = 16;
+    tex.m_MipMapCount = 5;
+    ASSERT_EQ(128u + 32u + 8u + 8u + 8u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // Uncompressed formats keep quartering naturally, since their mips do shrink by 4x
+    tex.m_Format      = dmGraphics::TEXTURE_FORMAT_RGBA;
+    tex.m_Width       = 16;
+    tex.m_Height      = 16;
+    tex.m_MipMapCount = 3;
+    ASSERT_EQ(1024u + 256u + 64u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // A supplied mip 0 size is authoritative for level 0 and scaled for the rest
+    ASSERT_EQ(2048u + 512u + 128u, dmGraphics::EstimateTextureResourceDataSize(&tex, 2048, false));
+
+    // Cube maps count all six faces
+    tex.m_Type        = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+    tex.m_MipMapCount = 1;
+    ASSERT_EQ(1024u * 6, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+}
+
+TEST_F(dmGraphicsTest, TestTextureFormatDataSize)
+{
+    // 1580x860 BC4 is 395x215 blocks of 8 bytes
+    ASSERT_EQ(679400u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_BC4, 1580, 860));
+    ASSERT_EQ(679400u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_BC1, 1580, 860));
+
+    // One block's worth of each block compressed format
+    ASSERT_EQ(8u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_ETC1, 4, 4));
+    ASSERT_EQ(8u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_ETC2, 4, 4));   // EAC R11
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RG_ETC2, 4, 4));  // EAC RG11
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2, 4, 4));
+    ASSERT_EQ(8u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_BC4, 4, 4));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_BC3, 4, 4));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RG_BC5, 4, 4));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_BC7, 4, 4));
+
+    // Partial blocks pad to a whole block: 5x5 BC4 is 2x2 blocks
+    ASSERT_EQ(32u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_BC4, 5, 5));
+
+    // 4096x4096 is 683x683 6x6 blocks
+    ASSERT_EQ(7463824u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6X6, 4096, 4096));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4, 4, 4));
+
+    // PVRTC rounds up to a multiple of 4 and clamps to a hardware minimum (8x8 for 4bpp, 16x8 for 2bpp)
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, 16, 16));
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, 16, 16));
+    ASSERT_EQ(512u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, 32, 32));
+    ASSERT_EQ(64u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, 16, 16));
+    // Tiny textures pad up to that minimum
+    ASSERT_EQ(32u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, 4, 4));
+    ASSERT_EQ(32u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1, 8, 8));
+
+    // Uncompressed formats go through the bits-per-pixel path
+    ASSERT_EQ(256u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_LUMINANCE, 16, 16));
+    ASSERT_EQ(768u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB, 16, 16));
+    ASSERT_EQ(1024u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA, 16, 16));
+
+    // 8192x8192 at 128 bpp is 2^33 bits, which wraps a uint32 unless accumulated in 64
+    ASSERT_EQ(1073741824u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA32F, 8192, 8192));
+}
+
+TEST_F(dmGraphicsTest, TestIsTextureFormatCompressed)
+{
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_ETC1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_R_ETC2));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RG_ETC2));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_BC1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_BC3));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RG_BC5));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_12X12));
+
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_LUMINANCE));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_16BPP));
 }
 
 TEST_F(dmGraphicsTest, TestGetTextureParams)

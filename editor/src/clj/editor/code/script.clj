@@ -29,7 +29,8 @@
             [editor.resource :as resource]
             [editor.types :as types]
             [schema.core :as s]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.eduction :as e]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -705,19 +706,24 @@
                    :reference-completions true
                    :tags #{:debuggable}}])
 
-(defn- additional-load-fn
+(defn- connect-fn
   [annotations reference-completions project self resource]
   (g/with-auto-evaluation-context evaluation-context
-    (let [code-preprocessors (project/code-preprocessors project evaluation-context)
-          script-intelligence (project/script-intelligence project evaluation-context)
+    (let [script-intelligence (project/script-intelligence project evaluation-context)
           script-annotations (project/script-annotations project evaluation-context)]
-      (concat
-        (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
-        (g/connect script-intelligence :lua-completions self :script-intelligence-completions)
+      (e/concat
         (when reference-completions
           (g/connect self :required-module-info script-intelligence :required-module-infos))
         (when (and annotations (resource/zip-resource? resource))
           (g/connect self :resource-with-lines script-annotations :script-annotations))))))
+
+(defn- additional-load-fn [project self _resource]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [code-preprocessors (project/code-preprocessors project evaluation-context)
+          script-intelligence (project/script-intelligence project evaluation-context)]
+      (e/concat
+        (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
+        (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
@@ -727,7 +733,8 @@
                          :built-pb-class script-compilation/built-pb-class
                          :language "lua"
                          :lazy-loaded false
-                         :additional-load-fn (partial additional-load-fn (:annotations def) (:reference-completions def))
+                         :connect-fn (partial connect-fn (:annotations def) (:reference-completions def))
+                         :additional-load-fn additional-load-fn
                          :view-types [:code :default]
                          :view-opts lua-code-opts))]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

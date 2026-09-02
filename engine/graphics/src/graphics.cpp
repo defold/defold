@@ -776,21 +776,8 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGBA:               return 32;
         case TEXTURE_FORMAT_RGB_16BPP:          return 16;
         case TEXTURE_FORMAT_RGBA_16BPP:         return 16;
-        case TEXTURE_FORMAT_RGB_ETC1:           return 4;
-        case TEXTURE_FORMAT_R_ETC2:             return 8;
-        case TEXTURE_FORMAT_RG_ETC2:            return 8;
-        case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
-        case TEXTURE_FORMAT_RGB_BC1:            return 4;
-        case TEXTURE_FORMAT_RGBA_BC3:           return 4;
-        case TEXTURE_FORMAT_R_BC4:              return 8;
-        case TEXTURE_FORMAT_RG_BC5:             return 8;
-        case TEXTURE_FORMAT_RGBA_BC7:           return 8;
         case TEXTURE_FORMAT_DEPTH:              return 24;
         case TEXTURE_FORMAT_STENCIL:            return 8;
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return 2;
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return 4;
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return 2;
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return 4;
         case TEXTURE_FORMAT_RGB16F:             return 48;
         case TEXTURE_FORMAT_RGB32F:             return 96;
         case TEXTURE_FORMAT_RGBA16F:            return 64;
@@ -805,9 +792,12 @@ namespace dmGraphics
         default: break;
         }
 
-        // Not straight-forward to return a BPP value here.
-        if (IsTextureFormatASTC(format))
+        // Compressed formats have no meaningful bits-per-pixel, use GetTextureFormatDataSize()
+        if (IsTextureFormatCompressed(format))
+        {
+            assert(false && "GetTextureFormatBitsPerPixel called with a compressed format");
             return 0;
+        }
 
         assert(false && "Unknown texture format");
         return TEXTURE_FORMAT_COUNT;
@@ -847,6 +837,8 @@ namespace dmGraphics
         switch (format)
         {
             case TEXTURE_FORMAT_RGB_ETC1:        *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_R_ETC2:          *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_RG_ETC2:         *out = { 4, 4, 16 }; return true;
             case TEXTURE_FORMAT_RGBA_ETC2:       *out = { 4, 4, 16 }; return true;
             case TEXTURE_FORMAT_RGB_BC1:         *out = { 4, 4,  8 }; return true;
             case TEXTURE_FORMAT_R_BC4:           *out = { 4, 4,  8 }; return true;
@@ -869,6 +861,44 @@ namespace dmGraphics
             case TEXTURE_FORMAT_RGBA_ASTC_12X12: *out = { 12, 12, 16 }; return true;
             default:                             *out = { 0, 0,  0 }; return false;
         }
+    }
+
+    uint32_t GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height)
+    {
+        // Partial blocks are padded to a full block
+        TextureFormatCompressedBlockSize block_size;
+        if (GetTextureFormatCompressedBlockSize(format, &block_size))
+        {
+            uint32_t block_columns = (width  + block_size.m_Width  - 1) / block_size.m_Width;
+            uint32_t block_rows    = (height + block_size.m_Height - 1) / block_size.m_Height;
+            return block_columns * block_rows * block_size.m_ByteSize;
+        }
+
+        // PVRTC rounds dimensions up to a multiple of 4 and clamps to a hardware minimum. The 4bpp
+        // formulas match the transcoder (cTFPVRTC1_4_* in graphics_transcoder_basisu.cpp); the 2bpp
+        // ones have no producer today and follow the IMG_texture_compression_pvrtc spec.
+        switch (format)
+        {
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            {
+                uint32_t w = (width  + 3) & ~3u;
+                uint32_t h = (height + 3) & ~3u;
+                return (dmMath::Max((uint32_t) 8, w) * dmMath::Max((uint32_t) 8, h) * 4 + 7) / 8;
+            }
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            {
+                uint32_t w = (width  + 3) & ~3u;
+                uint32_t h = (height + 3) & ~3u;
+                return (dmMath::Max((uint32_t) 16, w) * dmMath::Max((uint32_t) 8, h) * 2 + 7) / 8;
+            }
+            default:
+                break;
+        }
+
+        // 64 bit accumulate, 8192x8192 at 128 bpp already overflows a uint32 count of bits
+        return (uint32_t) (((uint64_t) width * height * GetTextureFormatBitsPerPixel(format)) / 8);
     }
 
     Type GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type)
@@ -898,9 +928,13 @@ namespace dmGraphics
     {
         switch(format)
         {
+            case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
             case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
+            case dmGraphics::TEXTURE_FORMAT_R_ETC2:
+            case dmGraphics::TEXTURE_FORMAT_RG_ETC2:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
             case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
@@ -2370,7 +2404,12 @@ namespace dmGraphics
     }
     void SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        g_functions.m_SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, uwrap, max_anisotropy);
+    }
+
+    void SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
+    {
+        g_functions.m_SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
     uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {

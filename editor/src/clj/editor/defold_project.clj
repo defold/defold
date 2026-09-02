@@ -917,14 +917,15 @@
 (defn make-resource-node-tx-data [project node-type node-id resource]
   {:pre [(g/node-id? project)
          (g/node-id? node-id)
-         (resource/resource? resource)
-         (not (resource/folder? resource))]}
+         (resource/resource? resource)]}
   (e/concat
     (g/add-node
       (g/construct node-type
         :_node-id node-id
         :resource resource))
-    (g/connect node-id :node-id+resource project :node-id+resources)))
+    (g/connect node-id :node-id+resource project :node-id+resources)
+    (when-let [connect-fn (:connect-fn (resource/resource-type resource))]
+      (connect-fn project node-id resource))))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
   {:pre [(g/node-id? project)]}
@@ -944,17 +945,6 @@
                   (fn [[node-id resource]]
                     (make-resource-node-tx-data project node-type node-id resource))))))))
 
-(defn setup-game-project-tx-data [project game-project]
-  (when (some? game-project)
-    (assert (g/node-id? game-project))
-    (let [script-intelligence (script-intelligence project)]
-      (e/concat
-        (g/connect script-intelligence :build-errors game-project :build-errors)
-        (g/connect game-project :display-profiles-data project :display-profiles)
-        (g/connect game-project :texture-profiles-data project :texture-profiles)
-        (g/connect game-project :use-font-layout project :use-font-layout)
-        (g/connect game-project :settings-map project :settings)))))
-
 (defn load-project!
   ([project]
    (load-project! project progress/null-render-progress!))
@@ -968,20 +958,6 @@
          transaction-metrics (du/make-metrics-collector)
          project-graph (g/node-id->graph-id project)
          node-id+resource-pairs (make-node-id+resource-pairs project-graph resources)
-
-         game-project-resource
-         (g/let-ec [basis (:basis evaluation-context)
-                    workspace (workspace project evaluation-context)]
-           (workspace/find-resource basis workspace "/game.project"))
-
-         game-project-node-id
-         (when game-project-resource
-           (coll/some
-             (fn [[node-id resource]]
-               (when (identical? game-project-resource resource)
-                 node-id))
-             node-id+resource-pairs))
-
          read-progress-span 1
          load-progress-span 3
          total-progress-span (+ read-progress-span load-progress-span)
@@ -1004,23 +980,17 @@
                         :undoable false}
 
          prelude-tx-data
-         (e/concat
-           (make-resource-nodes-tx-data project node-id+resource-pairs)
-
-           ;; Make sure the game.project node is property connected before
-           ;; loading the resource nodes, since establishing these connections
-           ;; will invalidate any dependent outputs in the cache.
-
-           ;; TODO(save-value-cleanup): There are implicit dependencies between
-           ;; texture profiles and image resources. We probably want to ensure
-           ;; the texture profiles are loaded before anything that makes
-           ;; implicit use of them to avoid potentially costly cache
-           ;; invalidation.
-           (setup-game-project-tx-data project game-project-node-id))
+         (make-resource-nodes-tx-data project node-id+resource-pairs)
 
          ;; Load the resource nodes. Referenced nodes will be loaded prior to
          ;; nodes that refer to them, provided the :dependencies-fn reports the
          ;; referenced proj-paths correctly.
+         ;;
+         ;; TODO(save-value-cleanup): There are implicit dependencies between
+         ;; texture profiles and image resources. We probably want to ensure
+         ;; the texture profiles are loaded before anything that makes
+         ;; implicit use of them to avoid potentially costly cache
+         ;; invalidation.
          migrated-resource-node-ids
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
            (du/measuring process-metrics :load-new-nodes
@@ -1598,6 +1568,7 @@
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
   (input use-font-layout g/Bool)
+  (input use-rich-text g/Bool)
   (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input dependencies g/Any)
@@ -1632,6 +1603,7 @@
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
+  (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
   (output display-width g/Num (g/fnk [settings]
                                  (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
@@ -1713,9 +1685,8 @@
       [tx-data-context-map pending-resource-node-id nil]
       (let [graph-id (g/node-id->graph-id project)
             node-type (resource-node-type resource)
-            creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
-                               (g/connect resource-node-id :node-id+resource project :node-id+resources))
-            created-resource-node-id (first (g/tx-data-added-node-ids creation-tx-data))
+            created-resource-node-id (first (g/take-node-ids graph-id 1))
+            creation-tx-data (make-resource-node-tx-data project node-type created-resource-node-id resource)
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
             tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
         [tx-data-context-map' created-resource-node-id creation-tx-data]))))

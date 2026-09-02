@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
+#include <math.h>
+#include <string.h>
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/log.h>
@@ -22,6 +24,9 @@
 
 #include <dmsdk/gamesys/resources/res_font.h>
 #include <dmsdk/gamesys/resources/res_ttf.h>
+
+#include <font/fontcollection.h>
+#include <font/text_layout.h>
 
 #include "gamesys/fontgen/fontgen.h"
 
@@ -42,6 +47,72 @@ namespace dmGameSystem
 const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
 
 dmResource::HFactory g_ResourceFactory = 0;
+
+/*# sets a named rich-text render style on a font
+ *
+ * Named object styles are resolved by text layouts without reshaping text.
+ * A `link` tag uses `link` by default. Callers may select another named style,
+ * such as `link:hover` or `link:active`, in response to input.
+ * Font collections initially define these named styles. Each default contains
+ * a normalized RGBA face-color multiplier and no effects. The default `link`
+ * style also uses a solid underline, which remains when hover or active colors
+ * are applied:
+ *
+ * - `link`: `(0.10, 0.45, 0.90, 1.0)`, solid underline
+ * - `link:hover`: `(0.30, 0.65, 1.00, 1.0)`
+ * - `link:active`: `(0.05, 0.30, 0.70, 1.0)`
+ *
+ * The definition is an opening-only sequence of rich-text tags. Tags are
+ * implicitly closed in reverse order. Calling this function replaces the
+ * named render properties and effects. Resource-defined decorations, such as
+ * the default `link` underline, remain unchanged.
+ *
+ * @name font.set_style
+ * @param fontc [type:string|hash] The path to the `.fontc` resource.
+ * @param name [type:string] Style name, for example `link:hover`.
+ * @param style [type:string] Opening-only render-style markup.
+ *
+ * @examples
+ *
+ * ```lua
+ * font.set_style("/fonts/ui.fontc", "link:hover",
+ *     "<color=#66b3ff><outline color=#000000 size=1><shake amplitude=0.2>")
+ * ```
+ */
+static int SetStyle(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    const dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    size_t         name_length = 0;
+    const char*    name = luaL_checklstring(L, 2, &name_length);
+    size_t         definition_length = 0;
+    const char*    definition = luaL_checklstring(L, 3, &definition_length);
+
+    if (name_length == 0)
+    {
+        return DM_LUA_ERROR("font.set_style() style name must not be empty");
+    }
+
+    FontResource* resource = 0;
+    dmResource::Result result = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
+
+    if (result != dmResource::RESULT_OK)
+    {
+        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), result);
+    }
+
+    MarkupError error = {};
+    const bool valid = FontCollectionSetNamedStyleMarkup(ResFontGetFontCollection(resource), dmHashBuffer64(name, (uint32_t)name_length), definition, (uint32_t)definition_length, &error);
+    dmResource::Release(g_ResourceFactory, resource);
+
+    if (!valid)
+    {
+        return DM_LUA_ERROR("font.set_style() invalid markup at byte %u", error.m_ByteOffset);
+    }
+
+    return 0;
+}
 
 struct CallbackContext
 {
@@ -154,23 +225,25 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
-
-    lua_State* L = dmScript::GetCallbackLuaContext(cbk);
-    DM_LUA_STACK_CHECK(L, 0);
-
-    if (dmScript::SetupCallback(cbk))
+    if (dmScript::IsCallbackValid(cbk))
     {
-        int nargs = 3;
-        lua_pushinteger(L, (int)ctx->m_Request);
-        lua_pushboolean(L, result != 0);
-        if (0 != errmsg)
-            lua_pushstring(L, errmsg);
-        else
-            lua_pushnil(L);
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
 
-        dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
+        if (dmScript::SetupCallback(cbk))
+        {
+            int nargs = 3;
+            lua_pushinteger(L, (int)ctx->m_Request);
+            lua_pushboolean(L, result != 0);
+            if (0 != errmsg)
+                lua_pushstring(L, errmsg);
+            else
+                lua_pushnil(L);
 
-        dmScript::TeardownCallback(cbk);
+            dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
+
+            dmScript::TeardownCallback(cbk);
+        }
     }
     dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
     delete ctx;
@@ -335,6 +408,7 @@ static const luaL_reg Module_methods[] =
     {"remove_font", RemoveFont},
     {"prewarm_text", PrewarmText},
     {"get_info", GetFontInfo},
+    {"set_style", SetStyle},
     {0, 0}
 };
 

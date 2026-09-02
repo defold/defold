@@ -174,6 +174,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
     };

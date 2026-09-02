@@ -44,54 +44,6 @@ message FontDesc
     optional string characters = 18 [default = ""];
 }
 
-// Used at runtime
-message GlyphBank
-{
-
-// TODO: Bob shouldn't write down X/Y, in order to slim down content!
-    message Glyph
-    {
-        required uint32 character         = 1;                  // utf32 codepoint
-        optional float  width             = 2 [default = 0];    // glyph width
-        optional float  advance           = 3 [default = 0.0];
-        optional float  left_bearing      = 4 [default = 0.0];
-        optional int32  ascent            = 5 [default = 0]; // WHY 32 bits???
-        optional int32  descent           = 6 [default = 0]; // WHY 32 bits???
-        optional int32  x                 = 7 [default = 0]; // only used in editor preview
-        optional int32  y                 = 8 [default = 0]; // only used in editor preview
-        optional uint64 glyph_data_offset = 9; // WHY 64 bits???
-        optional uint64 glyph_data_size   = 10; // 32 bits should suffice?
-    }
-
-    repeated Glyph             glyphs                = 1;
-    optional uint64            glyph_padding         = 2 [default = 0];
-    optional uint32            glyph_channels        = 3 [default = 0];
-    optional bytes             glyph_data            = 4; // glyph data may be compressed
-
-    optional float             max_ascent            = 5 [default = 0.0];
-    optional float             max_descent           = 6 [default = 0.0];
-    optional float             max_advance           = 7 [default = 0.0];
-    optional float             max_width             = 8 [default = 0.0];
-    optional float             max_height            = 9 [default = 0.0];
-    optional FontTextureFormat image_format          = 10 [default = TYPE_BITMAP];
-
-    // TODO: Move to fontDesc
-    optional float             sdf_spread            = 11 [default = 1.0];
-    optional float             sdf_outline           = 12 [default = 0.0];
-    optional float             sdf_shadow            = 13 [default = 0.0];
-
-    // TODO: Move to fontDesc
-    optional uint32            cache_width           = 14 [default = 0];
-    optional uint32            cache_height          = 15 [default = 0];
-
-    optional uint32            cache_cell_width      = 16 [default = 0];
-    optional uint32            cache_cell_height     = 17 [default = 0];
-    optional uint32            cache_cell_max_ascent = 18 [default = 0];
-
-    optional uint32            padding               = 19 [default = 0];
-    optional bool              is_monospaced         = 20 [default = false];
-}
-
 // Used at runtime.
 message FontMap
 {

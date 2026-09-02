@@ -22,9 +22,8 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]))
-
-(def ^:private load-counter (atom 0))
+            [support.test-support :refer [with-clean-system]]
+            [util.eduction :as e]))
 
 (g/defnode ANode
   (inherits resource-node/ResourceNode)
@@ -37,40 +36,53 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)]
                      (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
+  (input project-node-id g/NodeID)
   (input value-input g/Str))
 
 (g/defnode BNode
   (inherits resource-node/ResourceNode)
   (property value g/Str))
 
-(defn- read-a [resource]
-  (read-string (slurp resource)))
-
-(defn- dependencies-a [source-value]
-  (keep source-value [:b]))
-
-(defn- load-a [_project self resource source-value]
-  (swap! load-counter inc)
-  (let [source-resource (workspace/resolve-resource resource (:b source-value))]
-    (concat
-     (g/set-property self :value-piece "set incorrectly")
-     (g/set-property self :source-resource source-resource)
-     (g/set-property self :value "bogus value"))))
-
-(defn- load-b [_project self resource]
-  (swap! load-counter inc)
-  (let [data (read-string (slurp resource))]
-    (g/set-property self :value (:value data))))
-
 (defn- register-resource-types [workspace types]
   (for [type types]
     (apply workspace/register-resource-type workspace (flatten (vec type)))))
 
 (deftest loading
-  (reset! load-counter 0)
   (with-clean-system
     (test-util/with-ui-run-later-rebound
-      (let [workspace (workspace/make-workspace world
+      (let [load-counter (atom 0)
+
+            read-a
+            (fn read-a [resource]
+              (read-string (slurp resource)))
+
+            dependencies-a
+            (fn dependencies-a [source-value]
+              (keep source-value [:b]))
+
+            connect-a
+            (fn connect-a [project self _resource]
+              (g/connect project :_node-id self :project-node-id))
+
+            load-a
+            (fn load-a [project self resource source-value]
+              (swap! load-counter inc)
+              (let [source-resource (workspace/resolve-resource resource (:b source-value))]
+                (e/concat
+                  (g/callback-ec
+                    (fn check-connect-fn-happened [evaluation-context]
+                      (is (= project (g/node-value self :project-node-id evaluation-context)))))
+                  (g/set-property self :value-piece "set incorrectly")
+                  (g/set-property self :source-resource source-resource)
+                  (g/set-property self :value "bogus value"))))
+
+            load-b
+            (fn load-b [_project self resource]
+              (swap! load-counter inc)
+              (let [data (read-string (slurp resource))]
+                (g/set-property self :value (:value data))))
+
+            workspace (workspace/make-workspace world
                                                 (.getAbsolutePath (io/file "test/resources/load_project"))
                                                 {}
                                                 {}
@@ -82,6 +94,7 @@
                                                  :node-type ANode
                                                  :read-fn read-a
                                                  :dependencies-fn dependencies-a
+                                                 :connect-fn connect-a
                                                  :load-fn load-a
                                                  :label "Type A"}
                                                 {:ext "type_b"
