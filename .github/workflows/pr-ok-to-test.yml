@@ -5,17 +5,28 @@ name: PR - ok to test
 # A fork PR gets no CI today: every engine job in main-ci.yml is gated on the event not
 # being a `pull_request`, and the fork's branch does not exist here to check out. To get
 # a fork PR built, a maintainer reviews the diff and applies the "ok to test" label. This
-# workflow then mirrors the reviewed commit to `contrib/pr-<number>` and asks main-ci.yml
-# to build that branch through a `repository_dispatch` of type `contrib-build`.
+# workflow then mirrors the reviewed commit to `contrib/pr-<number>` and dispatches
+# main-ci.yml on that branch.
 #
 # The mirrored code is untrusted - nobody with push access wrote it - yet it runs in a
-# workflow that can normally see repository secrets. main-ci.yml therefore withholds every
-# credential from a `contrib-build` dispatch and isolates its caches. See README_CI.md.
+# workflow that can normally see repository secrets. main-ci.yml withholds every
+# credential from a run on `contrib/**`. See README_CI.md.
 #
-# `repository_dispatch` is used rather than a `push` trigger for two reasons: GitHub always
-# runs a dispatched workflow from the default branch, so the pull request cannot modify the
-# CI definition that builds it, and GITHUB_TOKEN is allowed to fire it (a push made with
-# GITHUB_TOKEN would not start any workflow at all).
+# Two things follow from dispatching main-ci.yml on the mirror branch rather than through
+# a repository dispatch:
+#
+#  - The build gets an Actions cache scope of its own. A repository dispatch reports
+#    github.ref as the default branch, so whatever the build writes to the cache lands in
+#    the scope that trusted dev builds restore from - and it can write there directly with
+#    the runner's own token, whether or not the workflow uses actions/cache. A run on its
+#    own branch writes to that branch's scope, and GitHub does not let the default branch
+#    restore a cache created for a child branch.
+#
+#  - The workflow file that runs is the one on the mirror branch, not the one on the
+#    default branch. So the branch carries this repository's .github/ in place of the pull
+#    request's; without the substitution the pull request could rewrite the CI that builds
+#    it. GITHUB_TOKEN may start a dispatch either way (a push made with GITHUB_TOKEN would
+#    start no workflow at all).
 
 on:
   pull_request_target:
@@ -44,6 +55,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # To dispatch main-ci.yml on the mirror branch. This job runs only code from the
+      # base branch, never anything from the pull request.
+      actions: write
     steps:
       - name: 'Check that the label was applied by someone with push access'
         # Triage permission is enough to add a label, but not enough to decide that
@@ -83,6 +97,15 @@ jobs:
         # between. The head is compared first only to fail fast: building a commit that has
         # already been superseded is wasted work, and the diff summary in the next step
         # reads the pull request as it stands now.
+        #
+        # What lands on the branch is the reviewed tree with .github/ replaced by the base
+        # branch's. main-ci.yml is dispatched on this branch and so runs the copy that
+        # lives here, which the pull request must not be able to supply. Everything the
+        # build itself reads still comes from the pull request - .github/ is not one of
+        # those paths - and the reviewed commit is kept as the parent, so the substitution
+        # is a single commit's worth of difference and stays visible in the history.
+        env:
+          BASE_REF: '${{ github.event.pull_request.base.ref }}'
         run: |
           set -e
           current=$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')
@@ -90,17 +113,30 @@ jobs:
             echo "::error::The pull request head moved while the label was being processed (${HEAD_SHA} -> ${current}). Re-review and label again."
             exit 1
           fi
-          echo "Mirroring ${HEAD_SHA} to ${MIRROR_BRANCH}"
           git fetch --no-tags origin "${HEAD_SHA}"
-          git push --force origin "${HEAD_SHA}:refs/heads/${MIRROR_BRANCH}"
+
+          # HEAD is the base branch - this job checked it out and runs nothing from the
+          # pull request - so this is the .github/ tree of this repository.
+          base_github=$(git rev-parse 'HEAD:.github')
+          tree=$(git ls-tree "${HEAD_SHA}" \
+                   | awk -F'\t' '$2 != ".github"' \
+                   | { cat; printf '040000 tree %s\t.github\n' "${base_github}"; } \
+                   | git mktree)
+          commit=$(git -c user.name='github-actions[bot]' \
+                       -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                       commit-tree "${tree}" -p "${HEAD_SHA}" \
+                       -m "Build pull request #${PR_NUMBER} at ${HEAD_SHA}" \
+                       -m ".github/ taken from ${BASE_REF}; every other path is the pull request's.")
+
+          echo "Mirroring ${HEAD_SHA} to ${MIRROR_BRANCH} as ${commit}"
+          git push --force origin "${commit}:refs/heads/${MIRROR_BRANCH}"
 
       - name: 'Summarise build-affecting files in the diff'
         # These paths are executed by the build itself, so a reviewer needs to have looked
-        # at them specifically. Workflow files under .github/ are inert in a contrib build
-        # (the dispatched run uses the definitions from the default branch) but they still
-        # have to be reviewed before the pull request is merged. The list is kept in a file
-        # rather than a step output: the names come from the pull request, and this job has
-        # write access.
+        # at them specifically. Workflow files under .github/ never reach the build - the
+        # mirror branch carries this repository's copy - but they still have to be reviewed
+        # before the pull request is merged. The list is kept in a file rather than a step
+        # output: the names come from the pull request, and this job has write access.
         run: |
           gh pr diff "${PR_NUMBER}" --name-only \
             | grep -E '(^|/)(wscript|CMakeLists\.txt|copy\.sh)$|^ci/|^scripts/build\.py$|^build_tools/|^\.github/|\.gradle$|gradle-wrapper|^packages/|^editor/tasks/|^editor/scripts/' \
@@ -108,37 +144,29 @@ jobs:
 
       - name: 'Ask main-ci.yml to build the mirrored branch'
         id: dispatch
+        # Dispatched on the mirror branch, so the run reports github.ref as that branch.
+        # main-ci.yml reads the ref to decide that the build is untrusted, and the Actions
+        # cache scope follows it too. No payload is needed: the branch says everything.
         run: |
           set -e
           echo "since=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-          gh api "repos/${GH_REPO}/dispatches" \
-            -f event_type=contrib-build \
-            -F "client_payload[branch]=${MIRROR_BRANCH}" \
-            -F "client_payload[sha]=${HEAD_SHA}" \
-            -F "client_payload[pr]=${PR_NUMBER}" \
-            -F "client_payload[skip_sign]=true"
+          gh api -X POST "repos/${GH_REPO}/actions/workflows/main-ci.yml/dispatches" \
+            -f "ref=${MIRROR_BRANCH}"
 
       - name: 'Find the dispatched run'
         id: run
-        # repository_dispatch returns 204 with no run id, so look for the run it started.
-        # A run carries no reference to the dispatch that asked for it, so only a single
-        # candidate is accepted: if another pull request was labelled in the same window
-        # there is nothing to tell the two runs apart, and picking one would link the
-        # wrong build. Best effort either way - the comment falls back to the workflow page.
+        # The dispatch returns 204 with no run id, so the run has to be looked up. It is
+        # on a branch of its own, so the branch and the time of the dispatch name it
+        # exactly. Best effort - the comment falls back to the workflow page.
         run: |
           since='${{ steps.dispatch.outputs.since }}'
           url="https://github.com/${GH_REPO}/actions/workflows/main-ci.yml"
           for _ in $(seq 1 12); do
             sleep 5
-            found=$(gh api "repos/${GH_REPO}/actions/runs?event=repository_dispatch&per_page=20" \
-                      --jq "[.workflow_runs[] | select(.name == \"CI - Main\") | select(.created_at >= \"${since}\")] | .[].html_url" 2>/dev/null || true)
-            count=$(printf '%s\n' "${found}" | grep -c . || true)
-            if [ "${count}" -eq 1 ]; then
+            found=$(gh api "repos/${GH_REPO}/actions/workflows/main-ci.yml/runs?event=workflow_dispatch&branch=${MIRROR_BRANCH}&per_page=5" \
+                      --jq "[.workflow_runs[] | select(.created_at >= \"${since}\")] | .[0].html_url // empty" 2>/dev/null || true)
+            if [ -n "${found}" ]; then
               url="${found}"
-              break
-            fi
-            if [ "${count}" -gt 1 ]; then
-              echo "::warning::${count} dispatched runs started in this window, linking the workflow rather than guessing"
               break
             fi
           done

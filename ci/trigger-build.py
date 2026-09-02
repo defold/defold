@@ -24,10 +24,11 @@ from argparse import ArgumentParser
 def main(argv):
     parser = ArgumentParser()
     parser.add_argument("--token", dest="token", help="GitHub API personal access token ")
-    # The event type is what main-ci.yml keys its trust decision on: anything other than
-    # 'contrib-build' is a trusted build with the full set of secrets. Use pr-ok-to-test.yml
-    # to build an external contribution, not this script.
-    parser.add_argument("--action", dest="action", default="build", help="The trigger action (event_type). 'contrib-build' is reserved for mirrored external pull requests and gets no credentials")
+    # This fires a repository_dispatch, which is a trusted build with the full set of
+    # secrets. The event type has no bearing on that: main-ci.yml decides by branch, and
+    # withholds every credential from a build of contrib/**. Use pr-ok-to-test.yml to
+    # build an external contribution, not this script.
+    parser.add_argument("--action", dest="action", default="build", help="The trigger action (event_type)")
     parser.add_argument("--branch", dest="branch", help="The branch to build")
     parser.add_argument("--skip-engine", dest="skip_engine", action='store_true', default=False, help="Skip building the engine")
     parser.add_argument("--skip-sdk", dest="skip_sdk", action='store_true', default=False, help="Skip building the Defold SDK")
