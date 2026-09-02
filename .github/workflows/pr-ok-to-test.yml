@@ -26,6 +26,7 @@ permissions: {}
 concurrency:
   group: ok-to-test-${{ github.event.pull_request.number }}
   cancel-in-progress: false
+  queue: max
 
 env:
   OK_TO_TEST_LABEL: 'ok to test'

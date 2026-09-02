@@ -386,6 +386,7 @@ jobs:
     # is what the shared Slack notifier renders.
     name: 'bld-eng-${{ matrix.id }}'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - id: switch
