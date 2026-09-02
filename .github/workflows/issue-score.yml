@@ -11,4 +11,3 @@ jobs:
       contents: read
       issues: write
     uses: defold/github-actions-common/.github/workflows/issue-score.yml@master
-    secrets: inherit
