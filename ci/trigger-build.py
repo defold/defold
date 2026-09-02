@@ -24,7 +24,9 @@ from argparse import ArgumentParser
 def main(argv):
     parser = ArgumentParser()
     parser.add_argument("--token", dest="token", help="GitHub API personal access token ")
-    parser.add_argument("--action", dest="action", default="build", help="The trigger action")
+    # A trusted build with the full set of secrets. Use pr-ok-to-test.yml to build an
+    # external contribution, not this script.
+    parser.add_argument("--action", dest="action", default="build", help="The trigger action (event_type)")
     parser.add_argument("--branch", dest="branch", help="The branch to build")
     parser.add_argument("--skip-engine", dest="skip_engine", action='store_true', default=False, help="Skip building the engine")
     parser.add_argument("--skip-sdk", dest="skip_sdk", action='store_true', default=False, help="Skip building the Defold SDK")
