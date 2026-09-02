@@ -323,8 +323,15 @@ public class ModelUtilTest {
         TextureImage textureImage = texture.toGenerateResult().textureImage;
         assertEquals(TextureImage.Type.TYPE_2D_ARRAY, textureImage.getType());
         assertEquals(6, textureImage.getCount());
-        assertEquals(1, textureImage.getAlternatives(0).getDepth());
-        assertEquals(1, textureImage.getAlternatives(0).getOriginalDepth());
+        TextureImage.Image image = textureImage.getAlternatives(0);
+        assertEquals(1, image.getDepth());
+        assertEquals(1, image.getOriginalDepth());
+        assertEquals(texture.data.length / texture.layerCount, image.getMipMapSize(0));
+        assertEquals(texture.layerCount, image.getMipMapSizeCompressedCount());
+        for (int i = 0; i < texture.layerCount; ++i) {
+            assertEquals(texture.data.length / texture.layerCount, image.getMipMapSizeCompressed(i));
+        }
+        assertEquals(texture.data.length, image.getDataSize());
         assertEquals(2, mesh.getMorphTargetCount());
         assertEquals(2, mesh.getMorphBaseWeightsCount());
     }

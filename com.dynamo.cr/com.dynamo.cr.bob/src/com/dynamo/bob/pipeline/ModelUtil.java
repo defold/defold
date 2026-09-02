@@ -83,7 +83,9 @@ public class ModelUtil {
         }
 
         public TextureGenerator.GenerateResult toGenerateResult() {
-            TextureImage.Image image = TextureImage.Image.newBuilder()
+            // Mipmap sizes are per layer; data size covers the complete array.
+            int layerDataSize = width * height * 4 * Float.BYTES;
+            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder()
                     .setWidth(width)
                     .setHeight(height)
                     .setDepth(1)
@@ -92,12 +94,14 @@ public class ModelUtil {
                     .setOriginalDepth(1)
                     .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA32F)
                     .addMipMapOffset(0)
-                    .addMipMapSize(data.length)
-                    .addMipMapSizeCompressed(data.length)
+                    .addMipMapSize(layerDataSize)
                     .addMipMapDimensions(width)
                     .addMipMapDimensions(height)
-                    .setDataSize(data.length)
-                    .build();
+                    .setDataSize(data.length);
+            for (int i = 0; i < layerCount; ++i) {
+                imageBuilder.addMipMapSizeCompressed(layerDataSize);
+            }
+            TextureImage.Image image = imageBuilder.build();
 
             TextureGenerator.GenerateResult result = new TextureGenerator.GenerateResult();
             result.textureImage = TextureImage.newBuilder()
