@@ -388,6 +388,7 @@
   (input sub-selections-by-resource-node g/Any)
   (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
+  (input debugger-suspension-variables g/Any)
   (input scene-visibility g/NodeID)
 
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
@@ -441,7 +442,8 @@
                                                             resource (:resource (get open-views view))]
                                                       :when resource]
                                                 (ui/text! tab (tab-title resource (contains? open-dirty-views view)))))))
-  (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
+  (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations))
+  (output debugger-suspension-variables g/Any (gu/passthrough debugger-suspension-variables)))
 
 (defn- selection->openable-resources [selection evaluation-context]
   (when-let [resources (handler/adapt-every selection resource/Resource evaluation-context)]
