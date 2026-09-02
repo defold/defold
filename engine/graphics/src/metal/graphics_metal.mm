@@ -907,7 +907,6 @@ namespace dmGraphics
         }
     }
 
-#if defined(DM_PLATFORM_IOS)
     static void ResizeMainFramebufferResources(MetalContext* context, uint32_t width, uint32_t height)
     {
         if (context->m_MainDepthStencilTexture &&
@@ -944,7 +943,6 @@ namespace dmGraphics
 
         SetMainRenderTargetSize(context, width, height);
     }
-#endif
 
     static inline bool MetalFormatHasDepth(MTL::PixelFormat fmt)
     {
@@ -1881,6 +1879,11 @@ namespace dmGraphics
                 [native_view.layer addSublayer:context->m_Layer];
             }
         }
+#else
+        uint32_t requested_drawable_width = 0;
+        uint32_t requested_drawable_height = 0;
+        GetDrawableSize(context, &requested_drawable_width, &requested_drawable_height);
+        context->m_Layer.drawableSize = CGSizeMake(requested_drawable_width, requested_drawable_height);
 #endif
 
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -1913,9 +1916,7 @@ namespace dmGraphics
 
         const uint32_t drawable_width = frame.m_Drawable->texture()->width();
         const uint32_t drawable_height = frame.m_Drawable->texture()->height();
-#if defined(DM_PLATFORM_IOS)
         ResizeMainFramebufferResources(context, drawable_width, drawable_height);
-#endif
 
         color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
@@ -3954,6 +3955,10 @@ namespace dmGraphics
         {
             context->m_ScissorChanged = true;
         }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
+        }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
             context->m_PolygonOffsetChanged = true;
@@ -3968,6 +3973,10 @@ namespace dmGraphics
         if (state == STATE_SCISSOR_TEST)
         {
             context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
         }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
