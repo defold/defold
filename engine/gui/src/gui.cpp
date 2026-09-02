@@ -831,6 +831,11 @@ namespace dmGui
         return scene->m_UserData;
     }
 
+    void* GetSceneCustomNodeCallbackContext(HScene scene)
+    {
+        return scene->m_CreateCustomNodeCallbackContext;
+    }
+
     static void UpdateTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type)
     {
         uint32_t n = scene->m_Nodes.Size();

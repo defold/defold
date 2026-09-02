@@ -173,7 +173,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
-                                                dmGameObject::HRegister regist,
+                                                dmGameObject::HContext regist,
                                                 dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
                                                 SpriteContext* sprite_context,

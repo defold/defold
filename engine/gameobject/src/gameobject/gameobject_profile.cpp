@@ -25,10 +25,12 @@ namespace dmGameObject
 static bool IterateCollectionGetNext(SceneNodeIterator* it)
 {
     assert(it->m_Parent.m_Type == SCENE_NODE_TYPE_COLLECTION);
-    HCollection hcollection = (HCollection)it->m_Parent.m_Node;
-    Collection* collection = hcollection->m_Collection;
+    HCollection hcollection = it->m_Parent.m_Collection;
+    Collection* collection = GetCollectionFromHandle(hcollection);
+    if (!collection)
+        return false;
 
-    const dmArray<uint16_t>& root_level = collection->m_LevelIndices[0];
+    const dmArray<uint32_t>& root_level = collection->m_LevelIndices[0];
 
     // If the index is still valid
     uint64_t index = it->m_NextChild.m_Node;
@@ -36,7 +38,8 @@ static bool IterateCollectionGetNext(SceneNodeIterator* it)
 
     if (valid) {
         it->m_Node = it->m_NextChild;
-        it->m_Node.m_Instance = collection->m_Instances[root_level[index]];
+        it->m_Node.m_Collection = hcollection;
+        it->m_Node.m_Instance = GetGameObjectHandle(collection->m_Instances[root_level[index]]);
         it->m_NextChild.m_Node++;
     } else {
         // We're done iterating this collection
@@ -56,8 +59,9 @@ static void IterateCollectionChildren(SceneNodeIterator* it, SceneNode* node)
 
     it->m_FnIterateNext = IterateCollectionGetNext;
 
-    HCollection collection = (HCollection)node->m_Node;
-    dmMutex::Lock(collection->m_Collection->m_Mutex);
+    Collection* collection = GetCollectionFromHandle(node->m_Collection);
+    if (collection)
+        dmMutex::Lock(collection->m_Mutex);
 }
 
 // ********************************************************************************************
@@ -67,38 +71,34 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
 {
     assert(it->m_Parent.m_Type == SCENE_NODE_TYPE_GAMEOBJECT);
 
-    // We're using the same unsigned integer to hold two types of ranges (not at the same time though)
-    // The first range is the valid ranges for game objects, which is less than INVALID_INSTANCE_INDEX
-    // The second range is at a safe range above that (component_count_offset)
-    const uint32_t invalid_index = 0xFFFFFFFF;
-    const uint32_t component_count_offset = 0xFFFF;
-    DM_STATIC_ASSERT(component_count_offset >= INVALID_INSTANCE_INDEX, _ranges_must_not_overlap);
+    Collection* collection = GetCollectionFromHandle(it->m_Parent.m_Collection);
+    Instance* parent = GetGameObjectFromHandle(collection, it->m_Parent.m_Instance);
+    if (!parent)
+        return false;
 
-    uint32_t index = (uint32_t)it->m_NextChild.m_Node;
-    if (index == INVALID_INSTANCE_INDEX)
-        index = component_count_offset;
-
-    bool is_gameobject = index < INVALID_INSTANCE_INDEX;
-    bool is_component = index >= component_count_offset && index != invalid_index && !is_gameobject;
-
-    if (is_gameobject) {
-        HInstance parent = it->m_Parent.m_Instance;
-        HInstance instance = parent->m_Collection->m_Instances[index];
+    if (it->m_IteratorPhase == 0 && it->m_NextGameObject != INVALID_GAME_OBJECT) {
+        Instance* instance = GetGameObjectFromHandle(collection, it->m_NextGameObject);
+        if (!instance || instance->m_Parent != parent->m_Index)
+            return false;
 
         it->m_Node = it->m_NextChild;
-        it->m_Node.m_Instance = instance;
-        it->m_NextChild.m_Node = instance->m_SiblingIndex;
+        it->m_Node.m_Collection = it->m_Parent.m_Collection;
+        it->m_Node.m_Instance = it->m_NextGameObject;
+        it->m_NextGameObject = instance->m_SiblingIndex == INVALID_INSTANCE_INDEX
+                ? INVALID_GAME_OBJECT
+                : GetGameObjectHandle(collection->m_Instances[instance->m_SiblingIndex]);
 
-        if (it->m_NextChild.m_Node == INVALID_INSTANCE_INDEX) {
-            it->m_NextChild.m_Node = component_count_offset; // start iterating over the components
-            it->m_NextChild.m_Type = SCENE_NODE_TYPE_SUBCOMPONENT;
+        if (it->m_NextGameObject == INVALID_GAME_OBJECT) {
+            it->m_IteratorPhase = 1;
         }
+        return true;
+    }
 
-    } else if(is_component) {
-        index -= component_count_offset; // make it zero based again, for iterating the array
-
-        HInstance instance = it->m_Parent.m_Instance; // the owner of the component instances, i.e. the parent in this traversal
-        Prototype* prototype = instance->m_Prototype;
+    it->m_IteratorPhase = 1;
+    if (it->m_NextComponent < parent->m_Prototype->m_ComponentCount) {
+        uint32_t index = it->m_NextComponent;
+        Instance* instance = parent;
+        Prototype* prototype = parent->m_Prototype;
 
         // Find the actual component instance data
         // if none exist at this index, fast forward to the next item in the list
@@ -111,12 +111,13 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
 
             if (component_type->m_InstanceHasUserData)
             {
-                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                uintptr_t* current_component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
 
                 // We need to iterate from k=0 since the prototype potentially contains multiple instances of the same component type
                 if (k >= index)
                 {
                     index = k;
+                    component_instance_data = current_component_instance_data;
                     break;
                 }
             }
@@ -125,7 +126,7 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
         if (component_instance_data)
         {
             Prototype::Component* component = &prototype->m_Components[index];
-            void* component_world = instance->m_Collection->m_ComponentWorlds[component->m_TypeIndex];
+            void* component_world = collection->m_ComponentWorlds[component->m_TypeIndex];
 
             // the the actual instance data
             it->m_Node.m_Node = (uint64_t)*component_instance_data;
@@ -135,20 +136,18 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
             it->m_Node.m_Component = *component_instance_data;
             it->m_Node.m_ComponentType = component->m_Type;
             it->m_Node.m_ComponentPrototype = (void*)&prototype->m_Components[index];
-            it->m_Node.m_Instance = instance;
+            it->m_Node.m_Collection = it->m_Parent.m_Collection;
+            it->m_Node.m_Instance = it->m_Parent.m_Instance;
 
-            if ((index + 1) >= prototype->m_ComponentCount)
-                it->m_NextChild.m_Node = invalid_index;
-            else
-                it->m_NextChild.m_Node = index + component_count_offset + 1;
+            it->m_NextComponent = index + 1;
+            return true;
         } else
         {
-            is_component = false;
+            it->m_NextComponent = prototype->m_ComponentCount;
         }
+    }
 
-    } // We're done iterating this instance, let's iterate the components
-
-    return is_gameobject || is_component;
+    return false;
 }
 
 static void IterateGameObjectChildren(SceneNodeIterator* it, SceneNode* node)
@@ -158,7 +157,13 @@ static void IterateGameObjectChildren(SceneNodeIterator* it, SceneNode* node)
     it->m_Parent = *node;
     //it->m_NextChild = *node;
     it->m_NextChild.m_Type = SCENE_NODE_TYPE_GAMEOBJECT;
-    it->m_NextChild.m_Node = (uint64_t)it->m_Parent.m_Instance->m_FirstChildIndex;
+    Collection* collection = GetCollectionFromHandle(node->m_Collection);
+    Instance* instance = GetGameObjectFromHandle(collection, node->m_Instance);
+    it->m_NextGameObject = instance && instance->m_FirstChildIndex != INVALID_INSTANCE_INDEX
+            ? GetGameObjectHandle(collection->m_Instances[instance->m_FirstChildIndex])
+            : INVALID_GAME_OBJECT;
+    it->m_NextComponent = 0;
+    it->m_IteratorPhase = 0;
     it->m_FnIterateNext = IterateGameObjectGetNext;
 }
 
@@ -178,12 +183,52 @@ static void IterateComponentNullChildren(struct SceneNodeIterator* it, struct Sc
     it->m_FnIterateNext = IterateComponentNullGetNext;
 }
 
+static bool ResolveComponentNode(SceneNode* node, ComponentType** out_component_type, Prototype::Component** out_component_prototype)
+{
+    Collection* collection = GetCollectionFromHandle(node->m_Collection);
+    Instance* instance = GetGameObjectFromHandle(collection, node->m_Instance);
+    if (!instance)
+        return false;
+
+    Prototype* prototype = instance->m_Prototype;
+    uint32_t component_instance_data_index = 0;
+    for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
+    {
+        Prototype::Component* component = &prototype->m_Components[i];
+        ComponentType* component_type = component->m_Type;
+        uintptr_t component_instance_data = 0;
+        if (component_type->m_InstanceHasUserData)
+        {
+            component_instance_data = instance->m_ComponentInstanceUserData[component_instance_data_index++];
+        }
+
+        if (node->m_ComponentPrototype != component)
+            continue;
+        if (node->m_ComponentType != component_type || node->m_Component != component_instance_data)
+            return false;
+        if (node->m_ComponentWorld != collection->m_ComponentWorlds[component->m_TypeIndex])
+            return false;
+
+        if (out_component_type)
+            *out_component_type = component_type;
+        if (out_component_prototype)
+            *out_component_prototype = component;
+        return true;
+    }
+    return false;
+}
+
 // ********************************************************************************************
 
 static void IterateComponentChildren(SceneNodeIterator* it, SceneNode* node)
 {
     assert(node->m_Type == SCENE_NODE_TYPE_COMPONENT || node->m_Type == SCENE_NODE_TYPE_SUBCOMPONENT);
-    ComponentType* component_type = node->m_ComponentType;
+    ComponentType* component_type = 0;
+    if (!ResolveComponentNode(node, &component_type, 0))
+    {
+        IterateComponentNullChildren(it, node);
+        return;
+    }
 
     if (component_type->m_IterChildren)
     {
@@ -198,7 +243,7 @@ static void IterateComponentChildren(SceneNodeIterator* it, SceneNode* node)
 
 // ********************************************************************************************
 
-bool TraverseGetRoot(HRegister regist, SceneNode* node)
+bool TraverseGetRoot(HContext regist, SceneNode* node)
 {
     DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
     if (regist->m_Collections.Empty())
@@ -225,7 +270,7 @@ SceneNodeIterator TraverseIterateChildren(SceneNode* node)
     default: break;
     }
 
-    SceneNodeIterator it;
+    SceneNodeIterator it = {};
     if (fn) {
         fn(&it, node);
     }
@@ -236,6 +281,13 @@ SceneNodeIterator TraverseIterateChildren(SceneNode* node)
 bool TraverseIterateNext(SceneNodeIterator* it)
 {
     DM_PROFILE("TraverseIterateNext");
+    if (!it || !it->m_FnIterateNext)
+        return false;
+    if ((it->m_Parent.m_Type == SCENE_NODE_TYPE_COMPONENT || it->m_Parent.m_Type == SCENE_NODE_TYPE_SUBCOMPONENT)
+        && !ResolveComponentNode(&it->m_Parent, 0, 0))
+    {
+        return false;
+    }
     return it->m_FnIterateNext(it);
 }
 
@@ -282,7 +334,9 @@ static bool IterateCollectionPropertiesGetNext(SceneNodePropertyIterator* pit)
     if (index >= sizeof(names)/sizeof(names[0]))
         return false;
 
-    Collection* collection = pit->m_Node->m_Collection->m_Collection;
+    Collection* collection = GetCollectionFromHandle(pit->m_Node->m_Collection);
+    if (!collection)
+        return false;
 
     pit->m_Property.m_NameHash = names[index];
 
@@ -299,7 +353,10 @@ static bool IterateCollectionPropertiesGetNext(SceneNodePropertyIterator* pit)
     else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_resource)
     {
         pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
-        dmResource::GetPath(collection->m_Factory, collection->m_HCollection, &pit->m_Property.m_Value.m_Hash);
+        pit->m_Property.m_Value.m_Hash = 0;
+        HCollectionResource resource = collection->m_CollectionResource;
+        if (resource)
+            dmResource::GetPath(collection->m_Factory, resource, &pit->m_Property.m_Value.m_Hash);
     }
 
     return true;
@@ -342,7 +399,12 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
     uint64_t index = pit->m_Next++;
 
 
-    HInstance instance = pit->m_Node->m_Instance;
+    HCollection hcollection = pit->m_Node->m_Collection;
+    Collection* collection = GetCollectionFromHandle(hcollection);
+    HGameObject hinstance = pit->m_Node->m_Instance;
+    Instance* instance = GetGameObjectFromHandle(collection, hinstance);
+    if (!instance)
+        return false;
     if (index < num_properties)
     {
         pit->m_Property.m_NameHash = property_names[index];
@@ -361,7 +423,6 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
         {
             pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
 
-            Collection* collection = instance->m_Collection;
             dmResource::GetPath(collection->m_Factory, instance->m_Prototype, &pit->m_Property.m_Value.m_Hash);
         }
         return true;
@@ -376,12 +437,12 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
         SceneNodePropertyType type = SCENE_NODE_PROPERTY_TYPE_VECTOR3;
         switch(index)
         {
-            case 0: value = Vector4(dmGameObject::GetPosition(instance)); break;
-            case 1: value = Vector4(dmGameObject::GetRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
-            case 2: value = Vector4(dmGameObject::GetScale(instance)); break;
-            case 3: value = Vector4(dmGameObject::GetWorldPosition(instance)); break;
-            case 4: value = Vector4(dmGameObject::GetWorldRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
-            case 5: value = Vector4(dmGameObject::GetWorldScale(instance)); break;
+            case 0: value = Vector4(GetPosition(instance)); break;
+            case 1: value = Vector4(GetRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
+            case 2: value = Vector4(GetScale(instance)); break;
+            case 3: value = Vector4(GetWorldPosition(collection, instance)); break;
+            case 4: value = Vector4(GetWorldRotation(collection, instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
+            case 5: value = Vector4(GetWorldScale(collection, instance)); break;
         }
 
         pit->m_Property.m_NameHash = transform_property_names[index];
@@ -412,11 +473,12 @@ static void IterateGameObjectProperties(SceneNodePropertyIterator* pit, SceneNod
 static bool IterateComponentPropertiesGetNext(SceneNodePropertyIterator* pit)
 {
     assert(pit->m_Node->m_Type == SCENE_NODE_TYPE_COMPONENT);
-    assert(pit->m_Node->m_ComponentType != 0);
     assert(pit->m_Node->m_Instance != 0);
 
-    Prototype::Component* component_prototype = (Prototype::Component*)pit->m_Node->m_ComponentPrototype;
-    ComponentType* component_type = pit->m_Node->m_ComponentType;
+    Prototype::Component* component_prototype = 0;
+    ComponentType* component_type = 0;
+    if (!ResolveComponentNode(pit->m_Node, &component_type, &component_prototype))
+        return false;
 
     const dmhash_t names[] = {
         g_SceneNodePropertyName_id,
@@ -482,10 +544,15 @@ static void IteratePropertiesNullProperties(struct SceneNodePropertyIterator* pi
 static void IterateSubComponentProperties(SceneNodePropertyIterator* pit, SceneNode* node)
 {
     assert(node->m_Type == SCENE_NODE_TYPE_COMPONENT || node->m_Type == SCENE_NODE_TYPE_SUBCOMPONENT);
-    assert(node->m_ComponentType != 0);
+    ComponentType* component_type = 0;
+    if (!ResolveComponentNode(node, &component_type, 0))
+    {
+        IteratePropertiesNullProperties(pit, node);
+        return;
+    }
 
-    if (node->m_ComponentType->m_IterProperties)
-        node->m_ComponentType->m_IterProperties(pit, node);
+    if (component_type->m_IterProperties)
+        component_type->m_IterProperties(pit, node);
     else
         IteratePropertiesNullProperties(pit, node);
 }
@@ -513,7 +580,7 @@ SceneNodePropertyIterator TraverseIterateProperties(SceneNode* node)
     default: break;
     }
 
-    SceneNodePropertyIterator pit;
+    SceneNodePropertyIterator pit = {};
     if (fn) {
         fn(&pit, node);
     } else {
@@ -526,8 +593,13 @@ SceneNodePropertyIterator TraverseIterateProperties(SceneNode* node)
 bool TraverseIteratePropertiesNext(SceneNodePropertyIterator* pit)
 {
     DM_PROFILE("TraverseIterateNext");
-    if (pit->m_Node == 0)
+    if (!pit || !pit->m_Node || !pit->m_FnIterateNext)
         return false;
+    if ((pit->m_Node->m_Type == SCENE_NODE_TYPE_COMPONENT || pit->m_Node->m_Type == SCENE_NODE_TYPE_SUBCOMPONENT)
+        && !ResolveComponentNode(pit->m_Node, 0, 0))
+    {
+        return false;
+    }
     return pit->m_FnIterateNext(pit);
 }
 

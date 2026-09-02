@@ -80,7 +80,7 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_OK;
     }
 
-    bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
+    bool CompModelSetIKTargetInstance(ModelWorld* world, ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
     {
         return true;
     }
@@ -95,7 +95,7 @@ namespace dmGameSystem
         return 0x0;
     }
 
-    dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
+    dmGameObject::HGameObject CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
     {
         return 0x0;
     }

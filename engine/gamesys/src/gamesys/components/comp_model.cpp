@@ -110,7 +110,7 @@ namespace dmGameSystem
 
     struct ModelComponent
     {
-        dmGameObject::HInstance     m_Instance;
+        dmGameObject::HGameObject   m_Instance;
         dmTransform::Transform      m_Transform;
         Matrix4                     m_World;
         ModelResource*              m_Resource;
@@ -122,7 +122,7 @@ namespace dmGameSystem
         MaterialResource*           m_Material; // Override material
 
         /// Node instances corresponding to the bones
-        dmArray<dmGameObject::HInstance> m_NodeInstances;
+        dmArray<dmGameObject::HGameObject> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
         /// Script morph weights - applied in ApplyMorphToRenderObject.
@@ -154,6 +154,7 @@ namespace dmGameSystem
     struct ModelWorld
     {
         dmObjectPool<ModelComponent*>    m_Components;
+        dmGameObject::HCollection        m_Collection;
         dmArray<dmRender::RenderObject>  m_RenderObjects;
         DynamicAttributePool             m_DynamicVertexAttributePool;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
@@ -166,7 +167,7 @@ namespace dmGameSystem
         dmArray<uint8_t>*                m_VertexBufferData;
         uint32_t*                        m_VertexBufferDispatchCounts;
         // Temporary scratch array for instances, only used during the creation phase of components
-        dmArray<dmGameObject::HInstance> m_ScratchInstances;
+        dmArray<dmGameObject::HGameObject> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
         dmArray<dmVMath::Vector4>        m_ScratchMorphWeightsConstants;
         dmRig::HRigContext               m_RigContext;
@@ -202,6 +203,7 @@ namespace dmGameSystem
         ModelContext* context = (ModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = new ModelWorld();
+        world->m_Collection = params.m_Collection;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxModelCount);
 
         dmRig::NewContextParams rig_params = {0};
@@ -367,6 +369,7 @@ namespace dmGameSystem
     static void CompModelPoseCallback(void* user_data1, void* user_data2)
     {
         ModelComponent* component = (ModelComponent*)user_data1;
+        ModelWorld* world = (ModelWorld*)user_data2;
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(component->m_RigInstance);
@@ -381,7 +384,7 @@ namespace dmGameSystem
                 transforms[i] = pose[i].m_Local;
             }
 
-            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, transforms.Begin(), transforms.Size());
+            dmGameObject::SetBoneTransforms(world->m_Collection, component->m_NodeInstances[0], component->m_Transform, transforms.Begin(), transforms.Size());
         }
     }
 
@@ -667,8 +670,8 @@ namespace dmGameSystem
             return true;
         }
 
-        dmGameObject::HInstance instance = component->m_Instance;
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::HGameObject hinstance = component->m_Instance;
+        dmGameObject::HCollection hcollection = world->m_Collection;
 
         const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
@@ -687,37 +690,37 @@ namespace dmGameSystem
         world->m_ScratchInstances.SetSize(0);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            dmGameObject::HInstance bone_inst;
+            dmGameObject::HGameObject hbone;
             if(i < prev_bone_count)
             {
-                bone_inst = component->m_NodeInstances[i];
+                hbone = component->m_NodeInstances[i];
             }
             else
             {
-                bone_inst = dmGameObject::New(collection, 0x0);
-                if (bone_inst == 0x0) {
+                hbone = dmGameObject::New(hcollection, 0x0);
+                if (hbone == 0x0) {
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
 
-                uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+                uint32_t index = dmGameObject::AcquireInstanceIndex(hcollection);
                 if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
                 {
-                    dmGameObject::Delete(collection, bone_inst, false);
+                    dmGameObject::Delete(hcollection, hbone, false);
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
-                dmGameObject::AssignInstanceIndex(index, bone_inst);
+                dmGameObject::AssignInstanceIndex(hcollection, index, hbone);
                 dmhash_t id = dmGameObject::CreateInstanceId();
-                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_inst, id);
+                dmGameObject::Result result = dmGameObject::SetIdentifier(hcollection, hbone, id);
                 if (dmGameObject::RESULT_OK != result)
                 {
-                    dmGameObject::Delete(collection, bone_inst, false);
+                    dmGameObject::Delete(hcollection, hbone, false);
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
-                dmGameObject::SetBone(bone_inst, true);
-                component->m_NodeInstances[i] = bone_inst;
+                dmGameObject::SetBone(hcollection, hbone, true);
+                component->m_NodeInstances[i] = hbone;
             }
 
             dmTransform::Transform transform;
@@ -726,23 +729,23 @@ namespace dmGameSystem
             {
                 transform = dmTransform::Mul(component->m_Transform, transform);
             }
-            dmGameObject::SetPosition(bone_inst, Point3(transform.GetTranslation()));
-            dmGameObject::SetRotation(bone_inst, transform.GetRotation());
-            dmGameObject::SetScale(bone_inst, transform.GetScale());
+            dmGameObject::SetPosition(hcollection, hbone, Point3(transform.GetTranslation()));
+            dmGameObject::SetRotation(hcollection, hbone, transform.GetRotation());
+            dmGameObject::SetScale(hcollection, hbone, transform.GetScale());
 
-            world->m_ScratchInstances.Push(bone_inst);
+            world->m_ScratchInstances.Push(hbone);
         }
         // Set parents in reverse to account for child-prepending
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             uint32_t index = bone_count - 1 - i;
-            dmGameObject::HInstance inst = world->m_ScratchInstances[index];
-            dmGameObject::HInstance parent = instance;
+            dmGameObject::HGameObject hchild = world->m_ScratchInstances[index];
+            dmGameObject::HGameObject hparent = hinstance;
             if (index > 0)
             {
-                parent = world->m_ScratchInstances[skeleton->m_Bones[index].m_Parent];
+                hparent = world->m_ScratchInstances[skeleton->m_Bones[index].m_Parent];
             }
-            dmGameObject::SetParent(inst, parent);
+            dmGameObject::SetParent(hcollection, hchild, hparent);
         }
 
         return true;
@@ -1150,15 +1153,16 @@ namespace dmGameSystem
         memset(component->m_MeshAttributeRenderDatas.Begin(), 0, component->m_MeshAttributeRenderDatas.Size() * sizeof(MeshAttributeRenderData));
     }
 
-    static dmGameObject::CreateResult SetupRigInstance(dmRig::HRigContext rig_context, ModelComponent* component, RigSceneResource* rig_resource, dmhash_t animation)
+    static dmGameObject::CreateResult SetupRigInstance(ModelWorld* world, ModelComponent* component, RigSceneResource* rig_resource, dmhash_t animation)
     {
+        dmRig::HRigContext rig_context = world->m_RigContext;
         dmRig::InstanceCreateParams create_params = {0};
 
         if (component->m_Resource->m_Model->m_CreateGoBones)
         {
             create_params.m_PoseCallback = CompModelPoseCallback;
             create_params.m_PoseCBUserData1 = component;
-            create_params.m_PoseCBUserData2 = 0;
+            create_params.m_PoseCBUserData2 = world;
         }
         create_params.m_EventCallback = CompModelEventCallback;
         create_params.m_EventCBUserData1 = component;
@@ -1234,7 +1238,7 @@ namespace dmGameSystem
         // Create rig instance
         component->m_RigInstance = 0;
 
-        dmGameObject::CreateResult res = SetupRigInstance(world->m_RigContext, component, resource->m_RigScene, dmHashString64(resource->m_Model->m_DefaultAnimation));
+        dmGameObject::CreateResult res = SetupRigInstance(world, component, resource->m_RigScene, dmHashString64(resource->m_Model->m_DefaultAnimation));
         if (res != dmGameObject::CREATE_RESULT_OK)
         {
             DestroyComponent(world, index);
@@ -1258,7 +1262,7 @@ namespace dmGameSystem
     static void DestroyComponent(ModelWorld* world, uint32_t index)
     {
         ModelComponent* component = world->m_Components.Get(index);
-        dmGameObject::DeleteBones(component->m_Instance);
+        dmGameObject::DeleteBones(world->m_Collection, component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
 
@@ -1296,7 +1300,7 @@ namespace dmGameSystem
         ModelWorld* world = (ModelWorld*)params.m_World;
         uint32_t index = *params.m_UserData;
         ModelComponent* component = world->m_Components.Get(index);
-        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
         if (component->m_Material)
         {
             dmResource::Release(factory, component->m_Material);
@@ -1332,7 +1336,7 @@ namespace dmGameSystem
     }
     #endif
 
-    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
+    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HCollection collection, dmGameObject::HGameObject instance)
     {
         if (dmRender::GetMaterialHasSkinnedMatrixCache(material))
         {
@@ -1348,14 +1352,14 @@ namespace dmGameSystem
                 else
                 {
                     dmLogOnceError("Unable to bind bone matrix cache texture for component '%s', does the shader(s) have a sampler named '%s'?",
-                        dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)),
+                        dmHashReverseSafe64(dmGameObject::GetIdentifier(collection, instance)),
                         dmHashReverseSafe64(dmRender::SAMPLER_POSE_MATRIX_CACHE));
                 }
             }
             else
             {
                 dmLogOnceError("Unable to bind bone matrix cache texture for component '%s', no free texture slot available.",
-                    dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
+                    dmHashReverseSafe64(dmGameObject::GetIdentifier(collection, instance)));
             }
         }
     }
@@ -1395,7 +1399,7 @@ namespace dmGameSystem
     }
 
     static void ApplyMorphToRenderObject(ModelWorld* world, dmRender::RenderObject* ro, dmRender::HMaterial material,
-        ModelComponent* component, const MeshRenderItem* render_item, dmGameObject::HInstance log_instance)
+        ModelComponent* component, const MeshRenderItem* render_item, dmGameObject::HCollection collection, dmGameObject::HGameObject log_instance)
     {
         if (!MorphTargetsNeedShaderData(render_item, material))
         {
@@ -1406,7 +1410,7 @@ namespace dmGameSystem
         if (unit < 0)
         {
             dmLogOnceError("Unable to bind morph_targets texture for component '%s', no free texture slot available.",
-                dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
+                dmHashReverseSafe64(dmGameObject::GetIdentifier(collection, log_instance)));
             return;
         }
 
@@ -1415,7 +1419,7 @@ namespace dmGameSystem
             dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
         {
             dmLogOnceError("Unable to bind morph_targets texture for component '%s', does the material declare sampler 'morph_targets'?",
-                dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
+                dmHashReverseSafe64(dmGameObject::GetIdentifier(collection, log_instance)));
             return;
         }
         ro->m_Textures[unit] = render_item->m_MorphTargetTexture;
@@ -1672,7 +1676,7 @@ namespace dmGameSystem
                     instance_data->m_AnimationData = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
                 }
 
-                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
+                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, world->m_Collection, instance_component->m_Instance);
                 instance_write_ptr += sizeof(ModelSkinnedInstanceData);
             }
             else
@@ -1707,7 +1711,7 @@ namespace dmGameSystem
             dmGameSystem::EnableRenderObjectConstants(&ro, constants);
         }
 
-        ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, component->m_Instance);
+        ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, world->m_Collection, component->m_Instance);
 
         dmRender::AddToRender(render_context, &ro);
 
@@ -1811,7 +1815,7 @@ namespace dmGameSystem
 
             if (IsRenderItemSkinned(component, render_item))
             {
-                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
+                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, world->m_Collection, component->m_Instance);
 
                 // We need individual constants here, otherwise we will overwrite the values in the buffer.
                 // If the component doesn't have their own constant buffer, we need to retrieve a temporary constant buffer from the world.
@@ -1859,7 +1863,7 @@ namespace dmGameSystem
                 dmGameSystem::EnableRenderObjectConstants(&ro, constants);
             }
 
-            ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, component->m_Instance);
+            ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, world->m_Collection, component->m_Instance);
 
             dmRender::AddToRender(render_context, &ro);
 
@@ -2263,7 +2267,7 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
-            const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
+            const Matrix4& go_world = dmGameObject::GetWorldMatrix(world->m_Collection, c->m_Instance);
             const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
             c->m_World = go_world * local;
             UpdateMeshTransforms(c);
@@ -2657,7 +2661,7 @@ namespace dmGameSystem
 
         // Delete old bones, recreate with new data.
         // Make sure that bone GOs are created before we start the default animation.
-        dmGameObject::DeleteBones(component->m_Instance);
+        dmGameObject::DeleteBones(world->m_Collection, component->m_Instance);
         if (!CreateGOBones(world, component))
         {
             dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
@@ -2669,7 +2673,7 @@ namespace dmGameSystem
         component->m_RigInstance = 0;
 
         ModelResource* resource = component->m_Resource;
-        dmGameObject::CreateResult res = SetupRigInstance(world->m_RigContext, component, resource->m_RigScene, dmHashString64(resource->m_Model->m_DefaultAnimation));
+        dmGameObject::CreateResult res = SetupRigInstance(world, component, resource->m_RigScene, dmHashString64(resource->m_Model->m_DefaultAnimation));
         if (res != dmGameObject::CREATE_RESULT_OK)
         {
             DestroyComponent(world, index);
@@ -2745,13 +2749,13 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource, 0), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetMaterialResource(component, component->m_Resource, 0), out_value);
         }
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureResource(component, 0, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetTextureResource(component, 0, i), out_value);
             }
         }
 
@@ -2817,7 +2821,7 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }
@@ -2826,7 +2830,7 @@ namespace dmGameSystem
             if(params.m_PropertyId == PROP_TEXTURE[i])
             {
                 dmhash_t ext_hashes[] = { TEXTURE_EXT_HASH, RENDER_TARGET_EXT_HASH };
-                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, ext_hashes, DM_ARRAY_SIZE(ext_hashes), (void**)&component->m_Textures[i]);
+                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, ext_hashes, DM_ARRAY_SIZE(ext_hashes), (void**)&component->m_Textures[i]);
                 component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
                 return res;
             }
@@ -2888,31 +2892,36 @@ namespace dmGameSystem
 
     static Vector3 UpdateIKInstanceCallback(dmRig::IKTarget* ik_target)
     {
-        ModelComponent* component = (ModelComponent*)ik_target->m_UserPtr;
-        dmhash_t target_instance_id = ik_target->m_UserHash;
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), target_instance_id);
-        if(target_instance == 0x0)
+        ModelWorld* world = (ModelWorld*)ik_target->m_UserPtr;
+        dmGameObject::HGameObject htarget = (dmGameObject::HGameObject)ik_target->m_UserHash;
+        if (!dmGameObject::IsValid(world->m_Collection, htarget))
         {
-            // instance have been removed, disable animation
-            dmLogError("Could not get IK position for target %s, removed?", dmHashReverseSafe64(target_instance_id))
+            // The retained target has been removed. Do not silently retarget a
+            // new game object that happens to reuse the same identifier.
+            dmLogError("Could not get IK position for removed target game object");
             ik_target->m_Callback = 0x0;
             ik_target->m_Mix = 0x0;
             return Vector3(0.0f);
         }
 
-        return (Vector3)dmGameObject::GetWorldPosition(target_instance);
+        return (Vector3)dmGameObject::GetWorldPosition(world->m_Collection, htarget);
     }
 
-    bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
+    bool CompModelSetIKTargetInstance(ModelWorld* world, ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
     {
         dmRig::IKTarget* target = dmRig::GetIKTarget(component->m_RigInstance, constraint_id);
         if (!target) {
             return false;
         }
+        dmGameObject::HGameObject htarget = dmGameObject::GetGameObjectFromIdentifier(world->m_Collection, instance_id);
+        if (!htarget)
+        {
+            return false;
+        }
         target->m_Callback = UpdateIKInstanceCallback;
         target->m_Mix = mix;
-        target->m_UserPtr = component;
-        target->m_UserHash = instance_id;
+        target->m_UserPtr = world;
+        target->m_UserHash = htarget;
 
         return true;
     }
@@ -2934,7 +2943,7 @@ namespace dmGameSystem
         return component->m_Resource;
     }
 
-    dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
+    dmGameObject::HGameObject CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
     {
         if (component->m_Resource->m_Model->m_CreateGoBones)
         {

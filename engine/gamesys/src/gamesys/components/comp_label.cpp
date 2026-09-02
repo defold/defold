@@ -59,7 +59,7 @@ namespace dmGameSystem
 
     struct LabelComponent
     {
-        dmGameObject::HInstance     m_Instance;
+        dmGameObject::HGameObject   m_Instance;
         Point3                      m_Position;
         Quat                        m_Rotation;
         Vector3                     m_Size;         // The text area size
@@ -72,7 +72,7 @@ namespace dmGameSystem
         // Hash of the components properties. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
-        dmGameObject::HInstance     m_ListenerInstance;
+        dmGameObject::HGameObject   m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         LabelResource*              m_Resource;
         HComponentRenderConstants   m_RenderConstants;
@@ -397,7 +397,7 @@ namespace dmGameSystem
         );
     }
 
-    static void UpdateTransforms(LabelWorld* world, bool sub_pixels)
+    static void UpdateTransforms(LabelWorld* world, dmGameObject::HCollection hcollection, bool sub_pixels)
     {
         DM_PROFILE("UpdateTransforms");
 
@@ -411,8 +411,8 @@ namespace dmGameSystem
                 continue;
 
             Matrix4 local = CompLabelLocalTransform(c->m_Position, c->m_Rotation, c->m_Scale, c->m_Size, c->m_Pivot);
-            Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            Matrix4 w = world * local;
+            Matrix4 world_transform = dmGameObject::GetWorldMatrix(hcollection, c->m_Instance);
+            Matrix4 w = world_transform * local;
             w = dmVMath::AppendScale(w, c->m_Scale);
 
             Vector4 position = w.getCol3();
@@ -448,7 +448,7 @@ namespace dmGameSystem
         LabelContext* label_context = (LabelContext*)params.m_Context;
         LabelWorld* world = (LabelWorld*)params.m_World;
 
-        UpdateTransforms(world, label_context->m_Subpixels);
+        UpdateTransforms(world, params.m_Collection, label_context->m_Subpixels);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -558,7 +558,7 @@ namespace dmGameSystem
         if (!component_count)
             return dmGameObject::UPDATE_RESULT_OK;
 
-        UpdateTransforms(world, label_context->m_Subpixels);
+        UpdateTransforms(world, params.m_Collection, label_context->m_Subpixels);
 
         for (uint32_t i = 0; i < component_count; ++i)
         {
@@ -698,11 +698,11 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetMaterialResource(component, component->m_Resource), out_value);
         }
         else if (get_property == PROP_FONT)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFontResource(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetFontResource(component, component->m_Resource), out_value);
         }
         else if (get_property == LABEL_PROP_LEADING)
         {
@@ -760,13 +760,13 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIAL)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }
         else if (set_property == PROP_FONT)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&component->m_Font);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, FONT_EXT_HASH, (void**)&component->m_Font);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             if (res == dmGameObject::PROPERTY_RESULT_OK)
                 InvalidateTextLayout(component);

@@ -42,11 +42,11 @@ namespace dmGameSystem
 
     struct LightComponent
     {
-        dmGameObject::HInstance  m_Instance;
-        LightResource*           m_LightResource;
-        dmRender::HLightInstance m_LightInstance;
-        uint16_t                 m_AddedToUpdate : 1;
-        uint16_t                                 : 15;
+        dmGameObject::HGameObject m_Instance;
+        LightResource*            m_LightResource;
+        dmRender::HLightInstance  m_LightInstance;
+        uint16_t                  m_AddedToUpdate : 1;
+        uint16_t                                  : 15;
     };
 
     struct LightWorld
@@ -199,9 +199,9 @@ namespace dmGameSystem
                 continue;
             }
 
-            dmVMath::Point3 position = dmGameObject::GetWorldPosition(light->m_Instance);
-            dmVMath::Quat rotation = dmGameObject::GetWorldRotation(light->m_Instance);
-            dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(light->m_Instance);
+            dmVMath::Point3 position = dmGameObject::GetWorldPosition(params.m_Collection, light->m_Instance);
+            dmVMath::Quat rotation = dmGameObject::GetWorldRotation(params.m_Collection, light->m_Instance);
+            dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(params.m_Collection, light->m_Instance);
             float scale_x = dmMath::Abs(world_scale.getX());
             float scale_y = dmMath::Abs(world_scale.getY());
             float scale_z = dmMath::Abs(world_scale.getZ());

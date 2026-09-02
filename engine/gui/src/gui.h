@@ -571,6 +571,8 @@ namespace dmGui
 
     void* GetSceneUserData(HScene scene);
 
+    void* GetSceneCustomNodeCallbackContext(HScene scene);
+
     void SetSceneResolution(HScene, uint32_t width, uint32_t height);
 
     void GetSceneResolution(HScene, uint32_t &width, uint32_t &height);

@@ -42,7 +42,7 @@ namespace dmGameSystem
 
     b2Body*    CheckBody(struct lua_State* L, int index);
     dmGameObject::HCollection GetBodyCollection(struct lua_State* L, int index);
-    dmhash_t   GetBodyInstanceId(b2Body* body);
+    dmGameObject::HGameObject GetBodyGameObject(b2Body* body);
     b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index);
     bool       IsJointTracked(b2Joint* joint);
     void       PushBodyFromReference(struct lua_State* L, b2Body* body, int reference_index);

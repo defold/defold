@@ -37,7 +37,7 @@ namespace dmGameObject
         UnloadPropertyResources(factory, prototype->m_PropertyResources);
     }
 
-    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::PrototypeDesc* proto_desc, Prototype* proto, const char* filename)
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameObject::HContext regist, dmGameObjectDDF::PrototypeDesc* proto_desc, Prototype* proto, const char* filename)
     {
         dmResource::Result res = LoadPropertyResources(factory, proto_desc->m_PropertyResources.m_Data, proto_desc->m_PropertyResources.m_Count, proto->m_PropertyResources);
         if(res != dmResource::RESULT_OK)
@@ -159,7 +159,7 @@ namespace dmGameObject
 
     static dmResource::Result ResGameObjectCreate(const dmResource::ResourceCreateParams* params)
     {
-        HRegister regist = (HRegister) params->m_Context;
+        HContext regist = (HContext) params->m_Context;
         dmGameObjectDDF::PrototypeDesc* proto_desc = (dmGameObjectDDF::PrototypeDesc*) params->m_PreloadData;
 
         Prototype* proto = new Prototype();
@@ -185,7 +185,7 @@ namespace dmGameObject
 
     static dmResource::Result ResGameObjectRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        Register* regist = (Register*) params->m_Context;
+        Context* regist = (Context*) params->m_Context;
         dmGameObjectDDF::PrototypeDesc* proto_desc;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &proto_desc);
         if (e != dmDDF::RESULT_OK)

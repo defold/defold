@@ -78,8 +78,15 @@ namespace dmGameSystem
 
     inline dmGameObject::Result DoSpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
                                         dmhash_t id, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                        dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
+                                        dmGameObject::HPropertyContainer properties, dmGameObject::HGameObject* out_instance)
     {
+        if (!out_instance)
+            return dmGameObject::RESULT_INVALID_OPERATION;
+
+        *out_instance = dmGameObject::INVALID_GAME_OBJECT;
+        if (!dmGameObject::GetGameObjectContext(collection))
+            return dmGameObject::RESULT_INVALID_INSTANCE;
+
         uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
         if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
         {
@@ -110,7 +117,7 @@ namespace dmGameSystem
 
         if (*out_instance != 0x0)
         {
-            dmGameObject::AssignInstanceIndex(index, *out_instance);
+            dmGameObject::AssignInstanceIndex(collection, index, *out_instance);
         }
         else
         {
@@ -224,8 +231,7 @@ namespace dmGameSystem
         if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor)
         {
             HFactoryWorld world = (HFactoryWorld)params.m_World;
-            dmGameObject::HInstance instance = params.m_Instance;
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+            dmGameObject::HCollection hcollection = params.m_Collection;
             dmMessage::Message* message = params.m_Message;
 
             dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
@@ -252,8 +258,8 @@ namespace dmGameSystem
                 scale = create->m_Scale3;
             }
 
-            dmGameObject::HInstance spawned_instance;
-            DoSpawn(world, component, collection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
+            dmGameObject::HGameObject hinstance;
+            DoSpawn(world, component, hcollection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &hinstance);
 
             if (properties)
             {
@@ -480,7 +486,7 @@ namespace dmGameSystem
 
     dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                                dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
+                                                dmGameObject::HPropertyContainer properties, dmGameObject::HGameObject* out_instance)
     {
         return DoSpawn(world, component, collection, id, position, rotation, scale, properties, out_instance);
     }

@@ -43,13 +43,13 @@ namespace dmGameSystem
 
     struct CameraComponent
     {
-        dmGameObject::HInstance m_Instance;
-        dmRender::HRenderCamera m_RenderCamera;
-        CameraWorld*            m_World;
-        dmVMath::Matrix4        m_View;
-        dmVMath::Matrix4        m_Projection;
-        uint16_t                m_ComponentIndex;
-        uint8_t                 m_AddedToUpdate : 1;
+        dmGameObject::HGameObject m_Instance;
+        dmRender::HRenderCamera   m_RenderCamera;
+        CameraWorld*              m_World;
+        dmVMath::Matrix4          m_View;
+        dmVMath::Matrix4          m_Projection;
+        uint16_t                  m_ComponentIndex;
+        uint8_t                   m_AddedToUpdate : 1;
     };
 
     struct CameraWorld
@@ -68,10 +68,10 @@ namespace dmGameSystem
     static const dmhash_t CAMERA_PROP_ASPECT_RATIO           = dmHashString64("aspect_ratio");
 
 
-    static void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)
+    static void CompCameraUpdateViewProjection(dmGameObject::HCollection hcollection, CameraComponent* camera, dmRender::RenderContext* render_context)
     {
-        dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
-        dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
+        dmVMath::Point3 pos = dmGameObject::GetWorldPosition(hcollection, camera->m_Instance);
+        dmVMath::Quat rot = dmGameObject::GetWorldRotation(hcollection, camera->m_Instance);
 
         UpdateRenderCamera(render_context, camera->m_RenderCamera, &pos, &rot);
 
@@ -94,12 +94,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline dmMessage::URL CameraToURL(const CameraComponent* camera)
+    static inline dmMessage::URL CameraToURL(dmGameObject::HCollection hcollection, const CameraComponent* camera)
     {
         dmMessage::URL camera_url;
-        camera_url.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(camera->m_Instance));
-        camera_url.m_Path   = dmGameObject::GetIdentifier(camera->m_Instance);
-        dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &camera_url.m_Fragment);
+        camera_url.m_Socket = dmGameObject::GetMessageSocket(hcollection);
+        camera_url.m_Path   = dmGameObject::GetIdentifier(hcollection, camera->m_Instance);
+        dmGameObject::GetComponentId(hcollection, camera->m_Instance, camera->m_ComponentIndex, &camera_url.m_Fragment);
         return camera_url;
     }
 
@@ -167,10 +167,10 @@ namespace dmGameSystem
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
         camera_data.m_OrthographicMode         = (uint8_t)cam_resource->m_DDF->m_OrthographicMode;
 
-        dmMessage::URL camera_url = CameraToURL(&camera);
+        dmMessage::URL camera_url = CameraToURL(params.m_Collection, &camera);
         SetRenderCameraURL(render_context, camera.m_RenderCamera, &camera_url);
         SetRenderCameraData(render_context, camera.m_RenderCamera, &camera_data);
-        CompCameraUpdateViewProjection(&camera, render_context);
+        CompCameraUpdateViewProjection(params.m_Collection, &camera, render_context);
 
         w->m_Cameras.Push(camera);
         CameraComponent* new_camera = &w->m_Cameras[w->m_Cameras.Size() - 1];
@@ -215,13 +215,13 @@ namespace dmGameSystem
 
     // Deprecated: All camera components are already available in the render script, so there's no need to post this.
     //             But we currently do so anyway for backwards compatibility.
-    static bool PostRenderScriptSetViewProjectionMsg(CameraComponent* camera, const dmMessage::URL& camera_url)
+    static bool PostRenderScriptSetViewProjectionMsg(dmGameObject::HCollection hcollection, CameraComponent* camera, const dmMessage::URL& camera_url)
     {
         dmGameSystemDDF::SetViewProjection set_view_projection;
         set_view_projection.m_View       = camera->m_View;
         set_view_projection.m_Projection = camera->m_Projection;
 
-        dmGameObject::Result go_result = dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
+        dmGameObject::Result go_result = dmGameObject::GetComponentId(hcollection, camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
         if (go_result != dmGameObject::RESULT_OK)
         {
             dmLogError("Could not send set_view_projection because of incomplete component.");
@@ -257,10 +257,10 @@ namespace dmGameSystem
             if (!camera->m_AddedToUpdate)
                 continue;
 
-            CompCameraUpdateViewProjection(camera, render_context);
+            CompCameraUpdateViewProjection(params.m_Collection, camera, render_context);
 
             // Legacy, at some point we should deprecate this
-            if (!PostRenderScriptSetViewProjectionMsg(camera, CameraToURL(camera)))
+            if (!PostRenderScriptSetViewProjectionMsg(params.m_Collection, camera, CameraToURL(params.m_Collection, camera)))
             {
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
@@ -324,7 +324,7 @@ namespace dmGameSystem
         camera_data.m_OrthographicMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicMode;
 
         dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
-        CompCameraUpdateViewProjection(camera, render_context);
+        CompCameraUpdateViewProjection(params.m_Collection, camera, render_context);
     }
 
     dmGameObject::PropertyResult CompCameraGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)

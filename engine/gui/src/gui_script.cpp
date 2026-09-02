@@ -22,6 +22,7 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
+#include <gameobject/script.h>
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -259,12 +260,7 @@ namespace dmGui
     static int GuiScriptInstanceGetUserData(lua_State* L)
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
-        uintptr_t user_data = 0;
-        if (scene != 0 && scene->m_Context->m_GetUserDataCallback != 0)
-        {
-            user_data = scene->m_Context->m_GetUserDataCallback(scene);
-        }
-        lua_pushlightuserdata(L, (void*)user_data);
+        lua_pushlightuserdata(L, scene == 0 ? 0 : GetSceneUserData(scene));
         return 1;
     }
 
@@ -946,12 +942,17 @@ namespace dmGui
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
 
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+            dmGameObject::HCollection hcollection;
+            dmGameObject::HGameObject hinstance;
+            if (!dmGameObject::GetCollectionAndGameObjectFromLua(L, &hcollection, &hinstance))
+            {
+                return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
+            }
 
             dmhash_t key = 0;
             if (dmGameObject::GetPropertyOptionsKey((dmGameObject::HPropertyOptions)&options_result.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, instance, target, options_result.m_Options);
+                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, hcollection, hinstance, property_hash, target, options_result.m_Options);
             }
 
             Result r = DeleteDynamicTexture(scene, key);
@@ -984,11 +985,16 @@ namespace dmGui
             {
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
-            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
+            dmGameObject::HCollection hcollection;
+            dmGameObject::HGameObject hinstance;
+            if (!dmGameObject::GetCollectionAndGameObjectFromLua(L, &hcollection, &hinstance))
+            {
+                return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
+            }
+            result = dmGameObject::SetProperty(hcollection, hinstance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, result, property_hash, instance, target, options_result.m_Options);
+                return HandleGoSetResult(L, result, hcollection, hinstance, property_hash, target, options_result.m_Options);
             }
             return 0;
         }
@@ -5468,6 +5474,17 @@ namespace dmGui
      * @name gui.RESULT_DATA_ERROR
      * @constant
      */
+
+    void SetScriptInstanceMetaData(dmScript::HContext script_context, const char* name, void* data)
+    {
+        lua_State* L = dmScript::GetLuaState(script_context);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
+        lua_pushlightuserdata(L, data);
+        lua_setfield(L, -2, name);
+        lua_pop(L, 1);
+    }
 
     lua_State* InitializeScript(dmScript::HContext script_context)
     {

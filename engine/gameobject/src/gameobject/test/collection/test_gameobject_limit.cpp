@@ -43,7 +43,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -71,13 +71,13 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection = 0;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -86,31 +86,31 @@ public:
 
 TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
 {
-    // Max usable index is INVALID_INSTANCE_INDEX - 1
-    const uint32_t max_instances = dmGameObject::INVALID_INSTANCE_INDEX - 1;
+    // Exercise fixed-capacity storage past the old 16-bit instance-index boundary.
+    const uint32_t max_instances = 65537;
 
     m_Collection = dmGameObject::NewCollection("limit_col", m_Factory, m_Register, max_instances, 0x0);
-    ASSERT_NE((void*)0, (void*)m_Collection);
+    ASSERT_NE(dmGameObject::INVALID_COLLECTION, m_Collection);
 
     // Create max_instances objects and set position.x to 1..max_instances
-    dmArray<dmGameObject::HInstance> instances;
+    dmArray<dmGameObject::HGameObject> instances;
     instances.SetCapacity(max_instances);
     for (uint32_t i = 0; i < max_instances; ++i)
     {
-        dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-        ASSERT_NE((void*)0, (void*)go);
+        dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/go1.goc");
+        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
         instances.Push(go);
-        dmGameObject::SetPosition(go, Point3((float)(i + 1), 0.0f, 0.0f));
+        dmGameObject::SetPosition(m_Collection, go, Point3((float)(i + 1), 0.0f, 0.0f));
     }
 
     // Next creation should fail (buffer full)
-    dmGameObject::HInstance overflow = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_EQ((void*)0, (void*)overflow);
+    dmGameObject::HGameObject overflow = dmGameObject::New(m_Collection, "/go1.goc");
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, overflow);
 
     // Verify we can read back what we wrote
     for (uint32_t i = 0; i < instances.Size(); ++i)
     {
         float expected = (float)(i + 1);
-        ASSERT_NEAR(expected, dmGameObject::GetPosition(instances[i]).getX(), 0.0f);
+        ASSERT_NEAR(expected, dmGameObject::GetPosition(m_Collection, instances[i]).getX(), 0.0f);
     }
 }

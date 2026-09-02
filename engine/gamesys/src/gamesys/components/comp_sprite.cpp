@@ -129,7 +129,7 @@ namespace dmGameSystem
         Vector3                     m_Size;     // The current size of the animation frame (in texels)
         Vector4                     m_Slice9;
 
-        dmGameObject::HInstance     m_Instance;
+        dmGameObject::HGameObject   m_Instance;
         SpriteResource*             m_Resource;
         SpriteResourceOverrides*    m_Overrides;
         HComponentRenderConstants   m_RenderConstants;
@@ -806,7 +806,7 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         uint32_t index = *params.m_UserData;
         SpriteComponent* component = &sprite_world->m_Components.Get(index);
-        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
 
         HComponentRenderConstants constants = GetRenderConstants(component);
         if (constants)
@@ -1904,12 +1904,12 @@ namespace dmGameSystem
         dmRender::AddToRender(render_context, &ro);
     }
 
-    static void UpdateTransform(SpriteComponent* component, bool sub_pixels)
+    static void UpdateTransform(dmGameObject::HCollection hcollection, SpriteComponent* component, bool sub_pixels)
     {
         dmTransform::Transform transform = dmTransform::Transform(component->m_Position, component->m_Rotation, component->m_Scale);
         Matrix4 local = dmTransform::ToMatrix4(transform);
-        Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
-        Matrix4 w = world * local;
+        Matrix4 world_transform = dmGameObject::GetWorldMatrix(hcollection, component->m_Instance);
+        Matrix4 w = world_transform * local;
         if (!sub_pixels)
         {
             Vector4 position = w.getCol3();
@@ -1920,16 +1920,16 @@ namespace dmGameSystem
         component->m_World = w;
     }
 
-    static bool GetSender(SpriteComponent* component, dmMessage::URL* out_sender)
+    static bool GetSender(dmGameObject::HCollection hcollection, SpriteComponent* component, dmMessage::URL* out_sender)
     {
         dmMessage::URL sender;
-        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
+        sender.m_Socket = dmGameObject::GetMessageSocket(hcollection);
         if (dmMessage::IsSocketValid(sender.m_Socket))
         {
-            dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
+            dmGameObject::Result go_result = dmGameObject::GetComponentId(hcollection, component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
             if (go_result == dmGameObject::RESULT_OK)
             {
-                sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
+                sender.m_Path = dmGameObject::GetIdentifier(hcollection, component->m_Instance);
                 *out_sender = sender;
                 return true;
             }
@@ -1937,7 +1937,7 @@ namespace dmGameSystem
         return false;
     }
 
-    static void PostMessages(SpriteComponent* component)
+    static void PostMessages(dmGameObject::HCollection hcollection, SpriteComponent* component)
     {
         const dmGameSystemDDF::Playback playback = (dmGameSystemDDF::Playback)component->m_AnimationPlayback;
         bool once = playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
@@ -1950,15 +1950,15 @@ namespace dmGameSystem
             if (component->m_Listener.m_Fragment != 0x0)
             {
                 dmMessage::URL sender;
-                if (!GetSender(component, &sender))
+                if (!GetSender(hcollection, component, &sender))
                 {
                     dmLogError("Could not send animation_done from component. Has it been deleted?");
                     return;
                 }
 
                 // Should this check be handled by the comp_script.cpp?
-                dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), component->m_Listener.m_Path);
-                if (!listener_instance)
+                dmGameObject::HGameObject hlistener = dmGameObject::GetGameObjectFromIdentifier(hcollection, component->m_Listener.m_Path);
+                if (!hlistener)
                 {
                     dmLogError("Could not send animation_done to instance: %s:%s#%s", dmHashReverseSafe64(component->m_Listener.m_Socket), dmHashReverseSafe64(component->m_Listener.m_Path), dmHashReverseSafe64(component->m_Listener.m_Fragment));
                     return;
@@ -2106,7 +2106,7 @@ namespace dmGameSystem
             // TODO: check when we need send messages
             if (!component->m_IsPlaying)
                 continue;
-            PostMessages(component);
+            PostMessages(params.m_Collection, component);
         }
 
         dmRender::TrimBuffer(render_context, world->m_VertexBuffer);
@@ -2144,7 +2144,7 @@ namespace dmGameSystem
                 continue;
             if (component->m_VertexCount == 0 || component->m_IndexCount == 0)
                 continue;
-            UpdateTransform(component, sub_pixels);
+            UpdateTransform(params.m_Collection, component, sub_pixels);
             // Bounding radius: world matrix already contains component scale; incorporate only sprite size
             Vector3 size = component->m_Size;
             Vector3 half_diagonal = (component->m_World.getCol(0).getXYZ() * size.getX() + component->m_World.getCol(1).getXYZ() * size.getY()) * 0.5f;
@@ -2397,7 +2397,7 @@ namespace dmGameSystem
                     if (component->m_FunctionRef)
                     {
                         dmMessage::URL sender = {};
-                        GetSender(component, &sender);
+                        GetSender(params.m_Collection, component, &sender);
                         dmGameObject::PostScriptUnrefMessage(&sender, &component->m_Listener, component->m_FunctionRef);
                     }
                     component->m_Listener = params.m_Message->m_Sender;
@@ -2472,7 +2472,7 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetMaterialResource(component), out_value);
         }
         else if (get_property == PROP_IMAGE)
         {
@@ -2492,14 +2492,14 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
             }
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), texture_set, out_value);
         }
         else if (get_property == PROP_TEXTURE[0])
         {
             TextureSetResource* texture_set = GetFirstTextureSet(component);
             if (!texture_set)
                 return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set->m_Texture, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), texture_set->m_Texture, out_value);
         }
         else if (get_property == PROP_ANIMATION)
         {
@@ -2573,7 +2573,7 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIAL)
         {
-            dmGameObject::PropertyResult res = AddOverrideMaterial(dmGameObject::GetFactory(params.m_Instance), component, params.m_Value.m_Hash);
+            dmGameObject::PropertyResult res = AddOverrideMaterial(dmGameObject::GetFactory(params.m_Collection), component, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }
@@ -2582,7 +2582,7 @@ namespace dmGameSystem
             dmhash_t sampler_name_hash = 0;
             GetPropertyOptionsKey(params.m_Options, 0, &sampler_name_hash);
 
-            dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
+            dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Collection), component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
             // Since the animation referred to the old texture, we need to update it
@@ -2684,7 +2684,7 @@ namespace dmGameSystem
                     break;
                 case 2:
                 {
-                    Matrix4 parent_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+                    Matrix4 parent_world = dmGameObject::GetWorldMatrix(pit->m_Node->m_Collection, component->m_Instance);
                     Vector3 parent_scale = dmTransform::ToTransform(parent_world).GetScale();
                     Vector3 world_scale = dmVMath::MulPerElem(parent_scale, component->m_Scale);
                     value = Vector4(world_scale);

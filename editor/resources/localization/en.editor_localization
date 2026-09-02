@@ -2070,7 +2070,7 @@ form.help.project.windows.app_icon = Uncompressed 32-bit `.ico` file embedded in
 form.label.project.collection = Collection
 form.help.project.collection = Collection related settings
 form.label.project.collection.max_instances = Max Instances
-form.help.project.collection.max_instances = Maximum game objects alive in each collection, including placed objects, spawned objects, and objects awaiting end-of-frame deletion. At capacity, creation fails and the engine emits a buffer-full message. Higher values reserve more memory, though builds may allocate a smaller safe capacity when all contents are known.
+form.help.project.collection.max_instances = Maximum game objects alive in each collection, including placed objects, spawned objects, and objects awaiting end-of-frame deletion. At capacity, creation fails and the engine emits a buffer-full message. Higher values reserve more memory.
 form.label.project.collection.max_input_stack_entries = Max Input Stack Entries
 form.help.project.collection.max_input_stack_entries = Maximum game objects in each collection that may hold input focus at once. One game object uses one entry even with several input-capable components; reacquiring focus moves it to the top. At capacity, another object cannot acquire focus. Higher limits reserve more memory.
 

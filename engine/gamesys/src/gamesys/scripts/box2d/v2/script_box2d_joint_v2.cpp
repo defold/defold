@@ -352,7 +352,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         B2DJointMeta* joint_meta = 0;
         b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyA();
-        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyInstanceId(body));
+        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyGameObject(body));
         return 1;
     }
 
@@ -361,7 +361,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         B2DJointMeta* joint_meta = 0;
         b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyB();
-        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyInstanceId(body));
+        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyGameObject(body));
         return 1;
     }
 

@@ -91,7 +91,7 @@ namespace dmGameSystem
         dmVMath::Vector3            m_Translation;
         dmVMath::Quat               m_Rotation;
         dmVMath::Matrix4            m_World;
-        dmGameObject::HInstance     m_Instance;
+        dmGameObject::HGameObject   m_Instance;
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;
         dmArray<TileGridRegion>     m_Regions;
@@ -461,10 +461,10 @@ namespace dmGameSystem
             if (world->m_Components[i] == tile_grid)
             {
                 if (tile_grid->m_Material) {
-                    dmResource::Release(dmGameObject::GetFactory(params.m_Instance), tile_grid->m_Material);
+                    dmResource::Release(dmGameObject::GetFactory(params.m_Collection), tile_grid->m_Material);
                 }
                 if (tile_grid->m_TextureSet) {
-                    dmResource::Release(dmGameObject::GetFactory(params.m_Instance), tile_grid->m_TextureSet);
+                    dmResource::Release(dmGameObject::GetFactory(params.m_Collection), tile_grid->m_TextureSet);
                 }
 
                 delete [] tile_grid->m_Cells;
@@ -519,7 +519,7 @@ namespace dmGameSystem
             }
 
             Matrix4 local(component->m_Rotation, component->m_Translation);
-            const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+            const Matrix4& go_world = dmGameObject::GetWorldMatrix(params.m_Collection, component->m_Instance);
             component->m_World = go_world * local;
         }
         DM_PROPERTY_ADD_U32(rmtp_Tilemap, world->m_Components.Size());
@@ -962,11 +962,11 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
         if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetMaterialResource(component), out_value);
         }
         if (params.m_PropertyId == PROP_TILE_SOURCE)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetTextureSet(component), out_value);
         }
         int32_t value_index = 0;
         GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
@@ -978,11 +978,11 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
         if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            return SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
         }
         if (params.m_PropertyId == PROP_TILE_SOURCE)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
             ReHash(component);
             return res;
         }

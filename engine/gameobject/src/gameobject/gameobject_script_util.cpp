@@ -279,7 +279,7 @@ namespace dmGameObject
         return 0;
     }
 
-    int HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options)
+    int HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmGameObject::HCollection hcollection, dmGameObject::HGameObject hinstance, dmhash_t property_id, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options)
     {
         DM_HASH_REVERSE_MEM(hash_ctx, 512);
 
@@ -312,7 +312,7 @@ namespace dmGameObject
             case PROPERTY_RESULT_TYPE_MISMATCH:
             {
                 dmGameObject::PropertyDesc property_desc;
-                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
+                dmGameObject::GetProperty(hcollection, hinstance, target.m_Fragment, property_id, property_options, property_desc);
                 return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64Alloc(&hash_ctx, property_id), lua_tostring(L, 1), dmGameObject::TYPE_NAMES[property_desc.m_Variant.m_Type]);
             }
             case PROPERTY_RESULT_READ_ONLY:
