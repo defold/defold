@@ -77,15 +77,21 @@ jobs:
           persist-credentials: true
 
       - name: 'Mirror the reviewed commit to ${{ env.MIRROR_BRANCH }}'
+        # The commit is fetched by its object id, not through refs/pull/<n>/head. That ref
+        # moves when the contributor pushes; the object id does not. So the mirrored branch
+        # is the commit the label was applied to, whatever happens to the pull request in
+        # between. The head is compared first only to fail fast: building a commit that has
+        # already been superseded is wasted work, and the diff summary in the next step
+        # reads the pull request as it stands now.
         run: |
           set -e
-          git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head"
-          fetched=$(git rev-parse FETCH_HEAD)
-          if [ "${fetched}" != "${HEAD_SHA}" ]; then
-            echo "::error::The pull request head moved while the label was being processed (${HEAD_SHA} -> ${fetched}). Re-review and label again."
+          current=$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')
+          if [ "${current}" != "${HEAD_SHA}" ]; then
+            echo "::error::The pull request head moved while the label was being processed (${HEAD_SHA} -> ${current}). Re-review and label again."
             exit 1
           fi
           echo "Mirroring ${HEAD_SHA} to ${MIRROR_BRANCH}"
+          git fetch --no-tags origin "${HEAD_SHA}"
           git push --force origin "${HEAD_SHA}:refs/heads/${MIRROR_BRANCH}"
 
       - name: 'Summarise build-affecting files in the diff'
