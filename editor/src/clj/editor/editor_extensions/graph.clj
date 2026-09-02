@@ -1079,7 +1079,9 @@
           list-kw (property->prop-kw property)
           workspace (project/workspace project evaluation-context)]
       (and (not (resource/resource? editor-lookup))
-           (attachment/editable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)))))
+           (let [node-id (editor-lookup->node-id editor-lookup)]
+             (and (attachment/defined? workspace node-id list-kw evaluation-context)
+                  (attachment/editable? workspace node-id list-kw evaluation-context)))))))
 
 (def ^:private clear-args-coercer
   (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
@@ -1128,8 +1130,10 @@
           workspace (project/workspace project evaluation-context)
           list-kw (property->prop-kw property)]
       (and (not (resource/resource? editor-lookup))
-           (attachment/editable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)
-           (attachment/reorderable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)))))
+           (let [node-id (editor-lookup->node-id editor-lookup)]
+             (and (attachment/defined? workspace node-id list-kw evaluation-context)
+                  (attachment/editable? workspace node-id list-kw evaluation-context)
+                  (attachment/reorderable? workspace node-id list-kw evaluation-context)))))))
 
 (def ^:private reorder-args-coercer
   (coerce/regex :node unresolved-editor-lookup-coercer
