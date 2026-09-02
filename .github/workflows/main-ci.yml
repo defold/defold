@@ -5,321 +5,424 @@ on:
     branches-ignore:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
+      # Mirrored external pull requests, built by dispatch. See pr-ok-to-test.yml.
+      - 'contrib/**'
 
   pull_request:
     types: [opened]
 
   repository_dispatch: {}
 
+  # pr-ok-to-test.yml dispatches this workflow on a contrib/** branch. Dispatching by ref
+  # gives the untrusted build its own cache scope, and reads this file from that branch.
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Re-labelling a pull request supersedes the build that is already running for it. Every
+# other run gets a group of its own so that the trusted branches keep running in parallel.
+concurrency:
+  group: ${{ (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && format('main-ci-{0}', github.ref) || format('main-ci-{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) }}
+
 env:
-  S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-  S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
-  NOTARIZATION_USERNAME: ${{ secrets.NOTARIZATION_USERNAME }}
-  NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
-  NOTARIZATION_ITC_PROVIDER: ${{ secrets.NOTARIZATION_ITC_PROVIDER }}
+  # A run on contrib/** builds a mirrored external pull request (pr-ok-to-test.yml).
+  # The code being built was not written by anyone with push access, so it must not see any
+  # credential that can sign, publish or write anything. The build reads its SDK packages
+  # from DM_PACKAGES_URL and produces GitHub Actions artifacts instead of S3 objects.
+  # Redaction is not a control here - the build executes wscripts, CMakeLists, Gradle and
+  # Clojure straight from the pull request - so the secrets are withheld outright.
+  #
+  # Untrusted is decided by the branch being built, not by the event: the three terms are
+  # the three ways BUILD_BRANCH can be set. All come from the event, so no job can rewrite
+  # them through $GITHUB_ENV the way it could a workflow-level env var.
+  S3_ACCESS_KEY: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.S3_ACCESS_KEY || '' }}
+  S3_SECRET_KEY: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.S3_SECRET_KEY || '' }}
+  NOTARIZATION_USERNAME: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.NOTARIZATION_USERNAME || '' }}
+  NOTARIZATION_PASSWORD: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.NOTARIZATION_PASSWORD || '' }}
+  NOTARIZATION_ITC_PROVIDER: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.NOTARIZATION_ITC_PROVIDER || '' }}
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
-  DM_RELEASE_REPOSITORY: ${{ secrets.DM_RELEASE_REPOSITORY }}
-  GCLOUD_EDITOR_SERVICE_KEY: ${{ secrets.GCLOUD_EDITOR_SERVICE_KEY }}
-  MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-  MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
-  BUILD_BRANCH: ${{ github.event.client_payload.branch || github.head_ref }}
-  SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
+  DM_RELEASE_REPOSITORY: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.DM_RELEASE_REPOSITORY || '' }}
+  GCLOUD_EDITOR_SERVICE_KEY: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.GCLOUD_EDITOR_SERVICE_KEY || '' }}
+  MACOS_CERTIFICATE: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.MACOS_CERTIFICATE || '' }}
+  MACOS_CERTIFICATE_PASS: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.MACOS_CERTIFICATE_PASS || '' }}
+  # ref_name only for a dispatch: for a pull request it is '<n>/merge', not a branch.
+  BUILD_BRANCH: ${{ github.event.client_payload.branch || (github.event_name == 'workflow_dispatch' && github.ref_name) || github.head_ref }}
+  SERVICES_GITHUB_TOKEN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SERVICES_GITHUB_TOKEN || '' }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
-  SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
+  SLACK_WEBHOOK: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SLACK_WEBHOOK || '' }}
   DOTNET_CHANNEL: 9.0.1xx
   # Shared by the Android SDK setup and the emulator the x86_64-android tests run on
   ANDROID_API_LEVEL: '36'
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
-  OPTION_CODESIGN: ${{ github.event.client_payload.skip_sign != true && github.event.client_payload.skip_sign != 'true' && '--codesign' || '' }}
+  OPTION_CODESIGN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event.client_payload.skip_sign != true && github.event.client_payload.skip_sign != 'true' && '--codesign' || '' }}
+  # A contrib build has no S3 credentials: it hands its output to the jobs downstream as
+  # GitHub Actions artifacts instead of archiving it, and builds the editor and bob from
+  # $DYNAMO_HOME rather than from the archive.
+  OPTION_ARCHIVE: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && '--archive' || '' }}
+  OPTION_SKIP_ARCHIVE: ${{ (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && '--skip-archive' || '' }}
+  OPTION_EDITOR_LOCAL: ${{ (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && '--engine-artifacts=dynamo-home --skip-distclean' || '' }}
 
 jobs:
+  # Steps and conditions that several jobs share are written once, with a YAML anchor
+  # (&name), and referenced everywhere else with an alias (*name). Aliases are resolved
+  # when the workflow is parsed, so an alias is exactly the block it points at - edit the
+  # definition and every job that references it changes. Merge keys (<<:) are NOT supported
+  # by GitHub and must not be used; an alias cannot be overridden, so a step that needs to
+  # differ has to be written out in full.
+  #
+  #   &if_bob_enabled &should_release
+  #   &step_checkout &step_cache_dcache &step_cache_lein &step_python &step_java
+  #   &step_download_bob &step_download_dynamo_home &step_chmod_dynamo_home
+  #   &step_remove_bob_maven &step_stop_gradle &step_notify
+  #
+  # Each is defined at its first use; grep for '&<name>' to find it.
+
   # ---- BUILD ENGINE VERSIONS ------------------
-  bld-eng-windows:
+  bld-eng:
+    # One job for every engine platform. A row is a platform: its runner, its timeout, the
+    # extra ci.sh flags it needs, and flags selecting the toolchains to install. The check
+    # names are pinned to the ones the separate bld-eng-* jobs produced, so branch
+    # protection keeps working.
+    #
+    # fail-fast is off. Previously each platform group was its own matrix, so a failure
+    # cancelled the siblings in that group only; with one matrix, fail-fast would cancel
+    # every platform instead. Letting them all finish reports every platform on a bad
+    # commit at the cost of the minutes a cancel would have saved.
+    name: '${{ matrix.name }}'
     strategy:
-      matrix:
-        platform: [win32, x86_64-win32]
-
-    runs-on: windows-2025-vs2026
-    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    timeout-minutes: 30
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
-      {
-        name: 'Setup dotnet',
-        id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
-        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
-      },
-      {
-        name: 'Pin dotnet SDK',
-        shell: bash,
-        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
-      },
-      {
-        name: 'Install dependencies',
-        shell: bash,
-        run: 'ci/ci.sh install --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Build engine',
-        shell: bash,
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
-      },
-      {
-        name: 'Stop Gradle Daemon',
-        run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop'
-      },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
-
-  bld-eng-darwin:
-    strategy:
+      fail-fast: false
       matrix:
         include:
-          - platform: x86_64-macos
-          - platform: arm64-macos
-          - platform: arm64-ios
-            skip_tests: true
-          - platform: x86_64-ios
-            skip_tests: true
-    runs-on: macos-26
+          - name: 'bld-eng-windows (win32)'
+            platform: win32
+            runner: windows-2025-vs2026
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            gcloud: true
+            codesign: true
+          - name: 'bld-eng-windows (x86_64-win32)'
+            platform: x86_64-win32
+            runner: windows-2025-vs2026
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            gcloud: true
+            codesign: true
+          - name: 'bld-eng-darwin (x86_64-macos)'
+            platform: x86_64-macos
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-darwin (arm64-macos)'
+            platform: arm64-macos
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-darwin (arm64-ios, true)'
+            platform: arm64-ios
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-darwin (x86_64-ios, true)'
+            platform: x86_64-ios
+            runner: macos-26
+            timeout: 30
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            dotnet: true
+            codesign: true
+          - name: 'bld-eng-web (wasm-web)'
+            platform: wasm-web
+            runner: ubuntu-22.04
+            timeout: 45
+            engine_args: '--skip-builtins --skip-docs --skip-tests'
+            emsdk: true
+          - name: 'bld-eng-web (wasm_pthread-web)'
+            platform: wasm_pthread-web
+            runner: ubuntu-22.04
+            timeout: 45
+            engine_args: '--skip-builtins --skip-docs --skip-tests'
+            emsdk: true
+          - name: 'bld-eng-android (armv7-android, true)'
+            platform: armv7-android
+            runner: ubuntu-latest
+            timeout: 60
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            android: true
+          - name: 'bld-eng-android (arm64-android, true)'
+            platform: arm64-android
+            runner: ubuntu-latest
+            timeout: 60
+            engine_args: '--skip-tests --skip-builtins --skip-docs'
+            android: true
+          # Without emulator the unit tests would be skipped; x86_64 runs them on a
+          # hardware accelerated emulator, see 'Build engine and run tests on emulator'.
+          - name: 'bld-eng-android (x86_64-android)'
+            platform: x86_64-android
+            runner: ubuntu-latest
+            timeout: 60
+            engine_args: '--skip-builtins --skip-docs'
+            android: true
+            emulator: true
+          # x86_64-linux is the only engine build that runs without --skip-docs and
+          # --skip-builtins, so it is the only source of ref-doc.zip and builtins.zip.
+          - name: 'bld-eng-linux-x64 (x86_64-linux)'
+            platform: x86_64-linux
+            runner: ubuntu-22.04
+            timeout: 30
+            engine_args: ''
+            dotnet: true
+            docs: true
+          - name: 'bld-eng-linux-arm64 (arm64-linux)'
+            platform: arm64-linux
+            runner: ubuntu-22.04-arm
+            timeout: 30
+            engine_args: '--verbose'
+    runs-on: ${{ matrix.runner }}
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    timeout-minutes: 30
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      {
-        name: 'Setup dotnet',
-        id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
-        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
-      },
-      {
-        name: 'Pin dotnet SDK',
-        shell: bash,
-        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
-      },
-      {
-        name: 'Install dependencies',
-        run: 'ci/ci.sh install --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}"'
-      },
-      {
-        name: 'Build engine',
-        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh engine --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }}'
-      },
-      {
-        name: 'Stop Gradle Daemon',
-        run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop'
-      },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
-
-  bld-eng-web:
-    strategy:
-      matrix:
-        platform: [wasm-web, wasm_pthread-web]
-    runs-on: ubuntu-22.04
-    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    timeout-minutes: 45
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984, with: {version: '4.0.6'}}, # v16
-      { name: 'Verify emsdk',
+    timeout-minutes: ${{ matrix.timeout }}
+    # The Windows steps all declared shell: bash already.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - &step_checkout
+        name: 'Checkout'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: '${{env.BUILD_BRANCH}}'
+      - &step_cache_dcache
+        name: 'Cache Defold downloads'
+        # No cache for a contrib build, and none for a repository dispatch: that always
+        # reports github.ref as the default branch, so it would cache into another's scope.
+        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: '~/.dcache'
+          key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
+          restore-keys: |-
+            ${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-
+            ${{ runner.os }}-dcache-
+      - name: 'Cache lein installation and Maven dependencies for docs'
+        if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: |-
+            editor/build/lein
+            editor/.m2/repository
+          key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}"
+          restore-keys: |-
+            ${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-
+            ${{ runner.os }}-lein-maven-docs-
+            ${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-docs-
+            ${{ runner.os }}-lein-docs-
+      - &step_python
+        name: 'Install Python'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: 3.13
+      - name: 'XCode'
+        if: runner.os == 'macOS'
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90  # v1.7.0
+        with:
+          xcode-version: '26.5.0'
+      - &step_java
+        name: 'Install Java'
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c  # v6.0.0
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          # 'gradle' has to be the middle operand: in `a && b || c` an empty b is falsy.
+          cache: "${{ (!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
+          cache-dependency-path: |-
+            com.dynamo.cr/com.dynamo.cr.bob/*.gradle
+            com.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties
+            com.dynamo.cr/com.dynamo.cr.bob.test/*.gradle
+            com.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties
+      - name: 'Install CMake'
+        uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb  # v4.3.4
+        with:
+          # This action stores its CMake and Ninja download in the Actions cache by
+          # default, under a key derived from the versions alone. A contrib build must
+          # not write there - see the cache steps above.
+          useCloudCache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
+      - name: 'Set up Google Cloud SDK'
+        if: matrix.gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db  # v3.0.1
+        with:
+          version: 'latest'
+      - name: 'Setup emsdk'
+        if: matrix.emsdk
+        uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984  # v16
+        with:
+          version: '4.0.6'
+      - name: 'Verify emsdk'
+        if: matrix.emsdk
         run: 'emcc -v && export | grep EM'
-      },
-      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0, with: {version: "13.0"}}, # v2.0.9
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      {
-        name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs --skip-tests'
-      },
-      { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
-
-  bld-eng-android:
-    strategy:
-      matrix:
-        include:
-          - platform: armv7-android
-            skip_tests: true
-          - platform: arm64-android
-            skip_tests: true
-          # Without skip_tests the unit tests run on a hardware accelerated emulator, see below
-          - platform: x86_64-android
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    timeout-minutes: 60
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      {
-        name: 'Set up Android SDK',
-        uses: defold/github-actions-common/.github/actions/android@8f32dd1cabf08f349200dd0135d07afc233fc322, # untagged pinned SHA
-        with: {
-          android-ndk: '25.2.9519653',
-          android-api-level: '${{ env.ANDROID_API_LEVEL }}',
+      - name: 'Install LLVM and Clang'
+        if: matrix.emsdk
+        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0  # v2.0.9
+        with:
+          version: "13.0"
+      - name: 'Set up Android SDK'
+        if: matrix.android
+        uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7  # untagged pinned SHA
+        with:
+          android-ndk: '25.2.9519653'
+          android-api-level: '${{ env.ANDROID_API_LEVEL }}'
           android-build-tools: '36.1.0'
-        }
-      },
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      {
-        name: 'Enable KVM',
-        if: "!matrix.skip_tests",
-        run: "echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules\nsudo udevadm control --reload-rules\nsudo udevadm trigger --name-match=kvm"
-      },
-      {
-        name: 'Cache Android AVD',
-        if: "!matrix.skip_tests",
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, # v5.0.5
-        with: { path: "~/.android/avd/*\n~/.android/adb*", key: "${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64" }
-      },
-      {
-        name: 'Build engine and run tests on emulator',
-        if: "!matrix.skip_tests",
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d, # v2.38.0
-        with: {
-          api-level: '${{ env.ANDROID_API_LEVEL }}',
-          target: google_apis, # it's mandatory to use 'google_apis' instead of google play build because the seond one requires "USB debug authorization"
-          arch: x86_64,
-          force-avd-creation: false,
-          disable-animations: true,
-          emulator-options: '-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none',
+          # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
+          # must not write there - see the cache steps above.
+          cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
+      - name: 'Setup dotnet'
+        if: matrix.dotnet
+        id: setup_dotnet
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68  # v6.0.0
+        with:
+          dotnet-version: '${{ env.DOTNET_CHANNEL }}'
+      - name: 'Pin dotnet SDK'
+        if: matrix.dotnet
+        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
+      # macOS installs the signing certificate into the keychain instead of passing a platform.
+      - name: 'Install dependencies'
+        if: runner.os == 'macOS'
+        run: 'ci/ci.sh install --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}"'
+      - name: 'Install dependencies'
+        if: runner.os != 'macOS'
+        run: 'ci/ci.sh install --platform=${{ matrix.platform }}'
+      - name: 'Enable KVM'
+        if: matrix.emulator
+        run: |-
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: 'Cache Android AVD'
+        if: "matrix.emulator && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: |-
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: "${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64"
+      - name: 'Install pinned Lua language server for docs validation'
+        if: matrix.docs
+        run: 'python engine/docs/build_docs.py install-lua-language-server --project-clj editor/project.clj --platform ${{ matrix.platform }} --output-dir "$RUNNER_TEMP/defold-lua-language-server" --github-env "$GITHUB_ENV"'
+      - name: 'Build engine and run tests on emulator'
+        if: matrix.emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
+        with:
+          api-level: '${{ env.ANDROID_API_LEVEL }}'
+          target: google_apis  # it's mandatory to use 'google_apis' instead of google play build because the seond one requires "USB debug authorization"
+          arch: x86_64
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: '-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none'
           # The unit tests are run inline by waf, per engine library, so the emulator has
           # to stay up for the whole build. ANDROID_SERIAL points both the ABI check in
           # build_android.py and the adb test harness at it. Without a device those would
           # quietly fall back to --skip-tests, so bail out instead of building for nothing.
-          script: "ANDROID_SERIAL=$(adb devices | awk '$2==\"device\"{print $1; exit}')\nif [ -z \"$ANDROID_SERIAL\" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi\nexport ANDROID_SERIAL\necho \"Running ${{ matrix.platform }} tests on $ANDROID_SERIAL\"\nci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs"
-        }
-      },
-      {
-        name: 'Build engine',
-        if: matrix.skip_tests,
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs'
-      },
-      { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
+          script: |-
+            ANDROID_SERIAL=$(adb devices | awk '$2=="device"{print $1; exit}')
+            if [ -z "$ANDROID_SERIAL" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi
+            export ANDROID_SERIAL
+            echo "Running ${{ matrix.platform }} tests on $ANDROID_SERIAL"
+            ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --skip-builtins --skip-docs
+      # matrix.engine_args carries the per-platform flags; codesign and the gcloud key
+      # come from env, which a matrix cannot reference, so they are appended here.
+      - name: 'Build engine'
+        if: "!matrix.emulator"
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+      - name: 'Upload engine build for the jobs downstream'
+        # A contrib build has no S3 credentials, so bob and the editor pick the engine
+        # up from here instead of from the archive. See pr-ok-to-test.yml.
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: 'dynamo-home-${{ matrix.platform }}'
+          path: |-
+            tmp/dynamo_home/bin
+            tmp/dynamo_home/lib
+            tmp/dynamo_home/share
+          if-no-files-found: 'error'
+          retention-days: 1
+      - name: 'Upload docs and builtins for the editor jobs'
+        if: matrix.docs && (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: 'engine-share'
+          path: 'tmp/dynamo_home/share'
+          if-no-files-found: 'error'
+          retention-days: 1
+      - name: 'Stop Gradle Daemon'
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop'
+      - name: 'Stop Gradle Daemon'
+        if: runner.os != 'Windows'
+        run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop'
+      - &step_notify
+        name: 'Notify if build status changed'
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d  # v4.0.0
+        if: "failure() && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))"
+        with:
+          webhook: '${{ env.SLACK_WEBHOOK }}'
+          webhook-type: incoming-webhook
+          errors: true
+          payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}'
 
-  bld-eng-linux-x64:
+  bld-eng-private:
+    # One job for the three private console platforms. They differ only in the private
+    # repository to dispatch to and the targets to build, so the display name is pinned to
+    # the historical per-platform job names and the targets ride in matrix.platform, which
+    # is what the shared Slack notifier renders.
+    name: 'bld-eng-${{ matrix.id }}'
     strategy:
+      fail-fast: false
       matrix:
-        platform: [x86_64-linux]
-    runs-on: ubuntu-22.04
-    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    timeout-minutes: 30
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies for docs', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-\n${{ runner.os }}-lein-maven-docs-\n${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-docs-\n${{ runner.os }}-lein-docs-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      {
-        name: 'Setup dotnet',
-        id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
-        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
-      },
-      {
-        name: 'Pin dotnet SDK',
-        shell: bash,
-        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
-      },
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      {
-        name: 'Install pinned Lua language server for docs validation',
-        run: 'python engine/docs/build_docs.py install-lua-language-server --project-clj editor/project.clj --platform ${{ matrix.platform }} --output-dir "$RUNNER_TEMP/defold-lua-language-server" --github-env "$GITHUB_ENV"'
-      },
-      {
-        name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive'
-      },
-      { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
-
-  bld-eng-linux-arm64:
-    strategy:
-      matrix:
-        platform: [arm64-linux]
-    runs-on: ubuntu-22.04-arm
-    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    timeout-minutes: 30
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.4
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      {
-        name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --verbose'
-      },
-      { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
-
-  bld-eng-switch:
+        include:
+          - id: switch
+            title: 'Switch'
+            repo: 'defold/defold-switch'
+            ref: "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}"
+            platform: 'arm64-nx64'
+          - id: ps
+            title: 'PlayStation'
+            repo: 'defold/defold-ps4'
+            ref: "${{ vars.PS_PRIVATE_REF || 'dev' }}"
+            platform: 'x86_64-ps4,x86_64-ps5'
+          - id: xbox
+            title: 'Xbox'
+            repo: 'defold/defold-xbox'
+            ref: "${{ vars.XBOX_PRIVATE_REF || 'dev' }}"
+            platform: 'x86_64-xbone'
     runs-on: ubuntu-latest
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
+    permissions:
+      contents: read
+      pull-requests: read
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
     steps:
-      - { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } } # v6.0.2
+      - name: 'Checkout CI scripts'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: '${{env.BUILD_BRANCH}}'
+          path: ci-check
+          sparse-checkout: 'ci'
       - name: 'Check private platform changes'
         id: private_changes
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"'
-      - name: 'Dispatch private Switch build'
+      - name: 'Dispatch private ${{ matrix.title }} build'
         if: steps.private_changes.outputs.should_build == 'true'
         shell: bash
         env:
@@ -344,231 +447,110 @@ jobs:
           request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
 
           gh workflow run private-ci.yml \
-            --repo defold/defold-switch \
-            --ref "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}" \
+            --repo ${{ matrix.repo }} \
+            --ref "${{ matrix.ref }}" \
             -f public_repo="${{ github.repository }}" \
             -f public_branch="$public_branch" \
             -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
             -f source_run_id="${{ github.run_id }}" \
             -f source_run_attempt="${{ github.run_attempt }}" \
             -f request_id="$request_id" \
-            -f targets="arm64-nx64" \
+            -f targets="${{ matrix.platform }}" \
             -f channel="$channel" \
             -f release="$release"
-      - {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / arm64-nx64\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-
-  bld-eng-ps:
-    runs-on: ubuntu-latest
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    steps:
-      - { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } } # v6.0.2
-      - name: 'Check private platform changes'
-        id: private_changes
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"'
-      - name: 'Dispatch private PlayStation build'
-        if: steps.private_changes.outputs.should_build == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
-        run: |
-          public_branch="${{ env.BUILD_BRANCH || github.ref_name }}"
-          channel="alpha"
-          release="false"
-          case "$public_branch" in
-            master)
-              channel="stable"
-              release="true"
-              ;;
-            beta)
-              channel="beta"
-              release="true"
-              ;;
-            dev)
-              release="true"
-              ;;
-          esac
-          request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
-
-          gh workflow run private-ci.yml \
-            --repo defold/defold-ps4 \
-            --ref "${{ vars.PS_PRIVATE_REF || 'dev' }}" \
-            -f public_repo="${{ github.repository }}" \
-            -f public_branch="$public_branch" \
-            -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
-            -f source_run_id="${{ github.run_id }}" \
-            -f source_run_attempt="${{ github.run_attempt }}" \
-            -f request_id="$request_id" \
-            -f targets="x86_64-ps4,x86_64-ps5" \
-            -f channel="$channel" \
-            -f release="$release"
-      - {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / x86_64-ps4,x86_64-ps5\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-
-
-  bld-eng-xbox:
-    runs-on: ubuntu-latest
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
-    steps:
-      - { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } } # v6.0.2
-      - name: 'Check private platform changes'
-        id: private_changes
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: 'echo "should_build=$(python ci-check/ci/ci.py should-build-private-platform)" >> "$GITHUB_OUTPUT"'
-      - name: 'Dispatch private Xbox build'
-        if: steps.private_changes.outputs.should_build == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
-        run: |
-          public_branch="${{ env.BUILD_BRANCH || github.ref_name }}"
-          channel="alpha"
-          release="false"
-          case "$public_branch" in
-            master)
-              channel="stable"
-              release="true"
-              ;;
-            beta)
-              channel="beta"
-              release="true"
-              ;;
-            dev)
-              release="true"
-              ;;
-          esac
-          request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
-
-          gh workflow run private-ci.yml \
-            --repo defold/defold-xbox \
-            --ref "${{ vars.XBOX_PRIVATE_REF || 'dev' }}" \
-            -f public_repo="${{ github.repository }}" \
-            -f public_branch="$public_branch" \
-            -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
-            -f source_run_id="${{ github.run_id }}" \
-            -f source_run_attempt="${{ github.run_attempt }}" \
-            -f request_id="$request_id" \
-            -f targets="x86_64-xbone" \
-            -f channel="$channel" \
-            -f release="$release"
-      - {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / x86_64-xbone\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
+      - name: 'Notify if build status changed'
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d  # v4.0.0
+        if: "failure() && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))"
+        with:
+          webhook: '${{ env.SLACK_WEBHOOK }}'
+          webhook-type: incoming-webhook
+          errors: true
+          payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}'
 
   # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web]
+    needs: [bld-eng]
     runs-on: ubuntu-22.04
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
+    if: &if_bob_enabled (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      {
-        name: 'Build bob',
-        run: 'ci/ci.sh --skip-tests bob'
-      },
-      {
-        name: 'Upload bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
-        with: {
-          name: 'bob-jar',
-          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar',
+    steps:
+      - *step_checkout
+      - *step_python
+      - *step_java
+      - name: 'Download engine builds'
+        # Without S3 credentials build_bob falls back to the artifacts in $DYNAMO_HOME,
+        # so every engine build has to be restored there first.
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          pattern: 'dynamo-home-*'
+          merge-multiple: true
+          path: 'tmp/dynamo_home'
+      - &step_chmod_dynamo_home
+        name: 'Restore the executable bit on the engine binaries'
+        # actions/upload-artifact does not preserve file permissions, so the binaries come
+        # back unexecutable. bob copies them into libexec/ and the editor packs them into
+        # its bundle, where they have to be runnable.
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        shell: bash
+        run: 'chmod -R +x tmp/dynamo_home/bin'
+      - name: 'Build bob'
+        run: 'ci/ci.sh --skip-tests ${{ env.OPTION_SKIP_ARCHIVE }} bob'
+      - name: 'Upload bob jar'
+        if: *if_bob_enabled
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: 'bob-jar'
+          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar'
           retention-days: 2
-        }
-      },
-      { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
+      - &step_stop_gradle
+        name: 'Stop Gradle Daemon'
+        run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop'
+      - *step_notify
 
   test-bob:
     needs: [build-bob]
     runs-on: ubuntu-22.04
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
+    if: *if_bob_enabled
     timeout-minutes: 15
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      {
-        name: 'Download bob jar',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'bob-jar',
+    steps:
+      - *step_checkout
+      - *step_cache_dcache
+      - *step_python
+      - *step_java
+      - name: 'Download bob jar'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: 'bob-jar'
           path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
-        }
-      },
-      {
-        name: 'Test bob',
+      - name: 'Test bob'
         run: 'ci/ci.sh test-bob'
-      },
-      { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
-      {
-        name: 'Upload test results',
-        if: failure(),
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
-        with: {
-          name: 'test-result',
-          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob.test/build/reports/tests/',
+      - *step_stop_gradle
+      - name: 'Upload test results'
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: 'test-result'
+          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob.test/build/reports/tests/'
           retention-days: 2
-        }
-      },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
+      - *step_notify
 
   build-sdk:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web]
+    needs: [bld-eng]
     runs-on: ubuntu-22.04
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))
+    # The SDK is merged from the per-platform SDK archives on S3. A contrib build never
+    # writes them, so there is nothing to merge.
+    if: ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
     timeout-minutes: 10
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install libzip tools', run: 'sudo apt-get update && sudo apt-get install -y --no-install-recommends zipmerge' },
-      {
-        name: 'Build SDK',
+    steps:
+      - *step_checkout
+      - *step_python
+      - name: 'Install libzip tools'
+        run: 'sudo apt-get update && sudo apt-get install -y --no-install-recommends zipmerge'
+      - name: 'Build SDK'
         run: 'ci/ci.sh sdk'
-      },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
+      - *step_notify
 
   # ---- BUILD EDITOR ------------------
 
@@ -576,325 +558,240 @@ jobs:
     runs-on: ubuntu-22.04
     if: github.event_name != 'pull_request'
     timeout-minutes: 30
-    steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Python dependencies', run: 'pip install requests' },
-      {
-        name: 'Generate release notes',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
+    steps:
+      - *step_checkout
+      - *step_python
+      - name: 'Install Python dependencies'
+        run: 'pip install requests'
+      - name: 'Generate release notes'
+        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)))"
         run: 'ci/ci.sh gen-release-notes'
-      },
-      { name: 'Read version', id: version, run: 'echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"' },
-      {
-        name: 'Upload release notes artifact',
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
-        with: {
-          name: 'release-notes',
-          path: "releasenotes/${{ steps.version.outputs.version }}.md\nreleasenotes/${{ steps.version.outputs.version }}.json",
+      - name: 'Read version'
+        id: version
+        run: 'echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"'
+      - name: 'Upload release notes artifact'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: 'release-notes'
+          path: |-
+            releasenotes/${{ steps.version.outputs.version }}.md
+            releasenotes/${{ steps.version.outputs.version }}.json
           if-no-files-found: 'ignore'
-        }
-      },
-      {
-        name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
-      }
-    ]
+      - name: 'Notify if build status changed'
+        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65  # v3.0.0
+        if: "failure() && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && contains('|dev|beta|master|refs/heads/dev|refs/heads/beta|refs/heads/master|', format('|{0}|', github.event.client_payload.branch || github.ref))"
+        with:
+          type: '${{ job.status }}'
+          job_name: '${{ job.status }}'
+          channel: '#defold-alarms-build'
+          url: '${{ env.SLACK_WEBHOOK }}'
+          mention: 'here'
+          mention_if: 'failure'
+          commit: true
+          token: '${{ env.SERVICES_GITHUB_TOKEN }}'
 
-  build-editor-linux:
-    needs: [build-bob, gen-release-notes]
-    runs-on: ubuntu-22.04
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
-    timeout-minutes: 60
-    steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-x86_64-linux-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-x86_64-linux-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-x86_64-linux-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      {
-        name: 'Download bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'bob-jar',
-          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
-        }
-      },
-      { name: 'Install dependencies', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
-      {
-        name: 'Download release notes',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        continue-on-error: true,
-        with: {
-          name: 'release-notes',
-          path: 'releasenotes'
-        }
-      },
-      {
-        name: 'Build editor',
-        run: 'ci/ci.sh build-editor --platform=x86_64-linux --skip-tests'
-      },
-      {
-        name: 'Archive editor',
-        run: 'ci/ci.sh archive-editor --skip-install-ext --platform=x86_64-linux'
-      },
-      { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-    ]
-
-  test-editor-linux:
-    needs: [build-bob, build-sdk]
-    runs-on: ubuntu-22.04
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
-    timeout-minutes: 60
-    steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-x86_64-linux-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-x86_64-linux-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-x86_64-linux-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      {
-        name: 'Download bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'bob-jar',
-          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
-        }
-      },
-      { name: 'Install dependencies', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
-      {
-        name: 'Test editor',
-        run: 'ci/ci.sh test-editor --platform=x86_64-linux'
-      },
-      { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-    ]
-
-  build-editor-macos:
+  build-editor:
+    # One job for every editor platform. matrix.name pins the check names to the ones the
+    # separate build-editor-linux / -macos / -windows jobs produced, so branch protection
+    # keeps working; the platform-specific steps are guarded on runner.os rather than on
+    # the platform, so a new runner needs no new branch here.
+    name: '${{ matrix.name }}'
     needs: [build-bob, gen-release-notes]
     runs-on: ${{ matrix.runner }}
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
+    # The Windows job already ran every one of its steps under bash.
+    defaults:
+      run:
+        shell: bash
     strategy:
       matrix:
         include:
+          - platform: x86_64-linux
+            runner: ubuntu-22.04
+            name: 'build-editor-linux'
           - platform: x86_64-macos
             runner: macos-26-intel
+            name: 'build-editor-macos (x86_64-macos, macos-26-intel)'
           - platform: arm64-macos
             runner: macos-26
-    steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      {
-        name: 'Download bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'bob-jar',
+            name: 'build-editor-macos (arm64-macos, macos-26)'
+          - platform: x86_64-win32
+            runner: windows-2025-vs2026
+            name: 'build-editor-windows (x86_64-win32)'
+    steps:
+      - *step_checkout
+      - *step_cache_dcache
+      - &step_cache_lein
+        name: 'Cache lein installation and Maven dependencies'
+        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: |-
+            editor/build/lein
+            editor/.m2/repository
+          key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}"
+          restore-keys: |-
+            ${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-
+            ${{ runner.os }}-lein-maven-editor-
+            ${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-
+            ${{ runner.os }}-lein-editor-
+      - *step_python
+      - *step_java
+      - name: 'Set up Google Cloud SDK'
+        if: runner.os == 'Windows'
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db  # v3.0.1
+        with:
+          version: 'latest'
+      - &step_download_bob
+        name: 'Download bob jar'
+        if: *if_bob_enabled
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: 'bob-jar'
           path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
-        }
-      },
-      {
-        name: 'Install dependencies',
+      - name: 'Install dependencies'
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+      - name: 'Install dependencies'
+        if: runner.os == 'macOS'
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
-      },
-      {
-        name: 'Download release notes',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        continue-on-error: true,
-        with: {
-          name: 'release-notes',
-          path: 'releasenotes'
-        }
-      },
-      {
-        name: 'Build editor',
-        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
-      },
-      {
-        name: 'Archive editor',
-        run: 'ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}'
-      },
-      { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-    ]
-
-  build-editor-windows:
-    needs: [build-bob, gen-release-notes]
-    runs-on: windows-2025-vs2026
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
-    timeout-minutes: 60
-    strategy:
-      matrix:
-        platform: [x86_64-win32]
-    steps: [
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}'
-        }
-      },
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-editor-\n${{ runner.os }}-lein-maven-editor-\n${{ runner.os }}-${{ matrix.platform }}-lein-editor-\n${{ runner.os }}-lein-editor-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
-      {
-        name: 'Download bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'bob-jar',
-          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
-        }
-      },
-      {
-        name: 'Install dependencies',
-        shell: bash,
+      - name: 'Install dependencies'
+        if: runner.os == 'Windows'
         run: 'ci/ci.sh install'
-      },
-      {
-        name: 'Download release notes',
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        continue-on-error: true,
-        with: {
-          name: 'release-notes',
+      - name: 'Download release notes'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        continue-on-error: true
+        with:
+          name: 'release-notes'
           path: 'releasenotes'
-        }
-      },
-      {
-        name: 'Build editor',
-        shell: bash,
-        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
-      },
-      {
-        name: 'Archive editor',
-        shell: bash,
+      - &step_download_dynamo_home
+        name: 'Download engine build'
+        # A contrib build has no S3 credentials, so the editor is packed from the engine
+        # binaries in $DYNAMO_HOME (--engine-artifacts=dynamo-home) rather than from the
+        # archive, and --skip-distclean keeps them from being wiped.
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
+          path: 'tmp/dynamo_home'
+      - *step_chmod_dynamo_home
+      - name: 'Download docs and builtins'
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && runner.os != 'Linux'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: 'engine-share'
+          path: 'tmp/dynamo_home/share'
+      - name: 'Build editor'
+        if: runner.os == 'Linux'
+        run: 'ci/ci.sh build-editor --platform=${{ matrix.platform }} --skip-tests ${{ env.OPTION_EDITOR_LOCAL }}'
+      - name: 'Build editor'
+        if: runner.os == 'macOS'
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
+      - name: 'Build editor'
+        if: runner.os == 'Windows'
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
+      - name: 'Archive editor'
+        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
         run: 'ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}'
-      },
-      { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }
-    ]
+      - name: 'Upload editor'
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: 'editor-${{ matrix.platform }}'
+          path: 'editor/target/editor/Defold-${{ matrix.platform }}.*'
+          if-no-files-found: 'warn'
+          retention-days: 2
+      - &step_remove_bob_maven
+        name: 'Remove generated Bob artifact from Maven cache'
+        shell: bash
+        run: 'rm -rf editor/.m2/repository/com/defold/lib/bob'
+      - *step_notify
 
-  # ---- RELEASE ------------------
+  test-editor-linux:
+    needs: [build-bob, build-sdk]
+    runs-on: ubuntu-22.04
+    # build-sdk is skipped for a contrib build, which would skip this job as well. Every
+    # other reason for build-sdk not succeeding - including a skip_sdk dispatch - still
+    # skips this job, as it did before.
+    if: ${{ !cancelled() && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
+    timeout-minutes: 60
+    steps:
+      - *step_checkout
+      - *step_cache_dcache
+      - *step_cache_lein
+      - *step_python
+      - *step_java
+      - *step_download_bob
+      - name: 'Install dependencies'
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+      - *step_download_dynamo_home
+      - *step_chmod_dynamo_home
+      - name: 'Test editor'
+        run: 'ci/ci.sh test-editor --platform=x86_64-linux ${{ env.OPTION_EDITOR_LOCAL }}'
+      - *step_remove_bob_maven
+      - *step_notify
 
   release:
-    needs: [build-editor-macos, build-editor-windows, build-editor-linux, test-editor-linux, test-bob]
+    needs: [build-editor, test-editor-linux, test-bob]
     runs-on: ubuntu-22.04
-    steps: [
-      {
-        name: 'Checkout CI scripts',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        with: {
-          ref: '${{env.BUILD_BRANCH}}',
-          path: ci-check,
+    # ci.py already refuses to release a branch other than master/beta/dev, but a contrib
+    # branch must not even reach the release job.
+    if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
+    permissions:
+      contents: write
+    steps:
+      - name: 'Checkout CI scripts'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: '${{env.BUILD_BRANCH}}'
+          path: ci-check
           sparse-checkout: 'ci'
-        }
-      },
-      {
-        name: 'Check release branch',
-        id: release,
-        run: "echo \"should_release=$(python3 ci-check/ci/ci.py should-release)\" >> \"$GITHUB_OUTPUT\"\necho \"requires_release_notes=$(python3 ci-check/ci/ci.py requires-release-notes)\" >> \"$GITHUB_OUTPUT\""
-      },
-      {
-        name: 'Checkout',
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        if: &should_release steps.release.outputs.should_release == 'true',
-        with: {
-          ref: '${{env.BUILD_BRANCH}}',
+      - name: 'Check release branch'
+        id: release
+        run: |-
+          echo "should_release=$(python3 ci-check/ci/ci.py should-release)" >> "$GITHUB_OUTPUT"
+          echo "requires_release_notes=$(python3 ci-check/ci/ci.py requires-release-notes)" >> "$GITHUB_OUTPUT"
+      - name: 'Checkout'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: &should_release steps.release.outputs.should_release == 'true'
+        with:
+          ref: '${{env.BUILD_BRANCH}}'
           fetch-tags: true
-        }
-      },
-      { name: 'Cache Defold downloads', if: *should_release, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', if: *should_release, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Setup git user', if: *should_release, run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
-      {
-        name: 'Download release notes',
-        if: steps.release.outputs.should_release == 'true' && steps.release.outputs.requires_release_notes == 'true',
-        continue-on-error: true,
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        with: {
-          name: 'release-notes',
+      - name: 'Cache Defold downloads'
+        # *should_release, plus the cache rule above.
+        if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: '~/.dcache'
+          key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
+          restore-keys: |-
+            ${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-
+            ${{ runner.os }}-dcache-
+      - name: 'Install Python'
+        if: *should_release
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: 3.13
+      - name: 'Setup git user'
+        if: *should_release
+        run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"'
+      - name: 'Download release notes'
+        if: steps.release.outputs.should_release == 'true' && steps.release.outputs.requires_release_notes == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: 'release-notes'
           path: 'releasenotes'
-        }
-      },
-      {
-        name: 'Release',
-        if: *should_release,
+      - name: 'Release'
+        if: *should_release
         run: 'ci/ci.sh release'
-      },
-      {
-        name: 'Publish updated API ref',
-        uses: defold/repository-dispatch@2d664dcc9f8090e4328d0c7f98aa483f832c80b3, # 1.2.1
-        if: steps.release.outputs.should_release == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev')),
-        with: {
-          repo: 'defold/defold.github.io',
-          token: '${{ secrets.SERVICES_GITHUB_TOKEN }}',
-          user: 'services@defold.se',
+      - name: 'Publish updated API ref'
+        uses: defold/repository-dispatch@2d664dcc9f8090e4328d0c7f98aa483f832c80b3  # 1.2.1
+        if: steps.release.outputs.should_release == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'))
+        with:
+          repo: 'defold/defold.github.io'
+          token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'
+          user: 'services@defold.se'
           action: 'refdoc'
-        }
-      },
-      {
-        name: 'Notify if build status changed',
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
-        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
-                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
-      }]
+      - *step_notify

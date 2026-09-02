@@ -1831,6 +1831,8 @@ GUI initial state:
   spine scenes: 0
   fonts: 0
   nodes: 0
+  can add undefined list: false
+  can reorder undefined list: false
 Transaction: edit GUI
 After transaction (edit):
   layers: 2

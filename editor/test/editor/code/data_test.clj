@@ -19,6 +19,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
+            [editor.code.lang.json :as json]
             [editor.code.script :as script])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
@@ -410,6 +411,45 @@
           :indent-type :tabs}
          (convert-indentation :four-spaces :tabs ["      {"]))))
 
+(deftest reindent-without-counts-test
+  ;; Grammars with no :indent :counts fall back to their :begin and :end
+  ;; regexes, coerced into the same shape as up to one open and one close.
+  (letfn [(reindent [lines]
+            (let [last-row (dec (count lines))
+                  cursor-range (->CursorRange (->Cursor 0 0)
+                                              (->Cursor last-row (count (lines last-row))))]
+              (:lines (data/reindent (data/indent-level-pattern 4) "    " json/grammar []
+                                     lines [cursor-range] nil (layout-info lines)))))]
+    (is (= ["{"
+            "    \"a\": ["
+            "        1"
+            "    ],"
+            "    \"b\": 2"
+            "}"]
+           (reindent ["{"
+                      "\"a\": ["
+                      "1"
+                      "],"
+                      "\"b\": 2"
+                      "}"])))
+
+    (is (= ["{"
+            "    \"a\": {"
+            "        \"b\": ["
+            "            1,"
+            "            2"
+            "        ]"
+            "    }"
+            "}"]
+           (reindent ["{"
+                      "        \"a\": {"
+                      "\"b\": ["
+                      "1,"
+                      "2"
+                      "]"
+                      "}"
+                      "}"])))))
+
 (deftest move-cursors-test
   (testing "Basic movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 1 0)] #'data/cursor-up ["a" "b" "c"])))
@@ -654,7 +694,7 @@
         (is (= :to-cursor-metadata-value (:to-cursor-metadata-prop (meta (.to cursor-range')))))))))
 
 (defn- insert-text [lines cursor-ranges text]
-  (#'data/insert-text #"\t" "\t" nil lines cursor-ranges nil (layout-info lines) text))
+  (#'data/insert-text #"\t" "\t" nil [] lines cursor-ranges nil (layout-info lines) text))
 
 (deftest insert-text-test
   (testing "Single cursor"
@@ -1173,7 +1213,7 @@
         grammar nil
         clipboard (make-test-clipboard {})
         cut! (fn [lines cursor-ranges] (data/cut! lines cursor-ranges nil (layout-info lines) clipboard))
-        paste! (fn [lines cursor-ranges] (data/paste indent-level-pattern indent-string grammar lines cursor-ranges nil (layout-info lines) clipboard))
+        paste! (fn [lines cursor-ranges] (data/paste indent-level-pattern indent-string grammar [] lines cursor-ranges nil (layout-info lines) clipboard))
         mime-type (var-get #'data/clipboard-mime-type-multi-selection)
         clipboard-content (fn [] (data/get-content clipboard mime-type))]
     (is (= {:cursor-ranges [(cr [0 0] [0 0])
