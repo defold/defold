@@ -113,7 +113,17 @@ scoping being right: `~/.dcache`, the lein install and the Maven and Gradle cach
 code that later builds execute, and the download caches do not verify a checksum on a hit.
 Contrib runs pay a cold build instead.
 
-An action that caches on its own counts as a cache step: `lukka/get-cmake` is passed
+A second rule follows from the same reasoning: **a run may only write to the cache scope
+that belongs to the code it built.** For a push or a dispatch on a branch those are the same
+thing, but a `repository_dispatch` always reports `GITHUB_REF` as the default branch while
+`BUILD_BRANCH` names whatever branch was asked for - so it builds one branch and caches into
+another's scope. Every caching step is therefore also gated on
+`github.event_name != 'repository_dispatch'`, including the release job's, which would
+otherwise build `beta` or `master` into `dev`'s scope. Builds started by
+`ci/trigger-build.py` run cold as a result.
+
+Caching is not only `actions/cache`. An action that caches on its own counts, and the same
+two gates apply: `setup-java` is passed `cache: ''`, `lukka/get-cmake` is passed
 `useCloudCache: false`, and the shared `defold/github-actions-common` Android action, which
 keeps the SDK and NDK tree in the Actions cache, is passed `cache: false`.
 

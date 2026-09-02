@@ -214,7 +214,13 @@ jobs:
           ref: '${{env.BUILD_BRANCH}}'
       - &step_cache_dcache
         name: 'Cache Defold downloads'
-        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
+        # Two conditions, and both are about which cache scope this run writes to. The
+        # first keeps a contrib build from caching at all. The second keeps any run whose
+        # scope is not the branch it builds from caching: a repository dispatch always
+        # reports github.ref as the default branch, so it writes into dev's scope while
+        # BUILD_BRANCH points somewhere else entirely. Cached content is executed by later
+        # builds, so a run may only fill the scope that belongs to the code it built.
+        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: '~/.dcache'
@@ -223,7 +229,7 @@ jobs:
             ${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-
             ${{ runner.os }}-dcache-
       - name: 'Cache lein installation and Maven dependencies for docs'
-        if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: |-
@@ -251,7 +257,9 @@ jobs:
         with:
           java-version: '25'
           distribution: 'temurin'
-          cache: "${{ (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && '' || 'gradle' }}"
+          # Written the way round that works: in `a && b || c` an empty b is falsy, so
+          # `<off> && '' || 'gradle'` would hand back 'gradle' and cache anyway.
+          cache: "${{ (!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
           cache-dependency-path: |-
             com.dynamo.cr/com.dynamo.cr.bob/*.gradle
             com.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties
@@ -263,7 +271,7 @@ jobs:
           # This action stores its CMake and Ninja download in the Actions cache by
           # default, under a key derived from the versions alone. A contrib build must
           # not write there - see the cache steps above.
-          useCloudCache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) }}
+          useCloudCache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
       - name: 'Set up Google Cloud SDK'
         if: matrix.gcloud
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db  # v3.0.1
@@ -291,7 +299,7 @@ jobs:
           android-build-tools: '36.1.0'
           # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
           # must not write there - see the cache steps above.
-          cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) }}
+          cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
       - name: 'Setup dotnet'
         if: matrix.dotnet
         id: setup_dotnet
@@ -315,7 +323,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: 'Cache Android AVD'
-        if: "matrix.emulator && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
+        if: "matrix.emulator && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: |-
@@ -632,7 +640,7 @@ jobs:
       - *step_cache_dcache
       - &step_cache_lein
         name: 'Cache lein installation and Maven dependencies'
-        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
+        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: |-
@@ -767,7 +775,9 @@ jobs:
           ref: '${{env.BUILD_BRANCH}}'
           fetch-tags: true
       - name: 'Cache Defold downloads'
-        if: *should_release
+        # *should_release plus the rule above: a release fired by a repository dispatch
+        # builds beta or master while its cache scope is dev.
+        if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: '~/.dcache'
