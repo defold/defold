@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -207,8 +206,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testExternalBuffersResolveRelativeToSceneResource() throws Exception {
-        byte[] buffer = new byte[] { 1, 2, 3 };
-        addFile("/buffers/mesh.bin", buffer);
+        addFile("/buffers/mesh.bin", new byte[] { 1, 2, 3 });
         addFile("/models/mesh.gltf", "{" +
                 "\"asset\":{\"version\":\"2.0\"}," +
                 "\"buffers\":[{\"uri\":\"../buffers/mesh.bin\",\"byteLength\":3}]}");
@@ -217,8 +215,6 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
         Task meshsetTask = getProject().createTask(sceneResource, MeshsetBuilder.class);
 
         assertEquals(1, countInputs(meshsetTask, "buffers/mesh.bin"));
-        assertArrayEquals(buffer, new GltfResourceUtil.ResourceDataResolver(sceneResource)
-                .getData("/ignored/host/path", "../buffers/mesh.bin"));
     }
 
     @Test
@@ -247,7 +243,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 "\"buffers\":[{\"uri\":\"mesh.bin\",\"byteLength\":1}]," +
                 "\"meshes\":[{\"name\":\"Named\",\"primitives\":[{\"targets\":[{}]}]}]}";
 
-        GltfResourceUtil.Metadata metadata = GltfResourceUtil.scan(makeGlb(json), "/mesh.glb");
+        ModelUtil.ModelMetadata metadata = ModelUtil.getModelMetadata(makeGlb(json), "/mesh.glb");
 
         assertEquals(1, metadata.externalBufferUris().size());
         assertEquals("mesh.bin", metadata.externalBufferUris().get(0));

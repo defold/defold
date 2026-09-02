@@ -719,11 +719,17 @@
   (if (g/error-value? scene)
     scene
     (let [old-node-id (:node-id scene)
-          model-scenes (if (= -1 selected-mesh-index)
+          model-scenes (cond
+                         (= -1 selected-mesh-index)
                          (:children scene)
+
+                         selected-mesh-index
                          (into [(nth (:children scene) 0)]
                                (filter #(= selected-mesh-index (:mesh-index %)))
-                               (:raw-model-scenes scene)))
+                               (:raw-model-scenes scene))
+
+                         :else
+                         [(nth (:children scene) 0)])
           augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms)
                                        model-scenes)
           scene-aabb (when (or (not use-skeleton-transforms)

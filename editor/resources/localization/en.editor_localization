@@ -1543,10 +1543,6 @@ property.mesh.primitive-type.tooltip = Controls how sequential vertices form geo
 property.mesh.vertices = Vertices
 property.mesh.vertices.tooltip = Selects the `.buffer` resource containing the mesh's per-vertex streams, such as positions, normals, colors, and texture coordinates. Its contents can be replaced at runtime with `resource.set_buffer()`.
 
-# Properties: mesh selection
-
-property.mesh-selection.option.raw-index = {mesh} (raw{index})
-
 # Properties: model
 
 property.model.animations = Animations

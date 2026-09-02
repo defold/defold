@@ -225,6 +225,38 @@
       (is (= 0 (test-util/prop shape-node-id :mesh-index)))
       (is (not (g/error? (g/node-value node-id :build-targets)))))))
 
+(deftest inline-hull-data-survives-load-save-and-build
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [node-id (test-util/resource-node project "/collision_object/inline_hull.collisionobject")
+          shape-node-id (:node-id (test-util/outline node-id [0]))
+          expected-data [-1.0 -1.0 -1.0
+                         1.0 -1.0 -1.0
+                         -1.0 1.0 -1.0
+                         1.0 1.0 -1.0
+                         -1.0 -1.0 1.0
+                         1.0 -1.0 1.0
+                         -1.0 1.0 1.0
+                         1.0 1.0 1.0]]
+      (is (= expected-data (test-util/prop shape-node-id :inline-data)))
+      (is (false? (get-in (g/node-value shape-node-id :_properties)
+                          [:properties :mesh-scene :visible])))
+      (test-util/with-prop [node-id :friction 0.6]
+        (let [embedded-collision-shape (:embedded-collision-shape (g/node-value node-id :save-value))
+              shape (first (:shapes embedded-collision-shape))]
+          (is (= expected-data (:data embedded-collision-shape)))
+          (is (= 0 (:index shape)))
+          (is (= 24 (:count shape)))
+          (is (not (contains? shape :mesh-scene)))
+          (is (not (contains? shape :mesh-name)))
+          (is (not (contains? shape :mesh-index)))))
+      (with-open [_ (test-util/build! node-id)]
+        (let [collision-object (Physics$CollisionObjectDesc/parseFrom (test-util/node-build-output node-id))
+              collision-shape (.getEmbeddedCollisionShape collision-object)
+              shape (.getShapes collision-shape 0)]
+          (is (= expected-data (mapv double (.getDataList collision-shape))))
+          (is (= 0 (.getIndex shape)))
+          (is (= 24 (.getCount shape))))))))
+
 (deftest group-property-read-only-for-tilemap
   (test-util/with-loaded-project
     (testing "group is editable when collision-shape is nil"

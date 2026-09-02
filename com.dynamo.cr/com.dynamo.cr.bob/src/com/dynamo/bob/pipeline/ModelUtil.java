@@ -20,9 +20,11 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.FileInputStream;
+import java.io.PushbackInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -31,11 +33,17 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
@@ -71,6 +79,276 @@ import com.google.protobuf.ByteString;
 public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
+    private static final int GLB_MAGIC = 0x46546c67;
+    private static final int GLB_VERSION = 2;
+    private static final int GLB_JSON_CHUNK_TYPE = 0x4e4f534a;
+    private static final int GLB_JSON_OFFSET = 20;
+    private static final int STREAM_DRAIN_BUFFER_SIZE = 8192;
+
+    private static final JsonFactory JSON_FACTORY = new JsonFactory();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(JSON_FACTORY);
+
+    public record ModelMetadata(List<String> externalBufferUris, boolean hasMorphTargets) {
+        public ModelMetadata {
+            externalBufferUris = List.copyOf(externalBufferUris);
+        }
+    }
+
+    private record JsonRange(int offset, int length, long totalLength) {
+    }
+
+    private static final class CountingInputStream extends FilterInputStream {
+        private long byteCount;
+
+        CountingInputStream(InputStream inputStream) {
+            super(inputStream);
+        }
+
+        @Override
+        public int read() throws IOException {
+            int value = super.read();
+            if (value >= 0) {
+                ++byteCount;
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            int read = super.read(buffer, offset, length);
+            if (read > 0) {
+                byteCount += read;
+            }
+            return read;
+        }
+    }
+
+    private static final class BoundedInputStream extends InputStream {
+        private final InputStream inputStream;
+        private long remaining;
+
+        BoundedInputStream(InputStream inputStream, long length) {
+            this.inputStream = inputStream;
+            this.remaining = length;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (remaining == 0) {
+                return -1;
+            }
+            int value = inputStream.read();
+            if (value >= 0) {
+                --remaining;
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            if (remaining == 0) {
+                return -1;
+            }
+            int boundedLength = (int) Math.min(length, remaining);
+            int read = inputStream.read(buffer, offset, boundedLength);
+            if (read > 0) {
+                remaining -= read;
+            }
+            return read;
+        }
+    }
+
+    /**
+     * Scans a glTF or GLB stream without loading external buffers or decoding
+     * model geometry. The stream is always fully consumed, including when the
+     * scan fails. For GLB input, the BIN chunk is drained without being retained.
+     */
+    public static ModelMetadata getModelMetadata(InputStream inputStream) throws IOException {
+        CountingInputStream countingStream = new CountingInputStream(inputStream);
+        PushbackInputStream stream = new PushbackInputStream(countingStream, Integer.BYTES);
+        Throwable failure = null;
+        long expectedByteCount = -1;
+        try {
+            byte[] prefix = stream.readNBytes(Integer.BYTES);
+            JsonNode root;
+            if (isGlbMagic(prefix)) {
+                byte[] remainingHeader = stream.readNBytes(GLB_JSON_OFFSET - Integer.BYTES);
+                if (remainingHeader.length != GLB_JSON_OFFSET - Integer.BYTES) {
+                    throw new IOException("GLB data is too short");
+                }
+
+                byte[] header = new byte[GLB_JSON_OFFSET];
+                System.arraycopy(prefix, 0, header, 0, prefix.length);
+                System.arraycopy(remainingHeader, 0, header, prefix.length, remainingHeader.length);
+                JsonRange jsonRange = getGlbJsonRange(header, -1);
+                expectedByteCount = jsonRange.totalLength();
+                BoundedInputStream jsonStream = new BoundedInputStream(stream, jsonRange.length());
+                JsonParser parser = JSON_FACTORY.createJsonParser(jsonStream);
+                parser.disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
+                try {
+                    root = OBJECT_MAPPER.readTree(parser);
+                } finally {
+                    parser.close();
+                }
+                drain(jsonStream);
+                if (jsonStream.remaining != 0) {
+                    throw new IOException("GLB JSON chunk is truncated");
+                }
+            } else {
+                stream.unread(prefix);
+                JsonParser parser = JSON_FACTORY.createJsonParser(stream);
+                parser.disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
+                try {
+                    root = OBJECT_MAPPER.readTree(parser);
+                } finally {
+                    parser.close();
+                }
+            }
+            return getModelMetadata(root);
+        } catch (IOException | RuntimeException | Error e) {
+            failure = e;
+            throw e;
+        } finally {
+            IOException completionException = null;
+            try {
+                drain(stream);
+            } catch (IOException drainException) {
+                completionException = drainException;
+            }
+            if (completionException == null
+                    && expectedByteCount >= 0
+                    && countingStream.byteCount != expectedByteCount) {
+                completionException = new IOException("Invalid GLB total length");
+            }
+            if (completionException != null) {
+                if (failure != null) {
+                    failure.addSuppressed(completionException);
+                } else {
+                    throw completionException;
+                }
+            }
+        }
+    }
+
+    /**
+     * Scans glTF or GLB bytes without loading external buffers or decoding
+     * model geometry.
+     */
+    public static ModelMetadata getModelMetadata(byte[] content, String path) throws IOException {
+        String suffix = BuilderUtil.getSuffix(path).toLowerCase(Locale.ROOT);
+        JsonRange jsonRange;
+        if ("gltf".equals(suffix)) {
+            jsonRange = new JsonRange(0, content.length, content.length);
+        } else if ("glb".equals(suffix)) {
+            jsonRange = getGlbJsonRange(content);
+        } else {
+            throw new IOException(String.format("Unsupported glTF resource extension in '%s'", path));
+        }
+
+        try (JsonParser parser = JSON_FACTORY.createJsonParser(content, jsonRange.offset(), jsonRange.length())) {
+            return getModelMetadata(OBJECT_MAPPER.readTree(parser));
+        } catch (IOException e) {
+            throw new IOException(String.format("Failed to inspect glTF resource '%s': %s", path, e.getMessage()), e);
+        }
+    }
+
+    private static ModelMetadata getModelMetadata(JsonNode root) throws IOException {
+        if (root == null || !root.isObject()) {
+            throw new IOException("glTF root must be an object");
+        }
+
+        LinkedHashSet<String> externalBufferUris = new LinkedHashSet<>();
+        JsonNode buffers = root.path("buffers");
+        if (buffers.isArray()) {
+            for (JsonNode buffer : buffers) {
+                JsonNode uriNode = buffer.get("uri");
+                if (uriNode != null && uriNode.isTextual()) {
+                    String uri = uriNode.getTextValue();
+                    if (isExternalBufferUri(uri)) {
+                        externalBufferUris.add(uri);
+                    }
+                }
+            }
+        }
+
+        boolean hasMorphTargets = false;
+        JsonNode meshes = root.path("meshes");
+        if (meshes.isArray()) {
+            for (JsonNode mesh : meshes) {
+                JsonNode primitives = mesh.path("primitives");
+                if (!primitives.isArray()) {
+                    continue;
+                }
+                for (JsonNode primitive : primitives) {
+                    JsonNode targets = primitive.path("targets");
+                    if (targets.isArray() && targets.size() > 0) {
+                        hasMorphTargets = true;
+                        break;
+                    }
+                }
+                if (hasMorphTargets) {
+                    break;
+                }
+            }
+        }
+
+        return new ModelMetadata(new ArrayList<>(externalBufferUris), hasMorphTargets);
+    }
+
+    private static JsonRange getGlbJsonRange(byte[] content) throws IOException {
+        return getGlbJsonRange(content, content.length);
+    }
+
+    private static JsonRange getGlbJsonRange(byte[] content, long availableLength) throws IOException {
+        if (content.length < GLB_JSON_OFFSET) {
+            throw new IOException("GLB data is too short");
+        }
+
+        ByteBuffer buffer = ByteBuffer.wrap(content).order(ByteOrder.LITTLE_ENDIAN);
+        if (buffer.getInt(0) != GLB_MAGIC) {
+            throw new IOException("Invalid GLB magic");
+        }
+        if (buffer.getInt(4) != GLB_VERSION) {
+            throw new IOException("Unsupported GLB version");
+        }
+
+        long totalLength = Integer.toUnsignedLong(buffer.getInt(8));
+        if (totalLength < GLB_JSON_OFFSET || (availableLength >= 0 && totalLength != availableLength)) {
+            throw new IOException("Invalid GLB total length");
+        }
+
+        long jsonLength = Integer.toUnsignedLong(buffer.getInt(12));
+        if (buffer.getInt(16) != GLB_JSON_CHUNK_TYPE) {
+            throw new IOException("GLB first chunk is not JSON");
+        }
+        long jsonEnd = GLB_JSON_OFFSET + jsonLength;
+        if (jsonLength > Integer.MAX_VALUE || jsonEnd > totalLength) {
+            throw new IOException("Invalid GLB JSON chunk length");
+        }
+        return new JsonRange(GLB_JSON_OFFSET, (int) jsonLength, totalLength);
+    }
+
+    private static boolean isGlbMagic(byte[] prefix) {
+        return prefix.length == Integer.BYTES
+                && ByteBuffer.wrap(prefix).order(ByteOrder.LITTLE_ENDIAN).getInt() == GLB_MAGIC;
+    }
+
+    static boolean isExternalBufferUri(String uri) {
+        return uri != null && !uri.isBlank() && !uri.regionMatches(true, 0, "data:", 0, 5);
+    }
+
+    private static void drain(InputStream inputStream) throws IOException {
+        byte[] buffer = new byte[STREAM_DRAIN_BUFFER_SIZE];
+        while (true) {
+            int read = inputStream.read(buffer);
+            if (read < 0) {
+                return;
+            }
+            if (read == 0 && inputStream.read() < 0) {
+                return;
+            }
+        }
+    }
 
     public static Model resolveNamedMesh(Scene scene, String meshName, int meshIndex) {
         Model uniqueModel = null;
