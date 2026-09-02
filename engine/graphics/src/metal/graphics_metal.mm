@@ -35,6 +35,7 @@
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
+#include "../graphics_util.h"
 
 #include "graphics_metal_private.h"
 
@@ -5124,17 +5125,6 @@ namespace dmGraphics
         return true;
     }
 
-    static void RepackRGBComponentsToRGBA(uint32_t pixel_count, uint32_t component_size, const uint8_t* rgb, uint8_t* rgba, const void* alpha)
-    {
-        const uint32_t rgb_stride = component_size * 3;
-        const uint32_t rgba_stride = component_size * 4;
-        for (uint32_t i = 0; i < pixel_count; ++i)
-        {
-            memcpy(rgba + (uint64_t)i * rgba_stride, rgb + (uint64_t)i * rgb_stride, rgb_stride);
-            memcpy(rgba + (uint64_t)i * rgba_stride + rgb_stride, alpha, component_size);
-        }
-    }
-
     static void MetalUploadTextureData(MetalContext* context, MetalTexture* texture, const TextureParams& params)
     {
         if (!texture || !params.m_Data)
@@ -5161,17 +5151,21 @@ namespace dmGraphics
         }
         else if (format_orig == TEXTURE_FORMAT_RGB16F || format_orig == TEXTURE_FORMAT_RGB32F)
         {
-            const uint32_t component_size = format_orig == TEXTURE_FORMAT_RGB16F ? sizeof(uint16_t) : sizeof(float);
-            const uint16_t half_one = 0x3c00;
-            const float float_one = 1.0f;
-            const void* alpha = format_orig == TEXTURE_FORMAT_RGB16F ? (const void*)&half_one : (const void*)&float_one;
             const TextureFormat rgba_format = format_orig == TEXTURE_FORMAT_RGB16F ? TEXTURE_FORMAT_RGBA16F : TEXTURE_FORMAT_RGBA32F;
             const uint32_t upload_layer_count = GetMetalTextureUploadLayerCount(texture, params);
             const uint32_t tex_depth = IsTextureType3D(texture->m_Base.m_Type) ? dmMath::Max(1U, (uint32_t)params.m_Depth) : 1;
             const uint32_t pixel_count = params.m_Width * params.m_Height * tex_depth * upload_layer_count;
+            const uint32_t component_size = format_orig == TEXTURE_FORMAT_RGB16F ? sizeof(uint16_t) : sizeof(float);
 
             data_new = new uint8_t[(uint64_t)pixel_count * 4 * component_size];
-            RepackRGBComponentsToRGBA(pixel_count, component_size, tex_data_ptr, data_new, alpha);
+            if (format_orig == TEXTURE_FORMAT_RGB16F)
+            {
+                RepackRGB16FToRGBA16F(pixel_count, (const uint16_t*)tex_data_ptr, (uint16_t*)data_new);
+            }
+            else
+            {
+                RepackRGB32FToRGBA32F(pixel_count, (const float*)tex_data_ptr, (float*)data_new);
+            }
             tex_data_ptr = data_new;
             format_upload = rgba_format;
             upload_params.m_DataSize = params.m_Width * params.m_Height * tex_depth * 4 * component_size;
