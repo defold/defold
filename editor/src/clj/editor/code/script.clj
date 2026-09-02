@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.script
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-annotations :as script-annotations]
@@ -36,81 +35,261 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; Lua block open/close keywords for indentation
-(def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
-(def lua-close-keywords #{"end" "until"})
+;; Lua block open/close keywords for indentation, and what closes what. A
+;; closer only pops a frame of its own kind, so a stray `end` inside a table
+;; constructor cannot close the `{`.
+(defn- lua-open-keyword-kind [^String token]
+  (case token
+    ("do" "then" "function" "else") :block
+    "repeat" :repeat
+    nil))
 
-;; This function replicates the behavior of the regex:
-;;   ^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$
-;;
-;; It performs the following checks:
-;; - Skips full-line comments (equivalent to ^([^-]|-(?!-))* for avoiding -- comments)
-;; - Ignores anything inside string literals (quoted "..." or '...')
-;; - Skips trailing inline comments (-- outside of string)
-;; - After cleaning, checks for:
-;;     * Ending with `{` (equivalent to (\{\s*)$)
-;;     * Presence of open block keywords (else, function, then, do, repeat)
-;;       not followed by closing keywords (end, until)
-(defn lua-opens-block? [^String line]
+(defn- lua-close-keyword-kind [^String token]
+  (case token
+    "end" :block
+    "until" :repeat
+    nil))
+
+(defn- lua-bracket-kind [ch]
+  (case ch
+    (\( \)) :paren
+    (\{ \}) :brace
+    (\[ \]) :bracket
+    nil))
+
+(defn- long-bracket-level
+  "The number of = signs in the long bracket at index, or -1 if there is none.
+  bracket is \\[ when finding an opener and \\] when finding a closer."
+  ^long [^String line ^long index ^long len ^Character bracket]
+  (loop [j (inc index)]
+    (cond
+      (>= j len) -1
+      (= \= (.charAt line j)) (recur (inc j))
+      (= bracket (.charAt line j)) (- j index 1)
+      :else -1)))
+
+(defn- long-bracket-end
+  "The index just past the next closing bracket of the given level, or -1."
+  ^long [^String line ^long from ^long level]
   (let [len (.length line)]
-    (if (or (zero? len)
-            (.startsWith (string/triml line) "--"))
-      false
-      (loop [i 0
-             token (StringBuilder.)
-             in-quote nil
-             escaped false
-             skip-rest false
-             last-non-space nil
-             tokens #{}]
-        (if (>= i len)
-          (let [tokens (if (pos? (.length token)) (conj tokens (.toString token)) tokens)]
-            (or (= last-non-space \{)
-                (and (coll/some lua-open-keywords tokens)
-                     (not (coll/some lua-close-keywords tokens)))))
-          (let [ch (.charAt line (long i))]
+    (loop [i from]
+      (cond
+        (>= i len) -1
+        (and (= \] (.charAt line i))
+             (== level (long-bracket-level line i len \])))
+        (+ i level 2)
+        :else (recur (inc i))))))
+
+;; lua-lex-line scans a line, lua-indent-counts summarizes it.
+;;
+;; The scanner emits one token per structural bracket or block keyword, as [dir kind index]:
+;; - Skips quoted strings and comments without tokenizing their contents
+;; - Tracks whether we're inside a long string/comment, since that state
+;;   carries across lines
+;; - Records the opening column of function parameter lists, so parameters can
+;;   line up under the first one. Other openers just indent by one level
+;; - Treats `else` as closing and reopening a block, and `elseif` as just
+;;   closing one (the `then` after it opens the new block)
+;; - Reports the index of the last character that was code, so the summary can
+;;   tell an unfinished assignment from an `=` inside a string or comment, and
+;;   a line of code from a blank or comment-only one
+;;
+;; The summary cancels matched opens/closes and reports what's left:
+;; - :closes - kinds of the closers with no matching opener on this line;
+;;   these may pop matching enclosing frames and affect later lines
+;; - :leading - the kind of the closer the line starts with, or nil if it does
+;;   not start with one. Only a matching closer at the start should dedent the
+;;   line; one at the end is continuation punctuation
+;; - :opens - one entry per still-open bracket/keyword, holding its :kind and
+;;   its :col, which is either:
+;;     * the column to align its contents to (just past the bracket, with
+;;       tabs expanded, so it matches where the text actually appears)
+;;     * or nil, if no parameter follows the opening parenthesis, or if the
+;;       opener is not a function parameter list
+;; - :unfinished - :assign if the line ends on a bare `=`, :arg if it ends on a
+;;   comma, or nil. Either way the lines below it finish what it started
+;; - :has-code - whether the line has any code on it at all
+;;
+;; A closer whose kind does not match is dropped. On well-formed code that
+;; never happens, since a closer's opener is always the innermost one still
+;; open; on half-typed code it keeps the mistake from disturbing the rest.
+(defn lua-lex-line [^String line in-long-bracket]
+  (let [len (long (.length line))]
+    (loop [i 0
+           ^Character in-quote nil
+           escaped false
+           in-long-bracket in-long-bracket
+           after-function false
+           tokens []
+           last-code -1]
+      (if (>= i len)
+        [tokens in-long-bracket last-code]
+        (let [ch (.charAt line i)]
+          (cond
+            in-long-bracket
+            ;; Resume lexing after the matching long-bracket delimiter.
+            (let [[level kind] in-long-bracket
+                  close (long-bracket-end line i (long level))]
+              (if (neg? close)
+                [tokens in-long-bracket last-code]
+                (recur close in-quote false nil after-function tokens
+                       (if (= :comment kind) last-code (dec close)))))
+
+            in-quote
             (cond
-              skip-rest
-              (recur (inc i) token in-quote false true last-non-space tokens)
+              escaped (recur (inc i) in-quote false nil after-function tokens last-code)
+              (= ch \\) (recur (inc i) in-quote true nil after-function tokens last-code)
+              (= ch in-quote) (recur (inc i) nil false nil after-function tokens i)
+              :else (recur (inc i) in-quote false nil after-function tokens last-code))
 
-              in-quote
-              (cond
-                escaped (recur (inc i) token in-quote false skip-rest last-non-space tokens)
-                (= ch \\) (recur (inc i) token in-quote true skip-rest last-non-space tokens)
-                (= ch (.charValue ^Character in-quote)) (recur (inc i) token nil false skip-rest last-non-space tokens)
-                :else (recur (inc i) token in-quote false skip-rest last-non-space tokens))
+            ;; A comment is multiline when -- is followed by a long bracket.
+            (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
+            (let [open (+ i 2)
+                  level (if (and (< open len) (= \[ (.charAt line open)))
+                          (long-bracket-level line open len \[)
+                          -1)]
+              (if (neg? level)
+                (recur len in-quote false nil after-function tokens last-code)
+                (recur (+ open level 2) in-quote false [level :comment] after-function tokens last-code)))
 
-              ;; Inline comment
-              (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
-              (recur len token in-quote false true last-non-space tokens)
+            ;; Start of quote
+            (or (= ch \") (= ch \'))
+            (recur (inc i) ch false nil after-function tokens i)
 
-              ;; Start of quote
-              (or (= ch \") (= ch \'))
-              (recur (inc i) token ch false skip-rest last-non-space tokens)
+            ;; Start of a long string.
+            (and (= ch \[) (<= 0 (long-bracket-level line i len \[)))
+            (let [level (long-bracket-level line i len \[)]
+              (recur (+ i level 2) in-quote false [level :string] after-function tokens (+ i level 1)))
 
-              ;; Word character
-              (or (Character/isLetter ch) (Character/isDigit ch) (= ch \_))
-              (do (.append token ch)
-                  (recur (inc i) token in-quote false skip-rest ch tokens))
+            ;; Scan a whole identifier so keywords match only at word boundaries.
+            (or (Character/isLetter ch) (= ch \_))
+            (let [end (long
+                        (loop [j (inc i)]
+                          (if (and (< j len)
+                                   (let [c (.charAt line j)]
+                                     (or (Character/isLetterOrDigit c) (= c \_))))
+                            (recur (inc j))
+                            j)))
+                  tok (.substring line i end)]
+              (recur end in-quote false nil
+                     ;; A name may sit between `function` and its parameter list.
+                     (or (= "function" tok) after-function)
+                     (case tok
+                       ;; Closes the previous branch and opens a new one.
+                       "else" (conj tokens [:close :block nil] [:open :block nil])
+                       ;; The `then` on the same line supplies the :open.
+                       "elseif" (conj tokens [:close :block nil])
+                       (if-let [kind (lua-open-keyword-kind tok)]
+                         (conj tokens [:open kind nil])
+                         (if-let [kind (lua-close-keyword-kind tok)]
+                           (conj tokens [:close kind nil])
+                           tokens)))
+                     (dec end)))
 
-              ;; Non-word character
-              :else
-              (let [tokens (if (pos? (.length token))
-                             (let [tok (.toString token)]
-                               (.setLength token 0)
-                               (conj tokens tok))
-                             tokens)]
-                (recur (inc i) token in-quote false skip-rest
-                       (if (Character/isWhitespace ch) last-non-space ch)
-                       tokens)))))))))
+            ;; Emit structural bracket tokens and ignore other punctuation.
+            :else
+            (let [tokens (cond-> tokens
+                           (contains? #{\{ \( \[} ch)
+                           (conj [:open (lua-bracket-kind ch) (when (and after-function (= ch \()) i)])
+
+                           (contains? #{\} \) \]} ch)
+                           (conj [:close (lua-bracket-kind ch) nil]))]
+              (recur (inc i) in-quote false nil
+                     (and after-function
+                          (or (Character/isWhitespace ch) (= ch \.) (= ch \:)))
+                     tokens
+                     (if (Character/isWhitespace ch) last-code i)))))))))
+
+(defn- code-after-index? [^String line ^long index]
+  (let [len (.length line)]
+    (loop [i (inc index)]
+      (cond
+        (>= i len) false
+        (Character/isWhitespace (.charAt line i)) (recur (inc i))
+
+        (and (= \- (.charAt line i))
+             (< (inc i) len)
+             (= \- (.charAt line (inc i))))
+        (let [open (+ i 2)
+              level (if (and (< open len) (= \[ (.charAt line open)))
+                      (long-bracket-level line open len \[)
+                      -1)
+              end (if (neg? level) -1 (long-bracket-end line (+ open level 2) level))]
+          (if (neg? end)
+            false
+            (recur end)))
+
+        :else true))))
+
+(defn- visual-column
+  ^long [^String line ^long index ^long tab-spaces]
+  (loop [i 0
+         column 0]
+    (if (= i index)
+      column
+      (recur (inc i)
+             (if (= \tab (.charAt line i))
+               (+ column (- tab-spaces (long (mod column tab-spaces))))
+               (inc column))))))
+
+(def ^:private lua-close-line-pattern
+  #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])")
+
+(defn lua-indent-counts [^String line in-long-bracket tab-spaces]
+  (let [[tokens in-long-bracket ^long last-code] (lua-lex-line line in-long-bracket)
+        ;; A line whose last code character is a bare `=` leaves an assignment
+        ;; unfinished, and one ending on a comma leaves an argument list open.
+        unfinished (when (and (not= :string (get in-long-bracket 1))
+                              (not (neg? last-code)))
+                     (case (.charAt line last-code)
+                       \, :arg
+                       \= (when (or (zero? last-code)
+                                    (case (.charAt line (dec last-code))
+                                      (\= \~ \< \>) false
+                                      true))
+                            :assign)
+                       nil))
+        ;; Cancel matched pairs, leaving only structure that crosses this line.
+        leftover (reduce (fn [stack t]
+                           (let [top (peek stack)]
+                             (if (and (= :close (t 0)) (some-> top (get 0) (= :open)))
+                               (if (= (t 1) (top 1))
+                                 (pop stack)
+                                 stack)
+                               (conj stack t))))
+                         []
+                         tokens)
+        n (count leftover)
+        closes (loop [i 0
+                      closes []]
+                 (if (or (= i n) (= :open ((leftover i) 0)))
+                   closes
+                   (recur (inc i) (conj closes ((leftover i) 1)))))
+        ;; Everything past the leading closers is an opener, since a closer only
+        ;; survives the reduce while nothing is open.
+        opens (mapv (fn [t]
+                      {:kind (t 1)
+                       :col (when-let [index (t 2)]
+                              (when (code-after-index? line index)
+                                (inc (visual-column line index tab-spaces))))})
+                    (subvec leftover (count closes)))]
+    {:closes closes
+     :opens opens
+     :leading (when (re-find lua-close-line-pattern line) (first closes))
+     :unfinished unfinished
+     :has-code (not (neg? last-code))
+     :in-long-bracket in-long-bracket}))
 
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
-   ;; indent patterns shamelessly stolen from textmate:
-   ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
-   :indent {:begin lua-opens-block?
-            :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
+   :indent {:counts lua-indent-counts
+            :restart-scan? (fn [^String line]
+                             (and (or (<= 0 (.indexOf line (int \[)))
+                                      (<= 0 (.indexOf line (int \]))))
+                                  (re-find #"\[=*\[|\]=*\]" line)))
+            :end lua-close-line-pattern
+            :multiline-scopes #{"string.quoted.other.multiline.lua" "comment.block.lua"}}
    :line-comment "--"
    :auto-insert {:characters {\" \"
                               \' \'
