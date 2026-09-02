@@ -3260,16 +3260,17 @@
     (transform-indentation rows lines cursor-ranges regions deindent-line)))
 
 (defn reindent [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout]
-  (let [affected-cursor-ranges (mapv (fn [cursor-range]
-                                       (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
-                                             end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
-                                         (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
-                                     cursor-ranges)
-        syntax-info (ensure-syntax-info (or syntax-info [])
-                                        (affected-syntax-info-end-row affected-cursor-ranges)
-                                        lines grammar)]
-    (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)
-        (update-document-width-after-splice layout))))
+  (when (:indent grammar)
+    (let [affected-cursor-ranges (mapv (fn [cursor-range]
+                                         (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
+                                               end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
+                                           (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
+                                       cursor-ranges)
+          syntax-info (ensure-syntax-info (or syntax-info [])
+                                          (affected-syntax-info-end-row affected-cursor-ranges)
+                                          lines grammar)]
+      (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)
+          (update-document-width-after-splice layout)))))
 
 (defn select-and-frame [lines ^LayoutInfo layout cursor-range]
   (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
