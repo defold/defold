@@ -5,8 +5,7 @@ on:
     branches-ignore:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
-      # Mirrored external pull requests. They are built by dispatching this workflow on
-      # the mirror branch itself, never from a push. See pr-ok-to-test.yml.
+      # Mirrored external pull requests, built by dispatch. See pr-ok-to-test.yml.
       - 'contrib/**'
 
   pull_request:
@@ -14,14 +13,8 @@ on:
 
   repository_dispatch: {}
 
-  # How a mirrored external pull request is built: pr-ok-to-test.yml dispatches this
-  # workflow with ref set to the contrib/** branch it just wrote. Dispatching by ref is
-  # what keeps an untrusted build out of the trusted Actions cache scope - a repository
-  # dispatch reports github.ref as the default branch, so anything it writes to the cache
-  # lands in the scope a later dev build restores from. A run on its own branch writes to
-  # that branch's scope, and GitHub does not let the default branch restore from a child
-  # branch. Dispatching by ref runs the workflow file found at that ref, so the mirror
-  # branch carries this repository's .github/ rather than the pull request's.
+  # pr-ok-to-test.yml dispatches this workflow on a contrib/** branch. Dispatching by ref
+  # gives the untrusted build its own cache scope, and reads this file from that branch.
   workflow_dispatch: {}
 
 permissions:
@@ -41,13 +34,9 @@ env:
   # Redaction is not a control here - the build executes wscripts, CMakeLists, Gradle and
   # Clojure straight from the pull request - so the secrets are withheld outright.
   #
-  # What marks a run as untrusted is the branch it builds, not the event that started it.
-  # Read the test as: if anything about this run points at contrib/**, it is untrusted.
-  # The three terms are the three ways BUILD_BRANCH below can be set - the ref the run was
-  # started on, the branch named by a repository dispatch, and the head branch of a pull
-  # request - so a contrib branch cannot be built with credentials by arriving through a
-  # different door. All three come from the event and, unlike a workflow-level env var,
-  # none can be rewritten from inside a job through $GITHUB_ENV.
+  # Untrusted is decided by the branch being built, not by the event: the three terms are
+  # the three ways BUILD_BRANCH can be set. All come from the event, so no job can rewrite
+  # them through $GITHUB_ENV the way it could a workflow-level env var.
   S3_ACCESS_KEY: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.S3_ACCESS_KEY || '' }}
   S3_SECRET_KEY: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.S3_SECRET_KEY || '' }}
   NOTARIZATION_USERNAME: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.NOTARIZATION_USERNAME || '' }}
@@ -59,8 +48,7 @@ env:
   GCLOUD_EDITOR_SERVICE_KEY: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.GCLOUD_EDITOR_SERVICE_KEY || '' }}
   MACOS_CERTIFICATE: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.MACOS_CERTIFICATE || '' }}
   MACOS_CERTIFICATE_PASS: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.MACOS_CERTIFICATE_PASS || '' }}
-  # github.ref_name is only consulted for a dispatch: for a pull request it would be
-  # '<n>/merge', which is not a branch this workflow can check out.
+  # ref_name only for a dispatch: for a pull request it is '<n>/merge', not a branch.
   BUILD_BRANCH: ${{ github.event.client_payload.branch || (github.event_name == 'workflow_dispatch' && github.ref_name) || github.head_ref }}
   SERVICES_GITHUB_TOKEN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SERVICES_GITHUB_TOKEN || '' }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
@@ -214,12 +202,8 @@ jobs:
           ref: '${{env.BUILD_BRANCH}}'
       - &step_cache_dcache
         name: 'Cache Defold downloads'
-        # Two conditions, and both are about which cache scope this run writes to. The
-        # first keeps a contrib build from caching at all. The second keeps any run whose
-        # scope is not the branch it builds from caching: a repository dispatch always
-        # reports github.ref as the default branch, so it writes into dev's scope while
-        # BUILD_BRANCH points somewhere else entirely. Cached content is executed by later
-        # builds, so a run may only fill the scope that belongs to the code it built.
+        # No cache for a contrib build, and none for a repository dispatch: that always
+        # reports github.ref as the default branch, so it would cache into another's scope.
         if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
@@ -257,8 +241,7 @@ jobs:
         with:
           java-version: '25'
           distribution: 'temurin'
-          # Written the way round that works: in `a && b || c` an empty b is falsy, so
-          # `<off> && '' || 'gradle'` would hand back 'gradle' and cache anyway.
+          # 'gradle' has to be the middle operand: in `a && b || c` an empty b is falsy.
           cache: "${{ (!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
           cache-dependency-path: |-
             com.dynamo.cr/com.dynamo.cr.bob/*.gradle
@@ -775,8 +758,7 @@ jobs:
           ref: '${{env.BUILD_BRANCH}}'
           fetch-tags: true
       - name: 'Cache Defold downloads'
-        # *should_release plus the rule above: a release fired by a repository dispatch
-        # builds beta or master while its cache scope is dev.
+        # *should_release, plus the cache rule above.
         if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
