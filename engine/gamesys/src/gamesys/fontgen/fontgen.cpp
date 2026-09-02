@@ -36,7 +36,6 @@
 
 namespace dmGameSystem
 {
-
 struct FontJobStatus
 {
     uint64_t    m_TimeStart;        // Time started
@@ -368,12 +367,8 @@ static bool GenerateGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t j
     float stbtt_padding = ctx->m_StbttDefaultSdfPadding + font_info->m_OutlineWidth;
 
     // See Fontc.java. If we have shadow blur, we need 3 channels
-    bool has_shadow = font_info->m_ShadowAlpha > 0.0f && font_info->m_ShadowBlur > 0.0f;
-
-    if (dmRenderDDF::MODE_MULTI_LAYER == font_info->m_RenderMode)
-    {
-        stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
-    }
+    bool has_shadow = font_info->m_ShadowBlur > 0.0f;
+    stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
 
     JobItem* item = &jobdata->m_Items[jobindex];
 
@@ -411,6 +406,11 @@ static HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t 
     for (uint32_t i = 0; i < num_glyphs; ++i)
     {
         TextGlyph* glyph = &glyphs[i];
+
+        if (glyph->m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+        {
+            continue;
+        }
 
         uint32_t glyph_index = glyph->m_GlyphIndex;
 

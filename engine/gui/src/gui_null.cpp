@@ -646,6 +646,11 @@ namespace dmGui
         return 0;
     }
 
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
+    {
+        return 0;
+    }
+
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
     {
         return RESULT_OK;
@@ -737,6 +742,10 @@ namespace dmGui
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
     }
 
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
@@ -910,6 +919,11 @@ namespace dmGui
     }
 
     bool PickNode(HScene scene, HNode node, float x, float y)
+    {
+        return false;
+    }
+
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
     {
         return false;
     }

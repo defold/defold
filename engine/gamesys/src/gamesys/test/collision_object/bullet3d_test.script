@@ -53,8 +53,9 @@ local function world_contains_object(world, object)
     return false
 end
 
--- Verifies exported collision-object, rigid-body and shape constants. Stable
--- numeric values matter because scripts pass them back through the native API.
+-- Verifies exported collision-object, rigid-body and shape constants. These
+-- numeric values mirror the bundled Bullet headers and are passed back through
+-- the native API.
 local function test_constants()
     local constants = {
         { bullet3d.collision_object.ACTIVE_TAG, 1 },
@@ -62,6 +63,7 @@ local function test_constants()
         { bullet3d.collision_object.WANTS_DEACTIVATION, 3 },
         { bullet3d.collision_object.DISABLE_DEACTIVATION, 4 },
         { bullet3d.collision_object.DISABLE_SIMULATION, 5 },
+        { bullet3d.collision_object.CF_DYNAMIC_OBJECT, 0 },
         { bullet3d.collision_object.CF_STATIC_OBJECT, 1 },
         { bullet3d.collision_object.CF_KINEMATIC_OBJECT, 2 },
         { bullet3d.collision_object.CF_NO_CONTACT_RESPONSE, 4 },
@@ -75,6 +77,9 @@ local function test_constants()
         { bullet3d.collision_object.CO_SOFT_BODY, 8 },
         { bullet3d.collision_object.CO_HF_FLUID, 16 },
         { bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY, 1 },
+        { bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT, 2 },
+        { bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD, 4 },
+        { bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY, 8 },
         { bullet3d.shape.SHAPE_TYPE_SPHERE, 0 },
         { bullet3d.shape.SHAPE_TYPE_BOX, 1 },
         { bullet3d.shape.SHAPE_TYPE_CAPSULE, 2 },
@@ -229,7 +234,7 @@ local function test_rigid_body(world, rigid_body)
         vmath.vector3(-9, 2, 3))
 
     -- The local-point helper rotates the input into world axes, unlike Bullet's
-    -- legacy get_velocity_in_local_point relative-offset convention.
+    -- Bullet get_velocity_in_local_point relative-offset convention.
     local body_rotation = bullet3d.collision_object.get_rotation(rigid_body)
     bullet3d.collision_object.set_rotation(rigid_body, vmath.quat_rotation_z(math.pi * 0.5))
     assert_vec3_near(
@@ -266,9 +271,10 @@ local function test_rigid_body(world, rigid_body)
     local original_gravity = bullet3d.rigid_body.get_gravity(rigid_body)
     local original_flags = bullet3d.rigid_body.get_flags(rigid_body)
     assert(not bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
-    local custom_flags = bit.bor(original_flags, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
-    bullet3d.rigid_body.set_flags(rigid_body, custom_flags)
-    assert(bullet3d.rigid_body.get_flags(rigid_body) == custom_flags)
+    assert(bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY))
+    local custom_gravity_flags = bit.bor(original_flags, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
+    bullet3d.rigid_body.set_flags(rigid_body, custom_gravity_flags)
+    assert(bullet3d.rigid_body.get_flags(rigid_body) == custom_gravity_flags)
     assert(bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
     local custom_gravity = vmath.vector3(3, -4, 5)
     bullet3d.rigid_body.set_gravity(rigid_body, custom_gravity)

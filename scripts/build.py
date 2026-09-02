@@ -173,7 +173,7 @@ PACKAGES_ALL=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_HOST=[
     "protobuf-35.1",
@@ -192,7 +192,7 @@ PACKAGES_IOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_IOS_64=[
     "luajit-2.1.0-3e223cb",
@@ -206,7 +206,7 @@ PACKAGES_IOS_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-35.1",
@@ -229,13 +229,13 @@ PACKAGES_MACOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
@@ -258,13 +258,13 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_WIN32=[
@@ -280,7 +280,7 @@ PACKAGES_WIN32=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_WIN32_64=[
     "protobuf-35.1",
@@ -303,12 +303,11 @@ PACKAGES_WIN32_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
@@ -332,13 +331,12 @@ PACKAGES_LINUX_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "apkc-0.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
@@ -361,7 +359,7 @@ PACKAGES_LINUX_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
@@ -376,7 +374,7 @@ PACKAGES_ANDROID=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
@@ -391,7 +389,7 @@ PACKAGES_ANDROID_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_X86_64=[
@@ -406,7 +404,7 @@ PACKAGES_ANDROID_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
@@ -419,7 +417,7 @@ PACKAGES_EMSCRIPTEN=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -466,7 +464,6 @@ BOB_TOOL_PACKAGE_PREFIXES = (
     'ogg-',
     'spirv-tools-',
     'strip_android-',
-    'strip_android_aarch64-',
     'tint-',
 )
 
@@ -500,20 +497,23 @@ ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font 
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
 EXTERNAL_WAF_LIBS = "glfw opus".split()
-EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 bullet3d vkquality".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 bullet3d vkquality skribidi".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
     "box2d": "3.1.0",
     "box2d_v2": "2.2.1",
     "bullet3d": "3.25",
     "vkquality": "1.1-2642a0d",
+    "skribidi": "a4a2f5",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
     "bullet3d": "bullet",
+    "skribidi": "SkriBidi",
 }
 EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
     "bullet3d",
+    "skribidi",
 }
 
 def get_host_platform():
@@ -2266,8 +2266,11 @@ class Configuration(object):
                 or previous_skip_bob_light != 'ON'):
             return False
 
-        # Keep test install rules consistent with the requested host pass.
-        return previous_build_tests == current_build_tests
+        # A same-platform host pass may reuse the previous full build graph even
+        # when that graph contains tests. The host pass only builds the default
+        # target, so test targets remain excluded. Installation is deferred to
+        # the subsequent full engine pass when reusing this configuration.
+        return previous_build_tests in ('OFF', 'ON')
 
     def _cmake_cache_matches_configure_state(self, cmake_cache, configure_state):
         if not os.path.exists(cmake_cache):
@@ -2413,7 +2416,13 @@ class Configuration(object):
             return True
 
         expected_engine_root = normpath(join(build_home, 'engine')).replace('\\', '/').lower()
-        generated_build_dir_re = re.compile(r'[A-Za-z]\$?:/[^ \t\r\n"<>|]*/engine/[^/\s]+/build/%s' % re.escape(platform))
+        # Require a token boundary before a Windows drive letter. Without it,
+        # target properties such as "fontrenderer:/Users/..." are misread as
+        # the drive path "r:/Users/...", causing valid build outputs to be
+        # removed before every incremental build.
+        generated_build_dir_re = re.compile(
+            r'(?<![A-Za-z0-9_])[A-Za-z]\$?:/[^ \t\r\n"<>|]*/engine/[^/\s]+/build/%s'
+            % re.escape(platform))
         for match in generated_build_dir_re.finditer(content):
             path = match.group(0).replace('$:', ':')
             normalized_path = normpath(path).replace('\\', '/').lower()
@@ -2542,17 +2551,34 @@ class Configuration(object):
 
         self.build_tracker.end_command(log_cmd_build)
 
+        if compatible_configure:
+            log_cmd_stage = f'CMake stage Bob Light dependencies {name}'
+            self.build_tracker.start_command(log_cmd_stage)
+
+            cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
+            if is_verbose:
+                cmake_stage_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_stage_args, cwd = self.defold_root)
+
+            self.build_tracker.end_command(log_cmd_stage)
+
         # Keep install as a separate phase. Use cmake --install instead of the
         # generated install target so the install phase does not re-enter 'all'.
-        log_cmd_install = f'CMake install {name}'
-        self.build_tracker.start_command(log_cmd_install)
+        # When a same-platform host pass reuses the full engine configuration,
+        # defer installation until the subsequent engine pass has built every
+        # target referenced by the full graph's install rules.
+        if compatible_configure:
+            self._log(f'Deferring CMake install {name}; reusing full engine configuration')
+        else:
+            log_cmd_install = f'CMake install {name}'
+            self.build_tracker.start_command(log_cmd_install)
 
-        cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
-        if is_verbose:
-            cmake_install_args.append('--verbose')
-        run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
+            cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
+            if is_verbose:
+                cmake_install_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
 
-        self.build_tracker.end_command(log_cmd_install)
+            self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
@@ -2742,6 +2768,7 @@ class Configuration(object):
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
+        cmake_platform = 'x86-win32' if platform == 'win32' else platform
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
         product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
         default_package_name = '%s-%s' % (product_name, version)
@@ -2769,7 +2796,8 @@ class Configuration(object):
             '-B', build_dir,
             '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
-            '-DTARGET_PLATFORM=%s' % platform,
+            '-DTARGET_PLATFORM=%s' % cmake_platform,
+            '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
         ]
@@ -2796,12 +2824,18 @@ class Configuration(object):
                 package_directories = ['lib']
             package_directories = [name for name in package_directories
                                    if os.path.exists(join(install_dir, name))]
+            if not package_directories:
+                self.fatal("External package '%s' did not install any platform files" % lib)
             package_command = ['tar', 'zcvf', os.path.normpath(package_path)] + package_directories
             self.build_tracker.start_command('Package external %s' % lib)
             try:
                 run.command(package_command, cwd=install_dir)
                 if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
-                    common_package_command = ['tar', 'zcvf', os.path.normpath(common_package_path), 'include', 'share']
+                    common_package_directories = [name for name in ('include', 'share')
+                                                  if os.path.exists(join(install_dir, name))]
+                    if not common_package_directories:
+                        self.fatal("External package '%s' did not install any common files" % lib)
+                    common_package_command = ['tar', 'zcvf', os.path.normpath(common_package_path)] + common_package_directories
                     run.command(common_package_command, cwd=install_dir)
             finally:
                 self.build_tracker.end_command('Package external %s' % lib)

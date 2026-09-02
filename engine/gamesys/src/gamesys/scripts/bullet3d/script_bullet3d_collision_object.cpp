@@ -628,6 +628,7 @@ namespace dmGameSystem
         SetIntegerConstant(L, "DISABLE_DEACTIVATION", DISABLE_DEACTIVATION);
         SetIntegerConstant(L, "DISABLE_SIMULATION", DISABLE_SIMULATION);
 
+        SetIntegerConstant(L, "CF_DYNAMIC_OBJECT", btCollisionObject::CF_DYNAMIC_OBJECT);
         SetIntegerConstant(L, "CF_STATIC_OBJECT", btCollisionObject::CF_STATIC_OBJECT);
         SetIntegerConstant(L, "CF_KINEMATIC_OBJECT", btCollisionObject::CF_KINEMATIC_OBJECT);
         SetIntegerConstant(L, "CF_NO_CONTACT_RESPONSE", btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -671,75 +672,36 @@ namespace dmGameSystem
  * @language Lua
  */
 
-/*# Active simulation state
- * @name bullet3d.collision_object.ACTIVE_TAG
- * @constant
+/*# Collision object activation states
+ * @enum
+ * @name bullet3d.collision_object.ACTIVATION_STATE
+ * @member ACTIVE_TAG Active simulation state.
+ * @member ISLAND_SLEEPING Sleeping simulation state.
+ * @member WANTS_DEACTIVATION Wants-deactivation simulation state.
+ * @member DISABLE_DEACTIVATION Disable automatic deactivation.
+ * @member DISABLE_SIMULATION Disable simulation.
  */
-/*# Sleeping simulation state
- * @name bullet3d.collision_object.ISLAND_SLEEPING
- * @constant
- */
-/*# Wants-deactivation simulation state
- * @name bullet3d.collision_object.WANTS_DEACTIVATION
- * @constant
- */
-/*# Disable automatic deactivation
- * @name bullet3d.collision_object.DISABLE_DEACTIVATION
- * @constant
- */
-/*# Disable simulation
- * @name bullet3d.collision_object.DISABLE_SIMULATION
- * @constant
- */
-
-/*# Static collision object flag
- * @name bullet3d.collision_object.CF_STATIC_OBJECT
- * @constant
- */
-/*# Kinematic collision object flag
- * @name bullet3d.collision_object.CF_KINEMATIC_OBJECT
- * @constant
- */
-/*# Disable contact response flag
- * @name bullet3d.collision_object.CF_NO_CONTACT_RESPONSE
- * @constant
- */
-/*# Custom material callback flag
- * @name bullet3d.collision_object.CF_CUSTOM_MATERIAL_CALLBACK
- * @constant
- */
-/*# Character collision object flag
- * @name bullet3d.collision_object.CF_CHARACTER_OBJECT
- * @constant
- */
-/*# Disable debug visualization flag
- * @name bullet3d.collision_object.CF_DISABLE_VISUALIZE_OBJECT
- * @constant
- */
-/*# Disable SPU collision processing flag
- * @name bullet3d.collision_object.CF_DISABLE_SPU_COLLISION_PROCESSING
- * @constant
+/*# Collision object flags
+ * @enum
+ * @name bullet3d.collision_object.COLLISION_FLAG
+ * @member CF_DYNAMIC_OBJECT Zero-valued default dynamic-object flag. Compare the complete collision-flags value with this constant; do not pass it to `has_collision_flag`, since zero is not a bit that can be tested.
+ * @member CF_STATIC_OBJECT Static collision object flag.
+ * @member CF_KINEMATIC_OBJECT Kinematic collision object flag.
+ * @member CF_NO_CONTACT_RESPONSE Disable contact response flag.
+ * @member CF_CUSTOM_MATERIAL_CALLBACK Custom material callback flag.
+ * @member CF_CHARACTER_OBJECT Character collision object flag.
+ * @member CF_DISABLE_VISUALIZE_OBJECT Disable debug visualization flag.
+ * @member CF_DISABLE_SPU_COLLISION_PROCESSING Disable SPU collision processing flag.
  */
 
-/*# Generic collision object type
- * @name bullet3d.collision_object.CO_COLLISION_OBJECT
- * @constant
- */
-/*# Rigid body collision object type
- * @name bullet3d.collision_object.CO_RIGID_BODY
- * @constant
- */
-/*# Ghost collision object type
- * @name bullet3d.collision_object.CO_GHOST_OBJECT
- * @constant
- */
-/*# Soft body collision object type
- * @name bullet3d.collision_object.CO_SOFT_BODY
- * @constant
- */
-/*# Height-field fluid collision object type
- * @name bullet3d.collision_object.CO_HF_FLUID
- * @constant
+/*# Native collision object types
+ * @enum
+ * @name bullet3d.collision_object.INTERNAL_TYPE
+ * @member CO_COLLISION_OBJECT Generic collision object type.
+ * @member CO_RIGID_BODY Rigid body collision object type.
+ * @member CO_GHOST_OBJECT Ghost collision object type.
+ * @member CO_SOFT_BODY Soft body collision object type.
+ * @member CO_HF_FLUID Height-field fluid collision object type.
  */
 
 /*# Test whether a collision object handle is valid
@@ -763,7 +725,7 @@ namespace dmGameSystem
  * @name bullet3d.collision_object.set_world_transform
  * @param object [type:btCollisionObject] collision object
  * @param position [type:vector3] finite world position in Defold units
- * @param rotation [type:quaternion] world rotation
+ * @param rotation [type:quaternion] finite, non-zero world rotation; normalized by the binding
  * @examples
  *
  * Move a collision object while preserving its rotation:
@@ -808,25 +770,25 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.set_rotation
  * @param object [type:btCollisionObject] collision object
- * @param rotation [type:quaternion] world rotation
+ * @param rotation [type:quaternion] finite, non-zero world rotation; normalized by the binding
  */
 
 /*# Get the activation state
  * @name bullet3d.collision_object.get_activation_state
  * @param object [type:btCollisionObject] collision object
- * @return state [type:number] one of the activation constants
+ * @return state [type:bullet3d.collision_object.ACTIVATION_STATE] activation state
  */
 
 /*# Set the activation state
  * @name bullet3d.collision_object.set_activation_state
  * @param object [type:btCollisionObject] collision object
- * @param state [type:number] activation state
+ * @param state [type:bullet3d.collision_object.ACTIVATION_STATE] activation state
  */
 
 /*# Force the activation state
  * @name bullet3d.collision_object.force_activation_state
  * @param object [type:btCollisionObject] collision object
- * @param state [type:number] activation state
+ * @param state [type:bullet3d.collision_object.ACTIVATION_STATE] activation state
  */
 
 /*# Activate a collision object
@@ -839,8 +801,8 @@ namespace dmGameSystem
  *
  * This exposes Bullet's native `btCollisionObject::isActive` result. It is
  * `false` for `ISLAND_SLEEPING` and `DISABLE_SIMULATION`, and `true` for the
- * other activation states. It is unrelated to whether the Defold component is
- * enabled.
+ * other activation states available to Defold collision objects. It is
+ * unrelated to whether the Defold component is enabled.
  *
  * @name bullet3d.collision_object.is_active
  * @param object [type:btCollisionObject] collision object
@@ -955,7 +917,7 @@ namespace dmGameSystem
 /*# Get collision flags
  * @name bullet3d.collision_object.get_collision_flags
  * @param object [type:btCollisionObject] collision object
- * @return flags [type:number] bit field of `CF_*` constants
+ * @return flags [type:integer] bit field of `CF_*` constants
  */
 
 /*# Get the collision filter group
@@ -968,7 +930,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.get_collision_filter_group
  * @param object [type:btCollisionObject] collision object in a Bullet world
- * @return group [type:number] raw unsigned 16-bit collision filter group
+ * @return group [type:integer] raw unsigned 16-bit collision filter group
  */
 
 /*# Get the collision filter mask
@@ -981,20 +943,20 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.get_collision_filter_mask
  * @param object [type:btCollisionObject] collision object in a Bullet world
- * @return mask [type:number] raw unsigned 16-bit collision filter mask
+ * @return mask [type:integer] raw unsigned 16-bit collision filter mask
  */
 
 /*# Test a collision flag
  * @name bullet3d.collision_object.has_collision_flag
  * @param object [type:btCollisionObject] collision object
- * @param flag [type:number] collision flag or mask
+ * @param flag [type:integer] collision flag or mask
  * @return set [type:boolean] `true` when all requested flag bits are set
  */
 
 /*# Get the Bullet collision object type
  * @name bullet3d.collision_object.get_internal_type
  * @param object [type:btCollisionObject] collision object
- * @return type [type:number] one of the `CO_*` constants
+ * @return type [type:bullet3d.collision_object.INTERNAL_TYPE] native collision object type
  */
 
 /*# Test whether the object is static

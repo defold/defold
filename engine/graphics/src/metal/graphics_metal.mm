@@ -28,6 +28,7 @@
 #include <dlib/profile.h>
 #include <dlib/log.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 
 #include <platform/window.hpp>
 
@@ -48,6 +49,7 @@ namespace dmGraphics
     static bool                         MetalIsSupported();
     static HContext                     MetalGetContext();
     static bool                         MetalInitialize(MetalContext* context);
+    static void                         MetalStopAsyncProcessing(MetalContext* context);
     static GraphicsAdapter g_Metal_adapter(ADAPTER_FAMILY_METAL);
     static MetalContext*   g_MetalContext = 0x0;
 
@@ -387,13 +389,46 @@ namespace dmGraphics
         }
     }
 
+    static void MetalStopAsyncProcessing(MetalContext* context)
+    {
+        if (!context->m_AsyncProcessingSupport)
+        {
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+            return;
+        }
+
+        {
+            // Serialize shutdown with MetalSetTextureAsync(). If an upload wins
+            // this lock, it increments the pending count before shutdown can
+            // observe it. If shutdown wins, no more uploads can be queued.
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+
+            if (dmAtomicGet32(&context->m_DeleteContextRequested))
+            {
+                return;
+            }
+
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+        }
+
+        // Completion callbacks own entries in m_SetTextureAsyncState and still
+        // reference this context. Drain them on the main thread before teardown.
+        // Tracking accepted uploads instead of queue order also supports job
+        // systems with zero or multiple workers.
+        while (dmAtomicGet32(&context->m_PendingAsyncTextureJobs))
+        {
+            JobSystemUpdate(context->m_JobContext, 0);
+            dmTime::Sleep(100);
+        }
+    }
+
     static void MetalDeleteContext(HContext _context)
     {
         assert(_context);
         if (g_MetalContext)
         {
             MetalContext* context = (MetalContext*) _context;
-            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+            MetalStopAsyncProcessing(context);
 
             for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
             {
@@ -766,8 +801,6 @@ namespace dmGraphics
 
     static void SetMainRenderTargetSize(MetalContext* context, uint32_t width, uint32_t height)
     {
-        context->m_BaseContext.m_Width  = width;
-        context->m_BaseContext.m_Height = height;
         context->m_MainScissor = {0, 0, width, height};
 
         MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
@@ -1235,6 +1268,7 @@ namespace dmGraphics
         MTL::SamplerMipFilter mipFilter,
         MTL::SamplerAddressMode wrapU,
         MTL::SamplerAddressMode wrapV,
+        MTL::SamplerAddressMode wrapW,
         float minLod,
         float maxLod,
         float maxAnisotropy)
@@ -1247,7 +1281,7 @@ namespace dmGraphics
         desc->setMipFilter(mipFilter);
         desc->setSAddressMode(wrapU);
         desc->setTAddressMode(wrapV);
-        desc->setRAddressMode(wrapU);
+        desc->setRAddressMode(wrapW);
         desc->setLodMinClamp(minLod);
         desc->setLodMaxClamp(maxLod);
         desc->setSupportArgumentBuffers(true);
@@ -1267,6 +1301,7 @@ namespace dmGraphics
         TextureFilter magFilter,
         TextureWrap uWrap,
         TextureWrap vWrap,
+        TextureWrap wWrap,
         uint8_t maxLod,
         float maxAnisotropy)
     {
@@ -1287,12 +1322,14 @@ namespace dmGraphics
 
         MTL::SamplerAddressMode wrapU = GetMetalSamplerAddressMode(uWrap);
         MTL::SamplerAddressMode wrapV = GetMetalSamplerAddressMode(vWrap);
+        MTL::SamplerAddressMode wrapW = GetMetalSamplerAddressMode(wWrap);
 
         MetalTextureSampler newSampler = {};
         newSampler.m_MinFilter = minFilter;
         newSampler.m_MagFilter = magFilter;
         newSampler.m_AddressModeU = uWrap;
         newSampler.m_AddressModeV = vWrap;
+        newSampler.m_AddressModeW = wWrap;
         newSampler.m_MaxLod = maxLod;
         newSampler.m_MaxAnisotropy = maxAnisotropy;
 
@@ -1307,6 +1344,7 @@ namespace dmGraphics
             metalMipFilter,
             wrapU,
             wrapV,
+            wrapW,
             0.0f,
             static_cast<float>(maxLod),
             maxAnisotropy
@@ -1426,7 +1464,7 @@ namespace dmGraphics
         }
 
         // Create default texture sampler
-        CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
+        CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         // Create default dummy texture
         TextureCreationParams default_texture_creation_params;
@@ -1512,6 +1550,7 @@ namespace dmGraphics
     {
         assert(_context);
         MetalContext* context = (MetalContext*) _context;
+        MetalStopAsyncProcessing(context);
 
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
@@ -2538,7 +2577,13 @@ namespace dmGraphics
             MTL::BlendFactorDestinationAlpha,
             MTL::BlendFactorOneMinusDestinationAlpha,
             MTL::BlendFactorSourceAlphaSaturated,
+            MTL::BlendFactorBlendColor,
+            MTL::BlendFactorOneMinusBlendColor,
+            MTL::BlendFactorBlendAlpha,
+            MTL::BlendFactorOneMinusBlendAlpha,
         };
+        DM_STATIC_ASSERT(DM_ARRAY_SIZE(blend_factors) == BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA + 1, Invalid_Metal_Blend_Factor_Count);
+        assert(factor <= BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA);
         return blend_factors[(int)factor];
     }
 
@@ -2597,6 +2642,23 @@ namespace dmGraphics
             MTL::CompareFunctionAlways
         };
         return compare_funcs[(int)func];
+    }
+
+    static inline MTL::StencilOperation GetMetalStencilOperation(StencilOp op)
+    {
+        const MTL::StencilOperation stencil_ops[] = {
+            MTL::StencilOperationKeep,
+            MTL::StencilOperationZero,
+            MTL::StencilOperationReplace,
+            MTL::StencilOperationIncrementClamp,
+            MTL::StencilOperationIncrementWrap,
+            MTL::StencilOperationDecrementClamp,
+            MTL::StencilOperationDecrementWrap,
+            MTL::StencilOperationInvert,
+        };
+        DM_STATIC_ASSERT(DM_ARRAY_SIZE(stencil_ops) == STENCIL_OP_INVERT + 1, Invalid_Metal_Stencil_Operation_Count);
+        assert(op <= STENCIL_OP_INVERT);
+        return stencil_ops[(uint32_t) op];
     }
 
     static inline uint32_t GetVertexBufferStartIndex(const MetalProgram* program)
@@ -2735,6 +2797,41 @@ namespace dmGraphics
                 ds->setDepthCompareFunction(MTL::CompareFunctionAlways);
                 ds->setDepthWriteEnabled(false);
             }
+
+            if (pipeline_state.m_StencilEnabled && MetalFormatHasStencil(rt->m_DepthStencilFormat))
+            {
+                MTL::StencilDescriptor* front = MTL::StencilDescriptor::alloc()->init();
+                front->setStencilCompareFunction(GetMetalDepthTestFunc((CompareFunc) pipeline_state.m_StencilFrontTestFunc));
+                front->setStencilFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilFrontOpFail));
+                front->setDepthFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilFrontOpDepthFail));
+                front->setDepthStencilPassOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilFrontOpPass));
+                front->setReadMask(pipeline_state.m_StencilCompareMask);
+                front->setWriteMask(pipeline_state.m_StencilWriteMask);
+
+                MTL::StencilDescriptor* back = MTL::StencilDescriptor::alloc()->init();
+                back->setStencilCompareFunction(GetMetalDepthTestFunc((CompareFunc) pipeline_state.m_StencilBackTestFunc));
+                back->setStencilFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilBackOpFail));
+                back->setDepthFailureOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilBackOpDepthFail));
+                back->setDepthStencilPassOperation(GetMetalStencilOperation((StencilOp) pipeline_state.m_StencilBackOpPass));
+                back->setReadMask(pipeline_state.m_StencilCompareMask);
+                back->setWriteMask(pipeline_state.m_StencilWriteMask);
+
+                if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+                {
+                    ds->setFrontFaceStencil(front);
+                    ds->setBackFaceStencil(back);
+                }
+                else
+                {
+                    // Offscreen rendering has the opposite effective winding,
+                    // matching the cull-face adjustment in DrawSetup().
+                    ds->setFrontFaceStencil(back);
+                    ds->setBackFaceStencil(front);
+                }
+                front->release();
+                back->release();
+            }
+
             pipeline->m_DepthStencilState = context->m_Device->newDepthStencilState(ds);
             ds->release();
         }
@@ -3187,16 +3284,19 @@ namespace dmGraphics
 
         if (context->m_ScissorChanged)
         {
-            MTL::ScissorRect scissor = current_rt->m_Scissor;
-            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-            {
-                const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
-                scissor.y = rt_height > scissor.y + scissor.height ? rt_height - scissor.y - scissor.height : 0;
-            }
             const uint32_t rt_width = current_rt->m_ColorTextureParams[0].m_Width;
             const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
-            scissor.width = scissor.x < rt_width ? dmMath::Min((uint32_t)scissor.width, rt_width - (uint32_t)scissor.x) : 0;
-            scissor.height = scissor.y < rt_height ? dmMath::Min((uint32_t)scissor.height, rt_height - (uint32_t)scissor.y) : 0;
+            MTL::ScissorRect scissor = {0, 0, rt_width, rt_height};
+            if (pipeline_state_draw.m_ScissorTestEnabled)
+            {
+                scissor = current_rt->m_Scissor;
+                if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+                {
+                    scissor.y = rt_height > scissor.y + scissor.height ? rt_height - scissor.y - scissor.height : 0;
+                }
+                scissor.width = scissor.x < rt_width ? dmMath::Min((uint32_t)scissor.width, rt_width - (uint32_t)scissor.x) : 0;
+                scissor.height = scissor.y < rt_height ? dmMath::Min((uint32_t)scissor.height, rt_height - (uint32_t)scissor.y) : 0;
+            }
             context->m_ScissorChanged = 0;
             encoder->setScissorRect(scissor);
         }
@@ -3239,8 +3339,20 @@ namespace dmGraphics
 
         if (context->m_PolygonOffsetChanged)
         {
-            encoder->setDepthBias(context->m_PolygonOffsetUnits, context->m_PolygonOffsetFactor, 0.0f);
+            if (pipeline_state_draw.m_PolygonOffsetFillEnabled)
+            {
+                encoder->setDepthBias(context->m_PolygonOffsetUnits, context->m_PolygonOffsetFactor, 0.0f);
+            }
+            else
+            {
+                encoder->setDepthBias(0.0f, 0.0f, 0.0f);
+            }
             context->m_PolygonOffsetChanged = 0;
+        }
+
+        if (pipeline_state_draw.m_StencilEnabled && MetalFormatHasStencil(current_rt->m_DepthStencilFormat))
+        {
+            encoder->setStencilReferenceValue(pipeline_state_draw.m_StencilReference);
         }
 
         CommitUniforms(context, encoder, &frame.m_ConstantScratchBuffer, &frame.m_ArgumentBufferPool, context->m_CurrentProgram, UNIFORM_BUFFER_ALIGNMENT, false);
@@ -3790,6 +3902,14 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         assert(context);
         SetPipelineStateValue(context->m_PipelineState, state, 1);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_POLYGON_OFFSET_FILL)
+        {
+            context->m_PolygonOffsetChanged = true;
+        }
     }
 
     static void MetalDisableState(HContext _context, State state)
@@ -3797,6 +3917,14 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         assert(context);
         SetPipelineStateValue(context->m_PipelineState, state, 0);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_POLYGON_OFFSET_FILL)
+        {
+            context->m_PolygonOffsetChanged = true;
+        }
     }
 
     static void MetalSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -4890,7 +5018,7 @@ namespace dmGraphics
         MetalSetTextureInternal(context, tex, params);
     }
 
-    static int16_t GetTextureSamplerIndex(MetalContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
+    static int16_t GetTextureSamplerIndex(MetalContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy)
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
         {
@@ -4908,6 +5036,7 @@ namespace dmGraphics
                 sampler.m_MinFilter     == minfilter &&
                 sampler.m_AddressModeU  == uwrap     &&
                 sampler.m_AddressModeV  == vwrap     &&
+                sampler.m_AddressModeW  == wwrap     &&
                 sampler.m_MaxLod        == maxLod    &&
                 sampler.m_MaxAnisotropy == max_anisotropy)
             {
@@ -4926,7 +5055,7 @@ namespace dmGraphics
         return (requested < MAX_SUPPORTED_ANISOTROPY) ? requested : MAX_SUPPORTED_ANISOTROPY;
     }
 
-    static void MetalSetTextureParamsInternal(MetalContext* context, MetalTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void MetalSetTextureParamsInternal(MetalContext* context, MetalTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         const MetalTextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
         float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
@@ -4935,13 +5064,14 @@ namespace dmGraphics
             sampler.m_MagFilter     != magfilter                     ||
             sampler.m_AddressModeU  != uwrap                         ||
             sampler.m_AddressModeV  != vwrap                         ||
+            sampler.m_AddressModeW  != wwrap                         ||
             sampler.m_MaxLod        != texture->m_Base.m_MipMapCount ||
             sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
+            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, wwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
+                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, wwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             }
             texture->m_TextureSamplerIndex = sampler_index;
         }
@@ -4992,12 +5122,13 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
+        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+        dmAtomicDecrement32(&context->m_PendingAsyncTextureJobs);
+
         if (ap.m_Callback)
         {
             ap.m_Callback(ap.m_Texture, ap.m_UserData);
         }
-
-        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
     static void MetalSetTextureAsync(HContext _context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
@@ -5006,17 +5137,21 @@ namespace dmGraphics
         if (context->m_AsyncProcessingSupport)
         {
             {
-                bool prepare_ok = false;
+                bool queued = false;
                 {
                     DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+                    if (dmAtomicGet32(&context->m_DeleteContextRequested))
+                    {
+                        return;
+                    }
                     MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-                    prepare_ok = MetalPrepareTextureForUploading(context, tex, params);
-                    if (prepare_ok)
+                    if (MetalPrepareTextureForUploading(context, tex, params))
                     {
                         int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
                         dmAtomicStore32(&tex->m_Base.m_DataState, data_state | (1 << params.m_MipMap));
 
                         uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
+                        dmAtomicIncrement32(&context->m_PendingAsyncTextureJobs);
 
                         Job job = {0};
                         job.m_Process = AsyncProcessTextureCallback;
@@ -5025,11 +5160,17 @@ namespace dmGraphics
                         job.m_Data = (void*) (uintptr_t) param_array_index;
 
                         HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
-                        JobSystemPushJob(context->m_JobContext, hjob);
+                        queued = JobSystemPushJob(context->m_JobContext, hjob) == JOBSYSTEM_RESULT_OK;
+                        if (!queued)
+                        {
+                            ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+                            dmAtomicDecrement32(&context->m_PendingAsyncTextureJobs);
+                            dmAtomicStore32(&tex->m_Base.m_DataState, data_state);
+                        }
                     }
                 }
 
-                if (!prepare_ok)
+                if (!queued)
                 {
                     if (callback)
                     {
@@ -5049,12 +5190,12 @@ namespace dmGraphics
         }
     }
 
-    static void MetalSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void MetalSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         MetalContext* context = (MetalContext*)_context;
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-        MetalSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        MetalSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
 
     static void MetalEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)

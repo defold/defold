@@ -604,6 +604,12 @@ namespace dmGameSystem
         luaL_register(L, 0, RigidBody_functions);
         lua_pushinteger(L, BT_DISABLE_WORLD_GRAVITY);
         lua_setfield(L, -2, "BT_DISABLE_WORLD_GRAVITY");
+        lua_pushinteger(L, BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT);
+        lua_setfield(L, -2, "BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT");
+        lua_pushinteger(L, BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD);
+        lua_setfield(L, -2, "BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD");
+        lua_pushinteger(L, BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY);
+        lua_setfield(L, -2, "BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY");
         lua_setfield(L, -2, "rigid_body");
     }
 
@@ -631,14 +637,17 @@ namespace dmGameSystem
  * @language Lua
  */
 
-/*# Disable automatic world gravity for a rigid body
+/*# Rigid body flags
  *
- * Set this bit with `bullet3d.rigid_body.set_flags()` before assigning custom
- * body gravity that must survive later world-gravity changes or re-adding the
- * body to a world.
+ * Combine these constants into the complete flag mask accepted by
+ * `bullet3d.rigid_body.set_flags()`.
  *
- * @name bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY
- * @constant
+ * @enum
+ * @name bullet3d.rigid_body.FLAG
+ * @member BT_DISABLE_WORLD_GRAVITY Disable automatic world gravity. Set this bit before assigning custom body gravity that must survive later world-gravity changes or re-adding the body to a world.
+ * @member BT_ENABLE_GYROSCOPIC_FORCE_EXPLICIT Enable explicit gyroscopic force integration.
+ * @member BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_WORLD Enable implicit world-space gyroscopic force integration.
+ * @member BT_ENABLE_GYROSCOPIC_FORCE_IMPLICIT_BODY Enable implicit body-space gyroscopic force integration. This flag is enabled by default for newly constructed rigid bodies.
  */
 
 /*# Test whether a handle refers to a valid rigid body
@@ -709,7 +718,7 @@ namespace dmGameSystem
  * @name bullet3d.rigid_body.set_mass_properties
  * @param body [type:btRigidBody] dynamic rigid body
  * @param mass [type:number] finite mass greater than zero
- * @param local_inertia [type:vector3] finite non-negative diagonal local inertia in Defold units
+ * @param local_inertia [type:vector3] finite non-negative diagonal local inertia in Defold mass-times-distance-squared units
  */
 
 /*# Get linear velocity
@@ -831,19 +840,24 @@ namespace dmGameSystem
 /*# Get rigid body flags
  * @name bullet3d.rigid_body.get_flags
  * @param body [type:btRigidBody] rigid body
- * @return flags [type:number] rigid body flags
+ * @return flags [type:integer] rigid body flags
  */
 
 /*# Set rigid body flags
+ *
+ * This replaces the complete flag mask. Every enabled gyroscopic mode is
+ * evaluated independently, so clear existing gyroscopic mode bits before
+ * selecting a different mode.
+ *
  * @name bullet3d.rigid_body.set_flags
  * @param body [type:btRigidBody] rigid body
- * @param flags [type:number] rigid body flags
+ * @param flags [type:integer] rigid body flags
  */
 
 /*# Test a rigid body flag
  * @name bullet3d.rigid_body.has_flag
  * @param body [type:btRigidBody] rigid body
- * @param flag [type:number] flag or mask
+ * @param flag [type:integer] flag or mask
  * @return set [type:boolean] `true` when all requested flag bits are set
  */
 
@@ -974,8 +988,8 @@ namespace dmGameSystem
 
 /*# Get velocity at a center-of-mass-relative point
  *
- * The relative position is expressed in world axes. Despite Bullet's legacy
- * function name, it is not a body-local coordinate.
+ * The relative position is expressed in world axes. Despite Bullet's function
+ * name, it is not a body-local coordinate.
  *
  * @name bullet3d.rigid_body.get_velocity_in_local_point
  * @param body [type:btRigidBody] rigid body
@@ -1014,5 +1028,5 @@ namespace dmGameSystem
  *
  * @name bullet3d.rigid_body.compute_aabb
  * @param body [type:btRigidBody] rigid body
- * @return aabb [type:table] table whose `lower` and `upper` fields are world-space vector3 bounds in Defold units
+ * @return aabb [type:bullet3d.world.aabb] world-space bounds in Defold units
  */

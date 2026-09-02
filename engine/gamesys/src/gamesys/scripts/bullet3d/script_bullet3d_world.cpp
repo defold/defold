@@ -313,19 +313,6 @@ namespace dmGameSystem
         return (int)max_results;
     }
 
-    static int CheckAsyncCastCallback(lua_State* L, int* max_results)
-    {
-        int top = lua_gettop(L);
-        if (top < 4 || top > 6)
-        {
-            luaL_error(L, "expected callback after optional filter and max_results arguments");
-            return 0;
-        }
-        luaL_checktype(L, top, LUA_TFUNCTION);
-        *max_results = top == 6 ? CheckMaxResults(L, 5) : 0;
-        return top;
-    }
-
     static uint16_t CheckFilterBits(lua_State* L, int index, const char* field_name)
     {
         lua_Number value = luaL_checknumber(L, index);
@@ -610,7 +597,7 @@ namespace dmGameSystem
         {
         }
 
-        virtual bool process(const btBroadphaseProxy* proxy)
+        bool process(const btBroadphaseProxy* proxy) override
         {
             if (!HasResultCapacity(m_Results->Size(), m_MaxResults))
             {
@@ -640,16 +627,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_Closest(closest)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& ray_result, bool normal_in_world_space)
+        btScalar addSingleResult(btCollisionWorld::LocalRayResult& ray_result, bool normal_in_world_space) override
         {
             if (ray_result.m_hitFraction <= 0.0f)
             {
@@ -696,16 +683,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_Closest(closest)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult& convex_result, bool normal_in_world_space)
+        btScalar addSingleResult(btCollisionWorld::LocalConvexResult& convex_result, bool normal_in_world_space) override
         {
             if (convex_result.m_hitFraction <= 0.0f)
             {
@@ -751,16 +738,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_MaxResults(max_results)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
+        btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1) override
         {
             (void)part_id_0;
             (void)index_0;
@@ -798,16 +785,16 @@ namespace dmGameSystem
             , m_Results(results)
             , m_MaxResults(max_results)
         {
-            m_collisionFilterGroup = (short int)filter->m_CategoryBits;
-            m_collisionFilterMask = (short int)filter->m_MaskBits;
+            m_collisionFilterGroup = filter->m_CategoryBits;
+            m_collisionFilterMask = filter->m_MaskBits;
         }
 
-        virtual bool needsCollision(btBroadphaseProxy* proxy) const
+        bool needsCollision(btBroadphaseProxy* proxy) const override
         {
             return HasResultCapacity(m_Results->Size(), m_MaxResults) && PassesQueryFilter(m_Filter, proxy);
         }
 
-        virtual btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1)
+        btScalar addSingleResult(btManifoldPoint& cp, const btCollisionObjectWrapper* col_obj_0_wrapper, int part_id_0, int index_0, const btCollisionObjectWrapper* col_obj_1_wrapper, int part_id_1, int index_1) override
         {
             (void)part_id_0;
             (void)index_0;
@@ -1530,18 +1517,11 @@ namespace dmGameSystem
         btVector3 target = origin + translation;
         CheckBullet3DComputedVector3(L, target, "ray target");
 
-        int max_results = 0;
-        int callback_index = CheckAsyncCastCallback(L, &max_results);
+        luaL_checktype(L, 4, LUA_TFUNCTION);
+        int max_results = CheckMaxResults(L, 6);
         int top = lua_gettop(L);
         Bullet3DQueryFilterInput filter_input;
-        if (callback_index == 4)
-        {
-            InitializeQueryFilterInput(&filter_input);
-        }
-        else
-        {
-            CheckQueryFilterInput(L, 4, &filter_input);
-        }
+        CheckQueryFilterInput(L, 5, &filter_input);
 
         Bullet3DAsyncCastRequest* request = new Bullet3DAsyncCastRequest;
         request->m_World = world;
@@ -1555,7 +1535,7 @@ namespace dmGameSystem
         CreateAsyncQueryFilter(L, filter_input, &request->m_Filter);
         lua_settop(L, top);
 
-        request->m_Callback = dmScript::CreateCallback(L, callback_index);
+        request->m_Callback = dmScript::CreateCallback(L, 4);
         if (!request->m_Callback)
         {
             DestroyAsyncCastRequest(request);
@@ -1572,19 +1552,12 @@ namespace dmGameSystem
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
         btVector3                translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
         CheckNonZeroTranslation(L, translation);
-        int max_results = 0;
-        int callback_index = CheckAsyncCastCallback(L, &max_results);
+        luaL_checktype(L, 4, LUA_TFUNCTION);
+        int max_results = CheckMaxResults(L, 6);
         int top = lua_gettop(L);
 
         Bullet3DQueryFilterInput filter_input;
-        if (callback_index == 4)
-        {
-            InitializeQueryFilterInput(&filter_input);
-        }
-        else
-        {
-            CheckQueryFilterInput(L, 4, &filter_input);
-        }
+        CheckQueryFilterInput(L, 5, &filter_input);
         Bullet3DQueryShapeInput shape_input;
         CheckQueryShapeInput(L, 2, &shape_input);
         btVector3 target = shape_input.m_Position + translation;
@@ -1603,7 +1576,7 @@ namespace dmGameSystem
         request->m_QueryShape.m_To.setOrigin(target);
         lua_settop(L, top);
 
-        request->m_Callback = dmScript::CreateCallback(L, callback_index);
+        request->m_Callback = dmScript::CreateCallback(L, 4);
         if (!request->m_Callback)
         {
             DestroyAsyncCastRequest(request);
@@ -1766,16 +1739,16 @@ namespace dmGameSystem
  * Query filters are optional tables with these fields:
  *
  * `category_bits`
- * : [type:number] unsigned 16-bit category bits, default `65535`
+ * : [type:integer] unsigned 16-bit category bits, default `65535`
  *
  * `mask_bits`
- * : [type:number] unsigned 16-bit mask bits, default `65535`
+ * : [type:integer] unsigned 16-bit mask bits, default `65535`
  *
  * `include_triggers`
  * : [type:boolean] include objects without contact response, default `true`
  *
  * `ignore`
- * : [type:btCollisionObject|table] one collision-object handle or an array of handles to exclude
+ * : [type:btCollisionObject|btCollisionObject[]] one collision-object handle or an array of handles to exclude
  *
  * `report_initial_overlaps`
  * : [type:boolean] report shapes overlapping the cast origin as synthesized fraction-zero hits, default `false`
@@ -1845,6 +1818,46 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Bullet world axis-aligned bounding box
+ * @struct
+ * @name bullet3d.world.aabb
+ * @member lower [type:vector3] lower world-space bound in Defold units
+ * @member upper [type:vector3] upper world-space bound in Defold units
+ */
+
+/*# Bullet world query filter
+ * @struct
+ * @name bullet3d.world.query_filter
+ * @member category_bits? [type:integer] unsigned 16-bit category bits; defaults to `65535`
+ * @member mask_bits? [type:integer] unsigned 16-bit mask bits; defaults to `65535`
+ * @member include_triggers? [type:boolean] whether to include objects without contact response; defaults to `true`
+ * @member ignore? [type:btCollisionObject|btCollisionObject[]] one collision object or an array of collision objects to exclude
+ * @member report_initial_overlaps? [type:boolean] whether casts synthesize fraction-zero hits for initial overlaps; defaults to `false`
+ */
+
+/*# Bullet world cast result
+ * @struct
+ * @name bullet3d.world.cast_result
+ * @member object [type:btCollisionObject] hit collision object
+ * @member point [type:vector3] hit point in world space and Defold units
+ * @member normal [type:vector3] outward unit surface normal
+ * @member fraction [type:number] fraction along the supplied translation in `[0, 1]`
+ * @member shape_index? [type:integer] one-based compound child index
+ * @member initial_overlap [type:boolean] whether the hit was synthesized from an initial overlap
+ * @member inside [type:boolean] whether a synthesized ray-origin hit starts inside the object
+ */
+
+/*# Bullet world contact result
+ * @struct
+ * @name bullet3d.world.contact_result
+ * @member object_a [type:btCollisionObject] first collision object
+ * @member object_b [type:btCollisionObject] second collision object
+ * @member position_a [type:vector3] contact point on object A in world space and Defold units
+ * @member position_b [type:vector3] contact point on object B in world space and Defold units
+ * @member normal_on_b [type:vector3] unit normal pointing from object B toward object A
+ * @member distance [type:number] signed contact distance in Defold units
+ */
+
 /*# Test whether a world handle is valid
  * @name bullet3d.world.is_valid
  * @param world [type:btDiscreteDynamicsWorld] world handle
@@ -1858,6 +1871,11 @@ namespace dmGameSystem
  */
 
 /*# Set world gravity
+ *
+ * Bullet propagates the new value to active dynamic bodies unless they have
+ * `bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY` set. Such bodies retain their
+ * custom body gravity.
+ *
  * @name bullet3d.world.set_gravity
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param gravity [type:vector3] finite gravity in Defold units per second squared
@@ -1878,7 +1896,7 @@ namespace dmGameSystem
 /*# Get the number of collision objects in the world
  * @name bullet3d.world.get_collision_object_count
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @return count [type:number] number of collision objects
+ * @return count [type:integer] number of collision objects
  */
 
 /*# Enumerate collision objects
@@ -1888,8 +1906,8 @@ namespace dmGameSystem
  *
  * @name bullet3d.world.get_collision_objects
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return objects [type:table] array of collision-object handles
+ * @param [max_results] [type:integer] maximum number of results, or zero for all
+ * @return objects [type:btCollisionObject[]] array of collision-object handles
  */
 
 /*# Find broadphase AABB overlaps
@@ -1901,10 +1919,10 @@ namespace dmGameSystem
  *
  * @name bullet3d.world.overlap_aabb
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @param aabb [type:table] table with world-space `lower` and `upper` vector3 bounds
- * @param [filter] [type:table] query filter
- * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return objects [type:table] array of overlapping collision-object handles
+ * @param aabb [type:bullet3d.world.aabb] world-space bounds
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @param [max_results] [type:integer] maximum number of results, or zero for all
+ * @return objects [type:btCollisionObject[]] array of overlapping collision-object handles
  */
 
 /*# Find collision objects containing a point
@@ -1916,9 +1934,9 @@ namespace dmGameSystem
  * @name bullet3d.world.overlap_point
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param point [type:vector3] point in world space
- * @param [filter] [type:table] query filter
- * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return objects [type:table] array of overlapping collision-object handles
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @param [max_results] [type:integer] maximum number of results, or zero for all
+ * @return objects [type:btCollisionObject[]] array of overlapping collision-object handles
  */
 
 /*# Find collision objects overlapping a convex shape
@@ -1928,10 +1946,10 @@ namespace dmGameSystem
  *
  * @name bullet3d.world.overlap_shape
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @param shape [type:table] convex query-shape table
- * @param [filter] [type:table] query filter
- * @param [max_results] [type:number] maximum number of results, or zero for all
- * @return objects [type:table] array of overlapping collision-object handles
+ * @param shape [type:bullet3d.shape.definition] convex query shape
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @param [max_results] [type:integer] maximum number of results, or zero for all
+ * @return objects [type:btCollisionObject[]] array of overlapping collision-object handles
  * @examples
  *
  * Find non-trigger objects overlapping a two-unit sphere around this game object:
@@ -1958,7 +1976,7 @@ namespace dmGameSystem
  *
  * Casts immediately from `origin` to `origin + translation` and returns all
  * matching hits sorted by fraction. Translation must be non-zero.
- * Bullet 2.77 normally does not report a ray whose start and end are both inside
+ * Bullet's convex ray test normally does not report a ray whose start and end are both inside
  * the same convex hull. Set `filter.report_initial_overlaps = true` to perform
  * an exact point-overlap test at the origin and synthesize one deduplicated hit
  * per initially touching or overlapping object with `fraction = 0`, zero `normal`,
@@ -1971,9 +1989,9 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param origin [type:vector3] ray origin in world space
  * @param translation [type:vector3] non-zero ray displacement in world units
- * @param [filter] [type:table] query filter
- * @param [max_results] [type:number] maximum sorted hits, or zero for all
- * @return hits [type:table] cast-result array sorted by ascending fraction
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @param [max_results] [type:integer] maximum sorted hits, or zero for all
+ * @return hits [type:bullet3d.world.cast_result[]] cast results sorted by ascending fraction
  */
 
 /*# Cast a ray and return the closest hit
@@ -1985,8 +2003,8 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param origin [type:vector3] ray origin in world space
  * @param translation [type:vector3] non-zero ray displacement in world units
- * @param [filter] [type:table] query filter
- * @return hit [type:table|nil] closest cast-result table, or `nil` on a miss
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @return hit [type:bullet3d.world.cast_result|nil] closest cast result, or `nil` on a miss
  * @examples
  *
  * Cast downward and report the closest non-trigger hit:
@@ -2021,9 +2039,9 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param origin [type:vector3] ray origin in world space
  * @param translation [type:vector3] non-zero ray displacement in world units
- * @param [filter] [type:table] query filter
- * @param [max_results] [type:number] maximum sorted hits, or zero for all
- * @param callback [type:function] function called as `callback(self, hits)`
+ * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] function called as `callback(self, hits)`
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @param [max_results] [type:integer] maximum sorted hits, or zero for all
  * @examples
  *
  * Queue a downward cast and inspect only the closest non-trigger hit:
@@ -2033,13 +2051,13 @@ namespace dmGameSystem
  *     bullet3d.get_world(),
  *     go.get_world_position(),
  *     vmath.vector3(0, -100, 0),
- *     { include_triggers = false },
- *     1,
  *     function(self, hits)
  *         if hits[1] then
  *             print("hit", hits[1].object)
  *         end
- *     end)
+ *     end,
+ *     { include_triggers = false },
+ *     1)
  * ```
  */
 
@@ -2058,11 +2076,11 @@ namespace dmGameSystem
  *
  * @name bullet3d.world.cast_shape
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @param shape [type:table] convex query-shape table with optional target rotation
+ * @param shape [type:bullet3d.shape.definition] convex query shape with optional target rotation
  * @param translation [type:vector3] non-zero sweep displacement in world units
- * @param [filter] [type:table] query filter
- * @param [max_results] [type:number] maximum sorted hits, or zero for all
- * @return hits [type:table] cast-result array sorted by ascending fraction
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @param [max_results] [type:integer] maximum sorted hits, or zero for all
+ * @return hits [type:bullet3d.world.cast_result[]] cast results sorted by ascending fraction
  */
 
 /*# Cast a convex shape and return the closest hit
@@ -2072,10 +2090,10 @@ namespace dmGameSystem
  *
  * @name bullet3d.world.cast_shape_closest
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @param shape [type:table] convex query-shape table with optional target rotation
+ * @param shape [type:bullet3d.shape.definition] convex query shape with optional target rotation
  * @param translation [type:vector3] non-zero sweep displacement in world units
- * @param [filter] [type:table] query filter
- * @return hit [type:table|nil] closest cast-result table, or `nil` on a miss
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @return hit [type:bullet3d.world.cast_result|nil] closest cast result, or `nil` on a miss
  */
 
 /*# Cast a convex shape asynchronously
@@ -2088,11 +2106,11 @@ namespace dmGameSystem
  *
  * @name bullet3d.world.cast_shape_async
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @param shape [type:table] convex query-shape table with optional target rotation
+ * @param shape [type:bullet3d.shape.definition] convex query shape with optional target rotation
  * @param translation [type:vector3] non-zero sweep displacement in world units
- * @param [filter] [type:table] query filter
- * @param [max_results] [type:number] maximum sorted hits, or zero for all
- * @param callback [type:function] function called as `callback(self, hits)`
+ * @param callback [type:fun(self:script_instance, hits:bullet3d.world.cast_result[])] function called as `callback(self, hits)`
+ * @param [filter] [type:bullet3d.world.query_filter] query filter
+ * @param [max_results] [type:integer] maximum sorted hits, or zero for all
  */
 
 /*# Test one collision object against the world
@@ -2105,9 +2123,9 @@ namespace dmGameSystem
  * @name bullet3d.world.contact_test
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param object [type:btCollisionObject] collision object belonging to the world
- * @param [filter] [type:table] filter applied to candidate `object_b` values
- * @param [max_results] [type:number] maximum number of contact points, or zero for all
- * @return contacts [type:table] normalized contact-result array
+ * @param [filter] [type:bullet3d.world.query_filter] filter applied to candidate `object_b` values
+ * @param [max_results] [type:integer] maximum number of contact points, or zero for all
+ * @return contacts [type:bullet3d.world.contact_result[]] normalized contact results
  * @examples
  *
  * Inspect current contacts for this collision object:
@@ -2139,6 +2157,6 @@ namespace dmGameSystem
  * @param world [type:btDiscreteDynamicsWorld] world handle
  * @param object_a [type:btCollisionObject] first collision object in the world
  * @param object_b [type:btCollisionObject] different second collision object in the world
- * @param [max_results] [type:number] maximum number of contact points, or zero for all
- * @return contacts [type:table] normalized contact-result array
+ * @param [max_results] [type:integer] maximum number of contact points, or zero for all
+ * @return contacts [type:bullet3d.world.contact_result[]] normalized contact results
  */

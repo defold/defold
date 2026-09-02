@@ -129,7 +129,7 @@ namespace dmGameSystem
 
     dmScript::Result HttpRequestProgressDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
     {
-        dmScript::PushDDFNoDecoder(L, desc, (const char*)data, false);
+        dmScript::PushDDFNoDecoder(L, desc, (const char*)data, true);
         return dmScript::RESULT_OK;
     }
 }

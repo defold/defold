@@ -67,9 +67,33 @@ void JNIDetachCurrentThreadIfNeeded(int did_attach)
     }
 }
 
-jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature)
+int JNICheckAndClearException(JNIEnv* env)
+{
+    if (!(*env)->ExceptionCheck(env))
+    {
+        return 0;
+    }
+
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+    return 1;
+}
+
+jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature)
 {
     if (instance == 0) return 0;
     jclass clazz = (*env)->GetObjectClass(env, instance);
-    return (*env)->GetMethodID(env, clazz, method, signature);
+    if (JNICheckAndClearException(env) || clazz == 0)
+    {
+        if (clazz != 0)
+        {
+            (*env)->DeleteLocalRef(env, clazz);
+        }
+        return 0;
+    }
+
+    jmethodID method_id = (*env)->GetMethodID(env, clazz, method, signature);
+    int exception = JNICheckAndClearException(env);
+    (*env)->DeleteLocalRef(env, clazz);
+    return exception ? 0 : method_id;
 }

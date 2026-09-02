@@ -1175,44 +1175,53 @@ namespace dmGameSystem
  */
 
 /*# Box2D world
+ *
+ * An opaque handle to the Box2D physics world owned by a collection. Obtain the
+ * current collection's world with [ref:b2d.get_world], or the world that owns a
+ * body with [ref:b2d.body.get_world]. Pass the handle to functions in
+ * `b2d.world`; it cannot be constructed directly from Lua.
+ *
  * @typedef
  * @name b2World
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D world handle
+ * @examples
+ *
+ * ```lua
+ * local world = b2d.get_world()
+ * if world then
+ *     print(b2d.world.get_gravity(world))
+ * end
+ * ```
  */
 
 /*# Box2D body
+ *
+ * An opaque handle to the native Box2D body of a collision-object component.
+ * Obtain it with [ref:b2d.get_body] and pass it to functions in `b2d.body`.
+ * The collision object owns the body, so use [ref:b2d.body.is_valid] before
+ * retaining a handle across deletion or collection changes.
+ *
  * @typedef
  * @name b2Body
- * @param value [type:userdata]
- */
-
-/*# Static (immovable) body
+ * @param value [type:userdata] Box2D body handle
+ * @examples
  *
- * @name b2d.body.B2_STATIC_BODY
- * @constant
- */
-/*# Kinematic body
- *
- * @name b2d.body.B2_KINEMATIC_BODY
- * @constant
- */
-/*# Dynamic body
- *
- * @name b2d.body.B2_DYNAMIC_BODY
- * @constant
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * if body and b2d.body.is_valid(body) then
+ *     b2d.body.apply_force_to_center(body, vmath.vector3(0, 100, 0))
+ * end
+ * ```
  */
 
 /**
  * Creates a shape and attaches it to this body.
  * If the density is non-zero, this function automatically updates the mass of the body.
  * Contacts are not created until the next time step.
- * The definition may include `density`, `friction`, `restitution`, `material`,
- * `sensor` or `is_sensor`, `filter`, and the shape table itself. The shape table
- * can be in `definition.shape` or directly in `definition`.
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_shape
  * @param body [type: b2Body] body
- * @param definition [type: table] the shape definition.
+ * @param definition [type:b2d.shape_create_definition] the shape definition.
  */
 
 /*# Create a chain and attach its segment shapes to this body.
@@ -1220,39 +1229,12 @@ namespace dmGameSystem
  * the ends of open chains. Ghost vertices are creation-time chain data only and
  * cannot be added to arbitrary shapes, bodies, or joints after creation.
  *
- * `definition.vertices`
- * : [type:table] array of local `vector3` vertices. Open chains require at least 2 vertices. Loop chains require at least 4 vertices.
- *
- * `definition.loop`
- * : [type:boolean] true to create a closed loop chain.
- *
- * `definition.prev_vertex`
- * : [type:vector3] optional ghost vertex before the first vertex for open chains.
- *
- * `definition.next_vertex`
- * : [type:vector3] optional ghost vertex after the last vertex for open chains.
- *
- * `definition.friction`
- * : [type:number] optional friction.
- *
- * `definition.restitution`
- * : [type:number] optional restitution.
- *
- * `definition.material`
- * : [type:number] optional material id.
- *
- * `definition.filter`
- * : [type:table] optional filter with `category_bits`, `mask_bits`, and `group_index`.
- *
- * `definition.enable_sensor_events`
- * : [type:boolean] true to enable sensor events for chain segments.
- *
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_chain
  * @param body [type: b2Body] body
- * @param definition [type: table] the chain definition
+ * @param definition [type:b2d.chain_definition] the chain definition
  * @return chain [type: b2Chain] created chain handle
- * @return segments [type: table] array of shape info tables for the chain segments
+ * @return segments [type:b2d.shape_info[]] created chain segments
  * @examples
  *
  * ```lua
@@ -1278,7 +1260,7 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.body.destroy_shape
  * @param body [type: b2Body] body
- * @param shape_index [type: number] 1-based shape index from `b2d.body.get_shapes`
+ * @param shape_index [type: integer] 1-based shape index from `b2d.body.get_shapes`
  */
 
 /*#
@@ -1591,19 +1573,13 @@ namespace dmGameSystem
 /** Get the list of all shapes attached to this body.
  * @name b2d.body.get_shapes
  * @param body [type: b2Body] body
- * @return shapes [type: table] a table of shape info entries. Each entry includes `shape_id` for use with `b2d.shape` functions.
+ * @return shapes [type:b2d.shape_info[]] attached shapes
  */
 
 /*# Get the joints attached to this body.
  * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return joints [type: table] array of `b2Joint` handles created by `b2d.joint`
- */
-
-/** Get the list of all contacts attached to this body.
- * @name b2d.body.get_contact_list
- * @param body [type: b2Body] body
- * @return edge [type: b2ContactEdge] the first edge
+ * @return joints [type:b2Joint[]] joint handles created by [ref:b2d.joint]
  */
 
 /** Get the user data pointer that was provided in the body definition.
@@ -1646,7 +1622,7 @@ namespace dmGameSystem
 /*# Get the body name.
  * @name b2d.body.get_name
  * @param body [type: b2Body] body
- * @return name [type: string] body name, or nil if no name is set
+ * @return name [type: string|nil] body name, or `nil` if no name is set
  */
 
 /*# Set velocity to reach a target transform.
@@ -1690,11 +1666,11 @@ namespace dmGameSystem
 /*# Get touching contact data for a body.
  * @name b2d.body.get_contact_data
  * @param body [type: b2Body] body
- * @return contacts [type: table] array of contact tables
+ * @return contacts [type:b2d.contact_data[]] array of contact tables
  */
 
 /*# Compute the world AABB of all body shapes.
  * @name b2d.body.compute_aabb
  * @param body [type: b2Body] body
- * @return aabb [type: table] table with `lower` and `upper` vector3 fields
+ * @return aabb [type:b2d.aabb] body bounds
  */

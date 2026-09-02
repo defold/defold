@@ -152,6 +152,11 @@ namespace dmGui
     typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
 
     /**
+     * Callback to prepare a text layout for a node
+     */
+    typedef void (*PrepareNodeTextLayoutCallback)(dmGui::HScene scene, dmGui::HNode node);
+
+    /**
      * Callback to get custom resource data
      */
     typedef void* (*GetResourceCallback)(void* ctx, dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot);
@@ -222,6 +227,7 @@ namespace dmGui
         CloneCustomNodeCallback        m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
         void*                          m_CreateCustomNodeCallbackContext;
+        PrepareNodeTextLayoutCallback  m_PrepareNodeTextLayoutCallback;
         GetResourceCallback            m_GetResourceCallback;
         void*                          m_GetResourceCallbackContext;
         GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;
@@ -1028,6 +1034,7 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
     dmhash_t GetNodeLayerId(HScene scene, HNode node);
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node);
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
@@ -1092,6 +1099,8 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Invokes the scene callback that prepares the current text layout for a node.
+    void PrepareNodeTextLayout(HScene scene, HNode node);
     // Returns the node-owned text layout as a borrowed handle.
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
     // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.
@@ -1170,6 +1179,16 @@ namespace dmGui
      * @return true if the node was picked, false otherwise
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
+
+    /** converts project-space input coordinates to the local transform used to render a node
+     * @param scene the scene the node exists in
+     * @param node node to convert coordinates for
+     * @param x project-space x-coordinate
+     * @param y project-space y-coordinate
+     * @param position local render position (out)
+     * @return true when the position could be projected onto the node plane
+     */
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, dmVMath::Point3* position);
 
     /** retrieves if a node is enabled or not
      * Only enabled nodes are animated and rendered.

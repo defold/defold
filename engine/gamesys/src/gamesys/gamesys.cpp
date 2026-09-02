@@ -70,7 +70,6 @@ DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components", 0);
 
 namespace dmGameSystem
 {
-
 #define DEFINE_EXT_CONSTANTS(prefix, ext)              \
         const char* prefix##_EXT = ext;                \
         const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);
@@ -309,7 +308,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
                 CompLabelNewWorld, CompLabelDeleteWorld,
                 CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate, CompLabelGetComponent,
-                CompLabelUpdate, CompLabelLateUpdate, 0, CompLabelRender, 0, CompLabelOnMessage, 0,
+                CompLabelUpdate, CompLabelLateUpdate, 0, CompLabelRender, 0, CompLabelOnMessage, CompLabelOnInput,
                 CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
                 0, CompLabelIterProperties,
                 1);
