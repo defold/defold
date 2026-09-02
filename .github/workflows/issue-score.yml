@@ -8,3 +8,4 @@ on:
 jobs:
   update-score:
     uses: defold/github-actions-common/.github/workflows/issue-score.yml@master
+    secrets: inherit
