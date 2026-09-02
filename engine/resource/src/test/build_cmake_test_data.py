@@ -7,6 +7,62 @@ import sys
 import zipfile
 
 
+def encode_varint(value):
+    encoded = bytearray()
+    while value > 0x7f:
+        encoded.append((value & 0x7f) | 0x80)
+        value >>= 7
+    encoded.append(value)
+    return encoded
+
+
+def append_length_delimited_field(message, field_number, value):
+    value = value.encode("utf-8")
+    message.extend(encode_varint((field_number << 3) | 2))
+    message.extend(encode_varint(len(value)))
+    message.extend(value)
+
+
+def generate_many_valid_resources(args):
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    container = bytearray()
+    append_length_delimited_field(container, 1, "Many Valid References")
+    for i in range(args.count):
+        resource_path = "/many_valid_ref_%04d.foo" % i
+        append_length_delimited_field(container, 2, resource_path)
+
+    with open(os.path.join(args.output_dir, "many_valid_refs.cont"), "wb") as out_file:
+        out_file.write(container)
+
+    # TestResource.ResourceFoo { x: 123 }
+    resource_foo = bytes([0x08, 0x7b])
+    for i in range(args.count):
+        with open(os.path.join(args.output_dir, "many_valid_ref_%04d.foo" % i), "wb") as out_file:
+            out_file.write(resource_foo)
+
+
+def generate_deep_resource_chain(args):
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    container_count = args.count - 1
+    for i in range(container_count):
+        container = bytearray()
+        append_length_delimited_field(container, 1, "Deep Resource Chain")
+        if i + 1 < container_count:
+            child_path = "/deep_chain_%04d.cont" % (i + 1)
+        else:
+            child_path = "/deep_chain_leaf.foo"
+        append_length_delimited_field(container, 2, child_path)
+
+        with open(os.path.join(args.output_dir, "deep_chain_%04d.cont" % i), "wb") as out_file:
+            out_file.write(container)
+
+    # TestResource.ResourceFoo { x: 123 }
+    with open(os.path.join(args.output_dir, "deep_chain_leaf.foo"), "wb") as out_file:
+        out_file.write(bytes([0x08, 0x7b]))
+
+
 def add_to_zip_file(args):
     extra_entries = {}
     cwd = os.path.abspath(args.cwd)
@@ -45,6 +101,16 @@ def main():
     add_zip.add_argument("--cwd", required=True)
     add_zip.add_argument("inputs", nargs="*")
     add_zip.set_defaults(func=add_to_zip_file)
+
+    generate_many_valid = subparsers.add_parser("generate-many-valid-resources")
+    generate_many_valid.add_argument("--output-dir", required=True)
+    generate_many_valid.add_argument("--count", required=True, type=int)
+    generate_many_valid.set_defaults(func=generate_many_valid_resources)
+
+    generate_deep_chain = subparsers.add_parser("generate-deep-resource-chain")
+    generate_deep_chain.add_argument("--output-dir", required=True)
+    generate_deep_chain.add_argument("--count", required=True, type=int)
+    generate_deep_chain.set_defaults(func=generate_deep_resource_chain)
 
     args = parser.parse_args()
     try:

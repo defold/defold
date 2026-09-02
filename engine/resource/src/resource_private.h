@@ -110,6 +110,9 @@ namespace dmResource
 
     Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, HResourceDescriptor descriptor);
 
+    void PushResourceToGetStack(HFactory factory, const char* path);
+    void PopResourceFromGetStack(HFactory factory);
+
     HResourceType FindResourceType(HFactory factory, const char* extension);
     uint32_t GetRefCount(HFactory factory, void* resource);
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
