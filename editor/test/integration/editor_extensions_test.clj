@@ -87,7 +87,9 @@
                                 (rt/bind rt)
                                 (rt/invoke-immediate-1 rt))]
           (doseq [[devices-output expected]
-                  [["List of devices attached\n0123456789            device usb:1-1 product:p model:m device:d transport_id:1\n"
+                  [["List of devices attached\nA                     device product:p model:m device:d transport_id:1\n"
+                    ["A" "product:p model:m device:d transport_id:1"]]
+                   ["List of devices attached\n0123456789            device usb:1-1 product:p model:m device:d transport_id:1\n"
                     ["0123456789" "usb:1-1 product:p model:m device:d transport_id:1"]]
                    ["List of devices attached\nadb-SERIAL (2)._adb-tls-connect._tcp device product:p model:m device:d transport_id:2\n"
                     ["adb-SERIAL (2)._adb-tls-connect._tcp" "product:p model:m device:d transport_id:2"]]
