@@ -100,8 +100,9 @@
 ;; - :leading - the kind of the closer the line starts with, or nil if it does
 ;;   not start with one. Only a matching closer at the start should dedent the
 ;;   line; one at the end is continuation punctuation
-;; - :opens - one entry per still-open bracket/keyword, holding its :kind and
-;;   its :col, which is either:
+;; - :opens - one entry per still-open bracket/keyword, holding its :kind,
+;;   whether it is a :bracket rather than a block keyword, and its :col, which
+;;   is either:
 ;;     * the column to align its contents to (just past the bracket, with
 ;;       tabs expanded, so it matches where the text actually appears)
 ;;     * or nil, if no parameter follows the opening parenthesis, or if the
@@ -269,6 +270,7 @@
         ;; survives the reduce while nothing is open.
         opens (mapv (fn [t]
                       {:kind (t 1)
+                       :bracket (contains? #{:paren :brace :bracket} (t 1))
                        :col (when-let [index (t 2)]
                               (when (code-after-index? line index)
                                 (inc (visual-column line index tab-spaces))))})

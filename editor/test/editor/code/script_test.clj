@@ -632,6 +632,31 @@
      "    y = 2"
      "}"]
 
+    ;; A comma between the values of a multiple assignment does not finish it,
+    ;; even when the value above it closed a call.
+    ["local a, b ="
+     "    foo(),"
+     "    bar()"]
+
+    ["local a, b ="
+     "    foo(x,"
+     "        y,"
+     "        z),"
+     "    bar()"]
+
+    ;; A value that spans lines suspends the assignment instead of finishing
+    ;; it, so the bracket that held it resumes it when it closes.
+    ["local a, b ="
+     "    foo("
+     "        x),"
+     "    bar()"]
+
+    ["local a, b ="
+     "    function()"
+     "        return 1"
+     "    end,"
+     "    bar()"]
+
     ;; A closed block comment is not code, so it does not finish the assignment
     ;; the way a value would.
     ["local value = --[[comment]]"
