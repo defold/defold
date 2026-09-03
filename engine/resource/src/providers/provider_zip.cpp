@@ -54,6 +54,9 @@ struct ZipProviderContext
     // handle to the zip archive
     dmZip::HZip                 m_Zip;
 
+    // file containing an Android asset opened without mapping it into memory
+    FILE*                       m_ZipAssetFile;
+
     // pointer to the asset associated with the mounted zip archive
     // will only be set when the archive was mapped from an asset and not from a file
     void*                       m_ZipAsset;
@@ -83,6 +86,8 @@ static void DeleteZipArchiveInternal(dmResourceProvider::HArchiveInternal _archi
         dmResource::DeleteManifest(archive->m_Manifest);
     if (archive->m_Zip)
         dmZip::Close(archive->m_Zip);
+    if (archive->m_ZipAssetFile)
+        fclose(archive->m_ZipAssetFile);
     if (archive->m_ZipAsset)
         dmResource::UnmapAsset(archive->m_ZipAsset, archive->m_ZipAssetLength);
     delete archive;
@@ -218,21 +223,43 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
         dmSnPrintf(path, sizeof(path), "%s", uri->m_Path + ANDROID_ASSET_PATH_LENGTH);
         dmPath::Normalize(path, path, sizeof(path));
 
-        void* zip_map = 0x0;
-        dmResource::Result mr = dmResource::MapAsset((const char*)path, (void*&)archive->m_ZipAsset, archive->m_ZipAssetLength, zip_map);
-        if (dmResource::RESULT_OK != mr)
+        uint64_t asset_offset = 0;
+        uint64_t asset_size = 0;
+        FILE* asset_file = 0;
+        dmResource::Result asset_file_result = dmResource::OpenAssetFile(path, asset_file, asset_offset, asset_size);
+        if (dmResource::RESULT_OK == asset_file_result)
         {
-            dmLogError("Could not map asset '%s' (%d)", path, mr);
-            DeleteZipArchiveInternal(archive);
-            return dmResourceProvider::RESULT_NOT_FOUND;
+            dmZip::Result zr = dmZip::OpenFileRange(asset_file, asset_offset, asset_size, &archive->m_Zip);
+            if (dmZip::RESULT_OK == zr)
+            {
+                archive->m_ZipAssetFile = asset_file;
+            }
+            else
+            {
+                fclose(asset_file);
+            }
         }
 
-        dmZip::Result zr = dmZip::OpenStream((const char*)zip_map, archive->m_ZipAssetLength, &archive->m_Zip);
-        if (dmZip::RESULT_OK != zr)
+        // Assets that do not expose a file descriptor (for example compressed
+        // assets) keep using the buffer-based compatibility path.
+        if (!archive->m_Zip)
         {
-            dmLogError("Could not open zip stream '%s' (%d)", path, zr);
-            DeleteZipArchiveInternal(archive);
-            return dmResourceProvider::RESULT_NOT_FOUND;
+            void* zip_map = 0x0;
+            dmResource::Result mr = dmResource::MapAsset(path, archive->m_ZipAsset, archive->m_ZipAssetLength, zip_map);
+            if (dmResource::RESULT_OK != mr)
+            {
+                dmLogError("Could not map asset '%s' (%d)", path, mr);
+                DeleteZipArchiveInternal(archive);
+                return dmResourceProvider::RESULT_NOT_FOUND;
+            }
+
+            dmZip::Result zr = dmZip::OpenStream((const char*)zip_map, archive->m_ZipAssetLength, &archive->m_Zip);
+            if (dmZip::RESULT_OK != zr)
+            {
+                dmLogError("Could not open zip stream '%s' (%d)", path, zr);
+                DeleteZipArchiveInternal(archive);
+                return dmResourceProvider::RESULT_NOT_FOUND;
+            }
         }
     }
     else
@@ -263,6 +290,7 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     if (dmResourceProvider::RESULT_OK != result)
     {
         dmLogInfo("Could not load manifest (%d)", result);
+        DeleteZipArchiveInternal(archive);
         return result;
     }
 

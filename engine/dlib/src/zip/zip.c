@@ -153,7 +153,37 @@ struct zip_t {
   mz_zip_archive archive;
   mz_uint level;
   struct zip_entry_t entry;
+// DEFOLD -> Add support for reading a ZIP from a bounded FILE range.
+  FILE *cstream;
+  mz_uint64 cstream_offset;
+  mz_uint64 cstream_size;
+  zip_cstream_seek_callback cstream_seek;
+// <- DEFOLD
 };
+
+// DEFOLD -> Add support for reading a ZIP from a bounded FILE range.
+static size_t zip_cstream_read_func(void *opaque, mz_uint64 file_offset,
+                                    void *buffer, size_t size) {
+  struct zip_t *zip = (struct zip_t *)opaque;
+  mz_uint64 absolute_offset;
+
+  if (!zip || !zip->cstream || !zip->cstream_seek ||
+      file_offset > zip->cstream_size)
+    return 0;
+
+  size = (size_t)MZ_MIN((mz_uint64)size, zip->cstream_size - file_offset);
+  if (!size)
+    return 0;
+
+  if (file_offset > UINT64_MAX - zip->cstream_offset)
+    return 0;
+  absolute_offset = zip->cstream_offset + file_offset;
+  if (zip->cstream_seek(zip->cstream, (uint64_t)absolute_offset) != 0)
+    return 0;
+
+  return MZ_FREAD(buffer, 1, size, zip->cstream);
+}
+// <- DEFOLD
 
 enum zip_modify_t {
   MZ_KEEP = 0,
@@ -2195,6 +2225,46 @@ struct zip_t *zip_cstream_open(FILE *stream, int level, char mode) {
   int errnum = 0;
   return zip_cstream_openwitherror(stream, level, mode, &errnum);
 }
+
+// DEFOLD -> Add support for reading a ZIP from a bounded FILE range.
+struct zip_t *zip_cstream_openwithoffset(FILE *stream, uint64_t offset,
+                                         uint64_t size, int level,
+                                         zip_cstream_seek_callback seek_callback) {
+  struct zip_t *zip = NULL;
+
+  if (!stream || !seek_callback ||
+      size < MZ_ZIP_END_OF_CENTRAL_DIR_HEADER_SIZE ||
+      offset > UINT64_MAX - size)
+    return NULL;
+
+  if (level < 0)
+    level = MZ_DEFAULT_LEVEL;
+  if ((level & 0xF) > MZ_UBER_COMPRESSION)
+    return NULL;
+
+  zip = (struct zip_t *)calloc((size_t)1, sizeof(struct zip_t));
+  if (!zip)
+    return NULL;
+
+  zip->level = (mz_uint)level;
+  zip->entry.index = -1;
+  zip->cstream = stream;
+  zip->cstream_offset = (mz_uint64)offset;
+  zip->cstream_size = (mz_uint64)size;
+  zip->cstream_seek = seek_callback;
+  zip->archive.m_pRead = zip_cstream_read_func;
+  zip->archive.m_pIO_opaque = zip;
+
+  if (!mz_zip_reader_init(
+          &(zip->archive), (mz_uint64)size,
+          zip->level | MZ_ZIP_FLAG_DO_NOT_SORT_CENTRAL_DIRECTORY)) {
+    CLEANUP(zip);
+    return NULL;
+  }
+
+  return zip;
+}
+// <- DEFOLD
 
 struct zip_t *zip_cstream_openwitherror(FILE *stream, int level, char mode,
                                         int *errnum) {

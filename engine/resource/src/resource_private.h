@@ -15,6 +15,7 @@
 #ifndef DM_RESOURCE_PRIVATE_H
 #define DM_RESOURCE_PRIVATE_H
 
+#include <stdio.h>
 #include <ddf/ddf.h>
 #include "resource_archive.h"
 #include "resource.h"
@@ -126,6 +127,9 @@ namespace dmResource
     // Assets mapped with this function should be unmapped with UnmapAsset(...)
     Result MapAsset(const char* name, void*& out_asset, uint32_t& out_size, void*& out_map);
     Result UnmapAsset(void*& asset, uint32_t size);
+    // Opens an uncompressed asset as a range in its containing file. The caller
+    // owns the returned file and must close it with fclose(...).
+    Result OpenAssetFile(const char* name, FILE*& out_file, uint64_t& out_offset, uint64_t& out_size);
 
     /**
      * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.

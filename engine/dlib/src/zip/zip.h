@@ -601,6 +601,25 @@ extern ZIP_EXPORT void zip_stream_close(struct zip_t *zip);
 extern ZIP_EXPORT struct zip_t *zip_cstream_open(FILE *stream, int level,
                                                  char mode);
 
+// DEFOLD -> Add support for reading a ZIP from a bounded FILE range.
+typedef int (*zip_cstream_seek_callback)(FILE *stream, uint64_t offset);
+
+/**
+ * Opens a read-only zip archive from a bounded range in an existing FILE
+ * stream. The stream will not be closed when calling zip_close.
+ *
+ * @param stream C FILE stream.
+ * @param offset byte offset of the archive in the stream.
+ * @param size size of the archive in bytes.
+ * @param level compression level (0-9 are the standard zlib-style levels).
+ * @param seek_callback callback used to seek to an absolute stream offset.
+ * @return the zip archive handler or NULL on error
+ */
+extern ZIP_EXPORT struct zip_t *zip_cstream_openwithoffset(
+    FILE *stream, uint64_t offset, uint64_t size, int level,
+    zip_cstream_seek_callback seek_callback);
+// <- DEFOLD
+
 /**
  * Opens zip archive from existing FILE stream with compression level using
  * the given mode. The function additionally returns @param errnum - The

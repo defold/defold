@@ -56,21 +56,28 @@ static const uint8_t ExpectedDataBin[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
 struct ZipArchiveParams
 {
     const char* m_Path;
-    bool        m_UseStream;
+    enum OpenMode
+    {
+        OPEN_FROM_PATH,
+        OPEN_FROM_MEMORY,
+        OPEN_FROM_FILE_RANGE,
+    } m_OpenMode;
 };
 
 class ZipArchiveTest : public jc_test_params_class<ZipArchiveParams>
 {
 protected:
     dmZip::HZip m_Zip;
+    FILE*        m_File;
     std::string m_Stream;
 
     virtual void SetUp()
     {
         m_Zip = 0;
+        m_File = 0;
 
         dmZip::Result zr;
-        if (GetParam().m_UseStream)
+        if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_MEMORY)
         {
             ASSERT_TRUE(ReadFile(GetParam().m_Path, &m_Stream));
             zr = dmZip::OpenStream(m_Stream.data(), m_Stream.size(), &m_Zip);
@@ -79,7 +86,19 @@ protected:
         {
             char path[1024];
             dmTestUtil::MakeHostPath(path, sizeof(path), GetParam().m_Path);
-            zr = dmZip::Open(path, &m_Zip);
+            if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_FILE_RANGE)
+            {
+                m_File = fopen(path, "rb");
+                ASSERT_NE((FILE*)0, m_File);
+                ASSERT_EQ(0, fseek(m_File, 0, SEEK_END));
+                long file_size = ftell(m_File);
+                ASSERT_GT(file_size, 0);
+                zr = dmZip::OpenFileRange(m_File, 0, (uint64_t)file_size, &m_Zip);
+            }
+            else
+            {
+                zr = dmZip::Open(path, &m_Zip);
+            }
         }
 
         ASSERT_EQ(dmZip::RESULT_OK, zr);
@@ -89,7 +108,10 @@ protected:
     {
         if (m_Zip)
             dmZip::Close(m_Zip);
+        if (m_File)
+            fclose(m_File);
         m_Zip = 0;
+        m_File = 0;
         m_Stream.clear();
     }
 };
@@ -102,6 +124,59 @@ TEST(dmZip, NotExist)
     dmZip::HZip zip;
     dmZip::Result zr = dmZip::Open(path, &zip);
     ASSERT_NE(dmZip::RESULT_OK, zr);
+}
+
+TEST(dmZip, OpenFileRange)
+{
+    std::string archive;
+    std::string trailing_archive;
+    ASSERT_TRUE(ReadFile("src/test/data/zip/archive_deflated.zip", &archive));
+    ASSERT_TRUE(ReadFile("src/test/data/zip/foo.zip", &trailing_archive));
+
+    const char prefix[] = "not part of the zip";
+    FILE*      file = tmpfile();
+    ASSERT_NE((FILE*)0, file);
+    ASSERT_EQ(sizeof(prefix) - 1, fwrite(prefix, 1, sizeof(prefix) - 1, file));
+    ASSERT_EQ(archive.size(), fwrite(archive.data(), 1, archive.size(), file));
+    ASSERT_EQ(trailing_archive.size(), fwrite(trailing_archive.data(), 1, trailing_archive.size(), file));
+    ASSERT_EQ(0, fflush(file));
+
+    dmZip::HZip   zip = 0;
+    dmZip::Result zr = dmZip::OpenFileRange(file, sizeof(prefix) - 1, archive.size(), &zip);
+    ASSERT_EQ(dmZip::RESULT_OK, zr);
+    ASSERT_EQ(4u, dmZip::GetNumEntries(zip));
+
+    zr = dmZip::OpenEntry(zip, "hello.txt");
+    ASSERT_EQ(dmZip::RESULT_OK, zr);
+    uint32_t size = 0;
+    ASSERT_EQ(dmZip::RESULT_OK, dmZip::GetEntrySize(zip, &size));
+    ASSERT_EQ(10u, size);
+    char data[10];
+    ASSERT_EQ(dmZip::RESULT_OK, dmZip::GetEntryData(zip, data, sizeof(data)));
+    ASSERT_ARRAY_EQ_LEN("Hello Zip\n", data, sizeof(data));
+    dmZip::CloseEntry(zip);
+    dmZip::Close(zip);
+
+    // Closing the zip must not close the caller-owned file.
+    ASSERT_EQ(0, fseek(file, 0, SEEK_SET));
+    fclose(file);
+}
+
+TEST(dmZip, OpenFileRangeRejectsTruncatedArchive)
+{
+    std::string archive;
+    ASSERT_TRUE(ReadFile("src/test/data/zip/archive_stored.zip", &archive));
+
+    FILE* file = tmpfile();
+    ASSERT_NE((FILE*)0, file);
+    ASSERT_EQ(archive.size(), fwrite(archive.data(), 1, archive.size(), file));
+    ASSERT_EQ(0, fflush(file));
+
+    dmZip::HZip   zip = 0;
+    dmZip::Result zr = dmZip::OpenFileRange(file, 0, archive.size() - 1, &zip);
+    ASSERT_NE(dmZip::RESULT_OK, zr);
+    ASSERT_EQ((dmZip::HZip)0, zip);
+    fclose(file);
 }
 
 TEST_P(ZipArchiveTest, Iterate)
@@ -186,10 +261,12 @@ TEST_P(ZipArchiveTest, ReadPartial)
 }
 
 const ZipArchiveParams params_zip_archives[] = {
-    { "src/test/data/zip/archive_deflated.zip", false },
-    { "src/test/data/zip/archive_stored.zip", false },
-    { "src/test/data/zip/archive_deflated.zip", true },
-    { "src/test/data/zip/archive_stored.zip", true },
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_PATH },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_PATH },
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_MEMORY },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_MEMORY },
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
 };
 
 INSTANTIATE_TEST_CASE_P(ZipArchiveOpenModes, ZipArchiveTest,

@@ -119,6 +119,14 @@ namespace dmResource
         return RESULT_OK;
     }
 
+    Result OpenAssetFile(const char* name, FILE*& out_file, uint64_t& out_offset, uint64_t& out_size)
+    {
+        out_file = 0;
+        out_offset = 0;
+        out_size = 0;
+        return RESULT_NOT_SUPPORTED;
+    }
+
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size)
     {
         out_size = 0;
