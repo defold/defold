@@ -121,7 +121,7 @@
 
 (def project-path "test/resources/test_project")
 
-(def ^:private ^:const system-cache-size 1000)
+(def ^:const system-cache-size 1000)
 
 ;; String urls that will be added as library dependencies to our test project.
 ;; These extensions register additional protobuf resource types that we want to
@@ -455,18 +455,14 @@
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
-         project (project/load-project! project)]
-     (g/reset-undo! :undo/global)
-     project))
+         extensions (extensions/make proj-graph)]
+     (-> (project/make-project proj-graph workspace extensions)
+         (project/load-project!))))
   ([workspace resources]
    (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
-         project (project/load-project! project progress/null-render-progress! resources)]
-     (g/reset-undo! :undo/global)
-     project)))
+         extensions (extensions/make proj-graph)]
+     (-> (project/make-project proj-graph workspace extensions)
+         (project/load-project! progress/null-render-progress! resources)))))
 
 (defn project-node-resources [project]
   (->> (g/node-value project :node-id+resources)

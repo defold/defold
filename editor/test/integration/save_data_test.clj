@@ -20,14 +20,21 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.collection :as collection]
+            [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.editor-extensions :as extensions]
+            [editor.node-util :as node-util]
+            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.util :as util]
+            [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.text-util :as text-util])
@@ -1649,3 +1656,101 @@
                      (frequencies)
                      (into (sorted-map)))]
             (is (= {} leaked-node-frequencies))))))))
+
+(deftest connection-rule-violations-test
+  (test-support/with-clean-system
+    {:cache-size test-util/system-cache-size
+     :cache-retain? project/cache-retain?}
+    (let [workspace (test-util/setup-workspace! world project-path)
+          _ (test-util/fetch-libraries! workspace)
+          project-graph-id (g/make-graph! :volatility 1)
+          extensions (extensions/make project-graph-id)
+          project (project/make-project project-graph-id workspace extensions)
+          resources (g/node-value project :resources)
+          node-id+resource-pairs (project/make-node-id+resource-pairs project-graph-id resources)
+          node-load-infos (project/read-nodes node-id+resource-pairs)
+
+          _ (g/transact
+              {:undoable false}
+              (project/make-resource-nodes-tx-data project node-id+resource-pairs))
+
+          explicit-arcs-before
+          (coll/into-> (:graphs (g/now)) #{}
+            (mapcat (fn [[_graph-id graph]]
+                      (:sarcs graph)))
+            (mapcat (fn [[_source-node-id source-label->arcs]]
+                      (vals source-label->arcs))))
+
+          migrated-resource-node-ids
+          (project/load-nodes!
+            project nil node-load-infos progress/null-render-progress! nil
+            {:full-invalidation true
+             :undoable false})
+
+          _ (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
+
+          save-data-arc?
+          (fn save-data-arc? [arc]
+            (and (= project (gt/target-id arc))
+                 (= :save-data (gt/target-label arc))))
+
+          proj-path->dependency-proj-paths
+          (coll/into-> node-load-infos {}
+            (keep (fn [node-load-info]
+                    (let [dependency-proj-paths (:dependency-proj-paths node-load-info)]
+                      (when-not (coll/empty? dependency-proj-paths)
+                        (let [proj-path (resource/proj-path (:resource node-load-info))]
+                          (pair proj-path (set dependency-proj-paths))))))))
+
+          connection-rule-violations
+          (g/with-auto-evaluation-context evaluation-context
+            (let [basis (:basis evaluation-context)
+
+                  label-info
+                  (fn label-info [node-id label]
+                    {:type (g/node-type-kw node-id)
+                     :label label
+                     :info (node-util/node-debug-label-path node-id evaluation-context)})]
+
+              (coll/into-> node-id+resource-pairs []
+                (map first)
+                (mapcat
+                  (fn [owner-node-id]
+                    (let [owned-node-ids (set (core/recursive-owned-node-ids basis owner-node-id))
+
+                          internal-arc?
+                          (fn internal-arc? [arc]
+                            (contains? owned-node-ids (gt/target-id arc)))]
+
+                      (coll/into-> owned-node-ids :eduction
+                        (mapcat #(g/explicit-arcs-by-source basis %))
+                        (remove internal-arc?)
+                        (remove save-data-arc?)
+                        (remove explicit-arcs-before)
+                        (keep (fn [arc]
+                                (let [source-id (gt/source-id arc)
+                                      source-label (gt/source-label arc)
+                                      target-id (gt/target-id arc)
+                                      target-label (gt/target-label arc)]
+                                  (if-let [source-resource (resource-node/as-resource basis source-id)]
+                                    (if-let [target-owner-resource (resource-node/owner-resource basis target-id)]
+                                      (let [target-owner-proj-path (resource/proj-path target-owner-resource)
+                                            target-owner-dependency-proj-paths (proj-path->dependency-proj-paths target-owner-proj-path)
+                                            source-proj-path (resource/proj-path source-resource)]
+                                        (when-not (contains? target-owner-dependency-proj-paths source-proj-path)
+                                          {:problem "The target resource does not report the source resource as a dependency."
+                                           :solution "Ensure the :dependency-fn for the target resource-type reports the source resource as a dependency."
+                                           :referenced-file source-proj-path
+                                           :referenced-from target-owner-proj-path
+                                           :source (label-info source-id source-label)
+                                           :target (label-info target-id target-label)}))
+                                      {:problem "The :load-fn of a resource establishes a connection to a global node."
+                                       :solution "Move connection transaction steps to the :connect-fn of the source resource-type so the node can be materialized when needed."
+                                       :source (label-info source-id source-label)
+                                       :target (label-info target-id target-label)})
+                                    {:problem "A substructure node connects to an external node."
+                                     :solution "Pass the connection through the owning ResourceNode."
+                                     :source (label-info source-id source-label)
+                                     :target (label-info target-id target-label)})))))))))))]
+
+      (is (= [] connection-rule-violations)))))
