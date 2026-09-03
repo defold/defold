@@ -2728,6 +2728,7 @@ error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.go-property-disallowed = go.property cannot be used in this file type.
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
+error.bob.project-operation-in-progress = Another project operation is already in progress
 error.bob.failed-to-save-project = Failed to save the project before invoking Bob.
 error.blend-mode-add-alpha-replaced = `{old}` is deprecated and behaves exactly like `{new}` because Defold uses premultiplied alpha. Select `{new}` instead.
 error.duplicate-instance-id = "{id}" is in use by another instance.

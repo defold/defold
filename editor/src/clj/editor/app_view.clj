@@ -1661,37 +1661,57 @@
     (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
-(defn- build-html5! [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane bob-commands]
-  (let [main-scene (.getScene ^Stage main-stage)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        render-reload-progress! (make-render-task-progress :resource-sync)
-        render-save-progress! (make-render-task-progress :save-all)
-        [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-        bob-args (bob/build-html5-bob-options project prefs)]
-    (build-errors-view/clear-build-errors build-errors-view)
-    (future/io
-      (let [build-results
-            (with-open [out (start-new-log-pipe!)]
-              (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                               out build-task-cancelled? bob-commands bob-args project changes-view))]
-        (ui/run-now
-          (if-let [error (:error build-results)]
-            (render-build-error! error)
-            (let [url (str (http-server/local-url web-server) "/html5")]
-              (if (prefs/get prefs [:build :open-html5-build])
-                (ui/open-url url)
-                (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))))
-        build-results))))
+(defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
+  (if-not (disk-availability/try-push-busy!)
+    {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
+    (try
+      (let [evaluation-context (g/make-evaluation-context)
+            options (cond-> options
+                      (not (contains? options "build-server"))
+                      (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+
+                      (not (contains? options "build-server-header"))
+                      (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+            main-scene (g/node-value app-view :scene evaluation-context)
+            tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+            render-reload-progress! (make-render-task-progress :resource-sync)
+            render-save-progress! (make-render-task-progress :save-all)
+            [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
+            _ (ui/run-now
+                (g/update-cache-from-evaluation-context! evaluation-context)
+                (build-errors-view/clear-build-errors build-errors-view))
+            build-results (with-open [out (start-new-log-pipe!)]
+                            (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                                             out build-task-cancelled? commands options project changes-view))]
+        (when-let [error (:error build-results)]
+          (ui/run-now (render-build-error! error)))
+        build-results)
+      (finally
+        (disk-availability/pop-busy!)))))
+
+(defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
+  (future/io
+    (let [{:keys [error] :as build-results}
+          (invoke-bob! app-view project changes-view build-errors-view prefs (bob/build-html5-bob-options project prefs) bob-commands)]
+      (when-not error
+        (let [url (str (http-server/local-url web-server) "/html5")]
+          (if (prefs/get prefs [:build :open-html5-build])
+            (ui/open-url url)
+            (console/append-console-entry! nil (format "INFO: The game is available at %s" url)))))
+      build-results)))
 
 (handler/defhandler :project.clean-build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane localization]
+  (enabled? [] (disk-availability/available?))
+  (run [app-view project prefs web-server build-errors-view changes-view localization]
     (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
-      (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+      (build-html5! app-view project prefs web-server build-errors-view changes-view
                     bob/clean-build-html5-bob-commands))))
 
 (handler/defhandler :project.build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-    (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+  (enabled? [] (disk-availability/available?))
+  (run [app-view project prefs web-server build-errors-view changes-view]
+    (build-html5! app-view project prefs web-server build-errors-view changes-view
                   bob/build-html5-bob-commands)))
 
 (defn- updated-build-resource-proj-paths [old-etags new-etags]
@@ -3592,27 +3612,10 @@
                         f))
     :fetch-libraries! (fn fetch-libraries! []
                         (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
-    :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
-                   (let [options (cond-> options
-                                   (not (contains? options "build-server"))
-                                   (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
-                                   (not (contains? options "build-server-header"))
-                                   (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-                         main-scene (g/node-value app-view :scene evaluation-context)
-                         tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-                         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-                         render-reload-progress! (make-render-task-progress :resource-sync)
-                         render-save-progress! (make-render-task-progress :save-all)
-                         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)]
-                     (future/io
-                       (ui/run-now (build-errors-view/clear-build-errors build-errors-view))
-                       (let [{:keys [error]}
-                             (with-open [out (start-new-log-pipe!)]
-                               (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                                out build-task-cancelled? commands options project changes-view))]
-                         (when error
-                           (ui/run-now (render-build-error! error))
-                           (throw (LuaError. "Bob invocation failed")))))))
+    :invoke-bob! (fn invoke-bob-from-editor-script! [options commands]
+                   (future/io
+                     (when (:error (invoke-bob! app-view project changes-view build-errors-view prefs options commands))
+                       (throw (LuaError. "Bob invocation failed")))))
     :web-server web-server)
   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))
