@@ -1661,38 +1661,31 @@
     (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
-(def ^:private bob-task-in-progress-atom (atom false))
-
-(defn- bob-task-in-progress? [] @bob-task-in-progress-atom)
-
 (defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
-  (if-not (compare-and-set! bob-task-in-progress-atom false true)
-    {:error (g/error-fatal (localization/message "error.bob.build-already-in-progress"))}
-    (try
-      (let [evaluation-context (g/make-evaluation-context)
-            options (cond-> options
-                      (not (contains? options "build-server"))
-                      (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+  (if-not (disk-availability/available?)
+    {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
+    (let [evaluation-context (g/make-evaluation-context)
+          options (cond-> options
+                    (not (contains? options "build-server"))
+                    (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
 
-                      (not (contains? options "build-server-header"))
-                      (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-            main-scene (g/node-value app-view :scene evaluation-context)
-            tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-            render-reload-progress! (make-render-task-progress :resource-sync)
-            render-save-progress! (make-render-task-progress :save-all)
-            [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-            _ (ui/run-now
-                (g/update-cache-from-evaluation-context! evaluation-context)
-                (build-errors-view/clear-build-errors build-errors-view))
-            build-results (with-open [out (start-new-log-pipe!)]
-                            (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                             out build-task-cancelled? commands options project changes-view))]
-        (when-let [error (:error build-results)]
-          (ui/run-now (render-build-error! error)))
-        build-results)
-      (finally
-        (reset! bob-task-in-progress-atom false)))))
+                    (not (contains? options "build-server-header"))
+                    (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+          main-scene (g/node-value app-view :scene evaluation-context)
+          tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+          render-reload-progress! (make-render-task-progress :resource-sync)
+          render-save-progress! (make-render-task-progress :save-all)
+          [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
+          _ (ui/run-now
+              (g/update-cache-from-evaluation-context! evaluation-context)
+              (build-errors-view/clear-build-errors build-errors-view))
+          build-results (with-open [out (start-new-log-pipe!)]
+                          (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                                           out build-task-cancelled? commands options project changes-view))]
+      (when-let [error (:error build-results)]
+        (ui/run-now (render-build-error! error)))
+      build-results)))
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
@@ -1706,14 +1699,14 @@
       build-results)))
 
 (handler/defhandler :project.clean-build-html5 :global
-  (enabled? [] (not (bob-task-in-progress?)))
+  (enabled? [] (disk-availability/available?))
   (run [app-view project prefs web-server build-errors-view changes-view localization]
     (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
       (build-html5! app-view project prefs web-server build-errors-view changes-view
                     bob/clean-build-html5-bob-commands))))
 
 (handler/defhandler :project.build-html5 :global
-  (enabled? [] (not (bob-task-in-progress?)))
+  (enabled? [] (disk-availability/available?))
   (run [app-view project prefs web-server build-errors-view changes-view]
     (build-html5! app-view project prefs web-server build-errors-view changes-view
                   bob/build-html5-bob-commands)))
