@@ -26,6 +26,9 @@
 (defn push-busy! []
   (swap! busy-refcount-atom inc))
 
+(defn try-push-busy! []
+  (compare-and-set! busy-refcount-atom 0 1))
+
 (defn pop-busy! []
   (swap! busy-refcount-atom (fn [busy-refcount]
                               (assert (pos? busy-refcount))
