@@ -27,7 +27,7 @@ JNIEnv* JNIAttachCurrentThread();
 void JNIDetachCurrentThread();
 void JNIAttachCurrentThreadIfNeeded(int* did_attach);
 void JNIDetachCurrentThreadIfNeeded(int did_attach);
-int JNICheckAndClearException(JNIEnv* env, const char* operation);
+int JNICheckAndClearException(JNIEnv* env);
 jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature);
 int JNIAndroidSetCommandLine(ANativeActivity* activity);
 
