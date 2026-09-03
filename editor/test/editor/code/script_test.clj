@@ -486,6 +486,14 @@
     ["local s = [[ see the note (below ]]"
      "print(s)"]
 
+    ;; A short string continued by a trailing backslash is still a string on
+    ;; the line below, so its contents open nothing and keep their own layout.
+    ["function f()"
+     "    local s = \"if x then ( \\"
+     "not code\""
+     "    print(s)"
+     "end"]
+
     ;; Nor does one inside a comment or a quoted string.
     ["local text = \"(\""
      "print(text)"]
