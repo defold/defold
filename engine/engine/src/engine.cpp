@@ -707,7 +707,7 @@ namespace dmEngine
             paths[2] = p3;
         }
 
-        for (uint32_t i = 0; i < 3; ++i)
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
         {
             if (paths[i] && dmSys::ResourceExists(paths[i]))
             {
