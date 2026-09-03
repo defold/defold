@@ -459,7 +459,7 @@ end
 
 local function get_android_device(adb)
     local devices_output = editor.execute(adb, "devices", "-l", {reload_resources = false, out = "capture"})
-    local id, kvs = devices_output:match("\n([^\n]-)%s+device%s([^\n]+)")
+    local id, kvs = devices_output:match("\n([^\n]+%S)%s+device%s+([^\n]+)")
     if not id then
         print("No devices are connected")
         error(editor.bundle.abort_message)
