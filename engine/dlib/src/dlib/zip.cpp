@@ -16,8 +16,52 @@
 #include "sys.h"
 #include "zip/zip.h"
 
+#if defined(__ANDROID__)
+#include <errno.h>
+#include <limits.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
 namespace dmZip
 {
+
+static size_t ReadFileAt(FILE* file, uint64_t offset, void* buffer, size_t size)
+{
+#if defined(__ANDROID__)
+    size_t total_read = 0;
+    int fd = fileno(file);
+    if (fd < 0)
+        return 0;
+
+    while (total_read < size)
+    {
+        uint64_t read_offset = offset + total_read;
+        if (read_offset < offset || read_offset > INT64_MAX)
+            break;
+
+        size_t read_size = size - total_read;
+        if (read_size > SSIZE_MAX)
+            read_size = SSIZE_MAX;
+
+        ssize_t nread;
+        do
+        {
+            nread = pread64(fd, (uint8_t*)buffer + total_read, read_size, (off64_t)read_offset);
+        } while (nread < 0 && errno == EINTR);
+
+        if (nread <= 0)
+            break;
+        total_read += (size_t)nread;
+    }
+
+    return total_read;
+#else
+    if (dmSys::FileSeek64(file, offset) != 0)
+        return 0;
+    return fread(buffer, 1, size, file);
+#endif
+}
 
 Result Open(const char* path, HZip* zip)
 {
@@ -33,7 +77,7 @@ Result OpenStream(const char *stream, uint32_t size, HZip* zip)
 
 Result OpenFileRange(FILE* file, uint64_t offset, uint64_t size, HZip* zip)
 {
-    *zip = zip_cstream_openwithoffset(file, offset, size, 9, dmSys::FileSeek64);
+    *zip = zip_cstream_openwithoffset(file, offset, size, 9, ReadFileAt);
     return *zip != 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
 }
 

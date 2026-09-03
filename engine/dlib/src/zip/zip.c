@@ -157,7 +157,7 @@ struct zip_t {
   FILE *cstream;
   mz_uint64 cstream_offset;
   mz_uint64 cstream_size;
-  zip_cstream_seek_callback cstream_seek;
+  zip_cstream_read_callback cstream_read;
 // <- DEFOLD
 };
 
@@ -167,7 +167,7 @@ static size_t zip_cstream_read_func(void *opaque, mz_uint64 file_offset,
   struct zip_t *zip = (struct zip_t *)opaque;
   mz_uint64 absolute_offset;
 
-  if (!zip || !zip->cstream || !zip->cstream_seek ||
+  if (!zip || !zip->cstream || !zip->cstream_read ||
       file_offset > zip->cstream_size)
     return 0;
 
@@ -178,10 +178,8 @@ static size_t zip_cstream_read_func(void *opaque, mz_uint64 file_offset,
   if (file_offset > UINT64_MAX - zip->cstream_offset)
     return 0;
   absolute_offset = zip->cstream_offset + file_offset;
-  if (zip->cstream_seek(zip->cstream, (uint64_t)absolute_offset) != 0)
-    return 0;
-
-  return MZ_FREAD(buffer, 1, size, zip->cstream);
+  return zip->cstream_read(zip->cstream, (uint64_t)absolute_offset, buffer,
+                           size);
 }
 // <- DEFOLD
 
@@ -2229,10 +2227,10 @@ struct zip_t *zip_cstream_open(FILE *stream, int level, char mode) {
 // DEFOLD -> Add support for reading a ZIP from a bounded FILE range.
 struct zip_t *zip_cstream_openwithoffset(FILE *stream, uint64_t offset,
                                          uint64_t size, int level,
-                                         zip_cstream_seek_callback seek_callback) {
+                                         zip_cstream_read_callback read_callback) {
   struct zip_t *zip = NULL;
 
-  if (!stream || !seek_callback ||
+  if (!stream || !read_callback ||
       size < MZ_ZIP_END_OF_CENTRAL_DIR_HEADER_SIZE ||
       offset > UINT64_MAX - size)
     return NULL;
@@ -2251,7 +2249,7 @@ struct zip_t *zip_cstream_openwithoffset(FILE *stream, uint64_t offset,
   zip->cstream = stream;
   zip->cstream_offset = (mz_uint64)offset;
   zip->cstream_size = (mz_uint64)size;
-  zip->cstream_seek = seek_callback;
+  zip->cstream_read = read_callback;
   zip->archive.m_pRead = zip_cstream_read_func;
   zip->archive.m_pIO_opaque = zip;
 
