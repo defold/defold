@@ -121,6 +121,9 @@ namespace dmGraphics
         Texture                 m_Base;
         WGPUTexture             m_Texture;
         WGPUTextureView         m_TextureView;
+        // Depth/stencil textures that are sampled use a depth-only view for
+        // shader binding and a separate all-aspects view as an attachment.
+        WGPUTextureView         m_RenderTargetView;
         WGPUSampler             m_Sampler;
         WGPUTextureFormat       m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -143,11 +146,18 @@ namespace dmGraphics
         AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        BufferType   m_ColorBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture     m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture     m_TextureDepthStencil;
         float        m_Scissor[4];
         uint32_t     m_Width;
         uint32_t     m_Height;
+        uint32_t     m_BufferTypeFlags;
+        uint32_t     m_TransientBufferTypes;
         uint8_t      m_Multisample;
+        uint8_t      m_DepthTexture : 1;
+        uint8_t      m_StencilTexture : 1;
     };
 
     struct WebGPUComputePass
@@ -235,6 +245,7 @@ namespace dmGraphics
         uint32_t            m_OriginalHeight;
 
         uint32_t            m_ViewportChanged : 1;
+        uint32_t            m_HasValidationError : 1;
         uint32_t            m_InitComplete : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
