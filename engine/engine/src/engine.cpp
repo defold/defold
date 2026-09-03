@@ -670,11 +670,10 @@ namespace dmEngine
 
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
     {
-        // check up to four paths
         char p1[DMPATH_MAX_PATH];   // mount: game.projectc
         char p2[DMPATH_MAX_PATH];   // mount: build/default/game.projectc
         char p3[DMPATH_MAX_PATH];   // game.projectc if resource path is provided
-        const char* paths[4] = { 0x0, p1, p2, 0x0};
+        const char* paths[3] = { p1, p2, 0x0 };
 
         if (argc > 1 && argv[argc-1][0] != '-')
         {
@@ -685,7 +684,8 @@ namespace dmEngine
             size_t suffix_len = strlen(suffix);
             if ((suffix_len <= arg_len) && strcmp(lastarg + arg_len - suffix_len, suffix) == 0)
             {
-                paths[0] = lastarg;
+                dmStrlCpy(project_file, lastarg, project_file_size);
+                return true;
             }
         }
 
@@ -704,10 +704,10 @@ namespace dmEngine
         if (resources_path)
         {
             dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
-            paths[3] = p3;
+            paths[2] = p3;
         }
 
-        for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
         {
             if (paths[i] && dmSys::ResourceExists(paths[i]))
             {
