@@ -70,6 +70,18 @@
       (is (= "=huh=" (localization (localization/transform "huh" #(str "=" % "=")))))
       (is (= "=APPLE=" (localization (localization/transform (localization/message "apple") #(str "=" % "="))))))))
 
+(deftest model-property-message-test
+  (is (= "glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the mesh."
+         (test-util/localization (localization/message "property.model.mesh.tooltip"))))
+  (is (= "Mesh"
+         (test-util/localization (localization/message "property.model.mesh-name"))))
+  (is (= "Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms."
+         (test-util/localization (localization/message "property.model.mesh-name.tooltip"))))
+  (is (= "glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Scene**."
+         (test-util/localization (localization/message "property.model.skeleton.tooltip"))))
+  (is (= "Mesh \"Tree\" no longer exists or is ambiguous in the selected scene."
+         (test-util/localization (localization/message "error.collision-object-mesh-shape-mesh-missing" {"mesh" "Tree"})))))
+
 (deftest available-locales-test
   (is (= [] (localization/available-locales @(make))))
   (is (= ["en"] (localization/available-locales @(make {"en" ""}))))

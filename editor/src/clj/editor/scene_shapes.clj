@@ -413,17 +413,21 @@
         (gl/gl-disable gl GL2/GL_CULL_FACE)))))
 
 (defn render-points [^GL2 gl render-args renderables _num-renderables]
-  (let [{:keys [selected user-data world-transform]} (first renderables)
+  (let [renderable (first renderables)
+        {:keys [selected user-data world-transform]} renderable
         {:keys [color geometry ^double point-size]} user-data
         {:keys [primitive-type vbuf]} geometry
-        color (float-array (or (colors/selection-color selected)
-                               (colors/alpha color 1.0)))
+        color (float-array
+                (if (= pass/selection (:pass render-args))
+                  (scene-picking/renderable-picking-id-uniform renderable)
+                  (or (colors/selection-color selected)
+                      (colors/alpha color 1.0))))
         render-args (merge render-args
                            (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
-                            world-transform
-                            (:view render-args)
-                            (:projection render-args)
-                            (:texture render-args)))
+                             world-transform
+                             (:view render-args)
+                             (:projection render-args)
+                             (:texture render-args)))
         point-count (long (or (:point-count user-data)
                               (some-> vbuf count)
                               0))

@@ -94,6 +94,14 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/mesh_selection.model")
           mesh-scene-node-id (test-util/resource-node project "/mesh/two_meshes.gltf")]
+      (testing "uses the mesh-name documentation for the selector"
+        (let [mesh-index-property (get-in (g/node-value node-id :_properties) [:properties :mesh-index])]
+          (is (= "property.model.mesh-name" (-> mesh-index-property :label :k)))
+          (is (= "Mesh" (test-util/localization (:label mesh-index-property))))
+          (is (= "property.model.mesh-name.tooltip" (-> mesh-index-property :tooltip :k)))
+          (is (= "Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms."
+                 (test-util/localization (:tooltip mesh-index-property))))))
+
       (testing "loads and saves a selected raw glTF mesh"
         (is (= "LooseMesh" (test-util/prop node-id :mesh-name)))
         (is (= 2 (test-util/prop node-id :mesh-index)))

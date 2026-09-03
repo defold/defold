@@ -621,7 +621,7 @@
      (if hull
        {:render-fn render-points-uniform-scale
         :tags #{:collision-shape :gizmo :outline}
-        :passes [pass/outline]
+        :passes [pass/outline pass/selection]
         :user-data {:color color
                     :point-count (graphics.types/element-count position-buffer)
                     :point-size 3.0
@@ -767,8 +767,10 @@
   {})
 
 (defmethod decode-shape-data :type-hull
-  [_shape data]
-  {:inline-data data})
+  [shape data]
+  {:inline-data (if (zero? (long (:count shape)))
+                  []
+                  data)})
 
 (defn make-shape-node
   [parent {:keys [shape-type] :as shape}]
@@ -869,7 +871,7 @@
          :aabb aabb
          :renderable {:render-fn render-points-uniform-scale
                       :tags #{:collision-shape :gizmo :outline}
-                      :passes [pass/outline]
+                      :passes [pass/outline pass/selection]
                       :user-data {:color color
                                   :point-size 3.0
                                   :geometry {:primitive-type GL2/GL_POINTS

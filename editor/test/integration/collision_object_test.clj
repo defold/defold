@@ -182,7 +182,7 @@
 (deftest mesh-source-shape-preview
   (test-util/with-loaded-project
     (doseq [[path primitive-type passes triangles?]
-            [["/collision_object/hull_shape.collisionobject" GL2/GL_POINTS [pass/outline] false]
+            [["/collision_object/hull_shape.collisionobject" GL2/GL_POINTS [pass/outline pass/selection] false]
              ["/collision_object/mesh_shape.collisionobject" GL2/GL_TRIANGLES [pass/transparent pass/selection] true]]]
       (let [collision-object (test-util/resource-node project path)
             shape-node-id (:node-id (test-util/outline collision-object [0]))
@@ -203,6 +203,17 @@
             (is (nil? (:index-buffer geometry)))
             (is (pos? (get-in renderable [:user-data :point-count])))))))))
 
+(deftest legacy-3d-convex-hull-preview-is-selectable
+  (let [scene (collision-object/convex-hull-scene
+                0
+                {:shape-type :type-hull
+                 :data [-1.0 -1.0 -1.0
+                        1.0 1.0 1.0]}
+                [1.0 1.0 1.0 1.0]
+                "3D")]
+    (is (= [pass/outline pass/selection]
+           (get-in scene [:renderable :passes])))))
+
 (deftest mesh-shape-source-selection-survives-load
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/collision_object/mesh_shape.collisionobject")
@@ -218,11 +229,26 @@
 (deftest hull-shape-source-selection-survives-load
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/collision_object/hull_shape.collisionobject")
-          shape-node-id (:node-id (test-util/outline node-id [0]))]
+          shape-node-id (:node-id (test-util/outline node-id [0]))
+          shape-properties (g/node-value shape-node-id :_properties)
+          embedded-collision-shape (:embedded-collision-shape (g/node-value node-id :save-value))
+          saved-shape (first (:shapes embedded-collision-shape))]
+      (is (= :type-hull (test-util/prop shape-node-id :shape-type)))
       (is (= (workspace/find-resource workspace "/mesh/quad.gltf")
              (test-util/prop shape-node-id :mesh-scene)))
       (is (= "Plane_001Mesh" (test-util/prop shape-node-id :mesh-name)))
       (is (= 0 (test-util/prop shape-node-id :mesh-index)))
+      (is (= [] (test-util/prop shape-node-id :inline-data)))
+      (is (true? (get-in shape-properties [:properties :mesh-scene :visible])))
+      (is (true? (get-in shape-properties [:properties :mesh-index :visible])))
+      (is (= [:id :position :rotation :mesh-scene :mesh-index]
+             (:display-order (properties/coalesce [shape-properties]))))
+      (is (coll/empty? (:data embedded-collision-shape)))
+      (is (= :type-hull (:shape-type saved-shape)))
+      (is (= 0 (:count saved-shape)))
+      (is (= "/mesh/quad.gltf" (:mesh-scene saved-shape)))
+      (is (= "Plane_001Mesh" (:mesh-name saved-shape)))
+      (is (= 0 (get saved-shape :mesh-index 0)))
       (is (not (g/error? (g/node-value node-id :build-targets)))))))
 
 (deftest inline-hull-data-survives-load-save-and-build

@@ -1554,9 +1554,11 @@ property.model.default-animation.tooltip = Animation from **Animations** that st
 property.model.scene = Scene
 property.model.scene.tooltip = glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the scene.
 property.model.mesh = Mesh
-property.model.mesh.tooltip = Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms.
+property.model.mesh.tooltip = glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the mesh.
+property.model.mesh-name = Mesh
+property.model.mesh-name.tooltip = Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms.
 property.model.skeleton = Skeleton
-property.model.skeleton.tooltip = glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Mesh**.
+property.model.skeleton.tooltip = glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Scene**.
 
 # Properties: particlefx
 
@@ -2722,7 +2724,7 @@ error.collision-object-has-no-shapes = Collision Object has no shapes.
 error.collision-object-mesh-shape-scene-required = Select a glTF or GLB scene for the Mesh or Hull shape.
 error.collision-object-mesh-shape-no-named-meshes = The selected scene contains no named meshes.
 error.collision-object-mesh-shape-mesh-required = Select a mesh from the scene.
-error.collision-object-mesh-shape-mesh-missing = Mesh '{mesh}' no longer exists or is ambiguous in the selected scene.
+error.collision-object-mesh-shape-mesh-missing = Mesh "{mesh}" no longer exists or is ambiguous in the selected scene.
 error.collision-object-mesh-shape-triangle-topology-required = The selected mesh contains a non-triangle primitive.
 error.collision-object-mesh-shape-empty = The selected mesh contains no triangles.
 error.collision-object-hull-shape-empty = The selected mesh contains no vertices.

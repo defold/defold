@@ -553,8 +553,8 @@
                                    (model-mesh-choicebox collision-meshes))))
             (dynamic error (g/fnk [_node-id mesh mesh-name mesh-index ^:try collision-meshes]
                              (model-mesh-selection-error _node-id mesh mesh-name mesh-index collision-meshes)))
-            (dynamic label (properties/label-dynamic :model :mesh))
-            (dynamic tooltip (properties/tooltip-dynamic :model :mesh)))
+            (dynamic label (properties/label-dynamic :model :mesh-name))
+            (dynamic tooltip (properties/tooltip-dynamic :model :mesh-name)))
   (input copied-nodes g/Any :array :cascade-delete)
   (input material-binding-infos g/Any :array)
   (output materials [Material] :cached
