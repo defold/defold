@@ -472,6 +472,20 @@
      "    print(message_id)"
      "end"]
 
+    ;; A function header may split before its parameter list. The block still
+    ;; starts at `function`, while the parameters align under the first one.
+    ["function foo"
+     "    (a,"
+     "     b)"
+     "    print(a)"
+     "end"]
+
+    ["function"
+     "    foo(a,"
+     "        b)"
+     "    print(a)"
+     "end"]
+
     ["repeat"
      "    print(i)"
      "until done(i)"
@@ -704,6 +718,21 @@
     (is (= (count lines) (count reindented)))
     (dotimes [row (count lines)]
       (is (= (lines row) (reindented row)) (str "row " row)))))
+
+(deftest reindent-below-function-header-test
+  ;; The parameter list is indented by the function block, so replaying from a
+  ;; line below it reaches `function` and restores the header lexer state.
+  (is (= ["function foo"
+          "    (a,"
+          "     b)"
+          "    print(a)"
+          "end"]
+         (reindent-rows ["function foo"
+                         "    (a,"
+                         "     b)"
+                         "print(a)"
+                         "    end"]
+                        3 4))))
 
 (deftest reindent-below-multiline-scope-test
   ;; Reindenting part of a buffer replays from the nearest unindented line above

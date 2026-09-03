@@ -84,8 +84,8 @@
 ;;
 ;; The scanner emits one token per structural bracket or block keyword, as [dir kind index]:
 ;; - Skips quoted strings and comments without tokenizing their contents
-;; - Tracks whether we're inside a long string/comment, or a short string
-;;   continued by a trailing backslash, since that state carries across lines
+;; - Tracks lexer state that carries across lines: long strings/comments, short
+;;   strings continued by a trailing backslash, and unfinished function headers
 ;; - Records the opening column of function parameter lists, so parameters can
 ;;   line up under the first one. Other openers just indent by one level
 ;; - Treats `else` as closing and reopening a block, and `elseif` as just
@@ -107,26 +107,28 @@
 ;;       tabs expanded, so it matches where the text actually appears)
 ;;     * or nil, if no parameter follows the opening parenthesis, or if the
 ;;       opener is not a function parameter list
-;; - :unfinished - :assign if the line ends on a bare `=`, :arg if it ends on a
-;;   comma, or nil. Either way the lines below it finish what it started
+;; - :unfinished - :assignment if the line ends on a bare `=`, or nil
+;; - :trailing-comma - whether the line ends on a comma
 ;; - :has-code - whether the line has any code on it at all
 ;;
 ;; A closer whose kind does not match is dropped. On well-formed code that
 ;; never happens, since a closer's opener is always the innermost one still
 ;; open; on half-typed code it keeps the mistake from disturbing the rest.
-(defn lua-lex-line [^String line in-long-bracket]
+(defn lua-lex-line [^String line {:keys [in-long-bracket after-function]}]
   (let [len (long (.length line))]
     (loop [i 0
            ^Character in-quote nil
            escaped false
            in-long-bracket in-long-bracket
-           after-function false
+           after-function after-function
            tokens []
            last-code -1]
       (if (>= i len)
         ;; A short string continues on the next line when the line ends on a
-        ;; backslash.
-        [tokens (if (and in-quote escaped) [in-quote :quote] in-long-bracket) last-code]
+        ;; backslash. Function headers may continue until their parameter list.
+        [tokens {:in-long-bracket (if (and in-quote escaped) [in-quote :quote] in-long-bracket)
+                 :after-function after-function}
+         last-code]
         (let [ch (.charAt line i)]
           (cond
             in-long-bracket
@@ -137,7 +139,9 @@
                 (recur i level false nil after-function tokens last-code)
                 (let [close (long-bracket-end line i (long level))]
                   (if (neg? close)
-                    [tokens in-long-bracket last-code]
+                    [tokens {:in-long-bracket in-long-bracket
+                             :after-function after-function}
+                     last-code]
                     (recur close in-quote false nil after-function tokens
                            (if (= :comment kind) last-code (dec close)))))))
 
@@ -241,20 +245,20 @@
 (def ^:private lua-close-line-pattern
   #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])")
 
-(defn lua-indent-counts [^String line in-long-bracket tab-spaces]
-  (let [[tokens in-long-bracket ^long last-code] (lua-lex-line line in-long-bracket)
+(defn lua-indent-counts [^String line lex-state tab-spaces]
+  (let [[tokens lex-state ^long last-code] (lua-lex-line line lex-state)
+        in-long-bracket (:in-long-bracket lex-state)
         ;; A line whose last code character is a bare `=` leaves an assignment
-        ;; unfinished, and one ending on a comma leaves an argument list open.
-        unfinished (when (and (not (contains? #{:string :quote} (get in-long-bracket 1)))
-                              (not (neg? last-code)))
-                     (case (.charAt line last-code)
-                       \, :arg
-                       \= (when (or (zero? last-code)
-                                    (case (.charAt line (dec last-code))
-                                      (\= \~ \< \>) false
-                                      true))
-                            :assign)
-                       nil))
+        ;; unfinished, and a trailing comma leaves continuation punctuation.
+        code? (and (not (contains? #{:string :quote} (get in-long-bracket 1)))
+                   (not (neg? last-code)))
+        unfinished (when (and code? (= \= (.charAt line last-code))
+                              (or (zero? last-code)
+                                  (case (.charAt line (dec last-code))
+                                    (\= \~ \< \>) false
+                                    true)))
+                     :assignment)
+        trailing-comma (and code? (= \, (.charAt line last-code)))
         ;; Cancel matched pairs, leaving only structure that crosses this line.
         leftover (reduce (fn [stack t]
                            (let [top (peek stack)]
@@ -284,8 +288,10 @@
      :opens opens
      :leading (when (re-find lua-close-line-pattern line) (first closes))
      :unfinished unfinished
+     :trailing-comma trailing-comma
      :has-code (not (neg? last-code))
-     :in-long-bracket in-long-bracket}))
+     :lex-state lex-state
+     :in-multiline-scope (boolean in-long-bracket)}))
 
 (def lua-grammar
   {:name "Lua"
