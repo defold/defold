@@ -793,11 +793,14 @@ static WGPUComputePipeline WebGPUGetOrCreateComputePipeline(WebGPUContext* conte
 
 static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context)
 {
+    const bool use_flipped_vertex_entry_point = context->m_CurrentRenderPass.m_Target->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID;
+
     HashState64 pipeline_hash_state;
     dmHashInit64(&pipeline_hash_state, false);
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentPipelineState, sizeof(context->m_CurrentPipelineState));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentRenderPass.m_Target, sizeof(context->m_CurrentRenderPass.m_Target));
+    dmHashUpdateBuffer64(&pipeline_hash_state, &use_flipped_vertex_entry_point, sizeof(use_flipped_vertex_entry_point));
     for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
         if (context->m_CurrentVertexBuffers[i] && context->m_CurrentVertexDeclaration[i] && context->m_CurrentVertexDeclaration[i]->m_StreamCount)
@@ -825,11 +828,12 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     desc.layout = context->m_CurrentProgram->m_PipelineLayout;
 
     // vertex
+    const char* vertex_entry_point = use_flipped_vertex_entry_point ? "main_flipped" : "main";
 #if defined(DM_GRAPHICS_WEBGPU2)
-    desc.vertex.entryPoint.length = 4;
-    desc.vertex.entryPoint.data   = "main";
+    desc.vertex.entryPoint.length = strlen(vertex_entry_point);
+    desc.vertex.entryPoint.data   = vertex_entry_point;
 #else
-    desc.vertex.entryPoint        = "main";
+    desc.vertex.entryPoint        = vertex_entry_point;
 #endif
     desc.vertex.module            = context->m_CurrentProgram->m_VertexModule->m_Module;
 
@@ -912,7 +916,13 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
         desc.primitive.cullMode = WGPUCullMode_Back;
     else if (context->m_CurrentPipelineState.m_CullFaceType == FACE_TYPE_FRONT_AND_BACK)
         desc.primitive.cullMode = WGPUCullMode(WGPUCullMode_Front | WGPUCullMode_Back);
-    desc.primitive.frontFace = WGPUFrontFace_CCW;
+    // Offscreen rendering is flipped to preserve the engine's GL-style render
+    // target texture orientation. The unflipped backbuffer entry point has the
+    // opposite effective winding in WebGPU's framebuffer coordinate system.
+    bool front_face_ccw = context->m_CurrentPipelineState.m_FaceWinding == FACE_WINDING_CCW;
+    if (!use_flipped_vertex_entry_point)
+        front_face_ccw = !front_face_ccw;
+    desc.primitive.frontFace = front_face_ccw ? WGPUFrontFace_CCW : WGPUFrontFace_CW;
 
     // depth stencil
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -3316,6 +3326,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPURenderTarget* rt = new WebGPURenderTarget();
+    rt->m_Base.m_Id        = GetNextRenderTargetId();
     rt->m_Multisample      = 1;
     rt->m_Width = rt->m_Height = 0;
     memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
