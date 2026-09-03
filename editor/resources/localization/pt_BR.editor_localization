@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Tutorial de Colorslide
 welcome.new-project.colorslide-tutorial.description = Neste tutorial de dificuldade média, você cria uma interface dentro do jogo, uma tela de GUI para seleção de nível e uma tela inicial para um jogo móvel com vários níveis.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = Kit Inicial de Plataforma 3D
+welcome.new-project.sample-3d-platformer.description = Esta é uma amostra de plataforma 3D pronta para o jogo com movimento de personagens responsivos, pulos, câmera orbital, colecionáveis, personagens animados, iluminação e sombras.
 welcome.new-project.sample-3d-third-person-playground.title = Playground 3D de Terceira-Pessoa
 welcome.new-project.sample-3d-third-person-playground.description = Este é um exemplo de jogo de terceira pessoa 3D onde você pode mover um personagem 3D com teclado ou mouse/toque. Ele mostra como fazer uma configuração 3D básica com sombras.
 welcome.new-project.linker-sample-game.title = Jogo de Exemplo Linker
@@ -124,8 +126,22 @@ updater.dialog.button.not-now = Agora Não
 updater.dialog.button.download = Baixar Atualização
 updater.dialog.button.install-and-restart = Instalar e Reiniciar
 updater.dialog.button.download-newer-version = Baixar Versão Mais Recente
+updater.dialog.button.skip-version = Ignorar Esta Versão
+updater.dialog.button.skip-newer-version = Ignorar Versão Mais Recente
+updater.release-notes-dialog.title = Atualização Disponível
+updater.release-notes-dialog.header = Resumo de Atualizações Defold - O que há de novo{count, plural, \=1{ em {version}} other{}}
+updater.release-notes-dialog.button.later = Talvez Depois
+updater.release-notes-dialog.button.update-now = Atualizar Agora
+updater.up-to-date-dialog.title = Nenhuma Atualização Disponível
+updater.up-to-date-dialog.header = Você está executando a versão mais recente do Defold
+updater.check-failed-dialog.title = Falha na Verificação
+updater.check-failed-dialog.header = Não foi possível buscar atualizações. Tente novamente mais tarde.
+updater.download-in-progress-dialog.title = Atualização em Andamento
+updater.download-in-progress-dialog.header = Defender já está baixando uma atualização
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-tab.title = Notas da Versão
+release-notes-tab.tooltip = Resumo de Lançamento Defold - O que há de novo em {version}
 
 # Time
 time.vague.unknown = Desconhecido
@@ -274,6 +290,9 @@ dialog.quit-defold.button.quit = Sair Sem Salvar
 
 # Project directory unavailable dialog
 
+dialog.project-directory-unavailable.title = Pasta do Projeto Indisponível
+dialog.project-directory-unavailable.header = A pasta do projeto não pode mais ser encontrada
+dialog.project-directory-unavailable.content = A pasta do projeto foi movida, renomeada ou excluída fora do Defold. Defold irá encerrar. Qualquer alteração não salva será perdida.
 
 # Restart Defold dialog
 
@@ -352,6 +371,7 @@ dialog.fetch-libraries.host-unreachable.content = Servidor inacessível\: {host}
 
 # Notification view
 
+notification.more = +{count} mais
 
 # Fetch libraries notification
 
@@ -381,6 +401,9 @@ notification.reload-plugins-failed.action.restart = Reiniciar Defold
 
 # Disabled functionality notification
 
+notification.disabled-functionality = Um erro fez com que algumas funcionalidades do editor fossem desativadas. Você pode reativá-las agora ou reiniciar o editor.
+notification.disabled-functionality.action.enable = Reativar
+notification.disabled-functionality.action.restart = Reiniciar
 
 # Open custom editor notifications
 
@@ -399,6 +422,7 @@ notification.ensure-exists.reason.folder = o caminho configurado aponta para uma
 
 notification.lsp.language-server-missing.prompt = Não é possível executar esta ação porque não há nenhum Servidor de Linguagem em execução para {language}.
 notification.lsp.language-server-missing.action.about = Sobre LSP em Defold
+notification.lsp.formatting-failed.prompt = Não é possível formatar {path} porque nenhum Servidor de Linguagem respondeu.
 
 # Asset browser notifications
 
@@ -558,6 +582,7 @@ dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
 dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
 dialog.bundle.label.sign-application = Assinar Aplicação
 dialog.bundle.label.code-signing-identity = Identidade de Assinatura de Código
 dialog.bundle.label.provisioning-profile = Perfil de Provisão
@@ -701,6 +726,8 @@ prefs.label.code.zoom-on-scroll = Zoom ao Rolar
 prefs.label.code.hover = Popup ao passar o mouse
 prefs.help.code.hover = Mostrar popup com documentação do código ao passar o mouse
 prefs.label.code.auto-closing-parens = Auto-inserir fecha parentese
+prefs.label.code.format-on-save = Formatar ao salvar
+prefs.help.code.format-on-save = Executar o formatador do servidor de linguagem em arquivos abertos ao salvar
 
 # Extensions tab
 prefs.label.extensions.build-server = Servidor de Compilação
@@ -965,6 +992,7 @@ command.code.replace = Substituir…
 command.code.replace-next = Substituir Próximo
 command.code.toggle-comment = Alternar Comentário
 command.code.reindent-lines = Reindentar Linhas
+command.code.format = Formatar Documento/Seleção
 command.code.convert-indentation = Converter Indentação
 command.code.convert-indentation.to-tabs = Para Tabs
 command.code.convert-indentation.to-two-spaces = Para Dois Espaços
@@ -1040,6 +1068,8 @@ command.help.report-issue = Reportar Problema
 command.help.report-suggestion = Reportar Sugestão
 command.help.open-issues = Buscar Problemas
 command.help.open-donations = Fundo de Desenvolvimento
+command.help.open-release-notes = Notas de Versão
+command.help.check-for-updates = Buscar Atualizações
 command.app.about = Sobre
 command.vcs.diff = Ver Diff
 command.vcs.revert = Desfazer
@@ -1128,6 +1158,7 @@ scene-popup.scene-visibility.gui-shapes = Formas de GUI
 scene-popup.scene-visibility.gui-particle-effects = Efeitos de Partículas GUI
 scene-popup.scene-visibility.gui-spine-scenes = Cenas Spine de GUI
 scene-popup.scene-visibility.gui-text = Texto de GUI
+scene-popup.scene-visibility.lights = Luzes
 scene-popup.scene-visibility.models = Modelos
 scene-popup.scene-visibility.particle-effects = Efeitos de Partículas
 scene-popup.scene-visibility.skeletons = Esqueletos
@@ -1140,28 +1171,45 @@ scene-popup.scene-visibility.scene-visibility-bounds = Limites de Visibilidade
 
 # Properties
 
+property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como `{id}` nos scripts de editor.
 
 # Properties: universal
 
 property.blend-mode = Modo de Mesclagem
+property.blend-mode.tooltip = Controla como os pixels deste item combinam com os gráficos atrás dele. **Alfa** dá transparência normal, **Adicionar** iluminações, **Multiplicar** escureces e **Tela** produz um efeito mais luminoso; modos disponíveis dependem do tipo de item.
 property.id = Id
+property.id.tooltip = O identificador usado para abordar esta instância de coleção, objeto do jogo ou componente no tempo de execução. Ele deve ser único entre seus irmãos; juntamente com a hierarquia, ele forma a URL do item.
 property.image = Imagem
+property.image.tooltip = O arquivo de imagem de origem usado para construir este recurso. Em um atlas é uma imagem a ser enpacotada; em uma tile source ele contém a grade de blocos.
 property.material = Material
+property.material.tooltip = O material usado para renderizar este item. Ele define os shaders e suas entradas, então escolha um compatível com a geometria e texturas do item.
 property.name = Nome
+property.name.tooltip = O nome usado para identificar esta entrada ou recurso. Use um nome único e descritivo quando outras entradas ou APIs de tempo de execução precisarem se referir a ela.
 property.path = Caminho
+property.path.tooltip = O recurso de projeto usado como protótipo para esta coleção referenciada, objeto do jogo ou componente. As alterações para o protótipo são refletidas em cada instância, enquanto as substituições de propriedade específica da instância permanecem locais.
 property.position = Posição
+property.position.tooltip = A tradução do item ao longo dos eixos X, Y e Z, relativa ao pai. Mover um pai também move seus filhos.
 property.rotation = Rotação
+property.rotation.tooltip = A orientação do item em torno dos eixos X, Y e Z em graus, em relação a seu pai. Girar um pai também gira seus filhos.
 property.scale = Escala
+property.scale.tooltip = Multiplica o tamanho do item ao longo dos eixos X, Y e Z em relação ao seu pai. Um valor de `1` mantém a escala original.
 property.size = Tamanho
+property.size.tooltip = A largura, altura e, quando aplicável, profundidade. Quando em modo de somente leitura, o tamanho é calculado automaticamente a partir do conteúdo do item ou de recursos de renderização. Para nós de GUI, o tamanho também define os limites usados para seleção de entrada.
 property.url = URL
+property.url.tooltip = O endereço de execução somente leitura derivado da hierarquia e **Id**. Destina-se a um objeto ou componente do jogo, ou serve como o prefixo do endereço para o conteúdo de uma instância da coleção.
 
 # Properties: appmanifest
 
 property.appmanifest.physics-2d = Física 2D
+property.appmanifest.physics-2d.tooltip = Selecione a implementação Box2D para incluir, ou **Nenhum** para remover a física 2D e reduzir o tamanho do motor. Box2D 3 pode se comportar de forma diferente da implementação legada, então os projetos existentes podem precisar de ajustes de física.
 property.appmanifest.physics-3d = Física 3D
+property.appmanifest.physics-3d.tooltip = Incluir o motor de física Bullet 3D. Desative isso quando o projeto não usa física 3D para reduzir o tamanho do motor.
 property.appmanifest.rig+model = Rig + Modelo
+property.appmanifest.rig+model.tooltip = Escolha se deseja incluir a animação de renderização e animação de modelo, somente animação ou nenhuma delas. Excluir uma funcionalidade não utilizada reduz o tamanho do motor.
 property.appmanifest.exclude-record = Excluir Registro
+property.appmanifest.exclude-record.tooltip = Remova o suporte de gravação de vídeo na área de trabalho usado pela mensagem do sistema `start_record`. Ative esta opção quando o projeto não grava vídeos para reduzir o tamanho do motor.
 property.appmanifest.profiler = Perfilador
+property.appmanifest.profiler.tooltip = Escolha quais compilações incluem a funcionalidade do perfilador. **Somente Depurar** exclui isso das compilações de lançamento, **Nenhum** exclui completamente e **Sempre** também o inclui nas compilações de lançamento.
 property.appmanifest.exclude-sound = Excluir Som
 property.appmanifest.exclude-sound-decoder-wav = Excluir decodificador de som\: WAV
 property.appmanifest.exclude-sound-decoder-ogg = Excluir decodificador de som\: OGG
