@@ -200,11 +200,11 @@
 (defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
 (defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
-(defonce workspace-graph-id (g/last-graph-added))
+(defonce project-graph-id (g/last-graph-added))
 
-(defn- setup-workspace! [workspace-graph-id project-path]
+(defn- setup-workspace! [project-graph-id project-path]
   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
-        workspace (workspace/make-workspace workspace-graph-id project-path {} workspace-config localization)]
+        workspace (workspace/make-workspace project-graph-id project-path {} workspace-config localization)]
     (g/transact
       {:undoable false}
       (scene/register-view-types workspace))
@@ -212,7 +212,7 @@
     workspace))
 
 (defonce workspace
-  (setup-workspace! workspace-graph-id project-path))
+  (setup-workspace! project-graph-id project-path))
 
 (defonce up-to-date-lib-results
   (let [project-directory (workspace/project-directory workspace)
@@ -235,8 +235,6 @@
 
 (defonce game-project-resource
   (workspace/find-resource workspace "/game.project"))
-
-(defonce project-graph-id (g/make-graph! :volatility 1))
 
 (defonce node-id+resource-pairs
   (run-and-measure-task!

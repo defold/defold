@@ -26,18 +26,19 @@
 (defn node-count [graph]
   (count (:nodes graph)))
 
-(deftest project-disposes-nodes
+(deftest project-disposes-owned-nodes
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
-          proj-graph-id (g/make-graph! :volatility 1)
-          extensions (extensions/make proj-graph-id)
-          project-id (project/make-project proj-graph-id workspace extensions)]
+          project-graph-id (g/node-id->graph-id workspace)
+          workspace-node-ids (set (ig/node-ids (g/graph project-graph-id)))
+          extensions (extensions/make project-graph-id)
+          project-id (project/make-project project-graph-id workspace extensions)]
       (project/load-project! project-id)
-      (is (not= 0 (node-count (g/graph proj-graph-id))))
+      (is (= project-graph-id (g/node-id->graph-id project-id)))
+      (is (< (count workspace-node-ids) (node-count (g/graph project-graph-id))))
       (g/delete-node! project-id)
-      (let [final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
-            orphans (map g/node-by-id final-node-ids)]
-        (is (= 0 (count orphans)))))))
+      (is (= workspace-node-ids
+             (set (ig/node-ids (g/graph project-graph-id))))))))
 
 (defn check-disposes-nodes
   [resource-type-name inline-resource]
