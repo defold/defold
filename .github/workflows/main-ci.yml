@@ -268,11 +268,6 @@ jobs:
       - name: 'Verify emsdk'
         if: matrix.emsdk
         run: 'emcc -v && export | grep EM'
-      - name: 'Install LLVM and Clang'
-        if: matrix.emsdk
-        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0  # v2.0.9
-        with:
-          version: "13.0"
       - name: 'Set up Android SDK'
         if: matrix.android
         uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7  # untagged pinned SHA
