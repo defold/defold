@@ -406,7 +406,7 @@
   (coerce/one-of coerce/string bob-options-coercer))
 
 (defn- make-ext-bob-fn [invoke-bob!]
-  (rt/suspendable-lua-fn bob [{:keys [rt evaluation-context]} & lua-args]
+  (rt/suspendable-lua-fn bob [{:keys [rt]} & lua-args]
     (let [[options commands] (if (coll/empty? lua-args)
                                [{} []]
                                (let [options-or-command (rt/->clj rt bob-options-or-command-coercer (first lua-args))
@@ -416,7 +416,7 @@
                                                     (map #(rt/->clj rt coerce/string %))
                                                     (rest lua-args))]
                                  [options commands]))]
-      (invoke-bob! options commands evaluation-context))))
+      (invoke-bob! options commands))))
 
 (defn- ensure-file-path-in-project-directory
   ^Path [^Path project-path ^String file-name]
@@ -1067,16 +1067,14 @@
     :fetch-libraries!     0-arg function that asynchronously fetches libraries,
                           returns a CompletableFuture that completes with tuple
                           [library-results reload-succeeded]
-    :invoke-bob!          3-arg function that asynchronously invokes bob and
+    :invoke-bob!          2-arg function that asynchronously invokes bob and
                           returns a CompletableFuture (which may complete
                           exceptionally if bob invocation fails). The args:
                             options               bob options, a map from string
                                                   to bob option value, see
                                                   editor.pipeline.bob/invoke!
                             commands              bob commands, vector of
-                                                  strings
-                            evaluation-context    evaluation context of the
-                                                  invocation"
+                                                  strings"
   [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
   {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
   (g/let-ec [basis (:basis evaluation-context)

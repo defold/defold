@@ -143,20 +143,6 @@ def install_linux(args):
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # Legacy ncurses 5 libraries needed when building wasm-web.
-    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
-    if platform.machine() in ('aarch64', 'arm64'):
-        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
-        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
-        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
-    else:
-        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
-        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
-        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
-
-    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
-    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
-
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
     clang_version = 20
     clang_path = "/usr/bin"
@@ -324,7 +310,7 @@ def build_engine(channel, platform, args):
     if args.with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
-    if platform == 'x86_64-linux':
+    if platform == 'x86_64-linux' and args.archive:
         cmd_args.append('build_sdk_headers') # gather headers after a successful build
 
     cmd = ' '.join(cmd_args + cmd_opts)
@@ -339,7 +325,7 @@ def build_editor2(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor build: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py distclean install_ext build_editor2' % sys.executable).split()
+    cmd_args = ('"%s" scripts/build.py %sinstall_ext build_editor2' % (sys.executable, '' if args.skip_distclean else 'distclean ')).split()
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -366,7 +352,7 @@ def test_editor(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor tests: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py distclean install_ext test_editor2' % sys.executable).split()
+    cmd_args = ('"%s" scripts/build.py %sinstall_ext test_editor2' % (sys.executable, '' if args.skip_distclean else 'distclean ')).split()
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -414,7 +400,18 @@ def install_ext(platform = None):
 
 
 def build_bob(channel, branch, args):
-    cmd_args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
+    # sync_archive downloads the engine binaries this sha1 archived to S3 and archive_bob
+    # uploads the resulting jar. With --skip-archive neither runs and build_bob falls back
+    # to the artifacts already in $DYNAMO_HOME, which is how a build without S3 credentials
+    # (an external contribution, or a local build) gets a bob.jar.
+    build_cmds = ['install_ext']
+    if not args.skip_archive:
+        build_cmds.append('sync_archive')
+    build_cmds.append('build_bob')
+    if not args.skip_archive:
+        build_cmds.append('archive_bob')
+
+    cmd_args = ('"%s" scripts/build.py %s' % (sys.executable, ' '.join(build_cmds))).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
     if args.skip_tests:
@@ -558,6 +555,8 @@ def main(argv):
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
+    parser.add_argument("--skip-archive", dest="skip_archive", action='store_true', help="Build bob without reading from or writing to the S3 archive")
+    parser.add_argument("--skip-distclean", dest="skip_distclean", action='store_true', help="Keep DYNAMO_HOME when building or testing the editor, so that engine artifacts placed there are used")
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")

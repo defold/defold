@@ -332,7 +332,7 @@
   (future/completed [[] true]))
 
 (defn- make-invoke-bob-fn [project]
-  (fn invoke-bob! [options commands _]
+  (fn invoke-bob! [options commands]
     (future/io
       (let [ret (bob/invoke! project options commands)]
         (when (or (:error ret) (:exception ret))
@@ -1835,6 +1835,8 @@ GUI initial state:
   spine scenes: 0
   fonts: 0
   nodes: 0
+  can add undefined list: false
+  can reorder undefined list: false
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
