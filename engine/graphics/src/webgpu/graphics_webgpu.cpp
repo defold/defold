@@ -1859,8 +1859,11 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
         }
         WebGPUTexture* color_texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureColor[i]);
         const BufferType color_buffer_type = context->m_CurrentRenderPass.m_Target->m_ColorBufferTypes[i];
-        const bool discard_color = context->m_CurrentRenderPass.m_Target->m_TextureResolve[i] ||
-            context->m_CurrentRenderPass.m_Target->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ||
+        // A resolve target does not make the multisampled attachment
+        // disposable. Rendering can return to this target later in the frame,
+        // in which case LOAD must restore the previous samples before resolving
+        // again. Discard only when the target explicitly permits it.
+        const bool discard_color = context->m_CurrentRenderPass.m_Target->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ||
             (context->m_CurrentRenderPass.m_Target->m_TransientBufferTypes & color_buffer_type) ||
             (color_texture->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_MEMORYLESS);
         if (discard_color)
