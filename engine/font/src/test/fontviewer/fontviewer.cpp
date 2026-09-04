@@ -849,9 +849,6 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
             dmLogError("Unable to generate glyph %u", glyph.m_GlyphIndex);
             return false;
         }
-        viewer->m_CellWidth = dmMath::Max(viewer->m_CellWidth, (uint16_t)(glyph.m_Glyph.m_Bitmap.m_Width + CELL_PADDING * 2));
-        viewer->m_CellHeight = dmMath::Max(viewer->m_CellHeight, (uint16_t)(glyph.m_Glyph.m_Bitmap.m_Height + CELL_PADDING * 2));
-        viewer->m_CellMaxAscent = viewer->m_Glyphs.Size() == 0 ? (int32_t)glyph.m_Glyph.m_Ascent : dmMath::Max(viewer->m_CellMaxAscent, (int32_t)glyph.m_Glyph.m_Ascent);
         if (viewer->m_Glyphs.Full())
             viewer->m_Glyphs.OffsetCapacity(32);
         viewer->m_Glyphs.Push(glyph);
@@ -861,6 +858,29 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
 
 static bool BuildAtlas(Viewer* viewer)
 {
+    uint32_t cell_width = 1;
+    int32_t max_ascent = 0;
+    int32_t max_descent = 0;
+    for (uint32_t i = 0; i < viewer->m_Glyphs.Size(); ++i)
+    {
+        const FontGlyph& glyph = viewer->m_Glyphs[i].m_Glyph;
+        int32_t ascent = (int32_t)glyph.m_Ascent;
+        int32_t descent = (int32_t)glyph.m_Bitmap.m_Height - ascent;
+        cell_width = dmMath::Max(cell_width, glyph.m_Bitmap.m_Width + CELL_PADDING * 2);
+        max_ascent = i == 0 ? ascent : dmMath::Max(max_ascent, ascent);
+        max_descent = i == 0 ? descent : dmMath::Max(max_descent, descent);
+    }
+    // All bitmaps share one baseline, so the row must fit both vertical extrema.
+    int64_t cell_height = dmMath::Max((int64_t)1, (int64_t)max_ascent + max_descent + CELL_PADDING * 2);
+    if (cell_width > ATLAS_WIDTH || cell_height > ATLAS_HEIGHT)
+    {
+        dmLogError("Font cache cell exceeds the %ux%u atlas dimensions", ATLAS_WIDTH, ATLAS_HEIGHT);
+        return false;
+    }
+    viewer->m_CellWidth = (uint16_t)cell_width;
+    viewer->m_CellHeight = (uint16_t)cell_height;
+    viewer->m_CellMaxAscent = max_ascent;
+
     const uint32_t columns = ATLAS_WIDTH / viewer->m_CellWidth;
     const uint32_t rows = ATLAS_HEIGHT / viewer->m_CellHeight;
     if (columns * rows < viewer->m_Glyphs.Size())
@@ -877,10 +897,11 @@ static bool BuildAtlas(Viewer* viewer)
         glyph.m_X = (i % columns) * viewer->m_CellWidth;
         glyph.m_Y = (i / columns) * viewer->m_CellHeight;
         const uint32_t image_x = glyph.m_X + CELL_PADDING;
-        const int32_t  image_y = (int32_t)glyph.m_Y + (int32_t)CELL_PADDING + viewer->m_CellMaxAscent - (int32_t)glyph.m_Glyph.m_Ascent;
-        if (image_x + glyph.m_Glyph.m_Bitmap.m_Width > ATLAS_WIDTH || image_y < 0 || image_y + glyph.m_Glyph.m_Bitmap.m_Height > (int32_t)ATLAS_HEIGHT)
+        const int32_t  offset_y = (int32_t)CELL_PADDING + viewer->m_CellMaxAscent - (int32_t)glyph.m_Glyph.m_Ascent;
+        const int32_t  image_y = (int32_t)glyph.m_Y + offset_y;
+        if (offset_y < (int32_t)CELL_PADDING || offset_y + glyph.m_Glyph.m_Bitmap.m_Height + CELL_PADDING > viewer->m_CellHeight)
         {
-            dmLogError("Glyph %u does not fit in the font atlas", glyph.m_GlyphIndex);
+            dmLogError("Glyph %u does not fit in its font atlas row", glyph.m_GlyphIndex);
             return false;
         }
         for (uint32_t y = 0; y < glyph.m_Glyph.m_Bitmap.m_Height; ++y)

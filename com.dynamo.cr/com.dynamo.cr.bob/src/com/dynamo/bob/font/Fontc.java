@@ -207,7 +207,8 @@ public class Fontc {
             glyph.pixelHeight = source.height;
             glyphs.add(glyph);
             maxAscent = i == 0 ? glyph.ascent : Math.max(maxAscent, glyph.ascent);
-            maxDescent = i == 0 ? glyph.descent : Math.max(maxDescent, glyph.descent);
+            // Font-level descent includes the baseline, even when every glyph lies above it.
+            maxDescent = Math.max(maxDescent, glyph.descent);
         }
         glyphBankBuilder.setMaxAscent(maxAscent).setMaxDescent(maxDescent);
     }
