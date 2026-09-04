@@ -783,6 +783,25 @@
                          "end"]
                         4 5)))
 
+  ;; A short string continued by a trailing backslash is a multiline scope too,
+  ;; even though it carries no long bracket for the scan restart to notice. Its
+  ;; second line looks unindented and looks like code, but it is neither.
+  (is (= ["function f()"
+          "    if x then"
+          "        local s = \"keep \\"
+          "not code then (\""
+          "        print(s)"
+          "    end"
+          "end"]
+         (reindent-rows ["function f()"
+                         "    if x then"
+                         "        local s = \"keep \\"
+                         "not code then (\""
+                         "print(s)"
+                         "end"
+                         "    end"]
+                        4 6)))
+
   ;; An unindented line of prose inside the string must not become a replay anchor.
   (is (= ["function f()"
           "    local s = [["
