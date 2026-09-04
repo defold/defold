@@ -4040,6 +4040,14 @@ static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, uint32_t
     WebGPURenderTarget* rt         = GetAssetFromContainer<WebGPURenderTarget>(context->m_BaseContext.m_AssetHandleContainer, _rt);
     WebGPURenderTarget* next_target = rt ? rt : context->m_MainRenderTarget;
     const bool starts_new_activation = context->m_CurrentRenderPass.m_Target != next_target;
+
+    // A render-target switch is also a resource-usage transition. End the
+    // producer pass immediately so subsequent commands may safely bind its
+    // attachments for sampling, even before the next draw starts a pass for
+    // the newly selected target.
+    if (starts_new_activation)
+        WebGPUEndRenderPass(context);
+
     context->m_ViewportChanged     = 1;
     context->m_CurrentRenderTarget = next_target;
     context->m_CurrentRenderTarget->m_TransientBufferTypes = transient_buffer_types;
