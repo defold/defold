@@ -47,6 +47,7 @@ namespace dmRender
     , m_CacheHeight(0)
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
+    , m_CacheCellMaxAscent(0)
     , m_GlyphChannels(1)
     , m_CacheCellPadding(0)
     , m_LayerMask(FACE)
@@ -83,7 +84,7 @@ namespace dmRender
     }
 
     static void SetupCache(HFontMap font_map, uint32_t texture_width, uint32_t texture_height,
-                                             uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
+                                             uint32_t cell_width, uint32_t cell_height, int32_t max_ascent)
     {
         if (font_map->m_Cache)
         {
@@ -264,14 +265,14 @@ namespace dmRender
         return font_map;
     }
 
-    static void SetFontMapCacheSize(HFontMap font_map, uint16_t cell_width, uint16_t cell_height, uint16_t max_ascent)
+    static void SetFontMapCacheSize(HFontMap font_map, uint16_t cell_width, uint16_t cell_height, int32_t max_ascent)
     {
         font_map->m_IsCacheSizeDirty = 1;
 
         SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
                             cell_width, cell_height, max_ascent);
     }
-    static void GetFontMapCacheSize(HFontMap font_map, uint16_t* cell_width, uint16_t* cell_height, uint16_t* max_ascent)
+    static void GetFontMapCacheSize(HFontMap font_map, uint16_t* cell_width, uint16_t* cell_height, int32_t* max_ascent)
     {
         *cell_width = font_map->m_CacheCellWidth;
         *cell_height = font_map->m_CacheCellHeight;
@@ -482,12 +483,14 @@ namespace dmRender
         font_map->m_Glyphs.Put(key, glyph);
 
 
-        uint16_t prev_width, prev_height, prev_ascent;
+        uint16_t prev_width, prev_height;
+        int32_t prev_ascent;
         dmRender::GetFontMapCacheSize(font_map, &prev_width, &prev_height, &prev_ascent);
 
+        // Glyphs below the baseline have negative ascent, including when updating the cache maximum.
         uint16_t bitmap_width   = (uint16_t)glyph->m_Bitmap.m_Width;
         uint16_t bitmap_height  = (uint16_t)glyph->m_Bitmap.m_Height;
-        uint16_t ascent         = (uint16_t)glyph->m_Ascent;
+        int32_t  ascent         = (int32_t)glyph->m_Ascent;
         bool dirty = bitmap_width > prev_width ||
                       bitmap_height > prev_height ||
                       ascent > prev_ascent;
@@ -566,7 +569,7 @@ namespace dmRender
     }
 
     static void ResetCache(HFontMap font_map, dmGraphics::HContext graphics_context, bool recreate_texture,
-                            uint16_t cell_width, uint16_t cell_height, uint16_t max_ascent)
+                            uint16_t cell_width, uint16_t cell_height, int32_t max_ascent)
     {
         if (font_map->m_IsCacheSizeTooSmall)
         {
@@ -620,7 +623,7 @@ namespace dmRender
         }
     }
 
-    static void UpdateGlyphTexture(HFontMap font_map, FontGlyph* g, int32_t x, int32_t y, int offset_y)
+    static void UpdateGlyphTexture(HFontMap font_map, FontGlyph* g, int32_t x, int32_t y, int32_t offset_y)
     {
         uint32_t glyph_image_width      = g->m_Bitmap.m_Width;
         uint32_t glyph_image_height     = g->m_Bitmap.m_Height;
@@ -811,12 +814,15 @@ namespace dmRender
         }
 
         // If the blit would write outside of the texture, then we try to resize it
-        uint32_t glyph_image_width  = glyph->m_Bitmap.m_Width;
-        uint32_t glyph_image_height = glyph->m_Bitmap.m_Height;
-        if ( (cache_glyph->m_X + glyph_image_width) > font_map->m_CacheWidth ||
-             (cache_glyph->m_Y + glyph_image_height + g_offset_y) > font_map->m_CacheHeight)
+        int32_t  glyph_image_width  = glyph->m_Bitmap.m_Width;
+        int32_t  glyph_image_height = glyph->m_Bitmap.m_Height;
+        int32_t  glyph_x            = cache_glyph->m_X;
+        int32_t  glyph_y            = cache_glyph->m_Y + g_offset_y;
+        if (glyph_x < 0 || glyph_y < 0 ||
+            glyph_x + glyph_image_width > font_map->m_CacheWidth ||
+            glyph_y + glyph_image_height > font_map->m_CacheHeight)
         {
-            bool can_resize = CanCacheTextureGrow(font_map);
+            bool can_resize = glyph_x >= 0 && glyph_y >= 0 && CanCacheTextureGrow(font_map);
             if (can_resize)
             {
                 font_map->m_IsCacheSizeDirty = 1;

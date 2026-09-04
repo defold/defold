@@ -507,7 +507,7 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     glyph_params.m_RecipAtlasWidth = 1.0f / 256.0f;
     glyph_params.m_RecipAtlasHeight = 1.0f / 256.0f;
     glyph_params.m_RenderScale = 1.0f;
-    glyph_params.m_CacheCellMaxAscent = (uint32_t)glyph.m_Ascent;
+    glyph_params.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
     glyph_params.m_CacheCellPadding = 1;
     glyph_params.m_MetricsFromTtf = true;
 
@@ -570,6 +570,44 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     FontFreeGlyph(m_Font, &glyph);
 }
 
+TEST_F(FontTest, PackGlyphVerticesWithSignedAscent)
+{
+    FontGlyph glyph = {};
+    glyph.m_Bitmap.m_Width = 53;
+    glyph.m_Bitmap.m_Height = 19;
+    glyph.m_Width = 53.0f;
+    glyph.m_Ascent = -3.0f;
+    glyph.m_Descent = 22.0f;
+
+    FontGlyphVertex vertices[6] = {};
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    uint32_t face_colors[4] = { 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff };
+    FontGlyphVertexParams glyph_params = {};
+    glyph_params.m_Glyph = &glyph;
+    glyph_params.m_RecipAtlasWidth = 1.0f / 128.0f;
+    glyph_params.m_RecipAtlasHeight = 1.0f / 65535.0f;
+    glyph_params.m_RenderScale = 1.0f;
+    glyph_params.m_CellY = 7;
+    glyph_params.m_MetricsFromTtf = true;
+    FontVertexLayerParams layers = {};
+    layers.m_Transform = &transform;
+    layers.m_FaceColors = face_colors;
+    layers.m_FaceVertices = vertices;
+    layers.m_LayerCount = 1;
+
+    const int32_t cache_ascents[] = {-3, 102, 32767};
+    const uint16_t top_texels[] = {7, 112, 32777};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cache_ascents); ++i)
+    {
+        glyph_params.m_CacheCellMaxAscent = cache_ascents[i];
+        FontPackGlyphVertices(glyph_params, layers);
+        ASSERT_EQ(top_texels[i], vertices[2].m_UV[1]);
+        ASSERT_EQ(top_texels[i] + 19, vertices[0].m_UV[1]);
+        ASSERT_EQ(-3.0f, vertices[2].m_Position[1]);
+        ASSERT_EQ(-22.0f, vertices[0].m_Position[1]);
+    }
+}
+
 struct TestLayoutCachedGlyph
 {
     FontGlyph* m_Glyph;
@@ -617,7 +655,7 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_SdfSpread = 6.0f;
     config.m_OutlineWidth = 2.0f;
     config.m_ShadowBlur = 2.0f;
-    config.m_CacheCellMaxAscent = (uint32_t)glyph.m_Ascent;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
     config.m_CacheCellPadding = 1;
     config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
     config.m_MetricsFromTtf = true;

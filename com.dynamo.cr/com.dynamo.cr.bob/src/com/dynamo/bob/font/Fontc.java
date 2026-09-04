@@ -405,9 +405,9 @@ public class Fontc {
         }
 
         int cellWidth = 1;
-        int maxAscent = 0;
-        int maxDescent = 0;
-        int cellMaxAscent = 0;
+        int maxAscent = glyphs.isEmpty() ? 0 : glyphs.get(0).ascent;
+        int maxDescent = glyphs.isEmpty() ? 0 : glyphs.get(0).descent;
+        int cellMaxAscent = maxAscent;
         for (Glyph glyph : glyphs) {
             cellWidth = Math.max(cellWidth, glyph.width + 2);
             maxAscent = Math.max(maxAscent, glyph.ascent);

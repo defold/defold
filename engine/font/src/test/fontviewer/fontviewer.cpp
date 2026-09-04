@@ -298,7 +298,7 @@ struct Viewer
     uint32_t                         m_ColorDebugVertexCount;
     uint16_t                         m_CellWidth;
     uint16_t                         m_CellHeight;
-    uint16_t                         m_CellMaxAscent;
+    int32_t                          m_CellMaxAscent;
     uint8_t                          m_AtlasChannels;
     bool                             m_Closed;
     bool                             m_LegacyLayout;
@@ -851,7 +851,7 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
         }
         viewer->m_CellWidth = dmMath::Max(viewer->m_CellWidth, (uint16_t)(glyph.m_Glyph.m_Bitmap.m_Width + CELL_PADDING * 2));
         viewer->m_CellHeight = dmMath::Max(viewer->m_CellHeight, (uint16_t)(glyph.m_Glyph.m_Bitmap.m_Height + CELL_PADDING * 2));
-        viewer->m_CellMaxAscent = dmMath::Max(viewer->m_CellMaxAscent, (uint16_t)glyph.m_Glyph.m_Ascent);
+        viewer->m_CellMaxAscent = viewer->m_Glyphs.Size() == 0 ? (int32_t)glyph.m_Glyph.m_Ascent : dmMath::Max(viewer->m_CellMaxAscent, (int32_t)glyph.m_Glyph.m_Ascent);
         if (viewer->m_Glyphs.Full())
             viewer->m_Glyphs.OffsetCapacity(32);
         viewer->m_Glyphs.Push(glyph);
@@ -877,7 +877,12 @@ static bool BuildAtlas(Viewer* viewer)
         glyph.m_X = (i % columns) * viewer->m_CellWidth;
         glyph.m_Y = (i / columns) * viewer->m_CellHeight;
         const uint32_t image_x = glyph.m_X + CELL_PADDING;
-        const uint32_t image_y = glyph.m_Y + CELL_PADDING + viewer->m_CellMaxAscent - (uint16_t)glyph.m_Glyph.m_Ascent;
+        const int32_t  image_y = (int32_t)glyph.m_Y + (int32_t)CELL_PADDING + viewer->m_CellMaxAscent - (int32_t)glyph.m_Glyph.m_Ascent;
+        if (image_x + glyph.m_Glyph.m_Bitmap.m_Width > ATLAS_WIDTH || image_y < 0 || image_y + glyph.m_Glyph.m_Bitmap.m_Height > (int32_t)ATLAS_HEIGHT)
+        {
+            dmLogError("Glyph %u does not fit in the font atlas", glyph.m_GlyphIndex);
+            return false;
+        }
         for (uint32_t y = 0; y < glyph.m_Glyph.m_Bitmap.m_Height; ++y)
         {
             uint8_t*       destination = viewer->m_Atlas.Begin() + ((image_y + y) * ATLAS_WIDTH + image_x) * viewer->m_AtlasChannels;

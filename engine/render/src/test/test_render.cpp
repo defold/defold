@@ -25,6 +25,7 @@
 #include <script/script.h>
 #include <font/font.h>
 #include <font/fontcollection.h>
+#include <font/glyphbank_ddf.h>
 #include <font/render/glyph_vertex.h>
 #include <font/text_layout.h>
 #include <platform/window.hpp>
@@ -3198,6 +3199,130 @@ TEST_F(dmRenderTest, FontMapSetup)
     ASSERT_NE((dmRender::HFontMap)0, font);
 
     dmRender::DeleteFontMap(font);
+}
+
+TEST_F(dmRenderTest, FontMapNegativeGlyphAscent)
+{
+    HFontCollection font_collection = FontCollectionCreate();
+    FontCollectionAddFont(font_collection, m_Font);
+
+    dmRender::FontMapParams font_map_params;
+    font_map_params.m_FontCollection = font_collection;
+    font_map_params.m_CacheWidth = 128;
+    font_map_params.m_CacheHeight = 128;
+    font_map_params.m_CacheMaxWidth = 128;
+    font_map_params.m_CacheMaxHeight = 128;
+    font_map_params.m_CacheCellWidth = 64;
+    font_map_params.m_CacheCellHeight = 128;
+    font_map_params.m_CacheCellMaxAscent = 102;
+    font_map_params.m_MaxAscent = 102.0f;
+    font_map_params.m_MaxDescent = 26.0f;
+    font_map_params.m_Alpha = 1.0f;
+    font_map_params.m_OutlineAlpha = 0.0f;
+    font_map_params.m_ShadowAlpha = 0.0f;
+    font_map_params.m_IsDynamic = 1;
+    font_map_params.m_Padding = 0;
+
+    dmRender::DeleteFontMap(m_SystemFontMap);
+    m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
+    ASSERT_NE((dmRender::HFontMap)0, m_SystemFontMap);
+
+    // The underscore in IBM Plex Mono at size 96 lies entirely below the baseline.
+    const uint32_t codepoints[] = {'_', 'I'};
+    const uint16_t widths[] = {53, 50};
+    const uint16_t heights[] = {19, 74};
+    const float ascents[] = {-3.0f, 71.0f};
+    FontGlyph* glyphs[2];
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        FontGlyph* glyph = new FontGlyph;
+        memset(glyph, 0, sizeof(*glyph));
+        glyph->m_Codepoint = codepoints[i];
+        glyph->m_GlyphIndex = FontGetGlyphIndex(m_Font, codepoints[i]);
+        glyph->m_Ascent = ascents[i];
+        glyph->m_Bitmap.m_Width = widths[i];
+        glyph->m_Bitmap.m_Height = heights[i];
+        glyph->m_Bitmap.m_Channels = 1;
+        glyph->m_Bitmap.m_DataSize = widths[i] * heights[i];
+        glyph->m_Bitmap.m_Data = (uint8_t*)malloc(glyph->m_Bitmap.m_DataSize);
+        memset(glyph->m_Bitmap.m_Data, 255, glyph->m_Bitmap.m_DataSize);
+        glyphs[i] = glyph;
+
+        dmRender::AddGlyphByIndex(m_SystemFontMap, m_Font, glyph->m_GlyphIndex, glyph);
+
+        ASSERT_EQ(102, m_SystemFontMap->m_CacheCellMaxAscent);
+        ASSERT_EQ(64, m_SystemFontMap->m_CacheCellWidth);
+        ASSERT_EQ(128, m_SystemFontMap->m_CacheCellHeight);
+        ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
+    }
+
+    FontGlyph* glyph = glyphs[1];
+    const int32_t cell_offset_y = m_SystemFontMap->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+    ASSERT_EQ(31, cell_offset_y);
+
+    const uint64_t glyph_key = dmRender::MakeGlyphIndexKey(m_Font, glyph->m_GlyphIndex);
+    dmRender::CacheGlyph* cached = dmRender::AddGlyphToCache(m_SystemFontMap, 1, glyph_key, glyph, cell_offset_y);
+    ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+    ASSERT_EQ(glyph, cached->m_Glyph);
+    ASSERT_TRUE(cached->m_Y + cell_offset_y >= 0);
+    ASSERT_TRUE(cached->m_Y + cell_offset_y + glyph->m_Bitmap.m_Height <= m_SystemFontMap->m_CacheHeight);
+
+    // Preserve a negative maximum through serialization, cache creation, and a later cache reset.
+    dmFontDDF::GlyphBank glyph_bank = {};
+    glyph_bank.m_CacheCellMaxAscent = -8;
+    dmArray<uint8_t> glyph_bank_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&glyph_bank, dmFontDDF::GlyphBank::m_DDFDescriptor, glyph_bank_data));
+    dmFontDDF::GlyphBank* loaded_glyph_bank = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(glyph_bank_data.Begin(), glyph_bank_data.Size(), &loaded_glyph_bank));
+    ASSERT_EQ(-8, loaded_glyph_bank->m_CacheCellMaxAscent);
+    font_collection = FontCollectionCreate();
+    FontCollectionAddFont(font_collection, m_Font);
+    dmRender::FontMapParams negative_font_map_params;
+    negative_font_map_params.m_FontCollection = font_collection;
+    negative_font_map_params.m_CacheWidth = 128;
+    negative_font_map_params.m_CacheHeight = 128;
+    negative_font_map_params.m_CacheMaxWidth = 128;
+    negative_font_map_params.m_CacheMaxHeight = 128;
+    negative_font_map_params.m_CacheCellWidth = 64;
+    negative_font_map_params.m_CacheCellHeight = 128;
+    negative_font_map_params.m_CacheCellMaxAscent = loaded_glyph_bank->m_CacheCellMaxAscent;
+    negative_font_map_params.m_Alpha = 1.0f;
+    negative_font_map_params.m_OutlineAlpha = 0.0f;
+    negative_font_map_params.m_ShadowAlpha = 0.0f;
+    negative_font_map_params.m_IsDynamic = 1;
+    negative_font_map_params.m_Padding = 0;
+    dmDDF::FreeMessage(loaded_glyph_bank);
+    dmRender::DeleteFontMap(m_SystemFontMap);
+    m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, negative_font_map_params);
+    ASSERT_NE((dmRender::HFontMap)0, m_SystemFontMap);
+    ASSERT_EQ(-8, m_SystemFontMap->m_CacheCellMaxAscent);
+
+    glyph = new FontGlyph;
+    memset(glyph, 0, sizeof(*glyph));
+    glyph->m_Codepoint = '_';
+    glyph->m_GlyphIndex = FontGetGlyphIndex(m_Font, '_');
+    glyph->m_Ascent = -3.0f;
+    glyph->m_Descent = 22.0f;
+    glyph->m_Bitmap.m_Width = 53;
+    glyph->m_Bitmap.m_Height = 19;
+    glyph->m_Bitmap.m_Channels = 1;
+    glyph->m_Bitmap.m_DataSize = 53 * 19;
+    glyph->m_Bitmap.m_Data = (uint8_t*)calloc(1, glyph->m_Bitmap.m_DataSize);
+    dmRender::AddGlyphByIndex(m_SystemFontMap, m_Font, glyph->m_GlyphIndex, glyph);
+    ASSERT_EQ(-3, m_SystemFontMap->m_CacheCellMaxAscent);
+    ASSERT_EQ(-3.0f, glyph->m_Ascent);
+    ASSERT_TRUE(m_SystemFontMap->m_IsCacheSizeDirty);
+
+    dmRender::UpdateCacheTexture(m_SystemFontMap);
+    ASSERT_EQ(-3, m_SystemFontMap->m_CacheCellMaxAscent);
+    ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
+    const uint64_t underscore_key = dmRender::MakeGlyphIndexKey(m_Font, glyph->m_GlyphIndex);
+    cached = dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key, glyph, 0);
+    ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+
+    // A negative upload origin must be rejected before conversion to graphics coordinates.
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key + 1, glyph, -1));
+    ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
 }
 
 TEST_F(dmRenderTest, LightBufferTestSimple)

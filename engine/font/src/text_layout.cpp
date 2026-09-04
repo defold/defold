@@ -1173,14 +1173,15 @@ void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* set
         float line_ascent = 0.0f;
         float line_descent = 0.0f;
 
+        // The first glyph establishes the maxima so a negative ascent is preserved.
         for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
         {
             const TextGlyph& glyph = glyphs[glyph_index];
 
             if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
             {
-                line_ascent = fmaxf(line_ascent, glyph.m_Height * 0.8f);
-                line_descent = fmaxf(line_descent, glyph.m_Height * 0.2f);
+                line_ascent = glyph_index == line.m_Index ? glyph.m_Height * 0.8f : fmaxf(line_ascent, glyph.m_Height * 0.8f);
+                line_descent = glyph_index == line.m_Index ? glyph.m_Height * 0.2f : fmaxf(line_descent, glyph.m_Height * 0.2f);
                 continue;
             }
 
@@ -1193,8 +1194,8 @@ void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* set
                 measured_descent = fabsf(FontGetDescent(glyph.m_Font, font_scale));
             }
 
-            line_ascent = fmaxf(line_ascent, measured_ascent);
-            line_descent = fmaxf(line_descent, measured_descent);
+            line_ascent = glyph_index == line.m_Index ? measured_ascent : fmaxf(line_ascent, measured_ascent);
+            line_descent = glyph_index == line.m_Index ? measured_descent : fmaxf(line_descent, measured_descent);
         }
 
         if (line_ascent == 0.0f && line_descent == 0.0f)

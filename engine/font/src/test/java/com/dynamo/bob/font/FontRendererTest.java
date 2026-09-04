@@ -156,6 +156,36 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testGlyphBankWithNegativeAscent() {
+        byte[] glyphData = new byte[4 * 5];
+        java.util.Arrays.fill(glyphData, (byte)0x7f);
+        FontRenderer.GlyphBankGlyph[] glyphs = {
+            new FontRenderer.GlyphBankGlyph('_', 2.0f, 3.0f, 0.0f, -3.0f, 6.0f, 0, glyphData.length)
+        };
+        FontRenderer.GlyphBank glyphBank = new FontRenderer.GlyphBank(glyphs, glyphData, 1, 1, -3.0f, 6.0f);
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 6.0f;
+        params.cacheWidth = 8;
+        params.cacheHeight = 8;
+        try (FontRenderer renderer = new FontRenderer("negative-ascent.fnt", glyphBank, params)) {
+            assertEquals(3.0f, renderer.measure("_", false, 0.0f, 1.0f, 0.0f).height, 0.001f);
+            renderer.setProperties(properties(10.0f, 1.0f, 0));
+            renderer.setText("_");
+            renderer.beginBatch();
+            FontRenderer.Texture texture = renderer.generateTexture(0);
+            assertNotNull(texture.pixels);
+            for (int row = 1; row < 5; ++row) {
+                for (int column = 0; column < 4; ++column)
+                    assertEquals((byte)0x7f, texture.pixels.get(row * 8 + column));
+            }
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertEquals(6, vertices.vertexCount);
+            int topV = Short.toUnsignedInt(vertices.vertices.getShort(2 * VERTEX_STRIDE + 14));
+            assertEquals(1.0f / 8.0f, topV / 65535.0f, 0.0001f);
+        }
+    }
+
+    @Test
     public void testArabicTextShaping() throws Exception {
         try (FontRenderer legacy = createRenderer("/NotoSansArabic-Regular.ttf", 32.0f, 512, 512, false);
              FontRenderer skribidi = createRenderer("/NotoSansArabic-Regular.ttf", 32.0f, 512, 512, true)) {

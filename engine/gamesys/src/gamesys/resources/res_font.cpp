@@ -518,7 +518,7 @@ namespace dmGameSystem
 
             params->m_CacheCellWidth     = (uint32_t)ceilf(cell_width) + 2 * ceilf(padding);
             params->m_CacheCellHeight    = (uint32_t)ceilf(cell_height) + 2 * ceilf(padding);
-            params->m_CacheCellMaxAscent = (uint32_t)ceilf(params->m_MaxAscent) + ceilf(padding);
+            params->m_CacheCellMaxAscent = (int32_t)ceilf(params->m_MaxAscent) + (int32_t)ceilf(padding);
 
             if (dynamic_cache_size)
             {

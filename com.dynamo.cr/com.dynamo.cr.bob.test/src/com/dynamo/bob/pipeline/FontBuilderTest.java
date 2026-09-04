@@ -89,6 +89,8 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals(FontTextureFormat.TYPE_BITMAP, GlyphBank.parseFrom(bitmapGlyphBank).getImageFormat());
         assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, GlyphBank.parseFrom(distanceFieldGlyphBank).getImageFormat());
+        byte[] unsignedCacheAscent = new byte[] { (byte)0x90, 0x01, 0x66 };
+        assertEquals(102, GlyphBank.parseFrom(unsignedCacheAscent).getCacheCellMaxAscent());
     }
 
     @Test(timeout = 3000)
@@ -156,6 +158,25 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+    }
+
+    @Test
+    public void testFNTWithNegativeCacheAscent() throws Exception {
+        addFile("/negative.fnt", "info face=\"Negative\" size=10 bold=0 italic=0 charset=\"\" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1\n"
+                + "common lineHeight=10 base=10 scaleW=16 scaleH=16 pages=1 packed=0\n"
+                + "page id=0 file=\"bmfont.png\"\n"
+                + "chars count=1\n"
+                + "char id=95 x=1 y=1 width=2 height=3 xoffset=0 yoffset=13 xadvance=3 page=0 chnl=15\n");
+        List<Message> results = build("/negative.font", "font: \"/negative.fnt\"\nmaterial: \"/test.material\"\nsize: 10\n");
+        GlyphBank glyphBank = null;
+        for (Message message : results) {
+            if (message instanceof GlyphBank)
+                glyphBank = (GlyphBank)message;
+        }
+        assertTrue(glyphBank != null);
+        assertEquals(-3, glyphBank.getCacheCellMaxAscent());
+        assertEquals(-3, GlyphBank.parseFrom(glyphBank.toByteArray()).getCacheCellMaxAscent());
+        assertEquals(5, glyphBank.getCacheCellHeight());
     }
 
     @Test
