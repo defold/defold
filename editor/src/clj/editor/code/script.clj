@@ -250,15 +250,15 @@
         in-long-bracket (:in-long-bracket lex-state)
         ;; A line whose last code character is a bare `=` leaves an assignment
         ;; unfinished, and a trailing comma leaves continuation punctuation.
-        code? (and (not (contains? #{:string :quote} (get in-long-bracket 1)))
-                   (not (neg? last-code)))
-        unfinished (when (and code? (= \= (.charAt line last-code))
+        code (and (not (contains? #{:string :quote} (get in-long-bracket 1)))
+                  (not (neg? last-code)))
+        unfinished (when (and code (= \= (.charAt line last-code))
                               (or (zero? last-code)
                                   (case (.charAt line (dec last-code))
                                     (\= \~ \< \>) false
                                     true)))
                      :assignment)
-        trailing-comma (and code? (= \, (.charAt line last-code)))
+        trailing-comma (and code (= \, (.charAt line last-code)))
         ;; Cancel matched pairs, leaving only structure that crosses this line.
         leftover (reduce (fn [stack t]
                            (let [top (peek stack)]

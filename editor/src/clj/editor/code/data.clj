@@ -2115,12 +2115,12 @@
         ;; The assignment carries to the lines below until a line of code
         ;; finishes it. Lines inside a bracket indent through that instead, so
         ;; the frame holds the assignment until it closes.
-        assignment-scope (if has-code
+        assignment-scope (if-not has-code
+                           assignment-scope
                            (when (coll/empty? opens)
                              (cond
                                (= :assignment unfinished) (if (:bracket (peek stack)) :nested :statement)
-                               trailing-comma (when (= :statement assignment-scope) :statement)))
-                           assignment-scope)
+                               trailing-comma (when (= :statement assignment-scope) :statement))))
         trailing-comma (if has-code trailing-comma (:trailing-comma line-continuation))]
     [{:stack stack
       :line-continuation {:assignment-scope assignment-scope
