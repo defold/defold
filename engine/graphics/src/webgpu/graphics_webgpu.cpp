@@ -1163,8 +1163,11 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         context->m_MainRenderTarget->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
         context->m_MainRenderTarget->m_ColorBufferLoadOps[0]  = ATTACHMENT_OP_LOAD;
     }
-    context->m_MainRenderTarget->m_Width = context->m_BaseContext.m_Width = width;
-    context->m_MainRenderTarget->m_Height = context->m_BaseContext.m_Height = height;
+    // The surface dimensions are physical pixels on high-DPI displays, while
+    // BaseContext stores the logical dimensions used by render.get_width() and
+    // render.get_height(). Keep the two coordinate spaces separate.
+    context->m_MainRenderTarget->m_Width = width;
+    context->m_MainRenderTarget->m_Height = height;
     // colorbuffer
     if (context->m_MainRenderTarget->m_Multisample == 1)
     {
@@ -2032,7 +2035,7 @@ static void WebGPUBeginFrame(HContext _context)
     {
         const uint32_t window_width = GetWindowWidth(_context);
         const uint32_t window_height = GetWindowHeight(_context);
-        if (!context->m_MainRenderTarget || window_width != context->m_BaseContext.m_Width || window_height != context->m_BaseContext.m_Height) // (re)create
+        if (!context->m_MainRenderTarget || window_width != context->m_MainRenderTarget->m_Width || window_height != context->m_MainRenderTarget->m_Height) // (re)create
             WebGPUConfigure(context, window_width, window_height);
         WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
 #if defined(DM_GRAPHICS_WEBGPU2)
