@@ -78,6 +78,10 @@
 
 #include <sound/sound.h>
 
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#include <sanitizer/allocator_interface.h>
+#endif
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -96,6 +100,63 @@ static int16_t ReadUnalignedInt16(const void* ptr)
     memcpy(&value, ptr, sizeof(value));
     return value;
 }
+
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+struct MaterialAttributeAllocationPoison
+{
+    dmhash_t m_ElementId;
+    uint32_t m_AttributeCount;
+    bool     m_Armed;
+    bool     m_MaterialAllocated;
+    bool     m_Poisoned;
+};
+
+static MaterialAttributeAllocationPoison g_MaterialAttributeAllocationPoison;
+
+static void MaterialAttributeMallocHook(const volatile void* ptr, size_t size)
+{
+    MaterialAttributeAllocationPoison& poison = g_MaterialAttributeAllocationPoison;
+    if (!poison.m_Armed)
+        return;
+
+    if (!poison.m_MaterialAllocated)
+    {
+        poison.m_MaterialAllocated = size == sizeof(dmRender::Material);
+        return;
+    }
+
+    if (size == sizeof(dmRender::MaterialAttribute) * poison.m_AttributeCount)
+    {
+        dmRender::MaterialAttribute* attributes = (dmRender::MaterialAttribute*) const_cast<void*>(ptr);
+        attributes[0].m_ElementIds[0] = poison.m_ElementId;
+        poison.m_Poisoned = true;
+        poison.m_Armed = false;
+    }
+    else
+    {
+        poison.m_MaterialAllocated = size == sizeof(dmRender::Material);
+    }
+}
+
+static void MaterialAttributeFreeHook(const volatile void*)
+{
+}
+
+static bool PoisonNextMaterialAttributeAllocation(dmhash_t element_id, uint32_t attribute_count)
+{
+    static bool hook_installed = false;
+    if (!hook_installed)
+    {
+        hook_installed = __sanitizer_install_malloc_and_free_hooks(MaterialAttributeMallocHook, MaterialAttributeFreeHook) != 0;
+    }
+
+    memset(&g_MaterialAttributeAllocationPoison, 0, sizeof(g_MaterialAttributeAllocationPoison));
+    g_MaterialAttributeAllocationPoison.m_ElementId = element_id;
+    g_MaterialAttributeAllocationPoison.m_AttributeCount = attribute_count;
+    g_MaterialAttributeAllocationPoison.m_Armed = hook_installed;
+    return hook_installed;
+}
+#endif
 
 namespace dmGameObject
 {
@@ -9782,6 +9843,30 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+// Tests #13108 through the complete script-to-sprite property path: an omitted
+// shader attribute must not use a stale element id to shadow a declared vector4.
+// Poisoning the fresh MaterialAttribute allocation with the "tint" hash makes the
+// go.set() followed by go.animate() failure deterministic under ASan.
+TEST_F(MaterialTest, DynamicVertexAttributesWithUninitializedElementIds)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(PoisonNextMaterialAttributeAllocation(dmHashString64("tint"), 7));
+
+    dmGameSystem::MaterialResource* material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/attributes_uninitialized_element_ids.materialc", (void**) &material_res));
+    ASSERT_TRUE(g_MaterialAttributeAllocationPoison.m_Poisoned);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_uninitialized_element_ids.goc", dmHashString64("/attributes_uninitialized_element_ids"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+
+    bool finalized = dmGameObject::Final(m_Collection);
+    dmResource::Release(m_Factory, material_res);
+
+    ASSERT_NE((void*) 0, go);
+    ASSERT_TRUE(finalized);
+}
+#endif
 
 TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
 {
