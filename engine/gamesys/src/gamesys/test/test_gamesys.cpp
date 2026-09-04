@@ -10620,6 +10620,43 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(ModelTest, InstancedRenderBufferUsesOneBackingPerDispatch)
+{
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*) m_RenderContext;
+    const bool multi_buffering_required = render_context->m_MultiBufferingRequired;
+    render_context->m_MultiBufferingRequired = true;
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_instanced_attr.goc", dmHashString64("/model"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    const uint32_t dispatch_count = 3;
+    for (uint32_t i = 0; i < dispatch_count; ++i)
+    {
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    }
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void* model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    dmRender::BufferedRenderBuffer* instance_buffer = 0;
+    dmGameSystem::GetModelWorldInstanceRenderBuffer(model_world, &instance_buffer);
+    ASSERT_NE((dmRender::BufferedRenderBuffer*)0, instance_buffer);
+    ASSERT_EQ(dispatch_count, instance_buffer->m_Buffers.Size());
+
+    render_context->m_MultiBufferingRequired = multi_buffering_required;
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, MorphTargetUniformWeightsSplitInstancedBatches)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
