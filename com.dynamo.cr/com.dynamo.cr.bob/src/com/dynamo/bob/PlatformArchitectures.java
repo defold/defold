@@ -17,7 +17,6 @@ package com.dynamo.bob;
 public enum PlatformArchitectures {
     //
     MacOS(new String[] {"x86_64-macos", "arm64-macos"}, new String[] {"x86_64-macos", "arm64-macos"}),
-    Windows32(new String[] {"x86-win32"}, new String[] {"x86-win32"}),
     Windows64(new String[] {"x86_64-win32"}, new String[] {"x86_64-win32"}),
     Linux(new String[] {"x86_64-linux"}, new String[] {"x86_64-linux"}),
     LinuxArm64(new String[] {"arm64-linux"}, new String[] {"arm64-linux"}),

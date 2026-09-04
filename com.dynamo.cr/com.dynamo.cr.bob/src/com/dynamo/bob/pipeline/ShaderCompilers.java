@@ -286,7 +286,7 @@ public class ShaderCompilers {
                         if (mergedRootSignatureText == null || mergedRootSignatureText.isEmpty()) {
                             throw new CompileExceptionError("Failed to convert merged HLSL root signature to text for shared-root-signature recompile");
                         }
-                        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+                        if (platform == Platform.X86_64Win32) {
                             mergedRootSignatureText = Win32ShaderCompiler.ensureInputAssemblerRootFlag(mergedRootSignatureText);
                         }
 
@@ -354,7 +354,7 @@ public class ShaderCompilers {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-        } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32 || platform == Platform.X86_64Linux) {
+        } else if (platform == Platform.X86_64Win32 || platform == Platform.X86_64Linux) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430); // Compute
         } else if (platform == Platform.Arm64Linux || platform == Platform.Armv7Android || platform == Platform.Arm64Android ||

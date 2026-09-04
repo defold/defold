@@ -94,7 +94,7 @@ mkdir -p ./bin/$PLATFORM
 
 EXE_SUFFIX=
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         EXE_SUFFIX=.exe
         cp -v ./tint${EXE_SUFFIX} ./bin/$PLATFORM
         ;;
@@ -104,7 +104,7 @@ case $PLATFORM in
 esac
 
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         ;;
     *)
         if [ "" != "$(which strip)" ]; then

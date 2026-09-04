@@ -43,7 +43,6 @@ on:
             { "name": "x86_64-ios", "runner": "macOS-26", "target": "macos" },
             { "name": "wasm-web", "runner": "ubuntu-22.04", "target": "web" },
             { "name": "wasm_pthread-web", "runner": "ubuntu-22.04", "target": "web" },
-            { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
             { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" },
@@ -105,7 +104,7 @@ jobs:
         if: "${{ matrix.platforms.target == 'windows' && inputs.setup_msvc }}"
         uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
         with:
-          arch: ${{ matrix.platforms.name == 'win32' && 'x86' || 'x64' }}
+          arch: x64
 
       - name: Setup NDK (r25b)
         if: "${{ matrix.platforms.target == 'android' }}"

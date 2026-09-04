@@ -55,14 +55,6 @@ platforms:
             libs: []
             linkFlags: []
 
-    x86-win32:
-        context:
-            excludeLibs: ["platform"]
-            excludeSymbols: []
-            symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
-            linkFlags: []
-
     x86_64-win32:
         context:
             excludeLibs: ["platform"]

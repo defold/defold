@@ -320,7 +320,7 @@ target_compile_definitions(profile_noasan
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(profile_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
+if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(dlib_shared SHARED ${DLIB_SOURCES})
   defold_target_skip_sanitizer(dlib_shared)
   target_include_directories(dlib_shared PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
@@ -347,7 +347,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x8
 endif()
 
 set(DLIB_BASIS_FLAGS BASISD_SUPPORT_KTX2_ZSTD=0)
-if(TARGET_PLATFORM MATCHES "^(x86_64-win32|x86-win32|x86_64-macos)$")
+if(TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-macos)$")
   list(APPEND DLIB_BASIS_FLAGS BASISU_SUPPORT_SSE=1)
 endif()
 
@@ -361,7 +361,7 @@ target_compile_definitions(basis_transcoder PUBLIC
   ${DLIB_BASIS_FLAGS})
 target_link_libraries(basis_transcoder PUBLIC ${DLIB_BASIS_TRANSCODER_DEPENDENCIES})
 
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
+if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
   file(GLOB_RECURSE DLIB_BASIS_ENCODER_SOURCES CONFIGURE_DEPENDS
        "${DLIB_SRC_DIR}/basis/encoder/*.c"
        "${DLIB_SRC_DIR}/basis/encoder/*.cpp"

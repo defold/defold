@@ -23,7 +23,6 @@ mkdir -p lib/x86_64-linux
 mkdir -p lib/arm64-linux
 mkdir -p lib/x86_64-macos
 mkdir -p lib/arm64-macos
-mkdir -p lib/x86-win32
 mkdir -p lib/x86_64-win32
 
 mkdir -p libexec
@@ -31,7 +30,6 @@ mkdir -p libexec/x86_64-linux
 mkdir -p libexec/arm64-linux
 mkdir -p libexec/x86_64-macos
 mkdir -p libexec/arm64-macos
-# mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
 mkdir -p libexec/arm64-ios
 mkdir -p libexec/x86_64-ios
@@ -191,9 +189,6 @@ copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
 copy arm64-macos/stripped/dmengine arm64-macos/dmengine
 copy arm64-macos/stripped/dmengine_release arm64-macos/dmengine_release
 # copy arm64-macos/stripped/dmengine_headless arm64-macos/dmengine_headless
-# copy win32/dmengine.exe x86-win32/dmengine.exe
-# copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
-# copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 # copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe

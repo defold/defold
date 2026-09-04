@@ -95,10 +95,9 @@ end
 
 --- WINDOWS
 
-local windows_platforms = {"x86_64-win32", "x86-win32"}
+local windows_platforms = {"x86_64-win32"}
 local windows_platform_to_string = editor.bundle.make_to_string_lookup({
-    ["x86_64-win32"] = localization.message("dialog.bundle.option.platform.x86_64-win32"),
-    ["x86-win32"] = localization.message("dialog.bundle.option.platform.x86-win32")
+    ["x86_64-win32"] = localization.message("dialog.bundle.option.platform.x86_64-win32")
 })
 local windows_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)

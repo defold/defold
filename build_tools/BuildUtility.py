@@ -33,7 +33,6 @@ class BuildUtility:
                             {'platform': 'arm64-linux', 'os': TargetOS.LINUX, 'arch': 'arm64'},
                             {'platform': 'x86_64-macos', 'os': TargetOS.MACOS, 'arch': 'x86_64'},
                             {'platform': 'arm64-macos', 'os': TargetOS.MACOS, 'arch': 'arm64'},
-                            {'platform': 'win32', 'os': TargetOS.WINDOWS, 'arch': 'x86'},
                             {'platform': 'x86_64-win32', 'os': TargetOS.WINDOWS, 'arch': 'x86_64'},
                             {'platform': 'x86_64-ios', 'os': TargetOS.IOS, 'arch': 'x86_64'},
                             {'platform': 'arm64-ios', 'os': TargetOS.IOS, 'arch': 'arm64'},

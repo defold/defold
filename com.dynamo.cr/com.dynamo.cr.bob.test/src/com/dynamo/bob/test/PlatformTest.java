@@ -15,7 +15,6 @@
 package com.dynamo.bob.test;
 
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
@@ -34,8 +33,9 @@ public class PlatformTest {
 
     @Test
     public void testPlatformGetFn() {
-        testPlatformGet(Platform.X86Win32);
         testPlatformGet(Platform.X86_64Win32);
+        assertTrue(Platform.X86_64Win32 == Platform.get("win32"));
+        assertNull(Platform.get("x86-win32"));
         testPlatformGet(Platform.X86_64MacOS);
         testPlatformGet(Platform.Arm64MacOS);
         testPlatformGet(Platform.X86_64Ios);
@@ -50,7 +50,6 @@ public class PlatformTest {
 
     @Test
     public void testPlatformOS() {
-        assertTrue(Platform.get("x86-win32").getOsID() == PlatformProfile.OS.OS_ID_WINDOWS);
         assertTrue(Platform.get("x86_64-win32").getOsID() == PlatformProfile.OS.OS_ID_WINDOWS);
 
         assertTrue(Platform.get("x86_64-macos").getOsID() == PlatformProfile.OS.OS_ID_OSX);
@@ -87,7 +86,6 @@ public class PlatformTest {
     @Test
     public void testPlatformMatching() {
 
-        assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.X86_64MacOS.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.X86_64Ios.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.X86_64Linux.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
@@ -95,7 +93,6 @@ public class PlatformTest {
         assertTrue(Platform.WasmWeb.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.WasmPthreadWeb.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
 
-        assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));
         assertTrue(Platform.X86_64Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));
 
         assertTrue(Platform.Arm64MacOS.matchesOS(PlatformProfile.OS.OS_ID_OSX));

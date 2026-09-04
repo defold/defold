@@ -32,7 +32,6 @@ public class Platform {
     //    extenderPaths: The extenderPaths are the search directories that we use when looking for platform resources for a remote build
     public static final Platform X86_64MacOS    = new Platform(OS.OS_ID_OSX,        "x86_64",       true,    "macos",   new String[] {""},               "",     "lib",  ".dylib",   new String[] {"osx", "x86_64-osx"},         PlatformArchitectures.MacOS,        "x86_64-osx");
     public static final Platform Arm64MacOS     = new Platform(OS.OS_ID_OSX,        "arm64",        true,    "macos",   new String[] {""},               "",     "lib",  ".dylib",   new String[] {"osx", "arm64-osx"},          PlatformArchitectures.MacOS,        "arm64-osx");
-    public static final Platform X86Win32       = new Platform(OS.OS_ID_WINDOWS,    "x86",          false,   "win32",   new String[] {".exe"},           "",     "",     ".dll",     new String[] {"win32", "x86-win32"},        PlatformArchitectures.Windows32,    "x86-win32");
     public static final Platform X86_64Win32    = new Platform(OS.OS_ID_WINDOWS,    "x86_64",       true,    "win32",   new String[] {".exe"},           "",     "",     ".dll",     new String[] {"win32", "x86_64-win32"},     PlatformArchitectures.Windows64,    "x86_64-win32");
     public static final Platform X86_64Linux    = new Platform(OS.OS_ID_LINUX,      "x86_64",       true,    "linux",   new String[] {""},               "",     "lib",  ".so",      new String[] {"linux", "x86_64-linux"},     PlatformArchitectures.Linux,        "x86_64-linux");
     public static final Platform Arm64Linux     = new Platform(OS.OS_ID_LINUX,      "arm64",        true,    "linux",   new String[] {""},               "",     "lib",  ".so",      new String[] {"linux", "arm64-linux"},      PlatformArchitectures.LinuxArm64,   "arm64-linux");
@@ -198,7 +197,7 @@ public class Platform {
 
     public static Platform get(String pair) {
 
-        // support for legacy platform name (until we've changed all occurrances to "x86-win32")
+        // Support the legacy Windows platform name.
         if (pair.equals("win32"))
             pair = "x86_64-win32";
 
@@ -244,9 +243,6 @@ public class Platform {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Win32;
             }
-            else {
-                return Platform.X86Win32;
-            }
         } else if (os_name.indexOf("mac") != -1) {
             return Platform.X86_64MacOS;
         } else if (os_name.indexOf("linux") != -1) {
@@ -267,9 +263,6 @@ public class Platform {
         if (os_name.indexOf("win") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Win32;
-            }
-            else {
-                return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
             // Intel java reports: os_name: mac os x  arch: x86_64

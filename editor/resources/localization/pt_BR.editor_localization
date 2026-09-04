@@ -547,7 +547,6 @@ dialog.bundle.label.platform = Plataforma
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = Nenhum
 dialog.bundle.label.architectures = Arquiteturas
 dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)

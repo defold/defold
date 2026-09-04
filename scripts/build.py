@@ -50,7 +50,7 @@ from BuildTimeTracker import BuildTimeTracker
 
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
-                    'win32', 'x86_64-win32',
+                    'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android', 'x86_64-android',
                     'wasm-web', 'wasm_pthread-web']
@@ -267,21 +267,6 @@ PACKAGES_MACOS_ARM64=[
     "strip_android-14.0.6",
     "zipalign"]
 
-PACKAGES_WIN32=[
-    "protobuf-35.1",
-    "luajit-2.1.0-3e223cb",
-    "glut-3.7.6",
-    "bullet-3.25",
-    "vulkan-v1.4.307",
-    "glfw-3.4",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
-
 PACKAGES_WIN32_64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
@@ -422,7 +407,6 @@ PACKAGES_EMSCRIPTEN=[
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
-    'win32':            PACKAGES_WIN32,
     'x86_64-win32':     PACKAGES_WIN32_64,
     'x86_64-linux':     PACKAGES_LINUX_X86_64,
     'arm64-linux':      PACKAGES_LINUX_ARM64,
@@ -522,7 +506,7 @@ def get_host_platform():
 def format_exes(name, platform):
     prefix = ''
     suffix = ['']
-    if platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
+    if platform in ['x86_64-win32', 'x86_64-xbone']:
         suffix = ['.exe']
     elif 'android' in platform:
         prefix = 'lib'
@@ -1611,26 +1595,14 @@ class Configuration(object):
                     return False
                 return True
 
-            def _sdk_lib_path_mapper(path):
-                # We currently still use the old "win32" folder for our x86 files
-                if path.startswith('lib/x86-win32/'):
-                    path = 'lib/win32/' + path[len('lib/x86-win32/'):]
-                elif path.startswith('ext/lib/x86-win32/'):
-                    path = 'ext/lib/win32/' + path[len('ext/lib/x86-win32/'):]
-                return path
-
             # Dynamo libs
             libdirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
-            if platform == 'win32':
-                libdirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_filter=_sdk_lib_path_filter)
             # External libs
             libdirs = [os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)]
-            if platform == 'win32':
-                libdirs.append(os.path.join(self.dynamo_home, 'ext/lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_filter=_sdk_lib_path_filter)
 
             if platform in ['armv7-android', 'arm64-android', 'x86_64-android']:
                 # Android Jars (Dynamo)
@@ -1645,17 +1617,15 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Win32 resource files
-            if platform in ['win32', 'x86_64-win32']:
+            if platform == 'x86_64-win32':
                 resource_dirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
-                if platform == 'win32':
-                    resource_dirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
                 paths = []
                 for resource_dir in resource_dirs:
                     paths.extend([
                         os.path.join(resource_dir, 'defold.ico'),
                         os.path.join(resource_dir, 'engine.rc')
                     ])
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_mapper=_sdk_lib_path_mapper)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
@@ -1884,7 +1854,7 @@ class Configuration(object):
                 shutil.copy2(engine, engine_stripped)
                 if self._strip_engine(engine_stripped):
                     self.upload_to_archive(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
-                if self.target_platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
+                if self.target_platform in ['x86_64-win32', 'x86_64-xbone']:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
                     self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
                 if 'web' in self.target_platform:
@@ -1944,7 +1914,7 @@ class Configuration(object):
     def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+        supported_tests['x86_64-win32'] = ['x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
         supported_tests['x86_64-linux'] = []
         supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web']
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
@@ -2023,7 +1993,7 @@ class Configuration(object):
                                  'arm64-macos': ['arm64-macos'],
                                  'x86_64-linux': [],
                                  'arm64-linux': [],
-                                 'x86_64-win32': ['win32']}
+                                 'x86_64-win32': []}
 
         platforms = list(platform_dependencies.get(self.host, [self.host]))
 
@@ -2136,16 +2106,12 @@ class Configuration(object):
         return defines
 
     def _cmake_target_platform(self, platform):
-        if platform == 'win32':
-            return 'x86-win32'
         return platform
 
     def _platform_build_home(self, platform):
         return self.defold_root
 
     def _engine_artifact_platform(self, platform):
-        # Waf still writes 32-bit Windows artifacts to win32; CMake uses the
-        # explicit arch tuple x86-win32 while archive/package names stay win32.
         if self._build_engine_with_waf():
             return platform
         return self._cmake_target_platform(platform)
@@ -2768,7 +2734,7 @@ class Configuration(object):
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
-        cmake_platform = 'x86-win32' if platform == 'win32' else platform
+        cmake_platform = platform
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
         product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
         default_package_name = '%s-%s' % (product_name, version)
@@ -2866,8 +2832,7 @@ class Configuration(object):
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
 
-        for plf in [['win32', 'x86_64-win32'],
-                    ['x86_64-win32', 'x86_64-win32'],
+        for plf in [['x86_64-win32', 'x86_64-win32'],
                     ['x86_64-linux', 'x86_64-linux'],
                     ['arm64-linux', 'arm64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
@@ -2888,7 +2853,6 @@ class Configuration(object):
                     self._copy(src, join(tgt_dir, luajit_exe))
 
         # Any shared libraries that we depend on
-        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in [] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
         js_files = {}
@@ -2911,7 +2875,6 @@ class Configuration(object):
                 name = format_lib('%s_shared' % lib, plf)
                 desktop_native_files['lib/%s/%s' % (plf, name)] = 'lib/%s/%s' % (plf, name)
 
-        win32_engine_platform = self._engine_artifact_platform('win32')
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
@@ -2927,7 +2890,7 @@ class Configuration(object):
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
                      'desktop-natives': desktop_native_files,
                      'android-bundling': android_files,
-                     'win32-bundling': win32_files,
+                     'win32-bundling': {},
                      'web-bundling': js_files,
                      'ios-bundling': {},
                      'osx-bundling': macos_files,
@@ -2935,7 +2898,7 @@ class Configuration(object):
                      'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
-                           'win32-bundling': [[win32_engine_platform, 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
+                           'win32-bundling': [['x86_64-win32', 'x86_64-win32']],
                            'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
@@ -3654,10 +3617,10 @@ class Configuration(object):
         # * Editor files
         # * Defold SDK files
         # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android and x86-win32
+        # * rarely used platforms: armv7-android
         # * headless builds
         pattern = re.compile(
-            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/(armv7-android|x86-win32)(/|$)|headless'
+            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/armv7-android(/|$)|headless'
         )
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
         for obj_summary in bucket.objects.filter(Prefix=prefix):

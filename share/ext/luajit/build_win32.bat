@@ -7,17 +7,12 @@ set PLATFORM=%1
 
 
 if "%PLATFORM%" equ "x64" set PLATFORM=x86_64-win32
-if "%PLATFORM%" equ "x86" set PLATFORM=win32
 
 if "%PLATFORM%" equ "x86_64-win32" goto :PLATFORM_X64
-if "%PLATFORM%" equ "win32" goto :PLATFORM_X86
 goto :FAIL_PLATFORM
 
 :PLATFORM_X64
 if "%VSCMD_ARG_TGT_ARCH%" equ "x64" goto :PLATFORM_OK
-goto :PLATFORM_ARCH_FAIL
-:PLATFORM_X86
-if "%VSCMD_ARG_TGT_ARCH%" equ "x86" goto :PLATFORM_OK
 goto :PLATFORM_ARCH_FAIL
 
 :PLATFORM_ARCH_FAIL
@@ -81,14 +76,6 @@ set SOURCE_TARGET=%~dp0\%TMP_TARGET%\%PACKAGEDIR%\src
 echo "SOURCE_TARGET:" %SOURCE_TARGET%
 pushd %SOURCE_TARGET%
 
-
-if "%PLATFORM%" == "x86_64-win32" goto :BUILD_X64
-
-:BUILD_X32
-cmd "/C msvcbuild.bat static dummy"
-set TARGET_PLATFORM=win32
-set BITDEPTH=32
-goto :BUILD_DONE
 
 :BUILD_X64
 cmd "/C msvcbuild.bat static dummy"
@@ -157,10 +144,10 @@ goto :ERROR_END
 :FAIL_MSVS
 echo To run this script you must open a "Native Tools Command Prompt for VS".
 echo.
-echo Either the x86 version, or x64.
+echo Use the x64 version.
 goto :ERROR_END
 :FAIL_PLATFORM
-echo You need to supply a PLATFORM: win32 or x86_64-win32 (found '%PLATFORM%')
+echo You need to supply PLATFORM x86_64-win32 (found '%PLATFORM%')
 goto :ERROR_END
 :END
 exit /b 0

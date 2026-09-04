@@ -42,7 +42,7 @@ def build(bld):
         source += ['devices/device_nx64.cpp']
     elif bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5',):
         source += ['devices/device_ps4.cpp']
-    elif bld.env.PLATFORM in ('x86_64-win32','win32','x86_64-xbone'):
+    elif bld.env.PLATFORM in ('x86_64-win32','x86_64-xbone'):
         source += ['devices/device_wasapi.cpp']
     elif bld.env.PLATFORM in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
         source += ['devices/device_avaudio.mm']
@@ -105,10 +105,8 @@ def build(bld):
     elif bld.env['PLATFORM'] in ['x86_64-macos']:
         simd_flags = ['-DDM_SOUND_DSP_IMPL=SSE']
 
-    elif bld.env['PLATFORM'] in ['x86_64-win32', 'win32']:
-        if bld.env['PLATFORM'] in ['x86_64-win32']:
-            simd_flags = ['/arch:SSE4.2']
-        simd_flags += ['/DDM_SOUND_DSP_IMPL=SSE']
+    elif bld.env['PLATFORM'] == 'x86_64-win32':
+        simd_flags = ['/arch:SSE4.2', '/DDM_SOUND_DSP_IMPL=SSE']
 
     else:
         simd_flags = ['-DDM_SOUND_DSP_IMPL=Fallback']
