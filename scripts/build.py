@@ -105,11 +105,13 @@ class build_private(object):
 
     @classmethod
     def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
-        return cls._call(None, 'get_install_host_packages', [], platform)
+        return [package for package in cls._call(None, 'get_install_host_packages', [], platform)
+                if not package.startswith('bullet-')]
 
     @classmethod
     def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
-        return cls._call(platform, 'get_install_target_packages', [], platform)
+        return [package for package in cls._call(platform, 'get_install_target_packages', [], platform)
+                if not package.startswith('bullet-')]
 
     @classmethod
     def get_external_package_name(cls, platform, library, default_name):
@@ -163,7 +165,6 @@ PACKAGES_ALL=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
-    "bullet-3.25",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.14",
     "vulkan-v1.4.307",
@@ -184,7 +185,6 @@ PACKAGES_HOST=[
 PACKAGES_IOS_SIMULATOR=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -197,7 +197,6 @@ PACKAGES_IOS_SIMULATOR=[
 PACKAGES_IOS_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "moltenvk-1474891",
     "glfw-2.7.1",
     "box2d-3.1.0",
@@ -213,7 +212,6 @@ PACKAGES_MACOS_X86_64=[
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -243,7 +241,6 @@ PACKAGES_MACOS_ARM64=[
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -271,7 +268,6 @@ PACKAGES_WIN32=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
-    "bullet-3.25",
     "vulkan-v1.4.307",
     "glfw-3.4",
     "box2d-3.1.0",
@@ -287,7 +283,6 @@ PACKAGES_WIN32_64=[
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "bullet-3.25",
     "glslang-42d9adf5",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -313,7 +308,6 @@ PACKAGES_WIN32_64=[
 PACKAGES_LINUX_X86_64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-3.25",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -342,7 +336,6 @@ PACKAGES_LINUX_X86_64=[
 PACKAGES_LINUX_ARM64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-3.25",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -365,7 +358,6 @@ PACKAGES_LINUX_ARM64=[
 PACKAGES_ANDROID=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -380,7 +372,6 @@ PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -395,7 +386,6 @@ PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -408,7 +398,6 @@ PACKAGES_ANDROID_X86_64=[
 PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
-    "bullet-3.25",
     "glfw-2.7.1",
     "wagyu-69",
     "box2d-3.1.0",
@@ -497,22 +486,19 @@ ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font 
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
 EXTERNAL_WAF_LIBS = "glfw opus".split()
-EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 bullet3d vkquality skribidi".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 vkquality skribidi".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
     "box2d": "3.1.0",
     "box2d_v2": "2.2.1",
-    "bullet3d": "3.25",
     "vkquality": "1.1-2642a0d",
     "skribidi": "a4a2f5",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
-    "bullet3d": "bullet",
     "skribidi": "SkriBidi",
 }
 EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
-    "bullet3d",
     "skribidi",
 }
 
@@ -935,11 +921,12 @@ class Configuration(object):
     def distclean(self):
         self._remove_tree(self.dynamo_home)
 
-        for builddir in glob(join(self.defold_root, 'engine/*/build')):
-            self._remove_tree(builddir)
+        for directory in ('engine', 'external'):
+            for builddir in glob(join(self.defold_root, directory, '*/build')):
+                self._remove_tree(builddir)
+            self._remove_tree(join(self.defold_root, directory, 'build'))
         self._remove_tree(join(self.defold_root, 'share/extender/build'))
         self._remove_tree(join(self.defold_root, 'build', 'cmake'))
-        self._remove_tree(join(self.defold_root, 'engine', 'build'))
         self._remove_tree(join(self.defold_root, 'solutions'))
 
         # remove engine test dir specifically
@@ -2742,6 +2729,40 @@ class Configuration(object):
             print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
+    def build_ext(self):
+        self.check_sdk()
+
+        platform = self._cmake_target_platform(self.target_platform)
+        source_dir = join(self.defold_root, 'external')
+        build_dir = join(source_dir, 'build', platform)
+        build_type = self._find_cmake_build_type(self.waf_options)
+        configure_args = [
+            'cmake', '-S', source_dir, '-B', build_dir, '-GNinja',
+            '-DCMAKE_BUILD_TYPE=%s' % build_type,
+            '-DTARGET_PLATFORM=%s' % platform,
+            '-DDEFOLD_SDK_ROOT:PATH=%s' % self.dynamo_home,
+            '-DBUILD_TESTS=OFF',
+            '-DCMAKE_INSTALL_MESSAGE=LAZY',
+        ]
+        build_args = ['cmake', '--build', build_dir]
+        if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
+            build_args.append('--verbose')
+        install_args = ['cmake', '--install', build_dir, '--config', build_type]
+
+        # Keep the build tree and installed files so subsequent build_ext calls
+        # only rebuild changed sources. Engine builds consume the installed libs.
+        self.build_tracker.start_component('ext', platform)
+        try:
+            for name, args in [('configure', configure_args), ('build', build_args), ('install', install_args)]:
+                command = 'CMake %s ext' % name
+                self.build_tracker.start_command(command)
+                try:
+                    run.env_command(self._form_env(), args, cwd=self.defold_root)
+                finally:
+                    self.build_tracker.end_command(command)
+        finally:
+            self.build_tracker.end_component('ext', platform)
+
     def build_external(self):
         libs = EXTERNAL_LIBS
         if self.external_package:
@@ -4055,9 +4076,10 @@ if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)
 
 Commands:
-distclean        - Removes the DYNAMO_HOME folder
+distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
+build_ext        - Build and install source dependencies with CMake (currently Bullet)
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk

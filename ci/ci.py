@@ -278,7 +278,7 @@ def build_engine(channel, platform, args):
     if args.verbose:
         cmd_opts.append('--verbose')
 
-    cmd_args.append('build_engine')
+    cmd_args.extend(['build_ext', 'build_engine'])
 
     if channel:
         cmd_opts.append('--channel=%s' % channel)

@@ -19,6 +19,7 @@
 #include "../../../../graphics/src/null/graphics_null_private.h"
 #include "../../../../particle/src/particle_private.h"
 #include "../../../../render/src/render/render_private.h"
+#include "../../../../render/src/render/font/fontmap_private.h"
 #include "../../../../resource/src/resource_private.h"
 #include "../../../../gui/src/gui_private.h"
 
@@ -3656,6 +3657,95 @@ static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJ
         dmTime::Sleep(1000);
     }
     return state->m_CallbackCount >= callback_count;
+}
+
+TEST_F(FontTest, DynamicFontPrewarmedGlyphsFitCacheRows)
+{
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&font));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    dmRender::UpdateCacheTexture(font_map);
+
+    bool used_next_row = false;
+    for (uint32_t codepoint = '!'; codepoint <= '~'; ++codepoint)
+    {
+        FontGlyph* glyph = 0;
+        ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, codepoint, &glyph));
+        ASSERT_NE((FontGlyph*)0, glyph);
+        if (codepoint == '_')
+            ASSERT_EQ(-3.0f, glyph->m_Ascent);
+        if (glyph->m_Bitmap.m_Height == 0)
+            continue;
+
+        int32_t offset_y = font_map->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+        ASSERT_GE(offset_y, 0);
+        ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, font_map->m_CacheCellHeight);
+        ASSERT_LE(glyph->m_Bitmap.m_Width, font_map->m_CacheCellWidth);
+        uint64_t key = dmRender::MakeGlyphIndexKey(hfont, glyph->m_GlyphIndex);
+        dmRender::CacheGlyph* cached = dmRender::AddGlyphToCache(font_map, 1, key, glyph, offset_y);
+        ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+        used_next_row |= cached->m_Y > 0;
+    }
+    ASSERT_TRUE(used_next_row);
+    dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, DynamicFontFirstBitmapHasNegativeAscent)
+{
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent_empty.fontc", (void**)&font));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    ASSERT_EQ(0u, font_map->m_Glyphs.Size());
+    ASSERT_EQ(0, font_map->m_CacheCellHeight);
+    ASSERT_EQ(0, font_map->m_CacheCellCount);
+    ASSERT_EQ((dmRender::CacheGlyph*)0, font_map->m_Cache);
+
+    // A space has layout metrics but no bitmap, so it must not establish the cache baseline.
+    DynamicFontJobCallbackState space_callback_state = {};
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, " ", DynamicFontJobCallback, &space_callback_state));
+    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &space_callback_state, 1));
+    ASSERT_EQ(1, space_callback_state.m_Result);
+    FontGlyph* space = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, ' ', &space));
+    ASSERT_NE((FontGlyph*)0, space);
+    ASSERT_EQ(0, space->m_Bitmap.m_Height);
+    ASSERT_EQ(0, font_map->m_CacheCellHeight);
+    uint64_t space_key = dmRender::MakeGlyphIndexKey(hfont, space->m_GlyphIndex);
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(font_map, 0, space_key, space, 0));
+
+    const char* texts[] = {"_", "I", "\xc3\x85"};
+    const uint32_t codepoints[] = {'_', 'I', 0xc5};
+    FontGlyph* glyphs[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(texts); ++i)
+    {
+        DynamicFontJobCallbackState callback_state = {};
+        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, texts[i], DynamicFontJobCallback, &callback_state));
+        ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 1));
+        ASSERT_EQ(1, callback_state.m_Result);
+        ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, codepoints[i], &glyphs[i]));
+        ASSERT_NE((FontGlyph*)0, glyphs[i]);
+        if (i == 0)
+        {
+            ASSERT_EQ(-3.0f, glyphs[i]->m_Ascent);
+            ASSERT_EQ(-3, font_map->m_CacheCellMaxAscent);
+            ASSERT_EQ(19, font_map->m_CacheCellHeight);
+        }
+
+        dmRender::UpdateCacheTexture(font_map);
+        // Raising the baseline for a new glyph must still leave room for earlier glyphs.
+        for (uint32_t j = 0; j <= i; ++j)
+        {
+            FontGlyph* glyph = glyphs[j];
+            int32_t offset_y = font_map->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+            ASSERT_GE(offset_y, 0);
+            ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, font_map->m_CacheCellHeight);
+            uint64_t key = dmRender::MakeGlyphIndexKey(hfont, glyph->m_GlyphIndex);
+            ASSERT_NE((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(font_map, i + 1, key, glyph, offset_y));
+        }
+    }
+    dmResource::Release(m_Factory, font);
 }
 
 static int32_t ProcessBlockingFontJob(HJobContext job_context, HJob job, void* user_context, void* user_data)

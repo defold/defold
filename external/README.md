@@ -1,10 +1,14 @@
 # External
 
-Some libraries, we need to rebuild when we update to each compiler version.
-However, we don't want to build them _every_ time the engine is rebuilt, so we instead
-put them into a `build_external` command.
+`./scripts/build.py build_ext` builds source dependencies (currently Bullet)
+with the regular Defold CMake toolchain and installs them into
+`tmp/dynamo_home/ext`. Run it after `install_ext`, before the first engine
+build, and whenever these sources or the toolchain change. Use `--platform`
+for cross-compilation. Repeated calls reuse the CMake build directory.
+`distclean` removes these build caches as well as the installed SDK.
 
-Build the packages, and place them under `defold/packages`
+The other external libraries are distributed as packages. Rebuild those with
+`build_external`, which writes archives under `defold/packages`.
 
 # Modifications
 
