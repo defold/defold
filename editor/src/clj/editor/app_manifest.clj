@@ -73,15 +73,19 @@
     "ddf_noasan"
     "dlib"
     "dlib_noasan"
+    "dmbedtls"
+    "dmbedtls_noasan"
     "engine"
     "engine_release"
     "engine_service"
     "engine_service_null"
     "extension"
     "font"
+    "font_render"
     "font_richtext"
     "font_richtext_null"
     "font_skribidi"
+    "gameobject"
     "gamesys"
     "gamesys_gui"
     "gamesys_model"
@@ -852,6 +856,39 @@
                   [:wasm-web platform-pattern]
                   [:wasm_pthread-web platform-pattern]]]]))
 
+(def ^:private windows-lib-name-migrations
+  ;; Only engine libraries lost their prefix. External and custom libraries
+  ;; can still have a lib prefix, so leave names outside this list unchanged.
+  (into {}
+        (mapcat (fn [lib]
+                  [[(str "lib" lib) lib]
+                   [(str "lib" lib ".lib") lib]
+                   [(str lib ".lib") lib]]))
+        defold-windows-lib-names))
+
+(defn- migrate-windows-library-names [manifest]
+  (reduce (fn [manifest platform]
+            (reduce (fn [manifest key]
+                      (if-let [libs (get-in-guarded manifest :platforms map? platform map? :context map? key vector?)]
+                        (assoc-in manifest [:platforms platform :context key]
+                                  (mapv #(get windows-lib-name-migrations % %) libs))
+                        manifest))
+                    manifest
+                    [:excludeLibs :libs :engineLibs]))
+          manifest
+          (conj windows :win32)))
+
+(defn- load-app-manifest [_project self _resource]
+  (g/expand-ec
+    (fn [evaluation-context]
+      (let [manifest (g/node-value self :manifest evaluation-context)]
+        (when-not (g/error? manifest)
+          (let [migrated-manifest (migrate-windows-library-names manifest)]
+            (when-not (= manifest migrated-manifest)
+              ;; Prevent the project loader from caching the original lines as save-data.
+              (g/flag-nodes-as-migrated! evaluation-context [self])
+              (g/set-property self :manifest migrated-manifest))))))))
+
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
   (output parsed-manifest g/Any :cached (g/fnk [lines _node-id resource]
@@ -1056,4 +1093,5 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
+    :additional-load-fn load-app-manifest
     :lazy-loaded false))
