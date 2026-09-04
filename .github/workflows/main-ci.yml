@@ -133,8 +133,8 @@ jobs:
             engine_args: '--skip-tests --skip-builtins --skip-docs'
             dotnet: true
             codesign: true
-          - name: 'bld-eng-darwin (arm64_sim-ios, true)'
-            platform: arm64_sim-ios
+          - name: 'bld-eng-darwin (x86_64-ios, true)'
+            platform: x86_64-ios
             runner: macos-26
             timeout: 30
             engine_args: '--skip-tests --skip-builtins --skip-docs'
