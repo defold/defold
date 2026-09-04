@@ -113,6 +113,8 @@ static HContext WebGPUGetContext();
 static GraphicsAdapter g_webgpu_adapter(ADAPTER_FAMILY_WEBGPU);
 static WebGPUContext* g_WebGPUContext = NULL;
 
+static void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, WGPUBindGroup* value);
+
 DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, ADAPTER_FAMILY_PRIORITY_WEBGPU);
 
 static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
@@ -3341,14 +3343,38 @@ static HTexture WebGPUNewTexture(HContext _context, const TextureCreationParams&
     return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
 }
 
+static void WebGPUInvalidateBindGroups(WebGPUContext* context)
+{
+    context->m_BindGroupCache.Iterate(WebGPUCleanupBindGroupCache, context);
+    context->m_BindGroupCache.Clear();
+    if (context->m_CurrentProgram)
+    {
+        for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
+            context->m_CurrentProgram->m_BindGroups[set] = NULL;
+    }
+    for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        context->m_CurrentRenderPass.m_BindGroups[set] = NULL;
+}
+
 static void WebGPUDeleteTexture(HContext context, HTexture _texture)
 {
     TRACE_CALL;
-    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _texture);
+    WebGPUContext* webgpu_context = (WebGPUContext*) context;
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(webgpu_context->m_BaseContext.m_AssetHandleContainer, _texture);
     if (texture)
     {
+        for (uint32_t unit = 0; unit < MAX_TEXTURE_COUNT; ++unit)
+        {
+            if (webgpu_context->m_CurrentTextureUnits[unit] == texture)
+                webgpu_context->m_CurrentTextureUnits[unit] = NULL;
+        }
+
+        // Cached bind groups may retain the native texture view even when the
+        // texture is no longer current. Drop them before releasing the view.
+        WebGPUInvalidateBindGroups(webgpu_context);
+
         WebGPUDestroyTexture(texture);
-        g_WebGPUContext->m_BaseContext.m_AssetHandleContainer.Release(_texture);
+        webgpu_context->m_BaseContext.m_AssetHandleContainer.Release(_texture);
     }
 }
 
@@ -3765,7 +3791,13 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
             if (rt->m_Multisample > 1)
                 multisample_creation_params.m_UsageHintBits &= ~(TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE);
 
-            WebGPUTexture* texture = WebGPUCreateRenderTargetTexture(multisample_creation_params, color_params, color_format, rt->m_Multisample, WGPUTextureUsage_RenderAttachment, false);
+            // Color render-target textures are exposed through
+            // GetRenderTargetTexture() and must therefore be sampleable. The
+            // multisampled attachment itself cannot be sampled; in that case
+            // the single-sample resolve texture carries TextureBinding usage.
+            const WGPUTextureUsage color_usage = (WGPUTextureUsage) (WGPUTextureUsage_RenderAttachment |
+                (rt->m_Multisample == 1 ? WGPUTextureUsage_TextureBinding : (WGPUTextureUsage) 0));
+            WebGPUTexture* texture = WebGPUCreateRenderTargetTexture(multisample_creation_params, color_params, color_format, rt->m_Multisample, color_usage, false);
             if (!texture)
                 return WebGPUFailRenderTargetCreation(_context, rt, "color attachment allocation failed.");
             rt->m_TextureColor[attachment_index] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
@@ -3775,7 +3807,8 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
             {
                 TextureCreationParams resolve_creation_params = color_creation_params;
                 resolve_creation_params.m_UsageHintBits &= ~TEXTURE_USAGE_FLAG_MEMORYLESS;
-                WebGPUTexture* resolve_texture = WebGPUCreateRenderTargetTexture(resolve_creation_params, color_params, color_format, 1, WGPUTextureUsage_RenderAttachment, false);
+                WebGPUTexture* resolve_texture = WebGPUCreateRenderTargetTexture(resolve_creation_params, color_params, color_format, 1,
+                    (WGPUTextureUsage) (WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding), false);
                 if (!resolve_texture)
                     return WebGPUFailRenderTargetCreation(_context, rt, "color resolve attachment allocation failed.");
                 rt->m_TextureResolve[attachment_index] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, resolve_texture, ASSET_TYPE_TEXTURE);
@@ -3946,7 +3979,9 @@ static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_tar
         resized_params.m_Width = width;
         resized_params.m_Height = height;
         TextureCreationParams resized_creation_params = WebGPUGetResizedTextureCreationParams(old_color, width, height);
-        resized_colors[i] = WebGPUCreateRenderTargetTexture(resized_creation_params, resized_params, old_color->m_Format, rt->m_Multisample, WGPUTextureUsage_RenderAttachment, false);
+        const WGPUTextureUsage color_usage = (WGPUTextureUsage) (WGPUTextureUsage_RenderAttachment |
+            (rt->m_Multisample == 1 ? WGPUTextureUsage_TextureBinding : (WGPUTextureUsage) 0));
+        resized_colors[i] = WebGPUCreateRenderTargetTexture(resized_creation_params, resized_params, old_color->m_Format, rt->m_Multisample, color_usage, false);
         allocation_failed = resized_colors[i] == NULL;
 
         if (!allocation_failed && rt->m_TextureResolve[i])
@@ -3958,7 +3993,8 @@ static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_tar
                 break;
             }
             TextureCreationParams resolve_creation_params = WebGPUGetResizedTextureCreationParams(old_resolve, width, height);
-            resized_resolves[i] = WebGPUCreateRenderTargetTexture(resolve_creation_params, resized_params, old_resolve->m_Format, 1, WGPUTextureUsage_RenderAttachment, false);
+            resized_resolves[i] = WebGPUCreateRenderTargetTexture(resolve_creation_params, resized_params, old_resolve->m_Format, 1,
+                (WGPUTextureUsage) (WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding), false);
             allocation_failed = resized_resolves[i] == NULL;
         }
     }
@@ -4001,6 +4037,11 @@ static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_tar
     // swapping resources into the stable Defold texture handles.
     WebGPUSubmitCommandEncoder(webgpu_context);
 
+    // Bind groups retain the old native views even though the Defold texture
+    // handles remain stable across a resize. Clear the cache before replacing
+    // those views so subsequent draws rebuild bindings for the new textures.
+    WebGPUInvalidateBindGroups(webgpu_context);
+
     for (uint32_t i = 0; i < rt->m_Base.m_ColorAttachmentCount; ++i)
     {
         const uint32_t color_index = GetBufferTypeIndex(rt->m_ColorBufferTypes[i]);
@@ -4040,11 +4081,6 @@ static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_tar
     rt->m_Scissor[3] = height;
     webgpu_context->m_ViewportChanged = 1;
 
-    if (webgpu_context->m_CurrentProgram)
-    {
-        for (uint32_t set = 0; set < webgpu_context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
-            webgpu_context->m_CurrentProgram->m_BindGroups[set] = NULL;
-    }
 }
 
 static void WebGPUEnableState(HContext context, State state)
@@ -4283,7 +4319,7 @@ void WebGPUCleanupComputePipelineCache(WebGPUContext* context, const uint64_t* k
     wgpuComputePipelineRelease(*value);
 }
 
-void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, WGPUBindGroup* value)
+static void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, WGPUBindGroup* value)
 {
     wgpuBindGroupRelease(*value);
 }
