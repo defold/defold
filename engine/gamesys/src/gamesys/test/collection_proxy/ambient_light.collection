@@ -1,0 +1,5 @@
+name: "ambient_light"
+instances {
+  id: "ambient_light"
+  prototype: "/light/valid_ambient_light.go"
+}

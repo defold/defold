@@ -37,6 +37,7 @@ namespace dmGameSystem
         }
         dmRender::HRenderContext m_RenderContext;
         dmResource::HFactory     m_Factory;
+        dmVMath::Vector3         m_AmbientLight;
         uint32_t                 m_MaxLightCount;
     };
 
@@ -45,8 +46,10 @@ namespace dmGameSystem
         dmGameObject::HInstance  m_Instance;
         LightResource*           m_LightResource;
         dmRender::HLightInstance m_LightInstance;
-        uint16_t                 m_AddedToUpdate : 1;
-        uint16_t                                 : 15;
+        dmVMath::Vector3         m_AmbientContribution;
+        uint16_t                 m_AddedToUpdate              : 1;
+        uint16_t                 m_AmbientContributionActive  : 1;
+        uint16_t                                                  : 14;
     };
 
     struct LightWorld
@@ -79,6 +82,43 @@ namespace dmGameSystem
 
         dmVMath::Vector4 color = dmRender::GetLightColor(context->m_RenderContext, prototype);
         return dmVMath::Vector3(color.getXYZ()) * dmRender::GetLightIntensity(context->m_RenderContext, prototype);
+    }
+
+    static bool AmbientContributionEquals(const dmVMath::Vector3& a, const dmVMath::Vector3& b)
+    {
+        return a.getX() == b.getX() && a.getY() == b.getY() && a.getZ() == b.getZ();
+    }
+
+    static void SetAmbientContribution(LightContext* context, LightComponent* light, const dmVMath::Vector3& contribution)
+    {
+        // Avoid subtracting and re-adding an unchanged contribution every frame. Besides
+        // unnecessary work, doing so can perturb the accumulated value through rounding.
+        if (light->m_AmbientContributionActive && AmbientContributionEquals(light->m_AmbientContribution, contribution))
+        {
+            return;
+        }
+
+        if (light->m_AmbientContributionActive)
+        {
+            context->m_AmbientLight -= light->m_AmbientContribution;
+        }
+        context->m_AmbientLight += contribution;
+        light->m_AmbientContribution = contribution;
+        light->m_AmbientContributionActive = 1;
+        dmRender::SetAmbientLight(context->m_RenderContext, context->m_AmbientLight);
+    }
+
+    static void ClearAmbientContribution(LightContext* context, LightComponent* light)
+    {
+        if (!light->m_AmbientContributionActive)
+        {
+            return;
+        }
+
+        context->m_AmbientLight -= light->m_AmbientContribution;
+        light->m_AmbientContribution = dmVMath::Vector3(0.0f, 0.0f, 0.0f);
+        light->m_AmbientContributionActive = 0;
+        dmRender::SetAmbientLight(context->m_RenderContext, context->m_AmbientLight);
     }
 
     static bool CreateRenderLightInstance(LightContext* context, LightComponent* light)
@@ -151,6 +191,8 @@ namespace dmGameSystem
                     dmRender::DeleteLightInstance(context->m_RenderContext, light->m_LightInstance);
                 }
 
+                ClearAmbientContribution(context, light);
+
                 delete light;
                 return dmGameObject::CREATE_RESULT_OK;
             }
@@ -171,7 +213,6 @@ namespace dmGameSystem
         LightContext* context = (LightContext*)params.m_Context;
 
         uint32_t num_components = world->m_Components.Size();
-        dmVMath::Vector3 ambient_light(0.0f, 0.0f, 0.0f);
         for (uint32_t i = 0; i < num_components; ++i)
         {
             LightComponent* light = world->m_Components[i];
@@ -190,9 +231,12 @@ namespace dmGameSystem
                     dmRender::DeleteLightInstance(context->m_RenderContext, light->m_LightInstance);
                     light->m_LightInstance = 0;
                 }
-                ambient_light += AmbientContribution(context, light->m_LightResource);
+                SetAmbientContribution(context, light, AmbientContribution(context, light->m_LightResource));
                 continue;
             }
+
+            // The resource may have been reloaded from ambient to a buffered light type.
+            ClearAmbientContribution(context, light);
 
             if (light->m_LightInstance == 0 && !CreateRenderLightInstance(context, light))
             {
@@ -209,7 +253,6 @@ namespace dmGameSystem
 
             dmRender::SetLightInstance(context->m_RenderContext, light->m_LightInstance, position, rotation, scale);
         }
-        dmRender::SetAmbientLight(context->m_RenderContext, ambient_light);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

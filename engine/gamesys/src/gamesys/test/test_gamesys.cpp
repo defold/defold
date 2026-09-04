@@ -1443,6 +1443,33 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     lua_pop(L, 1);
 }
 
+TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProxy)
+{
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_NE((void*)0, render_ctx);
+
+    dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/ambient_light_root.goc", dmHashString64("/proxy"), 0,
+                                              Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, proxy_go);
+
+    CollectionProxyComponentRef proxy = GetCollectionProxyComponentRef(proxy_go, dmHashString64("collectionproxy"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyLoad(proxy.m_World, proxy.m_Component, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyInitialize(proxy.m_World, proxy.m_Component));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyEnable(proxy.m_World, proxy.m_Component));
+
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    // The empty parent light world is updated after the proxied collection and must not
+    // overwrite the ambient contribution produced by the child light world.
+    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), render_ctx->m_AmbientLight);
+
+    dmGameObject::Delete(m_Collection, proxy_go, true);
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    // Destroying the proxy collection must remove its contribution from the shared context.
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), render_ctx->m_AmbientLight);
+}
+
 TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection)
 {
     // The proxy collection creates the resource, while this parent collection

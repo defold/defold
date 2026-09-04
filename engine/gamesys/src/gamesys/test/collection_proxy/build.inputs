@@ -1,5 +1,6 @@
 /collection_proxy/input_consume_no.go
 /collection_proxy/input_consume_yes.go
+/collection_proxy/ambient_light_root.go
 /collection_proxy/release_dynamic_resource_root.go
 /collection_proxy/release_dynamic_resource_target.collection
 /collection_proxy/script_load_api.go
