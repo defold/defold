@@ -204,10 +204,10 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
     FontGlyph*              glyph = params.m_Glyph;
     const float             recip_w = params.m_RecipAtlasWidth;
     const float             recip_h = params.m_RecipAtlasHeight;
-    const uint32_t          cell_x = params.m_CellX;
-    const uint32_t          cell_y = params.m_CellY;
-    const uint32_t          cache_cell_max_ascent = params.m_CacheCellMaxAscent;
-    const uint32_t          cache_cell_padding = params.m_CacheCellPadding;
+    const int32_t           cell_x = (int32_t)params.m_CellX;
+    const int32_t           cell_y = (int32_t)params.m_CellY;
+    const int32_t           cache_cell_max_ascent = params.m_CacheCellMaxAscent;
+    const int32_t           cache_cell_padding = (int32_t)params.m_CacheCellPadding;
     const uint32_t          layer_count = layers.m_LayerCount;
     const dmVMath::Matrix4& transform = *layers.m_Transform;
     const float             x = params.m_X;
@@ -254,10 +254,10 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
         source_size_difference = 0.0f;
     }
 
-    const int16_t    width = (int16_t)source_width;
-    const int16_t    descent = (int16_t)source_descent;
-    const int16_t    ascent = (int16_t)source_ascent;
-    const int16_t    cell_offset_y = cache_cell_max_ascent - ascent;
+    const int32_t    width = (int32_t)source_width;
+    const int32_t    descent = (int32_t)source_descent;
+    const int32_t    ascent = (int32_t)source_ascent;
+    const int32_t    cell_offset_y = cache_cell_max_ascent - ascent;
     const float      glyph_width = source_width * render_scale;
     const float      glyph_descent = source_descent * render_scale;
     const float      glyph_ascent = source_ascent * render_scale;
