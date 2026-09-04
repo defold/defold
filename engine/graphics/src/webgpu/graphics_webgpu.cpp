@@ -947,10 +947,10 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     else if (context->m_CurrentPipelineState.m_CullFaceType == FACE_TYPE_FRONT_AND_BACK)
         desc.primitive.cullMode = WGPUCullMode(WGPUCullMode_Front | WGPUCullMode_Back);
     // Offscreen rendering is flipped to preserve the engine's GL-style render
-    // target texture orientation. The unflipped backbuffer entry point has the
-    // opposite effective winding in WebGPU's framebuffer coordinate system.
+    // target texture orientation. Flipping clip-space Y reverses the triangle
+    // winding, so compensate when selecting the WebGPU front face.
     bool front_face_ccw = context->m_CurrentPipelineState.m_FaceWinding == FACE_WINDING_CCW;
-    if (!use_flipped_vertex_entry_point)
+    if (use_flipped_vertex_entry_point)
         front_face_ccw = !front_face_ccw;
     desc.primitive.frontFace = front_face_ccw ? WGPUFrontFace_CCW : WGPUFrontFace_CW;
 
@@ -2903,8 +2903,17 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;
                             break;
                     }
-                    program_resource_binding.m_TextureUnit = info.m_TextureCount;
-                    info.m_TextureCount++;
+                    if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                    {
+                        // Resolve the sampler to its associated texture unit
+                        // after all texture resources have been assigned.
+                        info.m_SamplerCount++;
+                    }
+                    else
+                    {
+                        program_resource_binding.m_TextureUnit = info.m_TextureCount;
+                        info.m_TextureCount++;
+                    }
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER: {
                     assert(false);
@@ -2944,6 +2953,24 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
     }
 }
 
+static void WebGPUResolveSamplerTextureUnits(WebGPUProgram* program)
+{
+    const dmArray<ShaderResourceBinding>& texture_resources = program->m_BaseProgram.m_ShaderMeta.m_Textures;
+    for (uint32_t i = 0; i < texture_resources.Size(); ++i)
+    {
+        const ShaderResourceBinding& sampler_resource = texture_resources[i];
+        if (sampler_resource.m_Type.m_ShaderType != ShaderDesc::SHADER_TYPE_SAMPLER)
+            continue;
+
+        const uint32_t texture_index = sampler_resource.m_BindingInfo.m_SamplerTextureIndex;
+        assert(texture_index < texture_resources.Size());
+        const ShaderResourceBinding& texture_resource = texture_resources[texture_index];
+        ProgramResourceBinding& sampler_binding = program->m_BaseProgram.m_ResourceBindings[sampler_resource.m_Set][sampler_resource.m_Binding];
+        const ProgramResourceBinding& texture_binding = program->m_BaseProgram.m_ResourceBindings[texture_resource.m_Set][texture_resource.m_Binding];
+        sampler_binding.m_TextureUnit = texture_binding.m_TextureUnit;
+    }
+}
+
 static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info)
 {
     TRACE_CALL;
@@ -2953,6 +2980,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
+    WebGPUResolveSamplerTextureUnits(program);
 }
 
 static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* program)
@@ -2972,7 +3000,7 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
     program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
     program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
     program->m_TextureSamplerCount    = binding_info.m_TextureCount;
-    program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_StorageBufferCount; // num actual descriptors
+    program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
     program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
     program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
 
