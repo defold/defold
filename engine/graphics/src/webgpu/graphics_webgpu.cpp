@@ -1388,6 +1388,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+    SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
 
 #if defined (DM_GRAPHICS_WEBGPU2)
