@@ -138,7 +138,7 @@
                               (g/tx-nodes-added
                                 (g/transact
                                   {:undoable false}
-                                  (g/make-node (test-util/make-view-graph!) view/WorkbenchView))))
+                                  (g/make-node world view/WorkbenchView))))
           tab (doto (Tab. "Gone")
                 (editor-tab/set-view-node-id! resourceless-view))]
       (g/transact

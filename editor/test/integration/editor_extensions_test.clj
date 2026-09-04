@@ -2627,8 +2627,7 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
       (run!
         (fn [[proj-path view-node-type view-node-args label]]
           (let [resource-node (test-util/resource-node project proj-path)
-                view-graph (test-util/make-view-graph!)
-                view-node (first (g/take-node-ids view-graph 1))]
+                view-node (first (g/take-node-ids world 1))]
             (g/transact
               {:undoable false}
               (concat
