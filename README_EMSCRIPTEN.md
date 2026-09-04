@@ -32,9 +32,9 @@ Note: This information is based on the latest update (3.1.55 -> 3.1.65)
 * run `./scripts/build.py install_ems` to get the latest sdk for your host platform
 * build protobuf for wasm-web and wasm_pthread-web (ubuntu/linux) and copy into the `defold/packages` folder
 * build bullet3d for wasm-web and wasm_pthread-web (ubuntu/linux)
-  - `./scripts/build.py build_external --platform=wasm-web`
-  - `./scripts/build.py build_external --platform=wasm_pthread-web`
-  - these are automatically copied to packages
+  - `./scripts/build.py build_ext --platform=wasm-web`
+  - `./scripts/build.py build_ext --platform=wasm_pthread-web`
+  - these are installed into `tmp/dynamo_home/ext`
 * building:
   - refresh the shell (`exit` + subsequent `scripts/build.py shell`)
   - make sure `$EMSCRIPTEN` points to the updated version
