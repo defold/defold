@@ -766,32 +766,6 @@ namespace dmEngine
         engine->m_UpdateFrequency = frequency;
     }
 
-    struct LuaCallstackCtx
-    {
-        bool     m_First;
-        char*    m_Buffer;
-        uint32_t m_BufferSize;
-    };
-
-    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
-    {
-        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
-
-        if (ctx->m_First)
-        {
-            int32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
-            if (nwritten < 0)
-                nwritten = 0;
-            ctx->m_Buffer += nwritten;
-            ctx->m_BufferSize -= nwritten;
-            ctx->m_First = false;
-        }
-
-        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
-        ctx->m_Buffer += nwritten;
-        ctx->m_BufferSize -= nwritten;
-    }
-
     static void LoadDependencyJson(HEngine engine)
     {
         void* resource = 0;
@@ -826,11 +800,7 @@ namespace dmEngine
 
         if (engine->m_SharedScriptContext)
         {
-            LuaCallstackCtx ctx;
-            ctx.m_First = true;
-            ctx.m_Buffer = buffer;
-            ctx.m_BufferSize = buffersize;
-            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
+            dmScript::WriteLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Lua Callstack:\n", buffer, buffersize);
         }
     }
 
