@@ -3280,11 +3280,11 @@ TEST_F(dmRenderTest, FontMapNegativeGlyphAscent)
     dmRender::FontMapParams negative_font_map_params;
     negative_font_map_params.m_FontCollection = font_collection;
     negative_font_map_params.m_CacheWidth = 128;
-    negative_font_map_params.m_CacheHeight = 128;
+    negative_font_map_params.m_CacheHeight = 256;
     negative_font_map_params.m_CacheMaxWidth = 128;
-    negative_font_map_params.m_CacheMaxHeight = 128;
+    negative_font_map_params.m_CacheMaxHeight = 256;
     negative_font_map_params.m_CacheCellWidth = 64;
-    negative_font_map_params.m_CacheCellHeight = 128;
+    negative_font_map_params.m_CacheCellHeight = 123;
     negative_font_map_params.m_CacheCellMaxAscent = loaded_glyph_bank->m_CacheCellMaxAscent;
     negative_font_map_params.m_Alpha = 1.0f;
     negative_font_map_params.m_OutlineAlpha = 0.0f;
@@ -3315,6 +3315,7 @@ TEST_F(dmRenderTest, FontMapNegativeGlyphAscent)
 
     dmRender::UpdateCacheTexture(m_SystemFontMap);
     ASSERT_EQ(-3, m_SystemFontMap->m_CacheCellMaxAscent);
+    ASSERT_EQ(128, m_SystemFontMap->m_CacheCellHeight);
     ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
     const uint64_t underscore_key = dmRender::MakeGlyphIndexKey(m_Font, glyph->m_GlyphIndex);
     cached = dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key, glyph, 0);
@@ -3323,6 +3324,8 @@ TEST_F(dmRenderTest, FontMapNegativeGlyphAscent)
     // A negative upload origin must be rejected before conversion to graphics coordinates.
     ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key + 1, glyph, -1));
     ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
+    // An upload may fit in the texture and still overlap the next cache row.
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key + 2, glyph, 120));
 }
 
 TEST_F(dmRenderTest, LightBufferTestSimple)

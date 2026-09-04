@@ -206,8 +206,8 @@ public class Fontc {
             glyph.width = source.width;
             glyph.pixelHeight = source.height;
             glyphs.add(glyph);
-            maxAscent = Math.max(maxAscent, glyph.ascent);
-            maxDescent = Math.max(maxDescent, glyph.descent);
+            maxAscent = i == 0 ? glyph.ascent : Math.max(maxAscent, glyph.ascent);
+            maxDescent = i == 0 ? glyph.descent : Math.max(maxDescent, glyph.descent);
         }
         glyphBankBuilder.setMaxAscent(maxAscent).setMaxDescent(maxDescent);
     }

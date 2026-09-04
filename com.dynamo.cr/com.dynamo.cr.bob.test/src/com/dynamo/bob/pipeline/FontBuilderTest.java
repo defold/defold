@@ -177,6 +177,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(-3, glyphBank.getCacheCellMaxAscent());
         assertEquals(-3, GlyphBank.parseFrom(glyphBank.toByteArray()).getCacheCellMaxAscent());
         assertEquals(5, glyphBank.getCacheCellHeight());
+        assertEquals(-3.0f, glyphBank.getMaxAscent(), 0.0f);
+        assertEquals(6.0f, glyphBank.getMaxDescent(), 0.0f);
+        GlyphBank serializedGlyphBank = GlyphBank.parseFrom(glyphBank.toByteArray());
+        assertEquals(3.0f, serializedGlyphBank.getMaxAscent() + serializedGlyphBank.getMaxDescent(), 0.0f);
     }
 
     @Test

@@ -208,14 +208,17 @@ namespace dmRender
         font_map->m_CacheMaxWidth = params.m_CacheMaxWidth;
         font_map->m_CacheMaxHeight = params.m_CacheMaxHeight;
 
-        uint16_t cell_width = dmMath::Max(8U, params.m_CacheCellWidth);
-        uint16_t cell_height = dmMath::Max(8U, params.m_CacheCellHeight);
-
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
-        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
-                                cell_width, cell_height, params.m_CacheCellMaxAscent);
+        // Leave the cell dimensions at zero until the first bitmap supplies metrics.
+        if (params.m_CacheCellHeight != 0)
+        {
+            uint16_t cell_width = dmMath::Max(8U, params.m_CacheCellWidth);
+            uint16_t cell_height = dmMath::Max(8U, params.m_CacheCellHeight);
+            SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
+                                    cell_width, cell_height, params.m_CacheCellMaxAscent);
+        }
 
         switch (font_map->m_CacheChannels)
         {
@@ -487,18 +490,31 @@ namespace dmRender
         int32_t prev_ascent;
         dmRender::GetFontMapCacheSize(font_map, &prev_width, &prev_height, &prev_ascent);
 
-        // Glyphs below the baseline have negative ascent, including when updating the cache maximum.
         uint16_t bitmap_width   = (uint16_t)glyph->m_Bitmap.m_Width;
         uint16_t bitmap_height  = (uint16_t)glyph->m_Bitmap.m_Height;
         int32_t  ascent         = (int32_t)glyph->m_Ascent;
-        bool dirty = bitmap_width > prev_width ||
-                      bitmap_height > prev_height ||
-                      ascent > prev_ascent;
+        if (bitmap_width == 0 || bitmap_height == 0)
+            return;
+
+        // An empty cache has no baseline yet; its first bitmap may have a negative ascent.
+        uint16_t cell_width = dmMath::Max((uint16_t)8, dmMath::Max(bitmap_width, prev_width));
+        int32_t max_ascent = prev_height == 0 ? ascent : dmMath::Max(ascent, prev_ascent);
+        // Moving the baseline down also moves every previously added bitmap down.
+        int64_t cell_height = prev_height == 0 ? 8 : (int64_t)prev_height + max_ascent - prev_ascent;
+        cell_height = dmMath::Max(cell_height, (int64_t)max_ascent - ascent + bitmap_height);
+        if (cell_height > UINT16_MAX)
+        {
+            dmLogWarning("Font cache cell height exceeds the supported maximum for glyph %u.", glyph_index);
+            return;
+        }
+        bool dirty = cell_width != prev_width ||
+                      cell_height != prev_height ||
+                      max_ascent != prev_ascent;
         if (dirty)
         {
-            font_map->m_CacheCellWidth      = dmMath::Max(bitmap_width, prev_width);
-            font_map->m_CacheCellHeight     = dmMath::Max(bitmap_height, prev_height);
-            font_map->m_CacheCellMaxAscent  = dmMath::Max(ascent, prev_ascent);
+            font_map->m_CacheCellWidth      = cell_width;
+            font_map->m_CacheCellHeight     = (uint16_t)cell_height;
+            font_map->m_CacheCellMaxAscent  = max_ascent;
             dmRender::SetFontMapCacheSize(font_map, font_map->m_CacheCellWidth, font_map->m_CacheCellHeight, font_map->m_CacheCellMaxAscent);
         }
     }
@@ -779,6 +795,17 @@ namespace dmRender
     CacheGlyph* AddGlyphToCache(HFontMap font_map, uint32_t frame, uint64_t glyph_key, FontGlyph* glyph, int32_t g_offset_y)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+
+        if (font_map->m_CacheCellCount == 0)
+            return 0;
+
+        // Fitting inside the texture is not enough: never overwrite another cache cell.
+        if (g_offset_y < 0 || glyph->m_Bitmap.m_Width > font_map->m_CacheCellWidth ||
+            (int64_t)g_offset_y + glyph->m_Bitmap.m_Height > font_map->m_CacheCellHeight)
+        {
+            dmLogWarning("Glyph %u does not fit inside its font cache cell (%u x %u).", glyph->m_GlyphIndex, font_map->m_CacheCellWidth, font_map->m_CacheCellHeight);
+            return 0;
+        }
 
         // Since accessing glyphs will update their timestamps, we need to sort them when
         // we need to allocate a new glyph, so that we pick the oldest one
