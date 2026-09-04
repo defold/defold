@@ -30,20 +30,19 @@
 
 (deftest simple []
   (with-clean-system
-    (let [g (g/make-graph!)
-          nodes (tx-nodes (g/make-nodes g [n0 [SimpleNode :prop "test"]
-                                           n1 [SimpleNode :prop "test2"]]
-                                        (g/connect n0 :out n1 :in)))
-          dot (gviz/subgraph->dot (g/now))]
+    (g/transact
+      (g/make-nodes world [n0 [SimpleNode :prop "test"]
+                           n1 [SimpleNode :prop "test2"]]
+        (g/connect n0 :out n1 :in)))
+    (let [dot (gviz/subgraph->dot (g/now))]
       (is (re-find #"SimpleNode" dot)))))
 
 (deftest broken-graph []
   (with-clean-system
-    (let [g (g/make-graph!)
-          nodes (tx-nodes (g/make-nodes g [n0 [SimpleNode :prop "test"]
-                                           n1 [SimpleNode :prop "test2"]]
-                                        (g/connect n0 :out n1 :in)))
-          basis (update-in (g/now) [:graphs g :nodes] dissoc (first nodes))
+    (let [nodes (tx-nodes (g/make-nodes world [n0 [SimpleNode :prop "test"]
+                                               n1 [SimpleNode :prop "test2"]]
+                            (g/connect n0 :out n1 :in)))
+          basis (update-in (g/now) [:graphs world :nodes] dissoc (first nodes))
           dot (gviz/subgraph->dot basis)]
       (is (re-find #"red" dot)))))
 
