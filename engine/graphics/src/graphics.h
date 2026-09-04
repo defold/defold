@@ -107,7 +107,10 @@ namespace dmGraphics
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
         // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
         CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
-        MAX_CONTEXT_FEATURE_COUNT              = 9,
+        // BC (S3TC/RGTC/BPTC) for 2D array / 3D textures. WebGL2 forbids these
+        // compressed families on array/3D targets while allowing them on 2D.
+        CONTEXT_FEATURE_BC_ARRAY_TEXTURES      = 9,
+        MAX_CONTEXT_FEATURE_COUNT              = 10,
     };
 
     // Binding family for shader resources in a program.

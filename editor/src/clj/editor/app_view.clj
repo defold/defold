@@ -1662,30 +1662,33 @@
     (PipedOutputStream. in)))
 
 (defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
-  (if-not (disk-availability/available?)
+  (if-not (disk-availability/try-push-busy!)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
-    (let [evaluation-context (g/make-evaluation-context)
-          options (cond-> options
-                    (not (contains? options "build-server"))
-                    (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+    (try
+      (let [evaluation-context (g/make-evaluation-context)
+            options (cond-> options
+                      (not (contains? options "build-server"))
+                      (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
 
-                    (not (contains? options "build-server-header"))
-                    (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-          main-scene (g/node-value app-view :scene evaluation-context)
-          tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-          render-reload-progress! (make-render-task-progress :resource-sync)
-          render-save-progress! (make-render-task-progress :save-all)
-          [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-          _ (ui/run-now
-              (g/update-cache-from-evaluation-context! evaluation-context)
-              (build-errors-view/clear-build-errors build-errors-view))
-          build-results (with-open [out (start-new-log-pipe!)]
-                          (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                           out build-task-cancelled? commands options project changes-view))]
-      (when-let [error (:error build-results)]
-        (ui/run-now (render-build-error! error)))
-      build-results)))
+                      (not (contains? options "build-server-header"))
+                      (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+            main-scene (g/node-value app-view :scene evaluation-context)
+            tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+            render-reload-progress! (make-render-task-progress :resource-sync)
+            render-save-progress! (make-render-task-progress :save-all)
+            [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
+            _ (ui/run-now
+                (g/update-cache-from-evaluation-context! evaluation-context)
+                (build-errors-view/clear-build-errors build-errors-view))
+            build-results (with-open [out (start-new-log-pipe!)]
+                            (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                                             out build-task-cancelled? commands options project changes-view))]
+        (when-let [error (:error build-results)]
+          (ui/run-now (render-build-error! error)))
+        build-results)
+      (finally
+        (disk-availability/pop-busy!)))))
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
