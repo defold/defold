@@ -18,17 +18,17 @@
 #include <stdint.h>
 #include <stdio.h>
 
-struct zip_t; // internal, don't use
-
 namespace dmZip
 {
-    typedef zip_t* HZip;
+    struct ZipArchive;
+    typedef ZipArchive* HZip;
 
     enum Result
     {
         RESULT_OK,
         RESULT_NO_SUCH_ENTRY,
         RESULT_BUFFER_NOT_LARGE_ENOUGH,
+        RESULT_IO_ERROR,
     };
 
     /*# Opens a read only zip archive
@@ -38,6 +38,17 @@ namespace dmZip
      * @return [type:Result] path to the zip archive
      */
     Result Open(const char* path, HZip* zip);
+
+    /*# Opens a read only zip archive from a resource path
+     *
+     * The resource path and its backing storage are resolved by the platform
+     * ZIP backend.
+     *
+     * @param path [type: const char*] resource path to the zip archive
+     * @param zip [type: HZip*] pointer to zip handle
+     * @return [type:Result] result
+     */
+    Result OpenResource(const char* path, HZip* zip);
 
     /*# Opens a read only zip archive stream from memory
      *

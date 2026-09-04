@@ -27,6 +27,7 @@
 static uint32_t g_ZipReadCalls;
 static uint64_t g_ZipReadBytes;
 
+// Track the amount of backing-file I/O performed by a ZIP operation.
 static size_t CountingReadFileAt(FILE* file, uint64_t offset, void* buffer, size_t size)
 {
     if (dmSys::FileSeek64(file, offset) != 0)
@@ -77,6 +78,7 @@ struct ZipArchiveParams
         OPEN_FROM_PATH,
         OPEN_FROM_MEMORY,
         OPEN_FROM_FILE_RANGE,
+        OPEN_FROM_RESOURCE,
     } m_OpenMode;
 };
 
@@ -111,6 +113,10 @@ protected:
                 ASSERT_GT(file_size, 0);
                 zr = dmZip::OpenFileRange(m_File, 0, (uint64_t)file_size, &m_Zip);
             }
+            else if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_RESOURCE)
+            {
+                zr = dmZip::OpenResource(path, &m_Zip);
+            }
             else
             {
                 zr = dmZip::Open(path, &m_Zip);
@@ -142,6 +148,8 @@ TEST(dmZip, NotExist)
     ASSERT_NE(dmZip::RESULT_OK, zr);
 }
 
+// Verify that only the declared ZIP range is visible when unrelated data exists
+// before and after it, and that closing the ZIP leaves the caller-owned file open.
 TEST(dmZip, OpenFileRange)
 {
     std::string archive;
@@ -178,6 +186,8 @@ TEST(dmZip, OpenFileRange)
     fclose(file);
 }
 
+// Verify that the range boundary is enforced and a ZIP truncated by that boundary
+// is rejected without returning a partially initialized handle.
 TEST(dmZip, OpenFileRangeRejectsTruncatedArchive)
 {
     std::string archive;
@@ -195,6 +205,8 @@ TEST(dmZip, OpenFileRangeRejectsTruncatedArchive)
     fclose(file);
 }
 
+// Verify that a partial read from a stored entry reads only its local header and
+// requested bytes, including when the requested size would overflow offset + size.
 TEST(dmZip, StoredPartialReadDoesNotScanFromStart)
 {
     std::string archive;
@@ -316,12 +328,17 @@ TEST_P(ZipArchiveTest, ReadPartial)
 }
 
 const ZipArchiveParams params_zip_archives[] = {
+    // Preserve coverage of the existing filesystem and memory opening paths.
     { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_PATH },
     { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_PATH },
     { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_MEMORY },
     { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_MEMORY },
+    // Run all parameterized ZIP operations through the new bounded-file path.
     { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
     { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
+    // Run the same operations through the platform resource backend.
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_RESOURCE },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_RESOURCE },
 };
 
 INSTANTIATE_TEST_CASE_P(ZipArchiveOpenModes, ZipArchiveTest,

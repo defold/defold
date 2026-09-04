@@ -154,7 +154,8 @@ foreach(_feature IN ITEMS
     dlib/sslsocket
     dlib/sys
     dlib/time
-    dlib/thread)
+    dlib/thread
+    dlib/zip)
   set(_extra_tags)
   set(_preferred_tags)
   if(_feature STREQUAL "dlib/crypt")

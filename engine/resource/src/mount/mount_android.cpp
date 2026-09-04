@@ -154,47 +154,6 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    Result OpenAssetFile(const char* path, FILE*& out_file, uint64_t& out_offset, uint64_t& out_size)
-    {
-        out_file = 0;
-        out_offset = 0;
-        out_size = 0;
-
-        AAssetManager* am = GetAndroidAssetManager();
-        if (!am)
-            return RESULT_NOT_SUPPORTED;
-
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
-        if (!asset)
-            return RESULT_RESOURCE_NOT_FOUND;
-
-        off64_t offset = 0;
-        off64_t size = 0;
-        int fd = AAsset_openFileDescriptor64(asset, &offset, &size);
-        AAsset_close(asset);
-
-        if (fd < 0)
-            return RESULT_NOT_SUPPORTED;
-        if (offset < 0 || size < 0)
-        {
-            close(fd);
-            return RESULT_IO_ERROR;
-        }
-
-        FILE* file = fdopen(fd, "rb");
-        if (!file)
-        {
-            close(fd);
-            return RESULT_IO_ERROR;
-        }
-
-        setvbuf(file, 0, _IONBF, 0);
-        out_file = file;
-        out_offset = (uint64_t)offset;
-        out_size = (uint64_t)size;
-        return RESULT_OK;
-    }
-
     Result UnmapFile(void*& map, uint32_t size)
     {
         if (map != 0x0)
