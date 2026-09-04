@@ -116,12 +116,12 @@
     (setup-editor-tabs-split! app-view)
     (let [^Tab tab (open-test-tab! app-view)
           view-id (editor-tab/view-node-id tab)
-          view-graph-id (g/node-id->graph-id view-id)]
+          project-graph-id (g/node-id->graph-id app-view)]
       (test-util/with-ui-run-later-rebound
         (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
-      (testing "closing it disposes its view graph"
-        (is (nil? (g/graph view-graph-id)))
+      (testing "closing it disposes its view node without deleting the project graph"
+        (is (g/graph project-graph-id))
         (is (nil? (g/node-by-id view-id))))
 
       (testing "closing it detaches the view from the tab"
