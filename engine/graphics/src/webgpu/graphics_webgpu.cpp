@@ -225,7 +225,9 @@ static WebGPUTexture* WebGPUNewTextureInternal(const TextureCreationParams& para
     if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_COLOR)
         texture->m_UsageFlags |= WGPUTextureUsage_RenderAttachment;
     texture->m_Base.m_UsageHintFlags = params.m_UsageHintBits;
-    texture->m_Base.m_PageCount      = params.m_LayerCount;
+    texture->m_Base.m_PageCount      = params.m_Type == TEXTURE_TYPE_CUBE_MAP || params.m_Type == TEXTURE_TYPE_TEXTURE_CUBE
+        ? GetLayerCount(TEXTURE_TYPE_CUBE_MAP)
+        : params.m_LayerCount;
 
     if (params.m_OriginalWidth == 0)
     {
@@ -496,7 +498,18 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     if (texture->m_Base.m_MipMapCount == 1 && params.m_MipMap > 0)
         return;
 
+    const bool is_3d_texture = texture->m_Base.m_Type == TEXTURE_TYPE_3D ||
+                               texture->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D ||
+                               texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_3D;
+    const bool is_array_texture = texture->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY ||
+                                  texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_2D_ARRAY;
+    const bool is_cube_texture = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ||
+                                 texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_CUBE;
     const uint16_t texture_depth = dmMath::Max((uint16_t)1, params.m_Depth);
+    const uint8_t upload_layer_count = is_cube_texture
+        ? (uint8_t)GetLayerCount(TEXTURE_TYPE_CUBE_MAP)
+        : (is_array_texture ? dmMath::Max((uint8_t)1, params.m_LayerCount) : 1);
+    const uint8_t texture_layer_count = dmMath::Max(texture->m_Base.m_PageCount, upload_layer_count);
     uint32_t current_storage_width;
     uint32_t current_storage_height;
     uint32_t new_storage_width;
@@ -518,7 +531,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     assert(new_storage_height <= max_texture_dimension_2d);
 
     const bool texture_dimensions_changed = !params.m_SubUpdate &&
-        (texture->m_Base.m_Depth != texture_depth ||
+        ((is_3d_texture && texture->m_Base.m_Depth != texture_depth) ||
+         ((is_array_texture || is_cube_texture) && texture->m_Base.m_PageCount != texture_layer_count) ||
          (params.m_MipMap == 0 && (current_storage_width != new_storage_width || current_storage_height != new_storage_height)));
 
     if (texture->m_Texture && (texture->m_Base.m_Format != params.m_Format || texture_dimensions_changed))
@@ -541,6 +555,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
         texture->m_Base.m_Width  = params.m_Width;
         texture->m_Base.m_Height = params.m_Height;
         texture->m_Base.m_Depth  = texture_depth;
+        texture->m_Base.m_PageCount = texture_layer_count;
     }
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -549,7 +564,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
         WGPUImageCopyTexture dest     = {};
 #endif
         dest.mipLevel                 = params.m_MipMap;
-        dest.origin                   = { params.m_X, params.m_Y, params.m_Z };
+        dest.origin                   = { params.m_X, params.m_Y, is_3d_texture ? params.m_Z : (is_cube_texture ? 0u : params.m_Slice) };
         dest.aspect                   = WGPUTextureAspect_All;
 
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -568,27 +583,47 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
         layout.offset                    = 0;
         layout.rowsPerImage              = extent.height;
 
-        const uint8_t depth = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
+        const uint32_t depth_or_layer_count = is_3d_texture ? texture_depth : upload_layer_count;
         if (params.m_Format == TEXTURE_FORMAT_RGB) // Not really supported, so transcode it
         {
             if (!texture->m_Texture)
             {
                 assert(!params.m_SubUpdate);
                 texture->m_Base.m_Format = TEXTURE_FORMAT_RGBA;
-                WebGPURealizeTexture(texture, WGPUTextureFormat_RGBA8Unorm, params.m_Depth, 1, WGPUTextureUsage_CopyDst);
+                WebGPURealizeTexture(texture, WGPUTextureFormat_RGBA8Unorm, is_3d_texture ? texture_depth : texture_layer_count, 1, WGPUTextureUsage_CopyDst);
                 assert(texture->m_Texture && texture->m_TextureView);
             }
-            const uint8_t repackBPP     = 4;
-            const uint32_t repackPixels = params.m_Width * params.m_Height * depth;
-            uint8_t* repackData         = new uint8_t[repackPixels * repackBPP];
-            RepackRGBToRGBA(repackPixels, (uint8_t*)params.m_Data, repackData);
+            const uint8_t repack_bpp       = 4;
+            const uint32_t pixels_per_face = params.m_Width * params.m_Height;
 
-            dest.texture              = texture->m_Texture;
-            layout.bytesPerRow        = extent.width * repackBPP;
-            extent.depthOrArrayLayers = depth;
-            wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, repackData, repackPixels * repackBPP, &layout, &extent);
+            dest.texture       = texture->m_Texture;
+            layout.bytesPerRow = extent.width * repack_bpp;
+            if (is_cube_texture)
+            {
+                const size_t source_face_stride = params.m_DataSize ? params.m_DataSize : pixels_per_face * 3;
+                const size_t repacked_face_size = (size_t)pixels_per_face * repack_bpp;
+                uint8_t* repacked_face           = new uint8_t[repacked_face_size];
+                const uint8_t* source_data       = (const uint8_t*)params.m_Data;
 
-            delete[] repackData;
+                extent.depthOrArrayLayers = 1;
+                for (uint32_t face = 0; face < upload_layer_count; ++face)
+                {
+                    RepackRGBToRGBA(pixels_per_face, (uint8_t*)(source_data + face * source_face_stride), repacked_face);
+                    dest.origin.z = face;
+                    wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, repacked_face, repacked_face_size, &layout, &extent);
+                }
+                delete[] repacked_face;
+            }
+            else
+            {
+                const uint32_t repack_pixels = pixels_per_face * depth_or_layer_count;
+                uint8_t* repack_data         = new uint8_t[(size_t)repack_pixels * repack_bpp];
+                RepackRGBToRGBA(repack_pixels, (uint8_t*)params.m_Data, repack_data);
+
+                extent.depthOrArrayLayers = depth_or_layer_count;
+                wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, repack_data, (size_t)repack_pixels * repack_bpp, &layout, &extent);
+                delete[] repack_data;
+            }
         }
         else
         {
@@ -596,7 +631,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             {
                 assert(!params.m_SubUpdate);
                 texture->m_Base.m_Format = params.m_Format;
-                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_Format), params.m_Depth, 1, WGPUTextureUsage_CopyDst);
+                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_Format), is_3d_texture ? texture_depth : texture_layer_count, 1, WGPUTextureUsage_CopyDst);
                 assert(texture->m_Texture && texture->m_TextureView);
             }
 
@@ -626,10 +661,39 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
                 layout.bytesPerRow *= ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
                 layout.rowsPerImage = extent.height;
             }
-            extent.depthOrArrayLayers = depth;
-            if (const size_t dataSize = params.m_DataSize ? params.m_DataSize : layout.bytesPerRow * layout.rowsPerImage * depth)
+            extent.depthOrArrayLayers = depth_or_layer_count;
+            const size_t image_data_size = (size_t)layout.bytesPerRow * layout.rowsPerImage;
+            if (is_cube_texture)
             {
-                wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
+                // Match the OpenGL upload path and write each face explicitly.
+                // This also avoids depending on browser support for a single
+                // writeTexture call spanning every layer of a cube view.
+                size_t face_stride = params.m_DataSize ? params.m_DataSize : image_data_size;
+                if (face_stride == image_data_size * upload_layer_count)
+                    face_stride = image_data_size;
+
+                extent.depthOrArrayLayers = 1;
+                const uint8_t* data = (const uint8_t*)params.m_Data;
+                for (uint32_t face = 0; face < upload_layer_count; ++face)
+                {
+                    dest.origin.z = face;
+                    wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, data + face * face_stride, image_data_size, &layout, &extent);
+                }
+            }
+            else
+            {
+                // Texture resources provide m_DataSize per layer for compatibility
+                // with the OpenGL backend. WebGPU's writeTexture size covers the
+                // complete layered copy, so include every uploaded layer here.
+                const uint32_t data_layer_count = is_3d_texture ? 1 : upload_layer_count;
+                const size_t expected_data_size = image_data_size * depth_or_layer_count;
+                size_t data_size = params.m_DataSize ? params.m_DataSize : expected_data_size;
+                if (data_layer_count > 1 && data_size != expected_data_size)
+                    data_size *= data_layer_count;
+                if (data_size)
+                {
+                    wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, data_size, &layout, &extent);
+                }
             }
         }
     }
