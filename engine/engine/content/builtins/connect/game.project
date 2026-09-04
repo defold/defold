@@ -18,9 +18,6 @@ clear_color_green = 1
 clear_color_blue = 1
 clear_color_alpha = 0
 
-[script]
-shared_state = 1
-
 [shader]
 output_glsl_es100 = 1
 output_glsl_es300 = 1

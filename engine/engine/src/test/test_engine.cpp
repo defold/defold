@@ -270,7 +270,7 @@ TEST_F(EngineTest, SharedLuaState)
 {
     uint32_t frame_count = 0;
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=factory.max_count=1024", "--config=sprite.max_count=1024", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=factory.max_count=1024", "--config=sprite.max_count=1024", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_GT(frame_count, 5u);
 }
@@ -447,7 +447,7 @@ TEST_F(EngineTest, RebootWithPendingAsyncBufferLoad)
     char project_config[512];
     MAKE_PATH(project_path, "/game.projectc");
     dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
-    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.main_collection=/reboot_load_buffer_async/start.collectionc", "--config=test.reboot_load_buffer_async_phase=first", "--config=dmengine.unload_builtins=0", project_config, project_path};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot_load_buffer_async/start.collectionc", "--config=test.reboot_load_buffer_async_phase=first", "--config=dmengine.unload_builtins=0", project_config, project_path};
     ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
@@ -541,26 +541,22 @@ TEST_F(EngineTest, RunScript)
 {
     char project_path[256];
     // Regular game.project bootstrap.debug_init_script entry
-    const char* argv1[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv1[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv1), (char**)argv1, 0, 0, 0));
 
     // Command line property
     // Two files in the same property "file1,file2"
-    const char* argv2[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.debug_init_script=/init_script/init.luac,/init_script/init1.luac", "--config=bootstrap.main_collection=/init_script/game1.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv2[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.debug_init_script=/init_script/init.luac,/init_script/init1.luac", "--config=bootstrap.main_collection=/init_script/game1.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv2), (char**)argv2, 0, 0, 0));
 
     // Command line property
     // An init script that all it does is post an exit
-    const char* argv3[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/init2.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv3[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/init2.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv3), (char**)argv3, 0, 0, 0));
 
     // Trying a non existing file
-    const char* argv4[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv4[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv4), (char**)argv4, 0, 0, 0));
-
-    // With a non shared context
-    const char* argv5[] = {"test_engine", "--config=script.shared_state=0", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
-    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv5), (char**)argv5, 0, 0, 0));
 }
 
 // VENDOR: Until we support connections
@@ -571,7 +567,7 @@ TEST_F(EngineTest, RunScript)
 TEST_F(EngineTest, ConnectionRunScript)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game_connection.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game_connection.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     HttpTestContext ctx;
     ctx.m_Script = "post_runscript.py";
 
@@ -589,7 +585,7 @@ TEST_P(DrawCountTest, DrawCount)
     char project_path[512];
     MAKE_PATH(project_path, p.m_ProjectPath);
 
-    const char* argv[] = {"dmengine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=display.update_frequency=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project_path};
+    const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", "--config=display.update_frequency=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project_path};
 
     ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv));
 
@@ -645,14 +641,14 @@ TEST_F(EngineTest, ISSUE_8672_timer)
 TEST_F(EngineTest, ISSUE_10119)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10119/issue-10119.collectionc", "--config=script.shared_state=1", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10119/issue-10119.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
 TEST_F(EngineTest, ISSUE_10323)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10323/issue-10323.collectionc", "--config=script.shared_state=1", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10323/issue-10323.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 

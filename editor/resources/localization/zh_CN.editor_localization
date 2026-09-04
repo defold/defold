@@ -169,12 +169,6 @@ dialog.clean-build.title = 执行纯净构建？
 dialog.clean-build.header = 确定要执行纯净构建吗？
 dialog.clean-build.button.clean = 纯净构建
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = 不支持调试
-dialog.debugging-not-supported.header = 此项目无法与调试器一起使用
-dialog.debugging-not-supported.content = 配置为禁用共享脚本状态。\n\n除非特别需要不同的脚本状态，否则建议修改 game.project 中的 script.shared_state 属性。
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = 修订 .defunload 模式
@@ -1652,10 +1646,6 @@ form.label.project.particle_fx.max_particle_count = 最大粒子数量
 form.label.project.particle_fx.max_particle_buffer_count = 最大粒子缓冲区数量
 form.label.project.particle_fx.max_count = 最大数量
 form.label.project.particle_fx.max_emitter_count = 最大发射数量
-
-form.label.project.script = 脚本
-form.help.project.script = 脚本系统设置
-form.label.project.script.shared_state = 共享状态
 
 form.label.project.sound = 音效
 form.help.project.sound = 音效相关设置

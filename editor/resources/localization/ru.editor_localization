@@ -187,12 +187,6 @@ dialog.clean-build.title = Выполнить чистую сборку прое
 dialog.clean-build.header = Вы уверены, что хотите выполнить чистую сборку проекта?
 dialog.clean-build.button.clean = Чистая сборка
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Отладка не поддерживается
-dialog.debugging-not-supported.header = Этот проект нельзя использовать с отладчиком
-dialog.debugging-not-supported.content = В проекте отключено объединённое состояние скриптов.\n\nЕсли вам не требуется раздельное состояние скриптов, измените параметр script.shared_state в файле game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Пересмотрите шаблоны .defunload
@@ -2137,11 +2131,6 @@ form.label.project.particle_fx.max_count = Макс. число компонен
 form.help.project.particle_fx.max_count = Максимальное число компонентов ParticleFX и одновременно работающих экземпляров эффектов в каждой загруженной коллекции. Когда предел достигнут, создать ещё один компонент или экземпляр невозможно. Увеличение значения требует больше памяти, если точную необходимую ёмкость компонентов нельзя определить при сборке.
 form.label.project.particle_fx.max_emitter_count = Макс. число эмиттеров
 form.help.project.particle_fx.max_emitter_count = Максимальное общее число эмиттеров во всех одновременно работающих экземплярах ParticleFX в каждой загруженной коллекции. Один эффект может содержать несколько эмиттеров. При превышении предела весь проход отрисовки ParticleFX для коллекции пропускается, а в журнал выводится предупреждение.
-
-form.label.project.script = Скрипты
-form.help.project.script = Настройки системы скриптов
-form.label.project.script.shared_state = Общее состояние Lua
-form.help.project.script.shared_state = Определяет, используют ли скрипты игровых объектов, GUI-скрипты и скрипт рендеринга одно состояние Lua. Если настройка включена, глобальные переменные и кэши загруженных модулей общие, а если выключена — изолированы. Общее состояние использует меньше памяти и необходимо для отладчика редактора.
 
 form.label.project.sound = Звук
 form.help.project.sound = Настройки звука

@@ -173,12 +173,6 @@ dialog.clean-build.title = Executar Construção Limpa de Projeto?
 dialog.clean-build.header = Tem certeza que deseja executar uma construção de projeto limpa?
 dialog.clean-build.button.clean = Compilação Limpa
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Depuração Não Suportada
-dialog.debugging-not-supported.header = Este projeto não pode ser usado com o depurador
-dialog.debugging-not-supported.content = Está configurado para desabilitar o compartilhamento de estado de scripts.\n\nSe você não precisa de estados de script diferentes, considere mudar a propriedade script.share_state no game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Revise Padrões .defunload
@@ -1744,10 +1738,6 @@ form.label.project.particle_fx.max_particle_count = Máximo de Partículas
 form.label.project.particle_fx.max_particle_buffer_count = Máximo de Partículas do Buffer
 form.label.project.particle_fx.max_count = Contagem Máxima
 form.label.project.particle_fx.max_emitter_count = Máximo de Emissores
-
-form.label.project.script = Script
-form.help.project.script = Configurações de script
-form.label.project.script.shared_state = Estado Compartilhado
 
 form.label.project.sound = Som
 form.help.project.sound = Configurações de Som
