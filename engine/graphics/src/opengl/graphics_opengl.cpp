@@ -2072,6 +2072,11 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
         if (context->m_BlendEquationMinMaxSupport)       SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
+    #if !defined(__EMSCRIPTEN__)
+        // Native OpenGL allows BC (S3TC/RGTC/BPTC) uploads to array/3D targets; WebGL2 forbids them.
+        // (Gated further by IsTextureFormatSupported, so this is a no-op where BC isn't supported.)
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
+    #endif
 
         // Adapter API version
         {
