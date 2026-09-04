@@ -753,11 +753,29 @@ namespace dmGraphics
                format == TEXTURE_FORMAT_RGBA_ASTC_12X12;
     }
 
+    bool IsTextureFormatBC(TextureFormat format)
+    {
+        // The S3TC/RGTC/BPTC ("BC") compressed families. WebGL2 forbids these on
+        // TEXTURE_2D_ARRAY / TEXTURE_3D targets while allowing them on TEXTURE_2D.
+        return format == TEXTURE_FORMAT_RGB_BC1  ||
+               format == TEXTURE_FORMAT_RGBA_BC3 ||
+               format == TEXTURE_FORMAT_R_BC4    ||
+               format == TEXTURE_FORMAT_RG_BC5   ||
+               format == TEXTURE_FORMAT_RGBA_BC7;
+    }
+
     bool IsTextureFormatSupportedForType(HContext context, TextureType type, TextureFormat format)
     {
-        if ((type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D) && IsTextureFormatASTC(format))
+        // Some compressed families can't be uploaded to array/3D targets on all backends (notably
+        // BC and ASTC on WebGL2), even though they work fine as plain 2D textures. Each is gated
+        // behind a context feature the backend only sets where array/3D uploads actually work.
+        if (type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D)
         {
-            if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
+            if (IsTextureFormatASTC(format) && !IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
+            {
+                return false;
+            }
+            if (IsTextureFormatBC(format) && !IsContextFeatureSupported(context, CONTEXT_FEATURE_BC_ARRAY_TEXTURES))
             {
                 return false;
             }
@@ -1063,7 +1081,7 @@ namespace dmGraphics
 
         if (IsFormatRGBA(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
             TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
             if (width == height) {
@@ -1075,7 +1093,7 @@ namespace dmGraphics
 
         if (IsFormatRGB(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_BC1);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RGB_BC1);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_ETC1);
             if (width == height) {
                 TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
@@ -1086,7 +1104,7 @@ namespace dmGraphics
 
         if (IsFormatRG(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_BC5);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RG_BC5);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_ETC2);
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
@@ -1094,7 +1112,7 @@ namespace dmGraphics
 
         if (IsFormatR(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_BC4);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_R_BC4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_ETC2);
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
