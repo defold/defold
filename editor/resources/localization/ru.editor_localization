@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Туториал «Colorslide»
 welcome.new-project.colorslide-tutorial.description = В этом туториале средней сложности вы создадите внутриигровой интерфейс, экран выбора уровня и стартовый экран для простой многоуровневой мобильной игры.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = Стартовый набор для 3D-платформера
+welcome.new-project.sample-3d-platformer.description = Готовый пример 3D-платформера с отзывчивым управлением персонажем, прыжками, орбитальной камерой, подбором предметов, анимированными персонажами, освещением и тенями.
 welcome.new-project.sample-3d-third-person-playground.title = 3D-песочница от третьего лица
 welcome.new-project.sample-3d-third-person-playground.description = Это пример 3D-игры от третьего лица, где персонажем можно управлять с клавиатуры, мышью или через экран телефона. Он показывает, как настроить простую 3D-сцену с тенями.
 welcome.new-project.linker-sample-game.title = Пример\: Linker
@@ -420,6 +422,7 @@ notification.ensure-exists.reason.folder = указанный путь ссыл�
 
 notification.lsp.language-server-missing.prompt = Невозможно выполнить это действие, потому что для языка {language} не запущен сервер LSP.
 notification.lsp.language-server-missing.action.about = Подробнее об LSP в Defold
+notification.lsp.formatting-failed.prompt = Невозможно отформатировать {path} , потому что не ответил ни один языковой сервер.
 
 # Asset browser notifications
 
@@ -723,6 +726,8 @@ prefs.label.code.zoom-on-scroll = Масштаб колесом мышки
 prefs.label.code.hover = Подсказки при наведении
 prefs.help.code.hover = Показывать документацию кода при наведении
 prefs.label.code.auto-closing-parens = Авто-закрытие скобок
+prefs.label.code.format-on-save = Форматировать при сохранении
+prefs.help.code.format-on-save = Форматировать код при сохранении с помощью языкового сервера
 
 # Extensions tab
 prefs.label.extensions.build-server = Сервер сборки
@@ -987,6 +992,7 @@ command.code.replace = Заменить…
 command.code.replace-next = Заменить следующее
 command.code.toggle-comment = Переключить комментарий
 command.code.reindent-lines = Выравнять отступы
+command.code.format = Форматировать документ/выделение
 command.code.convert-indentation = Преобразовать отступы
 command.code.convert-indentation.to-tabs = В табуляцию
 command.code.convert-indentation.to-two-spaces = В два пробела
@@ -1242,6 +1248,8 @@ property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Выберите графический бэкенд для сборок HTML5. По умолчанию используется WebGL; включение WebGL и WebGPU позволяет использовать запасной вариант, но увеличивает размер движка.
 property.appmanifest.use-font-layout = Полная система текста
 property.appmanifest.use-font-layout.tooltip = Включает полную систему компоновки текста, необходимую для создания SDF-шрифтов из TrueType во время выполнения. Для растеризации глифов во время выполнения также требуется `font.runtime_generation` в `game.project`; поддерживаются, например, тексты справа налево.
+property.appmanifest.use-rich-text = Форматированный текст
+property.appmanifest.use-rich-text.tooltip = Включает обработку форматированного текста и стилевые эффекты для надписей и GUI-текста. Отключите, чтобы уменьшить размер движка; разметка будет отображаться как обычный текст.
 
 # Properties: atlas
 
@@ -2445,6 +2453,8 @@ form.help.render-target.color-attachments = Определяет цветовы�
 form.label.render-target.color-attachments.width = Ширина
 form.label.render-target.color-attachments.height = Высота
 form.label.render-target.color-attachments.format = Формат
+form.label.render-target.sample-count = Количество сэмплов
+form.help.render-target.sample-count = Количество сэмплов для каждого цветового буфера, буфера глубины и stencil-буфера. Неподдерживаемые значения заменяются ближайшим доступным количеством сэмплов, поддерживаемым графическим бэкендом.
 form.label.render-target.depth-stencil-attachment-width = Ширина depth / stencil
 form.help.render-target.depth-stencil-attachment-width = Ширина общего вложения глубины/трафарета в пикселях. Чтобы создать вложение, задайте ширину и высоту больше `0`; если оставить обе равными `0`, оно будет отключено.
 form.label.render-target.depth-stencil-attachment-height = Высота depth / stencil
@@ -2630,6 +2640,7 @@ form.help.material.samplers = Параметры выборки текстуры
 form.label.material.samplers.name = Имя
 form.label.material.samplers.wrap-u = Обёртка U
 form.label.material.samplers.wrap-v = Обёртка V
+form.label.material.samplers.wrap-w = Обёртка W
 form.label.material.samplers.filter-min = Мин. фильтр
 form.label.material.samplers.filter-mag = Макс. фильтр
 form.label.material.samplers.max-anisotropy = Макс. анизотропия
@@ -2653,6 +2664,7 @@ form.help.compute.samplers = Параметры выборки для uniform-п
 form.label.compute.samplers.name = Имя
 form.label.compute.samplers.wrap-u = Обёртка U
 form.label.compute.samplers.wrap-v = Обёртка V
+form.label.compute.samplers.wrap-w = Обёртка W
 form.label.compute.samplers.filter-min = Мин. фильтр
 form.label.compute.samplers.filter-mag = Макс. фильтр
 form.label.compute.samplers.max-anisotropy = Макс. анизотропия
@@ -2666,6 +2678,8 @@ quick-help.build-and-run-project = Собрать и запустить прое
 quick-help.start-or-attach-debugger = Запустить отладчик
 
 # Error Messages
+error.engine.url-not-reported-before-exit = Движок завершил работу до того, как сообщил URL сервиса.
+error.engine.url-not-reported-in-time = URL сервиса движка не был получен в течение 15 секунд. Игра всё ещё может быть запущена.
 error.assigned-image-has-internal-errors = Назначенное изображение содержит внутренние ошибки.
 error.sampler-not-defined-in-material = «{sampler}» не определён в материале. Используйте команду «Сбросить переопределение» в контекстном меню имени свойства, чтобы удалить свойство. Если этот сэмплер необходим для шейдера, добавьте отсутствующий сэмплер в материал.
 error.light.invalid-source = Не удалось прочитать файл источников света. Исправьте текстовый формат или отмените внесённые изменения.
@@ -2686,11 +2700,13 @@ error.tile-source.total-width-exceeds-image-width = Суммарная шири�
 error.tile-source.total-height-exceeds-image-height = Суммарная высота свойств («Высота тайла» + «Отступ тайла») больше высоты свойства «Изображение» ({total_height} и {image_height}).
 error.property-contains-url-prohibited-characters = Свойство «{property}» не должно содержать специальные символы URL, такие, как «\#» или «\:».
 error.property-cannot-start-or-end-with-space = Свойство «{property}» не должно начинаться или заканчиваться пробелом.
+error.property-cannot-contain-nul = «{property}» не может содержать символы NUL.
 error.property-cannot-be-negative = Свойство «{property}» не может быть отрицательным.
 error.property-must-be-greater-than-zero = Свойство «{property}» должно быть больше нуля.
 error.property-must-be-at-least = Свойство «{property}» должно быть не меньше {min}.
 error.property-must-be-at-most = Свойство «{property}» должно быть не больше {max}.
 error.render-target.color-attachments-cannot-exceed = Свойство «{property}» не может содержать более {max} {max, plural, one {цветового буфера} few {цветовых буферов} other {цветовых буферов}}.
+error.render-target.sample-count-must-be-supported = Количество сэмплов должно быть одним из следующих значений\: 1, 2, 4, 8 или 16.
 error.render-target.color-attachment-width-must-be-greater-than-zero = Цветовой буфер {index} должен иметь ширину больше нуля.
 error.render-target.color-attachment-height-must-be-greater-than-zero = Цветовой буфер {index} должен иметь высоту больше нуля.
 error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is = Некорректный depth/stencil-буфер\: ширина больше нуля, но высота равна нулю.
@@ -2712,11 +2728,14 @@ error.lua-preprocessing-failed = Ошибка препроцессинга Lua.\
 error.go-property-disallowed = go.property нельзя использовать в этом типе файла.
 error.transpiler-compilation-failed = Ошибка компиляции\: {error}
 error.animation-set-build-failed = Не удалось собрать {resource}\: {error}
+error.bob.project-operation-in-progress = Уже выполняется другая операция над проектом
+error.bob.failed-to-save-project = Не удалось сохранить проект перед запуском Bob.
 error.blend-mode-add-alpha-replaced = Режим `{old}` устарел и работает точно так же, как `{new}`, поскольку Defold использует предумноженный альфа-канал. Вместо него выберите `{new}`.
 error.duplicate-instance-id = Идентификатор «{id}» уже используется в другом месте.
 error.non-unique-ids = Следующие идентификаторы не уникальны\: {ids}.
 error.only-components-allowed = Для свойства «{property}» допустимы только компоненты. «{ext}» не является компонентом.
 error.property-resource-not-found = Ресурс «{resource}» свойства {property} не найден.
+error.property-resource-is-a-folder = {property} «{resource}» — папка, а не файл.
 error.property-resource-is-a-broken-symlink = Символическая ссылка «{resource}» свойства {property} указывает на несуществующий путь «{path}».
 error.resource-not-found = Ресурс «{resource}» не найден.
 error.resource-is-a-broken-symlink = Символическая ссылка «{resource}» указывает на несуществующий путь «{path}».
@@ -2734,6 +2753,13 @@ error.animation-not-found = В значении свойства «{property}» 
 error.buffer-syntax-error = Синтаксическая ошибка в файле буфера.
 error.editor-extension-compilation-failed = Не удалось скомпилировать расширение редактора.
 error.font-bitmap-generation-failed = Не удалось сгенерировать растровое изображение из шрифта. {error}
+error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Теги обводки и тени форматированного текста не поддерживаются шрифтами BMFont.
+error.font.no-reserved-data-for-rich-text-outlines = В этом шрифте не зарезервированы данные для обводки форматированного текста; обводка отображаться не будет.
+error.font.bitmap-shadow-blur-includes-outline = Размытие тени этого растрового шрифта включает его обводку; фрагменты тени форматированного текста без тега обводки отображаются без размытия.
+error.font.per-span-shadow-blur-not-supported-by-bitmap-fonts = Размытие тени отдельных фрагментов не поддерживается растровыми шрифтами; тень использует доступную растровую маску.
+error.font.per-span-outline-size-fixed-for-bitmap-fonts = Размер обводки отдельных фрагментов фиксирован для растровых шрифтов; используется ширина обводки, заданная в ресурсе шрифта.
+error.font.rich-text-outline-exceeds-reserved-width = Запрошенная обводка форматированного текста превышает ширину, заданную в ресурсе шрифта, и будет ограничена.
+error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur = В этом шрифте не зарезервированы данные поля расстояний для размытия тени форматированного текста; тень будет отображаться без размытия.
 error.at-line = Строка {line}\: {error}
 error.render.title = ОШИБКА ОТРИСОВКИ\:
 error.render.unknown-resource = неизвестно
