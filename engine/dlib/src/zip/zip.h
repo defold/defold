@@ -410,6 +410,7 @@ extern ZIP_EXPORT ssize_t zip_entry_read(struct zip_t *zip, void **buf,
 extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
                                                 size_t bufsize);
 
+// DEFOLD -> Document direct partial reads for stored entries.
 /**
  * Extracts the part of the current zip entry into a memory buffer using no
  * memory allocation for the buffer.
@@ -419,8 +420,9 @@ extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
  * @param size requested number of bytes (in bytes).
  * @param buf preallocated output buffer.
  *
- * @note the iterator api uses an allocation to create its state
- * @note each call will iterate from the start of the entry
+ * @note stored entries are read directly from the requested offset
+ * @note compressed entries use an allocated iterator and each call will
+ *       decompress from the start of the entry
  *
  * @return the return code - the number of bytes actually read on success.
  *         Otherwise a negative number (< 0) on error (e.g. offset is too
@@ -430,6 +432,7 @@ extern ZIP_EXPORT ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip,
                                                           size_t offset,
                                                           size_t size,
                                                           void *buf);
+// <- DEFOLD
 
 /**
  * Extracts the current zip entry into output file.

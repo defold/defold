@@ -19,8 +19,24 @@
 #include <string>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <dlib/zip.h>
+#include "zip/zip.h"
+
+static uint32_t g_ZipReadCalls;
+static uint64_t g_ZipReadBytes;
+
+static size_t CountingReadFileAt(FILE* file, uint64_t offset, void* buffer, size_t size)
+{
+    if (dmSys::FileSeek64(file, offset) != 0)
+        return 0;
+
+    ++g_ZipReadCalls;
+    size_t read = fread(buffer, 1, size, file);
+    g_ZipReadBytes += read;
+    return read;
+}
 
 static bool ReadFile(const char* relative_path, std::string* out)
 {
@@ -176,6 +192,45 @@ TEST(dmZip, OpenFileRangeRejectsTruncatedArchive)
     dmZip::Result zr = dmZip::OpenFileRange(file, 0, archive.size() - 1, &zip);
     ASSERT_NE(dmZip::RESULT_OK, zr);
     ASSERT_EQ((dmZip::HZip)0, zip);
+    fclose(file);
+}
+
+TEST(dmZip, StoredPartialReadDoesNotScanFromStart)
+{
+    std::string archive;
+    ASSERT_TRUE(ReadFile("src/test/data/zip/archive_stored.zip", &archive));
+
+    const char prefix[] = "outside archive";
+    FILE* file = tmpfile();
+    ASSERT_NE((FILE*)0, file);
+    ASSERT_EQ(0, setvbuf(file, 0, _IONBF, 0));
+    ASSERT_EQ(sizeof(prefix) - 1, fwrite(prefix, 1, sizeof(prefix) - 1, file));
+    ASSERT_EQ(archive.size(), fwrite(archive.data(), 1, archive.size(), file));
+
+    zip_t* reader = zip_cstream_openwithoffset(file, sizeof(prefix) - 1,
+                                                archive.size(), 9,
+                                                CountingReadFileAt);
+    ASSERT_NE((zip_t*)0, reader);
+    ASSERT_EQ(0, zip_entry_open(reader, "dir/data.bin"));
+
+    uint8_t buffer[2];
+    const size_t offset = sizeof(ExpectedDataBin) - sizeof(buffer);
+    g_ZipReadCalls = 0;
+    g_ZipReadBytes = 0;
+    ssize_t nread = zip_entry_noallocreadwithoffset(reader, offset,
+                                                    (size_t)-1, buffer);
+    ASSERT_EQ((ssize_t)sizeof(buffer), nread);
+    ASSERT_ARRAY_EQ_LEN(ExpectedDataBin + offset, buffer, sizeof(buffer));
+
+    // Clamp without overflowing offset + size, and read only the local header
+    // and requested bytes. The iterator path also read and discarded all bytes
+    // preceding the requested offset.
+    ASSERT_EQ(2u, g_ZipReadCalls);
+    const uint64_t zip_local_header_size = 30;
+    ASSERT_EQ(zip_local_header_size + sizeof(buffer), g_ZipReadBytes);
+
+    ASSERT_EQ(0, zip_entry_close(reader));
+    zip_close(reader);
     fclose(file);
 }
 

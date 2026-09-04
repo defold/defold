@@ -1823,6 +1823,64 @@ ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf, size_t bufsize) {
   return (ssize_t)zip->entry.uncomp_size;
 }
 
+// DEFOLD -> Read stored entries directly instead of iterating from the start.
+static ssize_t zip_entry_noallocread_stored(struct zip_t *zip, size_t offset,
+                                             size_t size, void *buf) {
+  mz_zip_archive *pzip = &zip->archive;
+  mz_uint8 local_header[MZ_ZIP_LOCAL_DIR_HEADER_SIZE];
+  mz_uint64 data_offset;
+  mz_uint64 variable_header_size;
+
+  if (!mz_zip_reader_is_file_supported(pzip, (mz_uint)zip->entry.index)) {
+    return (ssize_t)ZIP_EINVENTTYPE;
+  }
+
+  if (zip->entry.comp_size != zip->entry.uncomp_size) {
+    return (ssize_t)ZIP_ENOHDR;
+  }
+
+  if (zip->entry.header_offset > pzip->m_archive_size ||
+      MZ_ZIP_LOCAL_DIR_HEADER_SIZE >
+          pzip->m_archive_size - zip->entry.header_offset) {
+    return (ssize_t)ZIP_ENOHDR;
+  }
+
+  if (pzip->m_pRead(pzip->m_pIO_opaque, zip->entry.header_offset, local_header,
+                    sizeof(local_header)) != sizeof(local_header)) {
+    return (ssize_t)ZIP_EFREAD;
+  }
+
+  if (MZ_READ_LE32(local_header) != MZ_ZIP_LOCAL_DIR_HEADER_SIG ||
+      MZ_READ_LE16(local_header + MZ_ZIP_LDH_METHOD_OFS) != 0) {
+    return (ssize_t)ZIP_ENOHDR;
+  }
+
+  variable_header_size =
+      (mz_uint64)MZ_READ_LE16(local_header + MZ_ZIP_LDH_FILENAME_LEN_OFS) +
+      (mz_uint64)MZ_READ_LE16(local_header + MZ_ZIP_LDH_EXTRA_LEN_OFS);
+  data_offset = zip->entry.header_offset + MZ_ZIP_LOCAL_DIR_HEADER_SIZE;
+  if (variable_header_size > pzip->m_archive_size - data_offset) {
+    return (ssize_t)ZIP_ENOHDR;
+  }
+  data_offset += variable_header_size;
+
+  if (zip->entry.comp_size > pzip->m_archive_size - data_offset) {
+    return (ssize_t)ZIP_ENOHDR;
+  }
+  if ((mz_uint64)offset > zip->entry.comp_size ||
+      (mz_uint64)size > zip->entry.comp_size - (mz_uint64)offset) {
+    return (ssize_t)ZIP_EINVAL;
+  }
+  data_offset += (mz_uint64)offset;
+
+  if (pzip->m_pRead(pzip->m_pIO_opaque, data_offset, buf, size) != size) {
+    return (ssize_t)ZIP_EFREAD;
+  }
+
+  return (ssize_t)size;
+}
+// <- DEFOLD
+
 ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip, size_t offset,
                                         size_t size, void *buf) {
   mz_zip_archive *pzip = NULL;
@@ -1832,13 +1890,15 @@ ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip, size_t offset,
     return (ssize_t)ZIP_ENOINIT;
   }
 
-  if (offset >= (size_t)zip->entry.uncomp_size) {
+  // DEFOLD -> Validate ranges without overflowing and use direct stored reads.
+  if ((size && !buf) || (mz_uint64)offset >= zip->entry.uncomp_size) {
     return (ssize_t)ZIP_EINVAL;
   }
 
-  if ((offset + size) > (size_t)zip->entry.uncomp_size) {
-    size = (size_t)(zip->entry.uncomp_size - (mz_uint64)offset);
-  }
+  size = (size_t)MZ_MIN((mz_uint64)size,
+                        zip->entry.uncomp_size - (mz_uint64)offset);
+  if (!size)
+    return 0;
 
   pzip = &(zip->archive);
   if (pzip->m_zip_mode != MZ_ZIP_MODE_READING ||
@@ -1846,6 +1906,11 @@ ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip, size_t offset,
     // the entry is not found or we do not have read access
     return (ssize_t)ZIP_ENOENT;
   }
+
+  if (zip->entry.method == 0) {
+    return zip_entry_noallocread_stored(zip, offset, size, buf);
+  }
+  // <- DEFOLD
 
   mz_zip_reader_extract_iter_state *iter =
       mz_zip_reader_extract_iter_new(pzip, (mz_uint)zip->entry.index, 0);
@@ -1889,6 +1954,10 @@ ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip, size_t offset,
   }
 
   mz_zip_reader_extract_iter_free(iter);
+  // DEFOLD -> Report truncated iterator reads instead of returning partial data.
+  if (to_read != 0)
+    return (ssize_t)ZIP_EFREAD;
+  // <- DEFOLD
   return (ssize_t)write_cursor;
 }
 

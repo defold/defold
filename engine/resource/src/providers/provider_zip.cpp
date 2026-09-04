@@ -189,10 +189,23 @@ static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path
     }
 
     uint32_t manifest_len;
-    dmZip::GetEntrySize(zip, &manifest_len);
+    zr = dmZip::GetEntrySize(zip, &manifest_len);
+    if (dmZip::RESULT_OK != zr)
+    {
+        dmZip::CloseEntry(zip);
+        dmLogError("Could not get the size of manifest '%s' from archive", path);
+        return dmResourceProvider::RESULT_IO_ERROR;
+    }
+
     uint8_t* manifest_data = new uint8_t[manifest_len];
-    dmZip::GetEntryData(zip, (void*)manifest_data, manifest_len);
+    zr = dmZip::GetEntryData(zip, (void*)manifest_data, manifest_len);
     dmZip::CloseEntry(zip);
+    if (dmZip::RESULT_OK != zr)
+    {
+        dmLogError("Could not extract manifest '%s' from archive", path);
+        delete[] manifest_data;
+        return dmResourceProvider::RESULT_IO_ERROR;
+    }
 
     dmResourceProvider::Result result = dmResourceProvider::RESULT_OK;
     dmResource::Result r = dmResource::LoadManifestFromBuffer(manifest_data, manifest_len, manifest);
@@ -230,14 +243,22 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
         if (dmResource::RESULT_OK == asset_file_result)
         {
             dmZip::Result zr = dmZip::OpenFileRange(asset_file, asset_offset, asset_size, &archive->m_Zip);
-            if (dmZip::RESULT_OK == zr)
-            {
-                archive->m_ZipAssetFile = asset_file;
-            }
-            else
+            if (dmZip::RESULT_OK != zr)
             {
                 fclose(asset_file);
+                dmLogError("Could not open zip asset file '%s' (%d)", path, zr);
+                DeleteZipArchiveInternal(archive);
+                return dmResourceProvider::RESULT_IO_ERROR;
             }
+            archive->m_ZipAssetFile = asset_file;
+        }
+        else if (dmResource::RESULT_NOT_SUPPORTED != asset_file_result)
+        {
+            dmLogError("Could not open asset '%s' (%d)", path, asset_file_result);
+            DeleteZipArchiveInternal(archive);
+            return asset_file_result == dmResource::RESULT_RESOURCE_NOT_FOUND
+                ? dmResourceProvider::RESULT_NOT_FOUND
+                : dmResourceProvider::RESULT_IO_ERROR;
         }
 
         // Assets that do not expose a file descriptor (for example compressed
@@ -377,15 +398,24 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
     if (entry->m_ManifestEntry)
     {
         uint32_t raw_data_size;
-        dmZip::GetEntrySize(archive->m_Zip, &raw_data_size);
-        uint8_t* raw_data = new uint8_t[raw_data_size];
-        dmZip::GetEntryData(archive->m_Zip, (void*)raw_data, raw_data_size);
-        result = UnpackData(path, entry->m_ManifestEntry, raw_data, raw_data_size, buffer);
-        delete[] raw_data;
-    } else
+        zr = dmZip::GetEntrySize(archive->m_Zip, &raw_data_size);
+        if (dmZip::RESULT_OK == zr)
+        {
+            uint8_t* raw_data = new uint8_t[raw_data_size];
+            zr = dmZip::GetEntryData(archive->m_Zip, (void*)raw_data, raw_data_size);
+            if (dmZip::RESULT_OK == zr)
+                result = UnpackData(path, entry->m_ManifestEntry, raw_data, raw_data_size, buffer);
+            delete[] raw_data;
+        }
+        if (dmZip::RESULT_OK != zr)
+            result = dmResourceProvider::RESULT_IO_ERROR;
+    }
+    else
     {
         // Uncompressed, regular files (i.e. no Liveupdate header)
-        dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
+        zr = dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
+        if (dmZip::RESULT_OK != zr)
+            result = dmResourceProvider::RESULT_IO_ERROR;
     }
 
     dmZip::CloseEntry(archive->m_Zip);
