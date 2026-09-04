@@ -1821,6 +1821,14 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
             // that was not selected, independently of its pass load policy.
             colorAttachments[i].loadOp = WGPULoadOp_Load;
         }
+        else if (!context->m_ApplyRenderTargetLoadOps)
+        {
+            // A command submission or compute pass can split one logical
+            // render-target activation into multiple native render passes.
+            // Preserve the attachments when that pass is resumed instead of
+            // applying its initial load operation again.
+            colorAttachments[i].loadOp = WGPULoadOp_Load;
+        }
         else
         {
             switch (context->m_CurrentRenderPass.m_Target->m_ColorBufferLoadOps[i])
@@ -1911,6 +1919,7 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
         context->m_CurrentRenderPass.m_Target = context->m_CurrentRenderTarget;
         context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, clear_flags, clear_color, clear_depth, clear_stencil);
+        context->m_ApplyRenderTargetLoadOps = 0;
 
         context->m_CurrentRenderPass.m_Target->m_Scissor[0] = 0;
         context->m_CurrentRenderPass.m_Target->m_Scissor[1] = 0;
@@ -2049,6 +2058,7 @@ static void WebGPUBeginFrame(HContext _context)
         }
     }
     context->m_CurrentRenderTarget = context->m_MainRenderTarget;
+    context->m_ApplyRenderTargetLoadOps = 1;
 }
 
 static void WebGPUFlip(HContext _context)
@@ -3952,6 +3962,7 @@ static void WebGPUDeleteRenderTarget(HContext context, HRenderTarget _rt)
     {
         webgpu_context->m_CurrentRenderTarget = webgpu_context->m_MainRenderTarget;
         webgpu_context->m_ViewportChanged = 1;
+        webgpu_context->m_ApplyRenderTargetLoadOps = 1;
     }
     WebGPUDestroyRenderTarget(rt);
     webgpu_context->m_BaseContext.m_AssetHandleContainer.Release(_rt);
@@ -3963,9 +3974,13 @@ static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, uint32_t
     assert(_context);
     WebGPUContext* context         = (WebGPUContext*)_context;
     WebGPURenderTarget* rt         = GetAssetFromContainer<WebGPURenderTarget>(context->m_BaseContext.m_AssetHandleContainer, _rt);
+    WebGPURenderTarget* next_target = rt ? rt : context->m_MainRenderTarget;
+    const bool starts_new_activation = context->m_CurrentRenderPass.m_Target != next_target;
     context->m_ViewportChanged     = 1;
-    context->m_CurrentRenderTarget = rt ? rt : context->m_MainRenderTarget;
+    context->m_CurrentRenderTarget = next_target;
     context->m_CurrentRenderTarget->m_TransientBufferTypes = transient_buffer_types;
+    if (starts_new_activation)
+        context->m_ApplyRenderTargetLoadOps = 1;
 }
 
 static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
@@ -4108,6 +4123,8 @@ static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_tar
     rt->m_Scissor[2] = width;
     rt->m_Scissor[3] = height;
     webgpu_context->m_ViewportChanged = 1;
+    if (webgpu_context->m_CurrentRenderTarget == rt)
+        webgpu_context->m_ApplyRenderTargetLoadOps = 1;
 
 }
 

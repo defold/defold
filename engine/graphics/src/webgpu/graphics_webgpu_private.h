@@ -245,6 +245,7 @@ namespace dmGraphics
         uint32_t            m_OriginalHeight;
 
         uint32_t            m_ViewportChanged : 1;
+        uint32_t            m_ApplyRenderTargetLoadOps : 1;
         uint32_t            m_HasValidationError : 1;
         uint32_t            m_InitComplete : 1;
 
