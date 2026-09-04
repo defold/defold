@@ -792,7 +792,7 @@
       (ui/context! :outline {:outline-view outline-view} (->SelectionProvider tree-view) {} {Long :node-id
                                                                                              resource/Resource :link}))))
 
-(defn make-outline-view [view-graph project app-view localization]
+(defn make-outline-view [graph project app-view localization]
   (let [tree-view (doto (ExtendedTreeView.)
                     (.setId "outline")
                     (.setPrefWidth 269.0)
@@ -801,7 +801,7 @@
                        (g/tx-nodes-added
                          (g/transact
                            {:undoable false}
-                           (g/make-nodes view-graph [outline-view [OutlineView
+                           (g/make-nodes graph [outline-view [OutlineView
                                                                    :tree-view tree-view
                                                                    :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]

@@ -2354,7 +2354,7 @@
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
     (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
+(defn make-app-view [graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
@@ -2366,7 +2366,7 @@
                      (g/tx-nodes-added
                        (g/transact
                          {:undoable false}
-                         (g/make-node view-graph AppView
+                         (g/make-node graph AppView
                                       :stage stage
                                       :scene app-scene
                                       :editor-tabs-split editor-tabs-split
@@ -2526,7 +2526,7 @@
               (.setGraphic icon)
               (editor-tab/set-view-type! view-type)
               (editor-tab/set-instance-key! instance-key))
-        view-graph (g/make-graph! :volatility 2)
+        view-graph (g/make-graph!)
         undo-stack-revisions-before (g/undo-stack-revisions)
         view (make-view-fn view-graph parent (assoc opts :app-view app-view :tab tab))]
     (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
