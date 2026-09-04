@@ -45,7 +45,7 @@ def configure(conf):
 
     if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore', '-framework', 'GameController'])
-    elif platform == 'x86_64-ios':
+    elif platform == 'arm64_sim-ios':
         pass
     elif target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])

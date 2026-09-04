@@ -28,7 +28,7 @@
 
 (def android #{:armv7-android :arm64-android :x86_64-android})
 
-(def ios #{:armv7-ios :arm64-ios :x86_64-ios})
+(def ios #{:arm64-ios :arm64_sim-ios})
 
 (def web #{:wasm-web :wasm_pthread-web})
 
@@ -44,11 +44,11 @@
 
 (def vulkan-ios #{:arm64-ios})
 
-(def metal-ios #{:arm64-ios :x86_64-ios})
+(def metal-ios #{:arm64-ios :arm64_sim-ios})
 
 (def all-platforms
   #{;; ios
-    :armv7-ios :arm64-ios :x86_64-ios
+    :arm64-ios :arm64_sim-ios
     ;; android
     :armv7-android :arm64-android :x86_64-android
     ;; osx
@@ -832,9 +832,8 @@
                                      ;; booleans
                                      :jetifier]]]]
     [[:platforms [;; ios
-                  [:armv7-ios platform-pattern]
                   [:arm64-ios platform-pattern]
-                  [:x86_64-ios platform-pattern]
+                  [:arm64_sim-ios platform-pattern]
                   ;; android
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]

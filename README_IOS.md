@@ -49,9 +49,9 @@ unit tests on a locally connected iOS device:
 
     $ ./scripts/build.py --platform=arm64-ios build_engine
 
-The `x86_64-ios` platform runs tests through an iOS simulator:
+The `arm64_sim-ios` platform runs tests through an iOS simulator:
 
-    $ ./scripts/build.py --platform=x86_64-ios build_engine
+    $ ./scripts/build.py --platform=arm64_sim-ios build_engine
 
 Physical-device tests use `xcrun devicectl` and installed/local signing assets.
 The runner does not create or update provisioning profiles and it does not
@@ -66,10 +66,9 @@ available or when you want to force a specific device:
     $ ./scripts/build.py --platform=arm64-ios --test-device <udid-or-name> build_engine
 
 Simulator tests require an installed iOS Simulator runtime and at least one
-available iPhone simulator device. On Apple Silicon hosts, the current
-`x86_64-ios` runner expects a universal iOS simulator runtime:
+available iPhone simulator device:
 
-    $ xcodebuild -downloadPlatform iOS -architectureVariant universal
+    $ xcodebuild -downloadPlatform iOS
     $ xcrun simctl list devices available
     $ python3 build_tools/build_ios.py list-simulators
 

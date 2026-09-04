@@ -122,7 +122,7 @@ platforms:
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: ["graphics_metal"]
             excludeSymbols: ["GraphicsAdapterMetal"]

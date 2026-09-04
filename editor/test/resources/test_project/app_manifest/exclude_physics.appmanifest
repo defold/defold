@@ -117,7 +117,7 @@ platforms:
             frameworks: []
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]

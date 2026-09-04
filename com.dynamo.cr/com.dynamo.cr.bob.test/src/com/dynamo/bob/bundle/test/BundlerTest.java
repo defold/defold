@@ -85,6 +85,21 @@ public class BundlerTest {
     private File buildReportHtmlFile;
     private Platform platform;
 
+    // Only the keys that identify the Apple platform, since those are the ones the simulator bundle rewrites
+    private final String IOS_INFO_PLIST = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        + "<plist version=\"1.0\">\n"
+        + "<dict>\n"
+        + "        <key>CFBundleSupportedPlatforms</key>\n"
+        + "        <array>\n"
+        + "                <string>iPhoneOS</string>\n"
+        + "        </array>\n"
+        + "        <key>DTPlatformName</key>\n"
+        + "        <string>iphoneos</string>\n"
+        + "        <key>DTSDKName</key>\n"
+        + "        <string>iphoneos18.0</string>\n"
+        + "</dict>\n"
+        + "</plist>\n";
+
     private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
         + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
         + "  <application android:label=\"Minimal Android Application\">"
@@ -122,7 +137,7 @@ public class BundlerTest {
             // Can only do this on OSX machines currently
             if (Platform.getHostPlatform().isMacOS()) {
                 data.add(new Platform[]{Platform.Arm64Ios});
-                data.add(new Platform[]{Platform.X86_64Ios});
+                data.add(new Platform[]{Platform.Arm64IosSim});
             }
         }
         return data;
@@ -131,7 +146,7 @@ public class BundlerTest {
     private File getOutputDirFile(String outputDir, String projectName) {
         String folderName = projectName;
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS ||
-            platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
+            platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim)
         {
             folderName = projectName + ".app";
         }
@@ -139,7 +154,7 @@ public class BundlerTest {
     }
 
     private String getBundleAppFolder(String projectName) {
-        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
+        if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim)
         {
                 return String.format("Payload/%s.app/", projectName);
         }
@@ -167,6 +182,23 @@ public class BundlerTest {
             listDir(bundleDir);
         }
         assertTrue(file.exists());
+    }
+
+    // The simulator and the device declare different Apple platforms. simctl refuses to
+    // install a bundle that claims iPhoneOS, so the values have to differ per platform.
+    private void checkIosManifestPlatform(File manifest) throws IOException
+    {
+        String contents = FileUtils.readFileToString(manifest, StandardCharsets.UTF_8);
+        boolean isSimulator = platform == Platform.Arm64IosSim;
+        String expectedPlatform = isSimulator ? "iPhoneSimulator" : "iPhoneOS";
+        String expectedPlatformName = isSimulator ? "iphonesimulator" : "iphoneos";
+
+        assertTrue(String.format("%s should declare CFBundleSupportedPlatforms %s", manifest, expectedPlatform),
+                contents.contains(String.format("<string>%s</string>", expectedPlatform)));
+        assertTrue(String.format("%s should declare DTPlatformName %s", manifest, expectedPlatformName),
+                contents.contains(String.format("<string>%s</string>", expectedPlatformName)));
+        assertTrue(String.format("%s should declare a %s DTSDKName", manifest, expectedPlatformName),
+                contents.contains(String.format("<string>%s", expectedPlatformName)));
     }
 
     // Used to check if the built and bundled test projects all contain the correct engine binaries.
@@ -216,7 +248,7 @@ public class BundlerTest {
             File wasmFile = new File(outputDirFile, exeName + "_pthread.wasm");
             checkFileExist(outputDirFile, wasmFile);
         }
-        else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
+        else if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim)
         {
             List<String> names = Arrays.asList(
                 exeName,
@@ -231,6 +263,7 @@ public class BundlerTest {
                 File file = new File(outputDirFile, name);
                 checkFileExist(outputDirFile, file);
             }
+            checkIosManifestPlatform(new File(outputDirFile, "Info.plist"));
         }
         else if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
         {
@@ -301,7 +334,7 @@ public class BundlerTest {
             assertTrue(zip.exists());
             files = getZipFiles(zip);
         }
-        else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
+        else if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim)
         {
             File zip = new File(outputDirFile.getParentFile(), projectName + ".ipa");
             assertTrue(zip.exists());
@@ -469,7 +502,7 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
-        createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
+        createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", IOS_INFO_PLIST);
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", ANDROID_MANIFEST);
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
@@ -517,9 +550,6 @@ public class BundlerTest {
         Platform buildPlatform = platform;
         if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             buildPlatform = Platform.Armv7Android;
-        }
-        else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
-            buildPlatform = Platform.Arm64Ios;
         }
 
         project.setOption("platform", buildPlatform.getPair());
@@ -716,7 +746,7 @@ public class BundlerTest {
                 expectedFiles.add("lib/arm64-v8a/libvkquality.so");
             }
         }
-        else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
+        else if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim)
         {
             expectedFiles.add("Payload/unnamed.app/unnamed");
             expectedFiles.add("Payload/unnamed.app/Info.plist");
@@ -730,6 +760,10 @@ public class BundlerTest {
             expectedFiles.add("Payload/unnamed.app/AppIcon76x76@2x~ipad.png");
             expectedFiles.add("Payload/unnamed.app/AppIcon83.5x83.5@2x~ipad.png");
             expectedFiles.add("Payload/unnamed.app/AppIcon76x76~ipad.png");
+            if (platform == Platform.Arm64IosSim) {
+                // Simulator bundles are always ad-hoc signed
+                expectedFiles.add("Payload/unnamed.app/_CodeSignature/CodeResources");
+            }
         }
         else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS)
         {
@@ -949,7 +983,7 @@ public class BundlerTest {
             return libName;
         } else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS) {
             return "Contents/MacOS/" + libName;
-        } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        } else if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             return "Payload/unnamed.app/" + libName;
         } else if (platform == Platform.Armv7Android) {
             return "lib/armeabi-v7a/" + libName;

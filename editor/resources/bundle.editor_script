@@ -220,13 +220,15 @@ local function bundle_ios(show_dialog)
 
     local function ios_errors(config)
         local ret = {}
-        if config.sign and #identities == 0 then
+        -- simulator bundles are always ad-hoc signed, so only device bundles validate signing
+        local sign = config.sign and not config.simulator
+        if sign and #identities == 0 then
             ret.sign = localization.message("dialog.bundle.error.identity.not-found")
         end
-        if config.sign and #config["code-signing-identity"] == 0 then
+        if sign and #config["code-signing-identity"] == 0 then
             ret.identity = localization.message("dialog.bundle.error.identity.required")
         end
-        if config.sign then
+        if sign then
             if #config["provisioning-profile"] == 0 then
                 ret.mobileprovisioning = localization.message("dialog.bundle.error.provisioning.required")
             elseif config["provisioning-profile"]:sub(-#".mobileprovision") ~= ".mobileprovision" then
@@ -239,9 +241,6 @@ local function bundle_ios(show_dialog)
                     ret.mobileprovisioning = localization.message("dialog.bundle.error.provisioning.not-file")
                 end
             end
-        end
-        if not next(config.architectures) then
-            ret.architectures = localization.message("dialog.bundle.error.architectures-required")
         end
         if next(ret) then
             return ret
@@ -257,59 +256,57 @@ local function bundle_ios(show_dialog)
         local config, set_config_raw = editor.ui.use_state(props.config)
         local errors, set_errors = editor.ui.use_state(props.errors)
         local set_config = editor.ui.use_memo(make_setter_with_validation, set_config_raw, set_errors, ios_errors)
+        local sign_enabled = not config.simulator
         return editor.bundle.dialog(localization.message("dialog.bundle.header.ios"), config, nil, errors and select(2, next(errors)), {
             editor.bundle.grid_row(localization.message("dialog.bundle.label.sign-application"), editor.bundle.check_box(config, set_config, "sign", nil, {
+                enabled = sign_enabled,
                 issue = errors and errors.sign and {
                     severity = editor.ui.ISSUE_SEVERITY.ERROR,
                     message = errors.sign
                 }
             })),
             editor.bundle.grid_row(localization.message("dialog.bundle.label.code-signing-identity"), editor.bundle.select_box(config, set_config, "code-signing-identity", identity_options, identity_to_string, {
-                enabled = config.sign and #identities > 0,
+                enabled = sign_enabled and config.sign and #identities > 0,
                 issue = errors and errors.identity and {
                     severity = editor.ui.ISSUE_SEVERITY.ERROR,
                     message = errors.identity
                 }
             })),
             editor.bundle.grid_row(localization.message("dialog.bundle.label.provisioning-profile"), editor.bundle.external_file_field(config, set_config, "provisioning-profile", errors and errors.mobileprovisioning, {
-                enabled = config.sign,
+                enabled = sign_enabled and config.sign,
                 title = localization.message("dialog.bundle.title.choose-provisioning-profile"),
                 filters = {{
                     description = localization.message("dialog.bundle.filter.provisioning-profile"),
                     extensions = {"*.mobileprovision"}
                 }}
             })),
-            editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
-                editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-ios", localization.message("dialog.bundle.option.architecture.arm64-ios"), errors and errors.architectures),
-                editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-ios", localization.message("dialog.bundle.option.architecture.x86_64-ios"), errors and errors.architectures)
-            }),
+            editor.bundle.grid_row(localization.message("dialog.bundle.label.ios-simulator"), editor.bundle.check_box(config, set_config, "simulator")),
             editor.bundle.common_variant_grid_row(config, set_config),
             editor.bundle.texture_compression_grid_row(config, set_config),
             editor.bundle.check_boxes_grid_row(config, set_config),
             {editor.ui.separator({column_span=2})},
             editor.bundle.grid_row(localization.message("dialog.bundle.label.on-bundled"), {
-                editor.bundle.check_box(config, set_config, "install", localization.message("dialog.bundle.option.on-bundled.install")),
-                editor.bundle.check_box(config, set_config, "launch", localization.message("dialog.bundle.option.on-bundled.launch"), { enabled = config.install })
+                editor.bundle.check_box(config, set_config, "install", localization.message("dialog.bundle.option.on-bundled.install"), { enabled = not config.simulator }),
+                editor.bundle.check_box(config, set_config, "launch", localization.message("dialog.bundle.option.on-bundled.launch"), { enabled = config.install and not config.simulator })
             })
         })
     end)
 
     local config = editor.bundle.config(show_dialog, "bundle.ios", ios_dialog, ios_errors)
 
-    local arm64 = config.architectures["arm64-ios"]
-    local x86_64 = config.architectures["x86_64-ios"]
-    local output_subdir = (arm64 and x86_64 and "universal-ios") or (arm64 and "arm64-ios") or "x86_64-ios"
+    local platform = config.simulator and "arm64_sim-ios" or "arm64-ios"
+    local sign = config.sign and not config.simulator
 
-    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
+    local output_directory = editor.bundle.output_directory(show_dialog, platform)
 
     editor.bundle.create(config, output_directory, {
-        platform = "arm64-ios",
-        architectures = (arm64 and x86_64 and "arm64-ios,x86_64-ios") or (arm64 and "arm64-ios") or "x86_64-ios",
-        mobileprovisioning = config.sign and config["provisioning-profile"] or nil,
-        identity = config.sign and config["code-signing-identity"] or nil
+        platform = platform,
+        architectures = platform,
+        mobileprovisioning = sign and config["provisioning-profile"] or nil,
+        identity = sign and config["code-signing-identity"] or nil
     })
 
-    if config.install then
+    if config.install and not config.simulator then
         print("Resolving ios-deploy location...")
         local ios_deploy = get_ios_deploy_command()
         print(("Resolved to '%s', listing devices..."):format(ios_deploy))
@@ -585,10 +582,7 @@ function M.get_prefs_schema()
             sign = editor.prefs.schema.boolean({default = true}),
             ["code-signing-identity"] = editor.prefs.schema.string(),
             ["provisioning-profile"] = editor.prefs.schema.string(),
-            architectures = editor.prefs.schema.set({
-                item = editor.prefs.schema.enum({values = {"arm64-ios", "x86_64-ios"}}),
-                default = {["arm64-ios"] = true}
-            }),
+            simulator = editor.prefs.schema.boolean(),
             install = editor.prefs.schema.boolean(),
             launch = editor.prefs.schema.boolean()
         }),

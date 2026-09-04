@@ -643,7 +643,7 @@ public class ExtenderUtil {
         }
 
         // For iOS and macOS only: Add the project privacy manifest 
-        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             IResource resource = getProjectResource(project, "ios", "privacymanifest");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));

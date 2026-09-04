@@ -458,7 +458,7 @@ gamesys_configure_common_test(test_gamesys)
 # ---------------------------------------------------------------------------
 # test_app_shader_program
 # ---------------------------------------------------------------------------
-if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
+if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
   if(DEFINED WITH_OPENGL)
     set(_shader_program_had_with_opengl ON)
     set(_shader_program_saved_with_opengl "${WITH_OPENGL}")
