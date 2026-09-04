@@ -18,7 +18,61 @@
             [dynamo.graph :as g]
             [editor.app-manifest :as app-manifest]
             [editor.code.data :as data]
+            [editor.resource-node :as resource-node]
+            [editor.yaml :as yaml]
             [integration.test-util :as test-util]))
+
+(deftest windows-library-name-migration-test
+  (testing "Windows engine library names are migrated without changing external libraries"
+    (doseq [platform [:win32 :x86-win32 :x86_64-win32]
+            key [:excludeLibs :libs :engineLibs]]
+      (let [manifest {:platforms {platform {:context {key ["libphysics" "libphysics_3d.lib" "record_null.lib"
+                                                          "libdecoder_opus.lib" "libliveupdate_null.lib" "libimage_null.lib"
+                                                          "libgameobject.lib" "libfont_render" "libdmbedtls.lib"
+                                                          "physics" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"]
+                                                     :symbols ["libphysics"]}}}}
+
+            expected (assoc-in manifest [:platforms platform :context key]
+                               ["physics" "physics_3d" "record_null"
+                                "decoder_opus" "liveupdate_null" "image_null"
+                                "gameobject" "font_render" "dmbedtls"
+                                "physics" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"])
+
+            migrated (#'app-manifest/migrate-windows-library-names manifest)]
+        (is (= expected migrated))
+        (is (= migrated (#'app-manifest/migrate-windows-library-names migrated))))))
+  (testing "Other platforms and incomplete or malformed data are preserved"
+    (doseq [manifest [nil
+                     "not a map"
+                     []
+                     {}
+                     {:platforms nil}
+                     {:platforms {:x86_64-win32 nil}}
+                     {:platforms {:x86_64-win32 {:context "not a map"}}}
+                     {:platforms {:x86_64-win32 {:context {:libs "libphysics.lib"}}}}
+                     {:platforms {:x86_64-win32 {:context {:libs [nil 42 "libcustom.lib"]}}}}
+                     {:platforms {:x86_64-linux {:context {:libs ["libphysics.lib"]}}
+                                  :common {:context {:excludeLibs ["libphysics"]}}}}]]
+      (is (= manifest (#'app-manifest/migrate-windows-library-names manifest))))))
+
+(deftest windows-library-name-load-migration-test
+  (test-util/with-loaded-project
+    (let [manifest-node (test-util/resource-node project "/app_manifest/legacy_windows_library_names.appmanifest")
+          manifest (g/node-value manifest-node :manifest)
+          save-data (g/node-value manifest-node :save-data)]
+      (doseq [platform [:x86-win32 :x86_64-win32]]
+        (is (= ["script_box2d_defold" "gamesys_model" "gamesys_rig"]
+               (get-in manifest [:platforms platform :context :excludeLibs])))
+        (is (= ["script_box2d" "gamesys_model_null" "gamesys_rig_null"]
+               (get-in manifest [:platforms platform :context :libs]))))
+      (is (true? (:dirty save-data)))
+      (is (= manifest (yaml/load (resource-node/save-data-content save-data) keyword))))
+    (testing "Loading a manifest that needs no migration preserves its formatting and comments"
+      (let [manifest-node (test-util/resource-node project "/app_manifest/default.appmanifest")
+            save-data (g/node-value manifest-node :save-data)]
+        (is (false? (:dirty save-data)))
+        (is (= (slurp (:resource save-data))
+               (resource-node/save-data-content save-data)))))))
 
 (deftest toggle-test
   (testing "contains toggles"
