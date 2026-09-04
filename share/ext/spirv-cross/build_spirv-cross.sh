@@ -82,7 +82,7 @@ LIB_SUFFIX=.a
 LIB_PREFIX=lib
 
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         LIB_SUFFIX=.lib
         LIB_PREFIX=Release/
         ;;

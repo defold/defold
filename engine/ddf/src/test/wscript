@@ -27,7 +27,7 @@ def build(bld):
     if options.skip_build_tests:
        return
 
-    if bld.env.PLATFORM not in ('arm64-macos', 'x86_64-macos', 'arm64-linux', 'x86_64-linux', 'win32', 'x86_64-win32'):
+    if bld.env.PLATFORM not in ('arm64-macos', 'x86_64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32'):
         return
 
     if not platform_supports_feature(bld.env.PLATFORM, "test_ddf", None):
@@ -52,6 +52,6 @@ def build(bld):
         includes = '. .. ../ddf',
         target = 'test_ddf')
 
-    cxx17_flag = '/std:c++17' if bld.env.PLATFORM in ('win32', 'x86_64-win32') else '-std=c++17'
+    cxx17_flag = '/std:c++17' if bld.env.PLATFORM == 'x86_64-win32' else '-std=c++17'
     ddf_proto_core.env.append_unique('CXXFLAGS', [cxx17_flag])
     test_ddf.env.append_unique('CXXFLAGS', [cxx17_flag])

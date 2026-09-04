@@ -110,7 +110,6 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
-            data.add(new Platform[]{Platform.X86Win32});
             data.add(new Platform[]{Platform.X86_64Win32});
             data.add(new Platform[]{Platform.X86_64MacOS});
             data.add(new Platform[]{Platform.Arm64MacOS});
@@ -177,7 +176,7 @@ public class BundlerTest {
         File outputDirFile = getOutputDirFile(outputDir, projectName);
         assertTrue(outputDirFile.exists());
 
-        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
+        if (platform == Platform.X86_64Win32)
         {
             File outputBinary = new File(outputDirFile, projectName + ".exe");
             checkFileExist(outputDirFile, outputBinary);
@@ -648,7 +647,7 @@ public class BundlerTest {
     static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)
     {
         HashSet<String> expectedFiles = new HashSet<String>();
-        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
+        if (platform == Platform.X86_64Win32)
         {
                 expectedFiles.add("unnamed.exe");
                 expectedFiles.add("game.dmanifest");
@@ -945,7 +944,7 @@ public class BundlerTest {
     private String getExpectedDynamicLibraryPath(String libName) {
         if (platform == Platform.X86_64Linux || platform == Platform.Arm64Linux) {
             return libName;
-        } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+        } else if (platform == Platform.X86_64Win32) {
             return libName;
         } else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS) {
             return "Contents/MacOS/" + libName;

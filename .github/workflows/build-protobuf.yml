@@ -27,7 +27,6 @@ jobs:
           { "name": "arm64-linux", "runner": "ubuntu-22.04-arm", "target": "linux" },
           { "name": "arm64-macos", "runner": "macOS-26", "target": "macos" },
           { "name": "x86_64-macos", "runner": "macOS-26", "target": "macos" },
-          { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
           { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" }
         ]
       setup_msvc: true

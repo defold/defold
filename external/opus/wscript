@@ -145,7 +145,7 @@ def build(bld):
                                        ])
 
     simd_defs = []
-    if bld.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
         simd_defs = simd_defs + ['OPUS_HAVE_RTCD', 'OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'CPU_INFO_BY_C'];
         source_files = source_files + x86_simd_source_files
     #elif bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
@@ -158,7 +158,7 @@ def build(bld):
                                 includes  = ['include', 'celt', 'silk', 'silk/float', 'silk/fixed', '.'],
                                 target    = 'opus')
 
-    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+    if bld.env.PLATFORM == 'x86_64-win32':
         bld.env.STLIB_ST         = 'lib%s.lib'
         bld.env.cstlib_PATTERN   = 'lib%s.lib'
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'

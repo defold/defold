@@ -4,7 +4,7 @@ from waf_dynamo import platform_supports_feature
 def build(bld):
 
     extra_defines = []
-    if bld.env.IS_TARGET_DESKTOP or bld.env.PLATFORM in ['win32']:
+    if bld.env.IS_TARGET_DESKTOP:
         vpx = 'VPX'
         record = 'record'
     else:

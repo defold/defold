@@ -26,7 +26,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.Bob;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.util.Exec;
 
 import org.codehaus.jackson.JsonNode;
@@ -53,12 +52,6 @@ public class GLTFValidator {
     public static ValidateResult validateGltf(String path, boolean validateResources) throws IOException {
         ArrayList<ValidateError> errors = new ArrayList<>();
         boolean result = true;
-
-        // gltf_validator is not supported on win32 (we can't build the gltf_validator binary for this platform).
-        Platform platform = Platform.getHostPlatform();
-        if (platform == Platform.X86Win32) {
-            return new ValidateResult(result, errors);
-        }
 
         String validateResourcesFlag = validateResources ? "--validate-resources" : "--no-validate-resources";
 
@@ -130,4 +123,3 @@ public class GLTFValidator {
         }
     }
 }
-

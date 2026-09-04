@@ -72,7 +72,7 @@ mkdir -p ./bin/$PLATFORM
 
 EXE_SUFFIX=
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         EXE_SUFFIX=.exe
         cp -v ./StandAlone/Release/glslang${EXE_SUFFIX} ./bin/$PLATFORM
         ;;
@@ -82,7 +82,7 @@ case $PLATFORM in
 esac
 
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         ;;
     *)
         strip ./bin/$PLATFORM/glslang${EXE_SUFFIX}
@@ -102,4 +102,3 @@ tar cfvz ${PACKAGE} bin
 popd
 
 echo "Wrote ${PACKAGE}"
-

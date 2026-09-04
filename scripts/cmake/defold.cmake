@@ -315,15 +315,10 @@ unset(_DEFOLD_ENGINE_LIB)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 unset(_DEFOLD_ENGINE_LIBS)
 
-# For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
 set(_DEFOLD_PLATFORM_INCLUDE_DIRS)
 set(_DEFOLD_PLATFORM_LIB_DIRS)
 list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
 list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_SDK_ROOT}/ext/include/win32")
-  list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_SDK_ROOT}/lib/win32" "${DEFOLD_SDK_ROOT}/ext/lib/win32")
-endif()
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_LIB_DIRS)
 
@@ -353,10 +348,6 @@ target_include_directories(defold_sdk SYSTEM INTERFACE
   "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>"
   "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
   "$<INSTALL_INTERFACE:ext/include>")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  target_include_directories(defold_sdk SYSTEM INTERFACE
-    "$<INSTALL_INTERFACE:ext/include/win32>")
-endif()
 # Library search directories
 foreach(_DEFOLD_PLATFORM_LIB_DIR IN LISTS _DEFOLD_PLATFORM_LIB_DIRS)
   target_link_directories(defold_sdk INTERFACE
@@ -365,11 +356,6 @@ endforeach()
 target_link_directories(defold_sdk INTERFACE
   "$<INSTALL_INTERFACE:lib/${TARGET_PLATFORM}>"
   "$<INSTALL_INTERFACE:ext/lib/${TARGET_PLATFORM}>")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  target_link_directories(defold_sdk INTERFACE
-    "$<INSTALL_INTERFACE:lib/win32>"
-    "$<INSTALL_INTERFACE:ext/lib/win32>")
-endif()
 
 # Enable IPO/LTO when supported
 include(CheckIPOSupported)

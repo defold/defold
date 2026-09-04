@@ -63,8 +63,6 @@
                                      :library-paths #{"web" "wasm-web"}}
    (.getPair Platform/WasmPthreadWeb) {:platform      "wasm_pthread-web"
                                        :library-paths #{"web" "wasm_pthread-web"}}
-   (.getPair Platform/X86Win32)     {:platform      "x86-win32"
-                                     :library-paths #{"win32" "x86-win32"}}
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
                                      :library-paths #{"win32" "x86_64-win32"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"

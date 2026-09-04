@@ -24,7 +24,7 @@
 
 (def macos #{:x86_64-osx :arm64-osx})
 
-(def windows #{:x86-win32 :x86_64-win32})
+(def windows #{:x86_64-win32})
 
 (def android #{:armv7-android :arm64-android :x86_64-android})
 
@@ -36,7 +36,7 @@
 
 (def vulkan
   #{:x86_64-linux :arm64-linux
-    :x86-win32 :x86_64-win32
+    :x86_64-win32
     :armv7-android :arm64-android :x86_64-android
     :arm64-ios})
 
@@ -56,7 +56,7 @@
     ;; linux
     :x86_64-linux :arm64-linux
     ;; windows
-    :x86-win32 :x86_64-win32
+    :x86_64-win32
     ;; web
     :wasm-web :wasm_pthread-web})
 
@@ -648,8 +648,8 @@
 
 (def generic-vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
+    (exclude-libs-toggles [:x86_64-win32] ["platform"])
+    (libs-toggles [:x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
@@ -846,7 +846,6 @@
                   [:x86_64-linux platform-pattern]
                   [:arm64-linux platform-pattern]
                   ;; windows
-                  [:x86-win32 platform-pattern]
                   [:x86_64-win32 platform-pattern]
                   ;; web
                   [:wasm-web platform-pattern]

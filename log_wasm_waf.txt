@@ -5031,8 +5031,6 @@ Building bob_light for arm64-macos
 /Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/ext/bin/x86_64-linux/lipo -> libexec/x86_64-linux/lipo
 /Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/ext/bin/arm64-linux/lipo -> libexec/arm64-linux/lipo
 /Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/ext/bin/x86_64-win32/lipo.exe -> libexec/x86_64-win32/lipo.exe
-Extracting /Users/mathiaswesterdahl/work/defold/com.dynamo.cr/com.dynamo.cr.bob/../../packages/luajit-2.1.0-3e223cb-win32.tar.gz to /var/folders/38/4p10y38j6pq0r4lzvh0fgzyh0000gn/T/tmpbm1pfrfh
-[exec] tar xfz /Users/mathiaswesterdahl/work/defold/com.dynamo.cr/com.dynamo.cr.bob/../../packages/luajit-2.1.0-3e223cb-win32.tar.gz
 Extracting /Users/mathiaswesterdahl/work/defold/com.dynamo.cr/com.dynamo.cr.bob/../../packages/luajit-2.1.0-3e223cb-x86_64-win32.tar.gz to /var/folders/38/4p10y38j6pq0r4lzvh0fgzyh0000gn/T/tmpbm1pfrfh
 [exec] tar xfz /Users/mathiaswesterdahl/work/defold/com.dynamo.cr/com.dynamo.cr.bob/../../packages/luajit-2.1.0-3e223cb-x86_64-win32.tar.gz
 Extracting /Users/mathiaswesterdahl/work/defold/com.dynamo.cr/com.dynamo.cr.bob/../../packages/luajit-2.1.0-3e223cb-x86_64-linux.tar.gz to /var/folders/38/4p10y38j6pq0r4lzvh0fgzyh0000gn/T/tmpbm1pfrfh
@@ -5068,8 +5066,6 @@ Copying /Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/bin/wasm-web/dmengi
   ],
   "win32-bundling": [
     [
-      "/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/bin/win32/dmengine",
-      "/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/bin/win32/dmengine_release",
       "/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/bin/x86_64-win32/dmengine.exe",
       "/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/bin/x86_64-win32/dmengine_release.exe"
     ]
