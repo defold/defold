@@ -1,0 +1,19 @@
+[
+    {
+        "name": "position",
+        "type": "float32",
+        "count": 3,
+        "data": [
+            0, 0, 0,
+            1, 0, 0,
+            1, 1, 0,
+            0, 1, 0
+        ]
+    },
+    {
+        "name": "index",
+        "type": "uint16",
+        "count": 1,
+        "data": [0, 1, 2, 0, 2, 3]
+    }
+]

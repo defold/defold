@@ -16,14 +16,16 @@
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.buffer :as buffer]
-            [editor.build-target :as bt]
+            [editor.buffers :as buffers]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.attribute :as attribute]
             [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
+            [editor.gl.types :as gl.types]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
@@ -31,6 +33,7 @@
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render-util :as render-util]
@@ -43,13 +46,13 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]])
-  (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
+  (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.graphics.types ElementType]
            [editor.types AABB]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer IntBuffer ShortBuffer]
            [javax.vecmath Matrix4d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -81,34 +84,19 @@
 
 (def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
 
-(g/defnk produce-save-value [primitive-type position-stream normal-stream material vertices textures]
+(g/defnk produce-save-value [primitive-type position-stream normal-stream index-stream material vertices textures]
   (protobuf/make-map-without-defaults MeshProto$MeshDesc
     :material (resource/resource->proj-path material)
     :vertices (resource/resource->proj-path vertices)
+    :index-stream index-stream
     :textures (mapv resource/resource->proj-path textures)
     :primitive-type primitive-type
     :position-stream position-stream
     :normal-stream normal-stream))
 
-(defn- build-pb [resource dep-resources user-data]
-  (let [pb  (:pb user-data)
-        pb  (reduce (fn [pb [label resource]]
-                      (if (vector? label)
-                        (assoc-in pb label resource)
-                        (assoc pb label resource)))
-                    pb
-                    (map (fn [[label res]]
-                           [label (resource/proj-path (get dep-resources res))])
-                         (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes MeshProto$MeshDesc pb)}))
-
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
-(defn- res-fields->resources [pb-msg deps-by-source fields]
-  (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
-    (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
 (defn- prop-stream-id-error-message [stream-id stream-ids vertex-space prop-message]
   (when (seq stream-ids)
@@ -122,6 +110,46 @@
   (when (some? vertices-resource)
     (validation/prop-error :fatal _node-id prop-kw prop-stream-id-error-message stream-id stream-ids vertex-space prop-message)))
 
+(declare max-stream-length)
+
+(defn- index-stream-error-message [index-stream stream vertex-count]
+  (when-not (str/blank? index-stream)
+    (if (nil? stream)
+      (localization/message "error.mesh.index-stream-not-found" {"stream" index-stream})
+      (let [{:keys [count data type]} stream]
+        (cond
+          (not= 1 count)
+          (localization/message "error.mesh.index-buffer-component-count")
+
+          (not (#{:value-type-uint16 :value-type-uint32} type))
+          (localization/message "error.mesh.index-buffer-value-type")
+
+          (some neg? data)
+          (localization/message "error.mesh.index-buffer-negative-index")
+
+          (and (= :value-type-uint16 type) (some #(< 0xffff %) data))
+          (localization/message "error.mesh.index-buffer-value-overflow")
+
+          (some #(<= vertex-count %) data)
+          (localization/message "error.mesh.index-buffer-index-out-of-range" {"vertex-count" vertex-count}))))))
+
+(defn- stream-by-name [streams stream-name]
+  (coll/first-where #(= stream-name (:name %)) streams))
+
+(defn- selected-index-stream [streams index-stream]
+  (when-not (str/blank? index-stream)
+    (stream-by-name streams index-stream)))
+
+(defn- vertex-streams [streams index-stream]
+  (if (str/blank? index-stream)
+    streams
+    (filterv #(not= index-stream (:name %)) streams)))
+
+(defn- validate-index-stream [_node-id index-stream streams]
+  (let [index-stream-desc (selected-index-stream streams index-stream)
+        vertex-count (max-stream-length (vertex-streams streams index-stream))]
+    (validation/prop-error :fatal _node-id :index-stream index-stream-error-message index-stream index-stream-desc vertex-count)))
+
 (defn position-stream-name? [stream-name specified-position-stream-name]
   (if-not (str/blank? specified-position-stream-name)
     (= stream-name specified-position-stream-name)
@@ -132,26 +160,44 @@
     (= stream-name specified-normal-stream-name)
     (= stream-name "normal")))
 
-(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets material vertices vertex-space position-stream normal-stream stream-ids]
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets material vertices textures vertex-space position-stream normal-stream index-stream stream-ids streams]
   (or (some->> [(prop-resource-error :fatal _node-id :material material material-message)
                 (prop-resource-error :fatal _node-id :vertices vertices vertices-message)
                 (validate-stream-id _node-id :position-stream position-stream-message position-stream stream-ids vertices vertex-space)
-                (validate-stream-id _node-id :normal-stream normal-stream-message normal-stream stream-ids vertices vertex-space)]
+                (validate-stream-id _node-id :normal-stream normal-stream-message normal-stream stream-ids vertices vertex-space)
+                (validate-index-stream _node-id index-stream streams)]
                (filterv some?)
                not-empty
                g/error-aggregate)
-      (let [pb-msg (select-keys save-value [:material :vertices :textures :primitive-type :position-stream :normal-stream])
-            dep-build-targets (flatten dep-build-targets)
-            deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-            dep-resources (into (res-fields->resources pb-msg deps-by-source [:material :vertices])
-                            (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-pb
-            :user-data {:pb pb-msg
-                        :dep-resources dep-resources}
-            :deps dep-build-targets})])))
+      (let [dep-build-targets (vec (flatten dep-build-targets))
+            base-pb-msg (merge (select-keys save-value [:primitive-type :position-stream :normal-stream :index-stream])
+                               {:material material
+                                :textures textures})
+            index-stream-desc (selected-index-stream streams index-stream)]
+        (if-not index-stream-desc
+          [(pipeline/make-protobuf-build-target
+             _node-id resource MeshProto$MeshDesc
+             (assoc base-pb-msg :vertices vertices)
+             dep-build-targets)]
+          (let [workspace (resource/workspace resource)
+                vertex-resource (workspace/make-memory-resource workspace :editable "buffer" (str (resource/proj-path resource) ":generated-vertices"))
+                index-resource (workspace/make-memory-resource workspace :editable "buffer" (str (resource/proj-path resource) ":generated-indices"))
+                vertex-target (pipeline/make-protobuf-build-target
+                                _node-id vertex-resource BufferProto$BufferDesc
+                                (buffer/streams->pb-map (vertex-streams streams index-stream)))
+                index-target (pipeline/make-protobuf-build-target
+                               _node-id index-resource BufferProto$BufferDesc
+                               (buffer/streams->pb-map [index-stream-desc]))
+                vertex-source-target? (fn [build-target]
+                                        (= vertices (some-> build-target :resource :resource)))
+                mesh-deps (into [vertex-target index-target]
+                                (remove vertex-source-target?)
+                                dep-build-targets)
+                pb-msg (assoc base-pb-msg
+                         :vertices (-> vertex-target :resource :resource)
+                         :indices (-> index-target :resource :resource))]
+            [(pipeline/make-protobuf-build-target
+               _node-id resource MeshProto$MeshDesc pb-msg mesh-deps)])))))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
   (into {} (map (fn [unit-index sampler gpu-texture-generator]
@@ -188,6 +234,32 @@
     :primitive-triangle-strip GL2/GL_TRIANGLE_STRIP
     :primitive-lines GL2/GL_LINES))
 
+(defn- draw-mesh! [^GL2 gl gl-primitive-type vb index-buffer]
+  (if index-buffer
+    (gl/gl-draw-elements gl gl-primitive-type (gl.types/element-buffer-gl-type index-buffer) 0 (graphics.types/element-count index-buffer))
+    (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
+
+(defn- make-index-buffer [node-id {:keys [data type] :as index-stream}]
+  (let [index-count (count data)
+        nio-buffer
+        (case type
+          :value-type-uint16
+          (let [^shorts index-array (buffer/stream-data->array data type index-count)
+                ^ShortBuffer index-buffer (.asShortBuffer (buffers/new-byte-buffer (* Short/BYTES index-count) :byte-order/native))]
+            (doto index-buffer
+              (.put index-array)
+              (.flip)))
+
+          :value-type-uint32
+          (let [^ints index-array (buffer/stream-data->array data type index-count)
+                ^IntBuffer index-buffer (.asIntBuffer (buffers/new-byte-buffer (* Integer/BYTES index-count) :byte-order/native))]
+            (doto index-buffer
+              (.put index-array)
+              (.flip))))]
+    (attribute/make-index-buffer [node-id ::index-buffer index-stream]
+                                 (buffers/make-buffer-data nio-buffer)
+                                 :static)))
+
 (defn- render-scene-opaque [^GL2 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
@@ -215,9 +287,13 @@
               :let [node-id (:node-id renderable)
                     user-data (:user-data renderable)
                     vb (request-vb! gl node-id user-data (:world-transform renderable))
+                    index-buffer (:index-buffer user-data)
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
-        (gl/with-gl-bindings gl render-args [vertex-binding]
-          (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
+        (if index-buffer
+          (gl/with-gl-bindings gl render-args [vertex-binding index-buffer]
+            (draw-mesh! gl gl-primitive-type vb index-buffer))
+          (gl/with-gl-bindings gl render-args [vertex-binding]
+            (draw-mesh! gl gl-primitive-type vb nil))))
       (gl/gl-disable gl GL2/GL_CULL_FACE)
       (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)
       (doseq [[_name texture] textures]
@@ -244,9 +320,13 @@
       (gl/gl-enable gl GL2/GL_CULL_FACE)
       (gl/gl-cull-face gl GL2/GL_BACK)
       (let [vb (request-vb! gl node-id user-data world-transform)
+            index-buffer (:index-buffer user-data)
             vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]
-        (gl/with-gl-bindings gl render-args [vertex-binding]
-          (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
+        (if index-buffer
+          (gl/with-gl-bindings gl render-args [vertex-binding index-buffer]
+            (draw-mesh! gl gl-primitive-type vb index-buffer))
+          (gl/with-gl-bindings gl render-args [vertex-binding]
+            (draw-mesh! gl gl-primitive-type vb nil))))
       (gl/gl-disable gl GL2/GL_CULL_FACE)
       (doseq [[_name texture] textures]
         (gl/unbind gl texture render-args)))))
@@ -345,16 +425,21 @@
              0
              streams))
 
-(g/defnk produce-scene [_node-id aabb streams primitive-type position-stream normal-stream shader gpu-textures vertex-space]
+(g/defnk produce-scene [_node-id aabb streams index-stream primitive-type position-stream normal-stream shader gpu-textures vertex-space]
   (if (nil? streams)
     {:aabb aabb
      :renderable {:passes [pass/selection]}}
 
-    (let [vertex-count (max-stream-length streams)
-          attribute-infos (mapv #(stream->attribute-info % position-stream normal-stream) streams)
-          array-streams (mapv (partial buffer/stream->array-stream vertex-count) streams)
+    (let [index-stream-desc (selected-index-stream streams index-stream)
+          vertex-streams (vertex-streams streams index-stream)
+          vertex-count (max-stream-length vertex-streams)
+          attribute-infos (mapv #(stream->attribute-info % position-stream normal-stream) vertex-streams)
+          array-streams (mapv (partial buffer/stream->array-stream vertex-count) vertex-streams)
           element-types (mapv graphics.types/attribute-info-element-type attribute-infos)
-          put-vertices-fn (make-put-vertices-fn element-types)]
+          put-vertices-fn (make-put-vertices-fn element-types)
+          index-buffer (when (and index-stream-desc
+                                  (nil? (index-stream-error-message index-stream index-stream-desc vertex-count)))
+                         (make-index-buffer _node-id index-stream-desc))]
       {:node-id _node-id
        :aabb aabb
        :renderable {:render-fn render-scene
@@ -368,6 +453,7 @@
                                 :put-vertices-fn put-vertices-fn
                                 :position-stream-name position-stream
                                 :normal-stream-name normal-stream
+                                :index-buffer index-buffer
                                 :shader shader
                                 :textures gpu-textures
                                 :scratch-arrays (gen-scratch-arrays array-streams)
@@ -438,6 +524,13 @@
                                               :ext "buffer"}))
             (dynamic label (properties/label-dynamic :mesh :vertices))
             (dynamic tooltip (properties/tooltip-dynamic :mesh :vertices)))
+
+  (property index-stream g/Str (default (protobuf/default MeshProto$MeshDesc :index-stream))
+            (dynamic error (g/fnk [_node-id index-stream streams]
+                             (validate-index-stream _node-id index-stream streams)))
+            (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids ""))))
+            (dynamic label (properties/label-dynamic :mesh :index-stream))
+            (dynamic tooltip (properties/tooltip-dynamic :mesh :index-stream)))
 
   (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
@@ -521,6 +614,7 @@
       primitive-type :primitive-type
       position-stream :position-stream
       normal-stream :normal-stream
+      index-stream :index-stream
       material (resolve-resource :material)
       vertices (resolve-resource :vertices)
       textures (resolve-resources :textures))))

@@ -185,8 +185,22 @@ namespace dmGameSystem
 
         result = dmResource::Get(factory, resource->m_MeshDDF->m_Vertices, (void**) &resource->m_BufferResource);
         if (result != dmResource::RESULT_OK) {
-            dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
+            dmResource::Release(factory, resource->m_Material);
+            resource->m_Material = 0;
             return result;
+        }
+
+        if (resource->m_MeshDDF->m_Indices[0] != 0)
+        {
+            result = dmResource::Get(factory, resource->m_MeshDDF->m_Indices, (void**) &resource->m_IndexBufferResource);
+            if (result != dmResource::RESULT_OK)
+            {
+                dmResource::Release(factory, resource->m_BufferResource);
+                dmResource::Release(factory, resource->m_Material);
+                resource->m_BufferResource = 0;
+                resource->m_Material = 0;
+                return result;
+            }
         }
 
         TextureResource* textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
@@ -234,8 +248,13 @@ namespace dmGameSystem
         }
         if (result != dmResource::RESULT_OK)
         {
-            dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
-            dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Vertices);
+            dmResource::Release(factory, resource->m_Material);
+            dmResource::Release(factory, resource->m_BufferResource);
+            if (resource->m_IndexBufferResource)
+                dmResource::Release(factory, resource->m_IndexBufferResource);
+            resource->m_Material = 0;
+            resource->m_BufferResource = 0;
+            resource->m_IndexBufferResource = 0;
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 if (textures[i])
@@ -297,12 +316,23 @@ namespace dmGameSystem
     {
         if (resource->m_MeshDDF != 0x0)
             dmDDF::FreeMessage(resource->m_MeshDDF);
+        resource->m_MeshDDF = 0x0;
 
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
+        resource->m_Material = 0x0;
 
         if (resource->m_BufferResource != 0x0)
+        {
             dmResource::Release(factory, resource->m_BufferResource);
+            resource->m_BufferResource = 0x0;
+        }
+
+        if (resource->m_IndexBufferResource != 0x0)
+        {
+            dmResource::Release(factory, resource->m_IndexBufferResource);
+            resource->m_IndexBufferResource = 0x0;
+        }
 
         if (resource->m_VertexDeclaration)
         {
@@ -329,6 +359,9 @@ namespace dmGameSystem
                     dmResource::Release(factory, (void*)resource->m_Textures[i]);
                 }
             }
+            resource->m_Textures[i] = 0x0;
+            resource->m_RenderTargets[i] = 0x0;
+            resource->m_TexturePaths[i] = 0;
         }
     }
 
@@ -337,12 +370,12 @@ namespace dmGameSystem
         dmMeshDDF::MeshDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
-        {
             return dmResource::RESULT_DDF_ERROR;
-        }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Vertices);
+        if (ddf->m_Indices[0] != 0)
+            dmResource::PreloadHint(params->m_HintInfo, ddf->m_Indices);
         for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             dmResource::PreloadHint(params->m_HintInfo, ddf->m_Textures[i]);
@@ -372,8 +405,10 @@ namespace dmGameSystem
             delete mesh_resource;
         }
 
-        mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
+        if (r != dmResource::RESULT_OK)
+            return r;
 
+        mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
         dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, mesh_resource);
         return r;
     }
@@ -392,12 +427,13 @@ namespace dmGameSystem
         dmMeshDDF::MeshDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
-        {
             return dmResource::RESULT_DDF_ERROR;
-        }
         MeshResource* mesh_resource = (MeshResource*)dmResource::GetResource(params->m_Resource);
         ReleaseResources(params->m_Factory, mesh_resource);
         mesh_resource->m_MeshDDF = ddf;
-        return AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, mesh_resource, params->m_Filename);
+        dmResource::Result result = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, mesh_resource, params->m_Filename);
+        if (result == dmResource::RESULT_OK)
+            mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
+        return result;
     }
 }

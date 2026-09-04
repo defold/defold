@@ -1530,6 +1530,8 @@ property.light.outer-cone-angle.tooltip = Angle in degrees defining a spot light
 
 # Properties: mesh
 
+property.mesh.index-stream = Index Stream
+property.mesh.index-stream.tooltip = Optionally selects a scalar `uint16` or `uint32` stream from the Vertices buffer. The selected stream defines the vertex draw order and is packed separately when the mesh is built.
 property.mesh.normal-stream = Normal Stream
 property.mesh.normal-stream.tooltip = Selects the buffer stream that contains vertex normals. An empty value uses the stream named `normal`; a stream must be selected explicitly when the material uses **World Space** so the engine can transform it correctly.
 property.mesh.position-stream = Position Stream
@@ -2691,6 +2693,12 @@ error.game-project.gamepad-database-must-be-txt = input.gamepad_database must re
 error.unspecified-property = "{property}" must be specified.
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" must be specified when using a Material with a world-space "Vertex Space" setting.
 error.mesh.stream-not-found-in-buffer = Stream "{stream}" could not be found in the specified buffer.
+error.mesh.index-stream-not-found = Index stream ''{stream}'' was not found in the Vertices buffer.
+error.mesh.index-buffer-component-count = The index stream must have a component count of one.
+error.mesh.index-buffer-value-type = The index stream must use uint16 or uint32 values.
+error.mesh.index-buffer-negative-index = Index values cannot be negative.
+error.mesh.index-buffer-value-overflow = An index value does not fit in the selected uint16 type.
+error.mesh.index-buffer-index-out-of-range = An index value is outside the vertex buffer, which contains {vertex-count} vertices.
 error.tile-map.tiles-outside-tile-source-range = Tile map uses tiles outside the range of this tile source ({count} tiles in source, but a tile with index {index} is used in tile map).
 error.tile-source.more-than-max-collision-groups-in-use = More than {max} collision groups in use.
 error.tile-source.tile-outside-range = "{property}" is outside the tile range (1-{max}).

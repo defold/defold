@@ -75,6 +75,7 @@
 #include <dmsdk/gamesys/components/comp_gui.h>
 #include <dmsdk/gamesys/resources/res_data.h>
 #include <dmsdk/gamesys/resources/res_light.h>
+#include <dmsdk/gamesys/resources/res_mesh.h>
 
 #include <sound/sound.h>
 
@@ -1294,6 +1295,7 @@ TEST_P(ComponentTest, TestReloadFail)
 
 class CameraComponentTest : public ComponentTest { public: CameraComponentTest() { SetContentFolder("camera"); } };
 class MaterialComponentTest : public ComponentTest { public: MaterialComponentTest() { SetContentFolder("material"); } };
+class MeshComponentTest : public ComponentTest { public: MeshComponentTest() { SetContentFolder("mesh"); } };
 class CollectionProxyComponentTest : public ComponentTest { public: CollectionProxyComponentTest() { SetContentFolder("collection_proxy"); } };
 class ResourceComponentTest : public ComponentTest { public: ResourceComponentTest() { SetContentFolder("resource"); } };
 class GuiComponentTest : public ComponentTest { public: GuiComponentTest() { SetContentFolder("gui"); } };
@@ -1881,6 +1883,50 @@ static void RenderCollection(dmRender::HRenderContext render_context, dmGameObje
     dmRender::RenderListEnd(render_context);
     dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     dmRender::ClearRenderObjects(render_context);
+}
+
+TEST_F(MeshComponentTest, RenderIndexedLocalAndWorldSpace)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameSystem::MeshResource* mesh_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/mesh/indexed_quad.meshc", (void**) &mesh_resource));
+    ASSERT_NE((void*) 0, mesh_resource);
+
+    uint32_t vertex_stream_count = 0;
+    uint32_t vertex_count = 0;
+    uint32_t index_stream_count = 0;
+    uint32_t index_count = 0;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetNumStreams(mesh_resource->m_BufferResource->m_Buffer, &vertex_stream_count));
+    ASSERT_EQ(1u, vertex_stream_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(mesh_resource->m_BufferResource->m_Buffer, &vertex_count));
+    ASSERT_EQ(4u, vertex_count);
+    ASSERT_NE((void*) 0, mesh_resource->m_IndexBufferResource);
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetNumStreams(mesh_resource->m_IndexBufferResource->m_Buffer, &index_stream_count));
+    ASSERT_EQ(1u, index_stream_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(mesh_resource->m_IndexBufferResource->m_Buffer, &index_count));
+    ASSERT_EQ(6u, index_count);
+
+    dmBuffer::ValueType index_type;
+    uint32_t index_components = 0;
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING,
+              dmBuffer::GetStreamType(mesh_resource->m_BufferResource->m_Buffer, dmHashString64("index"), &index_type, &index_components));
+    ASSERT_EQ(dmBuffer::RESULT_OK,
+              dmBuffer::GetStreamType(mesh_resource->m_IndexBufferResource->m_Buffer, dmHashString64("index"), &index_type, &index_components));
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT16, index_type);
+    ASSERT_EQ(1u, index_components);
+    dmResource::Release(m_Factory, mesh_resource);
+
+    dmGameObject::HInstance local = Spawn(m_Factory, m_Collection, "/mesh/indexed_quad.goc", dmHashString64("/local"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance world = Spawn(m_Factory, m_Collection, "/mesh/indexed_quad_world.goc", dmHashString64("/world"), 0, Point3(2, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, local);
+    ASSERT_NE((void*)0, world);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 static dmGameSystem::LabelComponent* GetLabelComponent(dmGameObject::HInstance instance, dmhash_t component_id)
@@ -7538,13 +7584,21 @@ INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_ma
 
 /* Buffer */
 
-const char* valid_buffer_resources[] = {"/mesh/no_data.bufferc", "/mesh/triangle.bufferc"};
+const char* valid_buffer_resources[] = {
+    "/mesh/no_data.bufferc",
+    "/mesh/triangle.bufferc",
+    "/mesh/indexed_quad_generated_vertices.bufferc",
+    "/mesh/indexed_quad_generated_indices.bufferc",
+};
 INSTANTIATE_TEST_CASE_P(Buffer, ResourceTest, jc_test_values_in(valid_buffer_resources));
 
 /* Mesh */
 
-const char* valid_mesh_resources[] = {"/mesh/no_data.meshc", "/mesh/triangle.meshc"};
+const char* valid_mesh_resources[] = {"/mesh/no_data.meshc", "/mesh/triangle.meshc", "/mesh/indexed_quad.meshc"};
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resources));
+
+const char* valid_mesh_gos[] = {"/mesh/indexed_quad.goc"};
+INSTANTIATE_TEST_CASE_P(Mesh, ComponentTest, jc_test_values_in(valid_mesh_gos));
 
 /* MeshSet */
 

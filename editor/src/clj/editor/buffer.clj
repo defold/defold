@@ -81,6 +81,9 @@
           :value-count count}
     (pb-value-type->pb-stream-field type) data))
 
+(defn streams->pb-map [streams]
+  {:streams (mapv json-stream->pb-stream streams)})
+
 (defn- lines->streams [lines]
   (json/lines->json lines
                     :key-fn keyword
@@ -90,7 +93,7 @@
                                   v))))
 
 (g/defnk produce-build-targets [_node-id streams resource]
-  (let [pb-map {:streams (mapv json-stream->pb-stream streams)}]
+  (let [pb-map (streams->pb-map streams)]
     [(pipeline/make-protobuf-build-target _node-id resource BufferProto$BufferDesc pb-map)]))
 
 (g/defnk produce-streams [_node-id lines]
