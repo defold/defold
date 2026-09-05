@@ -489,12 +489,12 @@ def gen_release_notes(channel):
     elif not notes_json_exists:
         print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
 
-def build_sdk(channel, platform=None):
+def build_sdk(channel, platforms=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
-    if platform:
-        cmd_opts.append("--platform=%s" % platform)
+    if platforms:
+        cmd_opts.append("--platforms=%s" % platforms)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -549,6 +549,7 @@ def main(argv):
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
+    parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
@@ -646,7 +647,7 @@ def main(argv):
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
-            build_sdk(channel, platform)
+            build_sdk(channel, args.platforms or platform)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
