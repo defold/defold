@@ -183,11 +183,13 @@ TextLayoutType FontCollectionGetLayoutType(HFontCollection coll)
     return coll->m_LayoutType;
 }
 
-void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, const TextRenderStyle& style)
+void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, const TextRenderStyle& style, const TextEffect* effects, uint32_t effect_count)
 {
     TextNamedStyle* named_style = GetOrCreateNamedStyle(collection, name);
     named_style->m_Style = style;
-    named_style->m_Effects.SetCapacity(0);
+    named_style->m_Effects.EnsureSize(effect_count);
+    if (effect_count)
+        memcpy(named_style->m_Effects.Begin(), effects, effect_count * sizeof(TextEffect));
     ++collection->m_NamedStyleRevision;
 }
 
@@ -196,7 +198,7 @@ bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name
     TextRenderStyle    style = {};
     dmArray<TextEffect> effects;
 
-    if (!TextLayoutCompileStyleFragment(definition, definition_length, &style, &effects, error))
+    if (!TextLayoutCompileStyleFragment(definition, definition_length, &style, &effects, 0, error))
     {
         effects.SetCapacity(0);
 

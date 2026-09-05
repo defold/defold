@@ -319,6 +319,8 @@ struct TextParagraph
  * @member m_ReleaseObject [type: FTextLayoutReleaseObject] Optional finalizer for resources acquired by the resolver.
  * @member m_ObjectContext [type: void*] User context passed to both object callbacks.
  * @member m_Padding [type: uint32_t] Legacy: Padding for monospace, glyphbank fonts
+ * @member m_BaseStyle [type: dmhash_t] Named base style; zero selects no style.
+ * @member m_UseBaseStyle [type: uint8_t:1] Use explicit base styling instead of legacy font layers, including when m_BaseStyle is zero.
  * @member m_LineBreak [type: uint8_t:1] Allow line breaks
  * @member m_Monospace [type: uint8_t:1] Legacy: Is the font a monospace font. Current: should be set on the font in the font collection!
  */
@@ -333,9 +335,12 @@ struct TextLayoutSettings
     FTextLayoutReleaseObject m_ReleaseObject;
     void*                    m_ObjectContext;
 
+    dmhash_t                 m_BaseStyle;
+
     uint32_t                 m_Padding;
     uint8_t                  m_LineBreak : 1;
     uint8_t                  m_Monospace : 1;
+    uint8_t                  m_UseBaseStyle : 1;
 };
 
 /*#
@@ -498,10 +503,11 @@ const char* TextLayoutGetObjectSource(HTextLayout layout);
 
 /*# Set a layout object's named style override
  *
- * The named style is applied after the object's default style. The default is
- * the markup `style` attribute when present, otherwise the object's tag name.
- * Pass zero to restore the default style. This affects rendering only and
- * never reshapes or reflows text.
+ * The named style replaces the object's default render properties, effects,
+ * and decorations. The default is the markup `style` attribute when present,
+ * otherwise the object's tag name. Inline markup remains applied over the
+ * selected style. Pass zero to restore the default style. This affects rendering
+ * only and never reshapes or reflows text.
  *
  * @name TextLayoutSetObjectStyle
  * @param layout [type: HTextLayout] the text layout

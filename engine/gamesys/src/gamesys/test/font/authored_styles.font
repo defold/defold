@@ -1,0 +1,11 @@
+font: "/font/valid.ttf"
+material: "/font/material_valid.material"
+size: 14
+outline_width: 1.375
+outline_alpha: 0.3725
+shadow_alpha: 0.6235
+shadow_x: 2.125
+shadow_y: -1.625
+shadow_blur: 0
+styles { name: "default" }
+styles { name: "notice" markup: "<color=#123456><ul><wave amplitude=2><shake amplitude=1>" }

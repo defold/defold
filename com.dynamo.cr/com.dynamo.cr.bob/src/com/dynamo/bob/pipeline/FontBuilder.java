@@ -23,6 +23,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 
@@ -114,6 +115,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setCharacters(fontDesc.getCharacters());
         }
 
+        try {
+            fontMapBuilder.addAllStyles(FontStyles.compileStyles(fontDesc));
+        } catch (IllegalArgumentException error) {
+            throw new CompileExceptionError(task.firstInput(), 0, error.getMessage(), error);
+        }
         fontMapBuilder.setSize(fontDesc.getSize());
         fontMapBuilder.setAntialias(fontDesc.getAntialias());
         fontMapBuilder.setShadowX(fontDesc.getShadowX());

@@ -193,6 +193,7 @@ message NodeDesc
 
     optional string    custom_type_name  = 49;
     repeated Property  custom_properties = 50;
+    optional string    style             = 51 [default = "default"];
 }
 
 message SceneDesc

@@ -2149,10 +2149,11 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource-localized error-gui-font-not-found-in-scene-message-fn :font))
 
-(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha]
+(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style]
   (assoc visual-base-node-msg
     :manual-size manual-size
     :text text
+    :style style
     :line-break line-break
     :font font
     :text-leading text-leading
@@ -2185,6 +2186,15 @@
             (dynamic tooltip (properties/tooltip-dynamic :gui :line-break))
             (value (layout-property-getter line-break))
             (set (layout-property-setter line-break)))
+  (property style g/Str (default "default")
+            (dynamic label (properties/label-dynamic :font :style))
+            (dynamic tooltip (properties/tooltip-dynamic :font :style))
+            (dynamic edit-type (g/fnk [font-data]
+                                 (wrap-layout-property-edit-type style (font/style-choices (:font-map font-data)))))
+            (dynamic error (g/fnk [_node-id font-data style]
+                             (font/style-error _node-id (:font-map font-data) style)))
+            (value (layout-property-getter style))
+            (set (layout-property-setter style)))
   (property font g/Str (default (protobuf/default Gui$NodeDesc :font))
             (dynamic edit-type (g/fnk [basic-gui-scene-info]
                                  (let [font-names (:font-names basic-gui-scene-info)]
@@ -2241,7 +2251,7 @@
             (value (layout-property-getter shadow-alpha))
             (set (layout-property-setter shadow-alpha)))
 
-  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :style :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [costly-gui-scene-info font]
                                     (let [font-datas (:font-datas costly-gui-scene-info)]
@@ -2273,8 +2283,8 @@
                     :renderable-tags #{:gui-text}})))
   (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
                                             (font/markup-error _node-id :text (:font-map font-data) text)))
-  (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking]
-                                           (font/layout-text (:font-map font-data) text line-break (first manual-size) text-tracking text-leading)))
+  (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking style]
+                                           (font/layout-text (assoc (:font-map font-data) :style style) text line-break (first manual-size) text-tracking text-leading)))
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
@@ -2300,11 +2310,17 @@
                                                                       h (second aabb-size)]
                                                                   [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output own-build-errors g/Any
-          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font]
-            (let [font-names (:font-names basic-gui-scene-info)]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node costly-gui-scene-info font layout->prop->value]
+            (let [font-names (:font-names basic-gui-scene-info)
+                  font-datas (:font-datas costly-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node
+                (mapv (fn [props]
+                        (font/style-error _node-id
+                                          (:font-map (get font-datas (:font props)))
+                                          (:style props "default")))
+                      (coll/vals layout->prop->value))
                 (validate-font _node-id font-names font))))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]

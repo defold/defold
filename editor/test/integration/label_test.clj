@@ -27,8 +27,10 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [util.fn :as fn])
-  (:import [editor.types Region]))
+            [util.fn :as fn]
+            [util.murmur :as murmur])
+  (:import [com.dynamo.gamesys.proto Label$LabelDesc]
+           [editor.types Region]))
 
 (deftest label-validation-test
   (test-util/with-loaded-project
@@ -245,3 +247,21 @@
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.go" [0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))
+
+(deftest selected-font-style-validation-and-preview
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (is (= "default" (g/node-value node :style)))
+      (doseq [style ["" "default" "link"]]
+        (test-util/with-prop [node :style style]
+          (is (nil? (test-util/prop-error node :style)))
+          (is (= style (:style (g/node-value node :text-layout))))
+          (is (= style (:style (g/node-value node :save-value) "default")))
+          (is (not (contains? (g/node-value node :save-value) :style-hash)))
+          (with-open [_ (test-util/build! node)]
+            (let [built (test-util/built-pb node Label$LabelDesc)]
+              (is (= style (.getStyle built)))
+              (is (= (if (= "" style) 0 (murmur/hash64 style)) (.getStyleHash built)))))))
+      (test-util/with-prop [node :style "missing"]
+        (is (g/error-fatal? (test-util/prop-error node :style)))
+        (is (g/error-fatal? (g/node-value node :build-targets)))))))

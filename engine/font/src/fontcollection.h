@@ -50,8 +50,8 @@ typedef bool (*FontCollectionFallbackCallback)(HFontCollection collection, const
 /** Set the fallback callback used by full text layout. */
 void FontCollectionSetFallbackCallback(HFontCollection collection, FontCollectionFallbackCallback callback, void* context);
 
-/** Replace a named render-only style and increment the collection style revision. */
-void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, const TextRenderStyle& style);
+/** Copy named render properties and effects, preserving decorations, and increment the style revision. */
+void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, const TextRenderStyle& style, const TextEffect* effects, uint32_t effect_count);
 
 /** Parse and replace a named opening-only markup style definition. */
 bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name, const char* definition, uint32_t definition_length, MarkupError* error);

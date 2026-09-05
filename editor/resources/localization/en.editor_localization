@@ -939,6 +939,7 @@ command.edit.add-embedded-component.variant.collision-object.option.capsule = Ca
 command.edit.add-embedded-component.variant.collision-object.option.hull = Hull
 command.edit.add-embedded-component.variant.collision-object.option.mesh = Mesh
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
+command.edit.add-embedded-component.variant.font = Add Style
 command.edit.add-embedded-component.variant.game-object = Add Component
 command.edit.add-embedded-component.variant.gui.option.textures = Textures…
 command.edit.add-embedded-component.variant.gui.option.materials = Materials…
@@ -1122,6 +1123,7 @@ operation.atlas.move-pivot-point = Move Pivot Point
 operation.collision-object.add-shape = Add Shape
 operation.collection.add-collection = Add Collection
 operation.collection.add-game-object = Add Game Object
+operation.font.add-style = Add Font Style
 operation.game-object.add-component = Add Component
 operation.gui.add-gui-node = Add GUI Node
 operation.gui.add-layer = Add Layer
@@ -1140,6 +1142,11 @@ operation.drop = Drop
 operation.paste = Paste
 operation.select = Select
 operation.tile-map.add-layer = Add Layer
+
+# Font Styles
+
+font.style.default = (default)
+scene.font.style = Style: {style}
 
 # Scene View Popups
 
@@ -1415,6 +1422,10 @@ property.font.characters = Characters
 property.font.characters.tooltip = Characters included when building an offline font; limiting this set reduces font size. For runtime fonts, these characters are generated up front to prewarm the glyph cache. Clearing the field restores printable ASCII.
 property.font.all-chars = All Chars
 property.font.all-chars.tooltip = For offline fonts, includes every glyph from the source instead of only **Characters**, which can greatly increase font size. For runtime fonts, glyphs are generated on demand and enabling this skips **Characters** prewarming.
+property.font.style = Style
+property.font.style.tooltip = The base style from the selected font. Leave empty for no base style. Inline markup overrides the selected style.
+property.font.markup = Markup
+property.font.markup.tooltip = Opening rich-text tags that define this style. Supports rendering properties, effects, underline, and strikethrough.
 
 # Properties: gui
 
@@ -1732,6 +1743,7 @@ outline.camera = Camera
 outline.collection = Collection
 outline.collection-proxy = Collection Proxy
 outline.collision-object = Collision Object
+outline.font.styles = Styles
 outline.game-object = Game Object
 outline.gui.box = Box
 outline.gui.fonts = Fonts
@@ -2773,6 +2785,9 @@ error.animation-not-found = "{animation}" could not be found in "{property}".
 error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
+error.font.style-not-found = Font style ''{style}'' does not exist.
+error.font.invalid-style-name = Style names must be unique and non-empty; default is reserved.
+error.font.authored-default-style = The default style is generated and cannot contain markup.
 error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Rich-text outline and shadow tags are not supported by BMFont fonts.
 error.font.no-reserved-data-for-rich-text-outlines = This font has no reserved data for rich-text outlines; the outline will not be rendered.
 error.font.bitmap-shadow-blur-includes-outline = This bitmap font's shadow blur includes its outline; rich-text shadow spans without an outline tag render crisp.

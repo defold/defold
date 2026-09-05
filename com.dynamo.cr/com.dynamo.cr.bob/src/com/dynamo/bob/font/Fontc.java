@@ -550,6 +550,7 @@ public class Fontc {
             .setShadowX(fontDesc.getShadowX()).setShadowY(fontDesc.getShadowY()).setShadowBlur(fontDesc.getShadowBlur())
             .setShadowAlpha(fontDesc.getShadowAlpha()).setAlpha(fontDesc.getAlpha())
             .setOutlineAlpha(fontDesc.getOutlineAlpha()).setOutlineWidth(fontDesc.getOutlineWidth())
+            .addAllStyles(FontStyles.compileStyles(fontDesc))
             .setLayerMask(GetFontMapLayerMask(fontDesc)).setOutputFormat(fontDesc.getOutputFormat())
             .setRenderMode(fontDesc.getRenderMode()).setAllChars(fontDesc.getAllChars()).setCharacters(fontDesc.getCharacters())
             .setCacheWidth(glyphBank.getCacheWidth()).setCacheHeight(glyphBank.getCacheHeight())
@@ -657,7 +658,7 @@ public class Fontc {
                 .setShadowX(fontDesc.getShadowX()).setShadowY(fontDesc.getShadowY())
                 .setShadowBlur(fontDesc.getShadowBlur()).setShadowAlpha(fontDesc.getShadowAlpha())
                 .setAlpha(fontDesc.getAlpha()).setOutlineAlpha(fontDesc.getOutlineAlpha())
-                .setOutlineWidth(fontDesc.getOutlineWidth()).setLayerMask(GetFontMapLayerMask(fontDesc))
+                .setOutlineWidth(fontDesc.getOutlineWidth()).addAllStyles(FontStyles.compileStyles(fontDesc)).setLayerMask(GetFontMapLayerMask(fontDesc))
                 .setOutputFormat(fontDesc.getOutputFormat()).setRenderMode(fontDesc.getRenderMode());
             try (FileOutputStream output = new FileOutputStream(outfile)) {
                 fontMap.build().writeTo(output);

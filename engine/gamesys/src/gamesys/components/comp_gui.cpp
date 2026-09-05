@@ -819,6 +819,8 @@ namespace dmGameSystem
     {
         bool result = true;
 
+        dmGui::SetNodeTextStyle(scene, n, node_desc->m_Style[0] ? dmHashString64(node_desc->m_Style) : 0);
+
         // properties
         dmGui::SetNodePosition(scene, n, Point3(node_desc->m_Position.getXYZ()));
         dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_EULER, node_desc->m_Rotation);
@@ -1688,7 +1690,7 @@ namespace dmGameSystem
 
         const uint32_t font_version = ResFontGetVersion(font_resource);
         const uint64_t text_hash = dmHashBufferNoReverse64(safe_text, (uint32_t)strlen(safe_text));
-        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking);
+        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking) ^ dmGui::GetNodeTextStyle(scene, node);
 
         dmGui::TextLayout text_layout = {};
         dmGui::GetNodeTextLayout(scene, node, &text_layout);
@@ -1706,11 +1708,12 @@ namespace dmGameSystem
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         settings.m_ResolveObject = ResolveGuiLayoutObject;
+        settings.m_BaseStyle = dmGui::GetNodeTextStyle(scene, node);
+        settings.m_UseBaseStyle = 1;
 
         HTextLayout  layout = 0;
         HMarkup      markup = 0;
         MarkupResult markup_result = MarkupCreate(safe_text, strlen(safe_text), &markup, 0);
-        const bool   use_rich_text = markup_result != MARKUP_RESULT_UNSUPPORTED;
         TextResult   result = TEXT_RESULT_ERROR;
 
         if (markup_result == MARKUP_RESULT_OK)
@@ -1743,8 +1746,6 @@ namespace dmGameSystem
             dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
             return 0;
         }
-
-        ((TextLayout*)layout)->m_UseRichText = use_rich_text;
 
         dmGui::TextLayout new_text_layout = {};
         new_text_layout.m_Handle = layout;

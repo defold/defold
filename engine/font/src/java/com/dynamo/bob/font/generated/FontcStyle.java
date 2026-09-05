@@ -30,27 +30,26 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
 
 /**
  * {@snippet lang=c :
- * struct FontcProperties {
+ * struct FontcStyle {
  *     float m_FaceColor[4];
  *     float m_OutlineColor[4];
  *     float m_ShadowColor[4];
- *     float m_BaseShadowAlpha;
- *     float m_Width;
- *     float m_Height;
- *     float m_Leading;
- *     float m_Tracking;
- *     float m_SdfScale;
- *     uint32_t m_LineBreak;
- *     uint32_t m_Align;
- *     uint32_t m_VerticalAlign;
- *     uint64_t m_BaseStyle;
- *     uint32_t m_UseBaseStyle;
+ *     float m_OutlineWidth;
+ *     float m_ShadowX;
+ *     float m_ShadowY;
+ *     float m_ShadowBlur;
+ *     float m_OutlineAlpha;
+ *     float m_ShadowAlpha;
+ *     uint32_t m_Flags;
+ *     uint32_t m_DecorationFlags;
+ *     uint32_t m_UnderlinePattern;
+ *     uint32_t m_StrikePattern;
  * }
  * }
  */
-public class FontcProperties {
+public class FontcStyle {
 
-    FontcProperties() {
+    FontcStyle() {
         // Should not be called directly
     }
 
@@ -58,20 +57,17 @@ public class FontcProperties {
         MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_FaceColor"),
         MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_OutlineColor"),
         MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_ShadowColor"),
-        FontRendererFFM.C_FLOAT.withName("m_BaseShadowAlpha"),
-        FontRendererFFM.C_FLOAT.withName("m_Width"),
-        FontRendererFFM.C_FLOAT.withName("m_Height"),
-        FontRendererFFM.C_FLOAT.withName("m_Leading"),
-        FontRendererFFM.C_FLOAT.withName("m_Tracking"),
-        FontRendererFFM.C_FLOAT.withName("m_SdfScale"),
-        FontRendererFFM.C_INT.withName("m_LineBreak"),
-        FontRendererFFM.C_INT.withName("m_Align"),
-        FontRendererFFM.C_INT.withName("m_VerticalAlign"),
-        MemoryLayout.paddingLayout(4),
-        FontRendererFFM.C_LONG_LONG.withName("m_BaseStyle"),
-        FontRendererFFM.C_INT.withName("m_UseBaseStyle"),
-        MemoryLayout.paddingLayout(4)
-    ).withName("FontcProperties");
+        FontRendererFFM.C_FLOAT.withName("m_OutlineWidth"),
+        FontRendererFFM.C_FLOAT.withName("m_ShadowX"),
+        FontRendererFFM.C_FLOAT.withName("m_ShadowY"),
+        FontRendererFFM.C_FLOAT.withName("m_ShadowBlur"),
+        FontRendererFFM.C_FLOAT.withName("m_OutlineAlpha"),
+        FontRendererFFM.C_FLOAT.withName("m_ShadowAlpha"),
+        FontRendererFFM.C_INT.withName("m_Flags"),
+        FontRendererFFM.C_INT.withName("m_DecorationFlags"),
+        FontRendererFFM.C_INT.withName("m_UnderlinePattern"),
+        FontRendererFFM.C_INT.withName("m_StrikePattern")
+    ).withName("FontcStyle");
 
     /**
      * The layout of this struct
@@ -311,488 +307,444 @@ public class FontcProperties {
         m_ShadowColor$ELEM_HANDLE.set(struct, m_ShadowColor$OFFSET, index0, fieldValue);
     }
 
-    private static final OfFloat m_BaseShadowAlpha$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_BaseShadowAlpha"));
+    private static final OfFloat m_OutlineWidth$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_OutlineWidth"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float m_BaseShadowAlpha
+     * float m_OutlineWidth
      * }
      */
-    public static final OfFloat m_BaseShadowAlpha$layout() {
-        return m_BaseShadowAlpha$LAYOUT;
+    public static final OfFloat m_OutlineWidth$layout() {
+        return m_OutlineWidth$LAYOUT;
     }
 
-    private static final long m_BaseShadowAlpha$OFFSET = $LAYOUT.byteOffset(groupElement("m_BaseShadowAlpha"));
+    private static final long m_OutlineWidth$OFFSET = $LAYOUT.byteOffset(groupElement("m_OutlineWidth"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float m_BaseShadowAlpha
+     * float m_OutlineWidth
      * }
      */
-    public static final long m_BaseShadowAlpha$offset() {
-        return m_BaseShadowAlpha$OFFSET;
+    public static final long m_OutlineWidth$offset() {
+        return m_OutlineWidth$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float m_BaseShadowAlpha
+     * float m_OutlineWidth
      * }
      */
-    public static float m_BaseShadowAlpha(MemorySegment struct) {
-        return struct.get(m_BaseShadowAlpha$LAYOUT, m_BaseShadowAlpha$OFFSET);
+    public static float m_OutlineWidth(MemorySegment struct) {
+        return struct.get(m_OutlineWidth$LAYOUT, m_OutlineWidth$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float m_BaseShadowAlpha
+     * float m_OutlineWidth
      * }
      */
-    public static void m_BaseShadowAlpha(MemorySegment struct, float fieldValue) {
-        struct.set(m_BaseShadowAlpha$LAYOUT, m_BaseShadowAlpha$OFFSET, fieldValue);
+    public static void m_OutlineWidth(MemorySegment struct, float fieldValue) {
+        struct.set(m_OutlineWidth$LAYOUT, m_OutlineWidth$OFFSET, fieldValue);
     }
 
-    private static final OfFloat m_Width$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_Width"));
+    private static final OfFloat m_ShadowX$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_ShadowX"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float m_Width
+     * float m_ShadowX
      * }
      */
-    public static final OfFloat m_Width$layout() {
-        return m_Width$LAYOUT;
+    public static final OfFloat m_ShadowX$layout() {
+        return m_ShadowX$LAYOUT;
     }
 
-    private static final long m_Width$OFFSET = $LAYOUT.byteOffset(groupElement("m_Width"));
+    private static final long m_ShadowX$OFFSET = $LAYOUT.byteOffset(groupElement("m_ShadowX"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float m_Width
+     * float m_ShadowX
      * }
      */
-    public static final long m_Width$offset() {
-        return m_Width$OFFSET;
+    public static final long m_ShadowX$offset() {
+        return m_ShadowX$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float m_Width
+     * float m_ShadowX
      * }
      */
-    public static float m_Width(MemorySegment struct) {
-        return struct.get(m_Width$LAYOUT, m_Width$OFFSET);
+    public static float m_ShadowX(MemorySegment struct) {
+        return struct.get(m_ShadowX$LAYOUT, m_ShadowX$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float m_Width
+     * float m_ShadowX
      * }
      */
-    public static void m_Width(MemorySegment struct, float fieldValue) {
-        struct.set(m_Width$LAYOUT, m_Width$OFFSET, fieldValue);
+    public static void m_ShadowX(MemorySegment struct, float fieldValue) {
+        struct.set(m_ShadowX$LAYOUT, m_ShadowX$OFFSET, fieldValue);
     }
 
-    private static final OfFloat m_Height$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_Height"));
+    private static final OfFloat m_ShadowY$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_ShadowY"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float m_Height
+     * float m_ShadowY
      * }
      */
-    public static final OfFloat m_Height$layout() {
-        return m_Height$LAYOUT;
+    public static final OfFloat m_ShadowY$layout() {
+        return m_ShadowY$LAYOUT;
     }
 
-    private static final long m_Height$OFFSET = $LAYOUT.byteOffset(groupElement("m_Height"));
+    private static final long m_ShadowY$OFFSET = $LAYOUT.byteOffset(groupElement("m_ShadowY"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float m_Height
+     * float m_ShadowY
      * }
      */
-    public static final long m_Height$offset() {
-        return m_Height$OFFSET;
+    public static final long m_ShadowY$offset() {
+        return m_ShadowY$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float m_Height
+     * float m_ShadowY
      * }
      */
-    public static float m_Height(MemorySegment struct) {
-        return struct.get(m_Height$LAYOUT, m_Height$OFFSET);
+    public static float m_ShadowY(MemorySegment struct) {
+        return struct.get(m_ShadowY$LAYOUT, m_ShadowY$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float m_Height
+     * float m_ShadowY
      * }
      */
-    public static void m_Height(MemorySegment struct, float fieldValue) {
-        struct.set(m_Height$LAYOUT, m_Height$OFFSET, fieldValue);
+    public static void m_ShadowY(MemorySegment struct, float fieldValue) {
+        struct.set(m_ShadowY$LAYOUT, m_ShadowY$OFFSET, fieldValue);
     }
 
-    private static final OfFloat m_Leading$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_Leading"));
+    private static final OfFloat m_ShadowBlur$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_ShadowBlur"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float m_Leading
+     * float m_ShadowBlur
      * }
      */
-    public static final OfFloat m_Leading$layout() {
-        return m_Leading$LAYOUT;
+    public static final OfFloat m_ShadowBlur$layout() {
+        return m_ShadowBlur$LAYOUT;
     }
 
-    private static final long m_Leading$OFFSET = $LAYOUT.byteOffset(groupElement("m_Leading"));
+    private static final long m_ShadowBlur$OFFSET = $LAYOUT.byteOffset(groupElement("m_ShadowBlur"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float m_Leading
+     * float m_ShadowBlur
      * }
      */
-    public static final long m_Leading$offset() {
-        return m_Leading$OFFSET;
+    public static final long m_ShadowBlur$offset() {
+        return m_ShadowBlur$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float m_Leading
+     * float m_ShadowBlur
      * }
      */
-    public static float m_Leading(MemorySegment struct) {
-        return struct.get(m_Leading$LAYOUT, m_Leading$OFFSET);
+    public static float m_ShadowBlur(MemorySegment struct) {
+        return struct.get(m_ShadowBlur$LAYOUT, m_ShadowBlur$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float m_Leading
+     * float m_ShadowBlur
      * }
      */
-    public static void m_Leading(MemorySegment struct, float fieldValue) {
-        struct.set(m_Leading$LAYOUT, m_Leading$OFFSET, fieldValue);
+    public static void m_ShadowBlur(MemorySegment struct, float fieldValue) {
+        struct.set(m_ShadowBlur$LAYOUT, m_ShadowBlur$OFFSET, fieldValue);
     }
 
-    private static final OfFloat m_Tracking$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_Tracking"));
+    private static final OfFloat m_OutlineAlpha$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_OutlineAlpha"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float m_Tracking
+     * float m_OutlineAlpha
      * }
      */
-    public static final OfFloat m_Tracking$layout() {
-        return m_Tracking$LAYOUT;
+    public static final OfFloat m_OutlineAlpha$layout() {
+        return m_OutlineAlpha$LAYOUT;
     }
 
-    private static final long m_Tracking$OFFSET = $LAYOUT.byteOffset(groupElement("m_Tracking"));
+    private static final long m_OutlineAlpha$OFFSET = $LAYOUT.byteOffset(groupElement("m_OutlineAlpha"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float m_Tracking
+     * float m_OutlineAlpha
      * }
      */
-    public static final long m_Tracking$offset() {
-        return m_Tracking$OFFSET;
+    public static final long m_OutlineAlpha$offset() {
+        return m_OutlineAlpha$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float m_Tracking
+     * float m_OutlineAlpha
      * }
      */
-    public static float m_Tracking(MemorySegment struct) {
-        return struct.get(m_Tracking$LAYOUT, m_Tracking$OFFSET);
+    public static float m_OutlineAlpha(MemorySegment struct) {
+        return struct.get(m_OutlineAlpha$LAYOUT, m_OutlineAlpha$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float m_Tracking
+     * float m_OutlineAlpha
      * }
      */
-    public static void m_Tracking(MemorySegment struct, float fieldValue) {
-        struct.set(m_Tracking$LAYOUT, m_Tracking$OFFSET, fieldValue);
+    public static void m_OutlineAlpha(MemorySegment struct, float fieldValue) {
+        struct.set(m_OutlineAlpha$LAYOUT, m_OutlineAlpha$OFFSET, fieldValue);
     }
 
-    private static final OfFloat m_SdfScale$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_SdfScale"));
+    private static final OfFloat m_ShadowAlpha$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_ShadowAlpha"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float m_SdfScale
+     * float m_ShadowAlpha
      * }
      */
-    public static final OfFloat m_SdfScale$layout() {
-        return m_SdfScale$LAYOUT;
+    public static final OfFloat m_ShadowAlpha$layout() {
+        return m_ShadowAlpha$LAYOUT;
     }
 
-    private static final long m_SdfScale$OFFSET = $LAYOUT.byteOffset(groupElement("m_SdfScale"));
+    private static final long m_ShadowAlpha$OFFSET = $LAYOUT.byteOffset(groupElement("m_ShadowAlpha"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float m_SdfScale
+     * float m_ShadowAlpha
      * }
      */
-    public static final long m_SdfScale$offset() {
-        return m_SdfScale$OFFSET;
+    public static final long m_ShadowAlpha$offset() {
+        return m_ShadowAlpha$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float m_SdfScale
+     * float m_ShadowAlpha
      * }
      */
-    public static float m_SdfScale(MemorySegment struct) {
-        return struct.get(m_SdfScale$LAYOUT, m_SdfScale$OFFSET);
+    public static float m_ShadowAlpha(MemorySegment struct) {
+        return struct.get(m_ShadowAlpha$LAYOUT, m_ShadowAlpha$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float m_SdfScale
+     * float m_ShadowAlpha
      * }
      */
-    public static void m_SdfScale(MemorySegment struct, float fieldValue) {
-        struct.set(m_SdfScale$LAYOUT, m_SdfScale$OFFSET, fieldValue);
+    public static void m_ShadowAlpha(MemorySegment struct, float fieldValue) {
+        struct.set(m_ShadowAlpha$LAYOUT, m_ShadowAlpha$OFFSET, fieldValue);
     }
 
-    private static final OfInt m_LineBreak$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_LineBreak"));
+    private static final OfInt m_Flags$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Flags"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_LineBreak
+     * uint32_t m_Flags
      * }
      */
-    public static final OfInt m_LineBreak$layout() {
-        return m_LineBreak$LAYOUT;
+    public static final OfInt m_Flags$layout() {
+        return m_Flags$LAYOUT;
     }
 
-    private static final long m_LineBreak$OFFSET = $LAYOUT.byteOffset(groupElement("m_LineBreak"));
+    private static final long m_Flags$OFFSET = $LAYOUT.byteOffset(groupElement("m_Flags"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_LineBreak
+     * uint32_t m_Flags
      * }
      */
-    public static final long m_LineBreak$offset() {
-        return m_LineBreak$OFFSET;
+    public static final long m_Flags$offset() {
+        return m_Flags$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_LineBreak
+     * uint32_t m_Flags
      * }
      */
-    public static int m_LineBreak(MemorySegment struct) {
-        return struct.get(m_LineBreak$LAYOUT, m_LineBreak$OFFSET);
+    public static int m_Flags(MemorySegment struct) {
+        return struct.get(m_Flags$LAYOUT, m_Flags$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_LineBreak
+     * uint32_t m_Flags
      * }
      */
-    public static void m_LineBreak(MemorySegment struct, int fieldValue) {
-        struct.set(m_LineBreak$LAYOUT, m_LineBreak$OFFSET, fieldValue);
+    public static void m_Flags(MemorySegment struct, int fieldValue) {
+        struct.set(m_Flags$LAYOUT, m_Flags$OFFSET, fieldValue);
     }
 
-    private static final OfInt m_Align$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Align"));
+    private static final OfInt m_DecorationFlags$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_DecorationFlags"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_Align
+     * uint32_t m_DecorationFlags
      * }
      */
-    public static final OfInt m_Align$layout() {
-        return m_Align$LAYOUT;
+    public static final OfInt m_DecorationFlags$layout() {
+        return m_DecorationFlags$LAYOUT;
     }
 
-    private static final long m_Align$OFFSET = $LAYOUT.byteOffset(groupElement("m_Align"));
+    private static final long m_DecorationFlags$OFFSET = $LAYOUT.byteOffset(groupElement("m_DecorationFlags"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_Align
+     * uint32_t m_DecorationFlags
      * }
      */
-    public static final long m_Align$offset() {
-        return m_Align$OFFSET;
+    public static final long m_DecorationFlags$offset() {
+        return m_DecorationFlags$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_Align
+     * uint32_t m_DecorationFlags
      * }
      */
-    public static int m_Align(MemorySegment struct) {
-        return struct.get(m_Align$LAYOUT, m_Align$OFFSET);
+    public static int m_DecorationFlags(MemorySegment struct) {
+        return struct.get(m_DecorationFlags$LAYOUT, m_DecorationFlags$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_Align
+     * uint32_t m_DecorationFlags
      * }
      */
-    public static void m_Align(MemorySegment struct, int fieldValue) {
-        struct.set(m_Align$LAYOUT, m_Align$OFFSET, fieldValue);
+    public static void m_DecorationFlags(MemorySegment struct, int fieldValue) {
+        struct.set(m_DecorationFlags$LAYOUT, m_DecorationFlags$OFFSET, fieldValue);
     }
 
-    private static final OfInt m_VerticalAlign$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_VerticalAlign"));
+    private static final OfInt m_UnderlinePattern$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_UnderlinePattern"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
+     * uint32_t m_UnderlinePattern
      * }
      */
-    public static final OfInt m_VerticalAlign$layout() {
-        return m_VerticalAlign$LAYOUT;
+    public static final OfInt m_UnderlinePattern$layout() {
+        return m_UnderlinePattern$LAYOUT;
     }
 
-    private static final long m_VerticalAlign$OFFSET = $LAYOUT.byteOffset(groupElement("m_VerticalAlign"));
+    private static final long m_UnderlinePattern$OFFSET = $LAYOUT.byteOffset(groupElement("m_UnderlinePattern"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
+     * uint32_t m_UnderlinePattern
      * }
      */
-    public static final long m_VerticalAlign$offset() {
-        return m_VerticalAlign$OFFSET;
+    public static final long m_UnderlinePattern$offset() {
+        return m_UnderlinePattern$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
+     * uint32_t m_UnderlinePattern
      * }
      */
-    public static int m_VerticalAlign(MemorySegment struct) {
-        return struct.get(m_VerticalAlign$LAYOUT, m_VerticalAlign$OFFSET);
+    public static int m_UnderlinePattern(MemorySegment struct) {
+        return struct.get(m_UnderlinePattern$LAYOUT, m_UnderlinePattern$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
+     * uint32_t m_UnderlinePattern
      * }
      */
-    public static void m_VerticalAlign(MemorySegment struct, int fieldValue) {
-        struct.set(m_VerticalAlign$LAYOUT, m_VerticalAlign$OFFSET, fieldValue);
+    public static void m_UnderlinePattern(MemorySegment struct, int fieldValue) {
+        struct.set(m_UnderlinePattern$LAYOUT, m_UnderlinePattern$OFFSET, fieldValue);
     }
 
-    private static final OfLong m_BaseStyle$LAYOUT = (OfLong)$LAYOUT.select(groupElement("m_BaseStyle"));
+    private static final OfInt m_StrikePattern$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_StrikePattern"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint64_t m_BaseStyle
+     * uint32_t m_StrikePattern
      * }
      */
-    public static final OfLong m_BaseStyle$layout() {
-        return m_BaseStyle$LAYOUT;
+    public static final OfInt m_StrikePattern$layout() {
+        return m_StrikePattern$LAYOUT;
     }
 
-    private static final long m_BaseStyle$OFFSET = $LAYOUT.byteOffset(groupElement("m_BaseStyle"));
+    private static final long m_StrikePattern$OFFSET = $LAYOUT.byteOffset(groupElement("m_StrikePattern"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint64_t m_BaseStyle
+     * uint32_t m_StrikePattern
      * }
      */
-    public static final long m_BaseStyle$offset() {
-        return m_BaseStyle$OFFSET;
+    public static final long m_StrikePattern$offset() {
+        return m_StrikePattern$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint64_t m_BaseStyle
+     * uint32_t m_StrikePattern
      * }
      */
-    public static long m_BaseStyle(MemorySegment struct) {
-        return struct.get(m_BaseStyle$LAYOUT, m_BaseStyle$OFFSET);
+    public static int m_StrikePattern(MemorySegment struct) {
+        return struct.get(m_StrikePattern$LAYOUT, m_StrikePattern$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint64_t m_BaseStyle
+     * uint32_t m_StrikePattern
      * }
      */
-    public static void m_BaseStyle(MemorySegment struct, long fieldValue) {
-        struct.set(m_BaseStyle$LAYOUT, m_BaseStyle$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_UseBaseStyle$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_UseBaseStyle"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
-     * }
-     */
-    public static final OfInt m_UseBaseStyle$layout() {
-        return m_UseBaseStyle$LAYOUT;
-    }
-
-    private static final long m_UseBaseStyle$OFFSET = $LAYOUT.byteOffset(groupElement("m_UseBaseStyle"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
-     * }
-     */
-    public static final long m_UseBaseStyle$offset() {
-        return m_UseBaseStyle$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
-     * }
-     */
-    public static int m_UseBaseStyle(MemorySegment struct) {
-        return struct.get(m_UseBaseStyle$LAYOUT, m_UseBaseStyle$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
-     * }
-     */
-    public static void m_UseBaseStyle(MemorySegment struct, int fieldValue) {
-        struct.set(m_UseBaseStyle$LAYOUT, m_UseBaseStyle$OFFSET, fieldValue);
+    public static void m_StrikePattern(MemorySegment struct, int fieldValue) {
+        struct.set(m_StrikePattern$LAYOUT, m_StrikePattern$OFFSET, fieldValue);
     }
 
     /**

@@ -990,6 +990,10 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
     void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
     bool GetNodeLineBreak(HScene scene, HNode node);
+    // Authored base style, stored separately from script-visible properties.
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style);
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node);
+
     void SetNodeTextLeading(HScene scene, HNode node, float leading);
     float GetNodeTextLeading(HScene scene, HNode node);
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);

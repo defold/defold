@@ -4179,3 +4179,50 @@
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)
                  (round-layout->node->field->value)))))))
+
+(deftest selected-font-style-layout-and-template-overrides
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (is (= "default" (g/node-value node :style)))
+      (test-util/prop! node :style "link")
+      (is (= "link" (:style (g/node-value node :text-layout))))
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "")
+        (is (= "" (:style (g/node-value node :text-layout)))))
+      (is (= "link" (g/node-value node :style)))
+      (is (= "" (get-in (g/node-value node :layout->prop->override) ["Landscape" :style])))
+      (test-util/with-prop [node :style "missing"]
+        (is (g/error-fatal? (test-util/prop-error node :style))))
+      (let [saved (g/node-value scene :save-value)
+            text (coll/first-where #(= "text" (:id %)) (:nodes saved))
+            landscape (coll/first-where #(= "Landscape" (:name %)) (:layouts saved))
+            override (coll/first-where #(= "text" (:id %)) (:nodes landscape))]
+        (is (= "link" (:style text)))
+        (is (= "" (:style override)))
+        (is (contains? (set (:overridden-fields override)) 51))))))
+
+(deftest selected-font-style-template-override
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [button (test-util/resource-node project "/gui/template_layout/button.gui")
+          panel (test-util/resource-node project "/gui/template_layout/panel_button.gui")
+          text (gui-node button "text")
+          template-text (gui-node panel "button/text")]
+      (test-util/prop! text :style "link")
+      (is (= "link" (g/node-value template-text :style)))
+      (test-util/prop! template-text :style "")
+      (is (= "" (g/node-value template-text :style)))
+      (let [saved (coll/first-where #(= "button/text" (:id %)) (:nodes (g/node-value panel :save-value)))]
+        (is (= "" (:style saved)))
+        (is (contains? (set (:overridden-fields saved)) 51)))
+      (test-util/prop! text :style "default")
+      (is (= "" (g/node-value template-text :style))))))
+
+(deftest missing-style-in-hidden-layout-is-build-error
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "missing"))
+      (is (= "default" (g/node-value node :style)))
+      (is (g/error-fatal? (g/node-value scene :build-targets))))))

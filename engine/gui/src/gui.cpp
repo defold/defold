@@ -2820,6 +2820,7 @@ namespace dmGui
         node->m_Node.m_FlipbookAnimHash = 0;
         node->m_Node.m_FlipbookAnimPosition = 0.0f;
         node->m_Node.m_FontHash = 0;
+        node->m_Node.m_TextStyle = dmHashString64("default");
         node->m_Node.m_Font = 0;
         node->m_Node.m_HasHeadlessPfx = 0;
         node->m_Node.m_LayerHash = DEFAULT_LAYER;
@@ -3503,6 +3504,17 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_LineBreak;
+    }
+
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_TextStyle = style;
+    }
+
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_TextStyle;
     }
 
     void SetNodeTextLeading(HScene scene, HNode node, float leading)

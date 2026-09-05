@@ -30,6 +30,7 @@
 #include "gamesys/resources/res_font.h"
 #include "gamesys/resources/res_font_private.h"
 #include "gamesys/resources/res_glyph_bank.h"
+#include "gamesys/resources/res_label.h"
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_ttf.h"
@@ -4098,6 +4099,61 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(FontTest, CompiledFontStyleTable)
+{
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/authored_styles.fontc", (void**)&font));
+    ASSERT_EQ(2u, font->m_DDF->m_Styles.m_Count);
+    HFontCollection        collection = dmGameSystem::ResFontGetFontCollection(font);
+    const TextRenderStyle* defaults = FontCollectionGetNamedStyle(collection, dmHashString64("default"));
+    ASSERT_NE((const TextRenderStyle*)0, defaults);
+    ASSERT_EQ(1.375f, defaults->m_OutlineWidth);
+    ASSERT_EQ(0.3725f, defaults->m_OutlineAlpha);
+    ASSERT_EQ(0.6235f, defaults->m_ShadowAlpha);
+    ASSERT_EQ(-1.625f, defaults->m_ShadowY);
+    ASSERT_EQ(0u, defaults->m_Flags & (TEXT_RENDER_STYLE_OUTLINE_COLOR | TEXT_RENDER_STYLE_SHADOW_COLOR));
+    ASSERT_EQ((const TextRenderStyle*)0, FontCollectionGetNamedStyle(collection, dmHashString64("link")));
+    dmhash_t                        notice = dmHashString64("notice");
+    const TextNamedStyleDecoration* decoration = FontCollectionGetNamedStyleDecoration(collection, notice);
+    ASSERT_NE((const TextNamedStyleDecoration*)0, decoration);
+    ASSERT_EQ((uint8_t)TEXT_RESOLVED_DECORATION_UNDERLINE, decoration->m_Flags);
+    uint32_t          count = 0;
+    const TextEffect* effects = FontCollectionGetNamedStyleEffects(collection, notice, &count);
+    ASSERT_EQ(2u, count);
+    ASSERT_EQ((uint16_t)TEXT_EFFECT_WAVE, effects[0].m_Type);
+    ASSERT_EQ((uint16_t)TEXT_EFFECT_SHAKE, effects[1].m_Type);
+    dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, EmptyCompiledFontStyleTable)
+{
+    const char* path = "/font/authored_styles.fontc";
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&font));
+
+    dmRenderDDF::FontMap replacement = *font->m_DDF;
+    replacement.m_Styles.m_Data = 0;
+    replacement.m_Styles.m_Count = 0;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+
+    HFontCollection collection = dmGameSystem::ResFontGetFontCollection(font);
+    const char* names[] = { "default", "link", "link:hover", "link:active", "notice" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+    {
+        dmhash_t name = dmHashString64(names[i]);
+        ASSERT_EQ((const TextRenderStyle*)0, FontCollectionGetNamedStyle(collection, name));
+        ASSERT_EQ((const TextNamedStyleDecoration*)0, FontCollectionGetNamedStyleDecoration(collection, name));
+    }
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path, 0));
+    collection = dmGameSystem::ResFontGetFontCollection(font);
+    ASSERT_NE((const TextRenderStyle*)0, FontCollectionGetNamedStyle(collection, dmHashString64("default")));
+    ASSERT_NE((const TextNamedStyleDecoration*)0, FontCollectionGetNamedStyleDecoration(collection, dmHashString64("notice")));
+    dmResource::Release(m_Factory, font);
+}
+
 TEST_F(FontTest, ScriptSetNamedFontStyle)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -5676,6 +5732,59 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiSelectedBaseStyle)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGui::HScene scene = GetGuiComponent(m_Collection)->m_Scene;
+    dmGui::HNode  node = dmGui::GetNodeById(scene, "text");
+    ASSERT_EQ(dmHashString64("default"), dmGui::GetNodeTextStyle(scene, node));
+    dmGui::SetNodeText(scene, node, "A<color=#ff0000>B</color>");
+    dmGui::SetNodeTextStyle(scene, node, dmHashString64("link"));
+    HTextLayout layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(dmHashString64("link"), layout->m_BaseStyleName);
+    ASSERT_GT(TextLayoutGetDecorationCount(layout), 0u);
+    const float         color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    TextGlyphRenderData data;
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
+    ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
+    dmGui::SetNodeTextStyle(scene, node, 0);
+    layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    ASSERT_EQ((dmhash_t)0, layout->m_BaseStyleName);
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
+    ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
+    dmGui::SetNodeTextStyle(scene, node, dmHashString64("missing"));
+    layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+
+    // A replacement font can remove a selected name, then restore it later.
+    dmGui::SetNodeTextStyle(scene, node, dmHashString64("link"));
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
+    dmRenderDDF::FontMap        replacement = *font->m_DDF;
+    replacement.m_Styles.m_Count = 1;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64("/gui/font_dyn_glyph_bank_test_1.fontc"), buffer.Begin(), buffer.Size()));
+    layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(dmHashString64("link"), layout->m_BaseStyleName);
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+    ASSERT_EQ(layout, PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/font_dyn_glyph_bank_test_1.fontc", 0));
+    layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_GT(TextLayoutGetDecorationCount(layout), 0u);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiPreparedRichTextLayout)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -5767,7 +5876,16 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     TextGlyphRenderData hovered = {};
     TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &hovered);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(initial.m_TextLayout));
     ASSERT_NEAR(0.25f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    for (float x = 307.0f; x <= 333.0f; x += 0.25f)
+    {
+        input_action.m_X = x;
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+        ASSERT_EQ(initial.m_TextLayout, gui_component->m_HoveredLayoutObject.m_Layout);
+        ASSERT_EQ(0u, TextLayoutGetDecorationCount(initial.m_TextLayout));
+    }
 
     input_action.m_X = 500.0f;
     input_action.m_Y = 400.0f;
@@ -5776,12 +5894,14 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     TextGlyphRenderData unhovered = {};
     TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &unhovered);
     ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(initial.m_TextLayout));
     ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
 
     input_action.m_X = 307.0f;
     input_action.m_Y = 240.0f;
     input_action.m_Pressed = 1;
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(initial.m_TextLayout));
     input_action.m_Pressed = 0;
     input_action.m_Released = 1;
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
@@ -6089,6 +6209,58 @@ TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(LabelComponentTest, LabelSelectedBaseStyles)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/styled_labels.goc", dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    const char*    components[] = { "default", "plain", "notice" };
+    const dmhash_t styles[] = { dmHashString64("default"), 0, dmHashString64("notice") };
+    const float    white[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmGameSystem::LabelComponent* component = GetLabelComponent(go, dmHashString64(components[i]));
+        ASSERT_NE((void*)0, component);
+        HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(component);
+        ASSERT_NE((HTextLayout)0, layout);
+        ASSERT_EQ(styles[i], layout->m_BaseStyleName);
+        ASSERT_EQ(i == 2, TextLayoutGetDecorationCount(layout) > 0);
+        TextGlyphRenderData data;
+        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], white, &data);
+        ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
+        ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
+        ASSERT_EQ(i == 0, (data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(LabelComponentTest, LabelStyleHashReload)
+{
+    const char*                  path = "/label/valid.labelc";
+    dmGameSystem::LabelResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&resource));
+    ASSERT_EQ(dmHashString64("default"), resource->m_DDF->m_StyleHash);
+
+    const dmhash_t hashes[] = { dmHashString64("link"), 0 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(hashes); ++i)
+    {
+        dmGameSystemDDF::LabelDesc replacement = *resource->m_DDF;
+        replacement.m_StyleHash = hashes[i];
+        dmArray<uint8_t> buffer;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmGameSystemDDF::LabelDesc::m_DDFDescriptor, buffer));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+        ASSERT_EQ(hashes[i], resource->m_DDF->m_StyleHash);
+    }
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path, 0));
+    ASSERT_EQ(dmHashString64("default"), resource->m_DDF->m_StyleHash);
+    dmResource::Release(m_Factory, resource);
+}
+
 TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
 {
     const dmhash_t go_id = dmHashString64("/go");
@@ -6286,6 +6458,14 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     TextGlyphRenderData hovered = {};
     TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+
+    for (float x = -13.0f; x <= 13.0f; x += 0.25f)
+    {
+        input_action.m_X = x;
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+        ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+    }
 
     input_action.m_X = 500.0f;
     input_action.m_Y = 400.0f;
@@ -6294,6 +6474,13 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     TextGlyphRenderData unhovered = {};
     TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &unhovered);
     ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+
+    input_action.m_X = -13.0f;
+    input_action.m_Y = 82.96361f;
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
 
     DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
