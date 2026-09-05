@@ -45,661 +45,269 @@ namespace dmScript
      * @language Lua
      */
 
-    /*#
-     * @name graphics.BUFFER_TYPE_COLOR0_BIT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BUFFER_TYPE_DEPTH_BIT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BUFFER_TYPE_STENCIL_BIT
-     * @constant
-     */
-
-    /*#
-     * May be nil if multitarget rendering isn't supported
-     * @name graphics.BUFFER_TYPE_COLOR1_BIT
-     * @constant
-     */
-
-    /*#
-     * May be nil if multitarget rendering isn't supported
-     * @name graphics.BUFFER_TYPE_COLOR2_BIT
-     * @constant
-     */
-
-    /*#
-     * May be nil if multitarget rendering isn't supported
-     * @name graphics.BUFFER_TYPE_COLOR3_BIT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_DEPTH_TEST
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_SCISSOR_TEST
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_STENCIL_TEST
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_ALPHA_TEST
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_BLEND
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_CULL_FACE
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_POLYGON_OFFSET_FILL
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STATE_ALPHA_TEST_SUPPORTED
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ZERO
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ONE
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_SRC_COLOR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ONE_MINUS_SRC_COLOR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_DST_COLOR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ONE_MINUS_DST_COLOR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_SRC_ALPHA
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_DST_ALPHA
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ONE_MINUS_DST_ALPHA
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_SRC_ALPHA_SATURATE
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_CONSTANT_COLOR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_CONSTANT_ALPHA
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_EQUATION_ADD
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_EQUATION_SUBTRACT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_EQUATION_REVERSE_SUBTRACT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_EQUATION_MIN
-     * @constant
-     */
-
-    /*#
-     * @name graphics.BLEND_EQUATION_MAX
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_NEVER
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_LESS
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_LEQUAL
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_GREATER
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_GEQUAL
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_EQUAL
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_NOTEQUAL
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPARE_FUNC_ALWAYS
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_KEEP
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_ZERO
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_REPLACE
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_INCR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_INCR_WRAP
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_DECR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_DECR_WRAP
-     * @constant
-     */
-
-    /*#
-     * @name graphics.STENCIL_OP_INVERT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.FACE_TYPE_FRONT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.FACE_TYPE_BACK
-     * @constant
-     */
-
-    /*#
-     * @name graphics.FACE_TYPE_FRONT_AND_BACK
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_TYPE_2D
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_TYPE_2D_ARRAY
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_TYPE_CUBE_MAP
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_TYPE_IMAGE_2D
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_TYPE_3D
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_TYPE_IMAGE_3D
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FILTER_DEFAULT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FILTER_NEAREST
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FILTER_LINEAR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_USAGE_FLAG_SAMPLE
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_USAGE_FLAG_MEMORYLESS
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_USAGE_FLAG_STORAGE
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_USAGE_FLAG_INPUT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_USAGE_FLAG_COLOR
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_WRAP_CLAMP_TO_BORDER
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_WRAP_CLAMP_TO_EDGE
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_WRAP_MIRRORED_REPEAT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_WRAP_REPEAT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPRESSION_TYPE_DEFAULT
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPRESSION_TYPE_WEBP
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPRESSION_TYPE_WEBP_LOSSY
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPRESSION_TYPE_BASIS_UASTC
-     * @constant
-     */
-
-    /*#
-     * @name graphics.COMPRESSION_TYPE_BASIS_ETC1S
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FORMAT_DEPTH
-     * @constant
-     */
-
-    /*#
-     * @name graphics.TEXTURE_FORMAT_STENCIL
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_LUMINANCE
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_LUMINANCE_ALPHA
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB_16BPP
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA_16BPP
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB_ETC1
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_R_ETC2
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RG_ETC2
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA_ETC2
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB_BC1
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA_BC3
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_R_BC4
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RG_BC5
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA_BC7
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB16F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGB32F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA16F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA32F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_R16F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RG16F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_R32F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RG32F
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_RGBA32UI
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_BGRA8U
-     * @constant
-     */
-
-    /*#
-     * May be nil if the graphics driver doesn't support it
-     * @name graphics.TEXTURE_FORMAT_R32UI
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for rendering to multiple color targets simultaneously.
-     * @name graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for texture arrays.
-     * @name graphics.CONTEXT_FEATURE_TEXTURE_ARRAY
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for compute shaders.
-     * @name graphics.CONTEXT_FEATURE_COMPUTE_SHADER
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for storage buffers.
-     * @name graphics.CONTEXT_FEATURE_STORAGE_BUFFER
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for vertical sync (vsync).
-     * @name graphics.CONTEXT_FEATURE_VSYNC
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for hardware instancing.
-     * @name graphics.CONTEXT_FEATURE_INSTANCING
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for 3D (volume) textures.
-     * @name graphics.CONTEXT_FEATURE_3D_TEXTURES
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for ASTC compressed 2D array textures.
-     * Some WebGL/GLES drivers fail array texture ASTC uploads while 2D ASTC works.
-     * @name graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES
-     * @constant
-     */
-
-    /*#
-     * Context feature flag indicating support for min/max blend equations.
-     * Requires GLES3+ or EXT_blend_minmax.
-     * @name graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX
-     * @constant
+    /*# Blend factors
+     * @enum
+     * @name graphics.BLEND_FACTOR
+     * @member graphics.BLEND_FACTOR_CONSTANT_ALPHA constant blend alpha for every component
+     * @member graphics.BLEND_FACTOR_CONSTANT_COLOR constant blend color
+     * @member graphics.BLEND_FACTOR_DST_ALPHA destination alpha for every component
+     * @member graphics.BLEND_FACTOR_DST_COLOR destination color
+     * @member graphics.BLEND_FACTOR_ONE one for every component
+     * @member graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA one minus the constant blend alpha for every component
+     * @member graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR one minus the constant blend color
+     * @member graphics.BLEND_FACTOR_ONE_MINUS_DST_ALPHA one minus the destination alpha for every component
+     * @member graphics.BLEND_FACTOR_ONE_MINUS_DST_COLOR one minus the destination color
+     * @member graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA one minus the source alpha for every component
+     * @member graphics.BLEND_FACTOR_ONE_MINUS_SRC_COLOR one minus the source color
+     * @member graphics.BLEND_FACTOR_SRC_ALPHA source alpha for every component
+     * @member graphics.BLEND_FACTOR_SRC_ALPHA_SATURATE minimum of source alpha and one minus destination alpha for color, and one for alpha
+     * @member graphics.BLEND_FACTOR_SRC_COLOR source color
+     * @member graphics.BLEND_FACTOR_ZERO zero for every component
+     */
+
+    /*# Blend equations
+     * @enum
+     * @name graphics.BLEND_EQUATION
+     * @member graphics.BLEND_EQUATION_ADD
+     * @member graphics.BLEND_EQUATION_MAX
+     * @member graphics.BLEND_EQUATION_MIN
+     * @member graphics.BLEND_EQUATION_REVERSE_SUBTRACT
+     * @member graphics.BLEND_EQUATION_SUBTRACT
+     */
+
+    /*# Buffer types
+     * @enum
+     * @name graphics.BUFFER_TYPE
+     * @member graphics.BUFFER_TYPE_COLOR0_BIT first color attachment
+     * @member graphics.BUFFER_TYPE_COLOR1_BIT [type:graphics.BUFFER_TYPE|nil] second color attachment; may be nil if multiple render targets are unsupported
+     * @member graphics.BUFFER_TYPE_COLOR2_BIT [type:graphics.BUFFER_TYPE|nil] third color attachment; may be nil if multiple render targets are unsupported
+     * @member graphics.BUFFER_TYPE_COLOR3_BIT [type:graphics.BUFFER_TYPE|nil] fourth color attachment; may be nil if multiple render targets are unsupported
+     * @member graphics.BUFFER_TYPE_DEPTH_BIT depth attachment
+     * @member graphics.BUFFER_TYPE_STENCIL_BIT stencil attachment
+     */
+
+    /*# Vertex attribute data types
+     * @enum
+     * @name graphics.DATA_TYPE
+     * @member graphics.DATA_TYPE_BYTE Signed 8-bit vertex attribute data.
+     * @member graphics.DATA_TYPE_FLOAT 32-bit floating-point vertex attribute data.
+     * @member graphics.DATA_TYPE_INT Signed 32-bit vertex attribute data.
+     * @member graphics.DATA_TYPE_SHORT Signed 16-bit vertex attribute data.
+     * @member graphics.DATA_TYPE_UNSIGNED_BYTE Unsigned 8-bit vertex attribute data.
+     * @member graphics.DATA_TYPE_UNSIGNED_INT Unsigned 32-bit vertex attribute data.
+     * @member graphics.DATA_TYPE_UNSIGNED_SHORT Unsigned 16-bit vertex attribute data.
+     */
+
+    /*# Comparison functions
+     * @enum
+     * @name graphics.COMPARE_FUNC
+     * @member graphics.COMPARE_FUNC_ALWAYS always passes
+     * @member graphics.COMPARE_FUNC_EQUAL passes when the values are equal
+     * @member graphics.COMPARE_FUNC_GEQUAL passes when the incoming value is greater than or equal to the stored value
+     * @member graphics.COMPARE_FUNC_GREATER passes when the incoming value is greater than the stored value
+     * @member graphics.COMPARE_FUNC_LEQUAL passes when the incoming value is less than or equal to the stored value
+     * @member graphics.COMPARE_FUNC_LESS passes when the incoming value is less than the stored value
+     * @member graphics.COMPARE_FUNC_NEVER never passes
+     * @member graphics.COMPARE_FUNC_NOTEQUAL passes when the values are not equal
+     */
+
+    /*# Vertex attribute coordinate spaces
+     * @enum
+     * @name graphics.COORDINATE_SPACE
+     * @member graphics.COORDINATE_SPACE_DEFAULT Default vertex attribute coordinate space.
+     * @member graphics.COORDINATE_SPACE_LOCAL Local vertex attribute coordinate space.
+     * @member graphics.COORDINATE_SPACE_WORLD World vertex attribute coordinate space.
+     */
+
+    /*# Optional graphics-context features
+     * @enum
+     * @name graphics.CONTEXT_FEATURE
+     * @member graphics.CONTEXT_FEATURE_3D_TEXTURES Context feature flag indicating support for 3D (volume) textures.
+     * @member graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES Context feature flag indicating support for ASTC compressed 2D array textures. Some WebGL/GLES drivers fail array texture ASTC uploads while 2D ASTC works.
+     * @member graphics.CONTEXT_FEATURE_BC_ARRAY_TEXTURES Context feature flag indicating support for BC (S3TC/RGTC/BPTC) compressed 2D array and 3D textures. WebGL2 forbids these compressed families on array/3D targets while allowing them on 2D.
+     * @member graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX Context feature flag indicating support for min/max blend equations. Requires GLES3+ or EXT_blend_minmax.
+     * @member graphics.CONTEXT_FEATURE_COMPUTE_SHADER Context feature flag indicating support for compute shaders.
+     * @member graphics.CONTEXT_FEATURE_INSTANCING Context feature flag indicating support for hardware instancing.
+     * @member graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING Context feature flag indicating support for rendering to multiple color targets simultaneously.
+     * @member graphics.CONTEXT_FEATURE_STORAGE_BUFFER Context feature flag indicating support for storage buffers.
+     * @member graphics.CONTEXT_FEATURE_TEXTURE_ARRAY Context feature flag indicating support for texture arrays.
+     * @member graphics.CONTEXT_FEATURE_VSYNC Context feature flag indicating support for vertical sync (vsync).
+     */
+
+    /*# Texture compression types
+     * @enum
+     * @name graphics.COMPRESSION_TYPE
+     * @member graphics.COMPRESSION_TYPE_BASIS_ETC1S
+     * @member graphics.COMPRESSION_TYPE_BASIS_UASTC
+     * @member graphics.COMPRESSION_TYPE_DEFAULT
+     * @member graphics.COMPRESSION_TYPE_WEBP
+     * @member graphics.COMPRESSION_TYPE_WEBP_LOSSY
+     */
+
+    /*# Face types
+     * @enum
+     * @name graphics.FACE_TYPE
+     * @member graphics.FACE_TYPE_BACK back-facing polygons
+     * @member graphics.FACE_TYPE_FRONT front-facing polygons
+     * @member graphics.FACE_TYPE_FRONT_AND_BACK both front- and back-facing polygons
+     */
+
+    /*# Graphics states
+     * @enum
+     * @name graphics.STATE
+     * @member graphics.STATE_ALPHA_TEST
+     * @member graphics.STATE_ALPHA_TEST_SUPPORTED
+     * @member graphics.STATE_BLEND
+     * @member graphics.STATE_CULL_FACE
+     * @member graphics.STATE_DEPTH_TEST
+     * @member graphics.STATE_POLYGON_OFFSET_FILL
+     * @member graphics.STATE_SCISSOR_TEST
+     * @member graphics.STATE_STENCIL_TEST
+     */
+
+    /*# Vertex attribute semantic types
+     * @enum
+     * @name graphics.SEMANTIC_TYPE
+     * @member graphics.SEMANTIC_TYPE_BONE_INDICES Bone-index vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_BONE_WEIGHTS Bone-weight vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_COLOR Color vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS Morph-target-weight vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_NONE Vertex attribute without a predefined semantic.
+     * @member graphics.SEMANTIC_TYPE_NORMAL Normal vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_NORMAL_MATRIX Normal-matrix vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_PAGE_INDEX Texture page-index vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_POSITION Position vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_TANGENT Tangent vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_TEXCOORD Texture-coordinate vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D 2D texture-transform vertex attribute.
+     * @member graphics.SEMANTIC_TYPE_WORLD_MATRIX World-matrix vertex attribute.
+     */
+
+    /*# Stencil operations
+     * @enum
+     * @name graphics.STENCIL_OP
+     * @member graphics.STENCIL_OP_DECR decrement and clamp at zero
+     * @member graphics.STENCIL_OP_DECR_WRAP decrement and wrap zero to the maximum unsigned value
+     * @member graphics.STENCIL_OP_INCR increment and clamp at the maximum unsigned value
+     * @member graphics.STENCIL_OP_INCR_WRAP increment and wrap the maximum unsigned value to zero
+     * @member graphics.STENCIL_OP_INVERT bitwise invert
+     * @member graphics.STENCIL_OP_KEEP keep the current value
+     * @member graphics.STENCIL_OP_REPLACE replace with the reference value from [ref:render.set_stencil_func]
+     * @member graphics.STENCIL_OP_ZERO set to zero
+     */
+
+    /*# Texture filters
+     * @enum
+     * @name graphics.TEXTURE_FILTER
+     * @member graphics.TEXTURE_FILTER_DEFAULT
+     * @member graphics.TEXTURE_FILTER_LINEAR
+     * @member graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR
+     * @member graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST
+     * @member graphics.TEXTURE_FILTER_NEAREST
+     * @member graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR
+     * @member graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST
+     */
+
+    /*# Texture formats
+     * @enum
+     * @name graphics.TEXTURE_FORMAT
+     * @member graphics.TEXTURE_FORMAT_BGRA8U [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_DEPTH
+     * @member graphics.TEXTURE_FORMAT_LUMINANCE [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_LUMINANCE_ALPHA [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_R16F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_R32F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_R32UI [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RG16F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RG32F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB16F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB32F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA16F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA32F [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA32UI [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA_16BPP [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA_BC3 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA_BC7 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA_ETC2 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB_16BPP [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB_BC1 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB_ETC1 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RG_BC5 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_RG_ETC2 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_R_BC4 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_R_ETC2 [type:graphics.TEXTURE_FORMAT|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_FORMAT_STENCIL
+     */
+
+    /*# Texture types
+     * @enum
+     * @name graphics.TEXTURE_TYPE
+     * @member graphics.TEXTURE_TYPE_2D
+     * @member graphics.TEXTURE_TYPE_2D_ARRAY
+     * @member graphics.TEXTURE_TYPE_3D [type:graphics.TEXTURE_TYPE|nil] May be nil if the graphics driver doesn't support it
+     * @member graphics.TEXTURE_TYPE_CUBE_MAP
+     * @member graphics.TEXTURE_TYPE_IMAGE_2D
+     * @member graphics.TEXTURE_TYPE_IMAGE_3D [type:graphics.TEXTURE_TYPE|nil] May be nil if the graphics driver doesn't support it
+     */
+
+    /*# Texture usage flags
+     * @enum
+     * @name graphics.TEXTURE_USAGE_FLAG
+     * @member graphics.TEXTURE_USAGE_FLAG_COLOR
+     * @member graphics.TEXTURE_USAGE_FLAG_INPUT
+     * @member graphics.TEXTURE_USAGE_FLAG_MEMORYLESS
+     * @member graphics.TEXTURE_USAGE_FLAG_SAMPLE
+     * @member graphics.TEXTURE_USAGE_FLAG_STORAGE
+     */
+
+    /*# Texture wrapping modes
+     * @enum
+     * @name graphics.TEXTURE_WRAP
+     * @member graphics.TEXTURE_WRAP_CLAMP_TO_BORDER
+     * @member graphics.TEXTURE_WRAP_CLAMP_TO_EDGE
+     * @member graphics.TEXTURE_WRAP_MIRRORED_REPEAT
+     * @member graphics.TEXTURE_WRAP_REPEAT
+     */
+
+    /*# Graphics context limits
+     * @struct
+     * @name graphics.adapter_limits
+     * @member max_texture_size_2d [type:integer] Maximum 2D texture dimension in texels.
+     * @member max_texture_size_3d [type:integer] Maximum 3D texture dimension in texels.
+     * @member max_texture_size_cube [type:integer] Maximum cube-map face dimension in texels.
+     * @member max_texture_array_layers [type:integer] Maximum number of array texture layers.
+     * @member max_framebuffer_width [type:integer] Maximum framebuffer width in pixels.
+     * @member max_framebuffer_height [type:integer] Maximum framebuffer height in pixels.
+     * @member max_color_attachments [type:integer] Maximum number of simultaneous color attachments.
+     * @member max_samplers_per_stage [type:integer] Maximum number of texture samplers per shader stage.
+     * @member max_textures_per_stage [type:integer] Maximum number of sampled textures per shader stage.
+     * @member max_vertex_attributes [type:integer] Maximum number of vertex attributes.
+     * @member max_vertex_buffers [type:integer] Maximum number of vertex-buffer bindings.
+     * @member max_compute_workgroup_size_x [type:integer] Maximum compute workgroup size on the X axis.
+     * @member max_compute_workgroup_size_y [type:integer] Maximum compute workgroup size on the Y axis.
+     * @member max_compute_workgroup_size_z [type:integer] Maximum compute workgroup size on the Z axis.
+     * @member max_compute_workgroup_invocations [type:integer] Maximum invocations per compute workgroup.
+     * @member max_compute_shared_memory_size [type:integer] Maximum shared memory per compute workgroup in bytes.
+     * @member max_uniform_buffer_range [type:integer] Maximum bindable uniform-buffer range in bytes.
+     * @member max_storage_buffer_range [type:integer] Maximum bindable storage-buffer range in bytes.
+     */
+
+    /*# Graphics adapter information
+     * @struct
+     * @name graphics.adapter_info
+     * @member family [type:string] Adapter family name.
+     * @member version_major [type:integer] Adapter API major version.
+     * @member version_minor [type:integer] Adapter API minor version.
+     * @member limits [type:graphics.adapter_limits] Hardware and driver limits.
+     * @member extensions [type:string[]] Driver-reported extension names.
+     * @member features [type:graphics.CONTEXT_FEATURE[]] Supported optional context features.
      */
 
     // Returns the short, lowercase Lua-facing name for an adapter family
@@ -728,7 +336,7 @@ namespace dmScript
     /*# get the list of graphics adapters that have been registered with the engine
      *
      * @name graphics.get_engine_adapters
-     * @return adapters [type:table] array of adapter family name strings (e.g. "opengl", "vulkan", "webgpu")
+     * @return adapters [type:string[]] array of adapter family name strings (e.g. "opengl", "vulkan", "webgpu")
      */
     static int Graphics_GetEngineAdapters(lua_State* L)
     {
@@ -756,46 +364,7 @@ namespace dmScript
      * optional context features supported by the backend.
      *
      * @name graphics.get_adapter_info
-     * @return info [type:table] table with the following fields:
-     *
-     *   `family`         [type:string]   adapter family name (e.g. "opengl", "vulkan")
-     *   `version_major`  [type:number]   adapter API major version (e.g. 1 for Vulkan 1.4)
-     *   `version_minor`  [type:number]   adapter API minor version (e.g. 4 for Vulkan 1.4)
-     *
-     *   `limits`         [type:table]    hardware/driver limits:
-     *
-     *     `max_texture_size_2d`              [type:number]  max 2D texture dimension in texels
-     *     `max_texture_size_3d`              [type:number]  max 3D (volume) texture dimension in texels
-     *     `max_texture_size_cube`            [type:number]  max cube map face dimension in texels
-     *     `max_texture_array_layers`         [type:number]  max layers in an array texture
-     *     `max_framebuffer_width`            [type:number]  max framebuffer width in pixels
-     *     `max_framebuffer_height`           [type:number]  max framebuffer height in pixels
-     *     `max_color_attachments`            [type:number]  max simultaneous color attachments
-     *     `max_samplers_per_stage`           [type:number]  max texture samplers per shader stage
-     *     `max_textures_per_stage`           [type:number]  max sampled textures per shader stage
-     *     `max_vertex_attributes`            [type:number]  max vertex attributes
-     *     `max_vertex_buffers`               [type:number]  max vertex buffer bindings
-     *     `max_compute_workgroup_size_x`     [type:number]  max compute workgroup size (X)
-     *     `max_compute_workgroup_size_y`     [type:number]  max compute workgroup size (Y)
-     *     `max_compute_workgroup_size_z`     [type:number]  max compute workgroup size (Z)
-     *     `max_compute_workgroup_invocations` [type:number] max invocations per compute workgroup
-     *     `max_compute_shared_memory_size`   [type:number]  max shared memory per compute workgroup (bytes)
-     *     `max_uniform_buffer_range`         [type:number]  max bindable uniform buffer range (bytes)
-     *     `max_storage_buffer_range`         [type:number]  max bindable storage buffer range (bytes)
-     *
-     *   `extensions`     [type:table]    array of driver-reported extension name strings
-     *
-     *   `features`       [type:table]    array of supported context feature ids:
-     *
-     *     `graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING`  multi-target rendering
-     *     `graphics.CONTEXT_FEATURE_TEXTURE_ARRAY`           texture arrays
-     *     `graphics.CONTEXT_FEATURE_COMPUTE_SHADER`          compute shaders
-     *     `graphics.CONTEXT_FEATURE_STORAGE_BUFFER`          storage buffers
-     *     `graphics.CONTEXT_FEATURE_VSYNC`                   vertical sync
-     *     `graphics.CONTEXT_FEATURE_INSTANCING`              hardware instancing
-     *     `graphics.CONTEXT_FEATURE_3D_TEXTURES`             3D (volume) textures
-     *     `graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES`     ASTC compressed 2D array textures
-     *     `graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX`  min/max blend equations
+     * @return info [type:graphics.adapter_info] information about the active graphics adapter and context
      */
     static int Graphics_GetAdapterInfo(lua_State* L)
     {
@@ -1133,6 +702,7 @@ namespace dmScript
         SET_GRAPHICS_ENUM(CONTEXT_FEATURE_3D_TEXTURES);
         SET_GRAPHICS_ENUM(CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
         SET_GRAPHICS_ENUM(CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
 
     #undef SET_GRAPHICS_ENUM_NAMED
     #undef SET_GRAPHICS_ENUM

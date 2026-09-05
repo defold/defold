@@ -664,6 +664,11 @@ ANativeWindow* _glfwAndroidAcquireWindow(void)
     return window;
 }
 
+GLFWAPI ANativeWindow* glfwAcquireAndroidWindow(void)
+{
+    return _glfwAndroidAcquireWindow();
+}
+
 GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void)
 {
     const useconds_t wait_period = 50 * 1000;

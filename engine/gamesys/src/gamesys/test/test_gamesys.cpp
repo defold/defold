@@ -19,6 +19,7 @@
 #include "../../../../graphics/src/null/graphics_null_private.h"
 #include "../../../../particle/src/particle_private.h"
 #include "../../../../render/src/render/render_private.h"
+#include "../../../../render/src/render/font/fontmap_private.h"
 #include "../../../../resource/src/resource_private.h"
 #include "../../../../gui/src/gui_private.h"
 
@@ -28,6 +29,7 @@
 #include "gamesys/resources/res_compute.h"
 #include "gamesys/resources/res_font.h"
 #include "gamesys/resources/res_font_private.h"
+#include "gamesys/resources/res_glyph_bank.h"
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_ttf.h"
@@ -47,6 +49,7 @@
 #include <testmain/testmain.h>
 
 #include <font/fontcollection.h>
+#include <font/text_layout.h>
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject.h>
@@ -72,8 +75,13 @@
 #include <dmsdk/gamesys/components/comp_gui.h>
 #include <dmsdk/gamesys/resources/res_data.h>
 #include <dmsdk/gamesys/resources/res_light.h>
+#include <dmsdk/gamesys/resources/res_model.h>
 
 #include <sound/sound.h>
+
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#include <sanitizer/allocator_interface.h>
+#endif
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -93,6 +101,63 @@ static int16_t ReadUnalignedInt16(const void* ptr)
     memcpy(&value, ptr, sizeof(value));
     return value;
 }
+
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+struct MaterialAttributeAllocationPoison
+{
+    dmhash_t m_ElementId;
+    uint32_t m_AttributeCount;
+    bool     m_Armed;
+    bool     m_MaterialAllocated;
+    bool     m_Poisoned;
+};
+
+static MaterialAttributeAllocationPoison g_MaterialAttributeAllocationPoison;
+
+static void MaterialAttributeMallocHook(const volatile void* ptr, size_t size)
+{
+    MaterialAttributeAllocationPoison& poison = g_MaterialAttributeAllocationPoison;
+    if (!poison.m_Armed)
+        return;
+
+    if (!poison.m_MaterialAllocated)
+    {
+        poison.m_MaterialAllocated = size == sizeof(dmRender::Material);
+        return;
+    }
+
+    if (size == sizeof(dmRender::MaterialAttribute) * poison.m_AttributeCount)
+    {
+        dmRender::MaterialAttribute* attributes = (dmRender::MaterialAttribute*) const_cast<void*>(ptr);
+        attributes[0].m_ElementIds[0] = poison.m_ElementId;
+        poison.m_Poisoned = true;
+        poison.m_Armed = false;
+    }
+    else
+    {
+        poison.m_MaterialAllocated = size == sizeof(dmRender::Material);
+    }
+}
+
+static void MaterialAttributeFreeHook(const volatile void*)
+{
+}
+
+static bool PoisonNextMaterialAttributeAllocation(dmhash_t element_id, uint32_t attribute_count)
+{
+    static bool hook_installed = false;
+    if (!hook_installed)
+    {
+        hook_installed = __sanitizer_install_malloc_and_free_hooks(MaterialAttributeMallocHook, MaterialAttributeFreeHook) != 0;
+    }
+
+    memset(&g_MaterialAttributeAllocationPoison, 0, sizeof(g_MaterialAttributeAllocationPoison));
+    g_MaterialAttributeAllocationPoison.m_ElementId = element_id;
+    g_MaterialAttributeAllocationPoison.m_AttributeCount = attribute_count;
+    g_MaterialAttributeAllocationPoison.m_Armed = hook_installed;
+    return hook_installed;
+}
+#endif
 
 namespace dmGameObject
 {
@@ -3485,6 +3550,62 @@ TEST_F(FontTest, GlyphBankTest)
     dmResource::Release(m_Factory, font_2);
 }
 
+TEST_F(FontTest, GlyphBankRecreateKeepsFontHandle)
+{
+    dmGameSystem::FontResource* font_1;
+    dmGameSystem::FontResource* font_2;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_1.fontc", (void**)&font_1));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_2.fontc", (void**)&font_2));
+
+    HFont    hfont_1 = dmGameSystem::GetFont(font_1->m_GlyphBankResource);
+    HFont    hfont_2 = dmGameSystem::GetFont(font_2->m_GlyphBankResource);
+    uint32_t glyph_index_1 = FontGetGlyphIndex(hfont_1, 'A');
+    uint32_t glyph_index_2 = FontGetGlyphIndex(hfont_2, 'A');
+    ASSERT_NE(0U, glyph_index_1);
+    ASSERT_NE(0U, glyph_index_2);
+
+    FontGlyphOptions options = {};
+    options.m_GenerateImage = true;
+    FontGlyph original_glyph;
+    FontGlyph replacement_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(hfont_1, glyph_index_1, &options, &original_glyph));
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(hfont_2, glyph_index_2, &options, &replacement_glyph));
+
+    const char* replacement_path = font_2->m_DDF->m_GlyphBank;
+    char        replacement_host_path[256];
+    dmTestUtil::MakeHostPathf(replacement_host_path, sizeof(replacement_host_path), "build/src/gamesys/test/%s%s", GetContentFolder(), replacement_path);
+    uint32_t replacement_size = 0;
+    uint8_t* replacement_data = dmTestUtil::ReadFile(replacement_host_path, &replacement_size);
+    ASSERT_NE((uint8_t*)0, replacement_data);
+
+    const char*         target_path = font_1->m_DDF->m_GlyphBank;
+    HResourceDescriptor descriptor = dmResource::FindByHash(m_Factory, dmHashString64(target_path));
+    ASSERT_NE((HResourceDescriptor)0, descriptor);
+    HResourceType resource_type;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "glyph_bankc", &resource_type));
+
+    dmResource::ResourceRecreateParams params = {};
+    params.m_Factory = m_Factory;
+    params.m_Type = resource_type;
+    params.m_FilenameHash = dmHashString64(target_path);
+    params.m_Filename = target_path;
+    params.m_Buffer = replacement_data;
+    params.m_BufferSize = replacement_size;
+    params.m_FileSize = replacement_size;
+    params.m_Resource = descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResGlyphBankRecreate(&params));
+    dmMemory::AlignedFree(replacement_data);
+
+    FontGlyph recreated_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(hfont_1, FontGetGlyphIndex(hfont_1, 'A'), &options, &recreated_glyph));
+    ASSERT_NE(original_glyph.m_Bitmap.m_Data, recreated_glyph.m_Bitmap.m_Data);
+    ASSERT_EQ(replacement_glyph.m_Bitmap.m_DataSize, recreated_glyph.m_Bitmap.m_DataSize);
+    ASSERT_EQ(0, memcmp(replacement_glyph.m_Bitmap.m_Data, recreated_glyph.m_Bitmap.m_Data, recreated_glyph.m_Bitmap.m_DataSize));
+
+    dmResource::Release(m_Factory, font_1);
+    dmResource::Release(m_Factory, font_2);
+}
+
 TEST_F(FontTest, DynamicGlyph)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
@@ -3598,6 +3719,190 @@ static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJ
         dmTime::Sleep(1000);
     }
     return state->m_CallbackCount >= callback_count;
+}
+
+TEST_F(FontTest, DynamicFontPrewarmedGlyphsFitCacheRows)
+{
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&font));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    dmRender::UpdateCacheTexture(font_map);
+
+    bool used_next_row = false;
+    for (uint32_t codepoint = '!'; codepoint <= '~'; ++codepoint)
+    {
+        FontGlyph* glyph = 0;
+        ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, codepoint, &glyph));
+        ASSERT_NE((FontGlyph*)0, glyph);
+        if (codepoint == '_')
+            ASSERT_EQ(-3.0f, glyph->m_Ascent);
+        if (glyph->m_Bitmap.m_Height == 0)
+            continue;
+
+        int32_t offset_y = font_map->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+        ASSERT_GE(offset_y, 0);
+        ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, font_map->m_CacheCellHeight);
+        ASSERT_LE(glyph->m_Bitmap.m_Width, font_map->m_CacheCellWidth);
+        uint64_t key = dmRender::MakeGlyphIndexKey(hfont, glyph->m_GlyphIndex);
+        dmRender::CacheGlyph* cached = dmRender::AddGlyphToCache(font_map, 1, key, glyph, offset_y);
+        ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+        used_next_row |= cached->m_Y > 0;
+    }
+    ASSERT_TRUE(used_next_row);
+    dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, DynamicFontFirstBitmapHasNegativeAscent)
+{
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent_empty.fontc", (void**)&font));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    ASSERT_EQ(0u, font_map->m_Glyphs.Size());
+    ASSERT_EQ(0, font_map->m_CacheCellHeight);
+    ASSERT_EQ(0, font_map->m_CacheCellCount);
+    ASSERT_EQ((dmRender::CacheGlyph*)0, font_map->m_Cache);
+
+    // A space has layout metrics but no bitmap, so it must not establish the cache baseline.
+    DynamicFontJobCallbackState space_callback_state = {};
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, " ", DynamicFontJobCallback, &space_callback_state));
+    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &space_callback_state, 1));
+    ASSERT_EQ(1, space_callback_state.m_Result);
+    FontGlyph* space = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, ' ', &space));
+    ASSERT_NE((FontGlyph*)0, space);
+    ASSERT_EQ(0, space->m_Bitmap.m_Height);
+    ASSERT_EQ(0, font_map->m_CacheCellHeight);
+    uint64_t space_key = dmRender::MakeGlyphIndexKey(hfont, space->m_GlyphIndex);
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(font_map, 0, space_key, space, 0));
+
+    const char* texts[] = {"_", "I", "\xc3\x85"};
+    const uint32_t codepoints[] = {'_', 'I', 0xc5};
+    FontGlyph* glyphs[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(texts); ++i)
+    {
+        DynamicFontJobCallbackState callback_state = {};
+        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, texts[i], DynamicFontJobCallback, &callback_state));
+        ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 1));
+        ASSERT_EQ(1, callback_state.m_Result);
+        ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, codepoints[i], &glyphs[i]));
+        ASSERT_NE((FontGlyph*)0, glyphs[i]);
+        if (i == 0)
+        {
+            ASSERT_EQ(-3.0f, glyphs[i]->m_Ascent);
+            ASSERT_EQ(-3, font_map->m_CacheCellMaxAscent);
+            ASSERT_EQ(19, font_map->m_CacheCellHeight);
+        }
+
+        dmRender::UpdateCacheTexture(font_map);
+        // Raising the baseline for a new glyph must still leave room for earlier glyphs.
+        for (uint32_t j = 0; j <= i; ++j)
+        {
+            FontGlyph* glyph = glyphs[j];
+            int32_t offset_y = font_map->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+            ASSERT_GE(offset_y, 0);
+            ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, font_map->m_CacheCellHeight);
+            uint64_t key = dmRender::MakeGlyphIndexKey(hfont, glyph->m_GlyphIndex);
+            ASSERT_NE((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(font_map, i + 1, key, glyph, offset_y));
+        }
+    }
+    dmResource::Release(m_Factory, font);
+}
+
+static int32_t ProcessBlockingFontJob(HJobContext job_context, HJob job, void* user_context, void* user_data)
+{
+    (void)job_context;
+    (void)job;
+    int32_atomic_t* started = (int32_atomic_t*)user_context;
+    int32_atomic_t* allow_finish = (int32_atomic_t*)user_data;
+    dmAtomicStore32(started, 1);
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (!dmAtomicGet32(allow_finish) && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    return 1;
+}
+
+// A completed prewarm request must not use callback/self references from a new
+// script instance that reused the destroyed instance's Lua context-table slot.
+TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font));
+    ASSERT_NE((void*)0, font);
+
+    // Occupy the only worker thread so both prewarm requests remain pending
+    // until the two script instances have been created and destroyed/reused.
+    int32_t blocker_started = 0;
+    int32_t blocker_allow_finish = 0;
+    Job blocker = {};
+    blocker.m_Process = ProcessBlockingFontJob;
+    blocker.m_Context = &blocker_started;
+    blocker.m_Data = &blocker_allow_finish;
+
+    HJob blocker_job = JobSystemCreateJob(m_JobContext, &blocker);
+    ASSERT_NE((HJob)0, blocker_job);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobContext, blocker_job));
+
+    uint64_t blocker_stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (!dmAtomicGet32(&blocker_started) && dmTime::GetMonotonicTime() < blocker_stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    ASSERT_EQ(1, dmAtomicGet32(&blocker_started));
+
+    // The first instance starts a prewarm request. Its Lua callback remembers
+    // this instance's context-table reference plus callback/self indices.
+    dmGameObject::HInstance first = Spawn(m_Factory, m_Collection, "/font/prewarm_callback_instance_reuse.goc", dmHashString64("/first"), 0,
+                                          Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, first);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Destroy the first instance before its prewarm job completes. The Lua
+    // registry can now reuse its released context-table reference.
+    dmGameObject::Delete(m_Collection, first, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // The replacement instance deterministically reuses that registry slot and
+    // creates another callback with the same table-local callback/self indices.
+    // SetupCallback() alone cannot distinguish the old and new instances.
+    dmGameObject::HInstance replacement = Spawn(m_Factory, m_Collection, "/font/prewarm_callback_instance_reuse.goc", dmHashString64("/replacement"), 0,
+                                                Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, replacement);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Let the blocker and both font jobs finish, then dispatch their callbacks
+    // on this thread through JobSystemUpdate().
+    dmAtomicStore32(&blocker_allow_finish, 1);
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (!font->m_PendingJobs.Empty() && dmTime::GetMonotonicTime() < stop_time)
+    {
+        JobSystemUpdate(m_JobContext, 0);
+        dmTime::Sleep(1000);
+    }
+
+    // IsCallbackValid() must reject the stale callback by unique script id.
+    // Without that check, the first completion resolves through the replacement
+    // context table and invokes its callback, making this count two instead of one.
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+
+    lua_getglobal(L, "prewarm_stale_callback_count");
+    ASSERT_EQ(0, lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "prewarm_replacement_callback_count");
+    ASSERT_EQ(1, lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    dmResource::Release(m_Factory, font);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 // Reloading a dynamic font with pending work must cancel the old jobs and
@@ -3790,6 +4095,50 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, ttf_test_path));
     free(ttf_data);
 
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(FontTest, ScriptSetNamedFontStyle)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font));
+
+    HFontCollection collection = dmGameSystem::ResFontGetFontCollection(font);
+    const TextNamedStyleDecoration* link_decoration = FontCollectionGetNamedStyleDecoration(collection, dmHashString64("link"));
+    ASSERT_NE((const TextNamedStyleDecoration*)0, link_decoration);
+    ASSERT_EQ((uint8_t)TEXT_RESOLVED_DECORATION_UNDERLINE, link_decoration->m_Flags);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'link', '<color=#336699CC>')"));
+    link_decoration = FontCollectionGetNamedStyleDecoration(collection, dmHashString64("link"));
+    ASSERT_NE((const TextNamedStyleDecoration*)0, link_decoration);
+    ASSERT_EQ((uint8_t)TEXT_RESOLVED_DECORATION_UNDERLINE, link_decoration->m_Flags);
+    ASSERT_TRUE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'link:hover', '<color=#336699CC><outline size=2><shadow x=-1 blur=3>')"));
+
+    const TextRenderStyle* style = FontCollectionGetNamedStyle(collection, dmHashString64("link:hover"));
+    ASSERT_NE((const TextRenderStyle*)0, style);
+    ASSERT_EQ(TEXT_RENDER_STYLE_FACE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_BLUR, style->m_Flags);
+    ASSERT_NEAR(0.2f, style->m_FaceColor[0], 0.0001f);
+    ASSERT_NEAR(0.8f, style->m_FaceColor[3], 0.0001f);
+    ASSERT_EQ(2.0f, style->m_OutlineWidth);
+    ASSERT_EQ(-1.0f, style->m_ShadowX);
+    ASSERT_EQ(3.0f, style->m_ShadowBlur);
+
+    dmLogInfo("Expected errors ->");
+    ASSERT_FALSE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'bad', '<shadow blur=-1>')"));
+    ASSERT_FALSE(RunString(L, "font.set_style('/font/dyn_glyph_bank_test_1.fontc', 'bad', '<color=#ffffff></color>')"));
+    dmLogInfo("<- End of expected errors.");
+
+    dmResource::Release(m_Factory, font);
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
@@ -5327,6 +5676,291 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiPreparedRichTextLayout)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+
+    dmGui::HScene scene = gui_component->m_Scene;
+    dmGui::HNode  node = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+
+    dmGui::SetNodeText(scene, node, "Plain <color=#ff8040>orange</color> and <size=24>large</size>.");
+    GuiTextSubmitResult rich_text = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, rich_text.m_TextEntryCount);
+    ASSERT_NE((HTextLayout)0, rich_text.m_TextLayout);
+    ASSERT_EQ(0u, rich_text.m_TextBufferSize);
+    ASSERT_EQ(23u, TextLayoutGetGlyphCount(rich_text.m_TextLayout));
+    ASSERT_TRUE(((TextLayout*)rich_text.m_TextLayout)->m_UseRichText);
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(rich_text.m_TextLayout);
+    ASSERT_NE(glyphs[0].m_MarkupSpanIndex, glyphs[6].m_MarkupSpanIndex);
+    ASSERT_GT(glyphs[17].m_RenderScale, glyphs[0].m_RenderScale);
+
+    const char malformed_source[] = "<color=#ff8040>A</size>";
+    dmGui::SetNodeText(scene, node, malformed_source);
+    GuiTextSubmitResult malformed_text = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, malformed_text.m_TextEntryCount);
+    ASSERT_NE((HTextLayout)0, malformed_text.m_TextLayout);
+    ASSERT_EQ(0u, malformed_text.m_TextBufferSize);
+    ASSERT_EQ(sizeof(malformed_source) - 1, TextLayoutGetGlyphCount(malformed_text.m_TextLayout));
+    ASSERT_TRUE(((TextLayout*)malformed_text.m_TextLayout)->m_UseRichText);
+    const TextGlyph* malformed_glyphs = TextLayoutGetGlyphs(malformed_text.m_TextLayout);
+    ASSERT_EQ((uint32_t)'<', malformed_glyphs[0].m_Codepoint);
+    ASSERT_EQ((uint32_t)'>', malformed_glyphs[TextLayoutGetGlyphCount(malformed_text.m_TextLayout) - 1].m_Codepoint);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiLayoutObjectsAreCurrentOnDemand)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_layout_objects_on_demand.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool tests_done = false;
+    // Rendering would populate the cache and hide failures in the on-demand script path.
+    WaitForTestsDone(10, false, &tests_done);
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiRichTextLinkInteraction)
+{
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+    dmGui::SetNodeText(gui_component->m_Scene, node, "<link id=docs src=https://www.defold.com>Link</link>");
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(initial.m_TextLayout));
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(initial.m_TextLayout));
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData hovered = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &hovered);
+    ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+    ASSERT_NEAR(0.25f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData unhovered = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &unhovered);
+    ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
+    ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_STREQ("clicked", dmGui::GetNodeText(gui_component->m_Scene, node));
+
+    const char sprite_markup[] = "<sprite id=icon src=/icon.png width=32px height=32px/>";
+    dmGui::SetNodeText(gui_component->m_Scene, node, sprite_markup);
+    GuiTextSubmitResult sprite = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, sprite.m_TextLayout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(sprite.m_TextLayout));
+    ASSERT_EQ(dmHashString64("sprite"), TextLayoutGetObjects(sprite.m_TextLayout)[0].m_Tag);
+
+    input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 320.0f;
+    input_action.m_Y = 240.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_STREQ(sprite_markup, dmGui::GetNodeText(gui_component->m_Scene, node));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiRichTextLinkTargetFontReload)
+{
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+    dmGui::SetNodeText(gui_component->m_Scene, node, "<link id=docs src=https://www.defold.com>Link</link>");
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+
+    dmGameSystem::FontResource* font_resource = (dmGameSystem::FontResource*)dmGui::GetNodeFont(gui_component->m_Scene, node);
+    ASSERT_NE((void*)0, font_resource);
+    const uint32_t font_version = dmGameSystem::ResFontGetVersion(font_resource);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ(font_resource, gui_component->m_HoveredLayoutObject.m_FontResource);
+    ASSERT_EQ(font_version, gui_component->m_HoveredLayoutObject.m_FontVersion);
+
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_PressedLayoutObject.m_Layout);
+    ASSERT_EQ(font_version, gui_component->m_PressedLayoutObject.m_FontVersion);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/font_dyn_glyph_bank_test_1.fontc", 0));
+    ASSERT_EQ(font_version + 1, dmGameSystem::ResFontGetVersion(font_resource));
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ(initial.m_TextLayout, gui_component->m_PressedLayoutObject.m_Layout);
+
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ((HTextLayout)0, gui_component->m_PressedLayoutObject.m_Layout);
+    ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+    input_action.m_Released = 0;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NE((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_NE(initial.m_TextLayout, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_EQ(font_resource, gui_component->m_HoveredLayoutObject.m_FontResource);
+    ASSERT_EQ(font_version + 1, gui_component->m_HoveredLayoutObject.m_FontVersion);
+    ASSERT_NEAR(0.25f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiRichTextLinkInteractionUsesRenderLayerOrder)
+{
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HScene scene = gui_component->m_Scene;
+    dmGui::HNode  front = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, front);
+    const char* front_text = "<link id=docs src=https://www.defold.com role=front>Link</link>";
+    const char* back_text  = "<link id=docs src=https://www.defold.com role=back>Link</link>";
+    dmGui::SetNodeText(scene, front, front_text);
+
+    dmGui::HNode back = 0;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(scene, front, &back));
+    ASSERT_NE((dmGui::HNode)0, back);
+    dmGui::SetNodeText(scene, back, back_text);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddLayer(scene, "front"));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeLayer(scene, front, "front"));
+    dmGui::MoveNodeBelow(scene, front, back);
+    ASSERT_GT(dmGui::GetNodeLayerIndex(scene, front), dmGui::GetNodeLayerIndex(scene, back));
+
+    GuiTextSubmitResult prepared = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(2u, prepared.m_TextEntryCount);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = 307.0f;
+    input_action.m_Y = 240.0f;
+
+    dmGui::SetNodeVisible(scene, front, false);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NE((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_STREQ(back_text, TextLayoutGetObjectSource(gui_component->m_HoveredLayoutObject.m_Layout));
+
+    dmGui::SetNodeVisible(scene, front, true);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_NE((HTextLayout)0, gui_component->m_HoveredLayoutObject.m_Layout);
+    ASSERT_STREQ(front_text, TextLayoutGetObjectSource(gui_component->m_HoveredLayoutObject.m_Layout));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiRichTextAnimationAdvances)
+{
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+    dmGui::SetNodeText(gui_component->m_Scene, node, "<wave amplitude=4 hz=1 fit=span>Wave</wave>");
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    TextGlyphRenderData after = {};
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &after);
+    ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
 {
     // The GUI node can clear its cached prepared layout after queueing text but
@@ -5396,6 +6030,65 @@ TEST_F(LabelComponentTest, LabelTextProperty)
     ASSERT_STREQ("", desc.m_Variant.m_Text);
 }
 
+TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
+{
+    const dmhash_t victim_go_id = dmHashString64("/victim");
+    const dmhash_t target_go_id = dmHashString64("/target");
+    const dmhash_t label_id = dmHashString64("label");
+    const dmhash_t text_id = dmHashString64("text");
+    const char* link_text = "<link id=docs>Link</link>";
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance victim = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", victim_go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, victim);
+    dmGameObject::HInstance target = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", target_go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, target);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* target_before = GetLabelComponent(target, label_id);
+    ASSERT_NE((void*)0, target_before);
+
+    DeleteInstance(m_Collection, victim);
+
+    dmGameSystem::LabelComponent* target_after = GetLabelComponent(target, label_id);
+    ASSERT_NE((void*)0, target_after);
+    ASSERT_NE(target_before, target_after);
+
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(target, label_id, text_id, options, dmGameObject::PropertyVar(link_text)));
+
+    dmGameObject::PropertyDesc desc;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(target, label_id, text_id, options, desc));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_TEXT, desc.m_Variant.m_Type);
+    ASSERT_STREQ(link_text, desc.m_Variant.m_Text);
+
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(target_after);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+
+    dmGameObject::AcquireInputFocus(m_Collection, target);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = -13.0f;
+    input_action.m_Y = 82.96361f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData hovered = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+
+    DeleteInstance(m_Collection, target);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
 {
     const dmhash_t go_id = dmHashString64("/go");
@@ -5418,6 +6111,13 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
     ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
 
     dmGameObject::PropertyOptions options;
+    const char malformed_text[] = "<color=#ff8040>A</size>";
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar(malformed_text)));
+    HTextLayout malformed_layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, malformed_layout);
+    ASSERT_EQ(sizeof(malformed_text) - 1, TextLayoutGetGlyphCount(malformed_layout));
+    ASSERT_TRUE(((TextLayout*)malformed_layout)->m_UseRichText);
+
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar("Label Label Label")));
 
     dmRender::TextMetrics text_metrics = {};
@@ -5511,6 +6211,146 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
 
     dmResource::Release(m_Factory, replacement_font_resource);
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(LabelComponentTest, LabelRichTextAnimationAdvances)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+    const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    PostLabelSetText(m_Collection, go_id, label_id, "<wave amplitude=4 hz=1 fit=span>Wave</wave>", (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* label_component = GetLabelComponent(go, label_id);
+    ASSERT_NE((void*)0, label_component);
+
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_GT(TextLayoutGetGlyphCount(layout), 0u);
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    TextGlyphRenderData after = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &after);
+    ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
+
+    DeleteInstance(m_Collection, go);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(LabelComponentTest, LabelRichTextLinkHover)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+    const float    white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    PostLabelSetText(m_Collection, go_id, label_id, "<link id=docs>Link</link>", (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* label_component = GetLabelComponent(go, label_id);
+    ASSERT_NE((void*)0, label_component);
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+
+    TextGlyphRenderData before = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    input_action.m_X = -13.0f;
+    input_action.m_Y = 82.96361f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData hovered = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
+
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    TextGlyphRenderData unhovered = {};
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &unhovered);
+    ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
+
+    DeleteInstance(m_Collection, go);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(LabelComponentTest, LegacyRichTextLinkWrappedSpriteInteraction)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/link_hover.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    PostLabelSetText(m_Collection, go_id, label_id, "<link id=icon src=/icon.png><sprite width=32px height=32px/></link>", (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* label_component = GetLabelComponent(go, label_id);
+    ASSERT_NE((void*)0, label_component);
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(label_component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(TEXT_LAYOUT_TYPE_LEGACY, FontCollectionGetLayoutType(layout->m_FontCollection));
+    ASSERT_EQ(2u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(dmHashString64("link"), TextLayoutGetObjects(layout)[0].m_Tag);
+    ASSERT_EQ(dmHashString64("sprite"), TextLayoutGetObjects(layout)[1].m_Tag);
+
+    float layout_width;
+    float layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    const TextLine& line = TextLayoutGetLines(layout)[0];
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action = {};
+    input_action.m_PositionSet = 1;
+    const TextLayoutObject& sprite = TextLayoutGetObjects(layout)[1];
+    input_action.m_X = 0.5f - line.m_Width * 0.5f + sprite.m_Width * 0.5f;
+    input_action.m_Y = (1.0f - layout_height) * 0.5f + line.m_Baseline + sprite.m_Height * 0.3f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    input_action.m_Pressed = 0;
+    input_action.m_Released = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    input_action.m_Released = 0;
+    input_action.m_X = 500.0f;
+    input_action.m_Y = 400.0f;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_NEAR(123.0f, dmGameObject::GetPosition(go).getX(), 0.0001f);
+
+    DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -8151,7 +8991,6 @@ TEST_F(RenderConstantsTest, SetGetManyConstants)
 
         dmVMath::Vector4 v(i, i*3+1,0,0);
         dmGameSystem::SetRenderConstant(constants, name_hash, &v, 1);
-
     }
 
     for (int i = 0; i < 64; ++i)
@@ -9006,6 +9845,30 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+// Tests #13108 through the complete script-to-sprite property path: an omitted
+// shader attribute must not use a stale element id to shadow a declared vector4.
+// Poisoning the fresh MaterialAttribute allocation with the "tint" hash makes the
+// go.set() followed by go.animate() failure deterministic under ASan.
+TEST_F(MaterialTest, DynamicVertexAttributesWithUninitializedElementIds)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(PoisonNextMaterialAttributeAllocation(dmHashString64("tint"), 7));
+
+    dmGameSystem::MaterialResource* material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/attributes_uninitialized_element_ids.materialc", (void**) &material_res));
+    ASSERT_TRUE(g_MaterialAttributeAllocationPoison.m_Poisoned);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_uninitialized_element_ids.goc", dmHashString64("/attributes_uninitialized_element_ids"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+
+    bool finalized = dmGameObject::Final(m_Collection);
+    dmResource::Release(m_Factory, material_res);
+
+    ASSERT_NE((void*) 0, go);
+    ASSERT_TRUE(finalized);
+}
+#endif
+
 TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -9697,6 +10560,7 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_UWrap);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_VWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_WWrap);
     ASSERT_NEAR(0.0f, sampler_tex_b->m_MaxAnisotropy, EPSILON);
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_c);
@@ -9706,6 +10570,7 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_UWrap);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_VWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT, sampler_tex_c->m_WWrap);
     ASSERT_NEAR(14.0f, sampler_tex_c->m_MaxAnisotropy, EPSILON);
 
     dmResource::Release(m_Factory, (void*) compute_program_res);
@@ -9929,6 +10794,20 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
     ASSERT_TRUE(found_b);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ModelTest, SelectedMeshUsesInstantiatedMorphModelId)
+{
+    dmGameSystem::ModelResource* model_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/morph_selected.modelc", (void**)&model_resource));
+    ASSERT_NE((dmGameSystem::ModelResource*)0, model_resource);
+    ASSERT_EQ(1u, model_resource->m_Meshes.Size());
+
+    const dmGameSystem::MeshInfo& mesh_info = model_resource->m_Meshes[0];
+    ASSERT_EQ(dmHashString64("MorphSource"), mesh_info.m_Model->m_Id);
+    ASSERT_EQ(dmHashString64("MorphedMesh"), mesh_info.m_MorphModelId);
+
+    dmResource::Release(m_Factory, model_resource);
 }
 
 TEST_F(ModelTest, MorphTargetUniformWeightsSplitInstancedBatches)

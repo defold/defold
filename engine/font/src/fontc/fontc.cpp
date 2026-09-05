@@ -14,13 +14,16 @@
 
 #include "fontc.h"
 #include "font.h"
+#include "font_glyphbank.h"
 #include "font_ttf.h"
 #include "harfbuzz/font_harfbuzz.h"
 
 #include <glyph_gen.h>
 #include <glyph_vertex.h>
+#include <layout_vertex.h>
 
 #include <stddef.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,6 +36,7 @@
 #include <dmsdk/font/fontcollection.h>
 #include <dmsdk/font/text_layout.h>
 #include <harfbuzz/hb.h>
+#include <markup.h>
 #include <text_layout.h>
 
 using dmVMath::Matrix4;
@@ -40,13 +44,113 @@ using dmVMath::Vector4;
 
 static_assert(sizeof(void*) == 8, "The font renderer FFM ABI requires a 64-bit target");
 static_assert(sizeof(FontcParams) == 76, "Unexpected FontcParams ABI layout");
-static_assert(sizeof(FontcLayout) == 20, "Unexpected FontcLayout ABI layout");
+static_assert(sizeof(FontcGlyphBankGlyph) == 32, "Unexpected FontcGlyphBankGlyph ABI layout");
+static_assert(sizeof(FontcLayout) == 28, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
 static_assert(sizeof(FontcGlyphMetrics) == 32, "Unexpected FontcGlyphMetrics ABI layout");
-static_assert(sizeof(FontcProperties) == 80, "Unexpected FontcProperties ABI layout");
+static_assert(sizeof(FontcProperties) == 84, "Unexpected FontcProperties ABI layout");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
 static_assert(offsetof(FontcTexture, m_AtlasVersion) == 8, "Unexpected FontcTexture ABI layout");
+static_assert(sizeof(FontcMarkupString) == sizeof(MarkupString), "Unexpected FontcMarkupString ABI layout");
+static_assert(sizeof(FontcMarkupAttribute) == sizeof(MarkupAttribute), "Unexpected FontcMarkupAttribute ABI layout");
+static_assert(offsetof(FontcMarkupAttribute, m_Type) == offsetof(MarkupAttribute, m_Type), "Unexpected FontcMarkupAttribute ABI layout");
+static_assert(sizeof(FontcMarkupNode) == sizeof(MarkupStyleNode), "Unexpected FontcMarkupNode ABI layout");
+static_assert(offsetof(FontcMarkupNode, m_Parent) == offsetof(MarkupStyleNode, m_Parent), "Unexpected FontcMarkupNode ABI layout");
+static_assert(offsetof(FontcMarkupNode, m_TextOffset) == offsetof(MarkupStyleNode, m_TextOffset), "Unexpected FontcMarkupNode ABI layout");
+static_assert(sizeof(FontcMarkupSpan) == sizeof(MarkupSpan), "Unexpected FontcMarkupSpan ABI layout");
+static_assert(offsetof(FontcMarkupSpan, m_NodeIndex) == offsetof(MarkupSpan, m_StyleNodeIndex), "Unexpected FontcMarkupSpan ABI layout");
+static_assert(sizeof(FontcMarkupError) == 8, "Unexpected FontcMarkupError ABI layout");
+static_assert((int)FONTC_MARKUP_ERROR_NONE == (int)MARKUP_ERROR_NONE, "Unexpected FontcMarkupErrorType values");
+static_assert((int)FONTC_MARKUP_ERROR_MISMATCHED_CLOSING_TAG == (int)MARKUP_ERROR_MISMATCHED_CLOSING_TAG, "Unexpected FontcMarkupErrorType values");
+static_assert((int)FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE == (int)MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, "Unexpected FontcMarkupErrorType values");
+static_assert(sizeof(FontcMarkupData) == 80, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Text) == 16, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Nodes) == 32, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Attributes) == 48, "Unexpected FontcMarkupData ABI layout");
+static_assert(offsetof(FontcMarkupData, m_Spans) == 64, "Unexpected FontcMarkupData ABI layout");
+
+struct FontcGlyphBankProvider
+{
+    FontGlyphBankProvider m_Provider;
+    FontcGlyphBankGlyph*  m_Glyphs;
+    uint8_t*              m_GlyphData;
+    uint32_t              m_GlyphDataCount;
+};
+
+static uint32_t FontcGlyphBankGetCodepoint(void* context, uint32_t glyph_index)
+{
+    FontcGlyphBankProvider* glyph_bank = (FontcGlyphBankProvider*)context;
+    return glyph_bank->m_Glyphs[glyph_index].m_Codepoint;
+}
+
+static bool FontcGlyphBankGetGlyph(void* context, uint32_t glyph_index, FontGlyphBankGlyph* output)
+{
+    FontcGlyphBankProvider*    glyph_bank = (FontcGlyphBankProvider*)context;
+    const FontcGlyphBankGlyph& glyph = glyph_bank->m_Glyphs[glyph_index];
+    if ((uint64_t)glyph.m_DataOffset + glyph.m_DataSize > glyph_bank->m_GlyphDataCount)
+        return false;
+
+    memset(output, 0, sizeof(*output));
+    output->m_Data = glyph.m_DataSize == 0 ? 0 : glyph_bank->m_GlyphData + glyph.m_DataOffset;
+    output->m_DataSize = glyph.m_DataSize;
+    output->m_Codepoint = glyph.m_Codepoint;
+    output->m_Width = glyph.m_Width;
+    output->m_Advance = glyph.m_Advance;
+    output->m_LeftBearing = glyph.m_LeftBearing;
+    output->m_Ascent = glyph.m_Ascent;
+    output->m_Descent = glyph.m_Descent;
+    return true;
+}
+
+static void FontcGlyphBankDestroy(void* context)
+{
+    FontcGlyphBankProvider* glyph_bank = (FontcGlyphBankProvider*)context;
+    free(glyph_bank->m_Glyphs);
+    free(glyph_bank->m_GlyphData);
+    delete glyph_bank;
+}
+
+static HFont CreateFontcGlyphBank(const char*                name,
+                                  const FontcGlyphBankGlyph* glyphs,
+                                  uint32_t                   glyph_count,
+                                  const uint8_t*             glyph_data,
+                                  uint32_t                   glyph_data_count,
+                                  uint32_t                   glyph_padding,
+                                  uint32_t                   glyph_channels,
+                                  float                      max_ascent,
+                                  float                      max_descent)
+{
+    FontcGlyphBankProvider* glyph_bank = new FontcGlyphBankProvider;
+    memset(glyph_bank, 0, sizeof(*glyph_bank));
+    glyph_bank->m_Glyphs = (FontcGlyphBankGlyph*)malloc((size_t)glyph_count * sizeof(FontcGlyphBankGlyph));
+    glyph_bank->m_GlyphData = glyph_data_count == 0 ? 0 : (uint8_t*)malloc(glyph_data_count);
+    if (!glyph_bank->m_Glyphs || (glyph_data_count != 0 && !glyph_bank->m_GlyphData))
+    {
+        FontcGlyphBankDestroy(glyph_bank);
+        return 0;
+    }
+
+    memcpy(glyph_bank->m_Glyphs, glyphs, (size_t)glyph_count * sizeof(FontcGlyphBankGlyph));
+    if (glyph_data_count != 0)
+        memcpy(glyph_bank->m_GlyphData, glyph_data, glyph_data_count);
+    glyph_bank->m_GlyphDataCount = glyph_data_count;
+    glyph_bank->m_Provider.m_Context = glyph_bank;
+    glyph_bank->m_Provider.m_GetCodepoint = FontcGlyphBankGetCodepoint;
+    glyph_bank->m_Provider.m_GetGlyph = FontcGlyphBankGetGlyph;
+    glyph_bank->m_Provider.m_Destroy = FontcGlyphBankDestroy;
+    glyph_bank->m_Provider.m_ResourceSize = sizeof(*glyph_bank) + (uint64_t)glyph_count * sizeof(FontcGlyphBankGlyph) + glyph_data_count;
+    glyph_bank->m_Provider.m_GlyphCount = glyph_count;
+    glyph_bank->m_Provider.m_GlyphPadding = glyph_padding;
+    glyph_bank->m_Provider.m_GlyphChannels = glyph_channels;
+    glyph_bank->m_Provider.m_MaxAscent = max_ascent;
+    glyph_bank->m_Provider.m_MaxDescent = max_descent;
+
+    HFont font = FontCreateGlyphBank(name, &glyph_bank->m_Provider);
+    if (!font)
+        FontcGlyphBankDestroy(glyph_bank);
+    return font;
+}
 
 struct CachedGlyph
 {
@@ -85,27 +189,36 @@ struct FontcContext
         , m_AtlasVersion(1)
         , m_Frame(0)
         , m_Hash(0)
+        , m_TextLayout(0)
+        , m_TextLayoutHash(0)
         , m_Properties()
         , m_HasProperties(false)
         , m_HasText(false)
+        , m_TextIsMarkup(false)
         , m_CellWidth(1)
         , m_CellHeight(1)
         , m_CellMaxAscent(0)
+        , m_IsGlyphBank(false)
     {
     }
 
     HFont                m_Font;
     HFontCollection      m_Collection;
     dmArray<CachedGlyph> m_Glyphs;
+    dmArray<uint32_t>    m_FontCodepoints;
     uint8_t*             m_Atlas;
     uint64_t             m_AtlasVersion;
     uint64_t             m_Frame;
     uint64_t             m_Hash;
+    HTextLayout          m_TextLayout;
+    uint64_t             m_TextLayoutHash;
 
     FontcProperties      m_Properties;
     bool                 m_HasProperties;
     dmArray<uint32_t>    m_Codepoints;
+    dmArray<char>        m_Markup;
     bool                 m_HasText;
+    bool                 m_TextIsMarkup;
 
     float                m_Size;
     float                m_SdfBasePadding;
@@ -120,7 +233,7 @@ struct FontcContext
     uint16_t             m_AtlasHeight;
     uint16_t             m_CellWidth;
     uint16_t             m_CellHeight;
-    uint16_t             m_CellMaxAscent;
+    int32_t              m_CellMaxAscent;
     uint8_t              m_CellPadding;
     uint8_t              m_SdfEdgeValue;
     uint8_t              m_Channels;
@@ -130,17 +243,27 @@ struct FontcContext
     bool                 m_HasOutline;
     bool                 m_HasShadow;
     bool                 m_UseTextShaping;
+    bool                 m_IsGlyphBank;
 };
 
-static uint32_t GetGlyphImageY(const FontcContext* session, uint32_t cell_y, const FontGlyph& glyph)
+static uint32_t GetGlyphImageX(const FontcContext* session, uint32_t cell_x)
 {
-    return cell_y + session->m_CellPadding + session->m_CellMaxAscent - (int32_t)glyph.m_Ascent;
+    return cell_x + (session->m_IsGlyphBank ? 0 : session->m_CellPadding);
+}
+
+static int32_t GetGlyphImageY(const FontcContext* session, uint32_t cell_y, const FontGlyph& glyph)
+{
+    return (int32_t)cell_y + (session->m_IsGlyphBank ? 0 : session->m_CellPadding) + session->m_CellMaxAscent - (int32_t)glyph.m_Ascent;
 }
 
 static void DestroySession(FontcContext* session)
 {
     if (!session)
         return;
+    if (session->m_TextLayout)
+    {
+        TextLayoutRelease(session->m_TextLayout);
+    }
     for (uint32_t i = 0; i < session->m_Glyphs.Size(); ++i)
         FontFreeGlyph(session->m_Glyphs[i].m_Font, &session->m_Glyphs[i].m_Glyph);
     free(session->m_Atlas);
@@ -161,32 +284,34 @@ static bool RebuildAtlas(FontcContext* session)
         const CachedGlyph& cached = session->m_Glyphs[i];
         const uint32_t     cell_x = (i % columns) * session->m_CellWidth;
         const uint32_t     cell_y = (i / columns) * session->m_CellHeight;
-        const uint32_t     image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
+        const int32_t      image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
         const uint32_t     width = cached.m_Glyph.m_Bitmap.m_Width;
         const uint32_t     height = cached.m_Glyph.m_Bitmap.m_Height;
-        if (cell_x + session->m_CellPadding + width > session->m_AtlasWidth || image_y + height > session->m_AtlasHeight)
+        if (GetGlyphImageX(session, cell_x) + width > session->m_AtlasWidth || image_y < 0 || image_y + (int32_t)height > session->m_AtlasHeight)
             return false;
     }
 
     memset(session->m_Atlas, 0, (size_t)session->m_AtlasWidth * session->m_AtlasHeight * session->m_Channels);
+    memset(session->m_Atlas, 0xff, session->m_Channels);
     for (uint32_t i = 0; i < session->m_Glyphs.Size(); ++i)
     {
         CachedGlyph&   cached = session->m_Glyphs[i];
         const uint32_t cell_x = (i % columns) * session->m_CellWidth;
         const uint32_t cell_y = (i / columns) * session->m_CellHeight;
-        const uint32_t image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
+        const int32_t  image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
         const uint32_t width = cached.m_Glyph.m_Bitmap.m_Width;
         const uint32_t height = cached.m_Glyph.m_Bitmap.m_Height;
         const uint32_t row_bytes = width * session->m_Channels;
         for (uint32_t y = 0; y < height; ++y)
         {
-            memcpy(session->m_Atlas + ((image_y + y) * session->m_AtlasWidth + cell_x + session->m_CellPadding) * session->m_Channels,
+            memcpy(session->m_Atlas + ((image_y + y) * session->m_AtlasWidth + GetGlyphImageX(session, cell_x)) * session->m_Channels,
                    cached.m_Glyph.m_Bitmap.m_Data + y * row_bytes,
                    row_bytes);
         }
         cached.m_X = cell_x;
         cached.m_Y = cell_y;
     }
+    memset(session->m_Atlas, 0xff, session->m_Channels);
     ++session->m_AtlasVersion;
     return true;
 }
@@ -198,12 +323,12 @@ static bool WriteGlyphToAtlas(FontcContext* session, CachedGlyph* cached, uint32
         return false;
     const uint32_t cell_x = (glyph_index % columns) * session->m_CellWidth;
     const uint32_t cell_y = (glyph_index / columns) * session->m_CellHeight;
-    const uint32_t image_x = cell_x + session->m_CellPadding;
-    const uint32_t image_y = GetGlyphImageY(session, cell_y, cached->m_Glyph);
+    const uint32_t image_x = GetGlyphImageX(session, cell_x);
+    const int32_t  image_y = GetGlyphImageY(session, cell_y, cached->m_Glyph);
     const uint32_t width = cached->m_Glyph.m_Bitmap.m_Width;
     const uint32_t height = cached->m_Glyph.m_Bitmap.m_Height;
     const uint32_t row_bytes = width * session->m_Channels;
-    if (image_x + width > session->m_AtlasWidth || image_y + height > session->m_AtlasHeight)
+    if (image_x + width > session->m_AtlasWidth || image_y < 0 || image_y + (int32_t)height > session->m_AtlasHeight)
         return false;
     for (uint32_t y = 0; y < height; ++y)
     {
@@ -211,6 +336,7 @@ static bool WriteGlyphToAtlas(FontcContext* session, CachedGlyph* cached, uint32
                cached->m_Glyph.m_Bitmap.m_Data + y * row_bytes,
                row_bytes);
     }
+    memset(session->m_Atlas, 0xff, session->m_Channels);
     cached->m_X = cell_x;
     cached->m_Y = cell_y;
     return true;
@@ -258,28 +384,42 @@ static void GetGlyphGenParams(FontcContext* session, HFont font, FontGlyphGenPar
     params->m_HasShadow = session->m_HasShadow;
 }
 
+static FontResult GenerateRendererGlyph(FontcContext* session, HFont font, uint32_t glyph_index, FontGlyph* glyph)
+{
+    if (session->m_IsGlyphBank)
+    {
+        FontGlyphOptions options;
+        options.m_GenerateImage = true;
+        return FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    }
+
+    FontGlyphGenParams params;
+    GetGlyphGenParams(session, font, &params);
+    return FontGenerateGlyph(font, glyph_index, &params, glyph);
+}
+
 static bool UpdateCellMetrics(FontcContext* session)
 {
     uint64_t cell_width = 1;
-    uint32_t cell_max_ascent = 0;
-    uint32_t cell_max_descent = 0;
+    int32_t  cell_max_ascent = 0;
+    int32_t  cell_max_descent = 0;
     for (uint32_t i = 0; i < session->m_Glyphs.Size(); ++i)
     {
         const FontGlyph& glyph = session->m_Glyphs[i].m_Glyph;
-        const uint64_t   glyph_cell_width = (uint64_t)glyph.m_Bitmap.m_Width + (uint32_t)session->m_CellPadding * 2;
+        const uint64_t   glyph_cell_width = (uint64_t)glyph.m_Bitmap.m_Width + (session->m_IsGlyphBank ? 0 : (uint32_t)session->m_CellPadding * 2);
         cell_width = dmMath::Max(cell_width, glyph_cell_width);
         if (glyph.m_Ascent < INT16_MIN || glyph.m_Ascent > INT16_MAX ||
             glyph.m_Descent < INT16_MIN || glyph.m_Descent > INT16_MAX)
             return false;
-        cell_max_ascent = dmMath::Max(cell_max_ascent, (uint32_t)dmMath::Max(0, (int32_t)glyph.m_Ascent));
-        cell_max_descent = dmMath::Max(cell_max_descent, (uint32_t)dmMath::Max(0, (int32_t)glyph.m_Descent));
+        cell_max_ascent = i == 0 ? (int32_t)glyph.m_Ascent : dmMath::Max(cell_max_ascent, (int32_t)glyph.m_Ascent);
+        cell_max_descent = i == 0 ? (int32_t)glyph.m_Descent : dmMath::Max(cell_max_descent, (int32_t)glyph.m_Descent);
     }
-    const uint64_t cell_height = dmMath::Max((uint64_t)1, (uint64_t)cell_max_ascent + cell_max_descent + (uint32_t)session->m_CellPadding * 2);
-    if (cell_width > UINT16_MAX || cell_height > UINT16_MAX || cell_max_ascent > UINT16_MAX)
+    const int64_t  cell_height = dmMath::Max((int64_t)1, (int64_t)cell_max_ascent + cell_max_descent + session->m_CellPadding * 2);
+    if (cell_width > UINT16_MAX || cell_height > UINT16_MAX)
         return false;
     session->m_CellWidth = (uint16_t)cell_width;
     session->m_CellHeight = (uint16_t)cell_height;
-    session->m_CellMaxAscent = (uint16_t)cell_max_ascent;
+    session->m_CellMaxAscent = cell_max_ascent;
     return true;
 }
 
@@ -323,9 +463,7 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
     new_glyph.m_Frame = session->m_Frame;
     new_glyph.m_GlyphIndex = glyph_index;
 
-    FontGlyphGenParams params;
-    GetGlyphGenParams(session, font, &params);
-    if (FontGenerateGlyph(font, glyph_index, &params, &new_glyph.m_Glyph) != FONT_RESULT_OK)
+    if (GenerateRendererGlyph(session, font, glyph_index, &new_glyph.m_Glyph) != FONT_RESULT_OK)
         return 0;
     if (new_glyph.m_Glyph.m_Bitmap.m_Data == 0 ||
         new_glyph.m_Glyph.m_Bitmap.m_Width == 0 ||
@@ -337,7 +475,7 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
 
     const uint16_t old_cell_width = session->m_CellWidth;
     const uint16_t old_cell_height = session->m_CellHeight;
-    const uint16_t old_cell_max_ascent = session->m_CellMaxAscent;
+    const int32_t  old_cell_max_ascent = session->m_CellMaxAscent;
     if (session->m_Glyphs.Full())
         session->m_Glyphs.OffsetCapacity(32);
     session->m_Glyphs.Push(new_glyph);
@@ -364,7 +502,7 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
         {
             ++session->m_AtlasVersion;
             AddDirtyRect(texture_update,
-                         cached_glyph->m_X + session->m_CellPadding,
+                         GetGlyphImageX(session, cached_glyph->m_X),
                          GetGlyphImageY(session, cached_glyph->m_Y, cached_glyph->m_Glyph),
                          cached_glyph->m_Glyph.m_Bitmap.m_Width,
                          cached_glyph->m_Glyph.m_Bitmap.m_Height);
@@ -418,17 +556,116 @@ static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints
     return TextLayoutCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
 }
 
-static TextResult CreateRetainedLayout(HFontRenderer renderer, HTextLayout* layout)
+static uint8_t ResolvePreviewLayoutObject(void* context,
+                                          const char* source,
+                                          const TextLayoutObjectAttribute* attributes,
+                                          float proposed_width,
+                                          float proposed_height,
+                                          TextLayoutObject* object)
 {
+    (void)context;
+    (void)source;
+    (void)attributes;
+    object->m_Width = proposed_width;
+    object->m_Height = proposed_height;
+
+    return 1;
+}
+
+static TextResult CreateParsedMarkupLayout(FontcContext* session, HMarkup parsed_markup, bool line_break, float width, float leading, float tracking, HTextLayout* layout)
+{
+    TextLayoutSettings settings = { 0 };
+    settings.m_Size = session->m_Size;
+    settings.m_Width = width;
+    settings.m_Leading = leading;
+    settings.m_Tracking = tracking;
+    settings.m_LineBreak = line_break;
+    settings.m_ResolveObject = ResolvePreviewLayoutObject;
+
+    return session->m_UseTextShaping ? TextLayoutCreateMarkup(session->m_Collection, parsed_markup, &settings, layout) : TextLayoutLegacyCreateMarkup(session->m_Collection, parsed_markup, &settings, layout);
+}
+
+static TextResult CreateMarkupLayout(FontcContext* session, const char* markup, uint32_t markup_byte_count, bool line_break, float width, float leading, float tracking, HTextLayout* layout, MarkupError* error)
+{
+    HMarkup parsed_markup = 0;
+
+    if (MarkupCreate(markup ? markup : "", markup_byte_count, &parsed_markup, error) != MARKUP_RESULT_OK)
+    {
+        return TEXT_RESULT_ERROR;
+    }
+
+    TextResult result = CreateParsedMarkupLayout(session, parsed_markup, line_break, width, leading, tracking, layout);
+    MarkupDestroy(parsed_markup);
+
+    return result;
+}
+
+static TextResult GetRetainedLayout(HFontRenderer renderer, HTextLayout* layout)
+{
+    if (renderer->m_TextLayout && renderer->m_TextLayoutHash == renderer->m_Hash)
+    {
+        TextLayoutAcquire(renderer->m_TextLayout);
+        *layout = renderer->m_TextLayout;
+
+        return TEXT_RESULT_OK;
+    }
+
+    if (renderer->m_TextLayout)
+    {
+        TextLayoutRelease(renderer->m_TextLayout);
+        renderer->m_TextLayout = 0;
+    }
+
     const FontcProperties& properties = renderer->m_Properties;
-    return CreateLayout(renderer,
-                        renderer->m_Codepoints.Begin(),
-                        renderer->m_Codepoints.Size(),
-                        properties.m_LineBreak != 0,
-                        properties.m_Width,
-                        properties.m_Leading,
-                        properties.m_Tracking,
-                        layout);
+    TextResult             result;
+
+    if (renderer->m_TextIsMarkup)
+    {
+        result = CreateMarkupLayout(renderer,
+                                    renderer->m_Markup.Begin(),
+                                    renderer->m_Markup.Size(),
+                                    properties.m_LineBreak != 0,
+                                    properties.m_Width,
+                                    properties.m_Leading,
+                                    properties.m_Tracking,
+                                    &renderer->m_TextLayout,
+                                    0);
+    }
+    else
+    {
+        result = CreateLayout(renderer,
+                              renderer->m_Codepoints.Begin(),
+                              renderer->m_Codepoints.Size(),
+                              properties.m_LineBreak != 0,
+                              properties.m_Width,
+                              properties.m_Leading,
+                              properties.m_Tracking,
+                              &renderer->m_TextLayout);
+    }
+
+    if (result != TEXT_RESULT_OK)
+    {
+        *layout = 0;
+
+        return result;
+    }
+
+    renderer->m_TextLayoutHash = renderer->m_Hash;
+    TextLayoutAcquire(renderer->m_TextLayout);
+    *layout = renderer->m_TextLayout;
+
+    return TEXT_RESULT_OK;
+}
+
+static void InvalidateRetainedLayout(FontcContext* renderer, uint64_t hash)
+{
+    if (renderer->m_TextLayout && renderer->m_Hash != hash)
+    {
+        TextLayoutRelease(renderer->m_TextLayout);
+        renderer->m_TextLayout = 0;
+    }
+
+    renderer->m_Hash = hash;
 }
 
 static void UpdateStateHash(FontcContext* renderer)
@@ -441,6 +678,21 @@ static void UpdateStateHash(FontcContext* renderer)
     dmHashUpdateBuffer64(&hash_state, &renderer->m_HasText, sizeof(renderer->m_HasText));
     if (renderer->m_HasText)
     {
+        dmHashUpdateBuffer64(&hash_state, &renderer->m_TextIsMarkup, sizeof(renderer->m_TextIsMarkup));
+        if (renderer->m_TextIsMarkup)
+        {
+            const uint32_t markup_byte_count = renderer->m_Markup.Size();
+            dmHashUpdateBuffer64(&hash_state, &markup_byte_count, sizeof(markup_byte_count));
+
+            if (markup_byte_count != 0)
+            {
+                dmHashUpdateBuffer64(&hash_state, renderer->m_Markup.Begin(), markup_byte_count);
+            }
+
+            InvalidateRetainedLayout(renderer, dmHashFinal64(&hash_state));
+
+            return;
+        }
         const uint32_t codepoint_count = renderer->m_Codepoints.Size();
         dmHashUpdateBuffer64(&hash_state, &codepoint_count, sizeof(codepoint_count));
         const uint32_t max_chunk_codepoints = UINT32_MAX / sizeof(uint32_t);
@@ -452,36 +704,35 @@ static void UpdateStateHash(FontcContext* renderer)
             codepoint_offset += chunk_codepoints;
         }
     }
-    renderer->m_Hash = dmHashFinal64(&hash_state);
+    InvalidateRetainedLayout(renderer, dmHashFinal64(&hash_state));
 }
 
-FontRendererResult FontcCreate(const char*        name,
-                               const uint8_t*     font_bytes,
-                               uint32_t           font_byte_count,
-                               const FontcParams* params,
-                               HFontRenderer*     renderer)
+static bool ValidateRendererParams(const FontcParams* params, uint32_t channels, HFontRenderer* renderer)
 {
-    const uint32_t channels = params ? FontGetGlyphChannelCount(params->m_OutputBitmap, params->m_HasOutline, params->m_HasShadow, params->m_ShadowBlur) : 1;
-    const uint64_t atlas_pixel_count = params ? (uint64_t)params->m_AtlasWidth * params->m_AtlasHeight * channels : 0;
-    if (!name || !font_bytes || font_byte_count == 0 || !params || !renderer ||
-        params->m_Size <= 0.0f || params->m_AtlasWidth == 0 || params->m_AtlasWidth > UINT16_MAX ||
+    if (!params || !renderer || channels == 0 || channels > 4)
+        return false;
+    if (params->m_Size <= 0.0f || params->m_AtlasWidth == 0 || params->m_AtlasWidth > UINT16_MAX ||
         params->m_AtlasHeight == 0 || params->m_AtlasHeight > UINT16_MAX || params->m_CellPadding > UINT8_MAX ||
         params->m_SdfBasePadding <= 0.0f || params->m_SdfSpread <= 0.0f ||
-        params->m_SdfEdgeValue == 0 || params->m_SdfEdgeValue > UINT8_MAX ||
-        atlas_pixel_count > UINT32_MAX ||
-        (params->m_LayerMask & ~(FONT_RENDERER_LAYER_FACE | FONT_RENDERER_LAYER_OUTLINE | FONT_RENDERER_LAYER_SHADOW)) != 0 ||
-        (params->m_LayerMask & FONT_RENDERER_LAYER_FACE) == 0)
-        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+        params->m_SdfEdgeValue == 0 || params->m_SdfEdgeValue > UINT8_MAX)
+        return false;
+    const uint32_t valid_layers = FONT_RENDERER_LAYER_FACE | FONT_RENDERER_LAYER_OUTLINE | FONT_RENDERER_LAYER_SHADOW;
+    if ((params->m_LayerMask & ~valid_layers) != 0 || (params->m_LayerMask & FONT_RENDERER_LAYER_FACE) == 0)
+        return false;
+    const uint64_t atlas_pixel_count = (uint64_t)params->m_AtlasWidth * params->m_AtlasHeight * channels;
+    return atlas_pixel_count <= UINT32_MAX;
+}
+
+static FontRendererResult CreateRenderer(HFont              font,
+                                         const FontcParams* params,
+                                         uint32_t           channels,
+                                         bool               is_glyph_bank,
+                                         HFontRenderer*     renderer)
+{
     *renderer = 0;
 
     FontcContext* session = new FontcContext;
-    session->m_Font = FontLoadFromMemory(name, const_cast<uint8_t*>(font_bytes), font_byte_count, true);
-    if (!session->m_Font)
-    {
-        delete session;
-        return FONT_RENDERER_RESULT_FONT_ERROR;
-    }
-
+    session->m_Font = font;
     session->m_Collection = FontCollectionCreate();
     if (FontCollectionAddFont(session->m_Collection, session->m_Font) != FONT_RESULT_OK)
     {
@@ -506,7 +757,8 @@ FontRendererResult FontcCreate(const char*        name,
     session->m_Antialias = params->m_Antialias != 0;
     session->m_HasOutline = params->m_HasOutline != 0;
     session->m_HasShadow = params->m_HasShadow != 0;
-    session->m_UseTextShaping = params->m_UseTextShaping != 0;
+    session->m_UseTextShaping = !is_glyph_bank && params->m_UseTextShaping != 0;
+    session->m_IsGlyphBank = is_glyph_bank;
     session->m_Channels = channels;
     session->m_Atlas = (uint8_t*)calloc((size_t)params->m_AtlasWidth * params->m_AtlasHeight, session->m_Channels);
     if (!session->m_Atlas)
@@ -514,13 +766,153 @@ FontRendererResult FontcCreate(const char*        name,
         DestroySession(session);
         return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
     }
+    memset(session->m_Atlas, 0xff, session->m_Channels);
     *renderer = session;
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcCreate(const char*        name,
+                               const uint8_t*     font_bytes,
+                               uint32_t           font_byte_count,
+                               const FontcParams* params,
+                               HFontRenderer*     renderer)
+{
+    const uint32_t channels = params ? FontGetGlyphChannelCount(params->m_OutputBitmap, params->m_OutlineWidth > 0.0f, params->m_HasShadow, params->m_ShadowBlur) : 1;
+    if (!name || !font_bytes || font_byte_count == 0 || !ValidateRendererParams(params, channels, renderer))
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+
+    HFont font = FontLoadFromMemory(name, const_cast<uint8_t*>(font_bytes), font_byte_count, true);
+    if (!font)
+        return FONT_RENDERER_RESULT_FONT_ERROR;
+    return CreateRenderer(font, params, channels, false, renderer);
+}
+
+static bool ValidateGlyphBank(const FontcGlyphBankGlyph* glyphs,
+                              uint32_t                   glyph_count,
+                              const uint8_t*             glyph_data,
+                              uint32_t                   glyph_data_count,
+                              uint32_t                   glyph_padding,
+                              uint32_t                   glyph_channels,
+                              float                      max_ascent,
+                              float                      max_descent)
+{
+    if (!glyphs || glyph_count == 0 || glyph_count > INT32_MAX ||
+        (!glyph_data && glyph_data_count != 0) || glyph_padding > UINT8_MAX ||
+        glyph_channels == 0 || glyph_channels > 4 || !isfinite(max_ascent) || !isfinite(max_descent) ||
+        max_descent < 0.0f || max_ascent + max_descent < 0.0f)
+        return false;
+
+    for (uint32_t i = 0; i < glyph_count; ++i)
+    {
+        const FontcGlyphBankGlyph& glyph = glyphs[i];
+        if ((i != 0 && glyphs[i - 1].m_Codepoint >= glyph.m_Codepoint) ||
+            !isfinite(glyph.m_Width) || !isfinite(glyph.m_Advance) || !isfinite(glyph.m_LeftBearing) ||
+            !isfinite(glyph.m_Ascent) || !isfinite(glyph.m_Descent) ||
+            glyph.m_Width < 0.0f || glyph.m_Width > UINT16_MAX ||
+            glyph.m_Ascent < INT16_MIN || glyph.m_Ascent > INT16_MAX ||
+            glyph.m_Descent < INT16_MIN || glyph.m_Descent > INT16_MAX ||
+            floorf(glyph.m_Width) != glyph.m_Width ||
+            floorf(glyph.m_Ascent) != glyph.m_Ascent ||
+            floorf(glyph.m_Descent) != glyph.m_Descent ||
+            (uint64_t)glyph.m_DataOffset + glyph.m_DataSize > glyph_data_count)
+            return false;
+
+        const float glyph_height = glyph.m_Ascent + glyph.m_Descent;
+        if (glyph_height < 0.0f || glyph_height > UINT16_MAX || floorf(glyph_height) != glyph_height)
+            return false;
+        const uint64_t width = (uint32_t)glyph.m_Width;
+        const uint64_t height = (uint32_t)glyph_height;
+        const uint64_t bitmap_width = width + glyph_padding * 2;
+        const uint64_t bitmap_height = height + glyph_padding * 2;
+        if (bitmap_width > UINT16_MAX || bitmap_height > UINT16_MAX)
+            return false;
+        const uint64_t expected_size = width == 0 || height == 0 ? 0 : bitmap_width * bitmap_height * glyph_channels;
+        if (expected_size != glyph.m_DataSize)
+            return false;
+    }
+    return true;
+}
+
+FontRendererResult FontcCreateGlyphBank(const char*                name,
+                                        const FontcGlyphBankGlyph* glyphs,
+                                        uint32_t                   glyph_count,
+                                        const uint8_t*             glyph_data,
+                                        uint32_t                   glyph_data_count,
+                                        uint32_t                   glyph_padding,
+                                        uint32_t                   glyph_channels,
+                                        float                      max_ascent,
+                                        float                      max_descent,
+                                        const FontcParams*         params,
+                                        HFontRenderer*             renderer)
+{
+    if (!name || !ValidateRendererParams(params, glyph_channels, renderer) ||
+        !ValidateGlyphBank(glyphs, glyph_count, glyph_data, glyph_data_count, glyph_padding, glyph_channels, max_ascent, max_descent))
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+
+    HFont font = CreateFontcGlyphBank(name, glyphs, glyph_count, glyph_data, glyph_data_count, glyph_padding, glyph_channels, max_ascent, max_descent);
+    if (!font)
+        return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
+
+    FontRendererResult result = CreateRenderer(font, params, glyph_channels, true, renderer);
+    if (result != FONT_RENDERER_RESULT_OK)
+        return result;
+    FontcContext* session = *renderer;
+    session->m_FontCodepoints.SetCapacity(glyph_count);
+    for (uint32_t i = 0; i < glyph_count; ++i)
+        session->m_FontCodepoints.Push(glyphs[i].m_Codepoint);
     return FONT_RENDERER_RESULT_OK;
 }
 
 void FontcDestroy(HFontRenderer renderer)
 {
     DestroySession(renderer);
+}
+
+FontRendererResult FontcParseMarkup(const char*       markup,
+                                    uint32_t          markup_byte_count,
+                                    HFontcMarkup*     parsed_markup,
+                                    FontcMarkupError* output_error)
+{
+    if (!parsed_markup || !output_error || (!markup && markup_byte_count != 0))
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    *parsed_markup = 0;
+    memset(output_error, 0, sizeof(*output_error));
+
+    MarkupError        error = {};
+    const MarkupResult result = MarkupCreate(markup ? markup : "", markup_byte_count, parsed_markup, &error);
+    output_error->m_ByteOffset = error.m_ByteOffset;
+    output_error->m_Type = (FontcMarkupErrorType)error.m_Type;
+
+    return result == MARKUP_RESULT_OK ? FONT_RENDERER_RESULT_OK : FONT_RENDERER_RESULT_TEXT_ERROR;
+}
+
+void FontcDestroyMarkup(HFontcMarkup parsed_markup)
+{
+    MarkupDestroy(parsed_markup);
+}
+
+FontRendererResult FontcGetMarkupData(HFontcMarkup parsed_markup, FontcMarkupData* data)
+{
+    if (!parsed_markup || !data)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    data->m_Source = MarkupGetSource(parsed_markup);
+    data->m_SourceLength = MarkupGetSourceLength(parsed_markup);
+    data->m_Text = MarkupGetText(parsed_markup);
+    data->m_TextLength = MarkupGetTextLength(parsed_markup);
+    data->m_Nodes = reinterpret_cast<const FontcMarkupNode*>(MarkupGetStyleNodes(parsed_markup));
+    data->m_NodeCount = MarkupGetStyleNodeCount(parsed_markup);
+    data->m_Attributes = reinterpret_cast<const FontcMarkupAttribute*>(MarkupGetAttributes(parsed_markup));
+    data->m_AttributeCount = MarkupGetAttributeCount(parsed_markup);
+    data->m_Spans = reinterpret_cast<const FontcMarkupSpan*>(MarkupGetSpans(parsed_markup));
+    data->m_SpanCount = MarkupGetSpanCount(parsed_markup);
+
+    return FONT_RENDERER_RESULT_OK;
 }
 
 FontRendererResult FontcMeasure(HFontRenderer   renderer,
@@ -534,6 +926,7 @@ FontRendererResult FontcMeasure(HFontRenderer   renderer,
 {
     if (!renderer || (!codepoints && codepoint_count != 0) || !output)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    memset(output, 0, sizeof(*output));
     HTextLayout layout = 0;
     TextResult  result = CreateLayout(renderer, codepoints, codepoint_count, line_break != 0, width, leading, tracking, &layout);
     if (result != TEXT_RESULT_OK)
@@ -548,20 +941,110 @@ FontRendererResult FontcMeasure(HFontRenderer   renderer,
     return FONT_RENDERER_RESULT_OK;
 }
 
+FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
+                                      const char*   markup,
+                                      uint32_t      markup_byte_count,
+                                      uint32_t      line_break,
+                                      float         width,
+                                      float         leading,
+                                      float         tracking,
+                                      FontcLayout*  output)
+{
+    if (!renderer || (!markup && markup_byte_count != 0) || !output)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    memset(output, 0, sizeof(*output));
+    HTextLayout layout = 0;
+    MarkupError error = {};
+    TextResult  result = CreateMarkupLayout(renderer, markup, markup_byte_count, line_break != 0, width, leading, tracking, &layout, &error);
+
+    if (result != TEXT_RESULT_OK)
+    {
+        output->m_ErrorByteOffset = error.m_ByteOffset;
+        output->m_ErrorType = error.m_Type;
+
+        return FONT_RENDERER_RESULT_TEXT_ERROR;
+    }
+
+    TextLayoutGetBounds(layout, &output->m_Width, &output->m_Height);
+    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
+    output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
+    output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
+    TextLayoutRelease(layout);
+
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
+                                            HFontcMarkup  parsed_markup,
+                                            uint32_t      line_break,
+                                            float         width,
+                                            float         leading,
+                                            float         tracking,
+                                            FontcLayout*  output)
+{
+    if (!renderer || !parsed_markup || !output)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    memset(output, 0, sizeof(*output));
+    HTextLayout layout = 0;
+    TextResult  result = CreateParsedMarkupLayout(renderer, parsed_markup, line_break != 0, width, leading, tracking, &layout);
+
+    if (result != TEXT_RESULT_OK)
+    {
+        return FONT_RENDERER_RESULT_TEXT_ERROR;
+    }
+
+    TextLayoutGetBounds(layout, &output->m_Width, &output->m_Height);
+    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
+    output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
+    output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
+    TextLayoutRelease(layout);
+
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcFilterMarkup(const char*     markup,
+                                     uint32_t        markup_byte_count,
+                                     const uint32_t* allowed_codepoints,
+                                     uint32_t        allowed_codepoint_count,
+                                     char*           output,
+                                     uint32_t        output_capacity,
+                                     uint32_t*       output_byte_count)
+{
+    if ((!markup && markup_byte_count != 0) || (!allowed_codepoints && allowed_codepoint_count != 0) ||
+        (!output && output_capacity != 0) || output_capacity < markup_byte_count || !output_byte_count)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    MarkupError error = {};
+    const MarkupResult result = MarkupFilterText(markup, markup_byte_count,
+                                                 allowed_codepoints, allowed_codepoint_count,
+                                                 output, output_capacity,
+                                                 output_byte_count, &error);
+
+    return result == MARKUP_RESULT_OK ? FONT_RENDERER_RESULT_OK : FONT_RENDERER_RESULT_TEXT_ERROR;
+}
+
 FontRendererResult FontcGenerateGlyph(HFontRenderer renderer, uint32_t codepoint, FontcGlyph* output)
 {
     if (!renderer || !output)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     memset(output, 0, sizeof(*output));
-    const uint32_t     glyph_index = FontGetGlyphIndex(renderer->m_Font, codepoint);
+    const uint32_t glyph_index = FontGetGlyphIndex(renderer->m_Font, codepoint);
     output->m_GlyphIndex = glyph_index;
     if (glyph_index == 0)
         return FONT_RENDERER_RESULT_OK;
 
-    FontGlyphGenParams params;
-    GetGlyphGenParams(renderer, renderer->m_Font, &params);
     FontGlyph glyph;
-    if (FontGenerateGlyph(renderer->m_Font, glyph_index, &params, &glyph) != FONT_RESULT_OK)
+    if (GenerateRendererGlyph(renderer, renderer->m_Font, glyph_index, &glyph) != FONT_RESULT_OK)
         return FONT_RENDERER_RESULT_GLYPH_ERROR;
 
     output->m_GlyphIndex = glyph.m_GlyphIndex;
@@ -602,11 +1085,20 @@ static FontRendererResult GetGlyphMetrics(HFontRenderer renderer, uint32_t codep
     if (glyph_index == 0)
         return FONT_RENDERER_RESULT_OK;
 
-    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
-    const float padding = renderer->m_SdfBasePadding + renderer->m_OutlineWidth + renderer->m_ShadowBlur;
     FontGlyph glyph;
-    if (FontGetGlyphSDFMetricsTTF(renderer->m_Font, glyph_index, scale, padding, &glyph) != FONT_RESULT_OK)
-        return FONT_RENDERER_RESULT_GLYPH_ERROR;
+    if (renderer->m_IsGlyphBank)
+    {
+        FontGlyphOptions options;
+        if (FontGetGlyphByIndex(renderer->m_Font, glyph_index, &options, &glyph) != FONT_RESULT_OK)
+            return FONT_RENDERER_RESULT_GLYPH_ERROR;
+    }
+    else
+    {
+        const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
+        const float padding = renderer->m_SdfBasePadding + renderer->m_OutlineWidth + renderer->m_ShadowBlur;
+        if (FontGetGlyphSDFMetricsTTF(renderer->m_Font, glyph_index, scale, padding, &glyph) != FONT_RESULT_OK)
+            return FONT_RENDERER_RESULT_GLYPH_ERROR;
+    }
 
     output->m_Width = (uint32_t)glyph.m_Width;
     output->m_Height = (uint32_t)glyph.m_Height;
@@ -624,16 +1116,33 @@ FontRendererResult FontcGetGlyphMetrics(HFontRenderer renderer, uint32_t codepoi
     return GetGlyphMetrics(renderer, codepoint, metrics);
 }
 
-FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer renderer,
-                                                  FontcGlyphMetrics* metrics,
-                                                  uint32_t metrics_capacity,
-                                                  uint32_t* glyph_count)
+FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer      renderer,
+                                                 FontcGlyphMetrics* metrics,
+                                                 uint32_t           metrics_capacity,
+                                                 uint32_t*          glyph_count)
 {
     if (!renderer || !glyph_count || (!metrics && metrics_capacity != 0))
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
 
+    if (renderer->m_IsGlyphBank)
+    {
+        const uint32_t required_capacity = renderer->m_FontCodepoints.Size();
+        *glyph_count = required_capacity;
+        if (!metrics)
+            return FONT_RENDERER_RESULT_OK;
+        if (metrics_capacity < required_capacity)
+            return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+        for (uint32_t i = 0; i < required_capacity; ++i)
+        {
+            FontRendererResult result = GetGlyphMetrics(renderer, renderer->m_FontCodepoints[i], &metrics[i]);
+            if (result != FONT_RENDERER_RESULT_OK)
+                return result;
+        }
+        return FONT_RENDERER_RESULT_OK;
+    }
+
     hb_font_t* hb_font = FontGetHarfbuzzFontFromTTF(renderer->m_Font);
-    hb_set_t* unicodes = hb_set_create();
+    hb_set_t*  unicodes = hb_set_create();
     hb_face_collect_unicodes(hb_font_get_face(hb_font), unicodes);
     const uint32_t required_capacity = hb_set_get_population(unicodes);
     *glyph_count = required_capacity;
@@ -712,25 +1221,6 @@ void FontcFreeImage(FontcImage* image)
     memset(image, 0, sizeof(*image));
 }
 
-static float OffsetX(uint32_t align, float width)
-{
-    if (align == 1)
-        return width * 0.5f;
-    if (align == 2)
-        return width;
-    return 0.0f;
-}
-
-static float OffsetY(uint32_t align, float height, float ascent, float descent, float leading, uint32_t line_count)
-{
-    const float line_height = ascent + descent;
-    if (align == 1)
-        return height * 0.5f + (line_count * line_height * leading - line_height * (leading - 1.0f)) * 0.5f - ascent;
-    if (align == 2)
-        return line_height * leading * (line_count - 1) + descent;
-    return height - ascent;
-}
-
 FontRendererResult FontcSetProperties(HFontRenderer renderer, const FontcProperties* properties)
 {
     if (!renderer || !properties)
@@ -748,7 +1238,36 @@ FontRendererResult FontcSetText(HFontRenderer renderer, const uint32_t* codepoin
     renderer->m_Codepoints.EnsureSize(codepoint_count);
     if (codepoint_count != 0)
         memcpy(renderer->m_Codepoints.Begin(), codepoints, (size_t)codepoint_count * sizeof(uint32_t));
+    renderer->m_Markup.SetSize(0);
     renderer->m_HasText = true;
+    renderer->m_TextIsMarkup = false;
+    UpdateStateHash(renderer);
+
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcSetMarkup(HFontRenderer renderer, const char* markup, uint32_t markup_byte_count)
+{
+    if (!renderer || (!markup && markup_byte_count != 0))
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    if (renderer->m_Markup.Capacity() < markup_byte_count)
+    {
+        renderer->m_Markup.SetCapacity(markup_byte_count);
+    }
+
+    renderer->m_Markup.SetSize(markup_byte_count);
+
+    if (markup_byte_count != 0)
+    {
+        memcpy(renderer->m_Markup.Begin(), markup, markup_byte_count);
+    }
+
+    renderer->m_Codepoints.SetSize(0);
+    renderer->m_HasText = true;
+    renderer->m_TextIsMarkup = true;
     UpdateStateHash(renderer);
     return FONT_RENDERER_RESULT_OK;
 }
@@ -781,7 +1300,7 @@ FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
     memset(texture, 0, sizeof(*texture));
 
     HTextLayout layout = 0;
-    TextResult  layout_result = CreateRetainedLayout(renderer, &layout);
+    TextResult  layout_result = GetRetainedLayout(renderer, &layout);
     if (layout_result != TEXT_RESULT_OK)
         return FONT_RENDERER_RESULT_TEXT_ERROR;
 
@@ -793,8 +1312,11 @@ FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
         TextGlyph& text_glyph = glyphs[i];
-        if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint))
+
+        if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint) || (text_glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT))
+        {
             continue;
+        }
         GetOrCreateGlyph(renderer, text_glyph.m_Font, text_glyph.m_GlyphIndex, &texture_update);
     }
     TextLayoutRelease(layout);
@@ -839,34 +1361,62 @@ void FontcFreeTexture(FontcTexture* texture)
     memset(texture, 0, sizeof(*texture));
 }
 
-struct VertexBufferMetrics
+static bool ResolveLayoutGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* output)
 {
-    uint32_t m_VisibleGlyphCount;
-    uint32_t m_VertexCount;
-    uint32_t m_VertexBufferSize;
-};
+    HFontRenderer renderer = (HFontRenderer)context;
+    CachedGlyph* cached = FindGlyph(renderer, text_glyph.m_Font, text_glyph.m_GlyphIndex);
 
-static bool GetVertexBufferMetrics(HFontRenderer renderer, HTextLayout layout, VertexBufferMetrics* metrics)
-{
-    TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
-    const uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
-    uint32_t       visible_glyph_count = 0;
-    for (uint32_t i = 0; i < glyph_count; ++i)
+    if (!cached)
     {
-        if (!dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint) && FindGlyph(renderer, glyphs[i].m_Font, glyphs[i].m_GlyphIndex))
-            ++visible_glyph_count;
+        return false;
     }
 
-    const uint32_t layer_count = 1 + ((renderer->m_LayerMask & FONT_RENDER_LAYER_OUTLINE) != 0) + ((renderer->m_LayerMask & FONT_RENDER_LAYER_SHADOW) != 0);
-    const uint64_t required_vertex_count = (uint64_t)visible_glyph_count * layer_count * 6;
-    const uint64_t required_buffer_size = required_vertex_count * sizeof(FontGlyphVertex);
-    if (required_vertex_count > UINT32_MAX || required_buffer_size > UINT32_MAX)
-        return false;
-
-    metrics->m_VisibleGlyphCount = visible_glyph_count;
-    metrics->m_VertexCount = (uint32_t)required_vertex_count;
-    metrics->m_VertexBufferSize = (uint32_t)required_buffer_size;
+    output->m_Glyph = &cached->m_Glyph;
+    output->m_CellX = cached->m_X;
+    output->m_CellY = cached->m_Y;
     return true;
+}
+
+static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, const Matrix4& transform, FontLayoutVertexConfig* config)
+{
+    const FontcProperties& properties = renderer->m_Properties;
+    memset(config, 0, sizeof(*config));
+    config->m_Layout = layout;
+    config->m_ResolveGlyph = ResolveLayoutGlyph;
+    config->m_ResolveGlyphContext = renderer;
+    config->m_Transform = transform;
+    config->m_OutlineColor = Vector4(properties.m_OutlineColor[0], properties.m_OutlineColor[1], properties.m_OutlineColor[2], properties.m_OutlineColor[3]);
+    config->m_ShadowColor = Vector4(properties.m_ShadowColor[0], properties.m_ShadowColor[1], properties.m_ShadowColor[2], properties.m_ShadowColor[3]);
+    memcpy(config->m_FaceColor, properties.m_FaceColor, sizeof(config->m_FaceColor));
+    config->m_Width = properties.m_Width;
+    config->m_Height = properties.m_Height;
+    config->m_RecipAtlasWidth = 1.0f / renderer->m_AtlasWidth;
+    config->m_RecipAtlasHeight = 1.0f / renderer->m_AtlasHeight;
+    config->m_DecorationU = 0.5f / renderer->m_AtlasWidth;
+    config->m_DecorationV = 0.5f / renderer->m_AtlasHeight;
+    config->m_SdfEdge = 0.75f;
+    config->m_SdfOutline = renderer->m_SdfOutline;
+    config->m_SdfSmoothing = 0.25f / (renderer->m_SdfSpread * dmMath::Max(0.000001f, properties.m_SdfScale));
+    config->m_SdfShadow = renderer->m_SdfShadow;
+    config->m_SdfSpread = renderer->m_SdfSpread;
+    config->m_OutlineWidth = renderer->m_OutlineWidth;
+    config->m_ShadowX = renderer->m_ShadowX;
+    config->m_ShadowY = renderer->m_ShadowY;
+    config->m_ShadowBlur = renderer->m_ShadowBlur;
+    config->m_BaseShadowAlpha = properties.m_BaseShadowAlpha;
+    config->m_CacheCellMaxAscent = renderer->m_CellMaxAscent;
+    config->m_CacheCellPadding = renderer->m_CellPadding;
+    config->m_Align = properties.m_Align;
+    config->m_VerticalAlign = properties.m_VerticalAlign;
+    config->m_BaseLayerMask = renderer->m_LayerMask;
+    config->m_MetricsFromTtf = !renderer->m_IsGlyphBank;
+    config->m_IsSdf = !renderer->m_IsGlyphBank && !renderer->m_OutputBitmap;
+    config->m_IsBMFont = renderer->m_IsGlyphBank && renderer->m_Channels == 4;
+    config->m_ShadowUsesFaceCoverage = !renderer->m_IsGlyphBank && renderer->m_OutputBitmap && !renderer->m_HasShadow;
+    config->m_ShadowIncludesOutline = !renderer->m_IsGlyphBank && renderer->m_OutputBitmap && renderer->m_HasShadow && renderer->m_HasOutline;
+    config->m_RenderDecorations = true;
+    config->m_RenderObjectOutlines = true;
+    config->m_ResolveGlyphsForMetrics = true;
 }
 
 FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,
@@ -879,12 +1429,14 @@ FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,
     *vertex_buffer_size = 0;
 
     HTextLayout layout = 0;
-    TextResult  layout_result = CreateRetainedLayout(renderer, &layout);
+    TextResult  layout_result = GetRetainedLayout(renderer, &layout);
     if (layout_result != TEXT_RESULT_OK)
         return FONT_RENDERER_RESULT_TEXT_ERROR;
 
-    VertexBufferMetrics metrics;
-    const bool          valid_size = GetVertexBufferMetrics(renderer, layout, &metrics);
+    FontLayoutVertexConfig config;
+    GetLayoutVertexConfig(renderer, layout, Matrix4::identity(), &config);
+    FontLayoutVertexMetrics metrics;
+    const bool              valid_size = FontGetLayoutVertexMetrics(config, &metrics);
     TextLayoutRelease(layout);
     if (valid_size)
     {
@@ -902,17 +1454,22 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
     if (!renderer || !renderer->m_HasProperties || !renderer->m_HasText || !world_transform)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
 
-    const FontcProperties& properties = renderer->m_Properties;
-    HTextLayout            layout = 0;
-    TextResult             layout_result = CreateRetainedLayout(renderer, &layout);
+    HTextLayout layout = 0;
+    TextResult  layout_result = GetRetainedLayout(renderer, &layout);
     if (layout_result != TEXT_RESULT_OK)
         return FONT_RENDERER_RESULT_TEXT_ERROR;
 
-    TextGlyph*          glyphs = TextLayoutGetGlyphs(layout);
-    TextLine*           lines = TextLayoutGetLines(layout);
-    const uint32_t      line_count = TextLayoutGetLineCount(layout);
-    VertexBufferMetrics metrics;
-    if (!GetVertexBufferMetrics(renderer, layout, &metrics))
+    Matrix4 transform;
+    transform.setCol0(Vector4(world_transform[0], world_transform[1], world_transform[2], world_transform[3]));
+    transform.setCol1(Vector4(world_transform[4], world_transform[5], world_transform[6], world_transform[7]));
+    transform.setCol2(Vector4(world_transform[8], world_transform[9], world_transform[10], world_transform[11]));
+    transform.setCol3(Vector4(world_transform[12], world_transform[13], world_transform[14], world_transform[15]));
+
+    FontLayoutVertexConfig config;
+    GetLayoutVertexConfig(renderer, layout, transform, &config);
+    FontLayoutVertexMetrics metrics;
+
+    if (!FontGetLayoutVertexMetrics(config, &metrics))
     {
         TextLayoutRelease(layout);
         return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
@@ -923,71 +1480,7 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     }
 
-    const uint32_t   layer_count = 1 + ((renderer->m_LayerMask & FONT_RENDER_LAYER_OUTLINE) != 0) + ((renderer->m_LayerMask & FONT_RENDER_LAYER_SHADOW) != 0);
-    FontGlyphVertex* vertices = (FontGlyphVertex*)vertex_buffer;
-
-    Matrix4          transform;
-    transform.setCol0(Vector4(world_transform[0], world_transform[1], world_transform[2], world_transform[3]));
-    transform.setCol1(Vector4(world_transform[4], world_transform[5], world_transform[6], world_transform[7]));
-    transform.setCol2(Vector4(world_transform[8], world_transform[9], world_transform[10], world_transform[11]));
-    transform.setCol3(Vector4(world_transform[12], world_transform[13], world_transform[14], world_transform[15]));
-    Vector4     face_color(properties.m_FaceColor[0], properties.m_FaceColor[1], properties.m_FaceColor[2], properties.m_FaceColor[3]);
-    Vector4     outline_color(properties.m_OutlineColor[0], properties.m_OutlineColor[1], properties.m_OutlineColor[2], properties.m_OutlineColor[3]);
-    Vector4     shadow_color(properties.m_ShadowColor[0], properties.m_ShadowColor[1], properties.m_ShadowColor[2], properties.m_ShadowColor[3]);
-
-    const float font_scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
-    const float max_ascent = FontGetAscent(renderer->m_Font, font_scale);
-    const float max_descent = -FontGetDescent(renderer->m_Font, font_scale);
-    const float line_height = max_ascent + max_descent;
-    const float x_offset = OffsetX(properties.m_Align, properties.m_Width);
-    const float y_offset = OffsetY(properties.m_VerticalAlign, properties.m_Height, max_ascent, max_descent, properties.m_Leading, line_count);
-    const float smoothing = 0.25f / (renderer->m_SdfSpread * dmMath::Max(0.000001f, properties.m_SdfScale));
-    uint32_t    vertex_index = 0;
-    for (uint32_t line_index = 0; line_index < line_count; ++line_index)
-    {
-        TextLine& line = lines[line_index];
-        if (line.m_Length == 0)
-            continue;
-        const float first_x = glyphs[line.m_Index].m_X;
-        const float first_y = glyphs[line.m_Index].m_Y;
-        const float line_x = x_offset - OffsetX(properties.m_Align, line.m_Width);
-        const float line_y = y_offset - line_index * line_height * properties.m_Leading;
-        for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
-        {
-            TextGlyph& text_glyph = glyphs[glyph_index];
-            if (dmUtf8::IsWhiteSpace(text_glyph.m_Codepoint))
-                continue;
-            CachedGlyph* cached = FindGlyph(renderer, text_glyph.m_Font, text_glyph.m_GlyphIndex);
-            if (!cached)
-                continue;
-            FontPackGlyphVertices(&cached->m_Glyph,
-                                  1.0f / renderer->m_AtlasWidth,
-                                  1.0f / renderer->m_AtlasHeight,
-                                  cached->m_X,
-                                  cached->m_Y,
-                                  renderer->m_CellMaxAscent,
-                                  renderer->m_CellPadding,
-                                  layer_count,
-                                  renderer->m_LayerMask,
-                                  vertex_index,
-                                  metrics.m_VisibleGlyphCount * 6,
-                                  transform,
-                                  line_x + text_glyph.m_X - first_x,
-                                  line_y + text_glyph.m_Y - first_y,
-                                  face_color,
-                                  outline_color,
-                                  shadow_color,
-                                  0.75f,
-                                  renderer->m_SdfOutline,
-                                  smoothing,
-                                  renderer->m_SdfShadow,
-                                  renderer->m_ShadowX,
-                                  renderer->m_ShadowY,
-                                  true,
-                                  vertices);
-            vertex_index += 6;
-        }
-    }
+    FontCreateLayoutVertices(config, metrics, (FontGlyphVertex*)vertex_buffer, metrics.m_VertexCount);
     TextLayoutRelease(layout);
     return FONT_RENDERER_RESULT_OK;
 }

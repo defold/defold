@@ -106,10 +106,9 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/strip_android libexec/x86_64-macos/strip
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/strip_android libexec/arm64-macos/strip_android
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android libexec/x86_64-linux/strip_android
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android.exe libexec/x86_64-win32/strip_android.exe
-
-# strip_android_aarch64
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android_aarch64 libexec/x86_64-linux/strip_android_aarch64
-cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android_aarch64.exe libexec/x86_64-win32/strip_android_aarch64.exe
+# only the macos tool is self contained, the others load these from next to the executable
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/libc++.so.1 libexec/x86_64-linux/libc++.so.1
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/libwinpthread-1.dll libexec/x86_64-win32/libwinpthread-1.dll
 
 # zipalign
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/zipalign libexec/x86_64-macos/zipalign

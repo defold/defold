@@ -21,19 +21,26 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcBeginBatch;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcCreate;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcCreateGlyphBank;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroy;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroyMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDecodeImage;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFilterMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBufferSize;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasure;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasureParsedMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcParseMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetProperties;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetText;
 
@@ -44,12 +51,21 @@ import java.lang.ref.Cleaner;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontcGlyph;
+import com.dynamo.bob.font.generated.FontcGlyphBankGlyph;
 import com.dynamo.bob.font.generated.FontcGlyphMetrics;
 import com.dynamo.bob.font.generated.FontcImage;
 import com.dynamo.bob.font.generated.FontcLayout;
+import com.dynamo.bob.font.generated.FontcMarkupAttribute;
+import com.dynamo.bob.font.generated.FontcMarkupData;
+import com.dynamo.bob.font.generated.FontcMarkupError;
+import com.dynamo.bob.font.generated.FontcMarkupNode;
+import com.dynamo.bob.font.generated.FontcMarkupSpan;
+import com.dynamo.bob.font.generated.FontcMarkupString;
 import com.dynamo.bob.font.generated.FontcParams;
 import com.dynamo.bob.font.generated.FontcProperties;
 import com.dynamo.bob.font.generated.FontcTexture;
@@ -108,6 +124,52 @@ public final class FontRenderer implements AutoCloseable {
         public boolean useTextShaping;
     }
 
+    /** One prebaked glyph and its byte range in a {@link GlyphBank}. */
+    public static final class GlyphBankGlyph {
+        public final int codepoint;
+        public final float width;
+        public final float advance;
+        public final float leftBearing;
+        public final float ascent;
+        public final float descent;
+        public final int dataOffset;
+        public final int dataSize;
+
+        public GlyphBankGlyph(int codepoint, float width, float advance, float leftBearing,
+                              float ascent, float descent, int dataOffset, int dataSize) {
+            this.codepoint = codepoint;
+            this.width = width;
+            this.advance = advance;
+            this.leftBearing = leftBearing;
+            this.ascent = ascent;
+            this.descent = descent;
+            this.dataOffset = dataOffset;
+            this.dataSize = dataSize;
+        }
+    }
+
+    /** Uncompressed prebaked glyph data used for BMFont editor previews. */
+    public static final class GlyphBank {
+        public final GlyphBankGlyph[] glyphs;
+        public final byte[] glyphData;
+        public final int glyphPadding;
+        public final int glyphChannels;
+        public final float maxAscent;
+        public final float maxDescent;
+
+        public GlyphBank(GlyphBankGlyph[] glyphs, byte[] glyphData, int glyphPadding,
+                         int glyphChannels, float maxAscent, float maxDescent) {
+            if (glyphs == null || glyphData == null)
+                throw new NullPointerException();
+            this.glyphs = glyphs;
+            this.glyphData = glyphData;
+            this.glyphPadding = glyphPadding;
+            this.glyphChannels = glyphChannels;
+            this.maxAscent = maxAscent;
+            this.maxDescent = maxDescent;
+        }
+    }
+
     public static final class Properties {
         public boolean lineBreak;
         public float width;
@@ -119,6 +181,7 @@ public final class FontRenderer implements AutoCloseable {
         public float[] faceColor;
         public float[] outlineColor;
         public float[] shadowColor;
+        public float baseShadowAlpha = 1.0f;
         public float sdfScale;
     }
 
@@ -128,13 +191,118 @@ public final class FontRenderer implements AutoCloseable {
         public final int lineCount;
         public final float maxAscent;
         public final float maxDescent;
+        public final MarkupError markupError;
+        public final MarkupDocument markupDocument;
 
         private Layout(MemorySegment values) {
+            this(values, null, null);
+        }
+
+        private Layout(MemorySegment values, MarkupError markupError) {
+            this(values, markupError, null);
+        }
+
+        private Layout(MemorySegment values, MarkupDocument markupDocument) {
+            this(values, null, markupDocument);
+        }
+
+        private Layout(MemorySegment values, MarkupError markupError, MarkupDocument markupDocument) {
             width = FontcLayout.m_Width(values);
             height = FontcLayout.m_Height(values);
             lineCount = FontcLayout.m_LineCount(values);
             maxAscent = FontcLayout.m_MaxAscent(values);
             maxDescent = FontcLayout.m_MaxDescent(values);
+            this.markupError = markupError;
+            this.markupDocument = markupDocument;
+        }
+    }
+
+    public static final class MarkupError {
+        public final int byteOffset;
+        public final int line;
+        public final int column;
+        public final int errorType;
+        public final String message;
+
+        private MarkupError(int byteOffset, int line, int column, int errorType, String description) {
+            this.byteOffset = byteOffset;
+            this.line = line;
+            this.column = column;
+            this.errorType = errorType;
+            this.message = "Invalid rich text markup at line " + line + ", column " + column + ": " + description;
+        }
+    }
+
+    /** A generic parsed rich-text attribute copied from the native parser. */
+    public static final class MarkupAttribute {
+        public final String name;
+        public final String value;
+        public final int type;
+        public final int constant;
+
+        private MarkupAttribute(String name, String value, int type, int constant) {
+            this.name = name;
+            this.value = value;
+            this.type = type;
+            this.constant = constant;
+        }
+    }
+
+    /** A parent-linked element in a parsed rich-text document. */
+    public static final class MarkupNode {
+        public final String tag;
+        public final int type;
+        public final int parent;
+        public final int textOffset;
+        public final int textLength;
+        public final MarkupAttribute[] attributes;
+
+        private MarkupNode(String tag, int type, int parent, int textOffset, int textLength, MarkupAttribute[] attributes) {
+            this.tag = tag;
+            this.type = type;
+            this.parent = parent;
+            this.textOffset = textOffset;
+            this.textLength = textLength;
+            this.attributes = attributes;
+        }
+    }
+
+    /** A visible-text range and its innermost active markup node. */
+    public static final class MarkupSpan {
+        public final int textOffset;
+        public final int textLength;
+        public final int node;
+
+        private MarkupSpan(int textOffset, int textLength, int node) {
+            this.textOffset = textOffset;
+            this.textLength = textLength;
+            this.node = node;
+        }
+    }
+
+    /** A font-independent snapshot of native rich-text parser output. */
+    public static final class MarkupDocument {
+        public final String source;
+        public final int[] text;
+        public final MarkupNode[] nodes;
+        public final MarkupSpan[] spans;
+
+        private MarkupDocument(String source, int[] text, MarkupNode[] nodes, MarkupSpan[] spans) {
+            this.source = source;
+            this.text = text;
+            this.nodes = nodes;
+            this.spans = spans;
+        }
+    }
+
+    /** Exactly one of {@link #document} and {@link #error} is non-null. */
+    public static final class MarkupParseResult {
+        public final MarkupDocument document;
+        public final MarkupError error;
+
+        private MarkupParseResult(MarkupDocument document, MarkupError error) {
+            this.document = document;
+            this.error = error;
         }
     }
 
@@ -297,6 +465,62 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
+     * Creates a native renderer from uncompressed prebaked glyph-bank data.
+     *
+     * <p>The native context copies the complete bank before this constructor returns.</p>
+     */
+    public FontRenderer(String name, GlyphBank glyphBank, Params params) {
+        if (name == null || glyphBank == null || params == null)
+            throw new NullPointerException();
+        if (glyphBank.glyphs.length == 0 || glyphBank.glyphChannels <= 0 || glyphBank.glyphChannels > 4 ||
+                glyphBank.glyphPadding < 0 || params.size <= 0.0f || params.cacheWidth <= 0 || params.cacheHeight <= 0 ||
+                params.cacheCellPadding < 0 || params.sdfBasePadding <= 0.0f || params.sdfSpread <= 0.0f ||
+                params.sdfEdgeValue <= 0 || params.sdfEdgeValue > 255 ||
+                (params.layerMask & ~(LAYER_FACE | LAYER_OUTLINE | LAYER_SHADOW)) != 0 ||
+                (params.layerMask & LAYER_FACE) == 0)
+            throw new IllegalArgumentException("Invalid native glyph-bank renderer parameters");
+
+        MemorySegment handle;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativeGlyphs = FontcGlyphBankGlyph.allocateArray(glyphBank.glyphs.length, arena);
+            for (int index = 0; index < glyphBank.glyphs.length; ++index) {
+                GlyphBankGlyph glyph = glyphBank.glyphs[index];
+                if (glyph == null)
+                    throw new NullPointerException("glyphBank.glyphs[" + index + "]");
+                MemorySegment nativeGlyph = FontcGlyphBankGlyph.asSlice(nativeGlyphs, index);
+                FontcGlyphBankGlyph.m_Codepoint(nativeGlyph, glyph.codepoint);
+                FontcGlyphBankGlyph.m_Width(nativeGlyph, glyph.width);
+                FontcGlyphBankGlyph.m_Advance(nativeGlyph, glyph.advance);
+                FontcGlyphBankGlyph.m_LeftBearing(nativeGlyph, glyph.leftBearing);
+                FontcGlyphBankGlyph.m_Ascent(nativeGlyph, glyph.ascent);
+                FontcGlyphBankGlyph.m_Descent(nativeGlyph, glyph.descent);
+                FontcGlyphBankGlyph.m_DataOffset(nativeGlyph, glyph.dataOffset);
+                FontcGlyphBankGlyph.m_DataSize(nativeGlyph, glyph.dataSize);
+            }
+            MemorySegment nativeGlyphData = glyphBank.glyphData.length == 0
+                    ? MemorySegment.NULL
+                    : arena.allocateFrom(JAVA_BYTE, glyphBank.glyphData);
+            MemorySegment nativeParams = FontcParams.allocate(arena);
+            writeParams(nativeParams, params);
+            MemorySegment handlePointer = arena.allocate(FontRendererFFM.HFontRenderer);
+            int result;
+            synchronized (NATIVE_SESSION_LIFECYCLE_LOCK) {
+                result = FontcCreateGlyphBank(arena.allocateFrom(name), nativeGlyphs, glyphBank.glyphs.length,
+                        nativeGlyphData, glyphBank.glyphData.length, glyphBank.glyphPadding, glyphBank.glyphChannels,
+                        glyphBank.maxAscent, glyphBank.maxDescent, nativeParams, handlePointer);
+            }
+            if (result != FontRendererFFM.FONT_RENDERER_RESULT_OK())
+                throw new IllegalArgumentException("Unable to create native glyph-bank renderer for " + name +
+                        " (native result " + result + ")");
+            handle = handlePointer.get(ADDRESS, 0);
+        }
+        if (handle.equals(MemorySegment.NULL))
+            throw new IllegalArgumentException("Unable to create native glyph-bank renderer for " + name);
+        state = new State(handle);
+        cleanable = CLEANER.register(this, state);
+    }
+
+    /**
      * Shapes and measures text without including an empty line after a trailing newline.
      *
      * <p>Used by Bob to obtain font metrics and by the Editor for text layout.</p>
@@ -318,6 +542,109 @@ public final class FontRenderer implements AutoCloseable {
                     codepoints.length, flag(lineBreak), width, leading, tracking, result);
             checkResult(status, "Native text shaping failed");
             return new Layout(result);
+        }
+    }
+
+    /**
+     * Parses, shapes, and measures UTF-8 rich-text markup.
+     *
+     * <p>Malformed tags fail validation so editor resources can report a build error.</p>
+     */
+    public synchronized Layout measureMarkup(String markup, boolean lineBreak, float width, float leading, float tracking) {
+        return measureMarkup(markup, lineBreak, width, leading, tracking, false);
+    }
+
+    /**
+     * Parses, shapes, and measures UTF-8 rich-text markup, and includes its generic parsed document.
+     *
+     * <p>Use this when syntax-tree inspection is required. Regular layout calls avoid copying the
+     * parsed arrays into Java.</p>
+     */
+    public synchronized Layout measureMarkupWithDocument(String markup, boolean lineBreak, float width, float leading, float tracking) {
+        return measureMarkup(markup, lineBreak, width, leading, tracking, true);
+    }
+
+    private Layout measureMarkup(String markup, boolean lineBreak, float width, float leading, float tracking, boolean includeDocument) {
+        if (markup == null)
+            throw new NullPointerException("markup");
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment result = FontcLayout.allocate(arena);
+            MemorySegment parsedMarkupPointer = arena.allocate(FontRendererFFM.HFontcMarkup);
+            MemorySegment parseError = FontcMarkupError.allocate(arena);
+            int status = FontcParseMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
+                    parsedMarkupPointer, parseError);
+            if (status == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR() && FontcMarkupError.m_Type(parseError) != 0)
+                return new Layout(result, markupError(bytes,
+                        FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)));
+            checkResult(status, "Native rich-text shaping failed");
+
+            MemorySegment parsedMarkup = parsedMarkupPointer.get(ADDRESS, 0);
+            try {
+                status = FontcMeasureParsedMarkup(requireHandle(), parsedMarkup,
+                        flag(lineBreak), width, leading, tracking, result);
+                checkResult(status, "Native rich-text shaping failed");
+                return includeDocument
+                        ? new Layout(result, copyMarkupDocument(parsedMarkup, arena))
+                        : new Layout(result);
+            } finally {
+                FontcDestroyMarkup(parsedMarkup);
+            }
+        }
+    }
+
+    /**
+     * Parses UTF-8 rich text without requiring a font renderer.
+     *
+     * @return a font-independent document on success, or a structured parser error
+     */
+    public static MarkupParseResult parseMarkup(String markup) {
+        if (markup == null)
+            throw new NullPointerException("markup");
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment parsedMarkupPointer = arena.allocate(FontRendererFFM.HFontcMarkup);
+            MemorySegment parseError = FontcMarkupError.allocate(arena);
+            int status = FontcParseMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
+                    parsedMarkupPointer, parseError);
+            if (status == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR() && FontcMarkupError.m_Type(parseError) != 0)
+                return new MarkupParseResult(null, markupError(bytes,
+                        FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)));
+            checkResult(status, "Native rich-text parsing failed");
+
+            MemorySegment parsedMarkup = parsedMarkupPointer.get(ADDRESS, 0);
+            try {
+                return new MarkupParseResult(copyMarkupDocument(parsedMarkup, arena), null);
+            } finally {
+                FontcDestroyMarkup(parsedMarkup);
+            }
+        }
+    }
+
+    /**
+     * Removes unsupported visible codepoints from rich-text markup with the native parser.
+     * Tags, attributes, and entity spellings are preserved byte-for-byte.
+     */
+    public static String filterMarkup(String markup, int[] allowedCodepoints) {
+        if (markup == null || allowedCodepoints == null)
+            throw new NullPointerException();
+        for (int codepoint : allowedCodepoints) {
+            if (!Character.isValidCodePoint(codepoint))
+                throw new IllegalArgumentException("Invalid Unicode codepoint");
+        }
+
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment output = arena.allocate(JAVA_BYTE, Math.max(1, bytes.length));
+            MemorySegment outputByteCount = arena.allocate(JAVA_INT);
+            checkResult(FontcFilterMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
+                            arena.allocateFrom(JAVA_INT, allowedCodepoints), allowedCodepoints.length,
+                            output, bytes.length, outputByteCount),
+                    "Native rich-text filtering failed");
+            int filteredByteCount = outputByteCount.get(JAVA_INT, 0);
+            if (filteredByteCount < 0 || filteredByteCount > bytes.length)
+                throw new IllegalStateException("Invalid native filtered markup length");
+            return new String(output.asSlice(0, filteredByteCount).toArray(JAVA_BYTE), StandardCharsets.UTF_8);
         }
     }
 
@@ -423,6 +750,7 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_FaceColor(values, arena.allocateFrom(JAVA_FLOAT, properties.faceColor));
             FontcProperties.m_OutlineColor(values, arena.allocateFrom(JAVA_FLOAT, properties.outlineColor));
             FontcProperties.m_ShadowColor(values, arena.allocateFrom(JAVA_FLOAT, properties.shadowColor));
+            FontcProperties.m_BaseShadowAlpha(values, properties.baseShadowAlpha);
             FontcProperties.m_Width(values, properties.width);
             FontcProperties.m_Height(values, properties.height);
             FontcProperties.m_Leading(values, properties.leading);
@@ -449,6 +777,17 @@ public final class FontRenderer implements AutoCloseable {
         try (Arena arena = Arena.ofConfined()) {
             checkResult(FontcSetText(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints), codepoints.length),
                     "Unable to set native font renderer text");
+        }
+    }
+
+    /** Retains UTF-8 rich-text markup for subsequent texture and vertex generation. */
+    public synchronized void setMarkup(String markup) {
+        if (markup == null)
+            throw new NullPointerException("markup");
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            checkResult(FontcSetMarkup(requireHandle(), arena.allocateFrom(JAVA_BYTE, bytes), bytes.length),
+                    "Unable to set native rich text");
         }
     }
 
@@ -588,6 +927,111 @@ public final class FontRenderer implements AutoCloseable {
 
     private static int flag(boolean value) {
         return value ? 1 : 0;
+    }
+
+    private static MarkupDocument copyMarkupDocument(MemorySegment parsedMarkup, Arena arena) {
+        MemorySegment data = FontcMarkupData.allocate(arena);
+        checkResult(FontcGetMarkupData(parsedMarkup, data), "Unable to read parsed rich text");
+
+        int sourceLength = FontcMarkupData.m_SourceLength(data);
+        byte[] source = sourceLength == 0
+                ? new byte[0]
+                : FontcMarkupData.m_Source(data).reinterpret(sourceLength).toArray(JAVA_BYTE);
+
+        int textLength = FontcMarkupData.m_TextLength(data);
+        int[] text = textLength == 0
+                ? new int[0]
+                : FontcMarkupData.m_Text(data).reinterpret((long)textLength * JAVA_INT.byteSize()).toArray(JAVA_INT);
+
+        int attributeCount = FontcMarkupData.m_AttributeCount(data);
+        MarkupAttribute[] attributes = new MarkupAttribute[attributeCount];
+        if (attributeCount != 0) {
+            MemorySegment nativeAttributes = FontcMarkupData.m_Attributes(data)
+                    .reinterpret((long)attributeCount * FontcMarkupAttribute.layout().byteSize());
+            for (int index = 0; index < attributeCount; ++index) {
+                MemorySegment attribute = FontcMarkupAttribute.asSlice(nativeAttributes, index);
+                attributes[index] = new MarkupAttribute(
+                        sourceString(source, FontcMarkupAttribute.m_Name(attribute)),
+                        sourceString(source, FontcMarkupAttribute.m_Value(attribute)),
+                        Byte.toUnsignedInt(FontcMarkupAttribute.m_Type(attribute)),
+                        Byte.toUnsignedInt(FontcMarkupAttribute.m_Constant(attribute)));
+            }
+        }
+
+        int nodeCount = FontcMarkupData.m_NodeCount(data);
+        MarkupNode[] nodes = new MarkupNode[nodeCount];
+        MemorySegment nativeNodes = FontcMarkupData.m_Nodes(data)
+                .reinterpret((long)nodeCount * FontcMarkupNode.layout().byteSize());
+        for (int index = 0; index < nodeCount; ++index) {
+            MemorySegment node = FontcMarkupNode.asSlice(nativeNodes, index);
+            int parent = Short.toUnsignedInt(FontcMarkupNode.m_Parent(node));
+            int attributeIndex = Short.toUnsignedInt(FontcMarkupNode.m_AttributeIndex(node));
+            int nodeAttributeCount = Short.toUnsignedInt(FontcMarkupNode.m_AttributeCount(node));
+            nodes[index] = new MarkupNode(
+                    sourceString(source, FontcMarkupNode.m_Tag(node)),
+                    Byte.toUnsignedInt(FontcMarkupNode.m_Type(node)),
+                    parent == 0xffff ? -1 : parent,
+                    FontcMarkupNode.m_TextOffset(node),
+                    FontcMarkupNode.m_TextLength(node),
+                    Arrays.copyOfRange(attributes, attributeIndex, attributeIndex + nodeAttributeCount));
+        }
+
+        int spanCount = FontcMarkupData.m_SpanCount(data);
+        MarkupSpan[] spans = new MarkupSpan[spanCount];
+        if (spanCount != 0) {
+            MemorySegment nativeSpans = FontcMarkupData.m_Spans(data)
+                    .reinterpret((long)spanCount * FontcMarkupSpan.layout().byteSize());
+            for (int index = 0; index < spanCount; ++index) {
+                MemorySegment span = FontcMarkupSpan.asSlice(nativeSpans, index);
+                spans[index] = new MarkupSpan(
+                        FontcMarkupSpan.m_TextOffset(span),
+                        FontcMarkupSpan.m_TextLength(span),
+                        Short.toUnsignedInt(FontcMarkupSpan.m_NodeIndex(span)));
+            }
+        }
+
+        return new MarkupDocument(new String(source, StandardCharsets.UTF_8), text, nodes, spans);
+    }
+
+    private static String sourceString(byte[] source, MemorySegment string) {
+        int offset = FontcMarkupString.m_Offset(string);
+        int length = Short.toUnsignedInt(FontcMarkupString.m_Length(string));
+        return new String(source, offset, length, StandardCharsets.UTF_8);
+    }
+
+    private static MarkupError markupError(byte[] markup, int nativeByteOffset, int errorType) {
+        int byteOffset = Math.min(nativeByteOffset, markup.length);
+        int line = 1;
+        int lineByteOffset = 0;
+        for (int index = 0; index < byteOffset; ++index) {
+            int value = markup[index] & 0xff;
+            if (value == '\n') {
+                ++line;
+                lineByteOffset = index + 1;
+            }
+        }
+        int column = new String(markup, lineByteOffset, byteOffset - lineByteOffset, StandardCharsets.UTF_8).length() + 1;
+        return new MarkupError(byteOffset, line, column, errorType, markupErrorDescription(errorType));
+    }
+
+    private static String markupErrorDescription(int errorType) {
+        return switch (errorType) {
+            case 1 -> "incomplete tag";
+            case 2 -> "incomplete entity";
+            case 3 -> "unclosed tag";
+            case 4 -> "invalid tag";
+            case 5 -> "invalid attribute";
+            case 6 -> "invalid entity";
+            case 7 -> "unexpected closing tag";
+            case 8 -> "mismatched closing tag";
+            case 9 -> "invalid UTF-8";
+            case 10 -> "parser limit exceeded";
+            case 11 -> "markup is unsupported";
+            case 12 -> "unknown tag";
+            case 13 -> "unknown attribute";
+            case 14 -> "unknown value for attribute";
+            default -> "parse error";
+        };
     }
 
     private static void checkResult(int result, String message) {

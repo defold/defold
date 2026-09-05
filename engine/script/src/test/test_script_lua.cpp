@@ -134,11 +134,17 @@ TEST_F(ScriptTestLua, TestLuaCallstack)
     luaL_checktype(L, -1, LUA_TFUNCTION);
     int ret = dmScript::PCall(L, 0, LUA_MULTRET);
 
-    ASSERT_EQ(5, ret);
+    // A deep call stack must preserve the original runtime-error result instead
+    // of turning it into an error raised by the native traceback handler.
+    ASSERT_EQ(LUA_ERRRUN, ret);
     ASSERT_EQ(top, lua_gettop(L));
 
+    // Verify that the existing call-stack fixture still logs the original error,
+    // a traceback, and the marker that replaces its elided middle frames.
     const char* log = GetLog();
-    printf("LOG: %s\n", log ? log : "");
+    ASSERT_NE((const char*)0, strstr(log, "attempt to index global 'testmodule'"));
+    ASSERT_NE((const char*)0, strstr(log, "stack traceback:"));
+    ASSERT_NE((const char*)0, strstr(log, "  ...\n"));
 }
 
 TEST_F(ScriptTestLua, TestPPrintTruncate)
@@ -496,6 +502,195 @@ TEST_F(ScriptTestLua, TestErrorHandlerFunction)
     lua_pushcfunction(L, FailingFunc);
     result = dmScript::PCall(L, 0, LUA_MULTRET);
     ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+// Verifies that an error raised from a deep Lua call stack reaches the registered
+// error handler with both its original message and a usable traceback.
+TEST_F(ScriptTestLua, TestErrorHandlerWithDeepCallstack)
+{
+    int top = lua_gettop(L);
+
+    // Capture the values forwarded by PCallInternal after its native traceback
+    // handler has processed the error.
+    const char* install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    // Prevent tail-call elimination so all 30 recursive Lua frames remain on
+    // the stack when the error is raised. This takes GetLuaTraceback through
+    // its middle-frame elision path (LEVELS1 + LEVELS2).
+    const char* deep_error =
+        "local function f(depth)\n"
+        "    if depth == 0 then error('deep error', 0) end\n"
+        "    local result = f(depth - 1)\n"
+        "    return result\n"
+        "end\n"
+        "return function() return f(30) end\n";
+
+    // Keep the source name short so this test only exercises deep-stack handling,
+    // independently of the traceback buffer size.
+    ASSERT_EQ(0, luaL_loadbuffer(L, deep_error, strlen(deep_error), "@x.lua"));
+    ASSERT_EQ(0, lua_pcall(L, 0, 1, 0));
+    ASSERT_TRUE(lua_isfunction(L, -1));
+
+    // LUA_ERRRUN means the original runtime error survived. LUA_ERRERR here
+    // means that BacktraceErrorHandler itself failed while handling the error.
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    EXPECT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Use non-fatal checks so one run reports whether either callback argument
+    // was lost even when the native error handler returned LUA_ERRERR.
+    lua_getglobal(L, "_error");
+    int error_type = lua_type(L, -1);
+    EXPECT_EQ(LUA_TSTRING, error_type);
+    if (error_type == LUA_TSTRING)
+        EXPECT_STREQ("deep error", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "_traceback");
+    int traceback_type = lua_type(L, -1);
+    EXPECT_EQ(LUA_TSTRING, traceback_type);
+    if (traceback_type == LUA_TSTRING)
+        EXPECT_NE((const char*)0, strstr(lua_tostring(L, -1), "x.lua"));
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+static uint32_t CountCharacter(const char* string, char character)
+{
+    uint32_t count = 0;
+    while (*string != '\0')
+    {
+        if (*string == character)
+            ++count;
+        ++string;
+    }
+    return count;
+}
+
+// Verifies that long source paths do not silently remove traceback frames by
+// comparing them with an otherwise identical call chain using short paths.
+TEST_F(ScriptTestLua, TestErrorHandlerTracebackWithLongPaths)
+{
+    int top = lua_gettop(L);
+
+    // Build two identical chains from separately named chunks. Only their
+    // source-path lengths differ, so both tracebacks must contain the same
+    // number of complete frames.
+    const char* setup =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n"
+        "local function make_chain(path, depth)\n"
+        "    local source = [[\n"
+        "local next = ...\n"
+        "return function()\n"
+        "    local result = next()\n"
+        "    return result\n"
+        "end]]\n"
+        "    local result = assert(loadstring([[return function() error('traceback error', 0) end]], '@' .. path .. 'base.lua'))()\n"
+        "    for i = 1, depth do\n"
+        "        local factory = assert(loadstring(source, ('@%sframe_%02d.lua'):format(path, i)))\n"
+        "        result = factory(result)\n"
+        "    end\n"
+        "    return result\n"
+        "end\n"
+        "_short_path_error = make_chain('s/', 16)\n"
+        "_long_path_error = make_chain('main/deeply/nested/module/path/realistic_xxxxxxxxxxxxxxxxxxxxxxxxx/', 16)\n";
+
+    // Sixteen frames exceeded the legacy 1024-byte traceback buffer only when
+    // the paths were long, and remain below the deep-stack elision threshold.
+    ASSERT_TRUE(RunString(L, setup));
+
+    // Establish the complete-frame baseline using names that fit comfortably
+    // inside the traceback buffer.
+    lua_getglobal(L, "_short_path_error");
+    ASSERT_TRUE(lua_isfunction(L, -1));
+    ASSERT_EQ(LUA_ERRRUN, dmScript::PCall(L, 0, LUA_MULTRET));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    lua_getglobal(L, "_traceback");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    uint32_t short_path_line_count = CountCharacter(lua_tostring(L, -1), '\n');
+    lua_pop(L, 1);
+
+    // Repeat with long names whose formatted entries exceeded the legacy buffer
+    // in aggregate without increasing the call-stack depth.
+    lua_getglobal(L, "_long_path_error");
+    ASSERT_TRUE(lua_isfunction(L, -1));
+    ASSERT_EQ(LUA_ERRRUN, dmScript::PCall(L, 0, LUA_MULTRET));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    lua_getglobal(L, "_traceback");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    uint32_t long_path_line_count = CountCharacter(lua_tostring(L, -1), '\n');
+    lua_pop(L, 1);
+
+    // Path length may change the byte length of a traceback, but it must not
+    // silently remove frames from an otherwise identical call chain.
+    EXPECT_EQ(short_path_line_count, long_path_line_count);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+// Verifies that a traceback too large for the bounded native buffer ends with an
+// explicit truncation marker instead of a silently shortened or partial frame.
+TEST_F(ScriptTestLua, TestErrorHandlerMarksTruncatedTraceback)
+{
+    int top = lua_gettop(L);
+
+    // Capture the error information passed through the native error handler so
+    // the test can inspect the final traceback string directly.
+    const char* install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    // Lua does not limit debug-entry function names to LUA_IDSIZE. Calling a
+    // function with an unusually long identifier forces one formatted frame to
+    // exceed the complete traceback buffer without requiring a huge call stack.
+    const char* oversized_error =
+        "return function()\n"
+        "    local name = string.rep('a', 9000)\n"
+        "    local source = \"function \" .. name .. \"() error('oversized error', 0) end\\n\" .. name .. \"()\"\n"
+        "    assert(loadstring(source, '@oversized.lua'))()\n"
+        "end\n";
+
+    ASSERT_EQ(0, luaL_loadbuffer(L, oversized_error, strlen(oversized_error), "@truncation_test.lua"));
+    ASSERT_EQ(0, lua_pcall(L, 0, 1, 0));
+    ASSERT_TRUE(lua_isfunction(L, -1));
+    ASSERT_EQ(LUA_ERRRUN, dmScript::PCall(L, 0, LUA_MULTRET));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // The original error remains usable even though its traceback could not be
+    // represented in full.
+    lua_getglobal(L, "_error");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    EXPECT_STREQ("oversized error", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    // The marker must be the complete suffix, proving no later frame overwrote
+    // it and no partial line was presented as a complete traceback.
+    lua_getglobal(L, "_traceback");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    const char* marker = "  ... (traceback truncated)\n";
+    const char* traceback = lua_tostring(L, -1);
+    const char* marker_position = strstr(traceback, marker);
+    ASSERT_NE((const char*)0, marker_position);
+    EXPECT_STREQ(marker, marker_position);
+    lua_pop(L, 1);
+
     ASSERT_EQ(top, lua_gettop(L));
 }
 

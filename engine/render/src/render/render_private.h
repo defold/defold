@@ -49,6 +49,7 @@ namespace dmRender
         dmGraphics::TextureFilter    m_MagFilter;
         dmGraphics::TextureWrap      m_UWrap;
         dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureWrap      m_WWrap;
         dmGraphics::HUniformLocation m_Location;
         float                        m_MaxAnisotropy;
         uint8_t                      m_UnitValueCount;
@@ -60,6 +61,7 @@ namespace dmRender
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_WWrap(dmGraphics::TEXTURE_WRAP_REPEAT)
             , m_Location(dmGraphics::INVALID_UNIFORM_LOCATION)
             , m_MaxAnisotropy(1.0f)
             , m_UnitValueCount(0)
@@ -386,7 +388,7 @@ namespace dmRender
     void     SetProgramRenderConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, const dmVMath::Vector4* values, uint32_t count);
     void     SetProgramConstantType(const dmArray<RenderConstant>& constants, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool     GetProgramConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, HConstant& out_value);
-    bool     SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool     SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t GetProgramSamplerUnit(const dmArray<Sampler>& samplers, dmhash_t name_hash);
     int32_t  GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash);
     HSampler GetProgramSampler(const dmArray<Sampler>& samplers, uint32_t unit);

@@ -18,9 +18,12 @@
   (:require [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.attribute :as attribute]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.gl.types :as gl.types]
             [editor.gl.vertex2 :as vtx]
+            [editor.graphics.types :as graphics.types]
             [editor.math :as math]
             [editor.scene-picking :as scene-picking])
   (:import [com.jogamp.opengl GL2]
@@ -323,6 +326,18 @@
 
 (def ^:private no-point-offset-by-w (float-array 4 0.0))
 
+(def ^:private position-attribute-info
+  {:name-key :position
+   :semantic-type :semantic-type-position})
+
+(defn- geometry-vertex-binding [gl {:keys [position-buffer vbuf vertex-binding]}]
+  (or vertex-binding
+      (when position-buffer
+        (attribute/make-attribute-buffer-binding
+          position-buffer
+          (first (shader/attribute-locations shader gl [position-attribute-info]))))
+      (vtx/use-with (System/identityHashCode vbuf) vbuf shader)))
+
 (defn render-lines [^GL2 gl render-args renderables _num-renderables]
   (assert (not= pass/selection (:pass render-args)) "color not intended for picking")
   (let [{:keys [selected user-data world-transform]} (first renderables)
@@ -336,11 +351,12 @@
                              (:view render-args)
                              (:projection render-args)
                              (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
+        point-count (long (or (:point-count user-data)
+                              (some-> vbuf count)
+                              0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
+        vertex-binding (geometry-vertex-binding gl geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (shader/set-uniform shader gl "point_scale" point-scale)
       (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
@@ -351,7 +367,7 @@
   (let [renderable (first renderables)
         {:keys [selected user-data world-transform]} renderable
         {:keys [color double-sided geometry]} user-data
-        {:keys [primitive-type vbuf]} geometry
+        {:keys [index-buffer primitive-type vbuf]} geometry
         color (float-array
                 (cond
                   (= pass/selection (:pass render-args))
@@ -371,39 +387,53 @@
                              (:view render-args)
                              (:projection render-args)
                              (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
+        point-count (long (or (:point-count user-data)
+                              (some-> vbuf count)
+                              0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
-    (gl/with-gl-bindings gl render-args [shader vertex-binding]
+        vertex-binding (geometry-vertex-binding gl geometry)
+        bindings (cond-> [shader vertex-binding]
+                   index-buffer (conj index-buffer))]
+    (gl/with-gl-bindings gl render-args bindings
       (when-not double-sided
         (gl/gl-enable gl GL2/GL_CULL_FACE)
         (gl/gl-cull-face gl GL2/GL_BACK))
       (shader/set-uniform shader gl "point_scale" point-scale)
       (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
       (shader/set-uniform shader gl "color" color)
-      (gl/gl-draw-arrays gl primitive-type 0 point-count)
+      (if index-buffer
+        (gl/gl-draw-elements gl
+                             primitive-type
+                             (gl.types/element-buffer-gl-type index-buffer)
+                             0
+                             (graphics.types/element-count index-buffer))
+        (gl/gl-draw-arrays gl primitive-type 0 point-count))
       (when-not double-sided
         (gl/gl-disable gl GL2/GL_CULL_FACE)))))
 
 (defn render-points [^GL2 gl render-args renderables _num-renderables]
-  (let [{:keys [selected user-data world-transform]} (first renderables)
+  (let [renderable (first renderables)
+        {:keys [selected user-data world-transform]} renderable
         {:keys [color geometry ^double point-size]} user-data
         {:keys [primitive-type vbuf]} geometry
-        color (float-array (or (colors/selection-color selected)
-                               (colors/alpha color 1.0)))
+        color (float-array
+                (if (= pass/selection (:pass render-args))
+                  (scene-picking/renderable-picking-id-uniform renderable)
+                  (or (colors/selection-color selected)
+                      (colors/alpha color 1.0))))
         render-args (merge render-args
                            (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
-                            world-transform
-                            (:view render-args)
-                            (:projection render-args)
-                            (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
+                             world-transform
+                             (:view render-args)
+                             (:projection render-args)
+                             (:texture render-args)))
+        point-count (long (or (:point-count user-data)
+                              (some-> vbuf count)
+                              0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
+        vertex-binding (geometry-vertex-binding gl geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (.glPointSize gl point-size)
       (shader/set-uniform shader gl "point_scale" point-scale)

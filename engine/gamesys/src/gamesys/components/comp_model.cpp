@@ -97,6 +97,7 @@ namespace dmGameSystem
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         dmGraphics::HTexture        m_MorphTargetTexture;
+        dmhash_t                    m_MorphModelId;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
@@ -540,7 +541,7 @@ namespace dmGameSystem
         }
         else if (component->m_RigInstance)
         {
-            w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_Model->m_Id, &wcount);
+            w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_MorphModelId, &wcount);
         }
 
         // Fallback to base weights (written DDF data)
@@ -1112,6 +1113,7 @@ namespace dmGameSystem
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
             item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture ? resource->m_Meshes[i].m_MorphTargetTexture->m_Texture : 0;
+            item.m_MorphModelId = resource->m_Meshes[i].m_MorphModelId;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -2330,7 +2332,7 @@ namespace dmGameSystem
             }
 
             uint32_t wc = 0;
-            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, render_item.m_Model->m_Id, &wc);
+            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, render_item.m_MorphModelId, &wc);
             if (w && wc > 0)
             {
                 *out_weights = w;

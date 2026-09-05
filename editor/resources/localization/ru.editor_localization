@@ -124,8 +124,22 @@ updater.dialog.button.not-now = Не Сейчас
 updater.dialog.button.download = Загрузить Обновление
 updater.dialog.button.install-and-restart = Установить и Перезапустить
 updater.dialog.button.download-newer-version = Загрузить Более Новую Версию
+updater.dialog.button.skip-version = Пропустить эту версию
+updater.dialog.button.skip-newer-version = Пропустить новую версию
+updater.release-notes-dialog.title = Доступно Обновление
+updater.release-notes-dialog.header = Сводка о выпуске - Что нового в Defold{count, plural, one {} few {} many {}\=1{ {version}} other{}}
+updater.release-notes-dialog.button.later = Может быть позже
+updater.release-notes-dialog.button.update-now = Обновить Сейчас
+updater.up-to-date-dialog.title = Нет доступных обновлений
+updater.up-to-date-dialog.header = Вы используете последнюю версию Defold
+updater.check-failed-dialog.title = Проверка не удалась
+updater.check-failed-dialog.header = Не удалось проверить наличие обновлений. Пожалуйста, повторите попытку позже.
+updater.download-in-progress-dialog.title = Выполняется обновление
+updater.download-in-progress-dialog.header = Defold уже загружает обновление
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-tab.title = Список изменений
+release-notes-tab.tooltip = Список изменений — что нового в Defold {version}
 
 # Time
 time.vague.unknown = Неизвестно
@@ -274,6 +288,9 @@ dialog.quit-defold.button.quit = Выйти без сохранения
 
 # Project directory unavailable dialog
 
+dialog.project-directory-unavailable.title = Папка проекта недоступна
+dialog.project-directory-unavailable.header = Невозможно найти папку проекта
+dialog.project-directory-unavailable.content = Папка проекта была перемещена, переименована или удалена вне Defold. Все несохраненные изменения будут потеряны.
 
 # Restart Defold dialog
 
@@ -1045,6 +1062,8 @@ command.help.report-issue = Сообщить о проблеме
 command.help.report-suggestion = Предложить улучшение
 command.help.open-issues = Поиск по задачам
 command.help.open-donations = Фонд разработки
+command.help.open-release-notes = Список изменений
+command.help.check-for-updates = Проверить обновления
 command.app.about = О программе
 command.vcs.diff = Сравнить
 command.vcs.revert = Откатить
@@ -1133,6 +1152,7 @@ scene-popup.scene-visibility.gui-shapes = GUI формы
 scene-popup.scene-visibility.gui-particle-effects = GUI эффекты частиц
 scene-popup.scene-visibility.gui-spine-scenes = GUI Spine-сцены
 scene-popup.scene-visibility.gui-text = GUI текст
+scene-popup.scene-visibility.lights = Свет
 scene-popup.scene-visibility.models = Модели
 scene-popup.scene-visibility.particle-effects = Эффекты частиц
 scene-popup.scene-visibility.skeletons = Скелеты
@@ -1186,6 +1206,12 @@ property.appmanifest.profiler = Профайлер
 property.appmanifest.profiler.tooltip = Выберите, какие сборки включают профайлер. **Debug Only** исключает его из релизных сборок, **None** исключает полностью, а **Always** включает и в релизные сборки.
 property.appmanifest.exclude-sound = Отключить звук
 property.appmanifest.exclude-sound.tooltip = Удаляет из движка все функции воспроизведения звука. Включайте, только если проект не воспроизводит аудио.
+property.appmanifest.exclude-gui = Исключить GUI
+property.appmanifest.exclude-gui.tooltip = Удалить ресурсы GUI, компоненты и поддержку Lua из движка. Используйте только тогда, когда проект не использует сценарии или скрипты GUI.
+property.appmanifest.exclude-particle-fx = Исключить PartcleFX
+property.appmanifest.exclude-particle-fx.tooltip = Удалить ресурсы эффектов частиц, компоненты и поддержку Lua, включая элементы частиц в GUI сценах. GUI сцены без элементов частиц остаются поддерживаемыми.
+property.appmanifest.exclude-tilemap = Исключить карты тайлов
+property.appmanifest.exclude-tilemap.tooltip = Удалить ресурсы карт тайлов, компоненты и поддержку Lua из движка. Используйте только тогда, когда проект не использует плиточные карты.
 property.appmanifest.exclude-sound-decoder-wav = Отключить декодер звука\: WAV
 property.appmanifest.exclude-sound-decoder-wav.tooltip = Удаляет поддержку звуковых ресурсов `.wav`. Включайте, только если проект не воспроизводит аудио WAV.
 property.appmanifest.exclude-sound-decoder-ogg = Отключить декодер звука\: OGG
@@ -1936,8 +1962,6 @@ form.label.project.android.display_cutout = Область выреза
 form.help.project.android.display_cutout = Позволяет полноэкранному содержимому заходить в области вырезов дисплея, например чёлок и отверстий для камеры. В Android 15/API 35 и новее такое поведение может быть обязательным. Используйте `window.get_safe_area()`, чтобы важные элементы интерфейса находились внутри безопасной области.
 form.label.project.android.debuggable = Возможность отладки
 form.help.project.android.debuggable = Задаёт `android\:debuggable` в манифесте, позволяя таким инструментам, как профилировщики и отладчики Android Studio, исследовать приложение и его файлы. Оставляйте отключённым для релизных сборок, если это явно не требуется.
-form.label.project.android.proguard = Конфигурация ProGuard
-form.help.project.android.proguard = Пользовательские правила `.pro`, используемые при сокращении и обфускации Java-кода в сборке Android. Добавьте правила сохранения для кода, доступного через рефлексию или JNI, чтобы он не был удалён или переименован. Оставьте пустым, если правила для проекта не нужны.
 form.label.project.android.extract_native_libs = Извлекать библиотеки
 form.help.project.android.extract_native_libs = Определяет, извлекает ли Android нативные библиотеки из пакета при установке. Если параметр отключён, библиотеки остаются несжатыми и загружаются непосредственно из пакета; это необходимо для совместимости с устройствами, использующими страницы памяти размером 16 КБ.
 

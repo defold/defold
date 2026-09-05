@@ -31,6 +31,7 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
+            [editor.code.view :as code-view]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -971,7 +972,7 @@
   [app-view changes-view project prefs]
   (when (and (auto-save-on-app-unfocus? prefs)
              (can-async-save?))
-    (async-save! app-view changes-view project project/dirty-save-data)))
+    (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
@@ -1660,37 +1661,57 @@
     (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
-(defn- build-html5! [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane bob-commands]
-  (let [main-scene (.getScene ^Stage main-stage)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        render-reload-progress! (make-render-task-progress :resource-sync)
-        render-save-progress! (make-render-task-progress :save-all)
-        [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-        bob-args (bob/build-html5-bob-options project prefs)]
-    (build-errors-view/clear-build-errors build-errors-view)
-    (future/io
-      (let [build-results
-            (with-open [out (start-new-log-pipe!)]
-              (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                               out build-task-cancelled? bob-commands bob-args project changes-view))]
-        (ui/run-now
-          (if-let [error (:error build-results)]
-            (render-build-error! error)
-            (let [url (str (http-server/local-url web-server) "/html5")]
-              (if (prefs/get prefs [:build :open-html5-build])
-                (ui/open-url url)
-                (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))))
-        build-results))))
+(defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
+  (if-not (disk-availability/try-push-busy!)
+    {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
+    (try
+      (let [evaluation-context (g/make-evaluation-context)
+            options (cond-> options
+                      (not (contains? options "build-server"))
+                      (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+
+                      (not (contains? options "build-server-header"))
+                      (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+            main-scene (g/node-value app-view :scene evaluation-context)
+            tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+            render-reload-progress! (make-render-task-progress :resource-sync)
+            render-save-progress! (make-render-task-progress :save-all)
+            [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
+            _ (ui/run-now
+                (g/update-cache-from-evaluation-context! evaluation-context)
+                (build-errors-view/clear-build-errors build-errors-view))
+            build-results (with-open [out (start-new-log-pipe!)]
+                            (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                                             out build-task-cancelled? commands options project changes-view))]
+        (when-let [error (:error build-results)]
+          (ui/run-now (render-build-error! error)))
+        build-results)
+      (finally
+        (disk-availability/pop-busy!)))))
+
+(defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
+  (future/io
+    (let [{:keys [error] :as build-results}
+          (invoke-bob! app-view project changes-view build-errors-view prefs (bob/build-html5-bob-options project prefs) bob-commands)]
+      (when-not error
+        (let [url (str (http-server/local-url web-server) "/html5")]
+          (if (prefs/get prefs [:build :open-html5-build])
+            (ui/open-url url)
+            (console/append-console-entry! nil (format "INFO: The game is available at %s" url)))))
+      build-results)))
 
 (handler/defhandler :project.clean-build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane localization]
+  (enabled? [] (disk-availability/available?))
+  (run [app-view project prefs web-server build-errors-view changes-view localization]
     (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
-      (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+      (build-html5! app-view project prefs web-server build-errors-view changes-view
                     bob/clean-build-html5-bob-commands))))
 
 (handler/defhandler :project.build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-    (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+  (enabled? [] (disk-availability/available?))
+  (run [app-view project prefs web-server build-errors-view changes-view]
+    (build-html5! app-view project prefs web-server build-errors-view changes-view
                   bob/build-html5-bob-commands)))
 
 (defn- updated-build-resource-proj-paths [old-etags new-etags]
@@ -3035,22 +3056,36 @@
                                                                       :use-custom-editor false})))))
 
 (defn- async-save!
-  ([app-view changes-view project save-data-fn]
-   (async-save! app-view changes-view project save-data-fn nil))
-  ([app-view changes-view project save-data-fn callback!]
+  ([app-view changes-view project prefs save-data-fn]
+   (async-save! app-view changes-view project prefs save-data-fn nil))
+  ([app-view changes-view project prefs save-data-fn callback!]
    {:pre [(g/node-id? app-view)
           (g/node-id? changes-view)
           (g/node-id? project)
           (ifn? save-data-fn)
           (or (nil? callback!) (ifn? callback!))]}
    (let [render-reload-progress! (make-render-task-progress :resource-sync)
-         render-save-progress! (make-render-task-progress :save-all)]
-     (disk/async-save! render-reload-progress! render-save-progress! save-data-fn project changes-view
-                       (fn [successful?]
-                         (when successful?
-                           (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
-                         (when callback!
-                           (callback! successful? render-reload-progress! render-save-progress!)))))))
+         render-save-progress! (make-render-task-progress :save-all)
+         save! (fn save! []
+                 (disk/async-save! render-reload-progress! render-save-progress! save-data-fn project changes-view
+                                   (fn [successful?]
+                                     (when successful?
+                                       (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
+                                     (when callback!
+                                       (callback! successful? render-reload-progress! render-save-progress!)))))]
+     (if-not (prefs/get prefs [:code :format-on-save])
+       (save!)
+       (do
+         (disk-availability/push-busy!)
+         (try
+           (code-view/async-format-on-save!
+             (coll/keys (g/node-value app-view :open-views))
+             (fn formatted! []
+               (disk-availability/pop-busy!)
+               (save!)))
+           (catch Throwable error
+             (disk-availability/pop-busy!)
+             (throw error))))))))
 
 (defn- restart-defold! [^Stage stage prefs]
   (store-window-state! stage prefs)
@@ -3075,7 +3110,7 @@
                            {:text (localization/message "dialog.restart-defold.button.save-and-restart")
                             :default-button true
                             :result true}]})
-          (async-save! app-view changes-view project project/dirty-save-data
+          (async-save! app-view changes-view project prefs project/dirty-save-data
                        (fn [successful? _render-reload-progress! _render-save-progress!]
                          (when successful?
                            (restart-defold! stage prefs)))))))))
@@ -3100,12 +3135,12 @@
 
 (handler/defhandler :file.save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
-  (run [app-view changes-view project]
-    (async-save! app-view changes-view project project/dirty-save-data)))
+  (run [app-view changes-view project prefs]
+    (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (handler/defhandler :file.save-and-upgrade-all :global
   (enabled? [] (not (bob/build-in-progress?)))
-  (run [app-view changes-view project workspace localization]
+  (run [app-view changes-view project prefs workspace localization]
     (let [git (g/node-value changes-view :git)]
       (when (and
 
@@ -3191,7 +3226,7 @@
           (when save-data-fn
             ;; The user has opted to proceed with the file format upgrade.
             (project/clear-cached-save-data! project)
-            (async-save! app-view changes-view project save-data-fn)))))))
+            (async-save! app-view changes-view project prefs save-data-fn)))))))
 
 (handler/defhandler :file.load-external-changes :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))
@@ -3577,27 +3612,10 @@
                         f))
     :fetch-libraries! (fn fetch-libraries! []
                         (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
-    :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
-                   (let [options (cond-> options
-                                   (not (contains? options "build-server"))
-                                   (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
-                                   (not (contains? options "build-server-header"))
-                                   (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-                         main-scene (g/node-value app-view :scene evaluation-context)
-                         tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-                         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-                         render-reload-progress! (make-render-task-progress :resource-sync)
-                         render-save-progress! (make-render-task-progress :save-all)
-                         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)]
-                     (future/io
-                       (ui/run-now (build-errors-view/clear-build-errors build-errors-view))
-                       (let [{:keys [error]}
-                             (with-open [out (start-new-log-pipe!)]
-                               (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                                out build-task-cancelled? commands options project changes-view))]
-                         (when error
-                           (ui/run-now (render-build-error! error))
-                           (throw (LuaError. "Bob invocation failed")))))))
+    :invoke-bob! (fn invoke-bob-from-editor-script! [options commands]
+                   (future/io
+                     (when (:error (invoke-bob! app-view project changes-view build-errors-view prefs options commands))
+                       (throw (LuaError. "Bob invocation failed")))))
     :web-server web-server)
   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))

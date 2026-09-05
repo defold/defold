@@ -218,6 +218,33 @@ TEST_F(EngineTest, ProjectFail)
     ProfileFinalize(); // Making sure it is cleaned up
 }
 
+TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)
+{
+    char resources_path[256];
+    MAKE_PATH(resources_path, "/");
+
+    const char* argv[] = {"test_engine", "foo", "notaprojectfile"};
+    char project_file[256];
+    ASSERT_TRUE(dmEngine::GetProjectFile(DM_ARRAY_SIZE(argv), (char**)argv, resources_path, project_file, sizeof(project_file)));
+
+    char expected_project_file[256];
+    MAKE_PATH(expected_project_file, "/game.projectc");
+    ASSERT_STREQ(expected_project_file, project_file);
+}
+
+TEST_F(EngineTest, MissingProjectLastArgumentOverridesProjectFile)
+{
+    char resources_path[256];
+    MAKE_PATH(resources_path, "/");
+
+    char missing_project_file[256];
+    MAKE_PATH(missing_project_file, "/notexist.projectc");
+    const char* argv[] = {"test_engine", missing_project_file};
+    char project_file[256];
+    ASSERT_TRUE(dmEngine::GetProjectFile(DM_ARRAY_SIZE(argv), (char**)argv, resources_path, project_file, sizeof(project_file)));
+    ASSERT_STREQ(missing_project_file, project_file);
+}
+
 static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
 {
     dmEngine::Stats stats;

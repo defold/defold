@@ -956,6 +956,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = CreateNameFromHash("mesh", i);
+        mesh->m_PrimitiveType = (PrimitiveType)prim->type;
 
         uint32_t material_index = FindIndex(gltf_data->materials, prim->material);
         if (material_index != INVALID_INDEX)
@@ -1149,7 +1150,8 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
     {
         cgltf_mesh* gltf_mesh = &gltf_data->meshes[i]; // our "Model"
         Model* model = &scene->m_Models[i];
-        model->m_Name = DuplicateObjectName(gltf_mesh);
+        model->m_NameIsGenerated = gltf_mesh->name == 0;
+        model->m_Name = gltf_mesh->name ? DuplicateObjectName(gltf_mesh) : CreateNameFromHash("model", i);
         model->m_Index = i;
 
         LoadPrimitives(scene, model, gltf_data, gltf_mesh); // Our "Meshes"
@@ -2000,11 +2002,6 @@ static void CreateNames(cgltf_options* options, cgltf_data* data)
     for (uint32_t i = 0; i < data->materials_count; ++i)
     {
         CREATE_NAME(&data->materials[i], "material", i);
-    }
-
-    for (uint32_t i = 0; i < data->meshes_count; ++i)
-    {
-        CREATE_NAME(&data->meshes[i], "model", i); // our "Model"
     }
 
     // first, count number of animated nodes we have

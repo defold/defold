@@ -668,48 +668,51 @@ namespace dmEngine
         }
     }
 
-    static bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
+    bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
     {
+        char p1[DMPATH_MAX_PATH];   // mount: game.projectc
+        char p2[DMPATH_MAX_PATH];   // mount: build/default/game.projectc
+        char p3[DMPATH_MAX_PATH];   // game.projectc if resource path is provided
+        const char* paths[3] = { p1, p2, 0x0 };
+
         if (argc > 1 && argv[argc-1][0] != '-')
         {
-            dmStrlCpy(project_file, argv[argc-1], project_file_size);
-            return true;
-        }
-        else
-        {
-            char p1[DMPATH_MAX_PATH];
-            char p2[DMPATH_MAX_PATH];
-            char p3[DMPATH_MAX_PATH];
-            char* paths[3];
-            uint32_t count = 0;
-
-            const char* mountstr = "";
-#if defined(__NX__)
-            mountstr = "data:/";
-#endif
-            // there's no way to check for a named mount, and it will assert
-            // So we'll only enter here if it's set on this platform
-            if (dmSys::GetEnv("DM_HOSTFS") != 0)
-                mountstr = dmSys::GetEnv("DM_HOSTFS");
-
-            dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
-            dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
-            paths[count++] = p1;
-            paths[count++] = p2;
-
-            if (resources_path)
+            // only care about the last provided arg if it is a .projectc file
+            const char* lastarg = argv[argc-1];
+            const char* suffix = ".projectc";
+            size_t arg_len = strlen(lastarg);
+            size_t suffix_len = strlen(suffix);
+            if ((suffix_len <= arg_len) && strcmp(lastarg + arg_len - suffix_len, suffix) == 0)
             {
-                dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
-                paths[count++] = p3;
+                dmStrlCpy(project_file, lastarg, project_file_size);
+                return true;
             }
+        }
 
-            for (uint32_t i = 0; i < count; ++i)
+        const char* mountstr = "";
+#if defined(__NX__)
+        mountstr = "data:/";
+#endif
+        // there's no way to check for a named mount, and it will assert
+        // So we'll only enter here if it's set on this platform
+        if (dmSys::GetEnv("DM_HOSTFS") != 0)
+            mountstr = dmSys::GetEnv("DM_HOSTFS");
+
+        dmPath::Concat(mountstr, "game.projectc", p1, sizeof(p1));
+        dmPath::Concat(mountstr, "build/default/game.projectc", p2, sizeof(p2));
+
+        if (resources_path)
+        {
+            dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
+            paths[2] = p3;
+        }
+
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+        {
+            if (paths[i] && dmSys::ResourceExists(paths[i]))
             {
-                if (dmSys::ResourceExists(paths[i]))
-                {
-                    dmStrlCpy(project_file, paths[i], project_file_size);
-                    return true;
-                }
+                dmStrlCpy(project_file, paths[i], project_file_size);
+                return true;
             }
         }
 
@@ -763,32 +766,6 @@ namespace dmEngine
         engine->m_UpdateFrequency = frequency;
     }
 
-    struct LuaCallstackCtx
-    {
-        bool     m_First;
-        char*    m_Buffer;
-        uint32_t m_BufferSize;
-    };
-
-    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
-    {
-        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
-
-        if (ctx->m_First)
-        {
-            int32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
-            if (nwritten < 0)
-                nwritten = 0;
-            ctx->m_Buffer += nwritten;
-            ctx->m_BufferSize -= nwritten;
-            ctx->m_First = false;
-        }
-
-        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
-        ctx->m_Buffer += nwritten;
-        ctx->m_BufferSize -= nwritten;
-    }
-
     static void LoadDependencyJson(HEngine engine)
     {
         void* resource = 0;
@@ -823,11 +800,7 @@ namespace dmEngine
 
         if (engine->m_SharedScriptContext)
         {
-            LuaCallstackCtx ctx;
-            ctx.m_First = true;
-            ctx.m_Buffer = buffer;
-            ctx.m_BufferSize = buffersize;
-            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
+            dmScript::WriteLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Lua Callstack:\n", buffer, buffersize);
         }
     }
 

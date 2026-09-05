@@ -35,6 +35,19 @@ namespace dmModelImporter
         ALPHA_MODE_MAX_ENUM
     };
 
+    enum PrimitiveType // same values as in cgltf.h
+    {
+        PRIMITIVE_TYPE_INVALID,
+        PRIMITIVE_TYPE_POINTS,
+        PRIMITIVE_TYPE_LINES,
+        PRIMITIVE_TYPE_LINE_LOOP,
+        PRIMITIVE_TYPE_LINE_STRIP,
+        PRIMITIVE_TYPE_TRIANGLES,
+        PRIMITIVE_TYPE_TRIANGLE_STRIP,
+        PRIMITIVE_TYPE_TRIANGLE_FAN,
+        PRIMITIVE_TYPE_MAX_ENUM
+    };
+
     struct Vector3
     {
         float x, y, z;
@@ -244,6 +257,7 @@ namespace dmModelImporter
 
         dmArray<uint32_t>   m_Indices;
         uint32_t            m_VertexCount;
+        PrimitiveType       m_PrimitiveType;
 
         dmArray<MorphTarget> m_MorphTargets;
         dmArray<float>       m_MorphBaseWeights; // GLTF mesh/node weights (one per morph target)
@@ -257,8 +271,9 @@ namespace dmModelImporter
     {
         const char*     m_Name;
         dmArray<Mesh>   m_Meshes;
-        uint32_t        m_Index;        // The index into the scene.models array
-        Bone*           m_ParentBone;   // If the model is not skinned, but a child of a bone
+        uint32_t        m_Index;             // The index into the scene.models array
+        bool            m_NameIsGenerated;   // The source mesh did not have an explicit name
+        Bone*           m_ParentBone;        // If the model is not skinned, but a child of a bone
     };
 
     struct Bone

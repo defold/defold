@@ -577,8 +577,8 @@ namespace dmRender
 
     /*#
      * Sets one or more named constants to the buffer with a specified data type.
-     * Currently only dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER and dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4
-     * are supported.
+     * Currently only dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR
+     * and dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4 are supported.
      * @name SetNamedConstant
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
      * @param name_hash [type: dmhash_t] the name of the constant
@@ -694,6 +694,21 @@ namespace dmRender
      * @param tags [type:const dmhash_t*]
      */
     void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
+
+    /*#
+     * @name SetMaterialSampler
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @param unit [type:uint32_t]
+     * @param u_wrap [type:dmGraphics::TextureWrap]
+     * @param v_wrap [type:dmGraphics::TextureWrap]
+     * @param w_wrap [type:dmGraphics::TextureWrap]
+     * @param min_filter [type:dmGraphics::TextureFilter]
+     * @param mag_filter [type:dmGraphics::TextureFilter]
+     * @param max_anisotropy [type:float]
+     * @return is_succeed [type:bool]
+     */
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
 
     /*#
      * @name SetMaterialSampler

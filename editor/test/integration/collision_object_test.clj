@@ -16,10 +16,16 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.collision-object :as collision-object]
             [editor.defold-project :as project]
+            [editor.gl.pass :as pass]
             [editor.localization :as localization]
+            [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.coll :as coll])
+  (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
+           [com.jogamp.opengl GL2]))
 
 (defn- outline-seq
   [outline]
@@ -59,6 +65,21 @@
           (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")})
                  (last (outline-seq outline)))))))))
 
+(deftest shape-options-follow-project-physics-type
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/collision_object/new.collisionobject")
+          game-project (test-util/resource-node project "/game.project")
+          command-contexts [{:name :workbench :env {:selection [node-id] :app-view app-view}}]
+          shape-types (fn []
+                        (into #{}
+                              (map #(get-in % [:user-data :shape-type]))
+                              (test-util/handler-options :edit.add-embedded-component command-contexts nil)))]
+      (is (contains? (shape-types) :type-hull))
+      (with-open [_ (test-util/make-system-reverter)]
+        (test-util/set-setting! game-project ["physics" "type"] "2D")
+        (is (not (contains? (shape-types) :type-hull)))
+        (is (not (contains? (shape-types) :type-mesh)))))))
+
 (deftest validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
@@ -90,6 +111,177 @@
             (doseq [[prop value] props]
               (test-util/with-prop [shape prop value]
                 (is (g/error? (g/node-value node-id :build-targets)))))))))))
+
+(deftest mesh-source-shape-storage
+  (let [source-key ["/models/level.gltf" "Ground" 3]
+        source-shape {:shape-type :type-mesh
+                      :id "ground"
+                      :mesh-scene (nth source-key 0)
+                      :mesh-name (nth source-key 1)
+                      :mesh-index (nth source-key 2)
+                      :data []}
+        editable (#'collision-object/make-embedded-collision-shape
+                   [{:shape-type :type-sphere :data [0.5]}
+                    source-shape])
+        editable-mesh (second (:shapes editable))]
+    (testing "editable shapes contain only the source selection"
+      (is (= 0 (:index editable-mesh)))
+      (is (= 0 (:count editable-mesh)))
+      (is (= (subvec source-key 0 2)
+             ((juxt :mesh-scene :mesh-name) editable-mesh)))
+      (is (= 3 (:mesh-index editable-mesh)))
+      (is (not (contains? editable :indices))))))
+
+(deftest hull-source-shape-storage
+  (let [source-key ["/models/level.gltf" "Ground" 3]
+        source-shape {:shape-type :type-hull
+                      :id "ground-hull"
+                      :mesh-scene (nth source-key 0)
+                      :mesh-name (nth source-key 1)
+                      :mesh-index (nth source-key 2)
+                      :data []}
+        editable (#'collision-object/make-embedded-collision-shape
+                   [{:shape-type :type-sphere :data [0.5]}
+                    source-shape])
+        editable-hull (second (:shapes editable))]
+    (testing "editable Hull shapes contain only the source selection"
+      (is (= 0 (:index editable-hull)))
+      (is (= 0 (:count editable-hull)))
+      (is (= (subvec source-key 0 2)
+             ((juxt :mesh-scene :mesh-name) editable-hull)))
+      (is (= 3 (:mesh-index editable-hull)))
+      (is (not (contains? editable :indices))))))
+
+(deftest mesh-source-shape-compilation
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [mesh-scene-node-id (test-util/resource-node project "/mesh/quad.gltf")
+          mesh-set (get-in (g/node-value mesh-scene-node-id :content) [:mesh-set])]
+      (is (coll/empty? (get-in mesh-set [:raw-models 0 :meshes])))
+      (is (pos? (count (:models (g/node-value mesh-scene-node-id :collision-mesh-set))))))
+    (doseq [[path triangles?] [["/collision_object/hull_shape.collisionobject" false]
+                               ["/collision_object/mesh_shape.collisionobject" true]]]
+      (let [node-id (test-util/resource-node project path)]
+        (with-open [_ (test-util/build! node-id)]
+          (let [collision-object (Physics$CollisionObjectDesc/parseFrom (test-util/node-build-output node-id))
+                collision-shape (.getEmbeddedCollisionShape collision-object)
+                shape (.getShapes collision-shape 0)]
+            (is (pos? (.getDataCount collision-shape)))
+            (is (pos? (.getCount shape)))
+            (is (not (.hasMeshScene shape)))
+            (is (not (.hasMeshName shape)))
+            (is (not (.hasMeshIndex shape)))
+            (if triangles?
+              (do
+                (is (pos? (.getIndicesCount collision-shape)))
+                (is (pos? (.getTriangleCount shape))))
+              (do
+                (is (zero? (.getIndicesCount collision-shape)))
+                (is (not (.hasTriangleIndex shape)))
+                (is (not (.hasTriangleCount shape)))))))))))
+
+(deftest mesh-source-shape-preview
+  (test-util/with-loaded-project
+    (doseq [[path primitive-type passes triangles?]
+            [["/collision_object/hull_shape.collisionobject" GL2/GL_POINTS [pass/outline pass/selection] false]
+             ["/collision_object/mesh_shape.collisionobject" GL2/GL_TRIANGLES [pass/transparent pass/selection] true]]]
+      (let [collision-object (test-util/resource-node project path)
+            shape-node-id (:node-id (test-util/outline collision-object [0]))
+            selected-renderable (g/node-value shape-node-id :selected-collision-mesh-renderable)
+            scene (g/node-value shape-node-id :scene)
+            renderable (get-in scene [:children 0 :renderable])
+            geometry (get-in renderable [:user-data :geometry])]
+        (is (= primitive-type (:primitive-type geometry)))
+        (is (= passes (:passes renderable)))
+        (is (not (contains? geometry :vbuf)))
+        (is (identical? (get-in selected-renderable [:primitives 0 :position-buffer])
+                        (:position-buffer geometry)))
+        (if triangles?
+          (do
+            (is (some? (:index-buffer geometry)))
+            (is (true? (get-in renderable [:user-data :double-sided]))))
+          (do
+            (is (nil? (:index-buffer geometry)))
+            (is (pos? (get-in renderable [:user-data :point-count])))))))))
+
+(deftest legacy-3d-convex-hull-preview-is-selectable
+  (let [scene (collision-object/convex-hull-scene
+                0
+                {:shape-type :type-hull
+                 :data [-1.0 -1.0 -1.0
+                        1.0 1.0 1.0]}
+                [1.0 1.0 1.0 1.0]
+                "3D")]
+    (is (= [pass/outline pass/selection]
+           (get-in scene [:renderable :passes])))))
+
+(deftest mesh-shape-source-selection-survives-load
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/collision_object/mesh_shape.collisionobject")
+          shape-node-id (:node-id (test-util/outline node-id [0]))]
+      (is (= (workspace/find-resource workspace "/mesh/quad.gltf")
+             (test-util/prop shape-node-id :mesh-scene)))
+      (is (= "Plane_001Mesh" (test-util/prop shape-node-id :mesh-name)))
+      (is (= 0 (test-util/prop shape-node-id :mesh-index)))
+      (is (= [:id :position :rotation :mesh-scene :mesh-index]
+             (:display-order (properties/coalesce [(g/node-value shape-node-id :_properties)]))))
+      (is (not (g/error? (g/node-value node-id :build-targets)))))))
+
+(deftest hull-shape-source-selection-survives-load
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/collision_object/hull_shape.collisionobject")
+          shape-node-id (:node-id (test-util/outline node-id [0]))
+          shape-properties (g/node-value shape-node-id :_properties)
+          embedded-collision-shape (:embedded-collision-shape (g/node-value node-id :save-value))
+          saved-shape (first (:shapes embedded-collision-shape))]
+      (is (= :type-hull (test-util/prop shape-node-id :shape-type)))
+      (is (= (workspace/find-resource workspace "/mesh/quad.gltf")
+             (test-util/prop shape-node-id :mesh-scene)))
+      (is (= "Plane_001Mesh" (test-util/prop shape-node-id :mesh-name)))
+      (is (= 0 (test-util/prop shape-node-id :mesh-index)))
+      (is (= [] (test-util/prop shape-node-id :inline-data)))
+      (is (true? (get-in shape-properties [:properties :mesh-scene :visible])))
+      (is (true? (get-in shape-properties [:properties :mesh-index :visible])))
+      (is (= [:id :position :rotation :mesh-scene :mesh-index]
+             (:display-order (properties/coalesce [shape-properties]))))
+      (is (coll/empty? (:data embedded-collision-shape)))
+      (is (= :type-hull (:shape-type saved-shape)))
+      (is (= 0 (:count saved-shape)))
+      (is (= "/mesh/quad.gltf" (:mesh-scene saved-shape)))
+      (is (= "Plane_001Mesh" (:mesh-name saved-shape)))
+      (is (= 0 (get saved-shape :mesh-index 0)))
+      (is (not (g/error? (g/node-value node-id :build-targets)))))))
+
+(deftest inline-hull-data-survives-load-save-and-build
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [node-id (test-util/resource-node project "/collision_object/inline_hull.collisionobject")
+          shape-node-id (:node-id (test-util/outline node-id [0]))
+          expected-data [-1.0 -1.0 -1.0
+                         1.0 -1.0 -1.0
+                         -1.0 1.0 -1.0
+                         1.0 1.0 -1.0
+                         -1.0 -1.0 1.0
+                         1.0 -1.0 1.0
+                         -1.0 1.0 1.0
+                         1.0 1.0 1.0]]
+      (is (= expected-data (test-util/prop shape-node-id :inline-data)))
+      (is (false? (get-in (g/node-value shape-node-id :_properties)
+                          [:properties :mesh-scene :visible])))
+      (test-util/with-prop [node-id :friction 0.6]
+        (let [embedded-collision-shape (:embedded-collision-shape (g/node-value node-id :save-value))
+              shape (first (:shapes embedded-collision-shape))]
+          (is (= expected-data (:data embedded-collision-shape)))
+          (is (= 0 (:index shape)))
+          (is (= 24 (:count shape)))
+          (is (not (contains? shape :mesh-scene)))
+          (is (not (contains? shape :mesh-name)))
+          (is (not (contains? shape :mesh-index)))))
+      (with-open [_ (test-util/build! node-id)]
+        (let [collision-object (Physics$CollisionObjectDesc/parseFrom (test-util/node-build-output node-id))
+              collision-shape (.getEmbeddedCollisionShape collision-object)
+              shape (.getShapes collision-shape 0)]
+          (is (= expected-data (mapv double (.getDataList collision-shape))))
+          (is (= 0 (.getIndex shape)))
+          (is (= 24 (.getCount shape))))))))
 
 (deftest group-property-read-only-for-tilemap
   (test-util/with-loaded-project
