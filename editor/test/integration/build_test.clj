@@ -817,9 +817,6 @@
                                ;; Non existent property
                                (check-project-setting built-properties ["project" "doesn't_exist"] nil)
 
-                               ;; Default boolean value
-                               (check-project-setting built-properties ["script" "shared_state"] "0")
-
                                ;; Default number value
                                (check-project-setting built-properties ["display" "width"] "960")
 

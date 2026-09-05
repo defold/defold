@@ -19,7 +19,6 @@ end
 local function reboot()
     local project = sys.get_config_string("test.project", "src/test/build/default/game.projectc")
     sys.reboot(
-        "--config=script.shared_state=1",
         "--config=bootstrap.main_collection=/reboot_load_buffer_async/start.collectionc",
         "--config=test.reboot_load_buffer_async_phase=second",
         "--config=dmengine.unload_builtins=0",

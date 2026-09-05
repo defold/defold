@@ -189,12 +189,6 @@ dialog.clean-build.title = Perform Clean Project Build?
 dialog.clean-build.header = Are you sure you want to perform a clean project build?
 dialog.clean-build.button.clean = Clean Build
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Debugging Not Supported
-dialog.debugging-not-supported.header = This project cannot be used with the debugger
-dialog.debugging-not-supported.content = It is configured to disable shared script state.\n\nIf you do not specifically require different script states, consider changing the script.shared_state property in game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Revise .defunload Patterns
@@ -2155,11 +2149,6 @@ form.label.project.particle_fx.max_count = Max Count
 form.help.project.particle_fx.max_count = Maximum number of ParticleFX components and concurrent effect instances in each loaded collection. When full, another component or instance cannot be created. Increasing it uses more memory when build-time exact counting cannot determine the required component capacity.
 form.label.project.particle_fx.max_emitter_count = Max Emitter Count
 form.help.project.particle_fx.max_emitter_count = Maximum total number of emitters across all concurrent ParticleFX instances in each loaded collection. A single effect can contain multiple emitters. If the limit is exceeded, the collection's entire ParticleFX render pass is skipped and a warning is logged.
-
-form.label.project.script = Script
-form.help.project.script = Script system settings
-form.label.project.script.shared_state = Shared State
-form.help.project.script.shared_state = Controls whether game object scripts, GUI scripts, and the render script use one Lua state. Globals and loaded-module caches are shared when enabled and isolated when disabled. A shared state uses less memory and is required by the Editor debugger.
 
 form.label.project.sound = Sound
 form.help.project.sound = Sound related settings

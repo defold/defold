@@ -144,7 +144,7 @@ namespace dmEngine
         ContextRegistrySet(context_registry, LUA_CONTEXT_NAME, script_context ? dmScript::GetLuaState(script_context) : 0);
     }
 
-    static void PopulateContextRegistry(HEngine engine, dmScript::HContext script_context)
+    static void PopulateContextRegistry(HEngine engine)
     {
         ContextRegistrySet(engine->m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, engine->m_Config);
         dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
@@ -156,9 +156,9 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, engine->m_RenderContext);
         ContextRegistrySet(engine->m_ContextRegistry, "http_cache", engine->m_HttpCache);
         ContextRegistrySet(engine->m_ContextRegistry, JOB_SYSTEM_CONTEXT_NAME, engine->m_JobThreadContext);
-        ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", engine->m_GuiScriptContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", engine->m_ScriptContext);
         ContextRegistrySet(engine->m_ContextRegistry, "guic", engine->m_GuiContext);
-        SetScriptContextInContextRegistry(engine->m_ContextRegistry, script_context);
+        SetScriptContextInContextRegistry(engine->m_ContextRegistry, engine->m_ScriptContext);
     }
 
     struct ScopedExtensionAppParams
@@ -194,7 +194,7 @@ namespace dmEngine
             ExtensionParamsSetContextRegistry(&m_Params, engine->m_ContextRegistry);
             m_Params.m_ConfigFile = engine->m_Config;
             m_Params.m_ResourceFactory = engine->m_Factory;
-            SetLuaContext(engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
+            SetLuaContext(engine->m_ScriptContext);
         }
         ~ScopedExtensionParams()
         {
@@ -318,7 +318,7 @@ namespace dmEngine
         component_create_ctx_impl.m_ContextRegistry = engine->m_ContextRegistry;
         component_create_ctx.m_Impl = &component_create_ctx_impl;
         component_create_ctx.m_Config = engine->m_Config;
-        component_create_ctx.m_Script = engine->m_GOScriptContext;
+        component_create_ctx.m_Script = engine->m_ScriptContext;
         component_create_ctx.m_Register = engine->m_Register;
         component_create_ctx.m_Factory = engine->m_Factory;
         component_create_ctx.m_Contexts.SetCapacity(3, 8);
@@ -326,7 +326,7 @@ namespace dmEngine
         component_create_ctx.m_Contexts.Put(dmHashString64(RENDER_CONTEXT_NAME), engine->m_RenderContext);
         if (engine->m_GuiContext)
         {
-            component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
+            component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), engine->m_ScriptContext);
             component_create_ctx.m_Contexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
     }
@@ -371,16 +371,7 @@ namespace dmEngine
 
             // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
             // Here, we have an already resolved filename string.
-            if (engine->m_SharedScriptContext)
-            {
-                dmGameObject::LuaLoad(engine->m_Factory, engine->m_SharedScriptContext, lua_module);
-            }
-            else
-            {
-                dmGameObject::LuaLoad(engine->m_Factory, engine->m_GOScriptContext, lua_module);
-                dmGameObject::LuaLoad(engine->m_Factory, engine->m_GuiScriptContext, lua_module);
-                dmGameObject::LuaLoad(engine->m_Factory, engine->m_RenderScriptContext, lua_module);
-            }
+            dmGameObject::LuaLoad(engine->m_Factory, engine->m_ScriptContext, lua_module);
 
             dmDDF::FreeMessage(lua_module);
 
@@ -406,10 +397,7 @@ namespace dmEngine
     , m_MouseSensitivity(1.0f)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
-    , m_SharedScriptContext(0x0)
-    , m_GOScriptContext(0x0)
-    , m_RenderScriptContext(0x0)
-    , m_GuiScriptContext(0x0)
+    , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
     , m_SystemFont(0x0)
@@ -491,26 +479,11 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
-        if (engine->m_SharedScriptContext)
+        if (engine->m_ScriptContext)
         {
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_ScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-        }
-        else
-        {
-            if (engine->m_GOScriptContext)
-            {
-                script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
-                dmGameSystem::FinalizeScriptLibs(script_lib_context);
-                dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-            }
-            if (engine->m_GuiScriptContext)
-            {
-                script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
-                dmGameSystem::FinalizeScriptLibs(script_lib_context);
-                dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-            }
         }
 
         dmHttpClient::ReopenConnectionPool();
@@ -525,7 +498,7 @@ namespace dmEngine
             dmInput::DeleteContext(engine->m_InputContext);
 
         if (engine->m_RenderContext)
-            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
+            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
 
         if (engine->m_HidContext)
         {
@@ -534,37 +507,15 @@ namespace dmEngine
         }
 
         if (engine->m_GuiContext)
-            dmGui::DeleteContext(engine->m_GuiContext, engine->m_GuiScriptContext);
+            dmGui::DeleteContext(engine->m_GuiContext, engine->m_ScriptContext);
 
         ScopedExtensionParams extension_params(engine);
-        if (engine->m_SharedScriptContext) {
-            extension_params.SetLuaContext(engine->m_SharedScriptContext);
+        if (engine->m_ScriptContext) {
+            extension_params.SetLuaContext(engine->m_ScriptContext);
             dmExtension::Finalize(extension_params);
 
-            dmScript::Finalize(engine->m_SharedScriptContext);
-            dmScript::DeleteContext(engine->m_SharedScriptContext);
-        } else {
-            if (engine->m_GOScriptContext) {
-                extension_params.SetLuaContext(engine->m_GOScriptContext);
-                dmExtension::Finalize(extension_params);
-
-                dmScript::Finalize(engine->m_GOScriptContext);
-                dmScript::DeleteContext(engine->m_GOScriptContext);
-            }
-            if (engine->m_RenderScriptContext) {
-                extension_params.SetLuaContext(engine->m_RenderScriptContext);
-                dmExtension::Finalize(extension_params);
-
-                dmScript::Finalize(engine->m_RenderScriptContext);
-                dmScript::DeleteContext(engine->m_RenderScriptContext);
-            }
-            if (engine->m_GuiScriptContext) {
-                extension_params.SetLuaContext(engine->m_GuiScriptContext);
-                dmExtension::Finalize(extension_params);
-
-                dmScript::Finalize(engine->m_GuiScriptContext);
-                dmScript::DeleteContext(engine->m_GuiScriptContext);
-            }
+            dmScript::Finalize(engine->m_ScriptContext);
+            dmScript::DeleteContext(engine->m_ScriptContext);
         }
 
         if (engine->m_Factory)
@@ -824,13 +775,13 @@ namespace dmEngine
             }
         }
 
-        if (engine->m_SharedScriptContext)
+        if (engine->m_ScriptContext)
         {
             LuaCallstackCtx ctx;
             ctx.m_First = true;
             ctx.m_Buffer = buffer;
             ctx.m_BufferSize = buffersize;
-            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
+            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_ScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
         }
     }
 
@@ -1121,7 +1072,7 @@ namespace dmEngine
         job_thread_create_param.m_ThreadCount       = 1;
         engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
-        PopulateContextRegistry(engine, 0);
+        PopulateContextRegistry(engine);
 
         ScopedExtensionAppParams app_params(engine);
         dmExtension::Result er = dmExtension::AppInitialize(app_params);
@@ -1348,51 +1299,18 @@ namespace dmEngine
         script_params.m_ConfigFile      = engine->m_Config;
         script_params.m_GraphicsContext = engine->m_GraphicsContext;
 
-        PopulateContextRegistry(engine, 0);
+        PopulateContextRegistry(engine);
 
         ScopedExtensionParams extension_params(engine);
 
-        bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
-        if (shared)
-        {
-            engine->m_SharedScriptContext = dmScript::NewContext(script_params);
-            dmScript::Initialize(engine->m_SharedScriptContext);
-            PopulateContextRegistry(engine, engine->m_SharedScriptContext);
-            extension_params.SetLuaContext(engine->m_SharedScriptContext);
-            dmExtension::Initialize(extension_params);
+        engine->m_ScriptContext = dmScript::NewContext(script_params);
+        dmScript::Initialize(engine->m_ScriptContext);
+        PopulateContextRegistry(engine);
+        extension_params.SetLuaContext(engine->m_ScriptContext);
+        dmExtension::Initialize(extension_params);
 
-            engine->m_GOScriptContext = engine->m_SharedScriptContext;
-            engine->m_RenderScriptContext = engine->m_SharedScriptContext;
-            engine->m_GuiScriptContext = engine->m_SharedScriptContext;
-            module_script_contexts.SetCapacity(1);
-            module_script_contexts.Push(engine->m_SharedScriptContext);
-        }
-        else
-        {
-            engine->m_GOScriptContext = dmScript::NewContext(script_params);
-            dmScript::Initialize(engine->m_GOScriptContext);
-            PopulateContextRegistry(engine, engine->m_GOScriptContext);
-            extension_params.SetLuaContext(engine->m_GOScriptContext);
-            dmExtension::Initialize(extension_params);
-
-            engine->m_RenderScriptContext = dmScript::NewContext(script_params);
-            dmScript::Initialize(engine->m_RenderScriptContext);
-            PopulateContextRegistry(engine, engine->m_RenderScriptContext);
-            extension_params.SetLuaContext(engine->m_RenderScriptContext);
-            dmExtension::Initialize(extension_params);
-
-            engine->m_GuiScriptContext = dmScript::NewContext(script_params);
-            dmScript::Initialize(engine->m_GuiScriptContext);
-            PopulateContextRegistry(engine, engine->m_GuiScriptContext);
-            extension_params.SetLuaContext(engine->m_GuiScriptContext);
-            dmExtension::Initialize(extension_params);
-
-            module_script_contexts.SetCapacity(3);
-            module_script_contexts.Push(engine->m_GOScriptContext);
-            module_script_contexts.Push(engine->m_RenderScriptContext);
-            module_script_contexts.Push(engine->m_GuiScriptContext);
-        }
-        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
+        module_script_contexts.SetCapacity(1);
+        module_script_contexts.Push(engine->m_ScriptContext);
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
@@ -1423,7 +1341,7 @@ namespace dmEngine
         render_params.m_MaxRenderTargets = 32;
         render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
         render_params.m_CommandBufferSize = 1024;
-        render_params.m_ScriptContext = engine->m_RenderScriptContext;
+        render_params.m_ScriptContext = engine->m_ScriptContext;
 #if !defined(DM_RELEASE)
         render_params.m_ShaderProgramDesc = ::DEBUG_SPC;
         render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
@@ -1433,9 +1351,9 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
-        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
+        PopulateContextRegistry(engine);
 
-        dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
+        dmGameObject::Initialize(engine->m_Register, engine->m_ScriptContext);
 
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
@@ -1474,7 +1392,7 @@ namespace dmEngine
         engine->m_GuiSafeAreaMode = (uint8_t)dmGui::ParseSafeAreaMode(safe_area_mode);
 
         dmGui::NewContextParams gui_params;
-        gui_params.m_ScriptContext = engine->m_GuiScriptContext;
+        gui_params.m_ScriptContext = engine->m_ScriptContext;
         gui_params.m_HidContext = engine->m_HidContext;
 
         // If an extension changes window size at extensions initialization phase, engine should read that.
@@ -1488,7 +1406,7 @@ namespace dmEngine
         gui_params.m_Dpi = physical_dpi;
 
         engine->m_GuiContext = dmGui::NewContext(&gui_params);
-        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
+        PopulateContextRegistry(engine);
 
         UpdateGuiSafeAreaAdjust(engine, physical_width, physical_height);
 
@@ -1577,16 +1495,8 @@ namespace dmEngine
         engine->m_FactoryContext.m_Factory = engine->m_Factory;
         engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
         engine->m_CollectionFactoryContext.m_Factory = engine->m_Factory;
-        if (shared)
-        {
-            engine->m_FactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
-            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
-        }
-        else
-        {
-            engine->m_FactoryContext.m_ScriptContext = engine->m_GOScriptContext;
-            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
-        }
+        engine->m_FactoryContext.m_ScriptContext = engine->m_ScriptContext;
+        engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_ScriptContext;
 
         dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
@@ -1601,10 +1511,10 @@ namespace dmEngine
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
-        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_ScriptContext);
         if (engine->m_GuiContext)
         {
-            engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
+            engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_ScriptContext);
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
         engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
@@ -1677,35 +1587,13 @@ namespace dmEngine
         script_lib_context.m_ConfigFile      = engine->m_Config;
         script_lib_context.m_Window          = engine->m_Window;
 
-        if (engine->m_SharedScriptContext)
+        script_lib_context.m_ScriptContext = engine->m_ScriptContext;
+        script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_ScriptContext);
+        if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
         {
-            script_lib_context.m_ScriptContext = engine->m_SharedScriptContext;
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
-            if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
-            {
-                goto bail;
-            }
-
-            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
+            goto bail;
         }
-        else
-        {
-            script_lib_context.m_ScriptContext = engine->m_GOScriptContext;
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
-            if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
-            {
-                goto bail;
-            }
-            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
-
-            script_lib_context.m_ScriptContext = engine->m_GuiScriptContext;
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
-            if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
-            {
-                goto bail;
-            }
-            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
-        }
+        dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
 
         // setup streaming for resource types, before we load the first collection
         SetupStreamingResourceTypes(engine);
@@ -1925,14 +1813,7 @@ bail:
 
     static uint32_t GetLuaMemCount(HEngine engine)
     {
-        uint32_t memcount = 0;
-        if (engine->m_SharedScriptContext) {
-            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_SharedScriptContext));
-        } else {
-            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GOScriptContext));
-            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GuiScriptContext));
-        }
-        return memcount;
+        return dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_ScriptContext));
     }
 
     static void Exit(HEngine engine, int32_t code)
@@ -2063,39 +1944,11 @@ bail:
 
                     ScopedExtensionParams extension_params(engine);
 
-                    if (engine->m_SharedScriptContext)
-                    {
-                        script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                        dmGameSystem::UpdateScriptLibs(script_lib_context);
-                        dmScript::Update(engine->m_SharedScriptContext);
-                        extension_params.SetLuaContext(engine->m_SharedScriptContext);
-                        dmExtension::Update(extension_params);
-                    }
-                    else
-                    {
-                        if (engine->m_GOScriptContext)
-                        {
-                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
-                            dmGameSystem::UpdateScriptLibs(script_lib_context);
-                            dmScript::Update(engine->m_GOScriptContext);
-                            extension_params.SetLuaContext(engine->m_GOScriptContext);
-                            dmExtension::Update(extension_params);
-                        }
-                        if (engine->m_RenderScriptContext)
-                        {
-                            dmScript::Update(engine->m_RenderScriptContext);
-                            extension_params.SetLuaContext(engine->m_RenderScriptContext);
-                            dmExtension::Update(extension_params);
-                        }
-                        if (engine->m_GuiScriptContext)
-                        {
-                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
-                            dmGameSystem::UpdateScriptLibs(script_lib_context);
-                            dmScript::Update(engine->m_GuiScriptContext);
-                            extension_params.SetLuaContext(engine->m_GuiScriptContext);
-                            dmExtension::Update(extension_params);
-                        }
-                    }
+                    script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_ScriptContext);
+                    dmGameSystem::UpdateScriptLibs(script_lib_context);
+                    dmScript::Update(engine->m_ScriptContext);
+                    extension_params.SetLuaContext(engine->m_ScriptContext);
+                    dmExtension::Update(extension_params);
                 }
 
                 bool esc_pressed = false;
@@ -2486,14 +2339,7 @@ bail:
                 dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
 
                 dmResource::HFactory factory = self->m_Factory;
-                if (self->m_SharedScriptContext) {
-                    dmGameObject::LuaLoad(factory, self->m_SharedScriptContext, &run_script->m_Module);
-                }
-                else {
-                    dmGameObject::LuaLoad(factory, self->m_GOScriptContext, &run_script->m_Module);
-                    dmGameObject::LuaLoad(factory, self->m_GuiScriptContext, &run_script->m_Module);
-                    dmGameObject::LuaLoad(factory, self->m_RenderScriptContext, &run_script->m_Module);
-                }
+                dmGameObject::LuaLoad(factory, self->m_ScriptContext, &run_script->m_Module);
             }
             else if (descriptor == dmSystemDDF::ResumeRendering::m_DDFDescriptor)
             {

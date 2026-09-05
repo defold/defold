@@ -1,9 +1,6 @@
 [bootstrap]
 main_collection = /editable/collection.collectionc
 
-[script]
-shared_state = 1
-
 [display]
 width = 960
 height = 640
@@ -16,4 +13,3 @@ title = reload_unchanged_project
 
 [input]
 game_binding = /game.input_bindingc
-
