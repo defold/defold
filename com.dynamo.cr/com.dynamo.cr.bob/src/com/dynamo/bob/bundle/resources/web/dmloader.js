@@ -394,14 +394,24 @@ var EngineLoader = {
 
     // stream and instantiate .wasm file
     streamAndInstantiateWasmAsync: async function(src, imports, successCallback) {
+        var canCount = typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough;
+        {{#html5.verify_downloaded_file_size}}
+        if (!canCount) {
+            // without a stream to count the bytes, only the xhr path can verify the size
+            EngineLoader.loadAndInstantiateWasmAsync(src, imports, successCallback);
+            return;
+        }
+        {{/html5.verify_downloaded_file_size}}
         // https://stackoverflow.com/a/69179454
         var fetchFn = fetch;
-        if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
+        var streamedSize = 0;
+        if (canCount) {
             async function fetchWithProgress(path) {
                 const response = await fetch(path);
                 if (response.ok) {
                     const ts = new TransformStream({
                         transform (chunk, controller) {
+                            streamedSize += chunk.byteLength;
                             ProgressUpdater.updateCurrent(chunk.byteLength);
                             controller.enqueue(chunk);
                         }
@@ -416,12 +426,19 @@ var EngineLoader = {
         }
 
         WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
+            {{#html5.verify_downloaded_file_size}}
+            if (streamedSize != EngineLoader.getWasmSize()) {
+                throw new Error("Unexpected wasm size: " + streamedSize + ", expected: " + EngineLoader.getWasmSize());
+            }
+            {{/html5.verify_downloaded_file_size}}
             ProgressUpdater.updateCurrent(EngineLoader.wasm_instantiate_progress);
             Module.instance = output.instance;
             successCallback(output.instance, output.module);
         }).catch(function(e) {
             console.log('wasm streaming instantiation failed! ' + e);
             console.log('Fallback to wasm loading');
+            // the xhr download counts the file again
+            ProgressUpdater.updateCurrent(-streamedSize);
             try {
                 EngineLoader.loadAndInstantiateWasmAsync(src, imports, successCallback);
             } catch (error) {
