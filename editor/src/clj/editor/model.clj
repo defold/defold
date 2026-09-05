@@ -57,9 +57,6 @@
 
 (def ^:private mesh-selection-file-types #{"glb" "gltf"})
 
-(def ^:private auto-fill-gltf-material-indices-by-node-key
-  ::auto-fill-gltf-material-indices-by-node)
-
 (declare create-material-binding-tx)
 
 (defn- gltf-source-resource? [resource]
@@ -87,12 +84,12 @@
 
 (defn- gltf-auto-fill-candidate
   [evaluation-context node-id source-resource material-indices]
-  (when (and (gltf-source-resource? source-resource)
-             (coll/not-empty (gltf/material-binding-descriptors source-resource material-indices)))
+  (when-let [descriptors (and (gltf-source-resource? source-resource)
+                              (coll/not-empty (gltf/material-binding-descriptors source-resource material-indices)))]
     (let [material-binding-infos (g/node-value node-id :material-binding-infos evaluation-context)]
       {:node-id node-id
        :source-resource source-resource
-       :material-indices material-indices
+       :descriptors descriptors
        :replaces-existing (boolean (and (not (g/error-value? material-binding-infos))
                                         (coll/not-empty material-binding-infos)))})))
 
@@ -120,9 +117,9 @@
 (defn- prepare-gltf-auto-fill [evaluation-context candidates]
   (when (and (coll/not-empty candidates)
              (confirm-gltf-auto-fill? evaluation-context candidates))
-    {auto-fill-gltf-material-indices-by-node-key
+    {::auto-fill-gltf-material-descriptors-by-node
      (into {}
-           (map (juxt :node-id :material-indices))
+           (map (juxt :node-id :descriptors))
            candidates)}))
 
 (defn- prepare-mesh-user-edit [evaluation-context _property set-operations]
@@ -158,18 +155,16 @@
               set-operations)]
     (prepare-gltf-auto-fill evaluation-context candidates)))
 
-(defn- auto-fill-material-indices-entry [evaluation-context node-id]
+(defn- auto-fill-material-descriptors [evaluation-context node-id]
   (when-let [tx-data-context (:tx-data-context evaluation-context)]
-    (find (get @tx-data-context auto-fill-gltf-material-indices-by-node-key)
-          node-id)))
+    (get-in @tx-data-context [::auto-fill-gltf-material-descriptors-by-node node-id])))
 
 (defn- replace-gltf-material-bindings-tx
-  [evaluation-context model-node-id source-resource material-indices]
+  [evaluation-context model-node-id descriptors]
   (let [material-binding-infos (g/node-value model-node-id :material-binding-infos evaluation-context)
         material-binding-node-ids (if (g/error-value? material-binding-infos)
                                     []
                                     (mapv :_node-id material-binding-infos))
-        descriptors (gltf/material-binding-descriptors source-resource material-indices)
         initial-tx-data (cond-> []
                           (coll/not-empty material-binding-node-ids)
                           (into (g/delete-nodes material-binding-node-ids)))]
@@ -188,13 +183,9 @@
     (let [collision-meshes (g/node-value self :collision-meshes evaluation-context)
           selected-mesh (resolve-selected-mesh collision-meshes new-value)
           tx-data (g/set-property self :mesh-name (or (:name selected-mesh) ""))]
-      (if-let [[_ material-indices] (auto-fill-material-indices-entry evaluation-context self)]
+      (if-let [descriptors (auto-fill-material-descriptors evaluation-context self)]
         (into tx-data
-              (replace-gltf-material-bindings-tx
-                evaluation-context
-                self
-                (g/node-value self :mesh evaluation-context)
-                material-indices))
+              (replace-gltf-material-bindings-tx evaluation-context self descriptors))
         tx-data))))
 
 (defn- set-mesh [evaluation-context self old-value new-value]
@@ -211,10 +202,10 @@
         tx-data (into resource-setter-tx-data
                       (when user-edit
                         (g/set-properties self :mesh-name "" :mesh-index -1)))]
-    (if-let [[_ material-indices] (and user-edit
-                                       (auto-fill-material-indices-entry evaluation-context self))]
+    (if-let [descriptors (and user-edit
+                             (auto-fill-material-descriptors evaluation-context self))]
       (into tx-data
-            (replace-gltf-material-bindings-tx evaluation-context self new-value material-indices))
+            (replace-gltf-material-bindings-tx evaluation-context self descriptors))
       tx-data)))
 
 (defn- model-mesh-selection-error [node-id mesh mesh-name mesh-index collision-meshes]

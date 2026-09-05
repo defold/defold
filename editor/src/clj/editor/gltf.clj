@@ -111,9 +111,21 @@
                         :material material-resource
                         :name (or (coll/not-empty name) (format "Material %d" index))
                         :samplers (coll/join-to-string ", " sampler-descriptions))))))
+              asset-resources)
+        mesh-descriptors
+        (into []
+              (comp
+                (map resource/gltf-resource-asset-info)
+                (filter #(= :mesh (:kind %)))
+                (map (fn [{:keys [index name name-generated primitive-count vertex-count]}]
+                       {:index index
+                        :name (if name-generated (format "Mesh %d" index) name)
+                        :name-generated name-generated
+                        :primitive-count primitive-count
+                        :vertex-count vertex-count})))
               asset-resources)]
     {:materials material-descriptors
-     :meshes (or (:meshes (resource/gltf-container-info source-resource)) [])
+     :meshes (vec (sort-by :index mesh-descriptors))
      :textures texture-descriptors}))
 
 (defn uri->proj-path
@@ -151,7 +163,6 @@
 
 (defn- gltf-cache-entry-valid? [cache-entry status-map]
   (and cache-entry
-       (contains? cache-entry :gltf-container-info)
        (= (:dependency-statuses cache-entry)
           (resource-statuses status-map (coll/keys (:dependency-statuses cache-entry))))))
 
@@ -246,21 +257,6 @@
        :status-map status-map}
       children-by-group)))
 
-(defn- gltf-container-info [^GltfContainer$Extraction extraction]
-  {:meshes
-   (mapv
-     (fn [^GltfContainer$MeshMetadata mesh]
-       (let [index (.getIndex mesh)
-             name-generated (.isNameGenerated mesh)]
-         {:index index
-          :name (if name-generated
-                  (format "Mesh %d" index)
-                  (.getName mesh))
-          :name-generated name-generated
-          :primitive-count (.getPrimitiveCount mesh)
-          :vertex-count (.getVertexCount mesh)}))
-     (.getMeshes extraction))})
-
 (defn- extract-gltf-cache-entry
   [workspace source-resource resources-by-proj-path status-map]
   (let [source-proj-path (resource/proj-path source-resource)
@@ -276,22 +272,18 @@
                 (log/warn :message (format "Failed to expose part of glTF resource '%s': %s"
                                            source-proj-path diagnostic)))
               (.getDiagnostics extraction))
-            (assoc (make-gltf-children+status workspace source-resource extraction)
-              :gltf-container-info (gltf-container-info extraction)))
+            (make-gltf-children+status workspace source-resource extraction))
           (catch Exception exception
             (log/warn :message (format "Failed to expose glTF resources from '%s'" source-proj-path)
                       :exception exception)
             {:children []
-             :gltf-container-info {:meshes []}
              :status-map {}}))]
     (assoc extraction-data
       :dependency-statuses (resource-statuses status-map @dependency-proj-paths))))
 
 (defn- attach-gltf-children [resource cache-entries]
   (if-let [cache-entry (cache-entries (resource/proj-path resource))]
-    (assoc resource
-      :children (:children cache-entry)
-      :gltf-container-info (:gltf-container-info cache-entry))
+    (assoc resource :children (:children cache-entry))
     (if-let [children (resource/children resource)]
       (assoc resource :children (mapv #(attach-gltf-children % cache-entries) children))
       resource)))

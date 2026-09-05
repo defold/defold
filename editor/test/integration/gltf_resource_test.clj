@@ -123,17 +123,18 @@
           (is (= #{mesh-proj-path}
                  (proj-paths (resource/children meshes-resource))))
           (is (= 1 (count (resource/children meshes-resource))))
-          (is (= {:meshes [{:index 0
-                            :name "Mesh 0"
-                            :name-generated true
-                            :primitive-count 1
-                            :vertex-count 3}]}
-                 (resource/gltf-container-info source-resource)))
-          (is (= (resource/gltf-container-info source-resource)
+          (is (= [{:index 0
+                   :name "Mesh 0"
+                   :name-generated true
+                   :primitive-count 1
+                   :vertex-count 3}]
+                 (:meshes (gltf/metadata-descriptors source-resource))))
+          (is (= (:meshes (gltf/metadata-descriptors source-resource))
                  (-> source-resource
                      (g/write-graph (core/write-handlers))
                      (g/read-graph (core/read-handlers))
-                     (resource/gltf-container-info))))
+                     (gltf/metadata-descriptors)
+                     :meshes)))
           (is (resource/gltf-resource? meshes-resource))
           (is (resource/gltf-resource? mesh-resource))
           (is (resource/gltf-resource? material-resource))
@@ -378,6 +379,16 @@
                     (ModelUtil/loadScene stream (resource/path source-resource) nil data-resolver))
                   ^Modelimporter$Buffer buffer (first (.buffers scene))]
               (is (resource/zip-resource? source-resource))
+              (is (= [{:index 0
+                       :name "Mesh 0"
+                       :name-generated true
+                       :primitive-count 1
+                       :vertex-count 3}]
+                     (-> source-resource
+                         (g/write-graph (core/write-handlers))
+                         (g/read-graph (core/read-handlers))
+                         (gltf/metadata-descriptors)
+                         :meshes)))
               (is (= :file (resource/source-type source-resource)))
               (is (resource/openable? source-resource))
               (is (= #{"/models/robot.gltf/images"

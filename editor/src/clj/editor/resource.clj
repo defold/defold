@@ -507,24 +507,22 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children gltf-container-info]}]
-      (cond-> (FileResource. workspace root abs-path project-path name ext source-type editable loaded children)
-        gltf-container-info (assoc :gltf-container-info gltf-container-info)))))
+    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]}]
+      (FileResource. workspace root abs-path project-path name ext source-type editable loaded children))))
 
 (core/register-write-handler!
-  FileResource
-  (transit/write-handler
-    (constantly "file-resource")
-    (fn [^FileResource r]
-      {:workspace (:workspace r)
-       :abs-path (:abs-path r)
-       :project-path (:project-path r)
-       :name (:name r)
-       :ext (:ext r)
-       :source-type (:source-type r)
-       :editable (:editable r)
-       :children (:children r)
-       :gltf-container-info (:gltf-container-info r)})))
+ FileResource
+ (transit/write-handler
+  (constantly "file-resource")
+  (fn [^FileResource r]
+    {:workspace (:workspace r)
+     :abs-path (:abs-path r)
+     :project-path (:project-path r)
+     :name (:name r)
+     :ext (:ext r)
+     :source-type (:source-type r)
+     :editable (:editable r)
+     :children (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
@@ -624,9 +622,6 @@
 (defn gltf-resource-asset-info [resource]
   {:pre [(gltf-resource? resource)]}
   (:asset-info resource))
-
-(defn gltf-container-info [resource]
-  (:gltf-container-info resource))
 
 (core/register-read-handler!
   "gltf-resource"
@@ -733,24 +728,22 @@
 (core/register-record-type! ZipResource)
 
 (core/register-read-handler!
-  "zip-resource"
-  (transit/read-handler
-    (fn [{:keys [workspace ^String zip-uri name path zip-entry children gltf-container-info]}]
-      (cond-> (ZipResource. workspace (URI. zip-uri) name path zip-entry children)
-        gltf-container-info (assoc :gltf-container-info gltf-container-info)))))
+ "zip-resource"
+ (transit/read-handler
+  (fn [{:keys [workspace ^String zip-uri name path zip-entry children]}]
+    (ZipResource. workspace (URI. zip-uri) name path zip-entry children))))
 
 (core/register-write-handler!
-  ZipResource
-  (transit/write-handler
-    (constantly "zip-resource")
-    (fn [^ZipResource r]
-      {:workspace (:workspace r)
-       :zip-uri   (.toString ^URI (:zip-uri r))
-       :name      (:name r)
-       :path      (:path r)
-       :zip-entry (:zip-entry r)
-       :children  (:children r)
-       :gltf-container-info (:gltf-container-info r)})))
+ ZipResource
+ (transit/write-handler
+  (constantly "zip-resource")
+  (fn [^ZipResource r]
+    {:workspace (:workspace r)
+     :zip-uri   (.toString ^URI (:zip-uri r))
+     :name      (:name r)
+     :path      (:path r)
+     :zip-entry (:zip-entry r)
+     :children  (:children r)})))
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))

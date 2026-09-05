@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gltf :as gltf]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -204,6 +205,17 @@
 
               (is (= 1 @dialog-call-count))
               (is (= "ChromeMesh" (test-util/prop model-node-id :mesh-name)))
+              (is (= [{:index 0
+                       :name "PaintMesh"
+                       :name-generated false
+                       :primitive-count 1
+                       :vertex-count 3}
+                      {:index 1
+                       :name "ChromeMesh"
+                       :name-generated false
+                       :primitive-count 1
+                       :vertex-count 3}]
+                     (:meshes (gltf/metadata-descriptors multi-mesh-gltf-resource))))
               (is (= 1 (test-util/prop model-node-id :mesh-index)))
               (is (= selected-mesh-state (model-state model-node-id)))
 
