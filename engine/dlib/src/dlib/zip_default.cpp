@@ -30,7 +30,7 @@ Result OpenFileRange(FILE* file, uint64_t offset, uint64_t size, HZip* zip)
     return OpenFileRangeInternal(file, offset, size, ReadFileAt, 0, 0, zip);
 }
 
-Result OpenResourcePlatform(const char* path, HZip* zip)
+Result OpenPlatform(const char* path, HZip* zip)
 {
     char mount_path[1024];
     if (dmSys::ResolveMountFileName(mount_path, sizeof(mount_path), path) != dmSys::RESULT_OK)
@@ -38,7 +38,7 @@ Result OpenResourcePlatform(const char* path, HZip* zip)
         *zip = 0;
         return RESULT_NO_SUCH_ENTRY;
     }
-    return Open(mount_path, zip);
+    return OpenArchive(zip_open(mount_path, 9, 'r'), 0, 0, zip);
 }
 
 } // namespace dmZip

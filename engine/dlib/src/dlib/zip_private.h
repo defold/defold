@@ -15,6 +15,8 @@
 #ifndef DM_ZIP_PRIVATE_H
 #define DM_ZIP_PRIVATE_H
 
+#include <stdio.h>
+
 #include "zip.h"
 #include "zip/zip.h"
 
@@ -30,11 +32,16 @@ namespace dmZip
     };
 
     Result OpenArchive(zip_t* archive, void* close_context, FCloseCallback close_callback, HZip* zip);
+
+    // Opens a read only ZIP from a bounded file range. The caller owns the file
+    // and must keep it open until the ZIP has been closed.
+    Result OpenFileRange(FILE* file, uint64_t offset, uint64_t size, HZip* zip);
+
     Result OpenFileRangeInternal(FILE* file, uint64_t offset, uint64_t size,
                                  zip_cstream_read_callback read_callback,
                                  void* close_context, FCloseCallback close_callback,
                                  HZip* zip);
-    Result OpenResourcePlatform(const char* path, HZip* zip);
+    Result OpenPlatform(const char* path, HZip* zip);
 }
 
 #endif // DM_ZIP_PRIVATE_H

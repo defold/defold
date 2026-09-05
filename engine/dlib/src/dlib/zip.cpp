@@ -40,14 +40,9 @@ Result OpenArchive(zip_t* archive, void* close_context, FCloseCallback close_cal
 
 Result Open(const char* path, HZip* zip)
 {
-    return OpenArchive(zip_open(path, 9, 'r'), 0, 0, zip);
-}
-
-Result OpenResource(const char* path, HZip* zip)
-{
     char normalized_path[1024];
     dmPath::Normalize(path, normalized_path, sizeof(normalized_path));
-    return OpenResourcePlatform(normalized_path, zip);
+    return OpenPlatform(normalized_path, zip);
 }
 
 Result OpenStream(const char *stream, uint32_t size, HZip* zip)

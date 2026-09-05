@@ -131,7 +131,7 @@ static Result OpenAndroidAsset(const char* path, HZip* zip)
     return OpenArchive(archive, asset, CloseAsset, zip);
 }
 
-Result OpenResourcePlatform(const char* path, HZip* zip)
+Result OpenPlatform(const char* path, HZip* zip)
 {
     if (strncmp(path, ANDROID_ASSET_PATH, ANDROID_ASSET_PATH_LENGTH) == 0)
         return OpenAndroidAsset(path + ANDROID_ASSET_PATH_LENGTH, zip);
@@ -142,7 +142,7 @@ Result OpenResourcePlatform(const char* path, HZip* zip)
         *zip = 0;
         return RESULT_NO_SUCH_ENTRY;
     }
-    return Open(mount_path, zip);
+    return OpenArchive(zip_open(mount_path, 9, 'r'), 0, 0, zip);
 }
 
 } // namespace dmZip

@@ -22,6 +22,7 @@
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <dlib/zip.h>
+#include <dlib/zip_private.h>
 #include "zip/zip.h"
 
 static uint32_t g_ZipReadCalls;
@@ -76,9 +77,9 @@ struct ZipArchiveParams
     enum OpenMode
     {
         OPEN_FROM_PATH,
+        OPEN_FROM_UNNORMALIZED_PATH,
         OPEN_FROM_MEMORY,
         OPEN_FROM_FILE_RANGE,
-        OPEN_FROM_RESOURCE,
     } m_OpenMode;
 };
 
@@ -113,12 +114,16 @@ protected:
                 ASSERT_GT(file_size, 0);
                 zr = dmZip::OpenFileRange(m_File, 0, (uint64_t)file_size, &m_Zip);
             }
-            else if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_RESOURCE)
-            {
-                zr = dmZip::OpenResource(path, &m_Zip);
-            }
             else
             {
+                if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_UNNORMALIZED_PATH)
+                {
+                    for (char* p = path; *p; ++p)
+                    {
+                        if (*p == '/')
+                            *p = '\\';
+                    }
+                }
                 zr = dmZip::Open(path, &m_Zip);
             }
         }
@@ -336,9 +341,9 @@ const ZipArchiveParams params_zip_archives[] = {
     // Run all parameterized ZIP operations through the new bounded-file path.
     { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
     { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
-    // Run the same operations through the platform resource backend.
-    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_RESOURCE },
-    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_RESOURCE },
+    // Open normalizes paths before passing them to the platform backend.
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_UNNORMALIZED_PATH },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_UNNORMALIZED_PATH },
 };
 
 INSTANTIATE_TEST_CASE_P(ZipArchiveOpenModes, ZipArchiveTest,

@@ -16,7 +16,6 @@
 #define DM_ZIP_H
 
 #include <stdint.h>
-#include <stdio.h>
 
 namespace dmZip
 {
@@ -33,22 +32,13 @@ namespace dmZip
 
     /*# Opens a read only zip archive
      *
+     * The path and its backing storage are resolved by the platform ZIP backend.
+     *
      * @param path [type: const char*] path to the zip archive
-     * @param path [type: HZip*] pointer to zip handle
-     * @return [type:Result] path to the zip archive
-     */
-    Result Open(const char* path, HZip* zip);
-
-    /*# Opens a read only zip archive from a resource path
-     *
-     * The resource path and its backing storage are resolved by the platform
-     * ZIP backend.
-     *
-     * @param path [type: const char*] resource path to the zip archive
      * @param zip [type: HZip*] pointer to zip handle
      * @return [type:Result] result
      */
-    Result OpenResource(const char* path, HZip* zip);
+    Result Open(const char* path, HZip* zip);
 
     /*# Opens a read only zip archive stream from memory
      *
@@ -58,19 +48,6 @@ namespace dmZip
      * @return [type:Result] path to the zip archive
      */
     Result OpenStream(const char *stream, uint32_t size, HZip* zip);
-
-    /*# Opens a read only zip archive from a bounded range in a file
-     *
-     * The caller retains ownership of the file and must keep it open until the
-     * zip archive has been closed.
-     *
-     * @param file [type: FILE*] open file containing the zip archive
-     * @param offset [type: uint64_t] byte offset of the zip archive in the file
-     * @param size [type: uint64_t] size of the zip archive in bytes
-     * @param zip [type: HZip*] pointer to zip handle
-     * @return [type:Result] result
-     */
-    Result OpenFileRange(FILE* file, uint64_t offset, uint64_t size, HZip* zip);
 
     /*# Closes the zip archive
      *

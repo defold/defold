@@ -211,7 +211,7 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     memset(archive, 0, sizeof(ZipProviderContext));
     memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
 
-    dmZip::Result zr = dmZip::OpenResource(uri->m_Path, &archive->m_Zip);
+    dmZip::Result zr = dmZip::Open(uri->m_Path, &archive->m_Zip);
     if (dmZip::RESULT_OK != zr)
     {
         dmLogError("Could not open zip resource '%s' (%d)", uri->m_Path, zr);
