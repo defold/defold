@@ -113,8 +113,6 @@ static HContext WebGPUGetContext();
 static GraphicsAdapter g_webgpu_adapter(ADAPTER_FAMILY_WEBGPU);
 static WebGPUContext* g_WebGPUContext = NULL;
 
-static void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, WGPUBindGroup* value);
-
 DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, ADAPTER_FAMILY_PRIORITY_WEBGPU);
 
 static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
@@ -3459,6 +3457,11 @@ static HTexture WebGPUNewTexture(HContext _context, const TextureCreationParams&
     return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
 }
 
+static void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, WGPUBindGroup* value)
+{
+    wgpuBindGroupRelease(*value);
+}
+
 static void WebGPUInvalidateBindGroups(WebGPUContext* context)
 {
     context->m_BindGroupCache.Iterate(WebGPUCleanupBindGroupCache, context);
@@ -4422,11 +4425,6 @@ void WebGPUCleanupRenderPipelineCache(WebGPUContext* context, const uint64_t* ke
 void WebGPUCleanupComputePipelineCache(WebGPUContext* context, const uint64_t* key, WGPUComputePipeline* value)
 {
     wgpuComputePipelineRelease(*value);
-}
-
-static void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, WGPUBindGroup* value)
-{
-    wgpuBindGroupRelease(*value);
 }
 
 void WebGPUCleanupSamplerCache(WebGPUContext* context, const uint64_t* key, WGPUSampler* value)
