@@ -1828,10 +1828,10 @@ After transaction (clear):
 Collision object initial state:
   collision_type: collision-object-type-dynamic
   shapes: 0
-Transaction: add 3 shapes
-After transaction (add 3 shapes):
+Transaction: add 5 shapes
+After transaction (add 5 shapes):
   collision_type: collision-object-type-static
-  shapes: 3
+  shapes: 5
   - id: box
     type: shape-type-box
     dimensions: 20 20 20
@@ -1842,13 +1842,17 @@ After transaction (add 3 shapes):
     type: shape-type-capsule
     diameter: 20
     height: 40
+  - id: hull
+    type: shape-type-hull
+  - id: mesh
+    type: shape-type-mesh
 Transaction: clear
 After transaction (clear):
   collision_type: collision-object-type-dynamic
   shapes: 0
 Expected errors:
   missing type => type is required
-  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+  wrong type => box is not shape-type-box, shape-type-capsule, shape-type-hull, shape-type-mesh or shape-type-sphere
 GUI initial state:
   layers: 0
   materials: 0

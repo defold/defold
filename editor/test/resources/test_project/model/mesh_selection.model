@@ -1,0 +1,11 @@
+mesh: "/mesh/two_meshes.gltf"
+mesh_name: "LooseMesh"
+mesh_index: 2
+materials {
+  name: "default"
+  material: "/model/model.material"
+  textures {
+    sampler: "diffuse"
+    texture: "/mesh/test_m.png"
+  }
+}
