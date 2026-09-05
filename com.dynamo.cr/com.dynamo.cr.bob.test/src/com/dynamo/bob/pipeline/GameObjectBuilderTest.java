@@ -39,6 +39,16 @@ import com.google.protobuf.Message;
 
 public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
 
+    @com.dynamo.bob.BuilderParams(name = "StructuredExtensionTest", inExts = ".test_struct_component", outExt = ".datac")
+    @com.dynamo.bob.ProtoParams(srcClass = SpriteDesc.class, messageClass = Data.class)
+    public static class StructuredExtensionBuilder extends com.dynamo.bob.ProtoBuilder<SpriteDesc.Builder> {
+        @Override
+        protected Data.Builder transformMessage(com.dynamo.bob.Task task, com.dynamo.bob.fs.IResource resource,
+                                                SpriteDesc.Builder source) {
+            return Data.newBuilder().setData(Value.newBuilder().setString(source.getDefaultAnimation()));
+        }
+    }
+
     private static String escapeProtobufString(String value) {
         return value.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
@@ -153,12 +163,12 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         GameObjectSource.EmbeddedComponentDesc first = GameObjectSource.EmbeddedComponentDesc.newBuilder()
                 .setId("light")
                 .setType("point_light")
-                .setPointLight(Data.newBuilder().setData(Value.newBuilder().setStruct(firstStruct)))
+                .setComponentData(Data.newBuilder().setData(Value.newBuilder().setStruct(firstStruct)))
                 .build();
         GameObjectSource.EmbeddedComponentDesc second = GameObjectSource.EmbeddedComponentDesc.newBuilder()
                 .setId("light")
                 .setType("point_light")
-                .setPointLight(Data.newBuilder().setData(Value.newBuilder().setStruct(secondStruct)))
+                .setComponentData(Data.newBuilder().setData(Value.newBuilder().setStruct(secondStruct)))
                 .build();
 
         GameObjectSourceUtil.GeneratedInput firstInput = GameObjectSourceUtil.getEmbeddedComponentInput(
@@ -167,7 +177,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
                 getProject().getResource("/test.go"), second);
 
         Assert.assertTrue(firstInput.isTyped());
-        Assert.assertSame(first.getPointLight(), firstInput.getMessage());
+        Assert.assertSame(first.getComponentData(), firstInput.getMessage());
         Assert.assertArrayEquals(firstInput.getContent(), secondInput.getContent());
         Assert.assertEquals(0, firstInput.getContent()[0]);
 
@@ -175,13 +185,66 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         GameObjectSource.EmbeddedComponentDesc legacy = GameObjectSource.EmbeddedComponentDesc.newBuilder()
                 .setId("light")
                 .setType("point_light")
-                .setData(legacyText)
+                .setComponentData(Data.newBuilder().setData(Value.newBuilder().setString(legacyText)))
                 .build();
         GameObjectSourceUtil.GeneratedInput legacyInput = GameObjectSourceUtil.getEmbeddedComponentInput(
                 getProject().getResource("/test.go"), legacy);
 
         Assert.assertFalse(legacyInput.isTyped());
         Assert.assertArrayEquals(legacyText.getBytes(StandardCharsets.UTF_8), legacyInput.getContent());
+    }
+
+    @Test
+    public void testSharedDataForEveryLightType() throws Exception {
+        for (String type : new String[] {"ambient_light", "directional_light", "point_light", "spot_light"}) {
+            Data data = Data.newBuilder().setData(Value.newBuilder().setStruct(Struct.newBuilder()
+                    .putFields("intensity", Value.newBuilder().setNumber(2.5).build()))).build();
+            GameObjectSource.EmbeddedComponentDesc component = GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                    .setId("light").setType(type).setComponentData(data).build();
+            Assert.assertEquals(data, GameObjectSourceUtil.getEmbeddedComponentInput(
+                    getProject().getResource("/test.go"), component).getMessage());
+        }
+    }
+
+    @Test
+    public void testSharedStructuredExtensionData() throws Exception {
+        SpriteDesc sprite = SpriteDesc.newBuilder().setDefaultAnimation("Spelare åäö")
+                .setBlendMode(SpriteDesc.BlendMode.BLEND_MODE_ADD).build();
+        GameObjectSource.EmbeddedComponentDesc component = GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                .setId("extension").setType("test_struct_component")
+                .setComponentData(ProtoDataUtil.toData(sprite)).build();
+        Assert.assertEquals(sprite, GameObjectSourceUtil.getEmbeddedComponentInput(
+                getProject().getResource("/test.go"), component).getMessage());
+    }
+
+    @Test
+    public void testSharedExtensionUsesInputAndOutputClasses() throws Exception {
+        SpriteDesc input = SpriteDesc.newBuilder().setDefaultAnimation("Spelare åäö").setMaterial("").build();
+        GameObjectSource.PrototypeDesc source = GameObjectSource.PrototypeDesc.newBuilder()
+                .addEmbeddedComponents(GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                        .setId("extension").setType("test_struct_component")
+                        .setComponentData(ProtoDataUtil.toData(input)))
+                .build();
+        Data output = getMessage(build("/extension.go", com.google.protobuf.TextFormat.printer().printToString(source)), Data.class);
+        Assert.assertEquals("Spelare åäö", output.getData().getString());
+    }
+
+    @Test
+    public void testPayloadIsWrittenAfterTransform() {
+        GameObjectSource.EmbeddedComponentDesc component = GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                .setId("sprite").setType("sprite")
+                .setPosition(com.dynamo.proto.DdfMath.Point3.newBuilder().setX(1))
+                .setSprite(SpriteDesc.newBuilder().setDefaultAnimation("")).build();
+        String text = com.google.protobuf.TextFormat.printer().printToString(component);
+        Assert.assertTrue(text.indexOf("position {") < text.indexOf("sprite {"));
+        Assert.assertNull(GameObjectSource.PrototypeDesc.getDescriptor().findFieldByName("property_resources"));
+        Assert.assertNull(GameObjectSource.CollectionDesc.getDescriptor().findFieldByName("component_types"));
+        Assert.assertNull(GameObjectSource.EmbeddedComponentDesc.getDescriptor().findFieldByName("data"));
+    }
+
+    @Test(expected = CompileExceptionError.class)
+    public void testBranchOnlyLightPayloadIsNotSupported() throws Exception {
+        build("/light.go", "embedded_components { id: \"light\" type: \"point_light\" point_light {} }");
     }
 
     // Verifies that a typed mesh payload is passed directly to its builder and its resources are compiled.

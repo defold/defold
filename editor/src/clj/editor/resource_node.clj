@@ -288,7 +288,11 @@
                :path (path-fn pb-map path)))
            (coll/search-with-path pb-map init-path match-fn)))))
 
-(defn register-ddf-resource-type [workspace & {:keys [ddf-type read-defaults strict-source dependencies-fn sanitize-fn search-fn pb-encode-fn built-pb-class] :as args}]
+(defn register-ddf-resource-type
+  "Registers a protobuf resource with its :ddf-type, :sanitize-pb-map-fn and
+  :encode-pb-map-fn, allowing embedded payloads to use the same conversions as
+  standalone resources."
+  [workspace & {:keys [ddf-type read-defaults strict-source dependencies-fn sanitize-fn search-fn pb-encode-fn built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
          (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (boolean read-defaults)
@@ -317,7 +321,7 @@
                          pb-encode-fn (comp pb-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
-                 (dissoc :read-defaults :strict-source :pb-encode-fn)
+                 (dissoc :read-defaults :strict-source :sanitize-fn :pb-encode-fn :built-pb-class)
                  (assoc :textual? true
                         :ddf-type ddf-type
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))

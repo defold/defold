@@ -14,8 +14,10 @@
 
 (ns editor.collection-string-data
   (:require [editor.protobuf :as protobuf]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.coll :as coll])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObjectSource$EmbeddedComponentDesc GameObjectSource$PrototypeDesc]
+           [com.dynamo.gamesys.proto DataProto$Data]
            [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
@@ -67,7 +69,7 @@
         (protobuf/field-infos GameObjectSource$EmbeddedComponentDesc)))
 
 (def ^:private embedded-component-payload-keys
-  (vec (sort (keys embedded-component-payload-field-infos))))
+  (into [:data] (coll/sort (coll/keys embedded-component-payload-field-infos))))
 
 (defn- component-type->payload-key [^String component-type]
   (keyword (.replace component-type "_" "-")))
@@ -104,20 +106,35 @@
   (apply dissoc embedded-component-desc embedded-component-payload-keys))
 
 (defn source-decode-embedded-component-desc
-  "Converts a legacy string or typed source payload to canonical :data."
+  "Converts a legacy string or structured source payload to canonical :data."
   [ext->embedded-component-resource-type source-embedded-component-desc]
   (let [component-type (:type source-embedded-component-desc)
         component-resource-type (ext->embedded-component-resource-type component-type)
         payload-key (selected-payload-key embedded-component-payload-keys
                                           source-embedded-component-desc
                                           "embedded component")
+        payload (payload-key source-embedded-component-desc)
+        legacy-text (case payload-key
+                      :data (when (string? payload) payload)
+                      :component-data (get-in payload [:data :string])
+                      nil)
         component-data
-        (if (= :data payload-key)
-          (let [source-component-data (:data source-embedded-component-desc)]
-            (if (map? source-component-data)
-              source-component-data
-              (with-open [reader (StringReader. source-component-data)]
-                ((:read-fn component-resource-type) reader))))
+        (cond
+          legacy-text
+          (with-open [reader (StringReader. legacy-text)]
+            ((:read-fn component-resource-type) reader))
+
+          (= :data payload-key)
+          payload
+
+          (= :component-data payload-key)
+          (let [ddf-type (:ddf-type component-resource-type)
+                pb-map (if (= DataProto$Data ddf-type)
+                         payload
+                         (protobuf/data->pb-map ddf-type payload))]
+            ((:sanitize-pb-map-fn component-resource-type) pb-map))
+
+          :else
           (let [expected-payload-key (component-type->payload-key component-type)]
             (when-not (= expected-payload-key payload-key)
               (throw (ex-info (format "Embedded component type '%s' does not match its '%s' payload."
@@ -127,7 +144,7 @@
                                :expected-payload-key expected-payload-key
                                :payload-key payload-key})))
             (typed-payload-field-info component-type component-resource-type)
-            ((:sanitize-pb-map-fn component-resource-type) (payload-key source-embedded-component-desc))))]
+            ((:sanitize-pb-map-fn component-resource-type) payload)))]
     (assoc (strip-embedded-component-payload source-embedded-component-desc)
       :data component-data)))
 
@@ -172,18 +189,25 @@
                                               (:data embedded-instance-desc)))))))
 
 (defn source-encode-embedded-component-desc
-  "Projects canonical :data to a typed source payload when the source schema
-  declares one for the component type. Otherwise, writes the legacy fallback."
+  "Projects canonical :data to a built-in payload or shared component data."
   [ext->embedded-component-resource-type embedded-component-desc]
   (let [component-type (:type embedded-component-desc)
         component-resource-type (ext->embedded-component-resource-type component-type)
+        ddf-type (:ddf-type component-resource-type)
         typed-field-info (typed-payload-field-info component-type component-resource-type)
-        source-embedded-component-desc (strip-embedded-component-payload embedded-component-desc)]
+        source-embedded-component-desc (strip-embedded-component-payload embedded-component-desc)
+        component-data (:data embedded-component-desc)]
     (if typed-field-info
       (assoc source-embedded-component-desc
-        (component-type->payload-key component-type) ((:encode-pb-map-fn component-resource-type) (:data embedded-component-desc)))
+        (component-type->payload-key component-type) ((:encode-pb-map-fn component-resource-type) component-data))
       (assoc source-embedded-component-desc
-        :data ((:write-fn component-resource-type) (:data embedded-component-desc))))))
+        :component-data
+        (if ddf-type
+          (let [pb-map ((:encode-pb-map-fn component-resource-type) component-data)]
+            (if (= DataProto$Data ddf-type)
+              pb-map
+              (protobuf/pb-map->data ddf-type pb-map)))
+          {:data {:string ((:write-fn component-resource-type) component-data)}})))))
 
 (defn source-encode-prototype-desc
   [ext->embedded-component-resource-type prototype-desc]

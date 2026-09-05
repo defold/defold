@@ -15,9 +15,10 @@
 (ns editor.collection-string-data-test
   (:require [clojure.test :refer :all]
             [editor.collection-string-data :as collection-string-data]
+            [editor.data :as data]
             [editor.protobuf :as protobuf])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObjectSource$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$FactoryDesc Sprite$SpriteDesc]
+           [com.dynamo.gamesys.proto DataProto$Data GameSystem$FactoryDesc Sprite$SpriteDesc]
            [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
@@ -98,7 +99,7 @@
              :type "sprite"
              :label {}})))))
 
-;; Verifies typed encoding for built-ins and string fallback encoding for extension components.
+;; Verifies typed encoding for built-ins and structured data encoding for extension components.
 (deftest embedded-component-source-encode-test
   (testing "Built-in components use typed payloads and their map encoder."
     (is (= {:id "sprite"
@@ -110,7 +111,7 @@
               :type "sprite"
               :data {:default-animation "sanitized"}}))))
 
-  (testing "Extension components remain on the legacy string fallback."
+  (testing "Extension components use structured fields in the shared data payload."
     (let [source-desc (collection-string-data/source-encode-embedded-component-desc
                         ext->resource-type
                         {:id "spine"
@@ -118,7 +119,7 @@
                          :data {:prototype "/spine/spine.go"}})]
       (is (= {:id "spine"
               :type "spinemodel"
-              :data "prototype: \"/spine/spine.go\"\n"}
+              :component-data {:data {:struct {:fields {"prototype" {:string "/spine/spine.go"}}}}}}
              source-desc))
       (is (not (contains? source-desc :spinemodel))))))
 
@@ -133,7 +134,7 @@
               (collection-string-data/source-decode-embedded-component-desc ext->resource-type)
               (collection-string-data/source-encode-embedded-component-desc ext->resource-type)))))
 
-;; Verifies nested typed and fallback payloads through embedded-instance serialization and decoding.
+;; Verifies nested typed and shared payloads through embedded-instance serialization and decoding.
 (deftest embedded-instance-source-roundtrip-test
   (let [canonical-instance
         {:id "go"
@@ -148,21 +149,21 @@
         (collection-string-data/source-encode-embedded-instance-desc
           ext->resource-type
           canonical-instance)]
-    (testing "Embedded game objects use a prototype message with nested typed and fallback payloads."
+    (testing "Embedded game objects use a prototype message with nested typed and shared payloads."
       (is (not (contains? source-instance :data)))
       (is (= {:id "sprite"
               :type "sprite"
               :sprite {:default-animation "encoded"}}
              (get-in source-instance [:prototype :embedded-components 0])))
-      (is (= "prototype: \"/spine/spine.go\"\n"
-             (get-in source-instance [:prototype :embedded-components 1 :data]))))
+      (is (= "/spine/spine.go"
+             (get-in source-instance [:prototype :embedded-components 1 :component-data :data :struct :fields "prototype" :string]))))
 
     (testing "Typed source survives protobuf text serialization, including its oneof selections."
       (let [source-prototype (:prototype source-instance)
             source-text (protobuf/map->str GameObjectSource$PrototypeDesc source-prototype)
             parsed-source-prototype (protobuf/str->map-without-defaults GameObjectSource$PrototypeDesc source-text)]
         (is (contains? (get-in parsed-source-prototype [:embedded-components 0]) :sprite))
-        (is (contains? (get-in parsed-source-prototype [:embedded-components 1]) :data))))
+        (is (contains? (get-in parsed-source-prototype [:embedded-components 1]) :component-data))))
 
     (testing "Decoding restores the canonical editor representation."
       (is (= canonical-instance
@@ -189,7 +190,7 @@
 (deftest legacy-collection-migrates-to-typed-source-test
   (let [legacy-prototype-text
         (protobuf/map->str
-          GameObjectSource$PrototypeDesc
+          GameObject$PrototypeDesc
           {:embedded-components [{:id "sprite"
                                   :type "sprite"
                                   :data "default_animation: \"legacy\"\n"}]})
@@ -247,3 +248,31 @@
     (is (string? (:data string-encoded-instance)))
     (is (= string-encoded-prototype
            (protobuf/str->map-without-defaults GameObject$PrototypeDesc (:data string-encoded-instance))))))
+
+;; All light types share the same payload while keeping Data resource conversions.
+(deftest shared-light-data-roundtrip-test
+  (doseq [light-type ["ambient_light" "directional_light" "point_light" "spot_light"]]
+    (let [light-resource-type {:ddf-type DataProto$Data
+                               :sanitize-pb-map-fn data/data-desc-pb-map->data-desc
+                               :encode-pb-map-fn data/data-desc->data-desc-pb-map}
+          resource-types {light-type light-resource-type}
+          canonical {:id "light"
+                     :type light-type
+                     :data {:data {"intensity" 2.5
+                                   "color" [1.0 0.5 0.0]}}}
+          source (collection-string-data/source-encode-embedded-component-desc resource-types canonical)]
+      (is (contains? source :component-data))
+      (is (= canonical
+             (collection-string-data/source-decode-embedded-component-desc resource-types source))))))
+
+;; Legacy extension files migrate on save without losing their component data.
+(deftest legacy-extension-migrates-to-structured-data-test
+  (let [legacy {:id "spine"
+                :type "spinemodel"
+                :data "prototype: \"/spine/spine.go\"\n"}
+        canonical (collection-string-data/source-decode-embedded-component-desc ext->resource-type legacy)
+        source (collection-string-data/source-encode-embedded-component-desc ext->resource-type canonical)]
+    (is (= "/spine/spine.go"
+           (get-in source [:component-data :data :struct :fields "prototype" :string])))
+    (is (= canonical
+           (collection-string-data/source-decode-embedded-component-desc ext->resource-type source)))))

@@ -2039,7 +2039,7 @@ object {
   (testing "Allows repeated scalar payload fields."
     (is (= {:id "component"
             :type "extension"
-            :data "second"}
+            :component-data {:data {:string "second"}}}
            (protobuf/str->map-without-defaults-strict
              GameObjectSource$EmbeddedComponentDesc
              (str "id: 'component'\n"

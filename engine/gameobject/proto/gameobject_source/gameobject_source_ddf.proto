@@ -1,7 +1,6 @@
 syntax = "proto2";
 package dmGameObjectSourceDDF;
 
-import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
 import "gameobject/gameobject_ddf.proto";
@@ -28,36 +27,33 @@ message EmbeddedComponentDesc
     required string id = 1;
     required string type = 2;
 
+    optional dmMath.Point3 position = 3;
+    optional dmMath.Quat rotation = 4;
+    optional dmMath.Vector3One scale = 5;
+
     oneof payload
     {
-        string data = 3;
-        dmPhysicsDDF.CollisionObjectDesc collisionobject = 10;
-        dmGameSystemDDF.LabelDesc label = 11;
-        dmGameSystemDDF.SpriteDesc sprite = 12;
-        dmSoundDDF.SoundDesc sound = 13;
-        dmModelDDF.ModelDesc model = 14;
-        dmGameSystemDDF.FactoryDesc factory = 15;
-        dmGameSystemDDF.CollectionFactoryDesc collectionfactory = 16;
-        dmParticleDDF.ParticleFX particlefx = 17;
-        dmGamesysDDF.CameraDesc camera = 18;
-        dmCollectionProxyDDF.CollectionProxyDesc collectionproxy = 19;
-        dmMeshDDF.MeshDesc mesh = 20;
-        dmGameSystemDDF.Data directional_light = 21;
-        dmGameSystemDDF.Data point_light = 22;
-        dmGameSystemDDF.Data spot_light = 23;
-        dmGameSystemDDF.Data ambient_light = 24;
+        dmPhysicsDDF.CollisionObjectDesc collisionobject = 6;
+        dmGameSystemDDF.LabelDesc label = 7;
+        dmGameSystemDDF.SpriteDesc sprite = 8;
+        dmSoundDDF.SoundDesc sound = 9;
+        dmModelDDF.ModelDesc model = 10;
+        dmGameSystemDDF.FactoryDesc factory = 11;
+        dmGameSystemDDF.CollectionFactoryDesc collectionfactory = 12;
+        dmParticleDDF.ParticleFX particlefx = 13;
+        dmGamesysDDF.CameraDesc camera = 14;
+        dmCollectionProxyDDF.CollectionProxyDesc collectionproxy = 15;
+        dmMeshDDF.MeshDesc mesh = 16;
+        // Shared by lights and extension components, whose schemas are not
+        // available when this authoring format is generated.
+        dmGameSystemDDF.Data component_data = 17;
     }
-
-    optional dmMath.Point3 position = 4;
-    optional dmMath.Quat rotation = 5;
-    optional dmMath.Vector3One scale = 6;
 }
 
 message PrototypeDesc
 {
     repeated dmGameObjectDDF.ComponentDesc components = 1;
     repeated EmbeddedComponentDesc embedded_components = 2;
-    repeated string property_resources = 3 [(runtime_only) = true, (resource) = true];
 }
 
 message EmbeddedInstanceDesc
@@ -65,17 +61,16 @@ message EmbeddedInstanceDesc
     required string id = 1;
     repeated string children = 2;
 
+    optional dmMath.Point3 position = 3;
+    optional dmMath.Quat rotation = 4;
+    repeated dmGameObjectDDF.ComponentPropertyDesc component_properties = 5;
+    optional float scale = 6 [default = 1.0];
+    optional dmMath.Vector3One scale3 = 7;
+
     oneof payload
     {
-        string data = 3;
-        PrototypeDesc prototype = 9;
+        PrototypeDesc prototype = 8;
     }
-
-    optional dmMath.Point3 position = 4;
-    optional dmMath.Quat rotation = 5;
-    repeated dmGameObjectDDF.ComponentPropertyDesc component_properties = 6;
-    optional float scale = 7 [default = 1.0];
-    optional dmMath.Vector3One scale3 = 8;
 }
 
 message CollectionDesc
@@ -85,6 +80,4 @@ message CollectionDesc
     repeated dmGameObjectDDF.CollectionInstanceDesc collection_instances = 3;
     optional uint32 scale_along_z = 4 [default = 0]; // Deprecated
     repeated EmbeddedInstanceDesc embedded_instances = 5;
-    repeated string property_resources = 6 [(runtime_only) = true, (resource) = true];
-    repeated dmGameObjectDDF.ComponenTypeDesc component_types = 7 [(runtime_only) = true];
 }

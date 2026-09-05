@@ -116,6 +116,15 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
     }
 
     /**
+     * Convert a srcClass builder into the messageClass output builder. Keep the
+     * existing transform hook for binary compatibility with extension builders.
+     */
+    protected Message.Builder transformMessage(Task task, IResource resource, B sourceBuilder)
+            throws IOException, CompileExceptionError {
+        return transform(task, resource, sourceBuilder);
+    }
+
+    /**
      * Scan proto message and create a sub-task for each resource in it
      * @param builder message or builder of the file that should be scanned
      * @param taskBuilder the builder where result should be applied to
@@ -214,8 +223,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
     public void build(Task task) throws CompileExceptionError,
             IOException {
 
-        B builder = getSrcBuilder(task.firstInput());
-        builder = transform(task, task.firstInput(), builder);
+        Message.Builder builder = transformMessage(task, task.firstInput(), getSrcBuilder(task.firstInput()));
 
         Message msg = builder.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);

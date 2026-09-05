@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -388,8 +387,9 @@ public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionD
         }
     }
 
-    private GameObject.CollectionDesc.Builder transformCollection(Task task, IResource resource,
-                                                                   GameObjectSource.CollectionDesc.Builder sourceBuilder)
+    @Override
+    protected GameObject.CollectionDesc.Builder transformMessage(Task task, IResource resource,
+                                                                  GameObjectSource.CollectionDesc.Builder sourceBuilder)
             throws CompileExceptionError, IOException {
         if (!sourceBuilder.hasName()) {
             throw new CompileExceptionError(resource, 0, "missing required field 'name'");
@@ -402,9 +402,7 @@ public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionD
         GameObject.CollectionDesc.Builder messageBuilder = GameObject.CollectionDesc.newBuilder()
                 .setName(sourceBuilder.getName())
                 .addAllInstances(sourceBuilder.getInstancesList())
-                .addAllCollectionInstances(sourceBuilder.getCollectionInstancesList())
-                .addAllPropertyResources(sourceBuilder.getPropertyResourcesList())
-                .addAllComponentTypes(sourceBuilder.getComponentTypesList());
+                .addAllCollectionInstances(sourceBuilder.getCollectionInstancesList());
         if (sourceBuilder.hasScaleAlongZ()) {
             messageBuilder.setScaleAlongZ(sourceBuilder.getScaleAlongZ());
         }
@@ -497,17 +495,6 @@ public class CollectionBuilder extends ProtoBuilder<GameObjectSource.CollectionD
         task.output(1).setContent(compStorage.toByteArray());
 
         return messageBuilder;
-    }
-
-    @Override
-    public void build(Task task) throws CompileExceptionError, IOException {
-        GameObjectSource.CollectionDesc.Builder sourceBuilder = getSrcBuilder(task.firstInput());
-        GameObject.CollectionDesc collection = transformCollection(task, task.firstInput(), sourceBuilder).build();
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
-        collection.writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
     }
 
     @Override

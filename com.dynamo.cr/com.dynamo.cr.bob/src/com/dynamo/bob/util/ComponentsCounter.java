@@ -300,14 +300,7 @@ public class ComponentsCounter {
 
     public static void countComponentsInEmbededObjects(Project project, IResource input, GeneratedInput generatedInput,
                                                        Storage compStorage) throws IOException, CompileExceptionError {
-        GameObjectSource.PrototypeDesc prot;
-        if (generatedInput.isTyped()) {
-            prot = (GameObjectSource.PrototypeDesc) generatedInput.getMessage();
-        } else {
-            GameObjectSource.PrototypeDesc.Builder builder = GameObjectSource.PrototypeDesc.newBuilder();
-            ProtoUtil.mergeStrict(input, generatedInput.getContent(), builder);
-            prot = builder.build();
-        }
+        GameObjectSource.PrototypeDesc prot = (GameObjectSource.PrototypeDesc) generatedInput.getMessage();
 
         for (GameObjectSource.EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             GeneratedInput componentInput = GameObjectSourceUtil.getEmbeddedComponentInput(input, cd);

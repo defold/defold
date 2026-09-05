@@ -30,7 +30,7 @@
   (:import [clojure.lang ExceptionInfo IHashEq ILookup Util]
            [com.defold.editor.test TestDdf$MappedMessage TestDdf$JsonValue]
            [com.dynamo.gameobject.proto GameObjectSource$CollectionDesc GameObjectSource$PrototypeDesc]
-           [com.dynamo.gamesys.proto DataProto$Data GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
+           [com.dynamo.gamesys.proto DataProto$Data Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
            [java.io File Writer]))
 
 (set! *warn-on-reflection* true)
@@ -198,19 +198,15 @@
                                   {:number 1.0}]})}
 
         embedded-component-data
-        (protobuf/map->str
-          GameSystem$FactoryDesc
-          {:prototype "/referenced/instanced.go"})
+        {:prototype "/referenced/instanced.go"}
 
         embedded-instance-data
-        (protobuf/map->str
-          GameObjectSource$PrototypeDesc
-          {:components [{:id "component_id"
-                         :component "/referenced/prop.script"
-                         :properties [property-desc]}]
-           :embedded-components [{:id "embedded_component_id"
-                                  :type "factory"
-                                  :data embedded-component-data}]})]
+        {:components [{:id "component_id"
+                       :component "/referenced/prop.script"
+                       :properties [property-desc]}]
+         :embedded-components [{:id "embedded_component_id"
+                                :type "factory"
+                                :factory embedded-component-data}]}]
 
     {"ambient_light"
      {:data {:struct {:fields
@@ -228,7 +224,7 @@
                              :instance-properties {:id "instance_id"
                                                    :properties (required component-property-desc)}}
       :embedded-instances {:id "instance_id"
-                           :data (required embedded-instance-data)
+                           :prototype (required embedded-instance-data)
                            :component-properties (exactly nil)}
       :instances {:id "instance_id"
                   :prototype "/referenced/instanced.go"
@@ -262,7 +258,7 @@
                    :properties property-desc}
       :embedded-components {:id "embedded_component_id"
                             :type "factory"
-                            :data (required embedded-component-data)}}
+                            :factory (required embedded-component-data)}}
 
      "gui"
      {:nodes {:id (required "node_id")
@@ -549,7 +545,7 @@
                           :component "/referenced/prop.script"}]
             :embedded-components [{:id "embedded_component_id"
                                    :type "factory"
-                                   :data "prototype: \"/referenced/instanced.go\"\n"}]}
+                                   :factory {:prototype "/referenced/instanced.go"}}]}
            (sparse-pb-map GameObjectSource$PrototypeDesc ["go"] 1)))
     (is (= {:components [{:id "component_id"
                           :component "/referenced/prop.script"
@@ -561,7 +557,7 @@
                                         :value "1.0"}]}]
             :embedded-components [{:id "embedded_component_id"
                                    :type "factory"
-                                   :data "prototype: \"/referenced/instanced.go\"\n"
+                                   :factory {:prototype "/referenced/instanced.go"}
                                    :position {}
                                    :rotation {}
                                    :scale {}}]}
@@ -574,16 +570,14 @@
             :instances [{:id "instance_id"
                          :prototype "/referenced/instanced.go"}]
             :embedded-instances [{:id "instance_id"
-                                  :data (protobuf/map->str
-                                          GameObjectSource$PrototypeDesc
-                                          {:components [{:id "component_id"
-                                                         :component "/referenced/prop.script"
-                                                         :properties [{:id "property_id"
-                                                                       :type :property-type-number
-                                                                       :value "1.0"}]}]
-                                           :embedded-components [{:id "embedded_component_id"
-                                                                  :type "factory"
-                                                                  :data "prototype: \"/referenced/instanced.go\"\n"}]})}]
+                                  :prototype {:components [{:id "component_id"
+                                                            :component "/referenced/prop.script"
+                                                            :properties [{:id "property_id"
+                                                                          :type :property-type-number
+                                                                          :value "1.0"}]}]
+                                              :embedded-components [{:id "embedded_component_id"
+                                                                     :type "factory"
+                                                                     :factory {:prototype "/referenced/instanced.go"}}]}}]
             :collection-instances [{:id "collection_instance_id"
                                     :collection "/referenced/instanced.collection"}]}
            (sparse-pb-map GameObjectSource$CollectionDesc ["collection"] 1)))
@@ -601,16 +595,14 @@
                                   :position {}
                                   :rotation {}
                                   :scale3 {}
-                                  :data (protobuf/map->str
-                                          GameObjectSource$PrototypeDesc
-                                          {:components [{:id "component_id"
-                                                         :component "/referenced/prop.script"
-                                                         :properties [{:id "property_id"
-                                                                       :type :property-type-number
-                                                                       :value "1.0"}]}]
-                                           :embedded-components [{:id "embedded_component_id"
-                                                                  :type "factory"
-                                                                  :data "prototype: \"/referenced/instanced.go\"\n"}]})}]
+                                  :prototype {:components [{:id "component_id"
+                                                            :component "/referenced/prop.script"
+                                                            :properties [{:id "property_id"
+                                                                          :type :property-type-number
+                                                                          :value "1.0"}]}]
+                                              :embedded-components [{:id "embedded_component_id"
+                                                                     :type "factory"
+                                                                     :factory {:prototype "/referenced/instanced.go"}}]}}]
             :collection-instances [{:id "collection_instance_id"
                                     :position {}
                                     :rotation {}

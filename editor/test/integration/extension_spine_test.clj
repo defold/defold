@@ -430,8 +430,8 @@
                              "  2 + atlas: \"/assets/spineboy/spineboy.atlas\""]
 
                             "/main/main.collection"
-                            ["19    -   \"material: \\\"/builtins/materials/spine.material\\\"\\n\""
-                             "   19 +   \"material: \\\"/defold-spine/assets/spine.material\\\"\\n\""]}
+                            ["28    -                 string: \"/builtins/materials/spine.material\""
+                             "   28 +                 string: \"/defold-spine/assets/spine.material\""]}
 
                            save-data-diffs-by-proj-path))))))))))))
 

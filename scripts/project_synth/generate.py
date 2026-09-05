@@ -16,6 +16,7 @@ from project_synth.progress import ProgressReporter
 from project_synth.profile import profile_project
 from project_synth.proto import EMBEDDED_PROTO_BY_TYPE
 from project_synth.proto import gameobject_source_ddf_pb2
+from project_synth.proto import message_to_component_data
 from project_synth.proto import text_format
 
 
@@ -1054,7 +1055,11 @@ def render_embedded_component(component_id: str, component_type: str, payload) -
     embedded = gameobject_source_ddf_pb2.EmbeddedComponentDesc()
     embedded.id = component_id
     embedded.type = component_type
-    getattr(embedded, component_type).CopyFrom(payload)
+    payload_field = embedded.DESCRIPTOR.fields_by_name.get(component_type)
+    if payload_field is not None and payload_field.message_type == payload.DESCRIPTOR:
+        getattr(embedded, component_type).CopyFrom(payload)
+    else:
+        message_to_component_data(payload, embedded.component_data)
     return ["embedded_components {"] + [
         f"  {line}" for line in message_to_text(embedded).splitlines()
     ] + ["}"]

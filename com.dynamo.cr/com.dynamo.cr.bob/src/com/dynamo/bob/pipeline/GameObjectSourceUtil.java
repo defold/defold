@@ -18,8 +18,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObjectSource;
+import com.dynamo.gamesys.proto.DataProto.Data;
+import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.OneofDescriptor;
@@ -107,8 +110,21 @@ public final class GameObjectSourceUtil {
         requireNonEmpty(input, desc.getType(), "type");
 
         FieldDescriptor selected = selectedPayload(input, desc, "Embedded component '" + desc.getId() + "'");
-        if (selected.getName().equals("data")) {
-            return legacyInput((String) desc.getField(selected));
+        if (selected.getName().equals("component_data")) {
+            Data data = desc.getComponentData();
+            if (data.getData().getKindCase() == Value.KindCase.STRING) {
+                return legacyInput(data.getData().getString());
+            }
+            Message.Builder builder = ProtoBuilder.newBuilder("." + desc.getType());
+            if (builder.getDescriptorForType() == Data.getDescriptor()) {
+                return typedInput(data);
+            }
+            try {
+                return typedInput(ProtoDataUtil.fromData(data, builder));
+            } catch (IllegalArgumentException e) {
+                throw new CompileExceptionError(input, 0,
+                        "Invalid data for embedded component '" + desc.getId() + "': " + e.getMessage(), e);
+            }
         }
 
         if (!selected.getName().equals(desc.getType())) {
@@ -124,15 +140,10 @@ public final class GameObjectSourceUtil {
             throws CompileExceptionError, IOException {
         requireNonEmpty(input, desc.getId(), "id");
 
-        FieldDescriptor selected = selectedPayload(input, desc, "Embedded instance '" + desc.getId() + "'");
-        if (selected.getName().equals("data")) {
-            return legacyInput((String) desc.getField(selected));
-        }
-        if (!selected.getName().equals("prototype")) {
-            throw new CompileExceptionError(input, 0,
-                    "Embedded instance '" + desc.getId() + "' uses unsupported payload '" + selected.getName() + "'");
+        if (!desc.hasPrototype()) {
+            throw new CompileExceptionError(input, 0, "Embedded instance '" + desc.getId() + "' is missing a payload");
         }
 
-        return typedInput((Message) desc.getField(selected));
+        return typedInput(desc.getPrototype());
     }
 }

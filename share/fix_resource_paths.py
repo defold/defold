@@ -25,7 +25,7 @@ import os
 import sys
 
 from google.protobuf import text_format
-from protobuf_text import merge_gameobject_source_text
+from protobuf_text import component_data_message, merge_gameobject_source_text, message_to_component_data
 
 # Script to add '/' in front of all resource. A blue-print script on how to automate content changes
 
@@ -43,8 +43,14 @@ def fix_resource_files(msg):
         value = getattr(msg, field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             if field.is_repeated:
-                for x in value:
-                    fix_resource_files(x)
+                if field.message_type.GetOptions().map_entry:
+                    value_field = field.message_type.fields_by_name['value']
+                    if value_field.message_type:
+                        for x in value.values():
+                            fix_resource_files(x)
+                else:
+                    for x in value:
+                        fix_resource_files(x)
             elif msg.HasField(field.name):
                 fix_resource_files(value)
         elif is_resource(field):
@@ -86,35 +92,31 @@ def message_to_text(message):
     return text_format.MessageToString(message, as_utf8=True)
 
 
-def fix_legacy_embedded_component(embedded):
+def fix_shared_embedded_component(embedded):
     embedded_type = ProtofileType.ext_to_protofile_type.get('.' + embedded.type)
     if embedded_type is None:
         return
 
     embedded_message = embedded_type.new_message()
-    merge_gameobject_source_text(embedded.data, embedded_message)
+    component_data_message(embedded.component_data, embedded_message)
     fix_resource_files(embedded_message)
-    embedded.data = message_to_text(embedded_message)
+    payload_field = embedded.DESCRIPTOR.fields_by_name.get(embedded.type)
+    if payload_field is not None and payload_field.message_type == embedded_message.DESCRIPTOR:
+        getattr(embedded, embedded.type).CopyFrom(embedded_message)
+    else:
+        message_to_component_data(embedded_message, embedded.component_data)
 
 
 def fix_source_prototype(prototype):
     for embedded in prototype.embedded_components:
-        if embedded.WhichOneof('payload') == 'data':
-            fix_legacy_embedded_component(embedded)
+        if embedded.WhichOneof('payload') == 'component_data':
+            fix_shared_embedded_component(embedded)
 
 
 def fix_source_collection(collection):
-    prototype_type = ProtofileType.ext_to_protofile_type['.go']
     for embedded in collection.embedded_instances:
-        payload = embedded.WhichOneof('payload')
-        if payload == 'prototype':
+        if embedded.WhichOneof('payload') == 'prototype':
             fix_source_prototype(embedded.prototype)
-        elif payload == 'data':
-            prototype = prototype_type.new_message()
-            merge_gameobject_source_text(embedded.data, prototype)
-            fix_resource_files(prototype)
-            fix_source_prototype(prototype)
-            embedded.data = message_to_text(prototype)
 
 def process_file(file_name):
     _, ext = os.path.splitext(file_name)

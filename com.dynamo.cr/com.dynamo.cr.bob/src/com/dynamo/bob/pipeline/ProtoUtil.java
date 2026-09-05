@@ -85,13 +85,7 @@ public class ProtoUtil {
         try {
             String text = new String(inputContent, StandardCharsets.UTF_8);
             if (strict) {
-                TextFormatParseInfoTree.Builder parseInfoBuilder = TextFormatParseInfoTree.builder();
-                TextFormat.Parser parser = TextFormat.Parser.newBuilder()
-                        .setParseInfoTreeBuilder(parseInfoBuilder)
-                        .build();
-                parser.merge(text, builder);
-                rejectConflictingOneofFields(builder.getDescriptorForType(),
-                        Collections.singletonList(parseInfoBuilder.build()));
+                mergeStrictText(text, builder);
             } else {
                 TextFormat.merge(text, builder);
             }
@@ -104,6 +98,18 @@ public class ProtoUtil {
             } else {
                 throw new CompileExceptionError(input, 0, e.getMessage(), e);
             }
+        }
+    }
+
+    public static void mergeStrictText(CharSequence text, Builder builder) throws TextFormat.ParseException {
+        boolean sourceFormat = builder.getDescriptorForType().getFile().getPackage().equals(GAME_OBJECT_SOURCE_PACKAGE);
+        Builder readBuilder = sourceFormat ? GameObjectSourceFormat.newReadBuilder(builder) : builder;
+        TextFormatParseInfoTree.Builder parseInfo = TextFormatParseInfoTree.builder();
+        TextFormat.Parser parser = TextFormat.Parser.newBuilder().setParseInfoTreeBuilder(parseInfo).build();
+        parser.merge(text, readBuilder);
+        rejectConflictingOneofFields(readBuilder.getDescriptorForType(), Collections.singletonList(parseInfo.build()));
+        if (sourceFormat) {
+            GameObjectSourceFormat.copyToSource(readBuilder.buildPartial(), builder);
         }
     }
 

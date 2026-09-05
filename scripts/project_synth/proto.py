@@ -54,7 +54,7 @@ from gamesys import sound_ddf_pb2
 from gamesys import sprite_ddf_pb2
 from gamesys import tile_ddf_pb2
 from particle import particle_ddf_pb2
-from protobuf_text import merge_gameobject_source_text
+from protobuf_text import component_data_message, merge_gameobject_source_text, message_to_component_data
 from render import material_ddf_pb2
 from render import render_ddf_pb2
 
@@ -126,11 +126,11 @@ def embedded_component_message(embedded):
     payload = embedded.WhichOneof("payload")
     if payload is None:
         return None
-    if payload == "data":
+    if payload == "component_data":
         message_cls = EMBEDDED_PROTO_BY_TYPE.get(embedded.type)
         if message_cls is None:
             return None
-        return parse_text_proto(embedded.data, message_cls)
+        return component_data_message(embedded.component_data, message_cls())
     return getattr(embedded, payload)
 
 
@@ -138,8 +138,6 @@ def embedded_instance_prototype(embedded):
     payload = embedded.WhichOneof("payload")
     if payload == "prototype":
         return embedded.prototype
-    if payload == "data":
-        return parse_text_proto(embedded.data, gameobject_source_ddf_pb2.PrototypeDesc)
     return None
 
 

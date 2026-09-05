@@ -87,7 +87,7 @@
                   (is (contains? source-embedded-component source-payload-key))
                   (is (not (contains? source-embedded-component :data))))
                 (do
-                  (is (contains? source-embedded-component :data))
+                  (is (contains? source-embedded-component :component-data))
                   (is (not (contains? source-embedded-component source-payload-key)))))
               (is (nil? only-in-saved))
               (is (nil? only-in-loaded))

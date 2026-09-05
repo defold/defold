@@ -30,8 +30,10 @@ Macros currently mean no foreseeable performance gain, however."
             [util.digest :as digest]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
-           [com.google.protobuf ByteString DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Descriptors$OneofDescriptor Message Message$Builder ProtocolMessageEnum TextFormat TextFormat$ParseException TextFormat$Parser TextFormatParseInfoTree TextFormatParseInfoTree$Builder TextFormatParseLocation]
+  (:import [com.dynamo.bob.pipeline ProtoDataUtil ProtoUtil]
+           [com.dynamo.gamesys.proto DataProto$Data]
+           [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
+           [com.google.protobuf ByteString DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
            [java.nio.charset StandardCharsets]
@@ -1187,77 +1189,25 @@ Macros currently mean no foreseeable performance gain, however."
 (defn map->bytes [^Class cls m]
   (pb->bytes (map->pb cls m)))
 
+(defn pb-map->data
+  [^Class cls pb-map]
+  (pb->map-without-defaults (ProtoDataUtil/toData (map->pb cls pb-map))))
+
+(defn data->pb-map
+  [^Class cls data-pb-map]
+  (pb->map-without-defaults
+    (ProtoDataUtil/fromData (map->pb DataProto$Data data-pb-map) (new-builder cls))))
+
 (defn read-pb-into!
   ^Message$Builder [^Message$Builder builder input]
   (with-open [reader (io/reader input)]
     (TextFormat/merge reader builder)
     builder))
 
-(defn- find-oneof-overwrite
-  [^Descriptors$Descriptor message-desc ^TextFormatParseInfoTree parse-info-tree]
-  (let [^Descriptors$OneofDescriptor payload-oneof-desc
-        (when (= "dmGameObjectSourceDDF" (-> message-desc .getFile .getPackage))
-          (coll/first-where #(= "payload" (.getName ^Descriptors$OneofDescriptor %))
-                            (.getRealOneofs message-desc)))
-
-        selections
-        (when payload-oneof-desc
-          (reduce
-            (fn [selections ^Descriptors$FieldDescriptor field-desc]
-              (let [locations (.getLocations parse-info-tree field-desc)]
-                (if (.isEmpty locations)
-                  selections
-                  (conj selections (pair field-desc (.get locations 0))))))
-            []
-            (.getFields payload-oneof-desc)))
-
-        overwrite
-        (when (< 1 (count selections))
-          (let [[field-desc location] (nth selections 1)]
-            {:field-desc field-desc
-             :location location
-             :oneof-desc payload-oneof-desc}))]
-    (if overwrite
-      overwrite
-      (reduce
-        (fn [_ ^Descriptors$FieldDescriptor field-desc]
-          (when (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
-            (when-let [nested-overwrite
-                       (reduce
-                         (fn [_ ^TextFormatParseInfoTree nested-parse-info-tree]
-                           (when-let [overwrite (find-oneof-overwrite (.getMessageType field-desc) nested-parse-info-tree)]
-                             (reduced overwrite)))
-                         nil
-                         (.getNestedTrees parse-info-tree field-desc))]
-              (reduced nested-overwrite))))
-        nil
-        (.getFields message-desc)))))
-
-(defn- validate-text-format-oneofs!
-  [^Message$Builder builder ^TextFormatParseInfoTree parse-info-tree]
-  (when-let [{:keys [field-desc location oneof-desc]}
-             (find-oneof-overwrite (.getDescriptorForType builder) parse-info-tree)]
-    (let [^Descriptors$FieldDescriptor field-desc field-desc
-          ^TextFormatParseLocation location location
-          ^Descriptors$OneofDescriptor oneof-desc oneof-desc]
-      (throw
-        (TextFormat$ParseException.
-          (unchecked-inc-int (.getLine location))
-          (unchecked-inc-int (.getColumn location))
-          (format "Field '%s' is specified with another member of oneof '%s'."
-                  (.getFullName field-desc)
-                  (.getFullName oneof-desc)))))))
-
 (defn read-pb-strict-into!
   ^Message$Builder [^Message$Builder builder input]
-  (let [^TextFormatParseInfoTree$Builder parse-info-tree-builder (TextFormatParseInfoTree/builder)
-        ^TextFormat$Parser parser (-> (TextFormat$Parser/newBuilder)
-                                      (.setParseInfoTreeBuilder parse-info-tree-builder)
-                                      (.build))]
-    (with-open [reader (io/reader input)]
-      (.merge parser reader builder))
-    (validate-text-format-oneofs! builder (.build parse-info-tree-builder))
-    builder))
+  (ProtoUtil/mergeStrictText (slurp input) builder)
+  builder)
 
 (defmacro read-pb [^Class cls input]
   (cond-> `(.build (read-pb-into! (#'new-builder ~cls) ~input))

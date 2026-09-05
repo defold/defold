@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -173,17 +172,16 @@ public class GameObjectBuilder extends ProtoBuilder<GameObjectSource.PrototypeDe
     }
 
     @Override
-    public void build(Task task) throws CompileExceptionError, IOException {
-        IResource input = task.firstInput();
-        GameObjectSource.PrototypeDesc.Builder sourceBuilder = loadPrototype(input);
+    protected GameObject.PrototypeDesc.Builder transformMessage(Task task, IResource input,
+                                                                GameObjectSource.PrototypeDesc.Builder sourceBuilder)
+            throws CompileExceptionError, IOException {
         for (ComponentDesc c : sourceBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
 
         GameObject.PrototypeDesc.Builder protoBuilder = GameObject.PrototypeDesc.newBuilder()
-                .addAllComponents(sourceBuilder.getComponentsList())
-                .addAllPropertyResources(sourceBuilder.getPropertyResourcesList());
+                .addAllComponents(sourceBuilder.getComponentsList());
 
         // convert embedded components to generated components in the build folder
         for (GameObjectSource.EmbeddedComponentDesc ec : sourceBuilder.getEmbeddedComponentsList()) {
@@ -224,12 +222,8 @@ public class GameObjectBuilder extends ProtoBuilder<GameObjectSource.PrototypeDe
         }
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), ComponentsCounter.DYNAMIC_VALUE);
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
-        GameObject.PrototypeDesc proto = protoBuilder.build();
-        proto.writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
         task.output(1).setContent(compStorage.toByteArray());
+        return protoBuilder;
     }
 
     private GameObject.PrototypeDesc.Builder transformGo(IResource resource,
