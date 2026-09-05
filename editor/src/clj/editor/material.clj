@@ -183,12 +183,8 @@
     :constant-type-worldview-inverse :world-view-inv
     :constant-type-worldviewproj-inverse :world-view-proj-inv))
 
-(defn- transpile-shader-source-raw
-  [shader-proj-path ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
-  (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
-
 (def ^:private transpile-shader-source-cached
-  (fn/memoize {:limit 8} transpile-shader-source-raw))
+  (fn/memoize {:limit 8} #'shader-gen/transpile-shader-source))
 
 (defn- transpile-shader-source
   [shader-resource-node-id shader-resource ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]

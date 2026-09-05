@@ -31,29 +31,26 @@
               (map (fn [asset-resource]
                      [(:path (resource/gltf-resource-asset-info asset-resource))
                       asset-resource]))
-              asset-resources)
-
-        material-resources
-        (into []
-              (filter #(= :material (:kind (resource/gltf-resource-asset-info %))))
               asset-resources)]
     (into []
-          (keep
-            (fn [material-resource]
-              (let [{:keys [index name sampler-bindings]} (resource/gltf-resource-asset-info material-resource)]
-                (when (or (nil? material-indices)
-                          (contains? material-indices index))
-                  {:name (or (coll/not-empty name) (str "gltf_material_" index))
-                   :material material-resource
-                   :material-index index
-                   :textures
-                   (into []
-                         (keep (fn [{:keys [sampler image-path]}]
-                                 (when-let [texture-resource (resource-by-asset-path image-path)]
-                                   {:sampler sampler
-                                    :texture texture-resource})))
-                         sampler-bindings)}))))
-          material-resources)))
+          (comp
+            (filter #(= :material (:kind (resource/gltf-resource-asset-info %))))
+            (keep
+              (fn [material-resource]
+                (let [{:keys [index name sampler-bindings]} (resource/gltf-resource-asset-info material-resource)]
+                  (when (or (nil? material-indices)
+                            (contains? material-indices index))
+                    {:name (or (coll/not-empty name) (str "gltf_material_" index))
+                     :material material-resource
+                     :material-index index
+                     :textures
+                     (into []
+                           (keep (fn [{:keys [sampler image-path]}]
+                                   (when-let [texture-resource (resource-by-asset-path image-path)]
+                                     {:sampler sampler
+                                      :texture texture-resource})))
+                           sampler-bindings)})))))
+          asset-resources)))
 
 (defn metadata-descriptors [source-resource]
   (let [asset-resources (asset-resources source-resource)
@@ -81,14 +78,13 @@
                 descriptors-by-index
                 textures)))
           (sorted-map)
-          (into []
-                (filter #(= :image (:kind (resource/gltf-resource-asset-info %))))
-                asset-resources))
+          (eduction
+            (filter #(= :image (:kind (resource/gltf-resource-asset-info %))))
+            asset-resources))
         texture-descriptors (into [] (map val) texture-descriptors-by-index)
         texture-name-by-index
         (into {}
-              (map (fn [{:keys [index name]}]
-                     [index (or (coll/not-empty name) (format "Texture %d" index))]))
+              (map (juxt :index :name))
               texture-descriptors)
         material-descriptors
         (into []
@@ -311,22 +307,20 @@
               (assoc cache source-proj-path cache-entry)))
           {}
           gltf-source-resources)
-        virtual-status-map (reduce-kv
-                             (fn [status-map _source-proj-path cache-entry]
-                               (into status-map (:status-map cache-entry)))
-                             {}
-                             cache-entries)
-        status-map-with-gltf-resource-paths
+        new-status-map
         (reduce-kv
           (fn [status-map source-proj-path cache-entry]
-            (update status-map source-proj-path assoc
-                    :gltf-resource-paths (into #{} (coll/keys (:status-map cache-entry)))))
+            (let [child-status-map (:status-map cache-entry)]
+              (-> status-map
+                  (into child-status-map)
+                  (update source-proj-path assoc
+                          :gltf-resource-paths (into #{} (coll/keys child-status-map))))))
           status-map
           cache-entries)
         resources (mapv #(attach-gltf-children % cache-entries) (:resources snapshot))]
     {:snapshot (assoc snapshot
                  :resources resources
-                 :status-map (into status-map-with-gltf-resource-paths virtual-status-map))
+                 :status-map new-status-map)
      :snapshot-cache (assoc snapshot-cache ::snapshot-cache cache-entries)}))
 
 (defn expand-container-moves
