@@ -70,6 +70,33 @@
           p (rt/read "return 1")]
       (is (= 1 (rt/->clj rt (rt/invoke-immediate-1 rt (rt/bind rt p))))))))
 
+(deftest bundle-editor-script-android-device-pattern-test
+  (let [[_ pattern-literal] (->> (io/resource "bundle.editor_script")
+                                 (slurp)
+                                 (re-find #"devices_output:match\((\"(?:\\.|[^\"])*\")\)"))]
+    (when (is pattern-literal "Expected to find the Android device pattern in bundle.editor_script")
+      (test-support/with-clean-system
+        (let [rt (rt/make)
+              parse-device (->> (format "local pattern = %s
+                                         return function(input)
+                                             local id, kvs = input:match(pattern)
+                                             return {id, kvs}
+                                         end"
+                                        pattern-literal)
+                                (rt/read)
+                                (rt/bind rt)
+                                (rt/invoke-immediate-1 rt))]
+          (doseq [[devices-output expected]
+                  [["List of devices attached\nA                     device product:p model:m device:d transport_id:1\n"
+                    ["A" "product:p model:m device:d transport_id:1"]]
+                   ["List of devices attached\n0123456789            device usb:1-1 product:p model:m device:d transport_id:1\n"
+                    ["0123456789" "usb:1-1 product:p model:m device:d transport_id:1"]]
+                   ["List of devices attached\nadb-SERIAL (2)._adb-tls-connect._tcp device product:p model:m device:d transport_id:2\n"
+                    ["adb-SERIAL (2)._adb-tls-connect._tcp" "product:p model:m device:d transport_id:2"]]
+                   ["List of devices attached\nMy device Phone._adb-tls-connect._tcp device product:p model:m device:d transport_id:3\n"
+                    ["My device Phone._adb-tls-connect._tcp" "product:p model:m device:d transport_id:3"]]]]
+            (is (= expected (rt/->clj rt (coerce/vector-of coerce/string) (rt/invoke-immediate-1 rt parse-device (rt/->lua devices-output)))))))))))
+
 (deftest thread-safe-access-test
   (test-support/with-clean-system
     (let [rt (rt/make)
