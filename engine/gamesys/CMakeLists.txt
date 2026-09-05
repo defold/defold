@@ -216,6 +216,7 @@ target_include_directories(gamesys PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}")
 foreach(_gamesys_dependency IN ITEMS
     gamesys_proto_headers
+    font_glyphbank_ddf_header
     graphics_proto_header
     input_proto_headers
     particle_proto_headers

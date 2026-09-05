@@ -33,6 +33,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
+            [util.eduction :as e]
             [util.path :as path])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Result]
            [com.fasterxml.jackson.databind ObjectMapper]
@@ -167,22 +168,30 @@
 (defn- file-resource? [resource]
   (= (resource/source-type resource) :file))
 
-(defn- parse-custom-resource-paths [custom-resources-setting]
+(defn- parse-custom-resource-setting [custom-resources-setting]
   (into []
         (comp
           (map string/trim)
-          (remove string/blank?)
-          (map #(FilenameUtils/normalize % true))
-          (map (comp strip-trailing-slash fs/with-leading-slash)))
+          (remove string/blank?))
         (string/split (or custom-resources-setting "") #",")))
 
-(defn- merge-custom-resource-path-settings [settings]
-  (->> settings
-       (into []
-             (comp
-               (mapcat parse-custom-resource-paths)
-               (distinct)))
-       (coll/join-to-string ", ")))
+(defn- parse-custom-resource-paths [custom-resources-setting]
+  (into []
+        (comp
+          (map #(FilenameUtils/normalize % true))
+          (map (comp strip-trailing-slash fs/with-leading-slash))
+          (distinct))
+        (parse-custom-resource-setting custom-resources-setting)))
+
+(defn- merge-custom-resource-settings [default-settings project-setting]
+  (let [default-values (into [] (mapcat parse-custom-resource-setting) default-settings)
+        project-values (parse-custom-resource-setting project-setting)
+        merged-values (->> project-values
+                           (into default-values)
+                           (into [] (distinct)))]
+    (if (= project-values merged-values)
+      project-setting
+      (coll/join-to-string ", " merged-values))))
 
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
@@ -198,7 +207,8 @@
    ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]
-   ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]]})
+   ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]
+                                          [:use-rich-text :use-rich-text]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
@@ -256,6 +266,9 @@
   (input use-font-layout g/Any)
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
 
+  (input use-rich-text g/Any)
+  (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
+
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
   (output settings-map g/Any (gu/passthrough settings-map))
@@ -282,14 +295,13 @@
 
   (output custom-resources-setting g/Any :cached
           (g/fnk [meta-info raw-settings]
-            (merge-custom-resource-path-settings
-              (conj
-                (settings-core/get-default-setting-values
-                  (:settings meta-info)
-                  ["project" "custom_resources"])
-                (settings-core/get-setting
-                  raw-settings
-                  ["project" "custom_resources"])))))
+            (merge-custom-resource-settings
+              (settings-core/get-default-setting-values
+                (:settings meta-info)
+                ["project" "custom_resources"])
+              (settings-core/get-setting
+                raw-settings
+                ["project" "custom_resources"]))))
 
   (output ssl-certificates-resource resource/Resource
           (g/fnk [_node-id settings-map]
@@ -361,6 +373,20 @@
 
 ;;; loading node
 
+(defn- connect-game-project [project self resource]
+  ;; Make sure the game.project node is properly connected before executing any
+  ;; load-fns, since establishing these connections will invalidate any
+  ;; dependent outputs in the cache.
+  (when (= "/game.project" (resource/proj-path resource)) ; There might be other `.project` files. We only want `/game.project` here.
+    (let [script-intelligence (g/node-value project :script-intelligence)]
+      (e/concat
+        (g/connect script-intelligence :build-errors self :build-errors)
+        (g/connect self :display-profiles-data project :display-profiles)
+        (g/connect self :texture-profiles-data project :texture-profiles)
+        (g/connect self :use-font-layout project :use-font-layout)
+        (g/connect self :use-rich-text project :use-rich-text)
+        (g/connect self :settings-map project :settings)))))
+
 (defn- load-game-project [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)
         workspace (resource/workspace resource)
@@ -399,6 +425,7 @@
     :ext "project"
     :label (localization/message "resource.type.project")
     :node-type GameProjectNode
+    :connect-fn connect-game-project
     :load-fn load-game-project
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon

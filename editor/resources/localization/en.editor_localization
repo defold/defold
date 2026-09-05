@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = 3D Platformer Starter Kit
+welcome.new-project.sample-3d-platformer.description = This is a ready-to-play 3D platformer sample with responsive character movement, jumping, an orbit camera, collectibles, animated characters, lighting, and shadows.
 welcome.new-project.sample-3d-third-person-playground.title = 3D Third-Person Playground
 welcome.new-project.sample-3d-third-person-playground.description = This is a sample 3D third-person game where you can move a 3D character around with keyboard or mouse/touch input. It shows how to make a basic 3D setup with shadows.
 welcome.new-project.linker-sample-game.title = Linker Sample Game
@@ -1246,6 +1248,8 @@ property.appmanifest.graphics-web = Graphics (HTML5)
 property.appmanifest.graphics-web.tooltip = Select the graphics backend included in HTML5 builds. WebGL is the default; including both WebGL and WebGPU permits fallback but increases engine size.
 property.appmanifest.use-font-layout = Use full text layout system
 property.appmanifest.use-font-layout.tooltip = Include the full text layout system required for runtime SDF font generation from TrueType fonts. Runtime glyph rasterization also requires `font.runtime_generation` in `game.project`; it supports features such as right-to-left text.
+property.appmanifest.use-rich-text = Use Rich Text
+property.appmanifest.use-rich-text.tooltip = Include rich text parsing and style effects for labels and GUI text. Disable this to reduce engine size; markup will then render as plain text.
 
 # Properties: atlas
 
@@ -2636,6 +2640,7 @@ form.help.material.samplers = Texture sampling settings used by the shader. Each
 form.label.material.samplers.name = Name
 form.label.material.samplers.wrap-u = Wrap U
 form.label.material.samplers.wrap-v = Wrap V
+form.label.material.samplers.wrap-w = Wrap W
 form.label.material.samplers.filter-min = Min Filter
 form.label.material.samplers.filter-mag = Mag Filter
 form.label.material.samplers.max-anisotropy = Max Anisotropy
@@ -2659,6 +2664,7 @@ form.help.compute.samplers = Sampling settings for sampler uniforms declared in 
 form.label.compute.samplers.name = Name
 form.label.compute.samplers.wrap-u = Wrap U
 form.label.compute.samplers.wrap-v = Wrap V
+form.label.compute.samplers.wrap-w = Wrap W
 form.label.compute.samplers.filter-min = Min Filter
 form.label.compute.samplers.filter-mag = Mag Filter
 form.label.compute.samplers.max-anisotropy = Max Anisotropy
@@ -2722,6 +2728,7 @@ error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.go-property-disallowed = go.property cannot be used in this file type.
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
+error.bob.project-operation-in-progress = Another project operation is already in progress
 error.bob.failed-to-save-project = Failed to save the project before invoking Bob.
 error.blend-mode-add-alpha-replaced = `{old}` is deprecated and behaves exactly like `{new}` because Defold uses premultiplied alpha. Select `{new}` instead.
 error.duplicate-instance-id = "{id}" is in use by another instance.
@@ -2746,6 +2753,13 @@ error.animation-not-found = "{animation}" could not be found in "{property}".
 error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
+error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Rich-text outline and shadow tags are not supported by BMFont fonts.
+error.font.no-reserved-data-for-rich-text-outlines = This font has no reserved data for rich-text outlines; the outline will not be rendered.
+error.font.bitmap-shadow-blur-includes-outline = This bitmap font's shadow blur includes its outline; rich-text shadow spans without an outline tag render crisp.
+error.font.per-span-shadow-blur-not-supported-by-bitmap-fonts = Per-span shadow blur is not supported by bitmap fonts; the shadow uses the available bitmap coverage.
+error.font.per-span-outline-size-fixed-for-bitmap-fonts = Per-span outline size is fixed for bitmap fonts; the outline uses the width reserved by the font resource.
+error.font.rich-text-outline-exceeds-reserved-width = The requested rich-text outline exceeds the width reserved by the font resource and will be clamped.
+error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur = This font has no reserved distance-field data for rich-text shadow blur; the shadow renders crisp.
 error.at-line = Line {line}: {error}
 error.render.title = RENDER ERROR:
 error.render.unknown-resource = unknown

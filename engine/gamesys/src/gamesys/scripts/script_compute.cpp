@@ -243,11 +243,11 @@ namespace dmGameSystem
         luaL_checktype(L, args_index, LUA_TTABLE);
         lua_pushvalue(L, args_index);
 
-        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
+        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_WWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
 
         lua_pop(L, 1);
 
-        dmRender::SetComputeProgramSampler(compute_res->m_Program, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
+        dmRender::SetComputeProgramSampler(compute_res->m_Program, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_WWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
 
         return 0;
     }

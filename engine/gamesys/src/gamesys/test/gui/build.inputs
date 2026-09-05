@@ -12,6 +12,7 @@
 /gui/gui_set_texture_nil.go
 /gui/gui_flipbook_anim.go
 /gui/gui_flipbook_cursor.go
+/gui/gui_layout_objects_on_demand.go
 /gui/gui_max_dynamic_textures.go
 /gui/gui_text_flush_test.go
 /gui/gui_text_layout_cache.go

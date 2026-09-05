@@ -49,20 +49,14 @@ namespace dmRender
         }
     }
 
-    // Helper to calculate vertical pivot point
-    static inline float OffsetY(uint32_t valign, float height, float ascent, float descent, float leading, uint32_t line_count)
+    static inline float OffsetLayoutY(uint32_t valign, float height, float layout_height)
     {
-        float line_height = ascent + descent;
         switch (valign)
         {
-            case TEXT_VALIGN_TOP:
-                return height - ascent;
-            case TEXT_VALIGN_MIDDLE:
-                return height * 0.5f + (line_count * (line_height * leading) - line_height * (leading - 1.0f)) * 0.5f - ascent;
-            case TEXT_VALIGN_BOTTOM:
-                return (line_height * leading * (line_count - 1)) + descent;
-            default:
-                return height - ascent;
+            case TEXT_VALIGN_TOP:    return height - layout_height;
+            case TEXT_VALIGN_MIDDLE: return (height - layout_height) * 0.5f;
+            case TEXT_VALIGN_BOTTOM: return 0.0f;
+            default:                 return height - layout_height;
         }
     }
 

@@ -22,6 +22,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s]
+            [util.eduction :as e]
             [util.text-util :as text-util])
   (:import [editor.code.data Cursor CursorRange]))
 
@@ -162,12 +163,17 @@
       :modified-lines lines
       :modified-indent-type indent-type)))
 
-(defn- load-fn [additional-load-fn lazy-loaded connect-breakpoints project self resource lines]
-  (concat
-    (when-not lazy-loaded
-      (eager-load self lines))
+(defn- connect-fn [additional-connect-fn connect-breakpoints project self resource]
+  (e/concat
     (when connect-breakpoints
       (g/connect self :breakpoints project :breakpoints))
+    (when additional-connect-fn
+      (additional-connect-fn project self resource))))
+
+(defn- load-fn [additional-load-fn lazy-loaded project self resource lines]
+  (e/concat
+    (when-not lazy-loaded
+      (eager-load self lines))
     (when additional-load-fn
       (additional-load-fn project self resource))))
 
@@ -226,16 +232,20 @@
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class] :as args}]
   (let [connect-breakpoints (contains? tags :debuggable)
-        load-fn (partial load-fn additional-load-fn lazy-loaded connect-breakpoints)
-        args (-> args
-                 (dissoc :additional-load-fn)
-                 (assoc :load-fn load-fn
-                        :read-fn read-fn
-                        :write-fn write-fn
-                        :search-fn search-fn
-                        :search-value-fn search-value-fn
-                        :source-value-fn source-value-fn
-                        :textual? true
-                        :test-info (cond-> {:type :code}
-                                           built-pb-class (assoc :built-pb-class built-pb-class))))]
+        additional-connect-fn (:connect-fn args)
+        resource-connect-fn (when (or additional-connect-fn connect-breakpoints)
+                              (partial connect-fn additional-connect-fn connect-breakpoints))
+        resource-load-fn (partial load-fn additional-load-fn lazy-loaded)
+        args (cond-> (-> args
+                         (dissoc :additional-load-fn :connect-fn)
+                         (assoc :load-fn resource-load-fn
+                                :read-fn read-fn
+                                :write-fn write-fn
+                                :search-fn search-fn
+                                :search-value-fn search-value-fn
+                                :source-value-fn source-value-fn
+                                :textual? true
+                                :test-info (cond-> {:type :code}
+                                             built-pb-class (assoc :built-pb-class built-pb-class))))
+               resource-connect-fn (assoc :connect-fn resource-connect-fn))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

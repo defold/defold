@@ -143,6 +143,7 @@ namespace dmGraphics
         TextureFilter      m_MagFilter;
         TextureWrap        m_AddressModeU;
         TextureWrap        m_AddressModeV;
+        TextureWrap        m_AddressModeW;
         float              m_MaxAnisotropy;
         float              m_MinLod;
         float              m_MaxLod;
@@ -168,6 +169,8 @@ namespace dmGraphics
         MetalRenderTarget(const uint32_t rtId)
         : m_DepthClearValue(1.0f)
         , m_StencilClearValue(0)
+        , m_Width(0)
+        , m_Height(0)
         , m_Id(rtId)
         , m_Destroyed(0)
         , m_IsBound(0)
@@ -205,6 +208,8 @@ namespace dmGraphics
         MTL::PixelFormat      m_ColorFormat[MAX_BUFFER_COLOR_ATTACHMENTS];
         MTL::PixelFormat      m_DepthStencilFormat;
 
+        uint16_t       m_Width;
+        uint16_t       m_Height;
         const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
@@ -317,6 +322,7 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
         int32_atomic_t                     m_DeleteContextRequested;
+        int32_atomic_t                     m_PendingAsyncTextureJobs;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state

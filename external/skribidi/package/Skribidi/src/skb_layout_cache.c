@@ -96,7 +96,7 @@ skb__cached_layout_t* skb__layout_cache_get_or_insert(skb_layout_cache_t* cache,
 
 const skb_layout_t* skb_layout_cache_get_utf8(
 	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc, const skb_layout_params_t* params,
-	const char* text, int32_t text_count, const skb_attribute_t* attributes, int32_t attributes_count)
+	const char* text, int32_t text_count, skb_attribute_set_t attributes)
 {
 	assert(cache);
 
@@ -104,13 +104,13 @@ const skb_layout_t* skb_layout_cache_get_utf8(
 		text_count = (int32_t)strlen(text);
 
 	uint64_t hash = skb_hash64_empty();
-	hash = skb_hash64_append(hash, text, text_count);
 	hash = skb_layout_params_hash_append(hash, params);
-	hash = skb_attributes_hash_append(hash, attributes, attributes_count);
+	hash = skb_hash64_append(hash, text, text_count);
+	hash = skb_attributes_hash_append(hash, attributes);
 
 	skb__cached_layout_t* cached_layout = skb__layout_cache_get_or_insert(cache, hash);
 	if (!cached_layout->layout) {
-		cached_layout->layout = skb_layout_create_utf8(temp_alloc, params, text, text_count, attributes, attributes_count);
+		cached_layout->layout = skb_layout_create_utf8(temp_alloc, params, text, text_count, attributes);
 	}
 	assert(cached_layout);
 	assert(cached_layout->layout);
@@ -119,8 +119,8 @@ const skb_layout_t* skb_layout_cache_get_utf8(
 }
 
 const skb_layout_t* skb_layout_cache_get_utf32(
-	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc, const skb_layout_params_t* params,
-	const uint32_t* text, int32_t text_count, const skb_attribute_t* attributes, int32_t attributes_count)
+	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc,
+	const skb_layout_params_t* params, const uint32_t* text, int32_t text_count, skb_attribute_set_t attributes)
 {
 	assert(cache);
 
@@ -128,13 +128,13 @@ const skb_layout_t* skb_layout_cache_get_utf32(
 		text_count = skb_utf32_strlen(text);
 
 	uint64_t hash = skb_hash64_empty();
-	hash = skb_hash64_append(hash, text, text_count * sizeof(uint32_t));
 	hash = skb_layout_params_hash_append(hash, params);
-	hash = skb_attributes_hash_append(hash, attributes, attributes_count);
+	hash = skb_hash64_append(hash, text, text_count * sizeof(uint32_t));
+	hash = skb_attributes_hash_append(hash, attributes);
 
 	skb__cached_layout_t* cached_layout = skb__layout_cache_get_or_insert(cache, hash);
 	if (!cached_layout->layout) {
-		cached_layout->layout = skb_layout_create_utf32(temp_alloc, params, text, text_count, attributes, attributes_count);
+		cached_layout->layout = skb_layout_create_utf32(temp_alloc, params, text, text_count, attributes);
 	}
 	assert(cached_layout);
 	assert(cached_layout->layout);
@@ -142,60 +142,43 @@ const skb_layout_t* skb_layout_cache_get_utf32(
 	return cached_layout->layout;
 }
 
-const skb_layout_t* skb_layout_cache_get_from_runs_utf8(
-	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc, const skb_layout_params_t* params,
-	const skb_text_run_utf8_t* runs, int32_t runs_count)
+const skb_layout_t* skb_layout_cache_get_from_runs(
+	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc,
+	const skb_layout_params_t* params, const skb_content_run_t* runs, int32_t runs_count)
 {
 	assert(cache);
 
 	uint64_t hash = skb_hash64_empty();
 
-	skb_text_run_utf8_t* fixed_runs = SKB_TEMP_ALLOC(temp_alloc, skb_text_run_utf8_t, runs_count);
+	hash = skb_layout_params_hash_append(hash, params);
+
+	skb_content_run_t* fixed_runs = SKB_TEMP_ALLOC(temp_alloc, skb_content_run_t, runs_count);
 	for (int32_t i = 0; i < runs_count; i++) {
 		fixed_runs[i] = runs[i];
-		if (fixed_runs[i].text_count < 0)
-			fixed_runs[i].text_count = (int32_t)strlen(fixed_runs[i].text);
-
-		hash = skb_hash64_append(hash, fixed_runs[i].text, fixed_runs[i].text_count);
-		hash = skb_layout_params_hash_append(hash, params);
-		hash = skb_attributes_hash_append(hash, fixed_runs[i].attributes, fixed_runs[i].attributes_count);
+		if (fixed_runs[i].type == SKB_CONTENT_RUN_UTF8) {
+			if (fixed_runs[i].utf8.text_count < 0)
+				fixed_runs[i].utf8.text_count = (int32_t)strlen(fixed_runs[i].utf8.text);
+			hash = skb_hash64_append(hash, fixed_runs[i].utf8.text, fixed_runs[i].utf8.text_count);
+		} else if (fixed_runs[i].type == SKB_CONTENT_RUN_UTF32) {
+			if (fixed_runs[i].utf32.text_count < 0)
+				fixed_runs[i].utf32.text_count = skb_utf32_strlen(fixed_runs[i].utf32.text);
+			hash = skb_hash64_append(hash, fixed_runs[i].utf32.text, fixed_runs[i].utf32.text_count * sizeof(uint32_t));
+		} else if (fixed_runs[i].type == SKB_CONTENT_RUN_OBJECT) {
+			hash = skb_hash64_append_float(hash, fixed_runs[i].object.width);
+			hash = skb_hash64_append_float(hash, fixed_runs[i].object.height);
+			hash = skb_hash64_append_uint64(hash, fixed_runs[i].object.data);
+		} else if (fixed_runs[i].type == SKB_CONTENT_RUN_ICON) {
+			hash = skb_hash64_append_float(hash, fixed_runs[i].icon.width);
+			hash = skb_hash64_append_float(hash, fixed_runs[i].icon.height);
+			hash = skb_hash64_append_uint32(hash, fixed_runs[i].icon.icon_handle);
+		}
+		hash = skb_attributes_hash_append(hash, fixed_runs[i].attributes);
 	}
 
 	skb__cached_layout_t* cached_layout = skb__layout_cache_get_or_insert(cache, hash);
-	if (!cached_layout->layout) {
-		cached_layout->layout = skb_layout_create_from_runs_utf8(temp_alloc, params, fixed_runs, runs_count);
-	}
-	assert(cached_layout);
-	assert(cached_layout->layout);
+	if (!cached_layout->layout)
+		cached_layout->layout = skb_layout_create_from_runs(temp_alloc, params, fixed_runs, runs_count);
 
-	SKB_TEMP_FREE(temp_alloc, fixed_runs);
-
-	return cached_layout->layout;
-}
-
-const skb_layout_t* skb_layout_cache_get_from_runs_utf32(
-	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc, const skb_layout_params_t* params,
-	const skb_text_run_utf32_t* runs, int32_t runs_count)
-{
-	assert(cache);
-
-	uint64_t hash = skb_hash64_empty();
-
-	skb_text_run_utf32_t* fixed_runs = SKB_TEMP_ALLOC(temp_alloc, skb_text_run_utf32_t, runs_count);
-	for (int32_t i = 0; i < runs_count; i++) {
-		fixed_runs[i] = runs[i];
-		if (fixed_runs[i].text_count < 0)
-			fixed_runs[i].text_count = (int32_t)skb_utf32_strlen(fixed_runs[i].text);
-
-		hash = skb_hash64_append(hash, fixed_runs[i].text, fixed_runs[i].text_count);
-		hash = skb_layout_params_hash_append(hash, params);
-		hash = skb_attributes_hash_append(hash, fixed_runs[i].attributes, fixed_runs[i].attributes_count);
-	}
-
-	skb__cached_layout_t* cached_layout = skb__layout_cache_get_or_insert(cache, hash);
-	if (!cached_layout->layout) {
-		cached_layout->layout = skb_layout_create_from_runs_utf32(temp_alloc, params, fixed_runs, runs_count);
-	}
 	assert(cached_layout);
 	assert(cached_layout->layout);
 

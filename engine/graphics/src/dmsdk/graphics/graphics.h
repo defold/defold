@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/platform/window.h>
 
 #include <graphics/graphics_ddf.h>
@@ -833,6 +834,7 @@ namespace dmGraphics
      * @member m_MagFilter [type:dmGraphics::TextureFilter] Magnification filter (applied when enlarging). Determines how pixels are sampled when the texture is displayed larger than its native resolution
      * @member m_UWrap [type:dmGraphics::TextureWrap]       Wrapping mode for U (X) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_VWrap [type:dmGraphics::TextureWrap]       Wrapping mode for V (Y) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
+     * @member m_WWrap [type:dmGraphics::TextureWrap]       Wrapping mode for W (Z) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_X [type:uint32_t]                          X offset in pixels for sub-texture updates. Defines the left edge of the destination region
      * @member m_Y [type:uint32_t]                          Y offset in pixels for sub-texture updates. Defines the top edge of the destination region
      * @member m_Z [type:uint32_t]                          Z offset (depth layer) for 3D textures. Ignored for standard 2D textures
@@ -854,6 +856,7 @@ namespace dmGraphics
         , m_MagFilter(TEXTURE_FILTER_LINEAR)
         , m_UWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_VWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
+        , m_WWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_X(0)
         , m_Y(0)
         , m_Z(0)
@@ -873,6 +876,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_UWrap;
         TextureWrap   m_VWrap;
+        TextureWrap   m_WWrap;
 
         // For sub texture updates
         uint32_t m_X;
@@ -1203,13 +1207,28 @@ namespace dmGraphics
     void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
 
     /*#
-     * Set texture parameters
+     * Set texture parameters, including the W wrapping mode used by 3D textures.
      * @name SetTextureParams
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @param min_filter [type:dmGraphics::TextureFilter] Minification filter type
      * @param mag_filter [type:dmGraphics::TextureFilter] Magnification filter type
      * @param uwrap [type:dmGraphics::TextureWrap] Wrapping mode for the U (X) texture coordinate.
+     * @param vwrap [type:dmGraphics::TextureWrap] Wrapping mode for the V (Y) texture coordinate
+     * @param wwrap [type:dmGraphics::TextureWrap] Wrapping mode for the W (Z) texture coordinate
+     * @param max_anisotropy [type:float]
+     */
+    void SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
+
+    /*#
+     * Set texture parameters using the legacy U/V wrapping interface.
+     * The U wrapping mode is also applied to the W texture coordinate.
+     * @name SetTextureParams
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
+     * @param min_filter [type:dmGraphics::TextureFilter] Minification filter type
+     * @param mag_filter [type:dmGraphics::TextureFilter] Magnification filter type
+     * @param uwrap [type:dmGraphics::TextureWrap] Wrapping mode for the U (X) and W (Z) texture coordinates
      * @param vwrap [type:dmGraphics::TextureWrap] Wrapping mode for the V (Y) texture coordinate
      * @param max_anisotropy [type:float]
      */
@@ -1754,6 +1773,20 @@ namespace dmGraphics
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     /*#
+     * Sets the scissor rectangle for rendering.
+     *
+     * Defines the rectangular pixel region that rendering is clipped to when
+     * `STATE_SCISSOR_TEST` is enabled.
+     * @name SetScissor
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param x [type:int32_t] X coordinate of the scissor rectangle's origin (in pixels)
+     * @param y [type:int32_t] Y coordinate of the scissor rectangle's origin (in pixels)
+     * @param width [type:int32_t] Width of the scissor rectangle (in pixels)
+     * @param height [type:int32_t] Height of the scissor rectangle (in pixels)
+     */
+    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
+
+    /*#
      * Activates a shader program for rendering.
      *
      * Binds the specified program to the graphics pipeline, making it the active program
@@ -1837,6 +1870,48 @@ namespace dmGraphics
      * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
      */
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
+    /*#
+     * Draws indexed primitives.
+     *
+     * Renders geometry using indices from the supplied index buffer. The `first`
+     * argument is a byte offset into the index buffer.
+     * @name DrawElements
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param prim_type [type:dmGraphics::PrimitiveType] Type of primitives to draw
+     * @param first [type:uint32_t] Byte offset of the first index to draw
+     * @param count [type:uint32_t] Number of indices to draw
+     * @param type [type:dmGraphics::Type] Index element type
+     * @param index_buffer [type:dmGraphics::HIndexBuffer] Index buffer handle
+     * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
+     */
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+
+    /*#
+     * Sets one or more vec4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location.
+     * @name SetConstantV4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Vector4*] Vector data to upload
+     * @param count [type:int] Number of vec4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+
+    /*#
+     * Sets one or more mat4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location.
+     * @name SetConstantM4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Matrix4*] Matrix data to upload
+     * @param count [type:int] Number of mat4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location);
 
     /*#
      * Binds a texture sampler to a texture unit.

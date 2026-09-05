@@ -34,11 +34,12 @@
             [util.coll :as coll]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
+           [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto DataProto$Data CollectionProxy$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
+           [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
            [java.net URI]
@@ -547,7 +548,7 @@
             desc (protobuf/bytes->map-with-defaults Font$FontMap content)
             glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
-            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
+            glyph-bank (protobuf/bytes->map-with-defaults GlyphBankProto$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
         (is (= 512 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
@@ -556,7 +557,7 @@
             desc (protobuf/bytes->map-with-defaults Font$FontMap content)
             glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
-            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
+            glyph-bank (protobuf/bytes->map-with-defaults GlyphBankProto$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
         (is (= 512 (:cache-height glyph-bank)))))))
 
@@ -782,6 +783,10 @@
   (let [value (settings-core/get-setting properties path)]
     (is (= expected-value value))))
 
+(defn- check-built-project-setting [workspace path expected-value]
+  (with-open [reader (io/reader (build-path workspace "game.projectc"))]
+    (check-project-setting (settings-core/parse-settings reader) path expected-value)))
+
 (deftest build-game-project-with-buildtime-conversion
   (with-loaded-project "test/resources/buildtime_conversion"
     (let [game-project (test-util/resource-node project "/game.project")]
@@ -901,8 +906,9 @@
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
-      (with-setting ["project" "custom_resources"] "foo/../assets"
+      (with-setting ["project" "custom_resources"] "foo/../assets/"
         (project-build! project game-project)
+        (check-built-project-setting workspace ["project" "custom_resources"] "foo/../assets/")
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
@@ -914,6 +920,7 @@
                               ["root.stuff" "root.stuff"]]))
       (with-setting ["project" "custom_resources"] "assets, root.stuff, /more_assets/"
         (project-build! project game-project)
+        (check-built-project-setting workspace ["project" "custom_resources"] "assets, root.stuff, /more_assets/")
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]
@@ -942,12 +949,13 @@
       (workspace/resource-sync! workspace)
       (let [project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
-        (project-build! project game-project)
-        (is (string/includes? (slurp (build-path workspace "game.projectc"))
-                              "custom_resources = /assets"))
-        (check-file-contents workspace
-                             [["assets/some.stuff" "some.stuff"]
-                              ["assets/some2.stuff" "some2.stuff"]])))))
+        (with-setting ["project" "custom_resources"] "root.stuff"
+          (project-build! project game-project)
+          (check-built-project-setting workspace ["project" "custom_resources"] "assets, root.stuff")
+          (check-file-contents workspace
+                               [["assets/some.stuff" "some.stuff"]
+                                ["assets/some2.stuff" "some2.stuff"]
+                                ["root.stuff" "root.stuff"]]))))))
 
 (deftest build-with-custom-resources-from-unsaved-ext-properties-default
   (with-clean-system
@@ -970,8 +978,7 @@
           (string/split-lines "[project]\ncustom_resources.default = more_assets\n"))
 
         (project-build! project game-project)
-        (is (string/includes? (slurp (build-path workspace "game.projectc"))
-                              "custom_resources = /more_assets"))
+        (check-built-project-setting workspace ["project" "custom_resources"] "more_assets")
         (check-file-contents workspace
                              [["more_assets/some_more.stuff" "some_more.stuff"]
                               ["more_assets/some_more2.stuff" "some_more2.stuff"]])))))

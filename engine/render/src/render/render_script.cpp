@@ -86,6 +86,7 @@ namespace dmRender
      * @member mag_filter? [type:graphics.TEXTURE_FILTER] Magnification filter.
      * @member u_wrap? [type:graphics.TEXTURE_WRAP] Horizontal wrap mode.
      * @member v_wrap? [type:graphics.TEXTURE_WRAP] Vertical wrap mode.
+     * @member w_wrap? [type:graphics.TEXTURE_WRAP] Depth wrap mode.
      * @member flags? [type:render.RENDER_TARGET_FLAG] Attachment creation flags, applicable only to depth and stencil buffers.
      */
 
@@ -149,6 +150,7 @@ namespace dmRender
     #define RENDER_SCRIPT_MAG_FILTER_NAME "mag_filter"
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
+    #define RENDER_SCRIPT_W_WRAP_NAME "w_wrap"
     #define RENDER_SCRIPT_FLAGS_NAME "flags"
     #define RENDER_SCRIPT_SAMPLE_COUNT_NAME "sample_count"
 
@@ -1207,6 +1209,10 @@ namespace dmRender
                 {
                     p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checkinteger(L, -1);
                 }
+                else if (strncmp(key, RENDER_SCRIPT_W_WRAP_NAME, strlen(RENDER_SCRIPT_W_WRAP_NAME)) == 0)
+                {
+                    p->m_WWrap = (dmGraphics::TextureWrap)(int)luaL_checkinteger(L, -1);
+                }
                 else if (strncmp(key, RENDER_SCRIPT_FLAGS_NAME, strlen(RENDER_SCRIPT_FLAGS_NAME)) == 0)
                 {
                     int flags = luaL_checkinteger(L, -1);
@@ -1222,7 +1228,7 @@ namespace dmRender
                 else
                 {
                     lua_pop(L, 4);  // [-4,+0 = 0] pop key-value pair and key-value pair
-                    return DM_LUA_ERROR("Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s.",
+                    return DM_LUA_ERROR("Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s, %s.",
                         RENDER_SCRIPT_LIB_NAME, key,
                         RENDER_SCRIPT_FORMAT_NAME,
                         RENDER_SCRIPT_WIDTH_NAME,
@@ -1231,6 +1237,7 @@ namespace dmRender
                         RENDER_SCRIPT_MAG_FILTER_NAME,
                         RENDER_SCRIPT_U_WRAP_NAME,
                         RENDER_SCRIPT_V_WRAP_NAME,
+                        RENDER_SCRIPT_W_WRAP_NAME,
                         RENDER_SCRIPT_FLAGS_NAME);
                 }
                 lua_pop(L, 1);  // [-1,+0 = 3] pop value, keep key for next iteration

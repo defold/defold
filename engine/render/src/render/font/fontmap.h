@@ -67,6 +67,10 @@ namespace dmRender
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
         float m_ShadowY;
+        /// Blur radius baked into the shadow glyph channel
+        float m_ShadowBlur;
+        /// Maximum outline width reserved in the glyph data
+        float m_OutlineWidth;
         /// Max ascent of font
         float m_MaxAscent;
         /// Max descent of font, positive value
@@ -90,7 +94,7 @@ namespace dmRender
         uint32_t m_CacheMaxHeight;
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
-        uint32_t m_CacheCellMaxAscent;
+        int32_t  m_CacheCellMaxAscent;
         uint8_t m_GlyphChannels; // How many bitmap channels
         uint8_t m_CacheCellPadding;
         uint8_t m_LayerMask;

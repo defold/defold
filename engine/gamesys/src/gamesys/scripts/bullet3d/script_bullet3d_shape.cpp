@@ -810,6 +810,10 @@ namespace dmGameSystem
  */
 
 /*# Get a compound child's local transform.
+ *
+ * A non-compound collision object's only shape has no child transform, so this
+ * function returns the identity transform for it.
+ *
  * @name bullet3d.shape.get_local_transform
  * @param shape [type:btCollisionShape] shape handle
  * @return position [type:vector3] local position
@@ -817,6 +821,10 @@ namespace dmGameSystem
  */
 
 /*# Set a compound child's local transform.
+ *
+ * A non-compound collision object's only shape has no child transform and is
+ * rejected. The binding normalizes the supplied rotation.
+ *
  * @name bullet3d.shape.set_local_transform
  * @param shape [type:btCollisionShape] shape handle
  * @param position [type:vector3] finite local position

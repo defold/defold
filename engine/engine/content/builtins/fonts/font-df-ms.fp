@@ -6,6 +6,7 @@ in mediump vec4 var_outline_color;
 in mediump vec4 var_shadow_color;
 in mediump vec4 var_sdf_params;
 in mediump vec4 var_layer_mask;
+in highp vec2 var_decoration;
 
 out vec4 out_fragColor;
 
@@ -18,6 +19,11 @@ uniform fs_uniforms
 vec3 sample_df(vec2 where)
 {
     return texture(texture_sampler, where).xyz;
+}
+
+float decoration_mask()
+{
+    return var_decoration.y > 0.0 ? 1.0 - step(var_decoration.y, fract(var_decoration.x)) : 1.0;
 }
 
 void main()
@@ -40,8 +46,13 @@ void main()
     mediump float distance        = df_sample.x;
     mediump float distance_shadow = df_sample.z;
 
-    // If there is no blur, the shadow should behave in the same way as the outline.
-    mediump float sdf_shadow_as_outline = floor(sdf_shadow);
+    // Values above the legacy [0, 1] range select face distance. The encoded
+    // threshold is 1.5 + 0.5 * threshold.
+    mediump float shadow_uses_face_coverage = step(1.25, sdf_shadow);
+    distance_shadow = mix(distance_shadow, distance, shadow_uses_face_coverage);
+    sdf_shadow = mix(sdf_shadow, (sdf_shadow - 1.5) * 2.0, shadow_uses_face_coverage);
+    // Legacy crisp shadows use the outline threshold.
+    mediump float sdf_shadow_as_outline = floor(sdf_shadow) * (1.0 - shadow_uses_face_coverage);
     // If this is a single layer font, we must make sure to not mix alpha between layers.
     mediump float sdf_is_single_layer   = var_layer_mask.a;
 
@@ -51,7 +62,7 @@ void main()
 
     shadow_alpha = mix(shadow_alpha,outline_alpha,sdf_shadow_as_outline);
 
-    out_fragColor = face_alpha * var_face_color * var_layer_mask.x +
+    out_fragColor = (face_alpha * var_face_color * var_layer_mask.x +
       outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +
-      shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer);
+      shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer)) * decoration_mask();
 }
