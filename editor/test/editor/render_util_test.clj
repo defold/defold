@@ -38,3 +38,9 @@
         ExceptionInfo
         #"Expected Pose or Matrix4d"
         (render-util/make-outlined-textured-quad-scene #{} ::invalid 10 20 @texture/white-pixel 0))))
+
+(deftest tone-mapped-textured-quad-uses-separate-shader-test
+  (let [regular-scene (render-util/make-outlined-textured-quad-scene #{} pose/default 10 20 @texture/white-pixel 0)
+        tone-mapped-scene (render-util/make-outlined-tone-mapped-textured-quad-scene #{} pose/default 10 20 @texture/white-pixel 0)]
+    (is (not (identical? (get-in regular-scene [:renderable :user-data :shader])
+                         (get-in tone-mapped-scene [:renderable :user-data :shader]))))))

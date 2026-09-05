@@ -649,7 +649,7 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/buffered-image-exts}))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
                              (validate-image-resource _node-id image))))
   (property size types/Vec2 ; Just for presentation.
@@ -693,7 +693,7 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collision-resource]
                                             [:size :collision-size])))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/buffered-image-exts}))
             (dynamic label (properties/label-dynamic :tile-source :collision))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :collision))
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
