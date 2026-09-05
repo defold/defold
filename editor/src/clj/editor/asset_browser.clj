@@ -888,7 +888,9 @@
            (ui/succeeding-selection tree-view))))
   (alt-selection [_this _evaluation-context] []))
 
-(defn resource-tree-cell-text [resource]
+(defn resource-tree-cell-text
+  "Returns an asset label, showing embedded glTF material and image names alongside their indices."
+  [resource]
   (let [resource-name (resource/resource-name resource)]
     (if-not (resource/gltf-resource? resource)
       resource-name

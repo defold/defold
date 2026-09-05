@@ -609,6 +609,7 @@
   (->data [_this] (some-> content .toByteArray)))
 
 (defn make-gltf-resource
+  "Creates a read-only virtual glTF resource; nil content denotes a grouping folder."
   [workspace ^String proj-path ^bytes content children editable loaded asset-info]
   {:pre [(string/starts-with? proj-path "/")]}
   (let [path (subs proj-path 1)
@@ -616,10 +617,14 @@
         content (when content (ByteString/copyFrom content))]
     (GltfResource. workspace name path content children editable loaded asset-info)))
 
-(defn gltf-resource? [resource]
+(defn gltf-resource?
+  "True for a virtual asset or grouping folder extracted from a glTF source."
+  [resource]
   (instance? GltfResource resource))
 
-(defn gltf-resource-asset-info [resource]
+(defn gltf-resource-asset-info
+  "Returns extracted asset metadata, or nil for virtual grouping folders."
+  [resource]
   {:pre [(gltf-resource? resource)]}
   (:asset-info resource))
 

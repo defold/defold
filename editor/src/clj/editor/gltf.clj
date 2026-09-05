@@ -15,14 +15,18 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- asset-resources [source-resource]
+(defn- asset-resources
+  "Returns virtual assets beneath a glTF source, excluding grouping folders."
+  [source-resource]
   (into []
         (comp resource/xform-recursive-resources
               (filter resource/gltf-resource?)
               (filter #(some? (resource/gltf-resource-asset-info %))))
         (resource/children source-resource)))
 
-(defn material-binding-descriptors [source-resource material-indices]
+(defn material-binding-descriptors
+  "Builds material and texture bindings for the given index set; nil selects all materials."
+  [source-resource material-indices]
   (let [asset-resources
         (asset-resources source-resource)
 
@@ -52,7 +56,9 @@
                            sampler-bindings)})))))
           asset-resources)))
 
-(defn metadata-descriptors [source-resource]
+(defn metadata-descriptors
+  "Builds mesh, material and texture descriptors for the read-only glTF outline."
+  [source-resource]
   (let [asset-resources (asset-resources source-resource)
         texture-descriptors-by-index
         (reduce
@@ -125,6 +131,7 @@
      :textures texture-descriptors}))
 
 (defn uri->proj-path
+  "Resolves an external URI against a glTF source path, returning nil for unsupported paths."
   ^String [^String source-path ^String uri]
   (try
     (str "/" (GltfContainer/resolveExternalResourcePath source-path uri))
@@ -132,8 +139,8 @@
       nil)))
 
 (defn make-data-resolver
-  ^ModelImporterJni$DataResolver
-  [resource-by-proj-path resolved-proj-path!]
+  "Creates a workspace resource resolver, optionally reporting attempted project paths."
+  ^ModelImporterJni$DataResolver [resource-by-proj-path resolved-proj-path!]
   (reify ModelImporterJni$DataResolver
     (getData [_this source-path uri]
       (try
@@ -146,23 +153,31 @@
         (catch Exception _
           nil)))))
 
-(defn- gltf-source-resource? [resource]
+(defn- gltf-source-resource?
+  "True for loaded glTF or GLB source files."
+  [resource]
   (and (= :file (resource/source-type resource))
        (#{"gltf" "glb"} (resource/type-ext resource))
        (resource/loaded? resource)))
 
-(defn- resource-statuses [status-map proj-paths]
+(defn- resource-statuses
+  "Captures statuses for dependency paths, retaining nil entries for missing resources."
+  [status-map proj-paths]
   (into {}
         (map (fn [proj-path]
                (pair proj-path (get status-map proj-path))))
         proj-paths))
 
-(defn- gltf-cache-entry-valid? [cache-entry status-map]
+(defn- gltf-cache-entry-valid?
+  "True when the cached source and external dependency statuses still match."
+  [cache-entry status-map]
   (and cache-entry
        (= (:dependency-statuses cache-entry)
           (resource-statuses status-map (coll/keys (:dependency-statuses cache-entry))))))
 
-(defn- gltf-asset-info [^GltfContainer$Asset asset]
+(defn- gltf-asset-info
+  "Converts extracted asset metadata to the map stored on its virtual resource."
+  [^GltfContainer$Asset asset]
   (let [common-info {:index (.getIndex asset)
                      :name (.getName asset)
                      :path (.getPath asset)}]
@@ -213,6 +228,7 @@
             (.getTextures image-asset)))))))
 
 (defn- make-gltf-children+status
+  "Builds virtual asset folders and files together with their resource-watch statuses."
   [workspace source-resource ^GltfContainer$Extraction extraction]
   (let [source-proj-path (resource/proj-path source-resource)
         editable (resource/editable? source-resource)
@@ -254,6 +270,7 @@
       children-by-group)))
 
 (defn- extract-gltf-cache-entry
+  "Extracts virtual children and dependency statuses, returning no children on failure."
   [workspace source-resource resources-by-proj-path status-map]
   (let [source-proj-path (resource/proj-path source-resource)
         dependency-proj-paths (atom #{source-proj-path})
@@ -277,7 +294,9 @@
     (assoc extraction-data
       :dependency-statuses (resource-statuses status-map @dependency-proj-paths))))
 
-(defn- attach-gltf-children [resource cache-entries]
+(defn- attach-gltf-children
+  "Attaches cached virtual children to glTF sources throughout a resource tree."
+  [resource cache-entries]
   (if-let [cache-entry (cache-entries (resource/proj-path resource))]
     (assoc resource :children (:children cache-entry))
     (if-let [children (resource/children resource)]

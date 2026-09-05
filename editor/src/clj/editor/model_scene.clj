@@ -347,7 +347,9 @@
       default-material-ids
       ret)))
 
-(g/defnk produce-gpu-textures [_node-id samplers texture-binding-infos]
+(g/defnk produce-gpu-textures
+  "Builds sampler texture lifecycles, supplying fallback textures for missing or failed bindings."
+  [_node-id samplers texture-binding-infos]
   (let [sampler-name->gpu-texture-generator
         (into {}
               (keep (fn [{:keys [sampler gpu-texture-generator]}]
@@ -642,7 +644,9 @@
 (def ^:private model-aabb-outline-renderable
   (render-util/make-aabb-outline-renderable #{:model}))
 
-(defn- render-selected-model-aabb-outline [gl render-args renderables _renderable-count]
+(defn- render-selected-model-aabb-outline
+  "Draws mesh bounding boxes only when their own outline items are selected."
+  [gl render-args renderables _renderable-count]
   (let [selected-renderables (coll/filterv-> renderables #(= :self-selected (:selected %)))]
     (when (coll/not-empty selected-renderables)
       ((:render-fn model-aabb-outline-renderable)
@@ -722,7 +726,9 @@
                   :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
      :children child-scenes}))
 
-(g/defnk produce-source-scene [_node-id mesh-scene-infos renderable-mesh-set]
+(g/defnk produce-source-scene
+  "Builds the scene used by model resources before glTF preview materials are applied."
+  [_node-id mesh-scene-infos renderable-mesh-set]
   (make-scene _node-id renderable-mesh-set mesh-scene-infos))
 
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
@@ -732,7 +738,9 @@
           attribute/claim-transformed-attribute-buffer-bindings
           assoc :scene-node-id new-node-id))
 
-(defn- apply-material-scene-info [mesh-scene scene-node-id material-scene-info]
+(defn- apply-material-scene-info
+  "Applies material render data to a mesh scene, preserving it when no material info is supplied."
+  [mesh-scene scene-node-id material-scene-info]
   (if (nil? material-scene-info)
     mesh-scene
     (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info
@@ -773,7 +781,9 @@
                     :shader shader
                     :textures gpu-textures)))))))
 
-(defn- apply-preview-materials-to-model-scene [model-scene scene-node-id material-index->material-scene-info]
+(defn- apply-preview-materials-to-model-scene
+  "Applies preview materials to a model's mesh scenes using material indices."
+  [model-scene scene-node-id material-index->material-scene-info]
   (if-let [mesh-scenes (:children model-scene)]
     (assoc model-scene
       :children
@@ -784,7 +794,9 @@
         mesh-scenes))
     model-scene))
 
-(g/defnk produce-scene [_node-id source-scene material-scene-infos]
+(g/defnk produce-scene
+  "Applies glTF preview materials to both instantiated and raw model scenes."
+  [_node-id source-scene material-scene-infos]
   (let [material-index->material-scene-info
         (into {}
               (comp (keep identity)
@@ -881,7 +893,9 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
-(defn- gltf-metadata-group-presentation [kind]
+(defn- gltf-metadata-group-presentation
+  "Returns the localized label, icon and ordering for a glTF metadata group."
+  [kind]
   (case kind
     :materials {:icon material-icon
                 :label (localization/message "outline.gltf.materials")
@@ -1021,7 +1035,9 @@
              :link image
              :outline-show-link? true})))
 
-(defn- add-gltf-outline-labels [descriptors]
+(defn- add-gltf-outline-labels
+  "Adds outline labels, appending asset indices to disambiguate duplicate names."
+  [descriptors]
   (let [base-labels (mapv :name descriptors)
         label-counts (frequencies base-labels)]
     (mapv
@@ -1034,6 +1050,7 @@
       base-labels)))
 
 (defn- create-gltf-metadata-item-tx
+  "Creates a metadata item and optionally connects its mesh selection information."
   [group-node model-scene-node node-type properties scene-info-output-label]
   (g/make-nodes (g/node-id->graph-id group-node)
     [item-node [node-type properties]]
@@ -1044,6 +1061,7 @@
       (g/connect item-node scene-info-output-label model-scene-node :mesh-scene-infos))))
 
 (defn- create-gltf-metadata-group-tx
+  "Creates a glTF outline group for non-empty descriptors."
   [model-scene-node kind node-type descriptors property-keys scene-info-output-label]
   (when-not (coll/empty? descriptors)
     (g/make-nodes (g/node-id->graph-id model-scene-node)
@@ -1117,7 +1135,9 @@
                :vertex-attribute-bytes {}
                :vertex-space vertex-space}))))
 
-(defn- create-gltf-preview-texture-binding-tx [material-binding {:keys [sampler texture]}]
+(defn- create-gltf-preview-texture-binding-tx
+  "Connects a texture resource to a glTF preview material sampler."
+  [material-binding {:keys [sampler texture]}]
   (g/make-nodes (g/node-id->graph-id material-binding)
     [texture-binding [GltfPreviewTextureBinding
                       :sampler sampler
@@ -1126,6 +1146,7 @@
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)))
 
 (defn- create-gltf-preview-material-binding-tx
+  "Creates a material binding and its texture bindings for the glTF scene preview."
   [model-scene-node {:keys [material material-index name textures]}]
   (g/make-nodes (g/node-id->graph-id model-scene-node)
     [material-binding [GltfPreviewMaterialBinding

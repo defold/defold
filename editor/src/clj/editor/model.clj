@@ -59,30 +59,41 @@
 
 (declare create-material-binding-tx)
 
-(defn- gltf-source-resource? [resource]
+(defn- gltf-source-resource?
+  "True for glTF or GLB resources that support mesh selection."
+  [resource]
   (and (resource/resource? resource)
        (contains? mesh-selection-file-types (resource/type-ext resource))))
 
-(defn- resolve-selected-mesh [collision-meshes mesh-index]
+(defn- resolve-selected-mesh
+  "Finds mesh metadata by index, returning nil when metadata or the selection is unavailable."
+  [collision-meshes mesh-index]
   (when-not (g/error-value? collision-meshes)
     (coll/first-where #(= mesh-index (:index %))
                       (model-loader/named-meshes collision-meshes))))
 
-(defn- selected-mesh-material-indices [selected-mesh]
+(defn- selected-mesh-material-indices
+  "Returns the material indices referenced by the selected mesh's primitives."
+  [selected-mesh]
   (into #{}
         (keep :material-index)
         (:primitives selected-mesh)))
 
-(defn- source-collision-meshes [evaluation-context consumer-node-id source-resource]
+(defn- source-collision-meshes
+  "Looks up source mesh metadata in the consumer's project before changing its resource binding."
+  [evaluation-context consumer-node-id source-resource]
   (when-let [project-node-id (project/get-project (:basis evaluation-context) consumer-node-id)]
     (when-let [source-node-id (project/get-resource-node project-node-id source-resource evaluation-context)]
       (g/node-value source-node-id :collision-meshes evaluation-context))))
 
-(defn- multiple-selectable-meshes? [collision-meshes]
+(defn- multiple-selectable-meshes?
+  "True when valid mesh metadata offers more than one selectable mesh."
+  [collision-meshes]
   (and (not (g/error-value? collision-meshes))
        (< 1 (count (model-loader/named-meshes collision-meshes)))))
 
 (defn- gltf-auto-fill-candidate
+  "Prepares available material bindings and records whether applying them would replace existing ones."
   [evaluation-context node-id source-resource material-indices]
   (when-let [descriptors (and (gltf-source-resource? source-resource)
                               (coll/not-empty (gltf/material-binding-descriptors source-resource material-indices)))]
@@ -93,7 +104,9 @@
        :replaces-existing (boolean (and (not (g/error-value? material-binding-infos))
                                         (coll/not-empty material-binding-infos)))})))
 
-(defn- confirm-gltf-auto-fill? [evaluation-context candidates]
+(defn- confirm-gltf-auto-fill?
+  "Asks once whether to auto-fill materials for all candidate models."
+  [evaluation-context candidates]
   (let [{:keys [source-resource]} (candidates 0)
         localization-state (workspace/localization (resource/workspace source-resource) evaluation-context)
         replaces-existing (coll/any? :replaces-existing candidates)]
@@ -114,7 +127,9 @@
                     :default-button true
                     :result true}]}))))
 
-(defn- prepare-gltf-auto-fill [evaluation-context candidates]
+(defn- prepare-gltf-auto-fill
+  "Returns transaction context containing approved auto-fill descriptors, or nil if declined."
+  [evaluation-context candidates]
   (when (and (coll/not-empty candidates)
              (confirm-gltf-auto-fill? evaluation-context candidates))
     {::auto-fill-gltf-material-descriptors-by-node
@@ -122,7 +137,9 @@
            (map (juxt :node-id :descriptors))
            candidates)}))
 
-(defn- prepare-mesh-user-edit [evaluation-context _property set-operations]
+(defn- prepare-mesh-user-edit
+  "Offers material auto-fill when changing a source that needs no further mesh selection."
+  [evaluation-context _property set-operations]
   (let [candidates
         (into []
               (keep
@@ -135,7 +152,9 @@
               set-operations)]
     (prepare-gltf-auto-fill evaluation-context candidates)))
 
-(defn- prepare-mesh-index-user-edit [evaluation-context _property set-operations]
+(defn- prepare-mesh-index-user-edit
+  "Offers material auto-fill for the selected mesh in a source with multiple meshes."
+  [evaluation-context _property set-operations]
   (let [candidates
         (into []
               (keep
@@ -155,11 +174,14 @@
               set-operations)]
     (prepare-gltf-auto-fill evaluation-context candidates)))
 
-(defn- auto-fill-material-descriptors [evaluation-context node-id]
+(defn- auto-fill-material-descriptors
+  "Retrieves the material bindings approved for this model in the current user edit."
+  [evaluation-context node-id]
   (when-let [tx-data-context (:tx-data-context evaluation-context)]
     (get-in @tx-data-context [::auto-fill-gltf-material-descriptors-by-node node-id])))
 
 (defn- replace-gltf-material-bindings-tx
+  "Creates transaction data replacing all model material bindings with the approved descriptors."
   [evaluation-context model-node-id descriptors]
   (let [material-binding-infos (g/node-value model-node-id :material-binding-infos evaluation-context)
         material-binding-node-ids (if (g/error-value? material-binding-infos)
@@ -526,7 +548,9 @@
     (editable? [_] false)
     (loaded? [_] false)))
 
-(defn- relevant-mesh-material-ids [mesh-material-ids collision-meshes mesh-name mesh-index]
+(defn- relevant-mesh-material-ids
+  "Returns material names used by the selected mesh, or all names when selection cannot be resolved."
+  [mesh-material-ids collision-meshes mesh-name mesh-index]
   (if (or (str/blank? mesh-name)
           (g/error-value? collision-meshes))
     (set mesh-material-ids)

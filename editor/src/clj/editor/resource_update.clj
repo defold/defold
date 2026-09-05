@@ -63,7 +63,9 @@
 (defn- merge-resource-change-plans [& plans]
   (apply merge-with into plans))
 
-(defn- child-resource-proj-paths [resource]
+(defn- child-resource-proj-paths
+  "Collects descendant project paths to detect changes in container structure."
+  [resource]
   (into #{}
         (comp resource/xform-recursive-resources
               (map resource/proj-path))

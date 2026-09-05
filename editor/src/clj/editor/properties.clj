@@ -581,7 +581,9 @@
                (g/endpoint node-id prop-kw)))
         set-operations))
 
-(defn- prepare-user-edit-context [evaluation-context property set-operations]
+(defn- prepare-user-edit-context
+  "Runs the optional :prepare-user-edit-fn before the transaction to obtain extra transaction context."
+  [evaluation-context property set-operations]
   (if-let [prepare-user-edit-fn (get-in property [:edit-type :prepare-user-edit-fn])]
     (or (prepare-user-edit-fn evaluation-context property set-operations)
         {})
