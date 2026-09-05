@@ -494,6 +494,7 @@ def build_sdk(channel, platforms=None):
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
     if platforms:
+        platforms = ','.join(platform.strip() for platform in platforms.split(','))
         cmd_opts.append("--platforms=%s" % platforms)
 
     cmd = ' '.join(cmd_args + cmd_opts)

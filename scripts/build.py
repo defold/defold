@@ -3118,7 +3118,7 @@ class Configuration(object):
 
         print("Upload platform sdks mappings")
         platform_sdks_path = join(tempdir, 'platform.sdks.json')
-        write_merged_platform_sdks(self.defold_root, self.target_platform, platform_sdks_path)
+        write_merged_platform_sdks(self.defold_root, platforms, platform_sdks_path)
         self.upload_to_archive(platform_sdks_path, '%s/platform.sdks.json' % sdkurl)
 
         self.wait_uploads()
