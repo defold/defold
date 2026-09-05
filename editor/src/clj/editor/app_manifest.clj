@@ -26,7 +26,7 @@
 
 (def windows #{:x86-win32 :x86_64-win32})
 
-(def android #{:armv7-android :arm64-android})
+(def android #{:armv7-android :arm64-android :x86_64-android})
 
 (def ios #{:armv7-ios :arm64-ios :x86_64-ios})
 
@@ -37,7 +37,7 @@
 (def vulkan
   #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     :arm64-ios})
 
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
@@ -50,7 +50,7 @@
   #{;; ios
     :armv7-ios :arm64-ios :x86_64-ios
     ;; android
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     ;; osx
     :x86_64-osx :arm64-osx
     ;; linux
@@ -79,6 +79,8 @@
     "engine_service_null"
     "extension"
     "font"
+    "font_richtext"
+    "font_richtext_null"
     "font_skribidi"
     "gamesys"
     "gamesys_gui"
@@ -142,6 +144,7 @@
     "script"
     "script_box2d"
     "script_box2d_defold"
+    "script_bullet3d"
     "sound"
     "sound_nosimd"
     "sound_null"
@@ -495,6 +498,12 @@
       (exclude-libs-toggles all-platforms ["font"])
       (libs-toggles all-platforms ["font_skribidi", "harfbuzz", "sheenbidi", "unibreak", "skribidi"]))))
 
+(def rich-text-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["font_richtext"])
+      (libs-toggles all-platforms ["font_richtext_null"]))))
+
 (def sound-setting
   (make-check-box-setting
     (concat
@@ -564,7 +573,8 @@
 (def use-android-support-lib-setting
   (make-check-box-setting
     [(boolean-toggle :armv7-android :jetifier false)
-     (boolean-toggle :arm64-android :jetifier false)]))
+     (boolean-toggle :arm64-android :jetifier false)
+     (boolean-toggle :x86_64-android :jetifier false)]))
 
 (def physics-setting
   ;; by default, legacy 2d and 3d are included in `physics` lib
@@ -572,7 +582,12 @@
         exclude-default (exclude-libs-toggles all-platforms ["physics"])
 
         ;; must use at least one of these when excluding default
-        exclude-3d (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-3d-legacy (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-3d (into []
+                         cat
+                         [exclude-3d-legacy
+                          (exclude-libs-toggles all-platforms ["script_bullet3d"])
+                          (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBullet3DExt"])])
         exclude-legacy-2d (exclude-libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"])
 
         ;; must be used when excluding 2d completely:
@@ -585,15 +600,26 @@
         include-legacy-2d (libs-toggles all-platforms ["physics_2d_defold"])
         include-2d-v3 (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"])
         include-3d (libs-toggles all-platforms ["physics_3d"])]
+    ;; The current signatures come first so writes include the Bullet script
+    ;; exclusions. The duplicate legacy signatures keep old manifests readable.
     (make-choice-setting
       {:2d :none :3d false}
       (concat exclude-all exclude-default exclude-3d exclude-legacy-2d exclude-all-2d)
 
+      {:2d :none :3d false}
+      (concat exclude-all exclude-default exclude-3d-legacy exclude-legacy-2d exclude-all-2d)
+
       {:2d :legacy :3d false}
       (concat exclude-default exclude-3d include-legacy-2d)
 
+      {:2d :legacy :3d false}
+      (concat exclude-default exclude-3d-legacy include-legacy-2d)
+
       {:2d :v3 :3d false}
       (concat exclude-default exclude-3d exclude-legacy-2d include-2d-v3)
+
+      {:2d :v3 :3d false}
+      (concat exclude-default exclude-3d-legacy exclude-legacy-2d include-2d-v3)
 
       {:2d :none :3d true}
       (concat exclude-default exclude-legacy-2d exclude-all-2d include-3d)
@@ -618,7 +644,7 @@
 
 
 (def generic-vulkan
-  (disj vulkan :armv7-android :arm64-android :arm64-ios))
+  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
@@ -812,6 +838,7 @@
                   ;; android
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]
+                  [:x86_64-android platform-pattern]
                   ;; osx
                   [:arm64-osx platform-pattern]
                   [:x86_64-osx platform-pattern]
@@ -1008,7 +1035,15 @@
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-font-layout))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter font-setting))
-            (set (setting-property-setter font-setting))))
+            (set (setting-property-setter font-setting)))
+  (property use-rich-text g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :use-rich-text))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-rich-text))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (g/fnk [manifest]
+                     (some-> (get-setting-value manifest rich-text-setting) not)))
+            (set (setting-property-updater rich-text-setting (fn [_ enabled]
+                                                               (not enabled))))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type

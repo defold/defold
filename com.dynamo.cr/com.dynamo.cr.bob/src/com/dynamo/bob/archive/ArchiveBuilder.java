@@ -116,14 +116,6 @@ public class ArchiveBuilder {
         add(fileName, false, false, false);
     }
 
-    public ArchiveEntry getArchiveEntry(int index) {
-        return this.entries.get(index);
-    }
-
-    public int getArchiveEntrySize() {
-        return this.entries.size();
-    }
-
     public byte[] loadResourceData(String filepath) throws IOException {
         File fhandle = new File(filepath);
         return FileUtils.readFileToByteArray(fhandle);
@@ -335,7 +327,7 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    → Final in-memory resource ready for use
     //
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
+    public ArrayList<ArchiveEntry> write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
@@ -355,7 +347,6 @@ public class ArchiveBuilder {
             boolean excluded = excludedResources.contains(normalisedPath);
             if (excluded) {
                 entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
-                entries.remove(i);
                 excludedEntries.add(entry);
             }
             else {
@@ -382,8 +373,9 @@ public class ArchiveBuilder {
             archiveData.close();
         }
 
-        entries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
-        writeArchiveIndex(archiveIndex, entries);
+        ArrayList<ArchiveEntry> archiveEntries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
+        writeArchiveIndex(archiveIndex, archiveEntries);
+        return archiveEntries;
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {

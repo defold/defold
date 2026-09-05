@@ -89,6 +89,16 @@ platforms:
             linkFlags: []
             jetifier: true
 
+    x86_64-android:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d_defold"]
+            linkFlags: []
+            jetifier: true
+
     armv7-ios:
         context:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]

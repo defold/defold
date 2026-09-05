@@ -71,6 +71,24 @@ typedef struct skb_color_stop_t {
 } skb_color_stop_t;
 
 /**
+ * Defines the supported blend modes when compositing layers
+ * Enum values match the CompositeMode values defined in
+ * https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite
+ */
+typedef enum {
+	SKB_BLEND_CLEAR = 0,
+	SKB_BLEND_SRC = 1,
+	SKB_BLEND_DEST = 2,
+	SKB_BLEND_SRC_OVER = 3,
+	SKB_BLEND_DEST_OVER = 4,
+	SKB_BLEND_SRC_IN = 5,
+	SKB_BLEND_DEST_IN = 6,
+	SKB_BLEND_SRC_OUT = 7,
+	SKB_BLEND_DEST_OUT = 8,
+	SKB_BLEND_SOFT_LIGHT = 20,
+} skb_blend_mode_t;
+
+/**
  * Creates new canvas to draw to.
  * The canvas is expected to be disposable. You create canvas, draw some shapes, and dispose it.
  * The canvas will hold on to the temp allocator until skb_canvas_destroy() is called.
@@ -79,21 +97,21 @@ typedef struct skb_color_stop_t {
  * @param target target to draw to.
  * @return pointer to the new canvas.
  */
-skb_canvas_t* skb_canvas_create(skb_temp_alloc_t* temp_alloc, skb_image_t* target);
+SKB_API skb_canvas_t* skb_canvas_create(skb_temp_alloc_t* temp_alloc, skb_image_t* target);
 
 /**
  * Destroys canvas and frees any memory associated with it.
  * Note: the canvas is allocated using the temp allocator passed in the skb_canvas_create().
  * @param c pointer to the canvas to destroy.
  */
-void skb_canvas_destroy(skb_canvas_t* c);
+SKB_API void skb_canvas_destroy(skb_canvas_t* c);
 
 /**
  * Starts a new shape and move the pen position to 'pt'.
  * @param c canvas to draw to
  * @param pt
  */
-void skb_canvas_move_to(skb_canvas_t* c, skb_vec2_t pt);
+SKB_API void skb_canvas_move_to(skb_canvas_t* c, skb_vec2_t pt);
 
 /**
  * Draws line from the pen position to 'pt'.
@@ -101,7 +119,7 @@ void skb_canvas_move_to(skb_canvas_t* c, skb_vec2_t pt);
  * @param c canvas to draw to
  * @param pt
  */
-void skb_canvas_line_to(skb_canvas_t* c, skb_vec2_t pt);
+SKB_API void skb_canvas_line_to(skb_canvas_t* c, skb_vec2_t pt);
 
 /**
  * Draws quadratic bezier segment from the pen position, using control point 'cp' to end segment point 'pt'.
@@ -110,7 +128,7 @@ void skb_canvas_line_to(skb_canvas_t* c, skb_vec2_t pt);
  * @param cp bezier segment control point
  * @param pt end point of the bezier segment.
  */
-void skb_canvas_quad_to(skb_canvas_t* c, skb_vec2_t cp, skb_vec2_t pt);
+SKB_API void skb_canvas_quad_to(skb_canvas_t* c, skb_vec2_t cp, skb_vec2_t pt);
 
 /**
  * Draws cubi bezier segment from the pen position, using control points 'cp0' and 'cp1' to end segment point 'pt'.
@@ -120,26 +138,26 @@ void skb_canvas_quad_to(skb_canvas_t* c, skb_vec2_t cp, skb_vec2_t pt);
  * @param cp1 first control point (pt in tangent)
  * @param pt end point
  */
-void skb_canvas_cubic_to(skb_canvas_t* c, skb_vec2_t cp0, skb_vec2_t cp1, skb_vec2_t pt);
+SKB_API void skb_canvas_cubic_to(skb_canvas_t* c, skb_vec2_t cp0, skb_vec2_t cp1, skb_vec2_t pt);
 
 /**
  * Closes the shape by drawing line to the start point.
  * @param c canvas to draw to
  */
-void skb_canvas_close(skb_canvas_t* c);
+SKB_API void skb_canvas_close(skb_canvas_t* c);
 
 /**
  * Multiplies the top of the transform stack with 't' and pushes it to the top of the transform stack.
  * @param c canvas to draw to
  * @param t transform to apply.
  */
-void skb_canvas_push_transform(skb_canvas_t* c, skb_mat2_t t);
+SKB_API void skb_canvas_push_transform(skb_canvas_t* c, skb_mat2_t t);
 
 /**
  * Pops the top of the transform stack.
  * @param c canvas to draw to
  */
-void skb_canvas_pop_transform(skb_canvas_t* c);
+SKB_API void skb_canvas_pop_transform(skb_canvas_t* c);
 
 /**
  * Takes a copy of the current mask, and pushes it to the top of the mask stack.
@@ -147,25 +165,26 @@ void skb_canvas_pop_transform(skb_canvas_t* c);
  * Use skb_canvas_pop_mask() to restore to the earlier mask.
  * @param c canvas to draw to
  */
-void skb_canvas_push_mask(skb_canvas_t* c);
+SKB_API void skb_canvas_push_mask(skb_canvas_t* c);
 
 /**
  * Pops top of the mask stack and makes the earlier mask effective.
  * @param c canvas to draw to
  */
-void skb_canvas_pop_mask(skb_canvas_t* c);
+SKB_API void skb_canvas_pop_mask(skb_canvas_t* c);
 
 /**
  * Pushes new image layer and mask to the lasyer stac.
  * @param c canvas to draw to
  */
-void skb_canvas_push_layer(skb_canvas_t* c);
+SKB_API void skb_canvas_push_layer(skb_canvas_t* c);
 
 /**
  * Removes the image layer from the top of the layer stack and blends it over the previous image.
  * @param c canvas to draw to
+ * @param mode the blend mode to use for compositing
  */
-void skb_canvas_pop_layer(skb_canvas_t* c);
+SKB_API void skb_canvas_pop_layer(skb_canvas_t* c, skb_blend_mode_t mode);
 
 /**
  * Rasterizes the vector shape defined earlier into the top of the mask stack.
@@ -175,7 +194,7 @@ void skb_canvas_pop_layer(skb_canvas_t* c);
  * This fill method is used when drawing to an Alpha image.
  * @param c canvas to draw to
  */
-void skb_canvas_fill_mask(skb_canvas_t* c);
+SKB_API void skb_canvas_fill_mask(skb_canvas_t* c);
 
 /**
  * Applies solid color using the topmost mask over the topmost image layer.
@@ -183,7 +202,7 @@ void skb_canvas_fill_mask(skb_canvas_t* c);
  * @param c canvas to draw to
  * @param color color to fill.
  */
-void skb_canvas_fill_solid_color(skb_canvas_t* c, skb_color_t color);
+SKB_API void skb_canvas_fill_solid_color(skb_canvas_t* c, skb_color_t color);
 
 /**
  * Applies linear gradient using the topmost mask over the topmost image layer.
@@ -195,7 +214,7 @@ void skb_canvas_fill_solid_color(skb_canvas_t* c, skb_color_t color);
  * @param stops color stops defining the gradient
  * @param stops_count number of gradient color stops
  */
-void skb_canvas_fill_linear_gradient(skb_canvas_t* c, skb_vec2_t p0, skb_vec2_t p1, skb_gradient_spread_t spread, const skb_color_stop_t* stops, int32_t stops_count);
+SKB_API void skb_canvas_fill_linear_gradient(skb_canvas_t* c, skb_vec2_t p0, skb_vec2_t p1, skb_gradient_spread_t spread, const skb_color_stop_t* stops, int32_t stops_count);
 
 /**
  * Applies radial gradient using the topmost mask over the topmost image layer.
@@ -210,7 +229,7 @@ void skb_canvas_fill_linear_gradient(skb_canvas_t* c, skb_vec2_t p0, skb_vec2_t 
  * @param stops color stops defining the gradient
  * @param stops_count number of gradient color stops
  */
-void skb_canvas_fill_radial_gradient(skb_canvas_t* c, skb_vec2_t p0, float r0, skb_vec2_t p1, float r1, skb_gradient_spread_t spread, const skb_color_stop_t* stops, int32_t stops_count);
+SKB_API void skb_canvas_fill_radial_gradient(skb_canvas_t* c, skb_vec2_t p0, float r0, skb_vec2_t p1, float r1, skb_gradient_spread_t spread, const skb_color_stop_t* stops, int32_t stops_count);
 
 /** @} */
 

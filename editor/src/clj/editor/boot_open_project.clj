@@ -248,7 +248,13 @@
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
                                   (scene/routes project app-view)
-                                  (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
+                                  (command-requests/router
+                                    root
+                                    localization
+                                    (app-view/make-render-task-progress :resource-sync)
+                                    token
+                                    (fn invoke-bob! [options commands]
+                                      (app-view/invoke-bob! app-view project changes-view build-errors-view prefs options commands)))
                                   (doc/routes)
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)

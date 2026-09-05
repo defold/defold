@@ -262,6 +262,7 @@
 
   (property text g/Str (default (protobuf/default Label$LabelDesc :text))
             (dynamic edit-type (g/constantly {:type :multi-line-text}))
+            (dynamic error (g/fnk [markup-error] markup-error))
             (dynamic label (properties/label-dynamic :label :text))
             (dynamic tooltip (properties/tooltip-dynamic :label :text)))
   (property size types/Vec3 ; Required protobuf field.
@@ -334,6 +335,9 @@
   (input material-samplers g/Any)
 
   (output save-value g/Any :cached produce-save-value)
+  (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
+                                            (when-not (g/error-value? font-map)
+                                              (font/markup-error _node-id :text font-map text))))
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking]
                                            (font/layout-text font-map text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot size]

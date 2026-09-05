@@ -47,11 +47,12 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.StringUtil;
+import com.dynamo.font.proto.GlyphBankProto;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.FontTextureFormat;
-import com.dynamo.render.proto.Font.GlyphBank;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 import org.apache.commons.lang3.StringUtils;
@@ -158,8 +159,7 @@ public class Fontc {
     }
 
     private static float getNativeSdfPadding(FontDesc fontDesc) {
-        float shadowBlur = fontDesc.getShadowAlpha() > 0.0f ? fontDesc.getShadowBlur() : 0.0f;
-        return FontRenderer.DEFAULT_SDF_BASE_PADDING + fontDesc.getOutlineWidth() + shadowBlur;
+        return FontRenderer.DEFAULT_SDF_BASE_PADDING + fontDesc.getOutlineWidth() + fontDesc.getShadowBlur();
     }
 
     private static float calculateNativeSdfLimit(float padding, float width) {
@@ -206,7 +206,8 @@ public class Fontc {
             glyph.width = source.width;
             glyph.pixelHeight = source.height;
             glyphs.add(glyph);
-            maxAscent = Math.max(maxAscent, glyph.ascent);
+            maxAscent = i == 0 ? glyph.ascent : Math.max(maxAscent, glyph.ascent);
+            // Font-level descent includes the baseline, even when every glyph lies above it.
             maxDescent = Math.max(maxDescent, glyph.descent);
         }
         glyphBankBuilder.setMaxAscent(maxAscent).setMaxDescent(maxDescent);
@@ -255,7 +256,7 @@ public class Fontc {
     private void buildNativeTTF(FontRenderer renderer, boolean copyPixels, byte[] fontBytes, FontRenderer.Params params) throws IOException {
         ArrayList<Integer> characters = getRequestedCharacters();
         int nativeGlyphChannels = params.outputBitmap
-                                  ? (params.hasOutline || params.hasShadow ? 3 : 1)
+                                  ? (params.outlineWidth > 0.0f || params.hasShadow ? 3 : 1)
                                   : (params.shadowBlur > 0.0f ? 3 : 1);
         GlyphMetrics[] supportedMetrics;
         try {
@@ -405,9 +406,9 @@ public class Fontc {
         }
 
         int cellWidth = 1;
-        int maxAscent = 0;
-        int maxDescent = 0;
-        int cellMaxAscent = 0;
+        int maxAscent = glyphs.isEmpty() ? 0 : glyphs.get(0).ascent;
+        int maxDescent = glyphs.isEmpty() ? 0 : glyphs.get(0).descent;
+        int cellMaxAscent = maxAscent;
         for (Glyph glyph : glyphs) {
             cellWidth = Math.max(cellWidth, glyph.width + 2);
             maxAscent = Math.max(maxAscent, glyph.ascent);
@@ -493,7 +494,7 @@ public class Fontc {
         this.fontDesc = fontDesc;
         glyphs = new ArrayList<Glyph>();
         bmfont = null;
-        glyphBankBuilder = GlyphBank.newBuilder().setImageFormat(fontDesc.getOutputFormat());
+        glyphBankBuilder = GlyphBank.newBuilder().setImageFormat(GlyphBankProto.FontTextureFormat.forNumber(fontDesc.getOutputFormat().getNumber()));
         if (bitmapFont) {
             buildBMFont(fontStream);
             generateGlyphBank(preview, bitmapPath, bitmapStream, compressGlyphData, true);
@@ -509,11 +510,11 @@ public class Fontc {
         params.sdfBasePadding = FontRenderer.DEFAULT_SDF_BASE_PADDING;
         params.sdfEdgeValue = FontRenderer.DEFAULT_SDF_EDGE_VALUE;
         params.outlineWidth = fontDesc.getOutlineWidth();
-        params.shadowBlur = fontDesc.getShadowAlpha() > 0.0f ? fontDesc.getShadowBlur() : 0.0f;
+        params.shadowBlur = fontDesc.getShadowBlur();
         params.outputBitmap = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP;
         params.antialias = fontDesc.getAntialias() != 0;
         params.hasOutline = fontDesc.getOutlineWidth() > 0.0f && fontDesc.getOutlineAlpha() > 0.0f;
-        params.hasShadow = fontDesc.getShadowAlpha() > 0.0f;
+        params.hasShadow = fontDesc.getShadowAlpha() > 0.0f || fontDesc.getShadowBlur() > 0.0f;
         try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
             buildNativeTTF(renderer, !metadataOnly, fontBytes, params);
         }

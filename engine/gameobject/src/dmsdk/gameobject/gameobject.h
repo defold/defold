@@ -303,11 +303,13 @@ namespace dmGameObject
      * @enum
      * @name CreateResult
      * @member dmGameObject::CREATE_RESULT_OK
+     * @member dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS
      * @member dmGameObject::CREATE_RESULT_UNKNOWN_ERROR
      */
     enum CreateResult
     {
         CREATE_RESULT_OK = 0,
+        CREATE_RESULT_TOO_MANY_COMPONENTS = -1,
         CREATE_RESULT_UNKNOWN_ERROR = -1000,
     };
 
@@ -1002,6 +1004,18 @@ namespace dmGameObject
     PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value);
 
     /*#
+     * Retrieve a text property from a component.
+     * The returned pointer is borrowed from the component and must not be freed. Its lifetime is controlled by the component.
+     * @name GetPropertyAsText
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:const char**] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char** out_value);
+
+    /*#
      * Retrieve a matrix4 property from a component.
      * @name GetPropertyAsMatrix
      * @param instance [type:HInstance] Instance of the game object
@@ -1088,6 +1102,18 @@ namespace dmGameObject
      * @return PROPERTY_RESULT_OK if the value could be set
      */
     PropertyResult SetPropertyFromURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value);
+
+    /*#
+     * Sets the value of a text property on a component.
+     * The component must copy the value if it needs to retain it after this function returns.
+     * @name SetPropertyFromText
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:const char*] Null-terminated UTF-8 value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char* value);
 
     /*#
      * Sets the value of a matrix4 property on a component.
@@ -1215,7 +1241,6 @@ namespace dmGameObject
     bool TraverseIterateNext(SceneNodeIterator* it);
 
     /*# scene node property types
-     * @note Since we don't support text properties, we'll keep a separate enum here for now
      * @enum
      * @name SceneNodePropertyType
      * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER

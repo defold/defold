@@ -167,6 +167,20 @@
                                 :mobile {:context {:libs []}}}}
                    setting
                    identity)))))))
+  (testing "rich text can be replaced with its null implementation"
+    (is (false? (app-manifest/get-setting-value {} app-manifest/rich-text-setting)))
+    (let [excluded-manifest (app-manifest/set-setting-value {} app-manifest/rich-text-setting true)
+          included-manifest (app-manifest/set-setting-value excluded-manifest app-manifest/rich-text-setting false)]
+      (is (true? (app-manifest/get-setting-value excluded-manifest app-manifest/rich-text-setting)))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                     "font_richtext"))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :libs]))
+                     "font_richtext_null"))
+      (is (false? (app-manifest/get-setting-value included-manifest app-manifest/rich-text-setting)))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                          "font_richtext")))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :libs]))
+                          "font_richtext_null")))))
   (testing "choice setting is a enum of options or nil (indeterminate) setting"
     (let [setting (app-manifest/make-choice-setting
                     :all [(app-manifest/boolean-toggle :desktop :enabled true)
@@ -221,12 +235,34 @@
                        (app-manifest/update-setting-value setting update-fn)
                        (app-manifest/get-setting-value setting))))))))))
 
+;; Verifies the combined 2D/3D physics selection round-trips and excludes the
+;; Bullet3D script library and symbol on every platform exactly when 3D is disabled.
+;; This prevents editor writes from linking an unavailable API or stripping the
+;; API from projects that still use 3D physics.
+(deftest physics-setting-test
+  (testing "Bullet script API follows the 3D physics selection"
+    (doseq [[selection exclude-bullet-script]
+            [[{:2d :none :3d false} true]
+             [{:2d :legacy :3d false} true]
+             [{:2d :v3 :3d false} true]
+             [{:2d :none :3d true} false]
+             [{:2d :v3 :3d true} false]
+             [{:2d :legacy :3d true} false]]]
+      (let [manifest (app-manifest/set-setting-value {} app-manifest/physics-setting selection)]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/physics-setting)))
+        (doseq [platform app-manifest/all-platforms]
+          (let [context (get-in manifest [:platforms platform :context])]
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeLibs context)) "script_bullet3d")))
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
+
 (deftest android-graphics-setting-test
   (testing "OpenGL-only Android excludes Vulkan link inputs"
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :both)
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
           (is (some #{"dmglfw"} (:libs context)))
@@ -239,7 +275,7 @@
           (is (some #{"GLESv2"} (:dynamicLibs context)))))))
   (testing "Vulkan-only Android excludes OpenGL ES link inputs"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-android :vulkan)]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
           (is (some #{"dmglfw_vulkan"} (:libs context)))
@@ -385,7 +421,8 @@
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
-        (is (= :web-gl (g/node-value manifest :graphics-web)))))
+        (is (= :web-gl (g/node-value manifest :graphics-web)))
+        (is (true? (g/node-value manifest :use-rich-text)))))
     (testing "/app_manifest/exclude_physics_2d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_2d.appmanifest")]
         (is (= :none (g/node-value manifest :physics-2d)))
@@ -618,4 +655,9 @@
       (g/set-property! manifest :exclude-tilemap false)
       (is (false? (string/includes? (text) "gui_null")))
       (is (false? (string/includes? (text) "particle_null")))
-      (is (false? (string/includes? (text) "ResourceTypeTileMap"))))))
+      (is (false? (string/includes? (text) "ResourceTypeTileMap")))
+
+      (testing "indeterminate rich-text settings remain indeterminate"
+        (g/set-property! manifest :manifest
+                         {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
+        (is (nil? (g/node-value manifest :use-rich-text)))))))

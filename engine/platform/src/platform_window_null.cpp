@@ -343,6 +343,27 @@ namespace dmPlatform
         return 0;
     }
 
+    ANativeWindow* AcquireAndroidWindow()
+    {
+        return 0;
+    }
+
+    ANativeWindow* WaitForAndroidWindow()
+    {
+        return 0;
+    }
+
+    bool IsAndroidWindowCurrent(ANativeWindow* window)
+    {
+        (void) window;
+        return false;
+    }
+
+    void ReleaseAndroidWindow(ANativeWindow* window)
+    {
+        (void) window;
+    }
+
     bool GetSafeAreaAndroid(HWindow window, WindowSafeArea* out)
     {
         return GetSafeArea(window, out);

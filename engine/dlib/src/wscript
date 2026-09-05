@@ -25,7 +25,7 @@ def build(bld):
     source_dirs = 'dlib/*.cpp dlib/http/*.cpp zlib/*.c lz4/*.c'.split(' ')
     platform_source_dirs = []
 
-    if re.match('arm.*?android', bld.env.PLATFORM):
+    if re.match('.*?-android$', bld.env.PLATFORM):
         source_dirs.append('dlib/linux/**/*.cpp')
     elif build_util.get_target_os() in ['macos', 'ios']:
         source_dirs.append('dlib/darwin/**/*.cpp')

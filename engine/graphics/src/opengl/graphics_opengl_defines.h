@@ -118,11 +118,23 @@
     #define DMGRAPHICS_IMAGE_3D (0x904E)
 #endif
 
+#ifdef GL_TEXTURE_WRAP_R
+    #define DMGRAPHICS_TEXTURE_WRAP_R (GL_TEXTURE_WRAP_R)
+#else
+    #define DMGRAPHICS_TEXTURE_WRAP_R (0x8072)
+#endif
+
 // Barrier bits
 #ifdef GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
     #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 #else
     #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (0x00000020)
+#endif
+
+#ifdef GL_TEXTURE_FETCH_BARRIER_BIT
+    #define DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH              (GL_TEXTURE_FETCH_BARRIER_BIT)
+#else
+    #define DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH              (0x00000008)
 #endif
 
 // GL_READ_WRITE
@@ -596,6 +608,42 @@
 
 #ifndef GL_UNIFORM_BLOCK_INDEX
 #define GL_UNIFORM_BLOCK_INDEX                           0x8A3A
+#endif
+
+#ifndef GL_READ_FRAMEBUFFER
+#define GL_READ_FRAMEBUFFER                              0x8CA8
+#endif
+
+#ifndef GL_DRAW_FRAMEBUFFER
+#define GL_DRAW_FRAMEBUFFER                              0x8CA9
+#endif
+
+#ifndef GL_MAX_SAMPLES
+#define GL_MAX_SAMPLES                                   0x8D57
+#endif
+
+#ifndef GL_R8
+#define GL_R8                                            0x8229
+#endif
+
+#ifndef GL_RG8
+#define GL_RG8                                           0x822B
+#endif
+
+#ifndef GL_RGB8
+#define GL_RGB8                                          0x8051
+#endif
+
+#ifndef GL_RGBA8
+#define GL_RGBA8                                         0x8058
+#endif
+
+#ifndef GL_RGB565
+#define GL_RGB565                                        0x8D62
+#endif
+
+#ifndef GL_RGBA4
+#define GL_RGBA4                                         0x8056
 #endif
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

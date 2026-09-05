@@ -24,8 +24,8 @@
 #include "render/render_private.h"
 #include "render/render_script.h"
 #include "render/font/font_renderer.h"
-#include "render/font/font_glyphbank.h"
 #include "font/font.h"
+#include "font/font_glyphbank.h"
 #include <platform/window.hpp>
 
 #include <dmsdk/font/fontcollection.h>
@@ -59,20 +59,36 @@ namespace
     {
         return LuaSourceFromStringAndFilename(source, "render-dummy");
     }
+} // namespace
+
+struct TestGlyphBank
+{
+    FontGlyphBankProvider m_Provider;
+    FontGlyphBankGlyph*   m_Glyphs;
+};
+
+static uint32_t GetTestGlyphCodepoint(void* context, uint32_t glyph_index)
+{
+    return ((TestGlyphBank*)context)->m_Glyphs[glyph_index].m_Codepoint;
 }
 
-static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
+static bool GetTestGlyph(void* context, uint32_t glyph_index, FontGlyphBankGlyph* output)
 {
-    dmRenderDDF::GlyphBank* bank = new dmRenderDDF::GlyphBank;
+    *output = ((TestGlyphBank*)context)->m_Glyphs[glyph_index];
+    return true;
+}
+
+static TestGlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
+{
+    TestGlyphBank* bank = new TestGlyphBank;
     memset(bank, 0, sizeof(*bank));
 
-    bank->m_Glyphs.m_Count = glyph_count;
-    bank->m_Glyphs.m_Data = new dmRenderDDF::GlyphBank::Glyph[glyph_count];
+    bank->m_Glyphs = new FontGlyphBankGlyph[glyph_count];
 
-    memset(bank->m_Glyphs.m_Data, 0, sizeof(dmRenderDDF::GlyphBank::Glyph) * glyph_count);
+    memset(bank->m_Glyphs, 0, sizeof(FontGlyphBankGlyph) * glyph_count);
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
-        bank->m_Glyphs[i].m_Character = i;
+        bank->m_Glyphs[i].m_Codepoint = i;
         bank->m_Glyphs[i].m_Width = 1;
         bank->m_Glyphs[i].m_LeftBearing = 1;
         bank->m_Glyphs[i].m_Advance = 2;
@@ -80,15 +96,19 @@ static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max
         bank->m_Glyphs[i].m_Descent = 1;
     }
 
-    bank->m_MaxAscent = max_ascent;
-    bank->m_MaxDescent = max_descent;
+    bank->m_Provider.m_Context = bank;
+    bank->m_Provider.m_GetCodepoint = GetTestGlyphCodepoint;
+    bank->m_Provider.m_GetGlyph = GetTestGlyph;
+    bank->m_Provider.m_GlyphCount = glyph_count;
+    bank->m_Provider.m_MaxAscent = max_ascent;
+    bank->m_Provider.m_MaxDescent = max_descent;
 
     return bank;
 }
 
-static void DestroyGlyphBank(dmRenderDDF::GlyphBank* bank)
+static void DestroyGlyphBank(TestGlyphBank* bank)
 {
-    delete[] bank->m_Glyphs.m_Data;
+    delete[] bank->m_Glyphs;
     delete bank;
 }
 
@@ -101,7 +121,7 @@ protected:
     dmGraphics::HContext        m_GraphicsContext;
     dmRender::HFontMap          m_SystemFontMap;
     dmRender::HMaterial         m_FontMaterial;
-    dmRenderDDF::GlyphBank*     m_GlyphBank;
+    TestGlyphBank*              m_GlyphBank;
     HFont                       m_Font;
 
     dmGraphics::HProgram m_FontProgram;
@@ -135,7 +155,7 @@ protected:
         dmScript::Initialize(m_ScriptContext);
 
         m_GlyphBank = CreateGlyphBank(1, 1, 128);
-        m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
+        m_Font = FontCreateGlyphBank("test.glyph_bankc", &m_GlyphBank->m_Provider);
 
         HFontCollection font_collection = FontCollectionCreate();
         FontCollectionAddFont(font_collection, m_Font);
@@ -773,6 +793,84 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetSampleCount)
+{
+    const char* script =
+    "function update(self)\n"
+    "    local params_color = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
+    "        width = 1,\n"
+    "        height = 2\n"
+    "    }\n"
+    "    local params_depth = {\n"
+    "        format = graphics.TEXTURE_FORMAT_DEPTH,\n"
+    "        width = 1,\n"
+    "        height = 2\n"
+    "    }\n"
+    "    self.rt = render.render_target({sample_count = 4, [graphics.BUFFER_TYPE_COLOR0_BIT] = params_color, [graphics.BUFFER_TYPE_DEPTH_BIT] = params_depth})\n"
+    "    render.set_render_target(self.rt)\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+    dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget) commands[0].m_Operands[0];
+    ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context->m_GraphicsContext, rt));
+
+    dmGraphics::DeleteRenderTarget(m_Context->m_GraphicsContext, rt);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetInvalidSampleCount)
+{
+    const char* script =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
+    "        width = 1,\n"
+    "        height = 2\n"
+    "    }\n"
+    "    self.rt = render.render_target({sample_count = 0, [graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetSampleCountNormalization)
+{
+    const char* script =
+    "function update(self)\n"
+    "    self.rt = render.render_target({sample_count = 3, [graphics.BUFFER_TYPE_COLOR0_BIT] = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA, width = 1, height = 2\n"
+    "    }})\n"
+    "    render.set_render_target(self.rt)\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+    dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget) commands[0].m_Operands[0];
+    ASSERT_EQ(2u, dmGraphics::GetRenderTargetSampleCount(m_Context->m_GraphicsContext, rt));
+
+    dmGraphics::DeleteRenderTarget(m_Context->m_GraphicsContext, rt);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
 {
     const char* script =
@@ -1398,8 +1496,8 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-// Test that constant buffers passed to render.draw() as locals survive garbage
-// collection between command creation and command parsing.
+// Test that constant buffers passed to render.draw() are snapshotted and no
+// longer depend on the Lua userdata surviving until command parsing.
 TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
 {
     // Create multiple constant buffers as locals only — no reference
@@ -1407,7 +1505,7 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
     const char* script =
         "function init(self)\n"
         "    self.pred = render.predicate({\"tag\"})\n"
-        "    for i = 1, 5 do\n"
+        "    for i = 1, 20 do\n"
         "        local cb = render.constant_buffer()\n"
         "        cb.tint = vmath.vector4(i, 0, 0, 1)\n"
         "        render.draw(self.pred, { constants = cb })\n"
@@ -1421,7 +1519,9 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(5u, commands.Size());
+    ASSERT_EQ(20u, commands.Size());
+    ASSERT_EQ(20u, m_Context->m_ConstantBufferCloneCursor);
+    ASSERT_EQ(20u, m_Context->m_ConstantBufferClones.Size());
 
     // Force a full garbage collection cycle from C++
     lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
@@ -1431,12 +1531,108 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
     for (uint32_t i = 0; i < commands.Size(); ++i)
     {
         ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, commands[i].m_Type);
-        dmRender::HNamedConstantBuffer cb = (dmRender::HNamedConstantBuffer)commands[i].m_Operands[1];
-        ASSERT_NE((dmRender::HNamedConstantBuffer)0, cb);
-        ASSERT_EQ(1u, dmRender::GetNamedConstantCount(cb));
+        dmRender::HNamedConstantBuffer clone = (dmRender::HNamedConstantBuffer)commands[i].m_Operands[1];
+        ASSERT_NE((dmRender::HNamedConstantBuffer)0, clone);
+        dmVMath::Vector4* values = 0;
+        uint32_t num_values = 0;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
+        ASSERT_TRUE(dmRender::GetNamedConstant(clone, dmHashString64("tint"), &values, &num_values, &constant_type));
+        ASSERT_EQ(1u, num_values);
+        ASSERT_EQ((float)i + 1.0f, values[0].getX());
     }
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_CloneOnDraw)
+{
+    const char* script =
+        "function init(self)\n"
+        "    self.pred = render.predicate({\"tag\"})\n"
+        "    local cb = render.constant_buffer()\n"
+        "    cb.tint = vmath.vector4(1, 0, 0, 1)\n"
+        "    render.draw(self.pred, { constants = cb })\n"
+        "    cb.tint = vmath.vector4(0, 1, 0, 1)\n"
+        "    render.draw(self.pred, { constants = cb })\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(2u, commands.Size());
+    dmRender::HNamedConstantBuffer red_clone = (dmRender::HNamedConstantBuffer)commands[0].m_Operands[1];
+    dmRender::HNamedConstantBuffer green_clone = (dmRender::HNamedConstantBuffer)commands[1].m_Operands[1];
+    ASSERT_NE(red_clone, green_clone);
+
+    dmVMath::Vector4* values = 0;
+    uint32_t num_values = 0;
+    dmRenderDDF::MaterialDesc::ConstantType constant_type;
+    ASSERT_TRUE(dmRender::GetNamedConstant(red_clone, dmHashString64("tint"), &values, &num_values, &constant_type));
+    ASSERT_EQ(1u, num_values);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER, constant_type);
+    ASSERT_EQ(1.0f, values[0].getX());
+    ASSERT_EQ(0.0f, values[0].getY());
+    ASSERT_EQ(0.0f, values[0].getZ());
+    ASSERT_EQ(1.0f, values[0].getW());
+
+    ASSERT_TRUE(dmRender::GetNamedConstant(green_clone, dmHashString64("tint"), &values, &num_values, &constant_type));
+    ASSERT_EQ(1u, num_values);
+    ASSERT_EQ(0.0f, values[0].getX());
+    ASSERT_EQ(1.0f, values[0].getY());
+    ASSERT_EQ(0.0f, values[0].getZ());
+    ASSERT_EQ(1.0f, values[0].getW());
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(0u, m_Context->m_ConstantBufferCloneCursor);
+
+    dmRender::HNamedConstantBuffer source = dmRender::NewNamedConstantBuffer();
+    dmVMath::Vector4 blue(0.0f, 0.0f, 1.0f, 1.0f);
+    dmRender::SetNamedConstant(source, dmHashString64("tint"), &blue, 1);
+    dmRender::HNamedConstantBuffer reused_clone = dmRender::PushRenderConstants(m_Context, source);
+    ASSERT_EQ(red_clone, reused_clone);
+    ASSERT_EQ(1u, m_Context->m_ConstantBufferCloneCursor);
+    ASSERT_EQ(2u, m_Context->m_ConstantBufferClones.Size());
+    dmRender::DeleteNamedConstantBuffer(source);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_RejectedCommandsDoNotCreateClones)
+{
+    const char* script =
+        "function init(self)\n"
+        "    self.pred = render.predicate({\"tag\"})\n"
+        "    self.cb = render.constant_buffer()\n"
+        "    self.cb.tint = vmath.vector4(1, 0, 0, 1)\n"
+        "end\n"
+        "function update(self)\n"
+        "    render.enable_state(graphics.STATE_BLEND)\n"
+        "    for i = 1, 10 do\n"
+        "        assert(not pcall(render.draw, self.pred, { constants = self.cb }))\n"
+        "        assert(not pcall(render.dispatch_compute, 1, 1, 1, { constants = self.cb }))\n"
+        "    end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    commands.SetCapacity(1);
+
+    uint32_t clone_cursor = m_Context->m_ConstantBufferCloneCursor;
+    uint32_t clone_count = m_Context->m_ConstantBufferClones.Size();
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ(clone_cursor, m_Context->m_ConstantBufferCloneCursor);
+    ASSERT_EQ(clone_count, m_Context->m_ConstantBufferClones.Size());
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -2247,8 +2443,11 @@ TEST_F(dmRenderScriptTest, TestDispatch)
 {
     const char* script =
     "function init(self)\n"
+    "   self.cb = render.constant_buffer()\n"
+    "   self.cb.tint = vmath.vector4(1,0,0,1)\n"
     "   render.set_compute('test_compute')\n"
-    "   render.dispatch_compute(1,2,3)\n"
+    "   render.dispatch_compute(1,2,3, {constants = self.cb})\n"
+    "   self.cb.tint = vmath.vector4(0,1,0,1)\n"
     "   render.set_compute()\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -2268,6 +2467,15 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     ASSERT_EQ(1, commands[1].m_Operands[0]);
     ASSERT_EQ(2, commands[1].m_Operands[1]);
     ASSERT_EQ(3, commands[1].m_Operands[2]);
+
+    dmRender::HNamedConstantBuffer constant_buffer_clone = (dmRender::HNamedConstantBuffer)commands[1].m_Operands[3];
+    ASSERT_NE((dmRender::HNamedConstantBuffer)0, constant_buffer_clone);
+    dmVMath::Vector4* values = 0;
+    uint32_t num_values = 0;
+    ASSERT_TRUE(dmRender::GetNamedConstant(constant_buffer_clone, dmHashString64("tint"), &values, &num_values));
+    ASSERT_EQ(1u, num_values);
+    ASSERT_EQ(1.0f, values[0].getX());
+    ASSERT_EQ(0.0f, values[0].getY());
 
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[2].m_Type);
     ASSERT_EQ(0, commands[2].m_Operands[0]);

@@ -293,13 +293,18 @@ if(DEFOLD_HOST_TOOLS_TARGET)
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOST_TOOLS_TARGET}")
 endif()
 
+add_custom_target(stage_bob_light_dependencies
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
+  ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
+  ${_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS}
+  DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
+  COMMENT "Staging Bob Light dependencies"
+  VERBATIM)
+
 if(NOT DEFOLD_SKIP_BOB_LIGHT)
   add_custom_command(
     OUTPUT "${DEFOLD_BOB_LIGHT_JAR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
-    ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
-    ${_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS}
     COMMAND "${CMAKE_COMMAND}" -E env
       "DEFOLD_HOME=${DEFOLD_HOME}"
       "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
@@ -307,7 +312,7 @@ if(NOT DEFOLD_SKIP_BOB_LIGHT)
       "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
       "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed "-Ptarget-platform=${TARGET_PLATFORM}" "-Ppython=${Python3_EXECUTABLE}" installBobLight
     WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
-    DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
+    DEPENDS stage_bob_light_dependencies ${_DEFOLD_BOB_LIGHT_DEPENDS}
     COMMENT "Building bob-light.jar"
     VERBATIM)
 endif()

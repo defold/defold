@@ -428,6 +428,8 @@ function M.get_commands()
                 local gui = "/test.gui"
                 print("GUI initial state:")
                 print_gui(gui)
+                print(("  can add undefined list: %s"):format(tostring(editor.can_add(gui, "undefined_list"))))
+                print(("  can reorder undefined list: %s"):format(tostring(editor.can_reorder(gui, "undefined_list"))))
 
                 print("Transaction: edit GUI")
                 editor.transact({

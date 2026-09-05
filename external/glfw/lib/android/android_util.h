@@ -80,6 +80,12 @@ void reset_egl_failure_retries(_GLFWwin_android* win);
 
 int _glfwAndroidIsAppResumed(void);
 
+ANativeWindow* _glfwAndroidAcquireWindow(void);
+GLFWAPI ANativeWindow* glfwAcquireAndroidWindow(void);
+GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void);
+GLFWAPI int glfwAndroidIsWindowCurrent(ANativeWindow* window);
+GLFWAPI void glfwReleaseAndroidWindow(ANativeWindow* window);
+
 int query_gl_aux_context(_GLFWwin_android* win);
 
 void* acquire_gl_aux_context(_GLFWwin_android* win);
@@ -100,7 +106,7 @@ int32_t _glfwAndroidVerifySurfaceError(EGLint error);
 
 // From spinlock.h (we really should keep a C interface there as well!)
 
-#if !defined(__aarch64__)
+#if defined(__arm__)
 
 static inline void spinlock_lock(uint32_t* lock)
 {
@@ -158,6 +164,24 @@ static inline void spinlock_unlock(uint32_t* lock)
     : : "r" (lock), "r" (0) : "memory");
 
 }
+
+#else
+
+// Generic implementation for the remaining Android ABIs (e.g. x86_64).
+// Matches the fallback in engine/dlib/src/dlib/spinlock_android.cpp
+
+static inline void spinlock_lock(uint32_t* lock)
+{
+    while (__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE) != 0)
+    {
+    }
+}
+
+static inline void spinlock_unlock(uint32_t* lock)
+{
+    __atomic_store_n(lock, 0, __ATOMIC_RELEASE);
+}
+
 #endif
 
 #endif // _ANDROID_UTIL_H_

@@ -24,6 +24,7 @@ import com.dynamo.bob.util.TextureUtil;
 import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.font.proto.GlyphBankProto;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObjectSource;
@@ -224,7 +225,7 @@ public class ParseUtil {
         parseMap.put("glyph_bankc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return Font.GlyphBank.parseFrom(content);
+                return GlyphBankProto.GlyphBank.parseFrom(content);
             }
         });
         parseMap.put("guic", new IParser() {

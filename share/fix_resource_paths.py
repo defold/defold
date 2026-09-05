@@ -42,13 +42,13 @@ def fix_resource_files(msg):
     for field in descriptor.fields:
         value = getattr(msg, field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.is_repeated:
                 for x in value:
                     fix_resource_files(x)
             elif msg.HasField(field.name):
                 fix_resource_files(value)
         elif is_resource(field):
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.is_repeated:
                 for i, x in enumerate(value):
                     if x and not x.startswith('/'):
                         value[i] = '/' + x

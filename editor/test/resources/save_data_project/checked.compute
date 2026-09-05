@@ -13,10 +13,21 @@ constants {
   name: "constant_2"
   type: CONSTANT_TYPE_VIEWPROJ
 }
+constants {
+  name: "constant_3"
+  type: CONSTANT_TYPE_USER_COLOR
+  value {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+    w: 0.4
+  }
+}
 samplers {
   name: "texture0"
   wrap_u: WRAP_MODE_MIRRORED_REPEAT
   wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_w: WRAP_MODE_MIRRORED_REPEAT
   filter_min: FILTER_MODE_MIN_LINEAR
   filter_mag: FILTER_MODE_MAG_NEAREST
   max_anisotropy: 0.0

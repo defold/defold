@@ -37,6 +37,7 @@ mkdir -p libexec/arm64-ios
 mkdir -p libexec/x86_64-ios
 # mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
+mkdir -p libexec/x86_64-android
 mkdir -p libexec/wasm-web
 mkdir -p libexec/wasm_pthread-web
 
@@ -105,10 +106,9 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/strip_android libexec/x86_64-macos/strip
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/strip_android libexec/arm64-macos/strip_android
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android libexec/x86_64-linux/strip_android
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android.exe libexec/x86_64-win32/strip_android.exe
-
-# strip_android_aarch64
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android_aarch64 libexec/x86_64-linux/strip_android_aarch64
-cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android_aarch64.exe libexec/x86_64-win32/strip_android_aarch64.exe
+# only the macos tool is self contained, the others load these from next to the executable
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/libc++.so.1 libexec/x86_64-linux/libc++.so.1
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/libwinpthread-1.dll libexec/x86_64-win32/libwinpthread-1.dll
 
 # zipalign
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/zipalign libexec/x86_64-macos/zipalign
@@ -205,6 +205,8 @@ copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
 # copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
 copy arm64-android/stripped/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
+copy x86_64-android/stripped/libdmengine.so x86_64-android/libdmengine.so
+copy x86_64-android/stripped/libdmengine_release.so x86_64-android/libdmengine_release.so
 copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
