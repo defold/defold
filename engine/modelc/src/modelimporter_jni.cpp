@@ -62,6 +62,17 @@ static jobjectArray CreateObjectArray(JNIEnv* env, jclass cls, const dmArray<job
     return arr;
 }
 
+static jobjectArray CreateObjectArrayRange(JNIEnv* env, jclass cls, const dmArray<jobject>& values,
+                                           uint32_t offset, uint32_t count)
+{
+    jobjectArray arr = env->NewObjectArray(count, cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        env->SetObjectArrayElement(arr, i, values[offset + i]);
+    }
+    return arr;
+}
+
 // **************************************************
 //
 
@@ -80,7 +91,7 @@ static jobjectArray CreateImagesArray(JNIEnv* env, dmModelImporter::jni::TypeInf
         dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, image->m_MimeType);
         dmJNI::SetUInt(env, obj, types->m_ImageJNI.index, image->m_Index);
 
-        dmJNI::SetObject(env, obj, types->m_ImageJNI.buffer, GetFromCache(cache, image->m_Buffer));
+        dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.buffer, C2J_CreateBuffer(env, types, image->m_Buffer));
 
         env->SetObjectArrayElement(arr, i, obj);
 
@@ -508,6 +519,9 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
                                                                         scene->m_Materials.Size(), scene->m_Materials.Begin(),
                                                                         scene->m_DynamicMaterials.Size(), scene->m_DynamicMaterials.Begin(),
                                                                         materials));
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.dynamicMaterials,
+                         CreateObjectArrayRange(env, types->m_MaterialJNI.cls, materials,
+                                                scene->m_Materials.Size(), scene->m_DynamicMaterials.Size()));
 
 
     // Creates all nodes, but doesn't set setting skins/models
@@ -568,7 +582,7 @@ static void ThrowModelLoadExceptionFromScene(JNIEnv* env, dmModelImporter::Scene
     ThrowModelLoadException(env, err);
 }
 
-static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jobject _options, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("CreateJavaScene: env = %p\n", env);
 
@@ -587,6 +601,11 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     jbyte* file_data = env->GetByteArrayElements(array, 0);
 
     dmModelImporter::Options options;
+    if (_options)
+    {
+        dmModelImporter::jni::ScopedContext jni_scope(env);
+        dmModelImporter::jni::J2C_CreateOptions(env, &jni_scope.m_TypeInfos, _options, &options);
+    }
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, (uint8_t*)file_data, file_size);
 
     if (!scene)
@@ -613,7 +632,7 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
 
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
-            if (scene->m_Buffers[i].m_Buffer)
+            if (scene->m_Buffers[i].m_Buffer || scene->m_Buffers[i].m_BufferCount == 0)
                 continue;
 
             const char* uri = scene->m_Buffers[i].m_Uri;
@@ -636,15 +655,26 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
                 jsize buffer_size = env->GetArrayLength(bytes);
                 jbyte* buffer_data = env->GetByteArrayElements(bytes, 0);
                 dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, buffer_data, buffer_size);
-                resolved = true;
-
                 env->ReleaseByteArrayElements(bytes, buffer_data, JNI_ABORT);
+                env->DeleteLocalRef(bytes);
+
+                if (scene->m_LoadError && scene->m_LoadError[0])
+                {
+                    env->DeleteLocalRef(j_uri);
+                    env->DeleteLocalRef(cls_resolver);
+                    ThrowModelLoadExceptionFromScene(env, scene, "Failed to resolve glTF buffer");
+                    dmModelImporter::DestroyScene(scene);
+                    env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+                    return 0;
+                }
+                resolved = true;
             }
             else {
                 dmLogDebug("Found no buffer for uri '%s'\n", uri);
             }
             env->DeleteLocalRef(j_uri);
         }
+        env->DeleteLocalRef(cls_resolver);
 
         if(dmModelImporter::NeedsResolve(scene))
         {
@@ -661,7 +691,6 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
             env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
             return 0;
         }
-        dmModelImporter::Validate(scene);
     }
 
     if (dmModelImporter::NeedsResolve(scene))
@@ -686,14 +715,14 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     return jscene;
 }
 
-JNIEXPORT jobject JNICALL Java_ModelImporterJni_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+JNIEXPORT jobject JNICALL Java_ModelImporterJni_LoadFromBufferInternal(JNIEnv* env, jclass cls, jobject _options, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("Java_ModelImporterJni_LoadFromBufferInternal: env = %p\n", env);
     //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
 
     jobject jscene;
     DM_JNI_GUARD_SCOPE_BEGIN();
-        jscene = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
+        jscene = LoadFromBufferInternal(env, cls, _options, _path, array, data_resolver);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jscene;
 }
@@ -732,7 +761,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
-        {(char*)"LoadFromBufferInternal", (char*)"(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_ModelImporterJni_LoadFromBufferInternal)},
+        {(char*)"LoadFromBufferInternal", (char*)"(L" CLASS_NAME "$Options;Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_ModelImporterJni_LoadFromBufferInternal)},
         //{"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporterJni_AddressOf)},
         {(char*)"TestException", (char*)"(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_ModelImporterJni_TestException)},
     };

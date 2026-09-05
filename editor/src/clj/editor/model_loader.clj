@@ -16,15 +16,16 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.gltf :as gltf]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll])
-  (:import [com.dynamo.bob.pipeline ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$ModelMetadata ModelUtil$PackedMorphTargetTexture]
+  (:import [com.dynamo.bob.pipeline ModelImporterJni$DataResolver ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$ModelMetadata ModelUtil$PackedMorphTargetTexture]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
-           [com.dynamo.bob.pipeline Modelimporter$Mesh Modelimporter$Model Modelimporter$PrimitiveType]
+           [com.dynamo.bob.pipeline Modelimporter$Material Modelimporter$Mesh Modelimporter$Model Modelimporter$PrimitiveType]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
            [java.io InputStream]))
 
@@ -47,10 +48,14 @@
      :packed-texture (packed-morph-target-texture->map packed-texture)}))
 
 (defn- model-mesh->collision-primitive [^Modelimporter$Mesh mesh]
-  {:index-count (alength (.-indices mesh))
-   :position-count (alength (.-positions mesh))
-   :triangles (= Modelimporter$PrimitiveType/PRIMITIVE_TYPE_TRIANGLES
-                 (.-primitiveType mesh))})
+  (let [^Modelimporter$Material material (.-material mesh)]
+    (cond-> {:index-count (alength (.-indices mesh))
+             :position-count (alength (.-positions mesh))
+             :triangles (= Modelimporter$PrimitiveType/PRIMITIVE_TYPE_TRIANGLES
+                           (.-primitiveType mesh))}
+      material
+      (assoc :material-index (.-index material)
+             :material-name (.-name material)))))
 
 (defn- model->collision-mesh [^Modelimporter$Model model]
   {:index (.-index model)
@@ -95,12 +100,11 @@
 (defn- load-model-scene
   [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
-        project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
         options nil
-        data-resolver (ModelUtil/createFileDataResolver project-directory)
+        ^ModelImporterJni$DataResolver data-resolver (gltf/make-data-resolver #(workspace/resolve-workspace-resource workspace %) nil)
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)

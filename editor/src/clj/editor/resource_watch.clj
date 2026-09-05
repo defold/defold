@@ -17,6 +17,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.gltf :as gltf]
             [editor.library :as library]
             [editor.resource :as resource]
             [editor.system :as system]
@@ -197,21 +198,21 @@
   (assert (every? file-resource-status-map-entry? file-resource-status-map-entries))
   (update snapshot :status-map into file-resource-status-map-entries))
 
-(defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
-  (resource/with-defignore-pred project-directory
-    (let [lib-results (library/cached project-directory library-uris)
-          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)]
-      {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                           (make-directory-snapshot workspace project-directory)
-                                           (make-debugger-snapshot workspace)
-                                           (make-library-snapshots new-library-snapshot-cache lib-results)))
-       :snapshot-cache new-library-snapshot-cache})))
-
 (defn make-resource-map [snapshot]
   (into {}
         (comp resource/xform-recursive-resources
               (coll/pair-map-by resource/proj-path))
         (:resources snapshot)))
+
+(defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
+  (resource/with-defignore-pred project-directory
+    (let [lib-results (library/cached project-directory library-uris)
+          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)
+          snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
+                                             (make-directory-snapshot workspace project-directory)
+                                             (make-debugger-snapshot workspace)
+                                             (make-library-snapshots new-library-snapshot-cache lib-results)))]
+      (gltf/add-resources-to-snapshot workspace snapshot (make-resource-map snapshot) new-library-snapshot-cache))))
 
 (defn- resource-status [snapshot path]
   (get-in snapshot [:status-map path]))

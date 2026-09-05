@@ -307,6 +307,8 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     {
         SETUP_CLASS(OptionsJNI, "Options");
         GET_FLD_TYPESTR(dummy, "I");
+        GET_FLD_TYPESTR(loadMaterialsOnly, "Z");
+        GET_FLD_TYPESTR(loadMeshMetadata, "Z");
     }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
@@ -712,6 +714,8 @@ jobject C2J_CreateOptions(JNIEnv* env, TypeInfos* types, const Options* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_OptionsJNI.cls);
     dmJNI::SetInt(env, obj, types->m_OptionsJNI.dummy, src->dummy);
+    dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.loadMaterialsOnly, src->m_LoadMaterialsOnly);
+    dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.loadMeshMetadata, src->m_LoadMeshMetadata);
     return obj;
 }
 
@@ -2369,6 +2373,8 @@ bool J2C_CreateScene(JNIEnv* env, TypeInfos* types, jobject obj, Scene* out) {
 bool J2C_CreateOptions(JNIEnv* env, TypeInfos* types, jobject obj, Options* out) {
     if (out == 0) return false;
     out->dummy = dmJNI::GetInt(env, obj, types->m_OptionsJNI.dummy);
+    out->m_LoadMaterialsOnly = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.loadMaterialsOnly);
+    out->m_LoadMeshMetadata = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.loadMeshMetadata);
     return true;
 }
 

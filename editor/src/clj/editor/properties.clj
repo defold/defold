@@ -581,6 +581,14 @@
                (g/endpoint node-id prop-kw)))
         set-operations))
 
+(defn- prepare-user-edit-context
+  "Runs the optional :prepare-user-edit-fn before the transaction to obtain extra transaction context."
+  [evaluation-context property set-operations]
+  (if-let [prepare-user-edit-fn (get-in property [:edit-type :prepare-user-edit-fn])]
+    (or (prepare-user-edit-fn evaluation-context property set-operations)
+        {})
+    {}))
+
 (defn- set-values [evaluation-context property set-operations]
   (let [key (:key property)
         set-fn (get-in property [:edit-type :set-fn])]
@@ -692,9 +700,11 @@
    (when (not (read-only? property))
      (let [evaluation-context (g/make-evaluation-context)
            set-operations (resolve-set-operations property values)
-           edited-endpoints (edited-endpoints set-operations)]
+           edited-endpoints (edited-endpoints set-operations)
+           tx-data-context-map (assoc (prepare-user-edit-context evaluation-context property set-operations)
+                                 :edited-endpoints edited-endpoints)]
        (g/transact
-         {:tx-data-context-map {:edited-endpoints edited-endpoints}}
+         {:tx-data-context-map tx-data-context-map}
          (concat
            (g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
            (g/operation-sequence op-seq)

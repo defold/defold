@@ -61,6 +61,8 @@ namespace dmModelImporter
 struct GltfData
 {
     cgltf_data* m_Data;
+    bool        m_LoadMaterialsOnly;
+    bool        m_LoadMeshMetadata;
 };
 
 static dmTransform::Transform& ToTransform(const dmModelImporter::Transform& in, dmTransform::Transform& out)
@@ -348,7 +350,8 @@ static void ReadAccessorUint32ToArray(cgltf_accessor* accessor, uint32_t desired
 static float* ReadAccessorMatrix4(cgltf_accessor* accessor, uint32_t index, float* out)
 {
     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
-    assert(num_components == 16);
+    if (num_components != 16)
+        return 0;
 
     bool result = cgltf_accessor_read_float(accessor, index, out, 16);
 
@@ -645,6 +648,13 @@ static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>
     for (uint32_t i = 0; i < gltf_data->images_count; ++i)
     {
         cgltf_image* gltf_image = &gltf_data->images[i];
+        bool has_uri = gltf_image->uri != 0;
+        bool has_buffer_view = gltf_image->buffer_view != 0;
+        if (has_uri == has_buffer_view)
+        {
+            SetLoadError(scene, "glTF image must have exactly one of uri or bufferView.");
+            return;
+        }
 
         Image* image = &scene->m_Images[i];
         memset(image, 0, sizeof(*image));
@@ -652,6 +662,21 @@ static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>
         image->m_Name = DuplicateObjectName(gltf_image);
         image->m_Uri = gltf_image->uri ? strdup(gltf_image->uri): 0;
         image->m_MimeType = gltf_image->mime_type ? strdup(gltf_image->mime_type): 0;
+
+        if (gltf_image->buffer_view)
+        {
+            const uint8_t* buffer_data = cgltf_buffer_view_data(gltf_image->buffer_view);
+            if (!buffer_data)
+            {
+                SetLoadError(scene, "glTF image buffer view data is missing.");
+                return;
+            }
+
+            image->m_Buffer = new Buffer;
+            memset(image->m_Buffer, 0, sizeof(Buffer));
+            image->m_Buffer->m_Buffer = (uint8_t*)buffer_data;
+            image->m_Buffer->m_BufferCount = (uint32_t)gltf_image->buffer_view->size;
+        }
 
         AddToCache(cache, gltf_image, image);
     }
@@ -916,6 +941,106 @@ static void AddDynamicMaterial(Scene* scene, Material* material)
     scene->m_DynamicMaterials.Push(material);
 }
 
+static bool ValidateAttributeAccessorType(Scene* scene, cgltf_attribute* attribute, bool morph_target);
+
+struct UvTransform
+{
+    float m_Offset[2];
+    float m_Scale[2];
+    float m_Rotation;
+    bool  m_Found;
+    bool  m_Conflict;
+};
+
+static void AddTextureViewUvTransform(const cgltf_texture_view* view, uint32_t texcoord, UvTransform* transform)
+{
+    if (!view->texture)
+        return;
+
+    uint32_t view_texcoord = (uint32_t)view->texcoord;
+    if (view->has_transform && view->transform.has_texcoord)
+        view_texcoord = (uint32_t)view->transform.texcoord;
+    if (view_texcoord != texcoord)
+        return;
+
+    float offset_x = view->has_transform ? view->transform.offset[0] : 0.0f;
+    float offset_y = view->has_transform ? view->transform.offset[1] : 0.0f;
+    float scale_x = view->has_transform ? view->transform.scale[0] : 1.0f;
+    float scale_y = view->has_transform ? view->transform.scale[1] : 1.0f;
+    float rotation = view->has_transform ? view->transform.rotation : 0.0f;
+
+    if (!transform->m_Found)
+    {
+        transform->m_Offset[0] = offset_x;
+        transform->m_Offset[1] = offset_y;
+        transform->m_Scale[0] = scale_x;
+        transform->m_Scale[1] = scale_y;
+        transform->m_Rotation = rotation;
+        transform->m_Found = true;
+    }
+    else if (transform->m_Offset[0] != offset_x ||
+             transform->m_Offset[1] != offset_y ||
+             transform->m_Scale[0] != scale_x ||
+             transform->m_Scale[1] != scale_y ||
+             transform->m_Rotation != rotation)
+    {
+        transform->m_Conflict = true;
+    }
+}
+
+// Models expose one UV value per texture coordinate channel. A material transform can only be
+// baked into that channel when every texture sampling it uses the same transform.
+static bool GetSharedMaterialUvTransform(const cgltf_material* material, uint32_t texcoord, UvTransform* transform)
+{
+    if (!material)
+        return false;
+
+    memset(transform, 0, sizeof(*transform));
+
+#define ADD_TEXTURE_VIEW(VIEW) AddTextureViewUvTransform(&(VIEW), texcoord, transform)
+    ADD_TEXTURE_VIEW(material->pbr_metallic_roughness.base_color_texture);
+    ADD_TEXTURE_VIEW(material->pbr_metallic_roughness.metallic_roughness_texture);
+    ADD_TEXTURE_VIEW(material->pbr_specular_glossiness.diffuse_texture);
+    ADD_TEXTURE_VIEW(material->pbr_specular_glossiness.specular_glossiness_texture);
+    ADD_TEXTURE_VIEW(material->clearcoat.clearcoat_texture);
+    ADD_TEXTURE_VIEW(material->clearcoat.clearcoat_roughness_texture);
+    ADD_TEXTURE_VIEW(material->clearcoat.clearcoat_normal_texture);
+    ADD_TEXTURE_VIEW(material->transmission.transmission_texture);
+    ADD_TEXTURE_VIEW(material->volume.thickness_texture);
+    ADD_TEXTURE_VIEW(material->specular.specular_texture);
+    ADD_TEXTURE_VIEW(material->specular.specular_color_texture);
+    ADD_TEXTURE_VIEW(material->sheen.sheen_color_texture);
+    ADD_TEXTURE_VIEW(material->sheen.sheen_roughness_texture);
+    ADD_TEXTURE_VIEW(material->iridescence.iridescence_texture);
+    ADD_TEXTURE_VIEW(material->iridescence.iridescence_thickness_texture);
+    ADD_TEXTURE_VIEW(material->normal_texture);
+    ADD_TEXTURE_VIEW(material->occlusion_texture);
+    ADD_TEXTURE_VIEW(material->emissive_texture);
+#undef ADD_TEXTURE_VIEW
+
+    bool identity = transform->m_Offset[0] == 0.0f &&
+                    transform->m_Offset[1] == 0.0f &&
+                    transform->m_Scale[0] == 1.0f &&
+                    transform->m_Scale[1] == 1.0f &&
+                    transform->m_Rotation == 0.0f;
+    return transform->m_Found && !transform->m_Conflict && !identity;
+}
+
+static void TransformTexCoords(float* coords, uint32_t vertex_count, uint32_t component_count, const UvTransform* transform)
+{
+    float  sin_rotation = sinf(transform->m_Rotation);
+    float  cos_rotation = cosf(transform->m_Rotation);
+    float* coords_end   = coords + vertex_count * component_count;
+    while (coords < coords_end)
+    {
+        float u = coords[0] * transform->m_Scale[0];
+        float v = coords[1] * transform->m_Scale[1];
+        coords[0] = transform->m_Offset[0] + cos_rotation * u - sin_rotation * v;
+        coords[1] = transform->m_Offset[1] + sin_rotation * u + cos_rotation * v;
+        coords += component_count;
+    }
+}
+
 static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     InitSize(model->m_Meshes, gltf_mesh->primitives_count, gltf_mesh->primitives_count);
@@ -927,9 +1052,23 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
 
+        if (prim->indices && prim->indices->is_sparse)
+        {
+            SetLoadError(scene, "glTF primitive index accessor must not be sparse.");
+            return;
+        }
+
         for (cgltf_size ai = 0; ai < prim->attributes_count; ++ai)
         {
             cgltf_attribute* attr = &prim->attributes[ai];
+
+            if (!ValidateAttributeAccessorType(scene, attr, false))
+                return;
+            if (attr->type == cgltf_attribute_type_joints && attr->data->is_sparse)
+            {
+                SetLoadError(scene, "glTF JOINTS accessor must not be sparse.");
+                return;
+            }
 
             // we only support JOINTS_0 and WEIGHTS_0, so we need to emit an error if any of these cases are true.
             if (attr->type == cgltf_attribute_type_joints && attr->index > 0)
@@ -1025,6 +1164,10 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                 }
                 else if (attribute->type == cgltf_attribute_type_texcoord)
                 {
+                    UvTransform transform;
+                    if (GetSharedMaterialUvTransform(prim->material, attribute->index, &transform))
+                        TransformTexCoords(fdata, mesh->m_VertexCount, num_components, &transform);
+
                     bool flip_v = true; // Possibly move to the option
                     if (flip_v)
                     {
@@ -1079,12 +1222,14 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
             for (uint32_t mt = 0; mt < prim->targets_count; ++mt)
             {
-                const cgltf_morph_target* target = &prim->targets[mt];
+                cgltf_morph_target* target = &prim->targets[mt];
                 MorphTarget& out = mesh->m_MorphTargets[mt];
 
                 for (uint32_t a = 0; a < target->attributes_count; ++a)
                 {
-                    const cgltf_attribute* attr = &target->attributes[a];
+                    cgltf_attribute* attr = &target->attributes[a];
+                    if (!ValidateAttributeAccessorType(scene, attr, true))
+                        return;
 
                     if (attr->type == cgltf_attribute_type_position)
                     {
@@ -1155,6 +1300,48 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
         model->m_Index = i;
 
         LoadPrimitives(scene, model, gltf_data, gltf_mesh); // Our "Meshes"
+    }
+}
+
+static void LoadMeshMetadata(Scene* scene, cgltf_data* gltf_data)
+{
+    InitSize(scene->m_Models, gltf_data->meshes_count, gltf_data->meshes_count);
+
+    for (uint32_t i = 0; i < gltf_data->meshes_count; ++i)
+    {
+        cgltf_mesh* gltf_mesh = &gltf_data->meshes[i];
+        Model* model = &scene->m_Models[i];
+        model->m_NameIsGenerated = gltf_mesh->name == 0;
+        model->m_Name = gltf_mesh->name ? DuplicateObjectName(gltf_mesh) : CreateNameFromHash("model", i);
+        model->m_Index = i;
+
+        InitSize(model->m_Meshes, gltf_mesh->primitives_count, gltf_mesh->primitives_count);
+        for (uint32_t j = 0; j < gltf_mesh->primitives_count; ++j)
+        {
+            cgltf_primitive* primitive = &gltf_mesh->primitives[j];
+            Mesh* mesh = &model->m_Meshes[j];
+            mesh->m_Name = CreateNameFromHash("mesh", j);
+            mesh->m_PrimitiveType = (PrimitiveType)primitive->type;
+
+            uint32_t material_index = FindIndex(gltf_data->materials, primitive->material);
+            if (material_index != INVALID_INDEX)
+                mesh->m_Material = &scene->m_Materials[material_index];
+
+            const cgltf_accessor* vertex_accessor = cgltf_find_accessor(primitive, cgltf_attribute_type_position, 0);
+            if (!vertex_accessor)
+            {
+                for (uint32_t k = 0; k < primitive->attributes_count; ++k)
+                {
+                    if (primitive->attributes[k].data)
+                    {
+                        vertex_accessor = primitive->attributes[k].data;
+                        break;
+                    }
+                }
+            }
+            if (vertex_accessor)
+                mesh->m_VertexCount = (uint32_t)vertex_accessor->count;
+        }
     }
 }
 
@@ -1387,6 +1574,17 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         InitSize(skin->m_Bones, gltf_skin->joints_count+1, gltf_skin->joints_count);
 
         cgltf_accessor* accessor = gltf_skin->inverse_bind_matrices;
+        if (accessor && (accessor->is_sparse || accessor->count < gltf_skin->joints_count ||
+                         accessor->type != cgltf_type_mat4 || accessor->component_type != cgltf_component_type_r_32f))
+        {
+            if (accessor->is_sparse)
+                SetLoadError(scene, "glTF inverse bind matrices accessor must not be sparse.");
+            else if (accessor->count < gltf_skin->joints_count)
+                SetLoadError(scene, "glTF inverse bind matrices accessor has fewer elements than the skin has joints.");
+            else
+                SetLoadError(scene, "glTF inverse bind matrices accessor must contain MAT4 floats.");
+            return;
+        }
         for (uint32_t j = 0; j < gltf_skin->joints_count; ++j)
         {
             cgltf_node* gltf_joint = gltf_skin->joints[j];
@@ -1411,9 +1609,11 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
                 if (ReadAccessorMatrix4(accessor, j, matrix))
                 {
                     FromMatrix4x4(matrix, bone->m_InvBindPose);
-                } else
+                }
+                else
                 {
-                    assert(false);
+                    SetLoadError(scene, "Failed to read glTF inverse bind matrices accessor.");
+                    return;
                 }
             }
             else
@@ -1545,17 +1745,31 @@ static void LinkNodesWithBones(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-static void RemapMeshBoneIndices(Skin* skin, Mesh* mesh)
+static bool RemapMeshBoneIndices(Scene* scene, Skin* skin, Mesh* mesh)
 {
+    uint32_t expected_bone_indices = mesh->m_VertexCount * 4;
+    if (mesh->m_Bones.Size() != expected_bone_indices || mesh->m_Weights.Size() != expected_bone_indices)
+    {
+        SetLoadError(scene, "Skinned glTF mesh primitive must contain JOINTS_0 and WEIGHTS_0 accessors.");
+        return false;
+    }
+
     uint32_t* remap_table = skin->m_BoneRemap.Begin();
     for (uint32_t i = 0; i < mesh->m_VertexCount; ++i)
     {
         for (int j = 0; j < 4; ++j)
         {
             uint32_t old_index = mesh->m_Bones[i*4+j];
-            mesh->m_Bones[i*4+j] = remap_table[old_index];
+            if (old_index >= skin->m_Bones.Size())
+            {
+                SetLoadError(scene, "glTF JOINTS_0 index exceeds the skin joint count.");
+                return false;
+            }
+            if (remap_table)
+                mesh->m_Bones[i*4+j] = remap_table[old_index];
         }
     }
+    return true;
 }
 
 static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
@@ -1574,11 +1788,12 @@ static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
         node->m_Model = &scene->m_Models[index];
 
         // We need to compensate for any bone index remapping
-        if (node->m_Skin && !node->m_Skin->m_BoneRemap.Empty())
+        if (node->m_Skin)
         {
             for (uint32_t j = 0; j < node->m_Model->m_Meshes.Size(); ++j)
             {
-                RemapMeshBoneIndices(node->m_Skin, &node->m_Model->m_Meshes[j]);
+                if (!RemapMeshBoneIndices(scene, node->m_Skin, &node->m_Model->m_Meshes[j]))
+                    return;
             }
         }
 
@@ -1792,6 +2007,82 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     }
 }
 
+static bool IsSupportedAnimationOutput(const cgltf_animation_channel* channel, const cgltf_accessor* output)
+{
+    if (output->component_type == cgltf_component_type_r_32f)
+        return true;
+    if (channel->target_path != cgltf_animation_path_type_weights || !output->normalized)
+        return false;
+
+    switch (output->component_type)
+    {
+        case cgltf_component_type_r_8:
+        case cgltf_component_type_r_8u:
+        case cgltf_component_type_r_16:
+        case cgltf_component_type_r_16u:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool ValidateAnimationChannel(Scene* scene, cgltf_animation_channel* channel)
+{
+    if (!channel->target_node)
+    {
+        SetLoadError(scene, "glTF animation channel has no supported target node.");
+        return false;
+    }
+    if (!channel->sampler || !channel->sampler->input || !channel->sampler->output ||
+        channel->sampler->input->count == 0)
+    {
+        SetLoadError(scene, "glTF animation channel has invalid accessor references.");
+        return false;
+    }
+    if (channel->sampler->input->is_sparse || channel->sampler->output->is_sparse)
+    {
+        SetLoadError(scene, "glTF animation accessors must not be sparse.");
+        return false;
+    }
+
+    cgltf_accessor* input = channel->sampler->input;
+    cgltf_accessor* output = channel->sampler->output;
+    if (input->type != cgltf_type_scalar || input->component_type != cgltf_component_type_r_32f)
+    {
+        SetLoadError(scene, "glTF animation input accessor must contain SCALAR floats.");
+        return false;
+    }
+    if (!IsSupportedAnimationOutput(channel, output))
+    {
+        SetLoadError(scene, "glTF animation output accessor must contain floats or normalized integer weights.");
+        return false;
+    }
+
+    cgltf_type expected_output_type;
+    switch (channel->target_path)
+    {
+        case cgltf_animation_path_type_translation:
+        case cgltf_animation_path_type_scale:
+            expected_output_type = cgltf_type_vec3;
+            break;
+        case cgltf_animation_path_type_rotation:
+            expected_output_type = cgltf_type_vec4;
+            break;
+        case cgltf_animation_path_type_weights:
+            expected_output_type = cgltf_type_scalar;
+            break;
+        default:
+            SetLoadError(scene, "glTF animation channel has an unsupported target path.");
+            return false;
+    }
+    if (output->type != expected_output_type)
+    {
+        SetLoadError(scene, "glTF animation output accessor has the wrong type for its target path.");
+        return false;
+    }
+    return true;
+}
+
 static uint32_t CountAnimatedNodes(Scene* scene, cgltf_data* gltf_data, cgltf_animation* animation, dmHashTable64<uint32_t>& node_to_index)
 {
     node_to_index.SetCapacity((32*2)/3, 32);
@@ -1831,6 +2122,12 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         Animation* animation = &scene->m_Animations[a];
 
         animation->m_Name = DuplicateObjectName(gltf_animation);
+
+        for (cgltf_size i = 0; i < gltf_animation->channels_count; ++i)
+        {
+            if (!ValidateAnimationChannel(scene, &gltf_animation->channels[i]))
+                return;
+        }
 
         // Here we want to create a many individual tracks for different bones (name.type): "a.rot", "b.rot", "a.pos", "b.scale"...
         // into a list of tracks that holds all 3 types: [a: {rot, pos, scale}, b: {rot, pos, scale}...]
@@ -1900,7 +2197,23 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* dat
 
             if (comma && comma - uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
             {
-                cgltf_result res = cgltf_load_buffer_base64(options, data->buffers[i].size, comma + 1, &data->buffers[i].data);
+                const char* base64 = comma + 1;
+                cgltf_size encoded_size = strlen(base64);
+                cgltf_size decoded_capacity = (encoded_size / 4) * 3;
+                cgltf_size remainder = encoded_size % 4;
+                if (remainder == 2)
+                    decoded_capacity += 1;
+                else if (remainder == 3)
+                    decoded_capacity += 2;
+
+                // cgltf_load_buffer_base64 allocates the declared buffer size before decoding.
+                // Reject truncated payloads before handing an untrusted size to the allocator.
+                if (data->buffers[i].size > decoded_capacity)
+                {
+                    return cgltf_result_data_too_short;
+                }
+
+                cgltf_result res = cgltf_load_buffer_base64(options, data->buffers[i].size, base64, &data->buffers[i].data);
                 data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
 
                 if (res != cgltf_result_success)
@@ -1938,11 +2251,26 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* dat
     return cgltf_result_success;
 }
 
-static bool HasUnresolvedBuffersInternal(cgltf_data* data)
+static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer)
 {
-    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    if (!data->m_LoadMaterialsOnly)
+        return true;
+
+    for (cgltf_size i = 0; i < data->m_Data->images_count; ++i)
     {
-        if (!data->buffers[i].data)
+        const cgltf_image* image = &data->m_Data->images[i];
+        if (image->buffer_view && image->buffer_view->buffer == buffer)
+            return true;
+    }
+    return false;
+}
+
+static bool HasUnresolvedBuffersInternal(const GltfData* data)
+{
+    for (cgltf_size i = 0; i < data->m_Data->buffers_count; ++i)
+    {
+        const cgltf_buffer* buffer = &data->m_Data->buffers[i];
+        if (IsBufferRequired(data, buffer) && !buffer->data)
             return true;
     }
     return false;
@@ -1950,7 +2278,7 @@ static bool HasUnresolvedBuffersInternal(cgltf_data* data)
 
 bool HasUnresolvedBuffers(Scene* scene)
 {
-    return HasUnresolvedBuffersInternal((cgltf_data*)scene->m_OpaqueSceneData);
+    return HasUnresolvedBuffersInternal((GltfData*)scene->m_OpaqueSceneData);
 }
 
 // As we use names for comparisons and lookups, it's awkward to support items with NULL names
@@ -2013,15 +2341,28 @@ static void CreateNames(cgltf_options* options, cgltf_data* data)
 #undef CREATE_NAME
 }
 
-static void LoadScene(Scene* scene, cgltf_data* data)
+static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, bool load_mesh_metadata)
 {
     dmHashTable64<void*> cache;
-    LoadSkins(scene, data);
-    LoadNodes(scene, data);
+    if (!load_materials_only)
+    {
+        LoadSkins(scene, data);
+        if (scene->m_LoadError)
+            return;
+        LoadNodes(scene, data);
+    }
     LoadSamplers(scene, data, &cache);
     LoadImages(scene, data, &cache);
     LoadTextures(scene, data, &cache);
     LoadMaterials(scene, data, &cache);
+    if (scene->m_LoadError)
+        return;
+    if (load_materials_only)
+    {
+        if (load_mesh_metadata)
+            LoadMeshMetadata(scene, data);
+        return;
+    }
     LoadMeshes(scene, data);
 
     // Make sure we early-out so we don't touch uninitialized data
@@ -2030,6 +2371,8 @@ static void LoadScene(Scene* scene, cgltf_data* data)
 
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);
+    if (scene->m_LoadError)
+        return;
     LoadAnimations(scene, data);
 
     FixupNonSkinnedModels(scene, data);
@@ -2040,12 +2383,206 @@ static void LoadScene(Scene* scene, cgltf_data* data)
     GenerateRootBone(scene);
 }
 
+static bool ValidateGltf(Scene* scene);
+
+static bool IsAccessorRangeInBounds(cgltf_size buffer_view_size, cgltf_size byte_offset,
+                                    cgltf_size stride, cgltf_size count, cgltf_size element_size)
+{
+    if (count == 0 || byte_offset > buffer_view_size || element_size > buffer_view_size - byte_offset)
+        return false;
+    if (count == 1)
+        return true;
+    return stride <= (buffer_view_size - byte_offset - element_size) / (count - 1);
+}
+
+static bool ValidateAttributeAccessorType(Scene* scene, cgltf_attribute* attribute, bool morph_target)
+{
+    if (!attribute->data)
+    {
+        SetLoadError(scene, "glTF mesh attribute has no accessor.");
+        return false;
+    }
+
+    cgltf_accessor* accessor = attribute->data;
+    switch (attribute->type)
+    {
+        case cgltf_attribute_type_position:
+            if (accessor->type != cgltf_type_vec3)
+            {
+                SetLoadError(scene, morph_target ? "glTF morph target POSITION accessor must be VEC3." :
+                                                   "glTF POSITION accessor must be VEC3.");
+                return false;
+            }
+            break;
+        case cgltf_attribute_type_normal:
+            if (accessor->type != cgltf_type_vec3)
+            {
+                SetLoadError(scene, morph_target ? "glTF morph target NORMAL accessor must be VEC3." :
+                                                   "glTF NORMAL accessor must be VEC3.");
+                return false;
+            }
+            break;
+        case cgltf_attribute_type_tangent:
+            if (accessor->type != (morph_target ? cgltf_type_vec3 : cgltf_type_vec4))
+            {
+                SetLoadError(scene, morph_target ? "glTF morph target TANGENT accessor must be VEC3." :
+                                                   "glTF TANGENT accessor must be VEC4.");
+                return false;
+            }
+            break;
+        case cgltf_attribute_type_texcoord:
+            if (accessor->type != cgltf_type_vec2)
+            {
+                SetLoadError(scene, "glTF TEXCOORD accessor must be VEC2.");
+                return false;
+            }
+            break;
+        case cgltf_attribute_type_color:
+            if (accessor->type != cgltf_type_vec3 && accessor->type != cgltf_type_vec4)
+            {
+                SetLoadError(scene, "glTF COLOR accessor must be VEC3 or VEC4.");
+                return false;
+            }
+            break;
+        case cgltf_attribute_type_joints:
+            if (accessor->type != cgltf_type_vec4 ||
+                (accessor->component_type != cgltf_component_type_r_8u &&
+                 accessor->component_type != cgltf_component_type_r_16u) ||
+                accessor->normalized)
+            {
+                SetLoadError(scene, "glTF JOINTS accessor must be an unnormalized unsigned byte or unsigned short VEC4.");
+                return false;
+            }
+            break;
+        case cgltf_attribute_type_weights:
+            if (accessor->type != cgltf_type_vec4)
+            {
+                SetLoadError(scene, "glTF WEIGHTS accessor must be VEC4.");
+                return false;
+            }
+            break;
+        default:
+            break;
+    }
+
+    return true;
+}
+
+static bool ValidateGltfResourceLimits(Scene* scene, cgltf_data* data)
+{
+    const cgltf_size MAX_ACCESSOR_STORAGE_BYTES = 512U * 1024U * 1024U;
+
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        if (data->buffers[i].size > INT32_MAX)
+        {
+            SetLoadError(scene, "glTF buffer size exceeds the model importer limit.");
+            return false;
+        }
+    }
+
+    for (cgltf_size i = 0; i < data->buffer_views_count; ++i)
+    {
+        cgltf_buffer_view* buffer_view = &data->buffer_views[i];
+        if (buffer_view->size > INT32_MAX)
+        {
+            SetLoadError(scene, "glTF buffer view size exceeds the model importer limit.");
+            return false;
+        }
+        if (!buffer_view->buffer || buffer_view->offset > buffer_view->buffer->size ||
+            buffer_view->size > buffer_view->buffer->size - buffer_view->offset)
+        {
+            SetLoadError(scene, "glTF buffer view exceeds its referenced buffer.");
+            return false;
+        }
+    }
+
+    for (cgltf_size i = 0; i < data->accessors_count; ++i)
+    {
+        cgltf_accessor* accessor = &data->accessors[i];
+        cgltf_size num_components = cgltf_num_components(accessor->type);
+        cgltf_size stored_components = num_components < 4 ? 4 : num_components;
+        if (accessor->count == 0)
+        {
+            SetLoadError(scene, "glTF accessor has zero elements.");
+            return false;
+        }
+        if (num_components == 0 ||
+            accessor->count > INT32_MAX / stored_components ||
+            accessor->count > MAX_ACCESSOR_STORAGE_BYTES / (stored_components * sizeof(float)))
+        {
+            SetLoadError(scene, "glTF accessor size exceeds the model importer limit.");
+            return false;
+        }
+
+        cgltf_size element_size = cgltf_calc_size(accessor->type, accessor->component_type);
+        cgltf_size component_size = cgltf_component_size(accessor->component_type);
+        if (element_size == 0 || component_size == 0)
+        {
+            SetLoadError(scene, "glTF accessor has an invalid component type.");
+            return false;
+        }
+        if (accessor->buffer_view)
+        {
+            if (accessor->offset % component_size != 0 ||
+                (accessor->buffer_view->offset + accessor->offset) % component_size != 0 ||
+                accessor->stride % component_size != 0)
+            {
+                SetLoadError(scene, "glTF accessor offset or stride is not aligned to its component size.");
+                return false;
+            }
+            if (accessor->stride < element_size ||
+                !IsAccessorRangeInBounds(accessor->buffer_view->size, accessor->offset,
+                                         accessor->stride, accessor->count, element_size))
+            {
+                SetLoadError(scene, "glTF accessor exceeds its referenced buffer view.");
+                return false;
+            }
+        }
+
+        if (accessor->is_sparse)
+        {
+            cgltf_accessor_sparse* sparse = &accessor->sparse;
+            cgltf_size index_size = cgltf_component_size(sparse->indices_component_type);
+            if (sparse->count == 0 || sparse->count > accessor->count || index_size == 0 ||
+                !sparse->indices_buffer_view || !sparse->values_buffer_view ||
+                !IsAccessorRangeInBounds(sparse->indices_buffer_view->size, sparse->indices_byte_offset,
+                                         index_size, sparse->count, index_size) ||
+                !IsAccessorRangeInBounds(sparse->values_buffer_view->size, sparse->values_byte_offset,
+                                         element_size, sparse->count, element_size))
+            {
+                SetLoadError(scene, "glTF sparse accessor exceeds its referenced buffer views.");
+                return false;
+            }
+            if (sparse->indices_byte_offset % index_size != 0 ||
+                (sparse->indices_buffer_view->offset + sparse->indices_byte_offset) % index_size != 0 ||
+                sparse->values_byte_offset % component_size != 0 ||
+                (sparse->values_buffer_view->offset + sparse->values_byte_offset) % component_size != 0)
+            {
+                SetLoadError(scene, "glTF sparse accessor offsets are not aligned to their component sizes.");
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
-    if (!ValidateSparseAccessorsForUnpack(scene, data->m_Data))
+    if (scene->m_LoadError)
         return false;
-    LoadScene(scene, data->m_Data);
+    if (HasUnresolvedBuffersInternal(data))
+    {
+        SetLoadError(scene, "glTF buffer data is missing.");
+        return false;
+    }
+    if (!ValidateGltf(scene))
+        return false;
+    if (!data->m_LoadMaterialsOnly && !ValidateSparseAccessorsForUnpack(scene, data->m_Data))
+        return false;
+    LoadScene(scene, data->m_Data, data->m_LoadMaterialsOnly, data->m_LoadMeshMetadata);
     return scene->m_LoadError == 0;
 }
 
@@ -2056,6 +2593,9 @@ static bool ValidateGltf(Scene* scene)
     if (result != cgltf_result_success)
     {
         printf("Failed to validate gltf file: %s (%d)\n", GetResultStr(result), result);
+        char message[256];
+        dmSnPrintf(message, sizeof(message), "glTF validation failed: %s (%d).", GetResultStr(result), result);
+        SetLoadError(scene, message);
     }
     return result == cgltf_result_success;
 }
@@ -2083,24 +2623,37 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     CreateNames(&options, data);
 
-    // resolve as many buffers as possible
-    result = ResolveBuffers(&options, data, 0);
-    if (result != cgltf_result_success)
-    {
-        printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
-        cgltf_free(data);
-        return 0;
-    }
-
     Scene* scene = new Scene;
     memset(scene, 0, sizeof(Scene));
     GltfData* scenedata = new GltfData;
     scenedata->m_Data = data;
+    scenedata->m_LoadMaterialsOnly = importeroptions && importeroptions->m_LoadMaterialsOnly;
+    scenedata->m_LoadMeshMetadata = importeroptions && importeroptions->m_LoadMeshMetadata;
 
     scene->m_OpaqueSceneData = scenedata;
     scene->m_LoadFinalizeFn = LoadFinalizeGltf;
     scene->m_ValidateFn = ValidateGltf;
     scene->m_DestroyFn = DestroyGltf;
+
+    // Bound allocations and arithmetic before resolving data URIs. Full glTF
+    // validation runs once, after all buffers have been resolved.
+    if (!ValidateGltfResourceLimits(scene, data))
+    {
+        ClearScene(scene);
+        return scene;
+    }
+
+    // resolve as many buffers as possible
+    result = ResolveBuffers(&options, data, 0);
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        char message[256];
+        dmSnPrintf(message, sizeof(message), "Failed to load glTF buffers: %s (%d).", GetResultStr(result), result);
+        SetLoadError(scene, message);
+        ClearScene(scene);
+        return scene;
+    }
 
     InitSize(scene->m_Buffers, data->buffers_count, data->buffers_count);
 
@@ -2108,7 +2661,10 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     {
         scene->m_Buffers[i].m_Uri = DuplicateObjectName(&data->buffers[i]);
         scene->m_Buffers[i].m_Buffer = (uint8_t*)data->buffers[i].data;
-        scene->m_Buffers[i].m_BufferCount = data->buffers[i].size;
+        // Metadata-only loads need encoded image buffers, but not geometry buffers.
+        scene->m_Buffers[i].m_BufferCount = IsBufferRequired(scenedata, &data->buffers[i])
+            ? data->buffers[i].size
+            : 0;
     }
 
     if (!NeedsResolve(scene))
@@ -2119,7 +2675,6 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
             ClearScene(scene);
             return scene;
         }
-        ValidateGltf(scene);
     }
 
     return scene;
@@ -2127,6 +2682,14 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
 void ResolveBuffer(Scene* scene, const char* uri, void* bufferdata, uint32_t bufferdata_size)
 {
+    if (!scene || scene->m_LoadError || !scene->m_OpaqueSceneData)
+        return;
+    if (!uri)
+    {
+        SetLoadError(scene, "Cannot resolve a glTF buffer without a URI.");
+        return;
+    }
+
     GltfData* scenedata = (GltfData*)scene->m_OpaqueSceneData;
     cgltf_data* data = scenedata->m_Data;
 
@@ -2139,18 +2702,34 @@ void ResolveBuffer(Scene* scene, const char* uri, void* bufferdata, uint32_t buf
     for (cgltf_size i = 0; i < scene->m_Buffers.Size(); ++i)
     {
         Buffer* scenebuffer = &scene->m_Buffers[i];
-        if (strcmp(scenebuffer->m_Uri, uri) == 0)
+        if (scenebuffer->m_Uri && strcmp(scenebuffer->m_Uri, uri) == 0)
         {
             cgltf_buffer* buffer = &data->buffers[i];
+            if (!bufferdata || bufferdata_size < buffer->size)
+            {
+                char message[256];
+                dmSnPrintf(message, sizeof(message),
+                    "Resolved glTF buffer '%s' has %u bytes, expected at least %u.",
+                    uri, bufferdata_size, (uint32_t)buffer->size);
+                SetLoadError(scene, message);
+                return;
+            }
 
             buffer->data = memory_alloc(options->memory.user_data, buffer->size);
+            if (!buffer->data)
+            {
+                SetLoadError(scene, "Failed to allocate resolved glTF buffer data.");
+                return;
+            }
             buffer->data_free_method = cgltf_data_free_method_memory_free;
 
-            memcpy(buffer->data, bufferdata, bufferdata_size);
+            memcpy(buffer->data, bufferdata, buffer->size);
             scenebuffer->m_Buffer = (uint8_t*)buffer->data;
             return;
         }
     }
+
+    SetLoadError(scene, "Cannot resolve unknown glTF buffer URI.");
 }
 
 }

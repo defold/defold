@@ -379,6 +379,8 @@ namespace dmModelImporter
         Options();
 
         int dummy; // for the java binding to not be zero size
+        bool m_LoadMaterialsOnly;
+        bool m_LoadMeshMetadata;
     };
 
     // End of JNI struct api

@@ -67,6 +67,8 @@
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
    "/test.gltf" []
+   "/test.gltf/materials/0.material" ["/defold-pbr/shaders/pbr.fp"
+                                     "/defold-pbr/shaders/pbr.vp"]
    "/test.display_profiles" []
    "/test.factory" ["/test2.go"]
    "/test.font" ["/builtins/fonts/vera_mo_bd.ttf"
@@ -154,10 +156,13 @@
     (let [workspace (test-util/setup-workspace! world project-path)
           project (test-util/setup-project! workspace)
           resource-nodes (g/node-value project :nodes-by-resource-path)]
+      ;; Virtual glTF mesh resources are asset-browser handles, not loadable resource types.
       (doseq [[resource-path node-id] resource-nodes
-              :when (.startsWith resource-path "/test")]
-        (let [resource (g/node-value node-id :resource)
-              resource-type (resource/resource-type resource)
+              :when (.startsWith resource-path "/test")
+              :let [resource (g/node-value node-id :resource)]
+              :when (not (and (resource/gltf-resource? resource)
+                              (= :mesh (:kind (resource/gltf-resource-asset-info resource)))))]
+        (let [resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               source-value (g/node-value node-id :source-value)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))

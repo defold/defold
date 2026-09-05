@@ -52,6 +52,9 @@ namespace dmModelImporter
 {
 
 Options::Options()
+: dummy(0)
+, m_LoadMaterialsOnly(false)
+, m_LoadMeshMetadata(false)
 {
 }
 
@@ -82,7 +85,12 @@ static void DestroyImage(Image* image)
     free((void*)image->m_Name);
     free((void*)image->m_Uri);
     free((void*)image->m_MimeType);
-    //buffer->m_Buffer Memory owned by the gltf data
+    if (image->m_Buffer)
+    {
+        free((void*)image->m_Buffer->m_Uri);
+        // m_Buffer memory is owned by the glTF data.
+        delete image->m_Buffer;
+    }
 }
 
 static void DestroyMesh(Mesh* mesh)
@@ -364,7 +372,8 @@ bool NeedsResolve(Scene* scene)
 {
     for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
     {
-        if (!scene->m_Buffers[i].m_Buffer)
+        // Metadata-only importers mark geometry-only buffers with zero size.
+        if (scene->m_Buffers[i].m_BufferCount > 0 && !scene->m_Buffers[i].m_Buffer)
             return true;
     }
     return false;

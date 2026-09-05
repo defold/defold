@@ -134,6 +134,714 @@ TEST(ModelGLTF, Load)
     free(mem);
 }
 
+static dmModelImporter::Scene* LoadGltfJson(const char* json)
+{
+    dmModelImporter::Options options;
+    return dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+}
+
+static void AssertGltfLoadError(const char* json, const char* expected_error)
+{
+    dmModelImporter::Scene* scene = LoadGltfJson(json);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_NE((char*)0, scene->m_LoadError);
+    ASSERT_NE((char*)0, strstr(scene->m_LoadError, expected_error));
+    ASSERT_EQ(0U, scene->m_Models.Size());
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, RejectsInconsistentPrimitiveAccessorCountsBeforeAllocation)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+            "{\"componentType\":5126,\"count\":4,\"type\":\"VEC3\"}"
+        "],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"NORMAL\":1}}]}]"
+        "}";
+
+    AssertGltfLoadError(json, "glTF validation failed");
+}
+
+TEST(ModelGLTF, RejectsIndexEqualToVertexCount)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":42,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAMA\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},"
+            "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":6}"
+        "],"
+        "\"accessors\":["
+            "{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+            "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}"
+        "],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}]"
+        "}";
+
+    AssertGltfLoadError(json, "cgltf_result_data_too_short");
+}
+
+TEST(ModelGLTF, RejectsInconsistentAnimationAccessorCountsBeforeAllocation)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"nodes\":[{}],"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":2,\"type\":\"SCALAR\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"}"
+        "],"
+        "\"animations\":[{"
+            "\"samplers\":[{\"input\":0,\"output\":1}],"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"node\":0,\"path\":\"translation\"}}]"
+        "}]"
+        "}";
+
+    AssertGltfLoadError(json, "glTF validation failed");
+}
+
+TEST(ModelGLTF, RejectsShortInverseBindMatricesAccessor)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"nodes\":[{},{}],"
+        "\"accessors\":[{\"componentType\":5126,\"count\":1,\"type\":\"MAT4\"}],"
+        "\"skins\":[{\"joints\":[0,1],\"inverseBindMatrices\":0}]"
+        "}";
+
+    AssertGltfLoadError(json, "fewer elements than the skin has joints");
+}
+
+TEST(ModelGLTF, RejectsWrongInverseBindMatricesAccessorType)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"nodes\":[{}],"
+        "\"accessors\":[{\"componentType\":5126,\"count\":1,\"type\":\"VEC4\"}],"
+        "\"skins\":[{\"joints\":[0],\"inverseBindMatrices\":0}]"
+        "}";
+
+    AssertGltfLoadError(json, "must contain MAT4 floats");
+}
+
+TEST(ModelGLTF, RejectsSparseInverseBindMatricesAccessor)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":68,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":1},"
+            "{\"buffer\":0,\"byteOffset\":4,\"byteLength\":64}"
+        "],"
+        "\"accessors\":[{"
+            "\"componentType\":5126,\"count\":1,\"type\":\"MAT4\","
+            "\"sparse\":{"
+                "\"count\":1,"
+                "\"indices\":{\"bufferView\":0,\"componentType\":5121},"
+                "\"values\":{\"bufferView\":1}"
+            "}"
+        "}],"
+        "\"nodes\":[{}],"
+        "\"skins\":[{\"joints\":[0],\"inverseBindMatrices\":0}]"
+        "}";
+
+    AssertGltfLoadError(json, "inverse bind matrices accessor must not be sparse");
+}
+
+TEST(ModelGLTF, MaterialsOnlySkipsGeometryImport)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":[{\"componentType\":5126,\"count\":1,\"type\":\"VEC2\"}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+        "\"materials\":[{\"name\":\"Material\"}]"
+        "}";
+
+    dmModelImporter::Options options;
+    options.m_LoadMaterialsOnly = true;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(1U, scene->m_Materials.Size());
+    ASSERT_STREQ("Material", scene->m_Materials[0].m_Name);
+    ASSERT_EQ(0U, scene->m_Models.Size());
+    ASSERT_EQ(0U, scene->m_Nodes.Size());
+    ASSERT_EQ(0U, scene->m_Skins.Size());
+    ASSERT_EQ(0U, scene->m_Animations.Size());
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, MaterialsOnlyCanLoadMeshMetadataWithoutGeometry)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+            "{\"componentType\":5126,\"count\":4,\"type\":\"VEC3\"}"
+        "],"
+        "\"meshes\":["
+            "{\"name\":\"NamedMesh\",\"primitives\":["
+                "{\"attributes\":{\"POSITION\":0},\"material\":0},"
+                "{\"attributes\":{\"NORMAL\":1},\"material\":1,\"mode\":1}"
+            "]},"
+            "{\"primitives\":[{\"attributes\":{\"NORMAL\":1},\"mode\":0}]}"
+        "],"
+        "\"materials\":[{\"name\":\"First\"},{\"name\":\"Second\"}]"
+        "}";
+
+    dmModelImporter::Options options;
+    options.m_LoadMaterialsOnly = true;
+    options.m_LoadMeshMetadata = true;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(2U, scene->m_Materials.Size());
+    ASSERT_EQ(2U, scene->m_Models.Size());
+
+    dmModelImporter::Model* named_model = &scene->m_Models[0];
+    ASSERT_STREQ("NamedMesh", named_model->m_Name);
+    ASSERT_EQ(0U, named_model->m_Index);
+    ASSERT_FALSE(named_model->m_NameIsGenerated);
+    ASSERT_EQ(2U, named_model->m_Meshes.Size());
+    ASSERT_EQ(3U, named_model->m_Meshes[0].m_VertexCount);
+    ASSERT_EQ(dmModelImporter::PRIMITIVE_TYPE_TRIANGLES, named_model->m_Meshes[0].m_PrimitiveType);
+    ASSERT_EQ(&scene->m_Materials[0], named_model->m_Meshes[0].m_Material);
+    ASSERT_EQ(0U, named_model->m_Meshes[0].m_Positions.Size());
+    ASSERT_EQ(0U, named_model->m_Meshes[0].m_Indices.Size());
+    ASSERT_EQ(4U, named_model->m_Meshes[1].m_VertexCount);
+    ASSERT_EQ(dmModelImporter::PRIMITIVE_TYPE_LINES, named_model->m_Meshes[1].m_PrimitiveType);
+    ASSERT_EQ(&scene->m_Materials[1], named_model->m_Meshes[1].m_Material);
+
+    dmModelImporter::Model* generated_model = &scene->m_Models[1];
+    ASSERT_STREQ("model_1", generated_model->m_Name);
+    ASSERT_EQ(1U, generated_model->m_Index);
+    ASSERT_TRUE(generated_model->m_NameIsGenerated);
+    ASSERT_EQ(1U, generated_model->m_Meshes.Size());
+    ASSERT_EQ(4U, generated_model->m_Meshes[0].m_VertexCount);
+    ASSERT_EQ(dmModelImporter::PRIMITIVE_TYPE_POINTS, generated_model->m_Meshes[0].m_PrimitiveType);
+    ASSERT_EQ((dmModelImporter::Material*)0, generated_model->m_Meshes[0].m_Material);
+
+    ASSERT_EQ(0U, scene->m_Nodes.Size());
+    ASSERT_EQ(0U, scene->m_Skins.Size());
+    ASSERT_EQ(0U, scene->m_Animations.Size());
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, MaterialsOnlyMeshMetadataIgnoresUnresolvedGeometryBuffers)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":36}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36}],"
+        "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}]"
+        "}";
+
+    dmModelImporter::Options options;
+    options.m_LoadMaterialsOnly = true;
+    options.m_LoadMeshMetadata = true;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
+    ASSERT_EQ(1U, scene->m_Models.Size());
+    ASSERT_EQ(1U, scene->m_Models[0].m_Meshes.Size());
+    ASSERT_EQ(3U, scene->m_Models[0].m_Meshes[0].m_VertexCount);
+    ASSERT_EQ(0U, scene->m_Models[0].m_Meshes[0].m_Positions.Size());
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, RejectsSparseAnimationAccessors)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":24,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":1},"
+            "{\"buffer\":0,\"byteOffset\":4,\"byteLength\":4},"
+            "{\"buffer\":0,\"byteOffset\":8,\"byteLength\":1},"
+            "{\"buffer\":0,\"byteOffset\":12,\"byteLength\":12}"
+        "],"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":1,\"type\":\"SCALAR\",\"sparse\":{"
+                "\"count\":1,"
+                "\"indices\":{\"bufferView\":0,\"componentType\":5121},"
+                "\"values\":{\"bufferView\":1}"
+            "}},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\",\"sparse\":{"
+                "\"count\":1,"
+                "\"indices\":{\"bufferView\":2,\"componentType\":5121},"
+                "\"values\":{\"bufferView\":3}"
+            "}}"
+        "],"
+        "\"nodes\":[{}],"
+        "\"animations\":[{"
+            "\"samplers\":[{\"input\":0,\"output\":1}],"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"node\":0,\"path\":\"translation\"}}]"
+        "}]"
+        "}";
+
+    AssertGltfLoadError(json, "animation accessors must not be sparse");
+}
+
+TEST(ModelGLTF, RejectsUnsafePrimitiveAttributeShapes)
+{
+    const char* position_vec2 =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":[{\"componentType\":5126,\"count\":1,\"type\":\"VEC2\"}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}]"
+        "}";
+    const char* texcoord_scalar =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"SCALAR\"}"
+        "],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1}}]}]"
+        "}";
+    const char* joints_vec2 =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"componentType\":5121,\"count\":1,\"type\":\"VEC2\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC4\"}"
+        "],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"JOINTS_0\":1,\"WEIGHTS_0\":2}}]}]"
+        "}";
+    const char* joints_uint32 =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"componentType\":5125,\"count\":1,\"type\":\"VEC4\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC4\"}"
+        "],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"JOINTS_0\":1,\"WEIGHTS_0\":2}}]}]"
+        "}";
+
+    AssertGltfLoadError(position_vec2, "POSITION accessor must be VEC3");
+    AssertGltfLoadError(texcoord_scalar, "TEXCOORD accessor must be VEC2");
+    AssertGltfLoadError(joints_vec2, "JOINTS accessor must be an unnormalized unsigned byte or unsigned short VEC4");
+    AssertGltfLoadError(joints_uint32, "JOINTS accessor must be an unnormalized unsigned byte or unsigned short VEC4");
+}
+
+TEST(ModelGLTF, RejectsSkinnedPrimitiveWithoutJointAttributes)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":[{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+        "\"nodes\":[{\"mesh\":0,\"skin\":0},{}],"
+        "\"skins\":[{\"joints\":[1]}]"
+        "}";
+
+    AssertGltfLoadError(json, "must contain JOINTS_0 and WEIGHTS_0 accessors");
+}
+
+TEST(ModelGLTF, RejectsOutOfRangeSkinJointIndex)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":32,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAQAAAAAAgD8AAAAAAAAAAAAAAAA=\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":12},"
+            "{\"buffer\":0,\"byteOffset\":12,\"byteLength\":4},"
+            "{\"buffer\":0,\"byteOffset\":16,\"byteLength\":16}"
+        "],"
+        "\"accessors\":["
+            "{\"bufferView\":0,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"bufferView\":1,\"componentType\":5121,\"count\":1,\"type\":\"VEC4\"},"
+            "{\"bufferView\":2,\"componentType\":5126,\"count\":1,\"type\":\"VEC4\"}"
+        "],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"JOINTS_0\":1,\"WEIGHTS_0\":2}}]}],"
+        "\"nodes\":[{\"mesh\":0,\"skin\":0},{}],"
+        "\"skins\":[{\"joints\":[1]}]"
+        "}";
+
+    AssertGltfLoadError(json, "JOINTS_0 index exceeds the skin joint count");
+}
+
+TEST(ModelGLTF, RejectsZeroCountAccessor)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":[{\"componentType\":5126,\"count\":0,\"type\":\"SCALAR\"}]"
+        "}";
+
+    AssertGltfLoadError(json, "accessor has zero elements");
+}
+
+TEST(ModelGLTF, RejectsAccessorStrideOverflow)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":64,\"uri\":\"payload.bin\"}],"
+        "\"bufferViews\":[{"
+            "\"buffer\":0,\"byteLength\":64,\"byteStride\":9223372036854775804"
+        "}],"
+        "\"accessors\":[{"
+            "\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\""
+        "}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}]"
+        "}";
+
+    AssertGltfLoadError(json, "accessor exceeds its referenced buffer view");
+}
+
+TEST(ModelGLTF, RejectsAccessorByteOffsetOutsideBufferView)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":12,\"uri\":\"payload.bin\"}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteLength\":12}],"
+        "\"accessors\":[{"
+            "\"bufferView\":0,\"byteOffset\":4,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\""
+        "}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}]"
+        "}";
+
+    AssertGltfLoadError(json, "accessor exceeds its referenced buffer view");
+}
+
+TEST(ModelGLTF, RejectsMisalignedAccessorData)
+{
+    const char* accessor =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":8,\"uri\":\"payload.bin\"}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":1,\"byteLength\":7}],"
+        "\"accessors\":[{\"bufferView\":0,\"componentType\":5123,\"count\":1,\"type\":\"SCALAR\"}]"
+        "}";
+    const char* sparse =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":8,\"uri\":\"payload.bin\"}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":1,\"byteLength\":2},"
+            "{\"buffer\":0,\"byteOffset\":4,\"byteLength\":4}"
+        "],"
+        "\"accessors\":[{\"componentType\":5126,\"count\":1,\"type\":\"SCALAR\",\"sparse\":{"
+            "\"count\":1,"
+            "\"indices\":{\"bufferView\":0,\"componentType\":5123},"
+            "\"values\":{\"bufferView\":1}"
+        "}}]"
+        "}";
+
+    AssertGltfLoadError(accessor, "accessor offset or stride is not aligned");
+    AssertGltfLoadError(sparse, "sparse accessor offsets are not aligned");
+}
+
+TEST(ModelGLTF, RejectsSparseAccessorExcessiveMaterialization)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":5,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAA=\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":1},"
+            "{\"buffer\":0,\"byteOffset\":1,\"byteLength\":4}"
+        "],"
+        "\"accessors\":[{"
+            "\"componentType\":5126,\"count\":100000000,\"type\":\"SCALAR\","
+            "\"sparse\":{"
+                "\"count\":1,"
+                "\"indices\":{\"bufferView\":0,\"componentType\":5121},"
+                "\"values\":{\"bufferView\":1}"
+            "}"
+        "}]"
+        "}";
+
+    AssertGltfLoadError(json, "accessor size exceeds the model importer limit");
+}
+
+TEST(ModelGLTF, SparseAccessorValuesAreTightlyPacked)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":60,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAACAPwAAAEAAAEBAAACAQAAAoEAAAMBA\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":32,\"byteStride\":16},"
+            "{\"buffer\":0,\"byteOffset\":32,\"byteLength\":2},"
+            "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":24}"
+        "],"
+        "\"accessors\":[{"
+            "\"bufferView\":0,\"componentType\":5126,\"count\":2,\"type\":\"VEC3\","
+            "\"sparse\":{"
+                "\"count\":2,"
+                "\"indices\":{\"bufferView\":1,\"componentType\":5121},"
+                "\"values\":{\"bufferView\":2}"
+            "}"
+        "}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}]"
+        "}";
+
+    dmModelImporter::Scene* scene = LoadGltfJson(json);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(1U, scene->m_Models.Size());
+    ASSERT_EQ(1U, scene->m_Models[0].m_Meshes.Size());
+    ASSERT_EQ(6U, scene->m_Models[0].m_Meshes[0].m_Positions.Size());
+    ASSERT_NEAR(1.0f, scene->m_Models[0].m_Meshes[0].m_Positions[0], 1e-6f);
+    ASSERT_NEAR(2.0f, scene->m_Models[0].m_Meshes[0].m_Positions[1], 1e-6f);
+    ASSERT_NEAR(3.0f, scene->m_Models[0].m_Meshes[0].m_Positions[2], 1e-6f);
+    ASSERT_NEAR(4.0f, scene->m_Models[0].m_Meshes[0].m_Positions[3], 1e-6f);
+    ASSERT_NEAR(5.0f, scene->m_Models[0].m_Meshes[0].m_Positions[4], 1e-6f);
+    ASSERT_NEAR(6.0f, scene->m_Models[0].m_Meshes[0].m_Positions[5], 1e-6f);
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, SharedMaterialTextureTransformIsBakedIntoQuantizedTexCoords)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"extensionsUsed\":[\"KHR_mesh_quantization\",\"KHR_texture_transform\"],"
+        "\"extensionsRequired\":[\"KHR_mesh_quantization\"],"
+        "\"buffers\":[{"
+            "\"byteLength\":48,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAGQAAAAAAGQA\""
+        "}],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},"
+            "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":12}"
+        "],"
+        "\"accessors\":["
+            "{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+            "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"VEC2\"}"
+        "],"
+        "\"images\":[{\"uri\":\"image.png\"}],"
+        "\"textures\":[{\"source\":0}],"
+        "\"materials\":[{\"pbrMetallicRoughness\":{"
+            "\"baseColorTexture\":{\"index\":0,\"extensions\":{\"KHR_texture_transform\":{"
+                "\"offset\":[0.25,0.5],\"scale\":[0.01,0.02]"
+            "}}},"
+            "\"metallicRoughnessTexture\":{\"index\":0,\"extensions\":{\"KHR_texture_transform\":{"
+                "\"offset\":[0.25,0.5],\"scale\":[0.01,0.02]"
+            "}}}"
+        "}}],"
+        "\"meshes\":[{\"primitives\":[{"
+            "\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"material\":0"
+        "}]}]"
+        "}";
+
+    dmModelImporter::Scene* scene = LoadGltfJson(json);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(1U, scene->m_Models.Size());
+    ASSERT_EQ(1U, scene->m_Models[0].m_Meshes.Size());
+
+    const dmArray<float>& texcoords = scene->m_Models[0].m_Meshes[0].m_TexCoords0;
+    ASSERT_EQ(6U, texcoords.Size());
+    ASSERT_NEAR(0.25f, texcoords[0], 1e-6f);
+    ASSERT_NEAR(0.5f, texcoords[1], 1e-6f);
+    ASSERT_NEAR(1.25f, texcoords[2], 1e-6f);
+    ASSERT_NEAR(0.5f, texcoords[3], 1e-6f);
+    ASSERT_NEAR(0.25f, texcoords[4], 1e-6f);
+    ASSERT_NEAR(-1.5f, texcoords[5], 1e-6f);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, RejectsAnimationWithoutTargetNode)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":1,\"type\":\"SCALAR\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"}"
+        "],"
+        "\"animations\":[{"
+            "\"samplers\":[{\"input\":0,\"output\":1}],"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"path\":\"translation\"}}]"
+        "}]"
+        "}";
+
+    AssertGltfLoadError(json, "no supported target node");
+}
+
+TEST(ModelGLTF, RejectsAnimationWithZeroKeys)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"nodes\":[{}],"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":0,\"type\":\"SCALAR\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"}"
+        "],"
+        "\"animations\":[{"
+            "\"samplers\":[{\"input\":0,\"output\":1}],"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"node\":0,\"path\":\"translation\"}}]"
+        "}]"
+        "}";
+
+    AssertGltfLoadError(json, "accessor has zero elements");
+}
+
+TEST(ModelGLTF, RejectsInvalidAnimationAccessorTypes)
+{
+    const char* integer_input =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"nodes\":[{}],"
+        "\"accessors\":["
+            "{\"componentType\":5123,\"count\":1,\"type\":\"SCALAR\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"}"
+        "],"
+        "\"animations\":[{"
+            "\"samplers\":[{\"input\":0,\"output\":1}],"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"node\":0,\"path\":\"translation\"}}]"
+        "}]"
+        "}";
+    const char* wrong_output_shape =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"nodes\":[{}],"
+        "\"accessors\":["
+            "{\"componentType\":5126,\"count\":1,\"type\":\"SCALAR\"},"
+            "{\"componentType\":5126,\"count\":1,\"type\":\"VEC2\"}"
+        "],"
+        "\"animations\":[{"
+            "\"samplers\":[{\"input\":0,\"output\":1}],"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"node\":0,\"path\":\"translation\"}}]"
+        "}]"
+        "}";
+
+    AssertGltfLoadError(integer_input, "animation input accessor must contain SCALAR floats");
+    AssertGltfLoadError(wrong_output_shape, "animation output accessor has the wrong type");
+}
+
+TEST(ModelGLTF, RejectsImageWithAmbiguousSource)
+{
+    const char* both_sources =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":1,\"uri\":\"data:application/octet-stream;base64,AA==\"}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteLength\":1}],"
+        "\"images\":[{\"uri\":\"image.png\",\"bufferView\":0,\"mimeType\":\"image/png\"}]"
+        "}";
+    const char* no_source =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"images\":[{\"mimeType\":\"image/png\"}]"
+        "}";
+
+    AssertGltfLoadError(both_sources, "exactly one of uri or bufferView");
+    AssertGltfLoadError(no_source, "exactly one of uri or bufferView");
+}
+
+TEST(ModelGLTF, RejectsTruncatedHugeDataUriBeforeAllocation)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":2147483647,"
+            "\"uri\":\"data:application/octet-stream;base64,AAAA\""
+        "}]"
+        "}";
+
+    AssertGltfLoadError(json, "cgltf_result_data_too_short");
+}
+
+TEST(ModelGLTF, ResolvedBufferSizeIsBounded)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"byteLength\":4,\"uri\":\"payload.bin\"}]"
+        "}";
+    uint8_t buffer[] = { 1, 2, 3, 4, 5 };
+
+    dmModelImporter::Scene* scene = LoadGltfJson(json);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_TRUE(dmModelImporter::NeedsResolve(scene));
+
+    dmModelImporter::ResolveBuffer(scene, "payload.bin", buffer, 3);
+    ASSERT_NE((char*)0, scene->m_LoadError);
+    ASSERT_NE((char*)0, strstr(scene->m_LoadError, "expected at least 4"));
+    ASSERT_TRUE(dmModelImporter::NeedsResolve(scene));
+    ASSERT_FALSE(dmModelImporter::LoadFinalize(scene));
+    dmModelImporter::DestroyScene(scene);
+
+    scene = LoadGltfJson(json);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    dmModelImporter::ResolveBuffer(scene, "payload.bin", buffer, sizeof(buffer));
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
+    ASSERT_TRUE(dmModelImporter::LoadFinalize(scene));
+    ASSERT_EQ(4U, scene->m_Buffers[0].m_BufferCount);
+    ASSERT_ARRAY_EQ_LEN(buffer, scene->m_Buffers[0].m_Buffer, 4);
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, ImageBufferContainsOnlyBufferViewBytes)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{"
+            "\"byteLength\":8,"
+            "\"uri\":\"data:application/octet-stream;base64,AAECAwQFBgc=\""
+        "}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":2,\"byteLength\":3}],"
+        "\"images\":[{\"name\":\"embedded\",\"bufferView\":0,\"mimeType\":\"image/png\"}]"
+        "}";
+    const uint8_t expected[] = { 2, 3, 4 };
+
+    dmModelImporter::Scene* scene = LoadGltfJson(json);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(1U, scene->m_Images.Size());
+    ASSERT_EQ((char*)0, scene->m_Images[0].m_Uri);
+    ASSERT_STREQ("image/png", scene->m_Images[0].m_MimeType);
+    ASSERT_NE((dmModelImporter::Buffer*)0, scene->m_Images[0].m_Buffer);
+    ASSERT_EQ(3U, scene->m_Images[0].m_Buffer->m_BufferCount);
+    ASSERT_ARRAY_EQ_LEN(expected, scene->m_Images[0].m_Buffer->m_Buffer, sizeof(expected));
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 TEST(ModelGLTF, MorphWeightsAnimationChannel)
 {
     dmModelImporter::Options options;
@@ -159,6 +867,69 @@ TEST(ModelGLTF, MorphWeightsAnimationChannel)
     ASSERT_EQ(2u, scene->m_Models[0].m_Meshes[0].m_MorphBaseWeights.Size());
     ASSERT_NEAR(0.0f, scene->m_Models[0].m_Meshes[0].m_MorphBaseWeights[0], 1e-6f);
     ASSERT_NEAR(0.0f, scene->m_Models[0].m_Meshes[0].m_MorphBaseWeights[1], 1e-6f);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
+TEST(ModelGLTF, NormalizedIntegerMorphWeightsAnimationChannel)
+{
+    const char* json =
+        "{"
+        "\"asset\":{\"version\":\"2.0\"},"
+        "\"scene\":0,"
+        "\"scenes\":[{\"nodes\":[0]}],"
+        "\"nodes\":[{\"mesh\":0}],"
+        "\"meshes\":[{"
+            "\"primitives\":[{"
+                "\"attributes\":{\"POSITION\":0},"
+                "\"targets\":[{\"POSITION\":1},{\"POSITION\":2}]"
+            "}],"
+            "\"weights\":[0,0]"
+        "}],"
+        "\"accessors\":["
+            "{\"bufferView\":0,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[0,0,0]},"
+            "{\"bufferView\":1,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"bufferView\":2,\"componentType\":5126,\"count\":1,\"type\":\"VEC3\"},"
+            "{\"bufferView\":3,\"componentType\":5126,\"count\":2,\"type\":\"SCALAR\"},"
+            "{\"bufferView\":4,\"componentType\":5121,\"normalized\":true,\"count\":4,\"type\":\"SCALAR\"}"
+        "],"
+        "\"bufferViews\":["
+            "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":12},"
+            "{\"buffer\":0,\"byteOffset\":12,\"byteLength\":12},"
+            "{\"buffer\":0,\"byteOffset\":24,\"byteLength\":12},"
+            "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":8},"
+            "{\"buffer\":0,\"byteOffset\":44,\"byteLength\":4}"
+        "],"
+        "\"buffers\":[{\"uri\":\"payload.bin\",\"byteLength\":48}],"
+        "\"animations\":[{"
+            "\"channels\":[{\"sampler\":0,\"target\":{\"node\":0,\"path\":\"weights\"}}],"
+            "\"samplers\":[{\"input\":3,\"output\":4}]"
+        "}]"
+        "}";
+    uint8_t buffer[48];
+    memset(buffer, 0, sizeof(buffer));
+    const float times[] = { 0.0f, 1.0f };
+    memcpy(buffer + 36, times, sizeof(times));
+    buffer[44] = 0;
+    buffer[45] = 0;
+    buffer[46] = 255;
+    buffer[47] = 128;
+
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_TRUE(dmModelImporter::NeedsResolve(scene));
+    dmModelImporter::ResolveBuffer(scene, "payload.bin", buffer, sizeof(buffer));
+    ASSERT_TRUE(dmModelImporter::LoadFinalize(scene));
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+
+    const dmModelImporter::NodeAnimation& animation = scene->m_Animations[0].m_NodeAnimations[0];
+    ASSERT_EQ(2U, animation.m_MorphWeightDimensions);
+    ASSERT_EQ(4U, animation.m_MorphWeightKeyValues.Size());
+    ASSERT_NEAR(0.0f, animation.m_MorphWeightKeyValues[0], 1e-6f);
+    ASSERT_NEAR(0.0f, animation.m_MorphWeightKeyValues[1], 1e-6f);
+    ASSERT_NEAR(1.0f, animation.m_MorphWeightKeyValues[2], 1e-6f);
+    ASSERT_NEAR(128.0f / 255.0f, animation.m_MorphWeightKeyValues[3], 1e-6f);
 
     dmModelImporter::DestroyScene(scene);
 }

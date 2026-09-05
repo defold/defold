@@ -304,6 +304,7 @@ public class Modelimporter {
     };
     public static class Options {
         public int dummy = 0;
+        public boolean loadMaterialsOnly = false;
+        public boolean loadMeshMetadata = false;
     };
 }
-

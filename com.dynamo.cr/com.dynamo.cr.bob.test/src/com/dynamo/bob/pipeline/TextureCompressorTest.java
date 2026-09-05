@@ -21,6 +21,16 @@ import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.Assert.*;
 
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
@@ -45,6 +55,47 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         ITextureCompressor defaultCompressor = TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
         assertNotNull(defaultCompressor);
         assertEquals(defaultCompressor.getName(), TextureCompressorUncompressed.TextureCompressorName);
+    }
+
+    @Test
+    public void testDefaultCompressorConcurrentFirstUse() throws Exception {
+        // Simulate first use in a fresh Bob process. The registry is static and may have
+        // already been populated by another test.
+        Field compressorsField = TextureCompression.class.getDeclaredField("compressors");
+        compressorsField.setAccessible(true);
+        Map<?, ?> compressors = (Map<?, ?>) compressorsField.get(null);
+        compressors.remove(TextureCompressorUncompressed.TextureCompressorName);
+
+        Field presetsField = TextureCompression.class.getDeclaredField("presets");
+        presetsField.setAccessible(true);
+        Map<?, ?> presets = (Map<?, ?>) presetsField.get(null);
+        presets.remove(TextureCompressorUncompressed.TextureCompressorUncompressedPresetName);
+
+        int threadCount = 32;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch ready = new CountDownLatch(threadCount);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<ITextureCompressor>> futures = new ArrayList<>();
+        try {
+            for (int i = 0; i < threadCount; ++i) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
+                }));
+            }
+
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            start.countDown();
+
+            ITextureCompressor defaultCompressor = futures.get(0).get(10, TimeUnit.SECONDS);
+            for (Future<ITextureCompressor> future : futures) {
+                assertSame(defaultCompressor, future.get(10, TimeUnit.SECONDS));
+            }
+            assertNotNull(TextureCompression.getPreset(TextureCompressorUncompressed.TextureCompressorUncompressedPresetName));
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test

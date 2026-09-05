@@ -33,6 +33,7 @@
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
+           [com.google.protobuf ByteString]
            [java.io Closeable File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
@@ -565,6 +566,93 @@
 (defn memory-resource? [resource]
   (instance? MemoryResource resource))
 
+(defonce/record GltfResource [workspace name path ^ByteString content children editable loaded asset-info]
+  Resource
+  (children [_this] children)
+  (ext [_this]
+    (if (= :mesh (:kind asset-info))
+      ""
+      (FilenameUtils/getExtension name)))
+  (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
+  (source-type [_this] (if content :file :folder))
+  (exists? [this] (proj-path-exists? (g/unsafe-basis) workspace (proj-path this)))
+  (read-only? [_this] true)
+  (symlink? [_this] false)
+  (path [_this] path)
+  (abs-path [_this] nil)
+  (proj-path [_this] (str "/" path))
+  (resource-name [_this] name)
+  (workspace [_this] workspace)
+  (resource-hash [this] (hash (proj-path this)))
+  (openable? [this]
+    (and (not= :mesh (:kind asset-info))
+         content
+         (if (:editor-openable (resource-type this))
+           loaded
+           true)))
+  (editable? [_this] editable)
+  (loaded? [_this] loaded)
+
+  io/IOFactory
+  (make-input-stream [this opts]
+    (if-not content
+      (throw (IOException. (format "Cannot read glTF virtual folder '%s'" (proj-path this))))
+      (io/make-input-stream (.newInput content) opts)))
+  (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [_this _opts] (throw (IOException. "glTF virtual resources are read-only")))
+  (make-writer [_this _opts] (throw (IOException. "glTF virtual resources are read-only")))
+
+  http-server/ContentType
+  (content-type [resource] (content-type resource))
+
+  http-server/->Data
+  (->data [_this] (some-> content .toByteArray)))
+
+(defn make-gltf-resource
+  "Creates a read-only virtual glTF resource; nil content denotes a grouping folder."
+  [workspace ^String proj-path ^bytes content children editable loaded asset-info]
+  {:pre [(string/starts-with? proj-path "/")]}
+  (let [path (subs proj-path 1)
+        name (FilenameUtils/getName path)
+        content (when content (ByteString/copyFrom content))]
+    (GltfResource. workspace name path content children editable loaded asset-info)))
+
+(defn gltf-resource?
+  "True for a virtual asset or grouping folder extracted from a glTF source."
+  [resource]
+  (instance? GltfResource resource))
+
+(defn gltf-resource-asset-info
+  "Returns extracted asset metadata, or nil for virtual grouping folders."
+  [resource]
+  {:pre [(gltf-resource? resource)]}
+  (:asset-info resource))
+
+(core/register-read-handler!
+  "gltf-resource"
+  (transit/read-handler
+    (fn [{:keys [workspace name path content children editable loaded asset-info]}]
+      (let [content (when content (ByteString/copyFrom ^bytes content))]
+        (GltfResource. workspace name path content children editable loaded asset-info)))))
+
+(core/register-write-handler!
+  GltfResource
+  (transit/write-handler
+    (constantly "gltf-resource")
+    (fn [^GltfResource resource]
+      (let [^ByteString content (:content resource)]
+        {:workspace (:workspace resource)
+         :name (:name resource)
+         :path (:path resource)
+         :content (when content (.toByteArray content))
+         :children (:children resource)
+         :editable (:editable resource)
+         :loaded (:loaded resource)
+         :asset-info (:asset-info resource)}))))
+
+(defmethod print-method GltfResource [gltf-resource ^java.io.Writer writer]
+  (.write writer (format "{:GltfResource %s}" (pr-str (proj-path gltf-resource)))))
+
 (defn counterpart-memory-resource
   "Given a MemoryResource, returns its editable or non-editable counterpart. We
   use this during build target fusion to ensure embedded resources from editable
@@ -589,7 +677,7 @@
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
   (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
-  (source-type [this] (if (zero? (count children)) :file :folder))
+  (source-type [_this] (if zip-entry :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
   (symlink? [this] false) ; Note: Zip archives can contain symlinks. The ZipFile class doesn't support them, but the zip FileSystem implementation does.
