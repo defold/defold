@@ -2631,7 +2631,7 @@
                (not= (int (.charAt character 0)) 0x7f))
       (insert-text! view-node prefs character))))
 
-(defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
+(defn refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
         gesture-type (:type (get-property view-node :gesture-start))
         ^LayoutInfo layout (get-property view-node :layout)
@@ -2762,8 +2762,7 @@
             x (.getX event)
             y (.getY event)
             resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
-            row (data/y->row layout y)]
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
         (-> (data/mouse-moved (get-property view-node :lines evaluation-context)
                               (get-property view-node :cursor-ranges evaluation-context)
                               (get-property view-node :visible-regions evaluation-context)
@@ -2774,8 +2773,7 @@
                               x
                               y)
             (cond->
-              (and lsp
-                   (prefs/get prefs hover-pref-path)
+              (and (prefs/get prefs hover-pref-path)
                    (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
               (merge
                 (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]

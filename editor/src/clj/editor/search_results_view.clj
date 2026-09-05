@@ -382,12 +382,12 @@
                                (open-selected!)))))
       (.add progress-indicator))))
 
-(defn make-search-results-view! [view-graph ^AnchorPane search-results-container open-resource-fn]
+(defn make-search-results-view! [graph ^AnchorPane search-results-container open-resource-fn]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node view-graph SearchResultsView
+        (g/make-node graph SearchResultsView
                      :open-resource-fn open-resource-fn
                      :search-results-container search-results-container)))))
 

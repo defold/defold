@@ -99,7 +99,7 @@
   (input active-resource-node+type g/Any)
   (input active-scene g/Any :substitute nil)
   (input outline-selection g/Any :substitute nil)
-  (input scene-hide-history-datas SceneHideHistoryData :array)
+  (input scene-hide-history-datas SceneHideHistoryData :array :cascade-delete)
 
   (output active-scene-resource-node g/NodeID (g/fnk [active-resource-node+type]
                                                 (when (some? active-resource-node+type)
@@ -152,12 +152,12 @@
                                                                                     hide-history))
                                                                                 scene-hide-history-datas)))))
 
-(defn make-scene-visibility-node! [view-graph prefs app-view]
+(defn make-scene-visibility-node! [graph prefs app-view]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node view-graph SceneVisibilityNode :prefs prefs :app-view app-view)))))
+        (g/make-node graph SceneVisibilityNode :prefs prefs :app-view app-view)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Per-Object Visibility

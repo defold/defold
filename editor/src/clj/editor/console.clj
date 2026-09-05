@@ -447,6 +447,10 @@
   (output lines types/Lines (gu/passthrough modified-lines))
   (output request-response g/Any :cached produce-request-response))
 
+(g/defnode ConsoleView
+  (inherits view/CodeEditorView)
+  (input console-node g/NodeID :cascade-delete))
+
 (defn- gutter-metrics []
   [44.0 0.0])
 
@@ -541,12 +545,30 @@
     {:undoable false}
     (concat
       (g/connect console-node :_node-id view-node :resource-node)
+      (g/connect console-node :_node-id view-node :console-node)
       (g/connect console-node :indent-type view-node :indent-type)
       (g/connect console-node :cursor-ranges view-node :cursor-ranges)
       (g/connect console-node :invalidated-rows view-node :invalidated-rows)
       (g/connect console-node :lines view-node :lines)
       (g/connect console-node :regions view-node :regions)))
   view-node)
+
+(defn- handle-mouse-moved! [view-node ^MouseEvent event]
+  (.consume event)
+  (view/set-properties!
+    view-node :selection
+    (g/with-auto-evaluation-context evaluation-context
+      (let [layout (view/get-property view-node :layout evaluation-context)]
+        (data/mouse-moved (view/get-property view-node :lines evaluation-context)
+                          (view/get-property view-node :cursor-ranges evaluation-context)
+                          (view/get-property view-node :visible-regions evaluation-context)
+                          layout
+                          (view/get-property view-node :minimap-layout evaluation-context)
+                          (view/get-property view-node :gesture-start evaluation-context)
+                          (view/get-property view-node :hovered-element evaluation-context)
+                          (.getX event)
+                          (.getY event)))))
+  (view/refresh-mouse-cursor! view-node event))
 
 (def ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
 (def ^:private ^:const line-sub-regions-pattern-partial #"([^\s<>:]+):(\d+)")
@@ -741,7 +763,7 @@
           (g/transact
             {:undoable false}
             [(g/make-node graph ConsoleNode)
-             (g/make-node graph view/CodeEditorView
+             (g/make-node graph ConsoleView
                           :canvas canvas
                           :canvas-width (.getWidth canvas)
                           :canvas-height (.getHeight canvas)
@@ -795,9 +817,9 @@
     (doto canvas
       (.setFocusTraversable true)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node prefs event false)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
-      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (view/handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (view/handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node false event))))
