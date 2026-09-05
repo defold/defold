@@ -195,10 +195,8 @@
                 original-property-values)
 
           form-view-parent (AnchorPane.)
-          project-graph (g/make-graph! :volatility 1)
-          view-graph (g/make-graph! :volatility 2)
-          resource-node (apply g/make-node! project-graph NumericPropertiesNode (mapcat identity property-values))
-          view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil nil test-util/localization)
+          resource-node (apply g/make-node! world NumericPropertiesNode (mapcat identity property-values))
+          view-node (cljfx-form-view/make-form-view-node! world form-view-parent resource-node nil nil nil test-util/localization)
           form-data (g/node-value view-node :form-data)
           fields (->> form-data
                       (:sections)

@@ -34,31 +34,14 @@
 (g/defnode NonOutputInvalidatingTargetNode
   (input input g/Keyword))
 
-(deftest connection-to-less-volatile-graph-is-rejected-test
-  (test-support/with-clean-system
-    (let [source-graph-id (g/make-graph! :volatility 1)
-          target-graph-id (g/make-graph!)
-          [source-node-id target-node-id]
-          (g/tx-nodes-added
-            (g/transact
-              {:undoable false}
-              (concat
-                (g/make-node source-graph-id helpers/ConnectionSourceNode :property :source-value)
-                (g/make-node target-graph-id helpers/ConnectionTargetNode))))]
-      (is (thrown? AssertionError
-                   (g/transact
-                     (g/connect source-node-id :property-output target-node-id :regular-input)))))))
-
 (deftest non-output-invalidating-connection-is-undoable-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id target-node-id]
+    (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               (concat
-                (g/make-node graph-id NonOutputInvalidatingSourceNode)
-                (g/make-node graph-id NonOutputInvalidatingTargetNode))))]
+                (g/make-node world NonOutputInvalidatingSourceNode)
+                (g/make-node world NonOutputInvalidatingTargetNode))))]
 
       (g/reset-undo! :undo/global)
 
@@ -78,14 +61,12 @@
 
 (deftest introduce-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id target-node-id]
+    (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               (concat
-                (g/make-node graph-id helpers/ConnectionSourceNode :property :source-value)
-                (g/make-node graph-id helpers/ConnectionTargetNode))))
+                (g/make-node world helpers/ConnectionSourceNode :property :source-value)
+                (g/make-node world helpers/ConnectionTargetNode))))
 
           ensure-before!
           (fn ensure-before! []
@@ -96,8 +77,8 @@
                   (is (= [] (g/sources basis target-node-id :regular-input))))
 
                 (testing "Internal arc tables."
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input))))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis world target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= nil (g/node-value target-node-id :regular-output evaluation-context)))))))
@@ -112,10 +93,10 @@
 
                 (testing "Internal arc tables."
                   (is (= [[source-node-id :property-output target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
-                  (let [source-arc-table (get-in basis [:graphs graph-id :sarcs source-node-id :property-output])
-                        target-arc-table (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input])]
+                         (helpers/source-arc-table-tuples basis world source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world target-node-id :regular-input)))
+                  (let [source-arc-table (get-in basis [:graphs world :sarcs source-node-id :property-output])
+                        target-arc-table (get-in basis [:graphs world :tarcs target-node-id :regular-input])]
                     (is (= 1
                            (ig/arc-table-next-pkid source-arc-table)
                            (ig/arc-table-next-pkid target-arc-table)))))
@@ -144,19 +125,17 @@
 
 (deftest introduce-connection-on-regular-input-replaces-target-arc-table-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id target-node-id]
+    (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
               (concat
-                (g/make-node graph-id helpers/ConnectionSourceNode :property :source-value)
-                (g/make-node graph-id helpers/ConnectionTargetNode))))
+                (g/make-node world helpers/ConnectionSourceNode :property :source-value)
+                (g/make-node world helpers/ConnectionTargetNode))))
 
           target-arc-table
           (fn target-arc-table []
-            (get-in (g/now) [:graphs graph-id :tarcs target-node-id :regular-input]))]
+            (get-in (g/now) [:graphs world :tarcs target-node-id :regular-input]))]
 
       (g/transact
         {:undoable false}
@@ -193,12 +172,10 @@
 
 (deftest replace-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [initial-source-node-id replacement-source-node-id target-node-id]
+    (let [[initial-source-node-id replacement-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-value]
+              (g/make-nodes world [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-value]
                                       _replacement-source-node-id [helpers/ConnectionSourceNode :property :replacement-value]
                                       target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-node-id :property-output target-node-id :regular-input))))
@@ -214,9 +191,9 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id replacement-source-node-id :property-output))))
+                         (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world target-node-id :regular-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world replacement-source-node-id :property-output))))
 
                 (testing "Output values."
                   (is (= :initial-value (g/node-value target-node-id :regular-output evaluation-context)))))))
@@ -231,13 +208,13 @@
                   (is (= [[replacement-source-node-id :property-output]] (g/sources basis target-node-id :regular-input))))
 
                 (testing "Internal arc tables."
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)))
                   (is (= [[replacement-source-node-id :property-output target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id replacement-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+                         (helpers/source-arc-table-tuples basis world replacement-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world target-node-id :regular-input)))
                   (is (= 1
                          (ig/arc-table-next-pkid
-                           (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input])))))
+                           (get-in basis [:graphs world :tarcs target-node-id :regular-input])))))
 
                 (testing "Output values."
                   (is (= :replacement-value (g/node-value target-node-id :regular-output evaluation-context)))))))]
@@ -263,19 +240,17 @@
 
 (deftest replace-connection-on-regular-input-with-missing-source-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [initial-source-node-id]
+    (let [[initial-source-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-initial-source}
-              (g/make-node graph-id helpers/ConnectionSourceNode :property :initial-value)))
+              (g/make-node world helpers/ConnectionSourceNode :property :initial-value)))
 
           [replacement-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id [_replacement-source-node-id [helpers/ConnectionSourceNode :property :replacement-value]
+              (g/make-nodes world [_replacement-source-node-id [helpers/ConnectionSourceNode :property :replacement-value]
                                       target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-node-id :property-output target-node-id :regular-input))))]
 
@@ -285,8 +260,8 @@
               initial-arc-tuple [initial-source-node-id :property-output target-node-id :regular-input]]
           (is (nil? (g/node-by-id basis initial-source-node-id)))
           (is (= [initial-arc-tuple]
-                 (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
-                 (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+                 (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
+                 (helpers/target-arc-table-tuples basis world target-node-id :regular-input)))
           (is (nil? (g/node-value target-node-id :regular-output)))))
 
       (testing "After replacing the connection."
@@ -296,10 +271,10 @@
         (let [basis (g/now)
               replacement-arc-tuple [replacement-source-node-id :property-output target-node-id :regular-input]]
           (is (nil? (g/node-by-id basis initial-source-node-id)))
-          (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)))
+          (is (coll/empty? (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)))
           (is (= [replacement-arc-tuple]
-                 (helpers/source-arc-table-tuples basis graph-id replacement-source-node-id :property-output)
-                 (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+                 (helpers/source-arc-table-tuples basis world replacement-source-node-id :property-output)
+                 (helpers/target-arc-table-tuples basis world target-node-id :regular-input)))
           (is (= :replacement-value (g/node-value target-node-id :regular-output)))))
 
       (testing "After redoing the initial source."
@@ -307,70 +282,20 @@
         (let [basis (g/now)
               replacement-arc-tuple [replacement-source-node-id :property-output target-node-id :regular-input]]
           (is (g/node-by-id basis initial-source-node-id))
-          (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)))
+          (is (coll/empty? (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)))
           (is (= [replacement-arc-tuple]
-                 (helpers/source-arc-table-tuples basis graph-id replacement-source-node-id :property-output)
-                 (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
-          (is (= :replacement-value (g/node-value target-node-id :regular-output))))))))
-
-(deftest replace-connection-on-regular-input-with-missing-source-graph-test
-  (test-support/with-clean-system
-    (let [source-graph-id (g/make-graph!)
-          target-graph-id (g/make-graph! :volatility 10)
-
-          [source-node-id]
-          (g/tx-nodes-added
-            (g/transact
-              {:undoable false}
-              (g/make-node source-graph-id helpers/ConnectionSourceNode :property :source-value)))
-
-          [replacement-source-node-id target-node-id]
-          (g/tx-nodes-added
-            (g/transact
-              {:undoable false}
-              (g/make-nodes target-graph-id [_replacement-source-node-id [helpers/ConnectionSourceNode :property :replacement-value]
-                                             target-node-id helpers/ConnectionTargetNode]
-                (g/connect source-node-id :property-output target-node-id :regular-input))))]
-
-      (g/transact
-        {:undo-key ::delete-target}
-        (g/delete-node target-node-id))
-      (g/delete-graph! source-graph-id)
-
-      (testing "After restoring the target without its source graph."
-        (g/undo! ::delete-target)
-        (let [basis (g/now)]
-          (is (nil? (g/graph source-graph-id)))
-          (is (g/node-by-id basis target-node-id))
-          (is (= []
-                 (g/sources basis target-node-id :regular-input)))
-          (is (= [[source-node-id :property-output target-node-id :regular-input]]
-                 (helpers/target-arc-table-tuples basis target-graph-id target-node-id :regular-input)))))
-
-      (testing "After replacing the target-only connection."
-        (g/transact
-          {:undoable false}
-          (g/connect replacement-source-node-id :property-output target-node-id :regular-input))
-        (let [basis (g/now)
-              replacement-arc-tuple [replacement-source-node-id :property-output target-node-id :regular-input]]
-          (is (nil? (g/graph source-graph-id)))
-          (is (= [[replacement-source-node-id :property-output]]
-                 (g/sources basis target-node-id :regular-input)))
-          (is (= [replacement-arc-tuple]
-                 (helpers/source-arc-table-tuples basis target-graph-id replacement-source-node-id :property-output)
-                 (helpers/target-arc-table-tuples basis target-graph-id target-node-id :regular-input)))
+                 (helpers/source-arc-table-tuples basis world replacement-source-node-id :property-output)
+                 (helpers/target-arc-table-tuples basis world target-node-id :regular-input)))
           (is (= :replacement-value (g/node-value target-node-id :regular-output))))))))
 
 (deftest introduce-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id target-node-id]
+    (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               (concat
-                (g/make-node graph-id helpers/ConnectionSourceNode :property :source-value)
-                (g/make-node graph-id helpers/ConnectionTargetNode))))
+                (g/make-node world helpers/ConnectionSourceNode :property :source-value)
+                (g/make-node world helpers/ConnectionTargetNode))))
 
           ensure-before!
           (fn ensure-before! []
@@ -381,8 +306,8 @@
                   (is (= [] (g/sources basis target-node-id :array-input))))
 
                 (testing "Internal arc tables."
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [] (g/node-value target-node-id :array-output evaluation-context)))))))
@@ -397,8 +322,8 @@
 
                 (testing "Internal arc tables."
                   (is (= [[source-node-id :property-output target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
+                         (helpers/source-arc-table-tuples basis world source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:source-value] (g/node-value target-node-id :array-output evaluation-context)))))))]
@@ -421,12 +346,10 @@
 
 (deftest append-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [first-source-node-id second-source-node-id target-node-id]
+    (let [[first-source-node-id second-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+              (g/make-nodes world [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
                                       _second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
                                       target-node-id helpers/ConnectionTargetNode]
                 (g/connect first-source-node-id :property-output target-node-id :array-input))))
@@ -443,9 +366,9 @@
 
               (testing "Internal arc tables."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)
-                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input)))
-                (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output))))
+                       (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)
+                       (helpers/target-arc-table-tuples basis world target-node-id :array-input)))
+                (is (coll/empty? (helpers/source-arc-table-tuples basis world second-source-node-id :property-output))))
 
               (testing "Output values."
                 (is (= [:first-value] (g/node-value target-node-id :array-output))))))
@@ -462,12 +385,12 @@
 
               (testing "Internal arc tables."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world second-source-node-id :property-output)))
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]
                         [second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
+                       (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
 
               (testing "Output values."
                 (is (= [:first-value :second-value] (g/node-value target-node-id :array-output))))))]
@@ -490,15 +413,13 @@
 
 (deftest append-duplicated-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [first-source-node-id
+    (let [[first-source-node-id
            duplicated-source-node-id
            second-source-node-id
            target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+              (g/make-nodes world [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
                                       duplicated-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
                                       second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
                                       target-node-id helpers/ConnectionTargetNode]
@@ -520,15 +441,15 @@
 
               (testing "Internal arc tables."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)))
                 (is (= [[duplicated-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id duplicated-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world duplicated-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world second-source-node-id :property-output)))
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]
                         [duplicated-source-node-id :property-output target-node-id :array-input]
                         [second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
+                       (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
 
               (testing "Output values."
                 (is (= [:first-value :duplicated-value :second-value] (g/node-value target-node-id :array-output))))))
@@ -550,17 +471,17 @@
 
               (testing "Internal arc tables."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)))
                 (is (= [[duplicated-source-node-id :property-output target-node-id :array-input]
                         [duplicated-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id duplicated-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world duplicated-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis world second-source-node-id :property-output)))
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]
                         [duplicated-source-node-id :property-output target-node-id :array-input]
                         [second-source-node-id :property-output target-node-id :array-input]
                         [duplicated-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
+                       (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
 
               (testing "Output values."
                 (is (= [:first-value :duplicated-value :second-value :duplicated-value] (g/node-value target-node-id :array-output))))))]
@@ -583,12 +504,10 @@
 
 (deftest introduce-shadowing-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [initial-source-node-id shadowing-source-node-id original-target-node-id]
+    (let [[initial-source-node-id shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
+              (g/make-nodes world [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
                                       _shadowing-source-node-id [helpers/ConnectionSourceNode :property :shadowing-source-value]
                                       original-target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-node-id :property-output original-target-node-id :regular-input))))
@@ -623,10 +542,10 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :regular-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :regular-input))))
+                         (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :regular-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -653,11 +572,11 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :regular-input)))
+                         (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :regular-input)))
                   (is (= [[shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :regular-input))))
+                         (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -680,27 +599,23 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
-(deftest cross-graph-explicit-arc-shadows-propagated-arc-test
+(deftest explicit-arc-shadows-propagated-arc-test
   (test-support/with-clean-system
-    (let [initial-source-graph-id (g/make-graph!)
-          shadowing-source-graph-id (g/make-graph!)
-          target-graph-id (g/make-graph! :volatility 10)
-
-          [initial-source-node-id]
+    (let [[initial-source-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node initial-source-graph-id helpers/ConnectionSourceNode :property :initial-source-value)))
+              (g/make-node world helpers/ConnectionSourceNode :property :initial-source-value)))
 
           [shadowing-source-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node shadowing-source-graph-id helpers/ConnectionSourceNode :property :shadowing-source-value)))
+              (g/make-node world helpers/ConnectionSourceNode :property :shadowing-source-value)))
 
           [original-target-node-id
            override-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes target-graph-id [original-target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes world [original-target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-node-id :property-output original-target-node-id :regular-input)
                 (g/override original-target-node-id))))]
 
@@ -717,12 +632,10 @@
 
 (deftest replace-shadowing-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [initial-source-node-id initial-shadowing-source-node-id replacement-shadowing-source-node-id original-target-node-id]
+    (let [[initial-source-node-id initial-shadowing-source-node-id replacement-shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
+              (g/make-nodes world [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
                                       _initial-shadowing-source-node-id [helpers/ConnectionSourceNode :property :initial-shadowing-source-value]
                                       _replacement-shadowing-source-node-id [helpers/ConnectionSourceNode :property :replacement-shadowing-source-value]
                                       original-target-node-id helpers/ConnectionTargetNode]
@@ -760,12 +673,12 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :regular-input)))
+                         (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :regular-input)))
                   (is (= [[initial-shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :regular-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id replacement-shadowing-source-node-id :property-output))))
+                         (helpers/source-arc-table-tuples basis world initial-shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :regular-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world replacement-shadowing-source-node-id :property-output))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -794,12 +707,12 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :regular-input)))
+                         (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :regular-input)))
                   (is (= [[replacement-shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis graph-id replacement-shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :regular-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id initial-shadowing-source-node-id :property-output))))
+                         (helpers/source-arc-table-tuples basis world replacement-shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :regular-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world initial-shadowing-source-node-id :property-output))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -824,16 +737,14 @@
 
 (deftest replace-connection-on-regular-cascade-delete-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [indirectly-owned-node-id
+    (let [[indirectly-owned-node-id
            initially-owned-node-id
            replacement-owned-node-id
            owner-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [_indirectly-owned-node-id helpers/OverrideTestNode
                  _initially-owned-node-id helpers/OverrideTestNode
                  _replacement-owned-node-id helpers/OverrideTestNode
@@ -885,16 +796,14 @@
 
 (deftest replace-connection-override-deletion-traversal-uses-original-basis-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [indirectly-owned-node-id
+    (let [[indirectly-owned-node-id
            initially-owned-node-id
            replacement-owned-node-id
            owner-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [_indirectly-owned-node-id helpers/ConnectionSourceNode
                  _initially-owned-node-id helpers/ConnectionTargetNode
                  _replacement-owned-node-id helpers/ConnectionTargetNode
@@ -927,12 +836,10 @@
 
 (deftest introduce-shadowing-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [initial-source-one-node-id initial-source-two-node-id shadowing-source-node-id original-target-node-id]
+    (let [[initial-source-one-node-id initial-source-two-node-id shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
+              (g/make-nodes world [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
                                       initial-source-two-node-id [helpers/ConnectionSourceNode :property :initial-source-two-value]
                                       _shadowing-source-node-id [helpers/ConnectionSourceNode :property :shadowing-source-value]
                                       original-target-node-id helpers/ConnectionTargetNode]
@@ -971,14 +878,14 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input))))
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -1007,15 +914,15 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
                   (is (= [[shadowing-source-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input))))
+                         (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -1040,16 +947,14 @@
 
 (deftest append-shadowing-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [initial-source-one-node-id initial-source-two-node-id shadowing-source-one-node-id shadowing-source-two-node-id original-target-node-id]
+    (let [[initial-source-one-node-id initial-source-two-node-id shadowing-source-one-node-id shadowing-source-two-node-id original-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
-                                      initial-source-two-node-id [helpers/ConnectionSourceNode :property :initial-source-two-value]
-                                      _shadowing-source-one-node-id [helpers/ConnectionSourceNode :property :shadowing-source-one-value]
-                                      _shadowing-source-two-node-id [helpers/ConnectionSourceNode :property :shadowing-source-two-value]
-                                      original-target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes world [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
+                                   initial-source-two-node-id [helpers/ConnectionSourceNode :property :initial-source-two-value]
+                                   _shadowing-source-one-node-id [helpers/ConnectionSourceNode :property :shadowing-source-one-value]
+                                   _shadowing-source-two-node-id [helpers/ConnectionSourceNode :property :shadowing-source-two-value]
+                                   original-target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-one-node-id :property-output original-target-node-id :array-input)
                 (g/connect initial-source-two-node-id :property-output original-target-node-id :array-input))))
 
@@ -1087,16 +992,16 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
                   (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-one-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id shadowing-source-two-node-id :property-output))))
+                         (helpers/source-arc-table-tuples basis world shadowing-source-one-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis world shadowing-source-two-node-id :property-output))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -1127,19 +1032,19 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
                   (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world shadowing-source-one-node-id :property-output)))
                   (is (= [[shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis world shadowing-source-two-node-id :property-output)))
                   (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]
                           [shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input))))
+                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -1164,16 +1069,14 @@
 
 (deftest override-node-creation-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [indirectly-owned-node-id
+    (let [[indirectly-owned-node-id
            directly-owned-node-id
            owner-node-id
            first-order-override-owner-node-id
            second-order-override-owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [indirectly-owned-node-id helpers/OverrideTestNode
                  directly-owned-node-id helpers/OverrideTestNode
                  owner-node-id helpers/OverrideTestNode]
@@ -1186,14 +1089,14 @@
           ensure-before!
           (fn ensure-before! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs graph-id])]
+                  graph (get-in basis [:graphs world])]
               (is (coll/empty? (g/overrides basis directly-owned-node-id)))
               (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
-              (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)))
-              (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis world indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-input)))
+              (is (coll/empty? (helpers/source-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-output)))
+              (is (coll/empty? (helpers/target-arc-table-tuples basis world owner-node-id :regular-cascade-delete-input)))
               (is (= #{indirectly-owned-node-id
                        directly-owned-node-id
                        owner-node-id
@@ -1204,7 +1107,7 @@
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs graph-id])
+                  graph (get-in basis [:graphs world])
                   [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                   [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)
                   [second-order-override-directly-owned-node-id :as overrides-of-first-order-override-directly-owned-node-id] (g/overrides basis first-order-override-directly-owned-node-id)
@@ -1228,11 +1131,11 @@
                        second-order-override-indirectly-owned-node-id}
                      (set (g/node-ids graph))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis world indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-input)))
               (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
-                     (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))))]
+                     (helpers/source-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-output)
+                     (helpers/target-arc-table-tuples basis world owner-node-id :regular-cascade-delete-input)))))]
 
       (testing "Before transact."
         (ensure-before!))
@@ -1267,9 +1170,7 @@
 
 (deftest override-node-creation-with-limited-traversal-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          traverse-fn
+    (let [traverse-fn
           (g/make-override-traverse-fn
             (fn limited-override-traverse-fn [basis arc]
               (is (gt/basis? basis))
@@ -1282,7 +1183,7 @@
            second-order-override-owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [indirectly-owned-node-id helpers/OverrideTestNode
                  directly-owned-node-id helpers/OverrideTestNode
                  owner-node-id helpers/OverrideTestNode]
@@ -1295,7 +1196,7 @@
           ensure-before!
           (fn ensure-before! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs graph-id])]
+                  graph (get-in basis [:graphs world])]
               (is (coll/empty? (g/overrides basis directly-owned-node-id)))
               (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= #{indirectly-owned-node-id
@@ -1308,7 +1209,7 @@
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs graph-id])
+                  graph (get-in basis [:graphs world])
                   [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                   [second-order-override-directly-owned-node-id :as overrides-of-first-order-override-directly-owned-node-id] (g/overrides basis first-order-override-directly-owned-node-id)]
               (is (= 1 (count overrides-of-directly-owned-node-id)))
@@ -1353,14 +1254,12 @@
 
 (deftest override-node-creation-with-init-props-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [indirectly-owned-node-id
+    (let [[indirectly-owned-node-id
            directly-owned-node-id
            owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [indirectly-owned-node-id [helpers/OverrideTestNode :property :indirectly-owned-property-value]
                  directly-owned-node-id [helpers/OverrideTestNode :property :directly-owned-property-value]
                  _owner-node-id [helpers/OverrideTestNode :property :owner-property-value]]
@@ -1461,15 +1360,13 @@
 
 (defn- test-override-node-creation-from-non-undoable-connect [transact-opts]
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [target-node-id
+    (let [[target-node-id
            source-node-id
            override-target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [target-node-id helpers/ConnectionTargetNode
                  _source-node-id [helpers/ConnectionSourceNode :property :before]]
                 (g/override target-node-id))))
@@ -1524,14 +1421,12 @@
 
 (deftest non-undoable-full-invalidation-connect-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id
+    (let [[source-node-id
            target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [_source-node-id [helpers/ConnectionSourceNode :property :source-value]
                  _target-node-id helpers/ConnectionTargetNode])))
 
@@ -1542,8 +1437,8 @@
             [(g/connect source-node-id :property-output target-node-id :array-input)
              (g/connect source-node-id :property-output target-node-id :array-input)])
 
-          source-arc-table (get-in basis [:graphs graph-id :sarcs source-node-id :property-output])
-          target-arc-table (get-in basis [:graphs graph-id :tarcs target-node-id :array-input])]
+          source-arc-table (get-in basis [:graphs world :sarcs source-node-id :property-output])
+          target-arc-table (get-in basis [:graphs world :tarcs target-node-id :array-input])]
 
       (is (= [] (:undoable-changes tx-result)))
       (is (= 0 (g/undo-stack-count :undo/global)))
@@ -1558,14 +1453,12 @@
 
 (deftest non-undoable-full-invalidation-initial-regular-connect-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id
+    (let [[source-node-id
            target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [_source-node-id [helpers/ConnectionSourceNode :property :source-value]
                  _target-node-id helpers/ConnectionTargetNode])))
 
@@ -1578,8 +1471,8 @@
                :undoable false}
               (g/connect source-node-id :property-output target-node-id :regular-input)))
 
-          source-arc-table (get-in basis [:graphs graph-id :sarcs source-node-id :property-output])
-          target-arc-table (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input])]
+          source-arc-table (get-in basis [:graphs world :sarcs source-node-id :property-output])
+          target-arc-table (get-in basis [:graphs world :tarcs target-node-id :regular-input])]
 
       (is (= [] (:undoable-changes tx-result)))
       (is (= 0 (g/undo-stack-count :undo/global)))
@@ -1591,21 +1484,18 @@
              (ig/arc-table-next-pkid source-arc-table)
              (ig/arc-table-next-pkid target-arc-table))))))
 
-(deftest non-undoable-full-invalidation-replace-cross-graph-connection-test
+(deftest non-undoable-full-invalidation-replace-connection-test
   (test-support/with-clean-system
-    (let [source-graph-id (g/make-graph!)
-          target-graph-id (g/make-graph!)
-
-          [initial-source-node-id
+    (let [[initial-source-node-id
            replacement-source-node-id
            target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes source-graph-id
+              (g/make-nodes world
                 [initial-source-node-id [helpers/OverrideTestNode :property :initial-value]
                  _replacement-source-node-id [helpers/OverrideTestNode  :property :replacement-value]]
-                (g/make-nodes target-graph-id
+                (g/make-nodes world
                   [target-node-id helpers/ConnectionTargetNode]
                   (g/connect initial-source-node-id :property-output target-node-id :regular-input)))))
 
@@ -1621,30 +1511,28 @@
       (is (= [[replacement-source-node-id :property-output]] (g/sources basis target-node-id :regular-input)))
       (is (= :replacement-value (g/node-value target-node-id :regular-output)))
       (is (= 1 (ig/arc-table-next-pkid
-                 (get-in basis [:graphs target-graph-id :tarcs target-node-id :regular-input])))))))
+                 (get-in basis [:graphs world :tarcs target-node-id :regular-input])))))))
 
 (deftest arc-table-representation-transitions-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [first-source-node-id
+    (let [[first-source-node-id
            second-source-node-id
            target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [_first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
                  _second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
                  _target-node-id helpers/ConnectionTargetNode])))
 
           source-arc-table
           (fn source-arc-table [basis source-node-id]
-            (get-in basis [:graphs graph-id :sarcs source-node-id :property-output]))
+            (get-in basis [:graphs world :sarcs source-node-id :property-output]))
 
           target-arc-table
           (fn target-arc-table [basis]
-            (get-in basis [:graphs graph-id :tarcs target-node-id :array-input]))]
+            (get-in basis [:graphs world :tarcs target-node-id :array-input]))]
 
       (g/transact
         (g/connect first-source-node-id :property-output target-node-id :array-input))

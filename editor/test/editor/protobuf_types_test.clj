@@ -168,23 +168,22 @@
 (deftest load-order-sanity
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world project-path)
-          proj-graph (g/make-graph! :volatility 1)
-          extensions (extensions/make proj-graph)
-          project (project/make-project proj-graph workspace extensions)]
-      (let [node-id+resource-pairs
-            (project/make-node-id+resource-pairs proj-graph (g/node-value project :resources))
+          extensions (extensions/make world)
+          project (project/make-project world workspace extensions)
+          node-id+resource-pairs
+          (project/make-node-id+resource-pairs world (g/node-value project :resources))
 
-            node-load-infos
-            (project/read-nodes node-id+resource-pairs)
+          node-load-infos
+          (project/read-nodes node-id+resource-pairs)
 
-            load-order
-            (into {}
-                  (map-indexed (fn [node-index {:keys [resource]}]
-                                 [(resource/proj-path resource) node-index]))
-                  node-load-infos)]
-        (doseq [[resource-path dependencies] expected-dependencies
-                dependency dependencies]
-          (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path)))))))
+          load-order
+          (into {}
+                (map-indexed (fn [node-index {:keys [resource]}]
+                               [(resource/proj-path resource) node-index]))
+                node-load-infos)]
+      (doseq [[resource-path dependencies] expected-dependencies
+              dependency dependencies]
+        (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path))))))
 
 (def non-broken-dependencies
   {"/broken_embedded_gos.collection" [] ; embedded instance broken, so no dependencies
