@@ -188,12 +188,66 @@ public class ShaderCompilePipeline {
         }
     }
 
-    protected static void generateWGSL(String resourcePath, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
+    private static String addWGSLFlippedVertexEntryPoint(String resourcePath, String source) throws CompileExceptionError {
+        // WebGPU cannot emulate the negative-height viewport used by the engine to
+        // preserve its render-target convention. Keep Tint's original entry point
+        // for the backbuffer and add a flipped variant that the adapter can select
+        // when rendering to an offscreen target.
+        int vertexEntryPoint = source.lastIndexOf("@vertex");
+        int entryPointFunction = source.indexOf("fn main(", vertexEntryPoint);
+        int entryPointBody = source.indexOf('{', entryPointFunction);
+        if (vertexEntryPoint == -1 || entryPointFunction == -1 || entryPointBody == -1) {
+            throw new CompileExceptionError("Unable to locate the generated WGSL vertex entry point for " + resourcePath);
+        }
+
+        int braceDepth = 0;
+        int entryPointEnd = -1;
+        for (int i = entryPointBody; i < source.length(); ++i) {
+            char c = source.charAt(i);
+            if (c == '{') {
+                ++braceDepth;
+            } else if (c == '}' && --braceDepth == 0) {
+                entryPointEnd = i + 1;
+                break;
+            }
+        }
+
+        if (entryPointEnd == -1) {
+            throw new CompileExceptionError("Unable to locate the end of the generated WGSL vertex entry point for " + resourcePath);
+        }
+
+        String flippedEntryPoint = source.substring(vertexEntryPoint, entryPointEnd);
+        int flippedFunction = flippedEntryPoint.indexOf("fn main(");
+        int entryPointReturn = flippedEntryPoint.indexOf("  return ");
+        if (entryPointReturn == -1 || flippedEntryPoint.indexOf("gl_Position") == -1) {
+            throw new CompileExceptionError("Unable to add the WebGPU vertex Y-flip entry point for " + resourcePath);
+        }
+
+        flippedEntryPoint = flippedEntryPoint.substring(0, flippedFunction) +
+                            "fn main_flipped(" +
+                            flippedEntryPoint.substring(flippedFunction + "fn main(".length());
+        entryPointReturn = flippedEntryPoint.indexOf("  return ");
+        flippedEntryPoint = flippedEntryPoint.substring(0, entryPointReturn) +
+                            "  gl_Position.y = -gl_Position.y;\n" +
+                            flippedEntryPoint.substring(entryPointReturn);
+
+        return source.substring(0, entryPointEnd) + "\n\n" +
+               flippedEntryPoint + source.substring(entryPointEnd);
+    }
+
+    protected static void generateWGSL(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(tintExe,
             "--format", "wgsl",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
         checkResult(resourcePath, result);
+
+        if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+            File outputFile = new File(pathFileOutWGSL);
+            String source = FileUtils.readFileToString(outputFile, StandardCharsets.UTF_8);
+            source = addWGSLFlippedVertexEntryPoint(resourcePath, source);
+            FileUtils.writeStringToFile(outputFile, source, StandardCharsets.UTF_8);
+        }
     }
 
     private void generateSPIRv(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
@@ -645,7 +699,7 @@ public class ShaderCompilePipeline {
 
             File fileCrossCompiled = createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
 
-            generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
+            generateWGSL(module.desc.resourcePath, shaderType, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
 
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = FileUtils.readFileToByteArray(fileCrossCompiled);
