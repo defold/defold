@@ -51,7 +51,7 @@ public final class GltfContainer {
         MESH
     }
 
-    /** Immutable metadata for a glTF texture that refers to a virtual image. */
+    /** Immutable metadata for a glTF texture and its selected virtual image. */
     public static final class TextureMetadata {
         private final int index;
         private final String name;
@@ -179,7 +179,7 @@ public final class GltfContainer {
         }
     }
 
-    /** A virtual encoded image plus the native texture/sampler metadata that refers to it. */
+    /** A virtual encoded image plus metadata for textures that select it. */
     public static final class ImageAsset extends Asset {
         private final String uri;
         private final String mimeType;
@@ -208,6 +208,7 @@ public final class GltfContainer {
             return sourceKind;
         }
 
+        /** Textures selecting this image; each extracted texture belongs to one image. */
         public List<TextureMetadata> getTextures() {
             return textures;
         }
@@ -631,6 +632,7 @@ public final class GltfContainer {
             return imagePaths;
         }
 
+        Map<Integer, ResolvedImage> resolvedImages = new LinkedHashMap<Integer, ResolvedImage>();
         ExtractionBudget extractionBudget = new ExtractionBudget();
         for (Modelimporter.Image image : scene.images) {
             try {
@@ -642,13 +644,22 @@ public final class GltfContainer {
                         ? mimeTypeForExtension(extension)
                         : resolvedImage.mimeType;
                 String path = String.format("images/%d.%s", image.index, extension);
-                List<TextureMetadata> metadata = textureMetadata(scene, image.index);
-                assets.add(new ImageAsset(path, image.index, image.name, resolvedImage.uri, mimeType,
-                        resolvedImage.sourceKind, resolvedImage.content, metadata));
                 imagePaths.put(image.index, path);
+                resolvedImages.put(image.index, new ResolvedImage(resolvedImage.uri, mimeType,
+                        resolvedImage.sourceKind, resolvedImage.content));
             } catch (IOException e) {
                 diagnostics.add(String.format("Image %d: %s", image.index, e.getMessage()));
             }
+        }
+        // Select texture images only after all extraction successes and failures are known.
+        for (Modelimporter.Image image : scene.images) {
+            ResolvedImage resolvedImage = resolvedImages.remove(image.index);
+            if (resolvedImage == null) {
+                continue;
+            }
+            assets.add(new ImageAsset(imagePaths.get(image.index), image.index, image.name,
+                    resolvedImage.uri, resolvedImage.mimeType, resolvedImage.sourceKind,
+                    resolvedImage.content, textureMetadata(scene, image.index, imagePaths)));
         }
         return imagePaths;
     }
@@ -728,16 +739,16 @@ public final class GltfContainer {
         return new ResolvedImage(null, mimeType, "buffer-view", image.buffer.buffer);
     }
 
-    private static List<TextureMetadata> textureMetadata(Modelimporter.Scene scene, int imageIndex) {
+    private static List<TextureMetadata> textureMetadata(Modelimporter.Scene scene, int imageIndex,
+                                                        Map<Integer, String> imagePaths) {
         List<TextureMetadata> result = new ArrayList<TextureMetadata>();
         if (scene.textures == null) {
             return result;
         }
 
         for (Modelimporter.Texture texture : scene.textures) {
-            boolean regularImage = texture.image != null && texture.image.index == imageIndex;
-            boolean basisuImage = texture.basisuImage != null && texture.basisuImage.index == imageIndex;
-            if (!regularImage && !basisuImage) {
+            Modelimporter.Image image = referencedImage(texture, imagePaths);
+            if (image == null || image.index != imageIndex) {
                 continue;
             }
 
@@ -748,7 +759,7 @@ public final class GltfContainer {
             int wrapS = sampler == null ? 10497 : sampler.wrapS;
             int wrapT = sampler == null ? 10497 : sampler.wrapT;
             result.add(new TextureMetadata(texture.index, texture.name, samplerIndex,
-                    minFilter, magFilter, wrapS, wrapT, basisuImage));
+                    minFilter, magFilter, wrapS, wrapT, image == texture.basisuImage));
         }
         result.sort(Comparator.comparingInt(TextureMetadata::getIndex));
         return result;

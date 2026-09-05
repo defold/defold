@@ -439,6 +439,49 @@ public class GltfMountPointTest {
     }
 
     @Test
+    public void testTextureMetadataUsesTheMaterialImageSelection() throws Exception {
+        String source = gltf("external.png")
+                .replace("\"asset\":{\"version\":\"2.0\"},",
+                         "\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"KHR_texture_basisu\"],")
+                .replace("\"name\":\"ExternalTexture\",\"sampler\":0,\"source\":0}",
+                         "\"name\":\"ExternalTexture\",\"sampler\":0,\"source\":0,"
+                                 + "\"extensions\":{\"KHR_texture_basisu\":{\"source\":1}}}")
+                .replace("data:image/png;base64," + Base64.getEncoder().encodeToString(png), "preferred.png");
+        fileSystem.addFile("models/robot.gltf", source.getBytes(StandardCharsets.UTF_8));
+        fileSystem.addMountPoint(mountPoint);
+
+        // PNG stand-ins exercise image selection independently of GPU texture decoding.
+        for (boolean preferredAvailable : new boolean[] { false, true, false }) {
+            if (preferredAvailable) {
+                fileSystem.addFile("models/preferred.png", png);
+            } else if (fileSystem.get("models/preferred.png").exists()) {
+                fileSystem.get("models/preferred.png").remove();
+            }
+
+            GltfContainer container = mountPoint.getContainer("models/robot.gltf");
+            GltfMaterialResource material = (GltfMaterialResource)container.getResource("materials/0.material");
+            int selectedImageIndex = preferredAvailable ? 1 : 0;
+            assertSamplerBinding(material.getSamplerBindings(), "PbrMetallicRoughness_baseColorTexture",
+                    0, 0, selectedImageIndex, "images/" + selectedImageIndex + ".png");
+
+            Map<Integer, Integer> imageIndexByTextureIndex = new HashMap<Integer, Integer>();
+            for (GltfResource resource : container.getResources()) {
+                if (resource instanceof GltfImageResource) {
+                    GltfImageResource image = (GltfImageResource)resource;
+                    for (GltfContainer.TextureMetadata texture : image.getTextures()) {
+                        assertNull(imageIndexByTextureIndex.put(texture.getIndex(), image.getIndex()));
+                        if (texture.getIndex() == 0) {
+                            assertEquals(preferredAvailable, texture.isBasisu());
+                        }
+                    }
+                }
+            }
+            assertEquals(Integer.valueOf(selectedImageIndex), imageIndexByTextureIndex.get(0));
+            assertNotNull(container.getResource("images/0.png"));
+        }
+    }
+
+    @Test
     public void testGeneratedPbrMaterialOnlyEmitsReferencedSamplers() throws Exception {
         String baseColorOnly = withoutMaterialTextureSlots(gltf("external.png"), true)
                 .replace("\"samplers\":[{\"name\":\"NearestSampler\",\"wrapS\":33071,\"wrapT\":33648,"

@@ -51,6 +51,7 @@ public class GltfImageResource extends GltfResource {
         return sourceKind;
     }
 
+    /** Textures selecting this image; each extracted texture belongs to one image. */
     public List<GltfContainer.TextureMetadata> getTextures() {
         return textures;
     }

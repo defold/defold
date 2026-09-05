@@ -6,6 +6,7 @@
 
 (ns integration.gltf-resource-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.core :as core]
@@ -170,6 +171,7 @@
           (is (= {:kind :material
                   :index 0
                   :name "Paint"
+                  :material-name "Paint"
                   :path "materials/0.material"
                   :sampler-bindings
                   [{:sampler "PbrMetallicRoughness_baseColorTexture"
@@ -347,6 +349,45 @@
             (is (contains? added-proj-paths "/models/robot.gltf/images/0.png"))
             (is (not= source-node-id reloaded-source-node-id))
             (is (= 5 (count (g/node-value reloaded-material-binding-node-id :nodes))))))))))
+
+(deftest gltf-descriptors-use-shared-image-selection-and-material-names
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
+        gltf-file (io/file project-path "models/robot.gltf")
+        preferred-file (io/file project-path "models/preferred.png")
+        png (png-bytes 0xff224466)
+        source (-> (gltf-content "")
+                   (string/replace "\"asset\":{\"version\":\"2.0\"},"
+                                   "\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"KHR_texture_basisu\"],")
+                   (string/replace "\"mimeType\":\"image/png\"}],"
+                                   "\"mimeType\":\"image/png\"},{\"name\":\"Preferred\",\"uri\":\"preferred.png\",\"mimeType\":\"image/png\"}],")
+                   (string/replace "\"source\":0}"
+                                   "\"source\":0,\"extensions\":{\"KHR_texture_basisu\":{\"source\":1}}}"))]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! gltf-file source)
+      (fs/create-file! (io/file project-path "models/albedo.png") png)
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)]
+          ;; PNG stand-ins exercise image selection independently of GPU texture decoding.
+          (doseq [preferred-available [false true false]]
+            (if preferred-available
+              (fs/create-file! preferred-file png)
+              (fs/delete-file! preferred-file))
+            (workspace/resource-sync! workspace)
+            (let [source-resource (workspace/find-resource workspace "/models/robot.gltf")
+                  {:keys [materials textures]} (gltf/metadata-descriptors source-resource)
+                  bindings (gltf/material-binding-descriptors source-resource nil)
+                  selected-image-index (if preferred-available 1 0)
+                  selected-image-path (format "/models/robot.gltf/images/%d.png" selected-image-index)]
+              (is (= 1 (count textures)))
+              (is (= selected-image-index (:image-index (first textures))))
+              (is (= selected-image-path (resource/proj-path (:image (first textures)))))
+              (is (= preferred-available (:basisu (first textures))))
+              (is (= "Material 0" (:name (first materials))))
+              (is (= ["gltf_material_0"] (mapv :name bindings)))
+              (is (= #{selected-image-path}
+                     (into #{}
+                           (map (comp resource/proj-path :texture))
+                           (:textures (first bindings))))))))))))
 
 (deftest dependency-gltf-remains-a-selectable-file-container
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")

@@ -41,10 +41,10 @@
             (filter #(= :material (:kind (resource/gltf-resource-asset-info %))))
             (keep
               (fn [material-resource]
-                (let [{:keys [index name sampler-bindings]} (resource/gltf-resource-asset-info material-resource)]
+                (let [{:keys [index material-name sampler-bindings]} (resource/gltf-resource-asset-info material-resource)]
                   (when (or (nil? material-indices)
                             (contains? material-indices index))
-                    {:name (or (coll/not-empty name) (str "gltf_material_" index))
+                    {:name material-name
                      :material material-resource
                      :material-index index
                      :textures
@@ -60,34 +60,27 @@
   "Builds mesh, material and texture descriptors for the read-only glTF outline."
   [source-resource]
   (let [asset-resources (asset-resources source-resource)
-        texture-descriptors-by-index
-        (reduce
-          (fn [descriptors-by-index image-resource]
-            (let [{:keys [mime-type name source-kind textures uri] :as image-info}
-                  (resource/gltf-resource-asset-info image-resource)
-                  image-index (:index image-info)]
-              (reduce
-                (fn [descriptors-by-index {:keys [basisu index] :as texture-info}]
-                  (let [descriptor (assoc texture-info
-                                     :image image-resource
-                                     :image-index image-index
-                                     :image-name (or (coll/not-empty name) (format "Image %d" image-index))
-                                     :mime-type (or mime-type "")
-                                     :name (or (coll/not-empty (:name texture-info)) (format "Texture %d" index))
-                                     :source-kind (or source-kind "")
-                                     :uri (or uri ""))
-                        previous-descriptor (get descriptors-by-index index)]
-                    (if (and previous-descriptor
-                             (not basisu))
-                      descriptors-by-index
-                      (assoc descriptors-by-index index descriptor))))
-                descriptors-by-index
-                textures)))
-          (sorted-map)
-          (eduction
-            (filter #(= :image (:kind (resource/gltf-resource-asset-info %))))
-            asset-resources))
-        texture-descriptors (into [] (map val) texture-descriptors-by-index)
+        texture-descriptors
+        (into []
+              (comp
+                (filter #(= :image (:kind (resource/gltf-resource-asset-info %))))
+                (mapcat
+                  (fn [image-resource]
+                    (let [{:keys [mime-type name source-kind textures uri] :as image-info}
+                          (resource/gltf-resource-asset-info image-resource)
+                          image-index (:index image-info)]
+                      (eduction
+                        (map (fn [{:keys [index] :as texture-info}]
+                               (assoc texture-info
+                                 :image image-resource
+                                 :image-index image-index
+                                 :image-name (or (coll/not-empty name) (format "Image %d" image-index))
+                                 :mime-type (or mime-type "")
+                                 :name (or (coll/not-empty (:name texture-info)) (format "Texture %d" index))
+                                 :source-kind (or source-kind "")
+                                 :uri (or uri ""))))
+                        textures)))))
+              asset-resources)
         texture-name-by-index
         (into {}
               (map (juxt :index :name))
@@ -128,7 +121,7 @@
               asset-resources)]
     {:materials material-descriptors
      :meshes (vec (sort-by :index mesh-descriptors))
-     :textures texture-descriptors}))
+     :textures (vec (sort-by :index texture-descriptors))}))
 
 (defn uri->proj-path
   "Resolves an external URI against a glTF source path, returning nil for unsupported paths."
@@ -187,6 +180,7 @@
             ^Map sampler-bindings (.getSamplerBindings material-asset)]
         (assoc common-info
           :kind :material
+          :material-name (-> material-asset .getMaterialDesc .getName)
           :sampler-bindings
           (mapv
             (fn [^GltfContainer$SamplerBinding sampler-binding]
