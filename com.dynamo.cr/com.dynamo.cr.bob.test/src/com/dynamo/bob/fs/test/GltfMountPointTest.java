@@ -774,6 +774,37 @@ public class GltfMountPointTest {
     }
 
     @Test
+    public void testExtractionSkipsExternalGeometryWhenResolvingImages() throws Exception {
+        String source = withExternalImageBuffer(gltf("external.png"), png.length)
+                .replace("data:application/octet-stream;base64," + GEOMETRY_BUFFER_BASE64, "geometry.bin");
+        byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
+
+        for (byte[] geometry : new byte[][] {Base64.getDecoder().decode(GEOMETRY_BUFFER_BASE64), new byte[1], null}) {
+            List<String> resolvedUris = new ArrayList<>();
+            GltfContainer.Extraction extraction = GltfContainer.extract(
+                    sourceBytes, "models/robot.gltf", (path, uri) -> {
+                        resolvedUris.add(uri);
+                        switch (uri) {
+                            case "image.bin":
+                            case "external.png":
+                                return png;
+                            case "geometry.bin":
+                                return geometry;
+                            default:
+                                return null;
+                        }
+                    });
+
+            assertEquals(list("image.bin", "external.png"), resolvedUris);
+            assertTrue(extraction.getDiagnostics().isEmpty());
+            assertEquals(5, extraction.getAssets().size());
+            assertArrayEquals(png, extraction.getAssets().get(3).getContent());
+            assertEquals(1, extraction.getMeshes().size());
+            assertEquals(3, extraction.getMeshes().get(0).getVertexCount());
+        }
+    }
+
+    @Test
     public void testImageDimensionsAreReadWithoutDecodingRaster() throws Exception {
         byte[] oversizedHeader = png.clone();
         writeIntBigEndian(oversizedHeader, 16, 100000);

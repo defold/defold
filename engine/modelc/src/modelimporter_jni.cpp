@@ -632,7 +632,7 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jobject _options,
 
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
-            if (scene->m_Buffers[i].m_Buffer)
+            if (scene->m_Buffers[i].m_Buffer || scene->m_Buffers[i].m_BufferCount == 0)
                 continue;
 
             const char* uri = scene->m_Buffers[i].m_Uri;
