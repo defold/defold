@@ -852,11 +852,11 @@
   other nodes, e.g. on view open, so the output might contain false positives."
   []
   (let [basis (g/now)
-        node-type-freqs (->> (get-in basis [:graphs 1 :nodes])
+        node-type-freqs (->> (get-in basis [:graphs 0 :nodes])
                              (keys)
                              (map #(g/node-type* basis %))
                              frequencies)]
-    (->> (get-in basis [:graphs 1 :nodes])
+    (->> (get-in basis [:graphs 0 :nodes])
          keys
          ;; for project node ids, collect external connections and union by node type
          (->Eduction

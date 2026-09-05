@@ -375,24 +375,26 @@
   (.setValue find-term-property (or term-text "")))
 
 (defn- find-next! [view-node]
-  (view/set-properties! view-node :selection
-                        (data/find-next (view/get-property view-node :lines)
-                                        (view/get-property view-node :cursor-ranges)
-                                        (view/get-property view-node :layout)
-                                        (split-lines (.getValue find-term-property))
-                                        false
-                                        false
-                                        true)))
+  (when-let [tx-data (view/set-properties view-node :selection
+                                          (data/find-next (view/get-property view-node :lines)
+                                                          (view/get-property view-node :cursor-ranges)
+                                                          (view/get-property view-node :layout)
+                                                          (split-lines (.getValue find-term-property))
+                                                          false
+                                                          false
+                                                          true))]
+    (g/transact {:undoable false} tx-data)))
 
 (defn- find-prev! [view-node]
-  (view/set-properties! view-node :selection
-                        (data/find-prev (view/get-property view-node :lines)
-                                        (view/get-property view-node :cursor-ranges)
-                                        (view/get-property view-node :layout)
-                                        (split-lines (.getValue find-term-property))
-                                        false
-                                        false
-                                        true)))
+  (when-let [tx-data (view/set-properties view-node :selection
+                                          (data/find-prev (view/get-property view-node :lines)
+                                                          (view/get-property view-node :cursor-ranges)
+                                                          (view/get-property view-node :layout)
+                                                          (split-lines (.getValue find-term-property))
+                                                          false
+                                                          false
+                                                          true))]
+    (g/transact {:undoable false} tx-data)))
 
 (handler/defhandler :edit.find :console-view
   (run [term-field view-node]
@@ -674,13 +676,14 @@
                  props (append-entries {:lines (if clear [""] prev-lines)
                                         :regions (if clear [] prev-regions)}
                                        entries resource-map resource-suffix-map-delay on-region-click!)]
-        (view/set-properties!
-          view-node nil
-          (cond-> (assoc props :document-width document-width)
-                  was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                  clear (assoc :cursor-ranges [data/document-start-cursor-range])
-                  clear (assoc :invalidated-row 0)
-                  clear (data/frame-cursor prev-layout))))))
+        (when-let [tx-data (view/set-properties
+                             view-node nil
+                             (cond-> (assoc props :document-width document-width)
+                                     was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                                     clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                                     clear (assoc :invalidated-row 0)
+                                     clear (data/frame-cursor prev-layout)))]
+          (g/transact {:undoable false} tx-data)))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
 (def ^:private console-grammar
