@@ -467,6 +467,15 @@ static bool WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
     return true;
 }
 
+static size_t WebGPUGetTextureUploadLayerStride(size_t data_size, size_t layer_size, uint32_t layer_count)
+{
+    // Most callers report m_DataSize per layer, while resource.create_texture_async()
+    // reports the size of the complete layered buffer.
+    if (data_size == 0 || data_size == layer_size * layer_count)
+        return layer_size;
+    return data_size;
+}
+
 static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams& params)
 {
     switch (params.m_Format)
@@ -599,12 +608,14 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             if (is_cube_texture)
             {
                 const size_t source_face_size   = (size_t)pixels_per_face * 3;
-                size_t source_face_stride       = params.m_DataSize ? params.m_DataSize : source_face_size;
-                if (source_face_stride == source_face_size * upload_layer_count)
-                    source_face_stride = source_face_size;
+                const size_t source_face_stride = WebGPUGetTextureUploadLayerStride(
+                    params.m_DataSize, source_face_size, upload_layer_count);
                 const size_t repacked_face_size = (size_t)pixels_per_face * repack_bpp;
-                uint8_t* repacked_face           = new uint8_t[repacked_face_size];
                 const uint8_t* source_data       = (const uint8_t*)params.m_Data;
+
+                // WebGPU has no RGB8 texture format. Reuse one face-sized conversion
+                // buffer for all cube faces to avoid allocating a full RGBA cubemap.
+                uint8_t* repacked_face = new uint8_t[repacked_face_size];
 
                 extent.depthOrArrayLayers = 1;
                 for (uint32_t face = 0; face < upload_layer_count; ++face)
@@ -669,9 +680,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
                 // Match the OpenGL upload path and write each face explicitly.
                 // This also avoids depending on browser support for a single
                 // writeTexture call spanning every layer of a cube view.
-                size_t face_stride = params.m_DataSize ? params.m_DataSize : image_data_size;
-                if (face_stride == image_data_size * upload_layer_count)
-                    face_stride = image_data_size;
+                const size_t face_stride = WebGPUGetTextureUploadLayerStride(
+                    params.m_DataSize, image_data_size, upload_layer_count);
 
                 extent.depthOrArrayLayers = 1;
                 const uint8_t* data = (const uint8_t*)params.m_Data;
@@ -3039,6 +3049,11 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
     }
 }
 
+// Defold addresses a combined texture/sampler through one texture unit, while
+// WebGPU exposes the texture view and sampler as separate bindings. Samplers
+// may be encountered before their associated textures have been assigned a
+// unit, so resolve them after processing all texture resources. Sharing the
+// texture's unit ensures both WebGPU bindings use the same WebGPUTexture.
 static void WebGPUResolveSamplerTextureUnits(WebGPUProgram* program)
 {
     const dmArray<ShaderResourceBinding>& texture_resources = program->m_BaseProgram.m_ShaderMeta.m_Textures;
@@ -3770,6 +3785,8 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
     rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
     rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ? params.m_DepthBufferParams : params.m_StencilBufferParams;
+    // The WebGPU specification only permits texture sample counts of 1 and 4,
+    // even when the underlying graphics API and hardware support higher counts.
     rt->m_Base.m_SampleCount               = ConformRenderTargetSampleCount(params.m_SampleCount, 1 | 4, "WebGPU");
     rt->m_Multisample                      = rt->m_Base.m_SampleCount;
 
