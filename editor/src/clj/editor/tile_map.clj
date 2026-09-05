@@ -1346,6 +1346,11 @@
                    (g/set-property self :op nil))
                  (end-op op self action state evaluation-context (g/node-value self :cursor-mode evaluation-context))))
 
+             :mouse-exited
+             (g/non-undoable
+               (g/set-property self :cursor-world-pos nil)
+               (g/set-property self :cursor-screen-pos nil))
+
              nil)]
     (if (coll/not-empty tx)
       (do

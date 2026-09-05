@@ -90,6 +90,17 @@
   [shape-type]
   (contains? #{:type-hull :type-mesh} shape-type))
 
+;; TYPE_HULL supports both legacy inline points and source mesh selection.
+(defn- mesh-source-shape?
+  [shape-type data mesh-scene mesh-name mesh-index]
+  (or (= :type-mesh shape-type)
+      (and (= :type-hull shape-type)
+           (or (coll/empty? data)
+               mesh-scene
+               (not (string/blank? mesh-name))
+               (and (some? mesh-index)
+                    (not= -1 mesh-index))))))
+
 (defn- shape-type-label
   [shape-type]
   (get-in shape-type-ui [shape-type :label]))
@@ -121,17 +132,8 @@
     (unique-id-error node-id id id-counts)))
 
 (defn- collision-mesh-choicebox [collision-meshes]
-  (let [collision-meshes (model-loader/named-meshes collision-meshes)
-        name-counts (frequencies (into [] (map :name) collision-meshes))]
-    {:type :choicebox
-     :options (into [[-1 ""]]
-                    (map (fn [{:keys [index name]}]
-                           [index (if (= 1 (get name-counts name))
-                                    name
-                                    (localization/message "property.mesh-selection.option.raw-index"
-                                                          {"mesh" name
-                                                           "index" index}))]))
-                    collision-meshes)}))
+  {:type :choicebox
+   :options (model-loader/named-mesh-choicebox-options collision-meshes)})
 
 (defn- set-mesh-index [evaluation-context self _old-value new-value]
   (when (properties/user-edit? self :mesh-index evaluation-context)
@@ -152,18 +154,19 @@
 
 (g/defnk produce-shape
   [shape-type position rotation id shape-data mesh-scene mesh-name mesh-index]
-  (cond-> (-> (protobuf/make-map-without-defaults Physics$CollisionShape$Shape
-                :shape-type shape-type
-                :position position
-                :rotation rotation
-                :id id)
-              (assoc :data shape-data))
-          (mesh-source-shape-type? shape-type)
-          (assoc :mesh-scene (resource/resource->proj-path mesh-scene)
-                 :mesh-name mesh-name)
+  (let [mesh-source-shape (mesh-source-shape? shape-type shape-data mesh-scene mesh-name mesh-index)]
+    (cond-> (-> (protobuf/make-map-without-defaults Physics$CollisionShape$Shape
+                  :shape-type shape-type
+                  :position position
+                  :rotation rotation
+                  :id id)
+                (assoc :data shape-data))
+      mesh-source-shape
+      (assoc :mesh-scene (resource/resource->proj-path mesh-scene)
+             :mesh-name mesh-name)
 
-          (and (mesh-source-shape-type? shape-type) (not= -1 mesh-index))
-          (assoc :mesh-index mesh-index)))
+      (and mesh-source-shape (not= -1 mesh-index))
+      (assoc :mesh-index mesh-index))))
 
 (g/defnode Shape
   (inherits outline/OutlineNode)
@@ -184,10 +187,14 @@
   (property id g/Str (default (protobuf/default Physics$CollisionShape$Shape :id))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :id))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
+  (property inline-data g/Any ; Legacy inline TYPE_HULL payload.
+            (default [])
+            (dynamic visible (g/constantly false)))
   (property mesh-scene resource/Resource
             (value (gu/passthrough mesh-scene-resource))
             (set set-mesh-scene)
-            (dynamic visible (g/fnk [shape-type] (mesh-source-shape-type? shape-type)))
+            (dynamic visible (g/fnk [shape-type inline-data]
+                               (mesh-source-shape? shape-type inline-data nil "" -1)))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"glb" "gltf"}}))
             (dynamic error (g/fnk [_node-id mesh-scene shape-type]
                              (when (mesh-source-shape-type? shape-type)
@@ -205,7 +212,8 @@
                        (or (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))
                            mesh-index))))
             (set set-mesh-index)
-            (dynamic visible (g/fnk [shape-type] (mesh-source-shape-type? shape-type)))
+            (dynamic visible (g/fnk [shape-type inline-data]
+                               (mesh-source-shape? shape-type inline-data nil "" -1)))
             (dynamic read-only? (g/fnk [mesh-scene ^:try collision-meshes]
                                   (or (nil? mesh-scene)
                                       (g/error-value? collision-meshes))))
@@ -234,8 +242,8 @@
               (coll/first-where #(= (:index selected-collision-mesh) (:index %))
                                 collision-mesh-renderables))))
   (output collision-mesh-set-info g/Any
-          (g/fnk [shape-type mesh-scene collision-mesh-set]
-            (when (and (mesh-source-shape-type? shape-type)
+          (g/fnk [shape-type shape-data mesh-scene mesh-name mesh-index collision-mesh-set]
+            (when (and (mesh-source-shape? shape-type shape-data mesh-scene mesh-name mesh-index)
                        mesh-scene
                        collision-mesh-set)
               {:mesh-scene (resource/resource->proj-path mesh-scene)
@@ -609,24 +617,24 @@
   (when (or hull index-buffer)
     {:node-id node-id
      :aabb aabb
-     :renderable {:render-fn (if hull
-                               render-points-uniform-scale
-                               render-triangles-uniform-scale)
-                  :tags (if hull
-                          #{:collision-shape :gizmo :outline}
-                          #{:collision-shape :gizmo})
-                  :passes (if hull
-                            [pass/outline]
-                            [pass/transparent pass/selection])
-                  :user-data (cond-> {:color color
-                                      :geometry (cond-> {:primitive-type (if hull
-                                                                           GL2/GL_POINTS
-                                                                           GL2/GL_TRIANGLES)
-                                                         :position-buffer position-buffer}
-                                                  (and (not hull) index-buffer) (assoc :index-buffer index-buffer))}
-                               hull (assoc :point-count (graphics.types/element-count position-buffer)
-                                           :point-size 3.0)
-                               (not hull) (assoc :double-sided true))}}))
+     :renderable
+     (if hull
+       {:render-fn render-points-uniform-scale
+        :tags #{:collision-shape :gizmo :outline}
+        :passes [pass/outline pass/selection]
+        :user-data {:color color
+                    :point-count (graphics.types/element-count position-buffer)
+                    :point-size 3.0
+                    :geometry {:primitive-type GL2/GL_POINTS
+                               :position-buffer position-buffer}}}
+       {:render-fn render-triangles-uniform-scale
+        :tags #{:collision-shape :gizmo}
+        :passes [pass/transparent pass/selection]
+        :user-data {:color color
+                    :double-sided true
+                    :geometry {:primitive-type GL2/GL_TRIANGLES
+                               :index-buffer index-buffer
+                               :position-buffer position-buffer}}})}))
 
 (g/defnk produce-mesh-shape-scene
   [_node-id pose color node-outline-key shape-type selected-collision-mesh selected-collision-mesh-renderable]
@@ -695,11 +703,12 @@
 
   (output scene g/Any produce-mesh-shape-scene)
   (output shape-errors g/Any
-          (g/fnk [_node-id id id-counts shape-type mesh-scene mesh-name mesh-index ^:try collision-meshes]
+          (g/fnk [_node-id id id-counts shape-type inline-data mesh-scene mesh-name mesh-index ^:try collision-meshes]
             (g/package-errors _node-id
-              (validate-image-id _node-id id id-counts)
-              (mesh-shape-selection-error _node-id shape-type mesh-scene mesh-name mesh-index collision-meshes))))
-  (output shape-data g/Any (g/constantly [])))
+                              (validate-image-id _node-id id id-counts)
+                              (when (mesh-source-shape? shape-type inline-data mesh-scene mesh-name mesh-index)
+                                (mesh-shape-selection-error _node-id shape-type mesh-scene mesh-name mesh-index collision-meshes)))))
+  (output shape-data g/Any (g/fnk [inline-data] inline-data)))
 
 (g/defnode HullShape
   (inherits MeshSourceShape)
@@ -758,8 +767,10 @@
   {})
 
 (defmethod decode-shape-data :type-hull
-  [_shape _data]
-  {})
+  [shape data]
+  {:inline-data (if (zero? (long (:count shape)))
+                  []
+                  data)})
 
 (defn make-shape-node
   [parent {:keys [shape-type] :as shape}]
@@ -860,7 +871,7 @@
          :aabb aabb
          :renderable {:render-fn render-points-uniform-scale
                       :tags #{:collision-shape :gizmo :outline}
-                      :passes [pass/outline]
+                      :passes [pass/outline pass/selection]
                       :user-data {:color color
                                   :point-size 3.0
                                   :geometry {:primitive-type GL2/GL_POINTS
@@ -883,8 +894,13 @@
       ret
       (let [data (:data shape)
             data-len (count data)
+            mesh-source-shape (mesh-source-shape? (:shape-type shape)
+                                                  data
+                                                  (:mesh-scene shape)
+                                                  (:mesh-name shape)
+                                                  (get shape :mesh-index -1))
             shape-msg (-> shape
-                          (assoc :index (if (mesh-source-shape-type? (:shape-type shape)) 0 idx)
+                          (assoc :index (if mesh-source-shape 0 idx)
                                  :count data-len)
                           (dissoc :data))]
         (recur (+ idx data-len)
@@ -997,9 +1013,12 @@
                   (empty? (:embedded-collision-shape pb-msg)))
          (g/->error _node-id :collision-shape :fatal collision-shape (localization/message "error.collision-object-has-no-shapes")))
        (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape)
-       (sequence (comp (map :shape-type)
+       (sequence (comp (remove (fn [{:keys [shape-type data mesh-scene mesh-name mesh-index]}]
+                                 (or (contains? (shape-type-physics-types shape-type) project-physics-type)
+                                     (and (= :type-hull shape-type)
+                                          (not (mesh-source-shape? shape-type data mesh-scene mesh-name (or mesh-index -1)))))))
+                       (map :shape-type)
                        (distinct)
-                       (remove #(contains? (shape-type-physics-types %) project-physics-type))
                        (map #(localization/message "error.collision-object-shape-not-supported-in-physics"
                                                    {"shape" (shape-type-message %)
                                                     "physics" project-physics-type}))

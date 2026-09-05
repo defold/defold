@@ -12,6 +12,12 @@ endif()
 
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
+# Keep source extensions in object names. This prevents collisions when a
+# target contains C and C++ sources with the same basename.
+set(CMAKE_USER_MAKE_RULES_OVERRIDE
+  "${CMAKE_CURRENT_LIST_DIR}/object_naming_rules.cmake"
+  CACHE FILEPATH "Defold CMake object naming rules" FORCE)
+
 if(TARGET_PLATFORM STREQUAL "x86_64-xbox")
   message(STATUS "TARGET_PLATFORM=x86_64-xbox is an alias for x86_64-xbone")
   set(TARGET_PLATFORM "x86_64-xbone" CACHE STRING "Defold platform tuple" FORCE)
@@ -336,16 +342,17 @@ target_include_directories(defold_sdk INTERFACE
   "$<BUILD_INTERFACE:${DEFOLD_DMSDK_INCLUDE_DIR}>"
   "$<INSTALL_INTERFACE:include>"
   "$<INSTALL_INTERFACE:sdk/include>")
-# External/platform include dirs as SYSTEM to reduce warnings
-target_include_directories(defold_sdk SYSTEM INTERFACE
-  "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
-  "$<INSTALL_INTERFACE:ext/include>")
+# External/platform include dirs as SYSTEM to reduce warnings. Keep the
+# platform-specific directories first so target overrides take precedence over
+# common package headers (the same order used by the legacy build setup).
 foreach(_DEFOLD_PLATFORM_INCLUDE_DIR IN LISTS _DEFOLD_PLATFORM_INCLUDE_DIRS)
   target_include_directories(defold_sdk SYSTEM INTERFACE
     "$<BUILD_INTERFACE:${_DEFOLD_PLATFORM_INCLUDE_DIR}>")
 endforeach()
 target_include_directories(defold_sdk SYSTEM INTERFACE
-  "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>")
+  "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>"
+  "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
+  "$<INSTALL_INTERFACE:ext/include>")
 if(TARGET_PLATFORM STREQUAL "x86-win32")
   target_include_directories(defold_sdk SYSTEM INTERFACE
     "$<INSTALL_INTERFACE:ext/include/win32>")

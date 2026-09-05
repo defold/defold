@@ -25,8 +25,9 @@
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [internal.util :as util]
             [integration.test-util :as test-util]
+            [internal.system :as is]
+            [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.text-util :as text-util])
@@ -824,13 +825,15 @@
                  :max-anisotropy 1.0
                  :name "albedo"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}
                 {:filter-mag :filter-mode-mag-linear
                  :filter-min :filter-mode-min-linear
                  :max-anisotropy 1.0
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}]
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}]
                (g/node-value legacy-textures-material :samplers))))
       (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
             legacy-attributes (g/node-value legacy-element-count-material :attributes)
@@ -1634,3 +1637,35 @@
 
       (testing "Save-related data is in cache after saving the project."
         (is (= {} (test-util/uncached-save-data-outputs-by-proj-path project)))))))
+
+(deftest no-substructure-remains-after-resource-node-deletion-test
+  (testing "Owned substructure is cleaned up after deleting resource nodes."
+    (let [surviving-node-type-kw?
+          #{:editor.code.preprocessors/CodePreprocessorsNode
+            :editor.code.script-annotations/ScriptAnnotations
+            :editor.code.script-intelligence/ScriptIntelligenceNode
+            :editor.code.transpilers/CodeTranspilersNode
+            :editor.code.transpilers/TranspilerNode
+            :editor.defold-project/Project
+            :editor.editor-extensions/EditorExtensions
+            :editor.editor-localization-bundle/EditorLocalizationBundle
+            :editor.notifications/NotificationsNode
+            :editor.workspace/Workspace
+            :integration.test-util/MockAppView}]
+      (test-util/with-loaded-project project-path
+        (let [resource-node-ids (vals (g/node-value project :nodes-by-resource-path))]
+          (g/transact
+            (g/delete-nodes resource-node-ids))
+          (let [leaked-node-frequencies
+                (->> @g/*the-system*
+                     (is/graphs)
+                     (eduction
+                       (map val)
+                       (mapcat :nodes)
+                       (map val)
+                       (map g/node-type)
+                       (map :k)
+                       (remove surviving-node-type-kw?))
+                     (frequencies)
+                     (into (sorted-map)))]
+            (is (= {} leaked-node-frequencies))))))))

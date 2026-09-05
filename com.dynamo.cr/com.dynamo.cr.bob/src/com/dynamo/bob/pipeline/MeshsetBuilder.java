@@ -41,6 +41,47 @@ import com.dynamo.rig.proto.Rig.Skeleton;
         "model-max-morph-target-texture-width",
         "model-max-morph-target-texture-height"})
 public class MeshsetBuilder extends Builder  {
+    private static IResource resolveExternalBuffer(IResource sceneResource, String uri) {
+        if (!ModelUtil.isExternalBufferUri(uri)) {
+            return null;
+        }
+        return sceneResource.getResource(uri);
+    }
+
+    private static void addExternalBufferInputs(IResource sceneResource, Task.TaskBuilder<?> taskBuilder,
+                                                ModelUtil.ModelMetadata metadata)
+            throws CompileExceptionError {
+        for (String uri : metadata.externalBufferUris()) {
+            IResource resource = resolveExternalBuffer(sceneResource, uri);
+            if (resource == null || !resource.exists()) {
+                throw new CompileExceptionError(sceneResource, 0,
+                        String.format("External glTF buffer '%s' does not exist", uri));
+            }
+            taskBuilder.addInput(resource);
+        }
+    }
+
+    private static final class ResourceDataResolver implements ModelImporterJni.DataResolver {
+        private final IResource sceneResource;
+
+        ResourceDataResolver(IResource sceneResource) {
+            this.sceneResource = sceneResource;
+        }
+
+        @Override
+        public byte[] getData(String path, String uri) {
+            IResource resource = resolveExternalBuffer(sceneResource, uri);
+            if (resource == null) {
+                return null;
+            }
+            try {
+                return resource.getContent();
+            } catch (IOException e) {
+                return null;
+            }
+        }
+    }
+
     /**
      * Bridges ModelUtil's resource-agnostic model loading with Bob's task output
      * layout. ModelUtil packs morph target textures while building meshes, and
@@ -85,14 +126,14 @@ public class MeshsetBuilder extends Builder  {
             .addOutput(input.changeExt("_generated_0.animationsetc"));
 
         byte[] sceneContent;
-        GltfResourceUtil.Metadata metadata;
+        ModelUtil.ModelMetadata metadata;
         try {
             sceneContent = input.getContent();
             if (sceneContent == null) {
                 throw new IOException(String.format("glTF resource '%s' has no content", input.getPath()));
             }
-            metadata = GltfResourceUtil.scan(sceneContent, input.getPath());
-            GltfResourceUtil.addExternalBufferInputs(input, taskBuilder, metadata);
+            metadata = ModelUtil.getModelMetadata(sceneContent, input.getPath());
+            addExternalBufferInputs(input, taskBuilder, metadata);
         } catch (IOException e) {
             // Defer malformed glTF diagnostics to build(), where the importer and validator
             // provide the existing detailed error messages.
@@ -104,7 +145,7 @@ public class MeshsetBuilder extends Builder  {
             Modelimporter.Scene scene = null;
             try {
                 scene = ModelUtil.loadScene(sceneContent, input.getPath(), new Modelimporter.Options(),
-                        new GltfResourceUtil.ResourceDataResolver(input));
+                        new ResourceDataResolver(input));
                 ModelUtil.releaseSceneBuffers(scene);
                 if (this.project.option("model-split-large-meshes", "false").equals("true")) {
                     ModelUtil.splitMeshes(scene);
@@ -140,7 +181,7 @@ public class MeshsetBuilder extends Builder  {
         int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
 
         Modelimporter.Options options = new Modelimporter.Options();
-        GltfResourceUtil.ResourceDataResolver dataResolver = new GltfResourceUtil.ResourceDataResolver(task.input(0));
+        ResourceDataResolver dataResolver = new ResourceDataResolver(task.input(0));
         Modelimporter.Scene scene;
         try {
             scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);

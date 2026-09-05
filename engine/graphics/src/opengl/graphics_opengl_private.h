@@ -50,6 +50,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
     };
 
@@ -144,6 +145,7 @@ namespace dmGraphics
         ShaderDesc::Language                m_Language;
         dmArray<OpenGLVertexAttribute>      m_Attributes;
         dmArray<OpenGLScratchUniformBuffer> m_UniformBuffers;
+        Type                                m_TextureUnitTypes[DM_MAX_TEXTURE_UNITS];
     };
 
     /*

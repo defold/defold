@@ -5164,6 +5164,23 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_DELETE_FILE remove
 #define MZ_MKDIR(d) mkdir(d, 0755)
 
+#elif defined(DM_MINIZ_NO_LARGE_FILE_API)
+#ifndef MINIZ_NO_TIME
+#include <utime.h>
+#endif
+#define MZ_FOPEN(f, m) fopen(f, m)
+#define MZ_FCLOSE fclose
+#define MZ_FREAD fread
+#define MZ_FWRITE fwrite
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#define MZ_FILE_STAT_STRUCT stat
+#define MZ_FILE_STAT stat
+#define MZ_FFLUSH fflush
+#define MZ_FREOPEN(p, m, s) freopen(p, m, s)
+#define MZ_DELETE_FILE remove
+#define MZ_MKDIR(d) mkdir(d, 0755)
+
 #elif defined(__APPLE__) || defined(__FreeBSD__) ||                            \
     (defined(__linux__) && defined(__x86_64__))
 #ifndef MINIZ_NO_TIME

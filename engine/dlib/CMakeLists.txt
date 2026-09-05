@@ -168,11 +168,11 @@ foreach(_feature IN ITEMS
   elseif(_feature STREQUAL "dlib/sslsocket")
     if(DLIB_USE_MBEDTLS AND DLIB_TARGET_OS MATCHES "^(macos|ios)$")
       set(_preferred_tags mbedtls)
-    elseif(DLIB_TARGET_OS MATCHES "^(android|linux|win32|xbone)$")
+    elseif(NOT DLIB_TARGET_OS MATCHES "^(macos|ios|web)$")
       set(_extra_tags mbedtls)
     endif()
   elseif(_feature STREQUAL "dlib/sys")
-    if(DLIB_TARGET_OS MATCHES "^(android|linux|macos|ios|web|nx64|ps4|ps5)$")
+    if(DLIB_TARGET_OS MATCHES "^(android|linux|macos|ios|web|nx64)$")
       set(_extra_tags posix)
     endif()
   elseif(_feature STREQUAL "dlib/spinlock")
@@ -232,6 +232,10 @@ else()
        "${DLIB_MBEDTLS_DIR}/tf-psa-crypto/extras/*.c"
        "${DLIB_MBEDTLS_DIR}/tf-psa-crypto/platform/*.c"
        "${DLIB_MBEDTLS_DIR}/tf-psa-crypto/utilities/*.c")
+endif()
+
+if(DM_MBEDTLS_CUSTOM_NET)
+  dlib_remove_matching(DLIB_MBEDTLS_SOURCES "/net_sockets\\.c$")
 endif()
 
 defold_add_library(mbedtls STATIC ${DLIB_MBEDTLS_SOURCES})

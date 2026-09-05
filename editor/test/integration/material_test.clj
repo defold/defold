@@ -15,6 +15,7 @@
 (ns integration.material-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.form :as form]
             [editor.material]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
@@ -57,16 +58,59 @@
 
 (deftest load-material-render-data
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/materials/test.material")
-          samplers (g/node-value node-id :samplers)]
+    (let [node-id (test-util/resource-node project "/materials/test_samplers.material")
+          samplers (g/node-value node-id :samplers)
+          sampler (first samplers)]
       (is (some? (g/node-value node-id :shader)))
-      (is (= 1 (count samplers))))))
+      (is (= 1 (count samplers)))
+      (is (= :wrap-mode-repeat (:wrap-w sampler)))
+      (is (not (contains? (first (:samplers (g/node-value node-id :save-value))) :wrap-w)))
+      (prop! node-id :samplers [(assoc sampler :wrap-w :wrap-mode-clamp-to-edge)])
+      (is (= :wrap-mode-clamp-to-edge
+             (get-in (g/node-value node-id :save-value) [:samplers 0 :wrap-w]))))))
 
 (deftest missing-material-constant-value
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/materials/test_missing_constant_value.material")]
       (is (= protobuf/vector4-zero (get-in (g/node-value node-id :fragment-constants) [0 :value])))
       (is (= [protobuf/vector4-zero] (get-in (g/node-value node-id :save-value) [:fragment-constants 0 :value]))))))
+
+(deftest matrix4-material-constant-value
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test_matrix4_constant.material")
+          fragment-constants (g/node-value node-id :fragment-constants)
+          saved-constants (:fragment-constants (g/node-value node-id :save-value))]
+      (is (= (mapv float (range 1.0 17.0))
+             (:value (first fragment-constants))))
+      (is (= (mapv float (repeat 16 0.0))
+             (:value (second fragment-constants))))
+      (is (= [[1.0 2.0 3.0 4.0]
+              [5.0 6.0 7.0 8.0]
+              [9.0 10.0 11.0 12.0]
+              [13.0 14.0 15.0 16.0]]
+             (mapv #(mapv double %) (:value (first saved-constants)))))
+      (is (= 4 (count (:value (second saved-constants)))))
+      (is (= (into (mapv float [1.0 2.0 3.0 4.0])
+                   (repeat 12 protobuf/float-zero))
+             (:value (nth fragment-constants 2))))
+      (is (= 4 (count (:value (nth saved-constants 2)))))
+      (is (not (g/error? (g/node-value node-id :shader)))))))
+
+(deftest matrix4-material-constant-type-switch
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test_matrix4_constant.material")
+          set-constant-type! (fn [constant-type]
+                               (let [constants (assoc-in (g/node-value node-id :fragment-constants)
+                                                         [0 :type] constant-type)]
+                                 (g/transact {:undoable false}
+                                   (form/set-value (:form-ops (g/node-value node-id :form-data))
+                                                   [:fragment-constants]
+                                                   constants))))]
+      (set-constant-type! :constant-type-user)
+      (is (= 4 (count (:value (first (g/node-value node-id :fragment-constants))))))
+
+      (set-constant-type! :constant-type-user-matrix4)
+      (is (= 16 (count (:value (first (g/node-value node-id :fragment-constants)))))))))
 
 (deftest material-pbr-parameters
   ;; Test that all exposed PBR parameters are found, and that they are true

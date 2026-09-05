@@ -2174,6 +2174,7 @@
             (set (layout-property-setter manual-size)))
   (property text g/Str (default (protobuf/default Gui$NodeDesc :text))
             (dynamic edit-type (layout-property-edit-type text {:type :multi-line-text}))
+            (dynamic error (g/fnk [markup-error] markup-error))
             (dynamic label (properties/label-dynamic :gui :text))
             (dynamic tooltip (properties/tooltip-dynamic :gui :text))
             (value (layout-property-getter text))
@@ -2270,6 +2271,8 @@
                     :color color+alpha
                     :override-material-shader font-shader
                     :renderable-tags #{:gui-text}})))
+  (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
+                                            (font/markup-error _node-id :text (:font-map font-data) text)))
   (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking]
                                            (font/layout-text (:font-map font-data) text line-break (first manual-size) text-tracking text-leading)))
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))

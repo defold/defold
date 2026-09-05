@@ -94,6 +94,14 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/mesh_selection.model")
           mesh-scene-node-id (test-util/resource-node project "/mesh/two_meshes.gltf")]
+      (testing "uses the mesh-name documentation for the selector"
+        (let [mesh-index-property (get-in (g/node-value node-id :_properties) [:properties :mesh-index])]
+          (is (= "property.model.mesh-name" (-> mesh-index-property :label :k)))
+          (is (= "Mesh" (test-util/localization (:label mesh-index-property))))
+          (is (= "property.model.mesh-name.tooltip" (-> mesh-index-property :tooltip :k)))
+          (is (= "Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms."
+                 (test-util/localization (:tooltip mesh-index-property))))))
+
       (testing "loads and saves a selected raw glTF mesh"
         (is (= "LooseMesh" (test-util/prop node-id :mesh-name)))
         (is (= 2 (test-util/prop node-id :mesh-index)))
@@ -112,10 +120,14 @@
         (test-util/with-prop [node-id :mesh-name "LeftMesh"]
           (test-util/with-prop [node-id :mesh-index 0]
             (let [scene (g/node-value node-id :scene)
-                  selected-model-scene (nth (:children scene) 1)]
+                  selected-model-scene (nth (:children scene) 1)
+                  mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
               (is (= [0.0 0.0 0.0] (:translation (:pose selected-model-scene))))
-              (is (pos? (count (:children selected-model-scene)))))))
+              (is (pos? (count (:children selected-model-scene))))
+              (is (= [0] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :models]))))
+              (is (= [0] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))
         (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
+          (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :models])))
           (is (= [2] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))
         (is (coll/empty? (get-in (g/node-value mesh-scene-node-id :mesh-set-build-target)
                                  [:user-data :mesh-set :raw-models]))))
@@ -126,6 +138,12 @@
             (let [aabb (:aabb (g/node-value node-id :scene))]
               (is (= (Point3d. 0.0 0.0 0.0) (types/min-p aabb)))
               (is (= (Point3d. 1.0 1.0 0.0) (types/max-p aabb)))))))
+
+      (testing "an invalid stale selection renders no mesh"
+        (test-util/with-prop [node-id :mesh-index 0]
+          (test-util/with-prop [node-id :mesh-name "MissingMesh"]
+            (is (g/error? (test-util/prop-error node-id :mesh-index)))
+            (is (= 1 (count (:children (g/node-value node-id :scene))))))))
 
       (testing "an empty selection renders the entire scene and omits the fields"
         (test-util/with-prop [node-id :mesh-name ""]

@@ -273,7 +273,6 @@
             (coll/into->
               (e/concat
                 (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (project/setup-game-project-tx-data project (ensure-some game-project-node-id))
                 (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
                 (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
               (if separate-load-tx-data-generation [] :eduction)

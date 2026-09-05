@@ -115,7 +115,7 @@ static WebGPUContext* g_WebGPUContext = NULL;
 
 DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, ADAPTER_FAMILY_PRIORITY_WEBGPU);
 
-static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
 {
     HashState64 sampler_hash_state;
     dmHashInit64(&sampler_hash_state, false);
@@ -123,6 +123,7 @@ static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilte
     dmHashUpdateBuffer64(&sampler_hash_state, &magfilter, sizeof(magfilter));
     dmHashUpdateBuffer64(&sampler_hash_state, &uwrap, sizeof(uwrap));
     dmHashUpdateBuffer64(&sampler_hash_state, &vwrap, sizeof(vwrap));
+    dmHashUpdateBuffer64(&sampler_hash_state, &wwrap, sizeof(wwrap));
     dmHashUpdateBuffer64(&sampler_hash_state, &max_anisotropy, sizeof(max_anisotropy));
 
     const uint64_t sampler_hash = dmHashFinal64(&sampler_hash_state);
@@ -140,6 +141,7 @@ static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilte
     desc.maxAnisotropy = uint16_t(max_anisotropy);
     desc.addressModeU  = g_webgpu_address_mode[uwrap];
     desc.addressModeV  = g_webgpu_address_mode[vwrap];
+    desc.addressModeW  = g_webgpu_address_mode[wwrap];
 
     if (magfilter == TEXTURE_FILTER_DEFAULT)
         magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
@@ -233,10 +235,10 @@ static WebGPUTexture* WebGPUNewTextureInternal(const TextureCreationParams& para
     return texture;
 }
 
-static void WebGPUSetTextureParamsInternal(WebGPUTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+static void WebGPUSetTextureParamsInternal(WebGPUTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
 {
     TRACE_CALL;
-    texture->m_Sampler = WebGPUGetOrCreateSampler(g_WebGPUContext, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+    texture->m_Sampler = WebGPUGetOrCreateSampler(g_WebGPUContext, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
 }
 
 static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
@@ -615,7 +617,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     }
 
     SetTextureResourceSize(&texture->m_Base, sizeof(WebGPUTexture));
-    WebGPUSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+    WebGPUSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
 }
 
 static inline WGPUVertexFormat WebGPUDeduceVertexAttributeFormat(Type type, uint16_t size, bool normalized)
@@ -1367,6 +1369,8 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
+        // WebGPU (unlike WebGL2) allows BC formats on array/3D targets.
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
     }
     if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionETC2))
     {
@@ -1390,7 +1394,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 
     {
         // Create default texture sampler
-        WGPUSampler sampler = WebGPUGetOrCreateSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1.0f);
+        WGPUSampler sampler = WebGPUGetOrCreateSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1.0f);
 
         // Create default dummy texture(s)
         TextureCreationParams default_texture_creation_params;
@@ -2340,11 +2344,7 @@ static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration 
     context->m_CurrentVertexBufferOffsets[binding_index] = base_offset;
 
     dmArray<VertexDeclaration::Stream>& streams = context->m_VertexDeclarationStreams[binding_index];
-    if (streams.Capacity() < declaration->m_StreamCount)
-    {
-        streams.SetCapacity(declaration->m_StreamCount);
-    }
-    streams.SetSize(declaration->m_StreamCount);
+    streams.EnsureSize(declaration->m_StreamCount);
     memset(streams.Begin(), 0, sizeof(VertexDeclaration::Stream) * declaration->m_StreamCount);
     context->m_VertexDeclaration[binding_index].m_Streams = streams.Begin();
 
@@ -3255,11 +3255,11 @@ static HandleResult WebGPUGetTextureHandle(HTexture texture, void** out_handle)
     return HANDLE_RESULT_NOT_AVAILABLE;
 }
 
-static void WebGPUSetTextureParams(HContext context, HTexture _texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+static void WebGPUSetTextureParams(HContext context, HTexture _texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _texture);
-    WebGPUSetTextureParamsInternal(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+    WebGPUSetTextureParamsInternal(texture, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
 }
 
 static void WebGPUSetTexture(HContext context, HTexture _texture, const TextureParams& params)

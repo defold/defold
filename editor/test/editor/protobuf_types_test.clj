@@ -17,7 +17,6 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
-            [editor.progress :as progress]
             [editor.resource :as resource]
             [integration.test-util :as test-util]
             [service.log :as log]
@@ -36,6 +35,8 @@
    "/test.atlas" ["/builtins/graphics/particle_blob.png"]
    "/test.camera" []
    "/test.collection" []
+   "/test.compute" ["/test.cp"]
+   "/test.cp" []
    "/test_embedded_gos.collection" ["/test.collection"
                                     "/main.collection"
                                     "/test.tilemap"
@@ -136,7 +137,18 @@
    "/test2.gui" ["/test.material"]})
 
 (defn fallback-dependencies-fn [resource-type]
-  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script" "gltf" "glb"} (:ext resource-type))
+  (when (#{"cp"
+           "fp"
+           "glb"
+           "gltf"
+           "gui_script"
+           "json"
+           "lua"
+           "render_script"
+           "script"
+           "vp"
+           "wav"}
+         (:ext resource-type))
     (constantly [])))
 
 (deftest dependencies

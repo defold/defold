@@ -218,10 +218,10 @@
   @*main-stage*)
 
 (defn main-scene ^Scene []
-  (.. (main-stage) (getScene)))
+  (some-> (main-stage) .getScene))
 
 (defn main-root ^Node []
-  (.. (main-scene) (getRoot)))
+  (some-> (main-scene) .getRoot))
 
 (defn- main-menu-id ^MenuBar []
   (:menu-id (user-data (main-root) ::menubar)))
@@ -2623,7 +2623,8 @@
     (.start timer))
   (reset! stopped-timers #{})
   (handler/enable-disabled-handlers!)
-  (user-data! (main-scene) ::refresh-requested? true)
+  (when-some [main-scene (main-scene)]
+    (user-data! main-scene ::refresh-requested? true))
   nil)
 
 (defn anim! [^double duration anim-fn end-fn]

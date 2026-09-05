@@ -105,11 +105,18 @@ class build_private(object):
 
     @classmethod
     def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
-        return cls._call(None, 'get_install_host_packages', [], platform)
+        return [package for package in cls._call(None, 'get_install_host_packages', [], platform)
+                if not package.startswith('bullet-')]
 
     @classmethod
     def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
-        return cls._call(platform, 'get_install_target_packages', [], platform)
+        return [package for package in cls._call(platform, 'get_install_target_packages', [], platform)
+                if not package.startswith('bullet-')]
+
+    @classmethod
+    def get_external_package_name(cls, platform, library, default_name):
+        return cls._call(platform, 'get_external_package_name', default_name,
+                         platform, library, default_name)
 
     @classmethod
     def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
@@ -158,7 +165,6 @@ PACKAGES_ALL=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
-    "bullet-3.25",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.14",
     "vulkan-v1.4.307",
@@ -168,7 +174,7 @@ PACKAGES_ALL=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_HOST=[
     "protobuf-35.1",
@@ -179,7 +185,6 @@ PACKAGES_HOST=[
 PACKAGES_IOS_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -187,12 +192,11 @@ PACKAGES_IOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_IOS_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "moltenvk-1474891",
     "glfw-2.7.1",
     "box2d-3.1.0",
@@ -201,14 +205,13 @@ PACKAGES_IOS_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -224,13 +227,13 @@ PACKAGES_MACOS_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
@@ -238,7 +241,6 @@ PACKAGES_MACOS_ARM64=[
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
@@ -253,20 +255,19 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
     "ogg-1.1.1",
     "strip",
-    "strip_android-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_WIN32=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
-    "bullet-3.25",
     "vulkan-v1.4.307",
     "glfw-3.4",
     "box2d-3.1.0",
@@ -275,14 +276,13 @@ PACKAGES_WIN32=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_WIN32_64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "bullet-3.25",
     "glslang-42d9adf5",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -298,18 +298,16 @@ PACKAGES_WIN32_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-3.25",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -327,19 +325,17 @@ PACKAGES_LINUX_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "apkc-0.1.0",
     "ogg-1.1.1",
-    "strip_android-12.0.9",
-    "strip_android_aarch64-12.0.9",
+    "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
-    "bullet-3.25",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -356,13 +352,12 @@ PACKAGES_LINUX_ARM64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038",
+    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -371,13 +366,12 @@ PACKAGES_ANDROID=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -386,13 +380,12 @@ PACKAGES_ANDROID_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "bullet-3.25",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -401,11 +394,10 @@ PACKAGES_ANDROID_X86_64=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
-    "bullet-3.25",
     "glfw-2.7.1",
     "wagyu-69",
     "box2d-3.1.0",
@@ -414,7 +406,7 @@ PACKAGES_EMSCRIPTEN=[
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-a4a2f5"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -461,7 +453,6 @@ BOB_TOOL_PACKAGE_PREFIXES = (
     'ogg-',
     'spirv-tools-',
     'strip_android-',
-    'strip_android_aarch64-',
     'tint-',
 )
 
@@ -494,18 +485,21 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw opus".split()
-EXTERNAL_CMAKE_LIBS = "bullet3d vkquality".split()
+EXTERNAL_WAF_LIBS = "glfw opus".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 vkquality skribidi".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
-    "bullet3d": "3.25",
+    "box2d": "3.1.0",
+    "box2d_v2": "2.2.1",
     "vkquality": "1.1-2642a0d",
+    "skribidi": "a4a2f5",
 }
 EXTERNAL_PACKAGE_NAMES = {
-    "bullet3d": "bullet",
+    "box2d_v2": "box2d_defold",
+    "skribidi": "SkriBidi",
 }
 EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
-    "bullet3d",
+    "skribidi",
 }
 
 def get_host_platform():
@@ -927,11 +921,12 @@ class Configuration(object):
     def distclean(self):
         self._remove_tree(self.dynamo_home)
 
-        for builddir in glob(join(self.defold_root, 'engine/*/build')):
-            self._remove_tree(builddir)
+        for directory in ('engine', 'external'):
+            for builddir in glob(join(self.defold_root, directory, '*/build')):
+                self._remove_tree(builddir)
+            self._remove_tree(join(self.defold_root, directory, 'build'))
         self._remove_tree(join(self.defold_root, 'share/extender/build'))
         self._remove_tree(join(self.defold_root, 'build', 'cmake'))
-        self._remove_tree(join(self.defold_root, 'engine', 'build'))
         self._remove_tree(join(self.defold_root, 'solutions'))
 
         # remove engine test dir specifically
@@ -1631,7 +1626,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("glfw_android.jar", "vkquality.jar")
+                external_jars = ("glfw_android.jar",)
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -2258,8 +2253,11 @@ class Configuration(object):
                 or previous_skip_bob_light != 'ON'):
             return False
 
-        # Keep test install rules consistent with the requested host pass.
-        return previous_build_tests == current_build_tests
+        # A same-platform host pass may reuse the previous full build graph even
+        # when that graph contains tests. The host pass only builds the default
+        # target, so test targets remain excluded. Installation is deferred to
+        # the subsequent full engine pass when reusing this configuration.
+        return previous_build_tests in ('OFF', 'ON')
 
     def _cmake_cache_matches_configure_state(self, cmake_cache, configure_state):
         if not os.path.exists(cmake_cache):
@@ -2375,6 +2373,29 @@ class Configuration(object):
         if not os.path.exists(build_ninja):
             return True
 
+        # CMake's detected target system is immutable within an existing build
+        # tree. If a Windows build directory is later reused for a Generic
+        # console target, updating CMAKE_SYSTEM_NAME in the cache is not enough:
+        # generated link rules keep Windows image flags and system libraries.
+        # Force a clean configure when that generated platform metadata is stale.
+        if platform in ('x86_64-ps4', 'x86_64-ps5', 'arm64-nx64'):
+            cmake_files_dir = join(configure_state.get('builddir', ''), 'CMakeFiles')
+            system_files = []
+            if os.path.isdir(cmake_files_dir):
+                for entry in os.listdir(cmake_files_dir):
+                    system_file = join(cmake_files_dir, entry, 'CMakeSystem.cmake')
+                    if os.path.isfile(system_file):
+                        system_files.append(system_file)
+            for system_file in system_files:
+                try:
+                    with open(system_file, 'r') as f:
+                        system_content = f.read()
+                except OSError:
+                    continue
+                if 'set(CMAKE_SYSTEM_NAME "Generic")' not in system_content:
+                    self._log('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform))
+                    return False
+
         try:
             with open(build_ninja, 'r') as f:
                 content = f.read().replace('\\', '/')
@@ -2382,7 +2403,13 @@ class Configuration(object):
             return True
 
         expected_engine_root = normpath(join(build_home, 'engine')).replace('\\', '/').lower()
-        generated_build_dir_re = re.compile(r'[A-Za-z]\$?:/[^ \t\r\n"<>|]*/engine/[^/\s]+/build/%s' % re.escape(platform))
+        # Require a token boundary before a Windows drive letter. Without it,
+        # target properties such as "fontrenderer:/Users/..." are misread as
+        # the drive path "r:/Users/...", causing valid build outputs to be
+        # removed before every incremental build.
+        generated_build_dir_re = re.compile(
+            r'(?<![A-Za-z0-9_])[A-Za-z]\$?:/[^ \t\r\n"<>|]*/engine/[^/\s]+/build/%s'
+            % re.escape(platform))
         for match in generated_build_dir_re.finditer(content):
             path = match.group(0).replace('$:', ':')
             normalized_path = normpath(path).replace('\\', '/').lower()
@@ -2511,17 +2538,34 @@ class Configuration(object):
 
         self.build_tracker.end_command(log_cmd_build)
 
+        if compatible_configure:
+            log_cmd_stage = f'CMake stage Bob Light dependencies {name}'
+            self.build_tracker.start_command(log_cmd_stage)
+
+            cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
+            if is_verbose:
+                cmake_stage_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_stage_args, cwd = self.defold_root)
+
+            self.build_tracker.end_command(log_cmd_stage)
+
         # Keep install as a separate phase. Use cmake --install instead of the
         # generated install target so the install phase does not re-enter 'all'.
-        log_cmd_install = f'CMake install {name}'
-        self.build_tracker.start_command(log_cmd_install)
+        # When a same-platform host pass reuses the full engine configuration,
+        # defer installation until the subsequent engine pass has built every
+        # target referenced by the full graph's install rules.
+        if compatible_configure:
+            self._log(f'Deferring CMake install {name}; reusing full engine configuration')
+        else:
+            log_cmd_install = f'CMake install {name}'
+            self.build_tracker.start_command(log_cmd_install)
 
-        cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
-        if is_verbose:
-            cmake_install_args.append('--verbose')
-        run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
+            cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
+            if is_verbose:
+                cmake_install_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
 
-        self.build_tracker.end_command(log_cmd_install)
+            self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
@@ -2654,7 +2698,13 @@ class Configuration(object):
             reuse_builddir = host == target_platform
             target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir, use_existing_bob_light = True)
+            self._build_engine_libs_cmake(
+                'engine_libs',
+                target_lib_set,
+                target_platform,
+                skip_tests = self.skip_tests,
+                reuse_builddir = reuse_builddir,
+                use_existing_bob_light = True)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
@@ -2678,6 +2728,40 @@ class Configuration(object):
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
+
+    def build_ext(self):
+        self.check_sdk()
+
+        platform = self._cmake_target_platform(self.target_platform)
+        source_dir = join(self.defold_root, 'external')
+        build_dir = join(source_dir, 'build', platform)
+        build_type = self._find_cmake_build_type(self.waf_options)
+        configure_args = [
+            'cmake', '-S', source_dir, '-B', build_dir, '-GNinja',
+            '-DCMAKE_BUILD_TYPE=%s' % build_type,
+            '-DTARGET_PLATFORM=%s' % platform,
+            '-DDEFOLD_SDK_ROOT:PATH=%s' % self.dynamo_home,
+            '-DBUILD_TESTS=OFF',
+            '-DCMAKE_INSTALL_MESSAGE=LAZY',
+        ]
+        build_args = ['cmake', '--build', build_dir]
+        if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
+            build_args.append('--verbose')
+        install_args = ['cmake', '--install', build_dir, '--config', build_type]
+
+        # Keep the build tree and installed files so subsequent build_ext calls
+        # only rebuild changed sources. Engine builds consume the installed libs.
+        self.build_tracker.start_component('ext', platform)
+        try:
+            for name, args in [('configure', configure_args), ('build', build_args), ('install', install_args)]:
+                command = 'CMake %s ext' % name
+                self.build_tracker.start_command(command)
+                try:
+                    run.env_command(self._form_env(), args, cwd=self.defold_root)
+                finally:
+                    self.build_tracker.end_command(command)
+        finally:
+            self.build_tracker.end_component('ext', platform)
 
     def build_external(self):
         libs = EXTERNAL_LIBS
@@ -2705,9 +2789,12 @@ class Configuration(object):
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
+        cmake_platform = 'x86-win32' if platform == 'win32' else platform
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
         product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
-        package_name = '%s-%s' % (product_name, version)
+        default_package_name = '%s-%s' % (product_name, version)
+        package_name = build_private.get_external_package_name(
+            platform, lib, default_package_name)
         source_dir = join(self.defold_root, 'external', lib)
         build_dir = join(source_dir, 'build', platform)
         install_dir = join(self.dynamo_home, package_name)
@@ -2730,7 +2817,8 @@ class Configuration(object):
             '-B', build_dir,
             '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
-            '-DTARGET_PLATFORM=%s' % platform,
+            '-DTARGET_PLATFORM=%s' % cmake_platform,
+            '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
         ]
@@ -2755,12 +2843,20 @@ class Configuration(object):
             package_directories = ['include', 'lib', 'share']
             if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
                 package_directories = ['lib']
+            package_directories = [name for name in package_directories
+                                   if os.path.exists(join(install_dir, name))]
+            if not package_directories:
+                self.fatal("External package '%s' did not install any platform files" % lib)
             package_command = ['tar', 'zcvf', os.path.normpath(package_path)] + package_directories
             self.build_tracker.start_command('Package external %s' % lib)
             try:
                 run.command(package_command, cwd=install_dir)
                 if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
-                    common_package_command = ['tar', 'zcvf', os.path.normpath(common_package_path), 'include', 'share']
+                    common_package_directories = [name for name in ('include', 'share')
+                                                  if os.path.exists(join(install_dir, name))]
+                    if not common_package_directories:
+                        self.fatal("External package '%s' did not install any common files" % lib)
+                    common_package_command = ['tar', 'zcvf', os.path.normpath(common_package_path)] + common_package_directories
                     run.command(common_package_command, cwd=install_dir)
             finally:
                 self.build_tracker.end_command('Package external %s' % lib)
@@ -2819,13 +2915,23 @@ class Configuration(object):
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
-                         'ext/share/java/vkquality.jar': 'lib/vkquality.jar',
                          'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
                          'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
                          'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',
                          'ext/lib/x86_64-android/libvkquality.so': 'libexec/x86_64-android/libvkquality.so'}
 
         switch_files = {}
+
+        # bob loads these natively on whichever desktop platform it runs on, so it needs
+        # all of them and not just the host's. scripts/copy.sh takes them out of
+        # $DYNAMO_HOME/archive/$SHA1; without an archive they come straight from the
+        # engine builds in $DYNAMO_HOME instead.
+        desktop_native_files = {}
+        for plf in ('x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32'):
+            for lib in ('texc', 'modelc', 'shaderc', 'fontc'):
+                name = format_lib('%s_shared' % lib, plf)
+                desktop_native_files['lib/%s/%s' % (plf, name)] = 'lib/%s/%s' % (plf, name)
+
         win32_engine_platform = self._engine_artifact_platform('win32')
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
@@ -2834,11 +2940,13 @@ class Configuration(object):
                                  'share/java/fontrenderer.jar': 'lib/fontrenderer.jar',
                                  'share/java/modelimporter.jar': 'lib/modelimporter.jar',
                                  'share/java/shaderc.jar': 'lib/shaderc.jar',
+                                 'share/java/texturecompiler.jar': 'lib/texturecompiler.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
                                  'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
                                  'lib/%s/%s' % (self.host, fontc_name): 'lib/%s/%s' % (self.host, fontc_name),
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
+                     'desktop-natives': desktop_native_files,
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'web-bundling': js_files,
@@ -3968,9 +4076,10 @@ if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)
 
 Commands:
-distclean        - Removes the DYNAMO_HOME folder
+distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
+build_ext        - Build and install source dependencies with CMake (currently Bullet)
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk

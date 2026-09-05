@@ -947,6 +947,8 @@
                         (g/non-undoable
                           (g/set-property self :op nil)
                           (g/set-property self :op-data nil)))
+      :mouse-exited   (g/non-undoable
+                        (g/set-property self :cursor-world-pos nil))
 
       nil)))
 

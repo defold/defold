@@ -180,17 +180,8 @@
           descriptors)))
 
 (defn- model-mesh-choicebox [collision-meshes]
-  (let [collision-meshes (model-loader/named-meshes collision-meshes)
-        name-counts (frequencies (into [] (map :name) collision-meshes))]
-    {:type :choicebox
-     :options (into [[-1 ""]]
-                    (map (fn [{:keys [index name]}]
-                           [index (if (= 1 (get name-counts name))
-                                    name
-                                    (localization/message "property.mesh-selection.option.raw-index"
-                                                          {"mesh" name
-                                                           "index" index}))]))
-                    collision-meshes)}))
+  {:type :choicebox
+   :options (model-loader/named-mesh-choicebox-options collision-meshes)})
 
 (defn- set-mesh-index [evaluation-context self _old-value new-value]
   (when (properties/user-edit? self :mesh-index evaluation-context)
@@ -361,9 +352,9 @@
             mesh-set-build-target
             (if (str/blank? mesh-name)
               mesh-set-build-target
-              (let [selected-mesh-set (update (:mesh-set mesh-content) :raw-models
-                                              #(into [] (filter (fn [raw-model]
-                                                                  (= mesh-index (:mesh-index raw-model)))) %))]
+              (let [selected-mesh-set (-> (:mesh-set mesh-content)
+                                          (update :models coll/filterv-> #(= mesh-index (:mesh-index %)))
+                                          (update :raw-models coll/filterv-> #(= mesh-index (:mesh-index %))))]
                 (rig/make-mesh-set-build-target workspace
                                                 _node-id
                                                 selected-mesh-set
@@ -386,14 +377,18 @@
             dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
 
-(g/defnk produce-scene [_node-id scene mesh-name mesh-index material-name->material-scene-info skeleton-resource]
+(g/defnk produce-scene [_node-id scene mesh-name mesh-index ^:try collision-meshes material-name->material-scene-info skeleton-resource]
   (if scene
-    (model-scene/augment-scene scene
-                               _node-id
-                               "model"
-                               material-name->material-scene-info
-                               (some? skeleton-resource)
-                               (if (str/blank? mesh-name) -1 mesh-index))
+    (let [selected-mesh-index (if (str/blank? mesh-name)
+                                -1
+                                (when-not (g/error-value? collision-meshes)
+                                  (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))))]
+      (model-scene/augment-scene scene
+                                 _node-id
+                                 "model"
+                                 material-name->material-scene-info
+                                 (some? skeleton-resource)
+                                 selected-mesh-index))
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 
@@ -684,8 +679,8 @@
                                    :prepare-user-edit-fn prepare-mesh-index-user-edit)))
             (dynamic error (g/fnk [_node-id mesh mesh-name mesh-index ^:try collision-meshes]
                              (model-mesh-selection-error _node-id mesh mesh-name mesh-index collision-meshes)))
-            (dynamic label (properties/label-dynamic :model :mesh))
-            (dynamic tooltip (properties/tooltip-dynamic :model :mesh)))
+            (dynamic label (properties/label-dynamic :model :mesh-name))
+            (dynamic tooltip (properties/tooltip-dynamic :model :mesh-name)))
   (input copied-nodes g/Any :array :cascade-delete)
   (input material-binding-infos g/Any :array)
   (output materials [Material] :cached

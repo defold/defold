@@ -157,14 +157,16 @@
 
 (defn- constant->val [constant]
   (case (:type constant)
-    :constant-type-user (let [[x y z w] (:value constant)]
-                          (Vector4d. x y z w))
-    :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
-                                  (doto (Matrix4d.)
-                                    (.setElement 0 0 x)
-                                    (.setElement 1 0 y)
-                                    (.setElement 2 0 z)
-                                    (.setElement 3 0 w)))
+    (:constant-type-user :constant-type-user-color) (let [[x y z w] (:value constant)]
+                                                      (Vector4d. x y z w))
+    :constant-type-user-matrix4 (let [[m00 m10 m20 m30
+                                       m01 m11 m21 m31
+                                       m02 m12 m22 m32
+                                       m03 m13 m23 m33] (:value constant)]
+                                  (Matrix4d. (double-array [m00 m01 m02 m03
+                                                            m10 m11 m12 m13
+                                                            m20 m21 m22 m23
+                                                            m30 m31 m32 m33])))
     :constant-type-time (Vector4d. 0.0 0.0 0.0 0.0)
     :constant-type-viewproj :view-proj
     :constant-type-world :world
@@ -268,15 +270,16 @@
                       filter-min)))))
           samplers)))
 
-(defn- vector-type->form-field-type [vector-type]
-  (case vector-type
-    :vector-type-scalar :vec4
-    :vector-type-vec2 :vec4
-    :vector-type-vec3 :vec4
-    :vector-type-vec4 :vec4
-    :vector-type-mat2 :mat4
-    :vector-type-mat3 :mat4
-    :vector-type-mat4 :mat4))
+(defn- vector-type->form-field-type [semantic-type vector-type data-type normalize]
+  (let [color (and (= :semantic-type-color semantic-type)
+                   (or (= :type-float data-type) normalize))]
+    (case vector-type
+      :vector-type-scalar :vec4
+      :vector-type-vec2 :vec4
+      (:vector-type-vec3 :vector-type-vec4) (if color :color :vec4)
+      :vector-type-mat2 :mat4
+      :vector-type-mat3 :mat4
+      :vector-type-mat4 :mat4)))
 
 (def unsupported-semantic-types
   #{:semantic-type-bone-weights
@@ -286,7 +289,9 @@
   [{:path [:semantic-type]
     :localization-key "material.attributes.semantic-type"
     :type :choicebox
-    :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
+    :options (vec (sort-by first
+                           (remove #(unsupported-semantic-types (first %))
+                                   (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
     :localization-key "material.attributes.step-function"
@@ -310,7 +315,8 @@
     :default graphics/default-attribute-vector-type}
    {:path [:values]
     :localization-key "material.attributes.value"
-    :type (vector-type->form-field-type graphics/default-attribute-vector-type)
+    :type (vector-type->form-field-type graphics/default-attribute-semantic-type graphics/default-attribute-vector-type
+                                        graphics/default-attribute-data-type false)
     :default (graphics.types/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
    {:path [:normalize]
     :localization-key "material.attributes.normalize"
@@ -358,7 +364,9 @@
                 value-vertex-attribute-field-index
                 (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
                       vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
-                      type (vector-type->form-field-type vector-type)
+                      data-type (:data-type selected-attribute graphics/default-attribute-data-type)
+                      normalize (:normalize selected-attribute false)
+                      type (vector-type->form-field-type semantic-type vector-type data-type normalize)
                       default (graphics.types/default-attribute-doubles semantic-type vector-type)]
                   {:path [:values]
                    :localization-key "material.attributes.value"
@@ -432,6 +440,9 @@
 
 (defn- set-form-value-fn [property value user-data]
   (case property
+    (:vertex-constants :fragment-constants)
+    (mapv render-program-utils/coerce-constant value)
+
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
     ;; updated data and vector type.
@@ -496,6 +507,7 @@
    (let [s (or sampler default-editable-sampler)
          params {:wrap-s (wrap-mode->gl (:wrap-u s))
                  :wrap-t (wrap-mode->gl (:wrap-v s))
+                 :wrap-r (wrap-mode->gl (:wrap-w s))
                  :min-filter (filter-mode-min->gl (:filter-min s) default-tex-params)
                  :mag-filter (filter-mode-mag->gl (:filter-mag s) default-tex-params)
                  :name (:name s)
