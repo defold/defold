@@ -232,7 +232,7 @@
         (:strip-resource-binding-namespace-regex-str combined-shader-info))
       (shader/with-preview-light-capacity (:preview-light-capacity combined-shader-info))))
 
-(g/defnk produce-shader [combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
+(g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
   (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info
 
         uniform-values-by-name
@@ -248,7 +248,8 @@
                            (pair resolved-sampler-name nil))))
                   samplers))]
 
-    (shader/make-shader-lifecycle shader-request-data shader-request-data attribute-reflection-infos uniform-values-by-name)))
+    ;; OpenGL programs retain uniform values, including constants omitted by a material.
+    (shader/make-shader-lifecycle _node-id shader-request-data attribute-reflection-infos uniform-values-by-name)))
 
 (g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
   ;; Replace any default filter modes with the setting from game.project.
