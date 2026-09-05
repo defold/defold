@@ -3757,8 +3757,6 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     WebGPURenderTarget* rt = new WebGPURenderTarget();
     rt->m_Base.m_Id        = GetNextRenderTargetId();
     rt->m_BufferTypeFlags  = buffer_type_flags;
-    rt->m_DepthTexture     = params.m_DepthTexture;
-    rt->m_StencilTexture   = params.m_StencilTexture;
     rt->m_Width = rt->m_Height = 0;
     memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
     rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
@@ -3788,16 +3786,17 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     if (requested_color_count > max_color_attachments)
         return WebGPUFailRenderTargetCreation(_context, rt, "the requested MRT attachment count exceeds the WebGPU device limit.");
 
+    TextureFormat normalized_color_formats[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+    WGPUTextureFormat webgpu_color_formats[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
     uint32_t requested_color_bytes_per_sample = 0;
     for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
     {
         if (!(buffer_type_flags & GetBufferTypeFromIndex(i)))
             continue;
-        TextureFormat format = params.m_ColorBufferParams[i].m_Format;
-        WGPUTextureFormat webgpu_format;
-        if (!WebGPUGetColorRenderTargetFormat(&format, &webgpu_format))
+        normalized_color_formats[i] = params.m_ColorBufferParams[i].m_Format;
+        if (!WebGPUGetColorRenderTargetFormat(&normalized_color_formats[i], &webgpu_color_formats[i]))
             return WebGPUFailRenderTargetCreation(_context, rt, "the requested color attachment format is not renderable by WebGPU.");
-        requested_color_bytes_per_sample += WebGPUGetColorAttachmentBytesPerSample(webgpu_format);
+        requested_color_bytes_per_sample += WebGPUGetColorAttachmentBytesPerSample(webgpu_color_formats[i]);
     }
     if (requested_color_bytes_per_sample > max_color_bytes_per_sample)
         return WebGPUFailRenderTargetCreation(_context, rt, "the requested color formats exceed maxColorAttachmentBytesPerSample.");
@@ -3825,9 +3824,9 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         }
     }
 
-    const bool requested_depth = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) != 0;
-    const bool requested_stencil = (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT) != 0;
-    if (requested_depth)
+    const bool has_depth = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) != 0;
+    const bool has_stencil = (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT) != 0;
+    if (has_depth)
     {
         if (params.m_DepthBufferParams.m_Format != TEXTURE_FORMAT_DEPTH ||
             !WebGPUValidateRenderTargetTextureParams(context, params.m_DepthBufferCreationParams, params.m_DepthBufferParams, "depth attachment"))
@@ -3837,7 +3836,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         attachment_width = params.m_DepthBufferParams.m_Width;
         attachment_height = params.m_DepthBufferParams.m_Height;
     }
-    if (requested_stencil)
+    if (has_stencil)
     {
         if (params.m_StencilBufferParams.m_Format != TEXTURE_FORMAT_STENCIL ||
             !WebGPUValidateRenderTargetTextureParams(context, params.m_StencilBufferCreationParams, params.m_StencilBufferParams, "stencil attachment"))
@@ -3865,17 +3864,9 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         const BufferType buffer_type = color_buffer_flags[i];
         if (buffer_type_flags & buffer_type)
         {
-            if (!WebGPUValidateRenderTargetTextureParams(context, params.m_ColorBufferCreationParams[i], params.m_ColorBufferParams[i], "color attachment"))
-                return WebGPUFailRenderTargetCreation(_context, rt, "invalid color attachment parameters.");
-            if (params.m_ColorBufferLoadOps[i] != ATTACHMENT_OP_DONT_CARE && params.m_ColorBufferLoadOps[i] != ATTACHMENT_OP_LOAD && params.m_ColorBufferLoadOps[i] != ATTACHMENT_OP_CLEAR)
-                return WebGPUFailRenderTargetCreation(_context, rt, "invalid color attachment load operation.");
-            if (params.m_ColorBufferStoreOps[i] != ATTACHMENT_OP_DONT_CARE && params.m_ColorBufferStoreOps[i] != ATTACHMENT_OP_STORE)
-                return WebGPUFailRenderTargetCreation(_context, rt, "invalid color attachment store operation.");
-
             TextureParams& color_params = rt->m_Base.m_ColorTextureParams[i];
-            WGPUTextureFormat color_format;
-            if (!WebGPUGetColorRenderTargetFormat(&color_params.m_Format, &color_format))
-                return WebGPUFailRenderTargetCreation(_context, rt, "the requested color attachment format is not renderable by WebGPU.");
+            color_params.m_Format = normalized_color_formats[i];
+            const WGPUTextureFormat color_format = webgpu_color_formats[i];
 
             const uint32_t attachment_index = rt->m_Base.m_ColorAttachmentCount;
             rt->m_ColorBufferTypes[attachment_index] = buffer_type;
@@ -3931,32 +3922,15 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
                 rt->m_Width  = color_params.m_Width;
                 rt->m_Height = color_params.m_Height;
             }
-            if (rt->m_Width != color_params.m_Width || rt->m_Height != color_params.m_Height)
-                return WebGPUFailRenderTargetCreation(_context, rt, "all color attachments must have identical dimensions.");
             ++rt->m_Base.m_ColorAttachmentCount;
         }
     }
 
     // depth/stencil
-    const bool has_depth = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT, has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     if (has_depth || has_stencil)
     {
-        if (has_depth && params.m_DepthBufferParams.m_Format != TEXTURE_FORMAT_DEPTH)
-            return WebGPUFailRenderTargetCreation(_context, rt, "depth attachments must use TEXTURE_FORMAT_DEPTH.");
-        if (has_stencil && params.m_StencilBufferParams.m_Format != TEXTURE_FORMAT_STENCIL)
-            return WebGPUFailRenderTargetCreation(_context, rt, "stencil attachments must use TEXTURE_FORMAT_STENCIL.");
-        if (has_depth && !WebGPUValidateRenderTargetTextureParams(context, params.m_DepthBufferCreationParams, params.m_DepthBufferParams, "depth attachment"))
-            return WebGPUFailRenderTargetCreation(_context, rt, "invalid depth attachment parameters.");
-        if (has_stencil && !WebGPUValidateRenderTargetTextureParams(context, params.m_StencilBufferCreationParams, params.m_StencilBufferParams, "stencil attachment"))
-            return WebGPUFailRenderTargetCreation(_context, rt, "invalid stencil attachment parameters.");
         const TextureCreationParams& requested_creation_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
         const TextureParams& requested_params = has_depth ? params.m_DepthBufferParams : params.m_StencilBufferParams;
-        if (has_depth && has_stencil &&
-            (params.m_DepthBufferParams.m_Width != params.m_StencilBufferParams.m_Width || params.m_DepthBufferParams.m_Height != params.m_StencilBufferParams.m_Height ||
-             params.m_DepthBufferCreationParams.m_Width != params.m_StencilBufferCreationParams.m_Width || params.m_DepthBufferCreationParams.m_Height != params.m_StencilBufferCreationParams.m_Height))
-            return WebGPUFailRenderTargetCreation(_context, rt, "depth and stencil attachments must have identical dimensions.");
-        if ((rt->m_Width && rt->m_Width != requested_params.m_Width) || (rt->m_Height && rt->m_Height != requested_params.m_Height))
-            return WebGPUFailRenderTargetCreation(_context, rt, "color and depth/stencil attachments must have identical dimensions.");
 
         TextureCreationParams ds_creation_params = requested_creation_params;
         if (has_depth && params.m_DepthTexture)

@@ -156,8 +156,6 @@ namespace dmGraphics
         uint32_t     m_BufferTypeFlags;
         uint32_t     m_TransientBufferTypes;
         uint8_t      m_Multisample;
-        uint8_t      m_DepthTexture : 1;
-        uint8_t      m_StencilTexture : 1;
     };
 
     struct WebGPUComputePass
