@@ -773,28 +773,6 @@
                     :shader shader
                     :textures gpu-textures)))))))
 
-(defn- usable-preview-material-scene-info?
-  [{:keys [gpu-textures material-attribute-infos material-index shader vertex-attribute-bytes vertex-space]}]
-  (and (number? material-index)
-       (shader/shader-lifecycle? shader)
-       (contains? #{:vertex-space-local :vertex-space-world} vertex-space)
-       (map? gpu-textures)
-       (coll/every? (fn [[sampler-name _]]
-                      (string? sampler-name))
-                    gpu-textures)
-       (coll/every? (fn [[_ gpu-texture]]
-                      (texture/texture-lifecycle? gpu-texture))
-                    gpu-textures)
-       (vector? material-attribute-infos)
-       (coll/every? map? material-attribute-infos)
-       (map? vertex-attribute-bytes)
-       (coll/every? (fn [[attribute-key _]]
-                      (keyword? attribute-key))
-                    vertex-attribute-bytes)
-       (coll/every? (fn [[_ attribute-bytes]]
-                      (bytes? attribute-bytes))
-                    vertex-attribute-bytes)))
-
 (defn- apply-preview-materials-to-model-scene [model-scene scene-node-id material-index->material-scene-info]
   (if-let [mesh-scenes (:children model-scene)]
     (assoc model-scene
@@ -809,9 +787,8 @@
 (g/defnk produce-scene [_node-id source-scene material-scene-infos]
   (let [material-index->material-scene-info
         (into {}
-              (keep (fn [{:keys [material-index] :as material-scene-info}]
-                      (when (usable-preview-material-scene-info? material-scene-info)
-                        [material-index material-scene-info])))
+              (comp (keep identity)
+                    (coll/pair-map-by :material-index))
               material-scene-infos)
 
         apply-preview-materials
@@ -1130,13 +1107,15 @@
                   ^:try material-attribute-infos
                   ^:try shader
                   ^:try vertex-space]
-            {:gpu-textures gpu-textures
-             :material-attribute-infos material-attribute-infos
-             :material-index material-index
-             :name name
-             :shader shader
-             :vertex-attribute-bytes {}
-             :vertex-space vertex-space})))
+            (when (coll/every? #(and % (not (g/error-value? %)))
+                              [material-index gpu-textures material-attribute-infos shader vertex-space])
+              {:gpu-textures gpu-textures
+               :material-attribute-infos material-attribute-infos
+               :material-index material-index
+               :name name
+               :shader shader
+               :vertex-attribute-bytes {}
+               :vertex-space vertex-space}))))
 
 (defn- create-gltf-preview-texture-binding-tx [material-binding {:keys [sampler texture]}]
   (g/make-nodes (g/node-id->graph-id material-binding)

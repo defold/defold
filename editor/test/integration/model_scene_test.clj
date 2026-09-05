@@ -223,6 +223,7 @@
                   (testing name
                     (let [material-node-id (test-util/resource-node project (str source-proj-path "/materials/" index ".material"))
                           image-node-id (test-util/resource-node project (str source-proj-path "/images/" index ".png"))
+                          preview-binding-node-id (ffirst (g/targets-of material-node-id :shader))
                           expected-shader (g/node-value material-node-id :shader)
                           expected-gpu-texture (g/node-value image-node-id :gpu-texture)
                           expected-sampler (first (g/node-value material-node-id :samplers))
@@ -249,7 +250,21 @@
                                      :default-tex-params)
                              (dissoc (:params actual-gpu-texture)
                                      :default-tex-params)))
-                      (is (= [0] (vec (:texture-units actual-gpu-texture)))))))))))))))
+                      (is (= [0] (vec (:texture-units actual-gpu-texture))))
+
+                      (doseq [[node-id property] [[material-node-id :fragment-program]
+                                                [preview-binding-node-id :material]]]
+                        (testing (str "Preview fallback with missing " property)
+                          (test-util/with-prop [node-id property nil]
+                            (is (nil? (g/node-value preview-binding-node-id :material-scene-info)))
+                            (let [scene (g/node-value source-node-id :scene)
+                                  fallback-scene (g/node-value source-node-id :source-scene)]
+                              (is (not (g/error? scene)))
+                              (is (= (get-in (scene-mesh-user-data-by-material-index fallback-scene) [index :shader])
+                                     (get-in (scene-mesh-user-data-by-material-index scene) [index :shader])))))
+                          (is (= expected-shader
+                                 (get-in (scene-mesh-user-data-by-material-index (g/node-value source-node-id :scene))
+                                         [index :shader]))))))))))))))))
 
 (deftest gltf-metadata-is-shown-in-outline-and-properties
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")

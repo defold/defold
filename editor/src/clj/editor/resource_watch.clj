@@ -227,9 +227,6 @@
        (= (:dependency-statuses cache-entry)
           (resource-statuses status-map (coll/keys (:dependency-statuses cache-entry))))))
 
-(defn- make-gltf-data-resolver [resources-by-proj-path dependency-proj-paths]
-  (gltf/make-data-resolver resources-by-proj-path #(swap! dependency-proj-paths conj %)))
-
 (defn- gltf-asset-info [^GltfContainer$Asset asset]
   (let [common-info {:index (.getIndex asset)
                      :name (.getName asset)
@@ -340,7 +337,7 @@
   [workspace source-resource resources-by-proj-path status-map]
   (let [source-proj-path (resource/proj-path source-resource)
         dependency-proj-paths (atom #{source-proj-path})
-        data-resolver (make-gltf-data-resolver resources-by-proj-path dependency-proj-paths)
+        data-resolver (gltf/make-data-resolver resources-by-proj-path #(swap! dependency-proj-paths conj %))
         extraction-data
         (try
           (let [^bytes source-content (resource/resource->bytes source-resource)
