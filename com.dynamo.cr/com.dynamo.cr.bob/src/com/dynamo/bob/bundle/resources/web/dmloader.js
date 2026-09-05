@@ -2,9 +2,11 @@
 *     'archive_location_filter':
 *         Filter function that will run for each archive path, called as
 *         filter(path, attempt) where attempt counts up per retry. What it returns is
-*         requested as is, so a filter that signs its urls must sign the retry url too, or
-*         ignore attempt to reuse the signed url. Unsigned urls can use
-*         FileLoader.addCacheBuster(url, attempt) to bypass a bad http cache entry.
+*         requested as is. The default filter varies the url on retries with
+*         FileLoader.addCacheBuster(url, attempt) unless an archive_location_suffix is
+*         configured, since a suffix may carry a signature that covers the query string.
+*         A custom filter that signs its urls must sign the retry url too, or ignore
+*         attempt to reuse the signed url.
 *
 *     'unsupported_webgl_callback':
 *         Function that is called if WebGL is not supported.
@@ -49,7 +51,10 @@
 */
 var CUSTOM_PARAMETERS = {
     archive_location_filter: function( path, attempt ) {
-        var url = ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
+        var url = "{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path;
+        var suffix = "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}";
+        // a configured suffix may carry a signature that covers the query string
+        if (suffix) return url + suffix;
         return attempt ? FileLoader.addCacheBuster(url, attempt) : url;
     },
     engine_arguments: [{{#DEFOLD_ENGINE_ARGUMENTS}}"{{.}}",{{/DEFOLD_ENGINE_ARGUMENTS}}],
@@ -252,7 +257,9 @@ var FileLoader = {
     // onload(response, url) - url is the one that answered, which is not the one passed in
     //                         when a retry had to vary it
     // onretry(loadedSize, currentAttempt)
-    load: function(url, responseType, onprogress, onerror, onload, onretry) {
+    // onverify(response) - optional, returns an error message for a response that must not
+    //                      be used, which is then retried like a failed status
+    load: function(url, responseType, onprogress, onerror, onload, onretry, onverify) {
         var request = FileLoader.request(url, "GET", responseType);
         request.onprogress = function(xhr, e, ls) {
             var delta = e.loaded - ls;
@@ -266,9 +273,13 @@ var FileLoader = {
                 if (xhr.status === 200) {
                     var res = xhr.response;
                     if (responseType == "json" && typeof res === "string") {
-                        onload(JSON.parse(res), request.url);
-                    } else {
+                        res = JSON.parse(res);
+                    }
+                    var error = onverify ? onverify(res) : undefined;
+                    if (!error) {
                         onload(res, request.url);
+                    } else if (!request.retry(xhr, e)) {
+                        onerror("Error loading '" + request.url + "' (" + error + ")");
                     }
                 } else if (!request.retry(xhr, e)) {
                     onerror("Error loading '" + request.url + "' (status " + xhr.status + ")");
@@ -345,11 +356,6 @@ var EngineLoader = {
             },
             function(error) { throw error; },
             async function(wasm) {
-                {{#html5.verify_downloaded_file_size}}
-                if (wasm.byteLength != EngineLoader.getWasmSize()) {
-                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.getWasmSize());
-                }
-                {{/html5.verify_downloaded_file_size}}
                 if (EngineLoader.getWasmSha1()) {
                     const digest = await window.crypto.subtle.digest("SHA-1", wasm);
                     const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -376,6 +382,13 @@ var EngineLoader = {
             },
             function(loadedDelta, currentAttempt){
                 ProgressUpdater.updateCurrent(-loadedDelta);
+            },
+            function(wasm) {
+                {{#html5.verify_downloaded_file_size}}
+                if (wasm.byteLength != EngineLoader.getWasmSize()) {
+                    return "Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.getWasmSize();
+                }
+                {{/html5.verify_downloaded_file_size}}
             });
     },
 
@@ -449,15 +462,6 @@ var EngineLoader = {
             },
             function(error) { throw error; },
             async function(response, url) {
-                {{#html5.verify_downloaded_file_size}}
-                {{!
-                    response.length counts utf-16 code units, expectedLength counts bytes.
-                }}
-                const actualLength = new TextEncoder().encode(response).length;
-                if (actualLength != expectedLength) {
-                    console.warn("Unexpected JS size: " + actualLength + ", expected: " + expectedLength);
-                }
-                {{/html5.verify_downloaded_file_size}}
                 if (expectedSHA1) {
                     const digest = await window.crypto.subtle.digest("SHA-1", new TextEncoder().encode(response));
                     const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -484,6 +488,17 @@ var EngineLoader = {
             },
             function(loadedDelta, currentAttempt){
                 ProgressUpdater.updateCurrent(-loadedDelta);
+            },
+            function(response) {
+                {{#html5.verify_downloaded_file_size}}
+                {{!
+                    response.length counts utf-16 code units, expectedLength counts bytes.
+                }}
+                const actualLength = new TextEncoder().encode(response).length;
+                if (actualLength != expectedLength) {
+                    return "Unexpected JS size: " + actualLength + ", expected: " + expectedLength;
+                }
+                {{/html5.verify_downloaded_file_size}}
             });
     },
 
@@ -695,6 +710,10 @@ var GameArchiveLoader = {
                     let matches = !!file.sha1;
                     {{/html5.verify_downloaded_file_size}}
                     if (matches && file.sha1) {
+                        {{!
+                            A copy whose hash can not be computed is not trusted either.
+                        }}
+                        matches = false;
                         const stream = FS.open(path, "r");
                         if (stream) {
                             try {
@@ -705,8 +724,6 @@ var GameArchiveLoader = {
                                 }
                             } catch(e) { }
                             FS.close(stream);
-                        } else {
-                            matches = false;
                         }
                     }
                     if (matches) {
