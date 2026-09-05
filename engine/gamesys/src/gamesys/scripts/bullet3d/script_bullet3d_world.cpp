@@ -193,32 +193,33 @@ namespace dmGameSystem
         return index < 0 ? lua_gettop(L) + index + 1 : index;
     }
 
-    static bool GetCollisionObjectOwner(btCollisionObject* object, dmGameObject::HCollection* collection, dmhash_t* instance_id)
+    static bool GetCollisionObjectOwner(btCollisionObject* object, dmGameObject::HCollection* collection, dmGameObject::HGameObject* out_game_object)
     {
         if (!object || !object->getUserPointer())
         {
             return false;
         }
 
-        dmGameObject::HInstance instance = CompCollisionObjectGetInstance(object->getUserPointer());
-        if (!instance)
+        CollisionComponent*       component = (CollisionComponent*)object->getUserPointer();
+        dmGameObject::HGameObject hinstance = CompCollisionObjectGetInstance(component);
+        if (!hinstance)
         {
             return false;
         }
 
-        dmGameObject::HCollection object_collection = dmGameObject::GetCollection(instance);
-        if (!object_collection)
+        dmGameObject::HCollection hcollection = component->m_Collection;
+        if (!hcollection)
         {
             return false;
         }
 
         if (collection)
         {
-            *collection = object_collection;
+            *collection = hcollection;
         }
-        if (instance_id)
+        if (out_game_object)
         {
-            *instance_id = dmGameObject::GetIdentifier(instance);
+            *out_game_object = hinstance;
         }
         return true;
     }
@@ -999,13 +1000,13 @@ namespace dmGameSystem
 
     static bool PushCollisionObjectResult(lua_State* L, btCollisionObject* object)
     {
-        dmGameObject::HCollection collection = 0;
-        dmhash_t                  instance_id = 0;
-        if (!GetCollisionObjectOwner(object, &collection, &instance_id))
+        dmGameObject::HCollection hcollection = 0;
+        dmGameObject::HGameObject hinstance = 0;
+        if (!GetCollisionObjectOwner(object, &hcollection, &hinstance))
         {
             return false;
         }
-        PushBullet3DCollisionObject(L, object, collection, instance_id);
+        PushBullet3DCollisionObject(L, object, hcollection, hinstance);
         return true;
     }
 
@@ -1058,13 +1059,13 @@ namespace dmGameSystem
 
     static bool StoreAsyncCastResult(lua_State* L, const Bullet3DCastResult& result, Bullet3DAsyncCastResult* async_result)
     {
-        dmGameObject::HCollection collection = 0;
-        dmhash_t                  instance_id = 0;
-        if (!GetCollisionObjectOwner(result.m_Object, &collection, &instance_id))
+        dmGameObject::HCollection hcollection = 0;
+        dmGameObject::HGameObject hinstance = 0;
+        if (!GetCollisionObjectOwner(result.m_Object, &hcollection, &hinstance))
         {
             return false;
         }
-        async_result->m_ObjectId = GetOrCreateBullet3DCollisionObjectId(L, result.m_Object, collection, instance_id);
+        async_result->m_ObjectId = GetOrCreateBullet3DCollisionObjectId(L, result.m_Object, hcollection, hinstance);
 
         async_result->m_Point = result.m_Point;
         async_result->m_Normal = result.m_Normal;

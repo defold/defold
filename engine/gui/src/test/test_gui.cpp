@@ -76,8 +76,6 @@ extern uint32_t BUG352_LUA_SIZE;
 
 void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
 
-uintptr_t GetUserDataCallback(dmGui::HScene scene);
-
 dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path);
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
@@ -147,7 +145,6 @@ public:
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
         context_params.m_GetURLCallback = GetURLCallback;
-        context_params.m_GetUserDataCallback = GetUserDataCallback;
         context_params.m_ResolvePathCallback = ResolvePathCallback;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
         context_params.m_PhysicalWidth = 1;
@@ -235,11 +232,6 @@ void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
 {
     dmGuiTest* test = (dmGuiTest*)dmGui::GetSceneUserData(scene);
     url->m_Socket = test->m_Socket;
-}
-
-uintptr_t GetUserDataCallback(dmGui::HScene scene)
-{
-    return (uintptr_t)dmGui::GetSceneUserData(scene);
 }
 
 dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path)

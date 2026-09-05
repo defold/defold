@@ -26,7 +26,7 @@ namespace dmResource
 
 namespace dmGameObject
 {
-    typedef struct Register* HRegister;
+    typedef struct Context* HContext;
 }
 
 typedef uint32_t HProfile; // dlib/profile.h
@@ -49,12 +49,12 @@ namespace dmEngineService
     uint16_t GetPort(HEngineService engine_service);
     dmWebServer::HServer GetWebServer(HEngineService engine_service);
 
-    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist);
+    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HContext regist);
 
     struct ResourceHandlerParams
     {
         dmResource::HFactory      m_Factory;
-        dmGameObject::HRegister   m_Regist;
+        dmGameObject::HContext    m_Regist;
     };
 
     struct EngineState

@@ -58,7 +58,7 @@ namespace dmGameSystem
 
     struct MeshComponent
     {
-        dmGameObject::HInstance         m_Instance;
+        dmGameObject::HGameObject       m_Instance;
         Matrix4                         m_Local;
         Matrix4                         m_World;
         uint32_t                        m_MixedHash;
@@ -393,7 +393,7 @@ namespace dmGameSystem
         component->m_World = Matrix4::identity();
         component->m_BufferVersion = 0;
 
-        const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+        const Matrix4& go_world = dmGameObject::GetWorldMatrix(params.m_Collection, component->m_Instance);
         component->m_World = go_world * component->m_Local;
 
         // Local space uses separate vertex buffers
@@ -423,7 +423,7 @@ namespace dmGameSystem
 
         uint32_t index = (uint32_t)*params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
-        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
 
         dmGameSystem::BufferResource* br = GetBufferResource(component);
 
@@ -454,7 +454,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void UpdateTransforms(MeshWorld* world)
+    static void UpdateTransforms(MeshWorld* world, dmGameObject::HCollection hcollection)
     {
         DM_PROFILE("UpdateTransforms");
 
@@ -468,7 +468,7 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
-            const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
+            const Matrix4& go_world = dmGameObject::GetWorldMatrix(hcollection, c->m_Instance);
             c->m_World = go_world * c->m_Local;
         }
     }
@@ -527,7 +527,7 @@ namespace dmGameSystem
         DM_PROFILE("LateUpdate");
         MeshWorld* world = (MeshWorld*)params.m_World;
 
-        UpdateTransforms(world);
+        UpdateTransforms(world, params.m_Collection);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -984,18 +984,18 @@ namespace dmGameSystem
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
         if (params.m_PropertyId == PROP_VERTICES) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetBufferResource(component), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetBufferResource(component), out_value);
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetMaterialResource(component, component->m_Resource), out_value);
         }
 
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureResource(component, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetTextureResource(component, i), out_value);
             }
         }
 
@@ -1015,7 +1015,7 @@ namespace dmGameSystem
             BufferResource* prev_buffer_resource = GetBufferResource(component);
             BufferResource* prev_custom_buffer_resource = component->m_BufferResource;
 
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, BUFFER_EXT_HASH, (void**)&component->m_BufferResource);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, BUFFER_EXT_HASH, (void**)&component->m_BufferResource);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
             if (res == dmGameObject::PROPERTY_RESULT_OK)
@@ -1056,7 +1056,7 @@ namespace dmGameSystem
         {
             bool prev_material_local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
 
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
             bool new_material_local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
@@ -1076,7 +1076,7 @@ namespace dmGameSystem
         {
             if(params.m_PropertyId == PROP_TEXTURE[i])
             {
-                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_EXT_HASH, (void**)&component->m_Textures[i]);
+                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, TEXTURE_EXT_HASH, (void**)&component->m_Textures[i]);
                 component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
                 return res;
             }

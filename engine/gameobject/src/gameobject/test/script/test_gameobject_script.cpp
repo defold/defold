@@ -25,6 +25,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../gameobject_script.h"
 #include "../script.h"
 #include "gameobject/test/script/test_gameobject_script_ddf.h"
 #include <gameobject/gameobject_ddf.h>
@@ -90,7 +91,7 @@ protected:
 public:
 
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmMessage::HSocket m_Socket;
@@ -100,11 +101,46 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
+static void SetCachedWorldTransform(dmGameObject::HCollection collection, dmGameObject::HGameObject game_object, const Matrix4& transform)
+{
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
+    dmGameObject::Instance* instance = dmGameObject::GetGameObjectFromHandle(collection_ptr, game_object);
+    collection_ptr->m_WorldTransforms[instance->m_Index] = transform;
+}
+
 struct TestScript01Context
 {
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     bool m_Result;
 };
+
+static dmGameObject::CompScriptWorld* GetScriptWorld(dmGameObject::HCollection collection)
+{
+    uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, dmHashString64("scriptc"));
+    return component_type_index == 0xffffffff
+            ? 0
+            : (dmGameObject::CompScriptWorld*)dmGameObject::GetWorld(collection, component_type_index);
+}
+
+TEST_F(ScriptTest, WorldStorageUsesConfiguredCapacity)
+{
+    dmGameObject::HCollection large_collection = dmGameObject::NewCollection("large_script_storage", m_Factory, m_Register, 100000, 0x0);
+    ASSERT_NE(dmGameObject::INVALID_COLLECTION, large_collection);
+    dmGameObject::CompScriptWorld* script_world = GetScriptWorld(large_collection);
+    ASSERT_NE((dmGameObject::CompScriptWorld*)0, script_world);
+    ASSERT_EQ(100000U, script_world->m_Instances.Capacity());
+
+    dmGameObject::DeleteCollection(large_collection);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Register));
+
+    script_world = GetScriptWorld(m_Collection);
+    ASSERT_NE((dmGameObject::CompScriptWorld*)0, script_world);
+    ASSERT_EQ(1024U, script_world->m_Instances.Capacity());
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/go1.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_EQ(1U, script_world->m_Instances.Size());
+    ASSERT_EQ(1024U, script_world->m_Instances.Capacity());
+}
 
 void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
 {
@@ -129,8 +165,8 @@ void TestScript01CollectionDispatch(dmMessage::Message *message_object, void* us
 
 TEST_F(ScriptTest, TestScript01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/go1.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "my_object01"));
 
@@ -191,8 +227,8 @@ TEST_F(ScriptTest, TestFailingScript02)
 TEST_F(ScriptTest, TestFailingScript03)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go3.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/go3.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -206,15 +242,15 @@ TEST_F(ScriptTest, TestFailingScript03)
 TEST_F(ScriptTest, TestFailingScript04)
 {
     // Test update failure, lua update-identifier used for something else than function callback
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go4.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/go4.goc");
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, go);
 }
 
 TEST_F(ScriptTest, TestFailingScript05)
 {
     // Test posting to missing component id
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/go5.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
     ASSERT_FALSE(dmGameObject::Init(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
@@ -235,17 +271,17 @@ TEST_F(ScriptTest, UpdateWithoutTransformChangeDoesNotRefreshWorldTransform)
 {
     const char* go_resource_name = "/update_transform_cache_no_change.goc";
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
-    ASSERT_NE((dmGameObject::HInstance) 0, go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HGameObject) 0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+    SetCachedWorldTransform(m_Collection, go, Matrix4::translation(Vector3(42, 43, 44)));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    Point3 world_position = dmGameObject::GetWorldPosition(m_Collection, go);
     ASSERT_EQ(42, world_position.getX());
     ASSERT_EQ(43, world_position.getY());
     ASSERT_EQ(44, world_position.getZ());
@@ -258,16 +294,16 @@ TEST_F(ScriptTest, UpdateWithTransformChangeRefreshesWorldTransform)
 {
     const char* go_resource_name = "/update_transform_cache_change.goc";
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
-    ASSERT_NE((dmGameObject::HInstance) 0, go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HGameObject) 0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+    SetCachedWorldTransform(m_Collection, go, Matrix4::translation(Vector3(42, 43, 44)));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    Point3 world_position = dmGameObject::GetWorldPosition(m_Collection, go);
     ASSERT_EQ(1, world_position.getX());
     ASSERT_EQ(2, world_position.getY());
     ASSERT_EQ(3, world_position.getZ());
@@ -280,24 +316,24 @@ TEST_F(ScriptTest, MessageWithoutTransformChangeDoesNotRefreshWorldTransform)
 {
     const char* go_resource_name = "/message_transform_cache_no_change.goc";
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
-    ASSERT_NE((dmGameObject::HInstance) 0, go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HGameObject) 0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "message_go"));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+    SetCachedWorldTransform(m_Collection, go, Matrix4::translation(Vector3(42, 43, 44)));
 
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
-    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Path = dmGameObject::GetIdentifier(m_Collection, go);
     receiver.m_Fragment = dmHashString64("script");
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmHashString64("message"), 0, 0, 0x0, 0, 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    Point3 world_position = dmGameObject::GetWorldPosition(m_Collection, go);
     ASSERT_EQ(42, world_position.getX());
     ASSERT_EQ(43, world_position.getY());
     ASSERT_EQ(44, world_position.getZ());
@@ -310,23 +346,23 @@ TEST_F(ScriptTest, MessageWithTransformChangeRefreshesWorldTransform)
 {
     const char* go_resource_name = "/message_transform_cache_change.goc";
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
-    ASSERT_NE((dmGameObject::HInstance) 0, go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HGameObject) 0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "message_transform_go"));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+    SetCachedWorldTransform(m_Collection, go, Matrix4::translation(Vector3(42, 43, 44)));
 
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
-    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Path = dmGameObject::GetIdentifier(m_Collection, go);
     receiver.m_Fragment = dmHashString64("script");
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmHashString64("message"), 0, 0, 0x0, 0, 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    Point3 world_position = dmGameObject::GetWorldPosition(m_Collection, go);
     ASSERT_EQ(1, world_position.getX());
     ASSERT_EQ(2, world_position.getY());
     ASSERT_EQ(3, world_position.getZ());
@@ -364,14 +400,14 @@ TEST_F(ScriptTest, TestReload)
                "    go.set_position(vmath.vector3(1,2,3))\n"
                "end\n");
 
-    dmGameObject::HInstance go;
+    dmGameObject::HGameObject go;
     go = dmGameObject::New(m_Collection, go_resource_name);
-    ASSERT_NE((dmGameObject::HInstance) 0, go);
+    ASSERT_NE((dmGameObject::HGameObject) 0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    Point3 p1 = dmGameObject::GetPosition(go);
+    Point3 p1 = dmGameObject::GetPosition(m_Collection, go);
     ASSERT_EQ(1, p1.getX());
     ASSERT_EQ(2, p1.getY());
     ASSERT_EQ(3, p1.getZ());
@@ -388,7 +424,7 @@ TEST_F(ScriptTest, TestReload)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    Point3 p2 = dmGameObject::GetPosition(go);
+    Point3 p2 = dmGameObject::GetPosition(m_Collection, go);
     ASSERT_EQ(10, p2.getX());
     ASSERT_EQ(20, p2.getY());
     ASSERT_EQ(30, p2.getZ());
@@ -402,8 +438,8 @@ TEST_F(ScriptTest, TestReload)
 
 TEST_F(ScriptTest, Null)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/null.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/null.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -426,8 +462,8 @@ TEST_F(ScriptTest, Null)
 
 TEST_F(ScriptTest, TestModule)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/main.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/main.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
     dmGameObject::Init(m_Collection);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -446,8 +482,8 @@ TEST_F(ScriptTest, TestReloadModule)
                "    return 1010\n"
                "end\n");
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/reload.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/reload.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
     dmGameObject::Init(m_Collection);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -470,8 +506,8 @@ TEST_F(ScriptTest, TestReloadModule)
 
 TEST_F(ScriptTest, TestURL)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/url.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/url.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_id"));
 
@@ -481,8 +517,8 @@ TEST_F(ScriptTest, TestURL)
 
 TEST_F(ScriptTest, TestURLNilId)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/url_nil_id.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/url_nil_id.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_id"));
 
@@ -501,6 +537,15 @@ int TestRef(lua_State* L)
     return 0;
 }
 
+static bool TestFailingGameObjectResolver(void*, dmGameObject::HCollection* out_hcollection, dmGameObject::HGameObject* out_hinstance)
+{
+    *out_hcollection = 1;
+    *out_hinstance = 1;
+    return false;
+}
+
+static dmGameObject::ScriptInstanceGameObjectResolver g_TestFailingGameObjectResolver = { TestFailingGameObjectResolver };
+
 TEST_F(ScriptTest, TestInstanceCallback)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -512,8 +557,8 @@ TEST_F(ScriptTest, TestInstanceCallback)
     lua_pushlightuserdata(L, &ref);
     lua_setglobal(L, REF_VALUE);
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/instance_ref.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/instance_ref.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -522,15 +567,46 @@ TEST_F(ScriptTest, TestInstanceCallback)
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    // Verify that the original GO lookup and the typed overload resolve the same instance,
+    // Verify that the native resolver and the typed overload resolve the same instance,
     // while an unrelated script instance type is rejected.
     dmScript::GetInstance(L);
     uint32_t script_instance_type_hash = dmScript::GetUserType(L, -1);
-    lua_pop(L, 1);
+    ASSERT_TRUE(lua_getmetatable(L, -1));
+    lua_getfield(L, -1, dmGameObject::META_TABLE_GET_GAME_OBJECT);
+    ASSERT_TRUE(lua_islightuserdata(L, -1));
+    dmGameObject::ScriptInstanceGameObjectResolver* resolver = (dmGameObject::ScriptInstanceGameObjectResolver*)lua_touserdata(L, -1);
+    ASSERT_NE((dmGameObject::ScriptInstanceGameObjectResolver*)0, resolver);
+    lua_pop(L, 3);
 
     ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L));
     ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L, script_instance_type_hash));
-    ASSERT_EQ((dmGameObject::HInstance)0, dmGameObject::GetInstanceFromLua(L, dmHashString32("incorrect_type")));
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetInstanceFromLua(L, dmHashString32("incorrect_type")));
+
+    dmGameObject::HCollection script_collection;
+    dmGameObject::HGameObject script_game_object;
+    ASSERT_TRUE(dmGameObject::GetCollectionAndGameObjectFromLua(L, &script_collection, &script_game_object));
+    ASSERT_EQ(m_Collection, script_collection);
+    ASSERT_EQ(go, script_game_object);
+
+    dmScript::GetInstance(L);
+    ASSERT_TRUE(lua_getmetatable(L, -1));
+    lua_pushlightuserdata(L, &g_TestFailingGameObjectResolver);
+    lua_setfield(L, -2, dmGameObject::META_TABLE_GET_GAME_OBJECT);
+    lua_pop(L, 2);
+
+    script_collection = 1;
+    script_game_object = 1;
+    bool resolved = dmGameObject::GetCollectionAndGameObjectFromLua(L, &script_collection, &script_game_object);
+
+    dmScript::GetInstance(L);
+    ASSERT_TRUE(lua_getmetatable(L, -1));
+    lua_pushlightuserdata(L, resolver);
+    lua_setfield(L, -2, dmGameObject::META_TABLE_GET_GAME_OBJECT);
+    lua_pop(L, 2);
+
+    ASSERT_FALSE(resolved);
+    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, script_collection);
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, script_game_object);
 
     dmGameObject::Delete(m_Collection, go, false);
 
@@ -548,8 +624,8 @@ TEST_F(ScriptTest, TestScriptMany)
 {
     dmHashEnableReverseHash(true); // while debugging
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/many.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/many.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     char name[64];
     uint16_t component_index;
@@ -559,15 +635,15 @@ TEST_F(ScriptTest, TestScriptMany)
     {
         dmSnPrintf(name, sizeof(name), "script%d", i);
         dmhash_t id = dmHashString64(name);
-        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, id, &component_index));
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(m_Collection, go, id, &component_index));
         ASSERT_EQ(i, component_index);
 
-        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, component_index, &component_id));
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(m_Collection, go, component_index, &component_id));
         ASSERT_EQ(id, component_id);
     }
     dmSnPrintf(name, sizeof(name), "script%d", num_components);
-    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64(name), &component_index));
-    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, num_components, &component_id));
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(m_Collection, go, dmHashString64(name), &component_index));
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(m_Collection, go, num_components, &component_id));
 
     dmGameObject::Init(m_Collection);
 
@@ -661,8 +737,8 @@ TEST_F(ScriptTest, TestInstanceContext)
     lua_pushboolean(L, 0);
     lua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
 
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/instance_context.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/instance_context.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     lua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
@@ -683,12 +759,12 @@ TEST_F(ScriptTest, TestInstanceContext)
 
 TEST_F(ScriptTest, TestExists)
 {
-    dmGameObject::HInstance go_null = dmGameObject::New(m_Collection, "/null.goc");
-    ASSERT_NE((void*) 0, (void*) go_null);
+    dmGameObject::HGameObject go_null = dmGameObject::New(m_Collection, "/null.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_null);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_null, "a"));
 
-    dmGameObject::HInstance go_exists = dmGameObject::New(m_Collection, "/exists.goc");
-    ASSERT_NE((void*) 0, (void*) go_exists);
+    dmGameObject::HGameObject go_exists = dmGameObject::New(m_Collection, "/exists.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_exists);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_exists, "b"));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -708,16 +784,16 @@ static void RunWorldToLocalPositionTest(
     lua_pushnumber(L, expected_local.getY()); lua_setglobal(L, "EXPECTED_Y");
     lua_pushnumber(L, expected_local.getZ()); lua_setglobal(L, "EXPECTED_Z");
 
-    dmGameObject::HInstance tester = dmGameObject::New(t->m_Collection, "/world_to_local_pos.goc");
-    ASSERT_NE((dmGameObject::HInstance)0, tester);
+    dmGameObject::HGameObject tester = dmGameObject::New(t->m_Collection, "/world_to_local_pos.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, tester);
 
-    dmGameObject::HInstance target = dmGameObject::New(t->m_Collection, "/null.goc");
-    ASSERT_NE((dmGameObject::HInstance)0, target);
+    dmGameObject::HGameObject target = dmGameObject::New(t->m_Collection, "/null.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, target);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(t->m_Collection, target, "target"));
 
     ASSERT_TRUE(dmGameObject::Init(t->m_Collection));
 
-    t->m_Collection->m_Collection->m_WorldTransforms[target->m_Index] = target_world;
+    SetCachedWorldTransform(t->m_Collection, target, target_world);
 
     ASSERT_TRUE(dmGameObject::Update(t->m_Collection, &t->m_UpdateContext));
 
@@ -761,16 +837,16 @@ static void RunWorldToLocalTransformTest(
     lua_pushnumber(L, expected_local_translation.getY()); lua_setglobal(L, "EXPECTED_TY");
     lua_pushnumber(L, expected_local_translation.getZ()); lua_setglobal(L, "EXPECTED_TZ");
 
-    dmGameObject::HInstance tester = dmGameObject::New(t->m_Collection, "/world_to_local_transform.goc");
-    ASSERT_NE((dmGameObject::HInstance)0, tester);
+    dmGameObject::HGameObject tester = dmGameObject::New(t->m_Collection, "/world_to_local_transform.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, tester);
 
-    dmGameObject::HInstance target = dmGameObject::New(t->m_Collection, "/null.goc");
-    ASSERT_NE((dmGameObject::HInstance)0, target);
+    dmGameObject::HGameObject target = dmGameObject::New(t->m_Collection, "/null.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, target);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(t->m_Collection, target, "target"));
 
     ASSERT_TRUE(dmGameObject::Init(t->m_Collection));
 
-    t->m_Collection->m_Collection->m_WorldTransforms[target->m_Index] = target_world;
+    SetCachedWorldTransform(t->m_Collection, target, target_world);
 
     ASSERT_TRUE(dmGameObject::Update(t->m_Collection, &t->m_UpdateContext));
 

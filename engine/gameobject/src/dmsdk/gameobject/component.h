@@ -56,14 +56,16 @@ namespace dmGameObject
      * @member m_World [type: void**] Out-parameter of the pointer in which to store the created world
      * @member m_MaxComponentInstances [type: uint32_t] Max components count of this type in current collection counted at the build stage.
      *                                         If component in factory then value is 0xFFFFFFFF
+     * @member m_Collection [type: HCollection] Collection handle
      */
     struct ComponentNewWorldParams
     {
-        void*    m_Context;
-        uint8_t  m_ComponentIndex;
-        uint32_t m_MaxInstances;
-        void**   m_World;
-        uint32_t m_MaxComponentInstances;
+        void*       m_Context;
+        uint8_t     m_ComponentIndex;
+        uint32_t    m_MaxInstances;
+        void**      m_World;
+        uint32_t    m_MaxComponentInstances;
+        HCollection m_Collection;
     };
 
     /*#
@@ -101,7 +103,8 @@ namespace dmGameObject
      * Parameters to ComponentCreate callback.
      * @struct
      * @name ComponentCreateParams
-     * @member m_Instance [type: HInstance] Game object instance
+     * @member m_Collection [type: HCollection] Collection handle
+     * @member m_Instance [type: HGameObject] Game object instance
      * @member m_Position [type: dmVMath::Point3] Local component position
      * @member m_Rotation [type: dmVMath::Quat] Local component rotation
      * @member m_Scale [type: dmVMath::Vector3] Local component scale
@@ -114,7 +117,8 @@ namespace dmGameObject
      */
     struct ComponentCreateParams
     {
-        HInstance        m_Instance;
+        HCollection      m_Collection;
+        HGameObject      m_Instance;
         dmVMath::Point3  m_Position;
         dmVMath::Quat    m_Rotation;
         dmVMath::Vector3 m_Scale;
@@ -141,7 +145,7 @@ namespace dmGameObject
      * @struct
      * @name ComponentDestroyParams
      * @member m_Collection [type: HCollection] Collection handle
-     * @member m_Instance [type: HInstance] Game object instance
+     * @member m_Instance [type: HGameObject] Game object instance
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
@@ -149,7 +153,7 @@ namespace dmGameObject
     struct ComponentDestroyParams
     {
         HCollection m_Collection;
-        HInstance   m_Instance;
+        HGameObject m_Instance;
         void*       m_World;
         void*       m_Context;
         uintptr_t*  m_UserData;
@@ -169,7 +173,7 @@ namespace dmGameObject
      * @struct
      * @name ComponentInitParams
      * @member m_Collection [type: HCollection] Collection handle
-     * @member m_Instance [type: HInstance] Game object instance
+     * @member m_Instance [type: HGameObject] Game object instance
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
@@ -177,7 +181,7 @@ namespace dmGameObject
     struct ComponentInitParams
     {
         HCollection m_Collection;
-        HInstance   m_Instance;
+        HGameObject m_Instance;
         void*       m_World;
         void*       m_Context;
         uintptr_t*  m_UserData;
@@ -197,7 +201,7 @@ namespace dmGameObject
      * @struct
      * @name ComponentFinalParams
      * @member m_Collection [type: HCollection] Collection handle
-     * @member m_Instance [type: HInstance] Game object instance
+     * @member m_Instance [type: HGameObject] Game object instance
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
@@ -205,7 +209,7 @@ namespace dmGameObject
     struct ComponentFinalParams
     {
         HCollection m_Collection;
-        HInstance   m_Instance;
+        HGameObject m_Instance;
         void*       m_World;
         void*       m_Context;
         uintptr_t*  m_UserData;
@@ -225,7 +229,7 @@ namespace dmGameObject
      * @struct
      * @name ComponentAddToUpdateParams
      * @member m_Collection [type: HCollection] Collection handle
-     * @member m_Instance [type: HInstance] Game object instance
+     * @member m_Instance [type: HGameObject] Game object instance
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
@@ -233,7 +237,7 @@ namespace dmGameObject
     struct ComponentAddToUpdateParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
+        HGameObject m_Instance;
         void* m_World;
         void* m_Context;
         uintptr_t* m_UserData;
@@ -361,7 +365,8 @@ namespace dmGameObject
      * Parameters to ComponentOnMessage callback.
      * @struct
      * @name ComponentOnMessageParams
-     * @member m_Instance [type: HInstance] Instance handle
+     * @member m_Collection [type: HCollection] Collection handle
+     * @member m_Instance [type: HGameObject] Instance handle
      * @member m_World [type: void*] World
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
@@ -369,7 +374,8 @@ namespace dmGameObject
      */
     struct ComponentOnMessageParams
     {
-        HInstance m_Instance;
+        HCollection m_Collection;
+        HGameObject m_Instance;
         void* m_World;
         void* m_Context;
         uintptr_t* m_UserData;
@@ -389,14 +395,16 @@ namespace dmGameObject
      * Parameters to ComponentOnInput callback.
      * @struct
      * @name ComponentOnInputParams
-     * @member m_Instance [type: HInstance] Instance handle
+     * @member m_Collection [type: HCollection] Collection handle
+     * @member m_Instance [type: HGameObject] Instance handle
      * @member m_InputAction [type: const InputAction*] Information about the input that occurred (note that input being released is also treated as input)
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
      */
     struct ComponentOnInputParams
     {
-        HInstance m_Instance;
+        HCollection m_Collection;
+        HGameObject m_Instance;
         const InputAction* m_InputAction;
         void* m_Context;
         uintptr_t* m_UserData;
@@ -415,7 +423,8 @@ namespace dmGameObject
      * Parameters to ComponentOnReload callback.
      * @struct
      * @name ComponentOnReloadParams
-     * @member m_Instance [type: HInstance] Instance handle
+     * @member m_Collection [type: HCollection] Collection handle
+     * @member m_Instance [type: HGameObject] Instance handle
      * @member m_Resource [type: void*] Resource that was reloaded
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
@@ -423,7 +432,8 @@ namespace dmGameObject
      */
     struct ComponentOnReloadParams
     {
-        HInstance m_Instance;
+        HCollection m_Collection;
+        HGameObject m_Instance;
         void* m_Resource;
         void* m_World;
         void* m_Context;
@@ -441,13 +451,15 @@ namespace dmGameObject
      * Parameters to ComponentSetProperties callback.
      * @struct
      * @name ComponentSetPropertiesParams
-     * @member m_Instance [type: HInstance] Instance handle
+     * @member m_Collection [type: HCollection] Collection handle
+     * @member m_Instance [type: HGameObject] Instance handle
      * @member m_PropertySet [type: PropertySet] Property set to use
      * @member m_UserData [type: uintptr_t*] User data storage pointer
      */
     struct ComponentSetPropertiesParams
     {
-        HInstance m_Instance;
+        HCollection m_Collection;
+        HGameObject m_Instance;
         PropertySet m_PropertySet;
         uintptr_t* m_UserData;
     };
@@ -467,7 +479,8 @@ namespace dmGameObject
      * @name ComponentGetPropertyParams
      * @member m_Context [type: void*] Context for the component type
      * @member m_World [type: void*] Component world
-     * @member m_Instance [type: HInstance] Game object instance
+     * @member m_Collection [type: HCollection] Collection handle
+     * @member m_Instance [type: HGameObject] Game object instance
      * @member m_PropertyId [type: dmhash_t] Id of the property
      * @member m_UserData [type: uintptr_t*] User data storage pointer
      * @member m_Options [type: HPropertyOptions] Options for getting the property
@@ -476,7 +489,8 @@ namespace dmGameObject
     {
         void* m_Context;
         void* m_World;
-        HInstance m_Instance;
+        HCollection m_Collection;
+        HGameObject m_Instance;
         dmhash_t m_PropertyId;
         uintptr_t* m_UserData;
         HPropertyOptions m_Options;
@@ -498,7 +512,8 @@ namespace dmGameObject
      * @name ComponentSetPropertyParams
      * @member m_Context [type: void*] Context for the component type
      * @member m_World [type: void*] Component world
-     * @member m_Instance [type: HInstance] Game object instance
+     * @member m_Collection [type: HCollection] Collection handle
+     * @member m_Instance [type: HGameObject] Game object instance
      * @member m_PropertyId [type: dmhash_t] Id of the property
      * @member m_UserData [type: uintptr_t*] User data storage pointer
      * @member m_Value [type: PropertyVar] New value of the property. Text values are borrowed and must be copied if retained after the callback returns.
@@ -508,7 +523,8 @@ namespace dmGameObject
     {
         void* m_Context;
         void* m_World;
-        HInstance m_Instance;
+        HCollection m_Collection;
+        HGameObject m_Instance;
         dmhash_t m_PropertyId;
         uintptr_t* m_UserData;
         PropertyVar m_Value;
@@ -760,7 +776,7 @@ namespace dmGameObject
      * @name ComponentTypeCreateCtx
      * @member m_Config [type: dmConfigFile::HConfig] The config file
      * @member m_Factory [type: dmResource::HFactory] The resource factory
-     * @member m_Register [type: dmGameObject::HRegister] The game object registry
+     * @member m_Register [type: dmGameObject::HContext] The game object system context
      * @member m_Script [type: dmScript::HContext] The shared script context
      * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
      * @member m_Impl [type: dmGameObject::ComponentTypeCreateCtxImpl*] Opaque implementation data
@@ -769,7 +785,7 @@ namespace dmGameObject
         ComponentTypeCreateCtxImpl* m_Impl;
         dmConfigFile::HConfig       m_Config; // deprecated
         dmResource::HFactory        m_Factory; // deprecated
-        dmGameObject::HRegister     m_Register; // deprecated
+        dmGameObject::HContext      m_Register; // deprecated
         dmScript::HContext          m_Script; // deprecated
         dmHashTable64<void*>        m_Contexts; // deprecated
     };
@@ -789,8 +805,10 @@ namespace dmGameObject
 
     /**
      * Register a new component type (Internal)
-     * @param regist Gameobject register
-     * @param type Collection of component type registration data
+     * @param desc Component type descriptor
+     * @param name Component type name
+     * @param create_fn Component type creation function
+     * @param destroy_fn Component type destruction function
      * @return RESULT_OK on success
      */
     Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn, ComponentTypeDestroyFunction destroy_fn);

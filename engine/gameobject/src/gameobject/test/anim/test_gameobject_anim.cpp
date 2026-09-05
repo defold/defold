@@ -76,7 +76,7 @@ protected:
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -87,19 +87,21 @@ public:
 
 #define EPSILON 0.000001f
 
-void AnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                                    bool finished, void* userdata1, void* userdata2)
+void AnimationStopped(dmGameObject::HCollection collection, dmGameObject::HGameObject instance,
+                      dmhash_t component_id, dmhash_t property_id, bool finished,
+                      void* userdata1, void* userdata2)
 {
     AnimTest* test = (AnimTest*)userdata1;
+    ASSERT_EQ(test->m_Collection, collection);
     if (finished)
         ++test->m_FinishCount;
     else
         ++test->m_CancelCount;
 }
 
-static float X(dmGameObject::HInstance instance)
+static float X(dmGameObject::HCollection collection, dmGameObject::HGameObject instance)
 {
-    return dmGameObject::GetPosition(instance).getX();
+    return dmGameObject::GetPosition(collection, instance).getX();
 }
 
 static dmhash_t hash(const char* s)
@@ -109,8 +111,8 @@ static dmhash_t hash(const char* s)
 
 TEST_F(AnimTest, AnimateAndStop)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
-    ASSERT_NE((dmGameObject::HInstance)0, go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
@@ -122,17 +124,17 @@ TEST_F(AnimTest, AnimateAndStop)
             duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NEAR(2.5f, X(go), EPSILON);
-    ASSERT_NEAR(2.5f, dmGameObject::GetWorldPosition(go).getX(), EPSILON);
+    ASSERT_NEAR(2.5f, X(m_Collection, go), EPSILON);
+    ASSERT_NEAR(2.5f, dmGameObject::GetWorldPosition(m_Collection, go).getX(), EPSILON);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NEAR(5.0f, X(go), EPSILON);
-    ASSERT_NEAR(5.0f, dmGameObject::GetWorldPosition(go).getX(), EPSILON);
+    ASSERT_NEAR(5.0f, X(m_Collection, go), EPSILON);
+    ASSERT_NEAR(5.0f, dmGameObject::GetWorldPosition(m_Collection, go).getX(), EPSILON);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NEAR(7.5f, X(go), EPSILON);
+    ASSERT_NEAR(7.5f, X(m_Collection, go), EPSILON);
     ASSERT_EQ(0u, this->m_FinishCount);
     ASSERT_EQ(0u, this->m_CancelCount);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NEAR(10.0f, X(go), EPSILON);
+    ASSERT_NEAR(10.0f, X(m_Collection, go), EPSILON);
     ASSERT_EQ(1u, this->m_FinishCount);
     ASSERT_EQ(0u, this->m_CancelCount);
     dmGameObject::Delete(m_Collection, go, false);
@@ -140,7 +142,7 @@ TEST_F(AnimTest, AnimateAndStop)
 
 TEST_F(AnimTest, Playback)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
@@ -155,7 +157,7 @@ TEST_F(AnimTest, Playback)
 
 #define ASSERT_FRAME(expected)\
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));\
-    ASSERT_NEAR(expected, X(go), EPSILON);
+    ASSERT_NEAR(expected, X(m_Collection, go), EPSILON);
 
     ANIM(dmGameObject::PLAYBACK_ONCE_FORWARD);
     ASSERT_FRAME(2.5f);
@@ -164,7 +166,7 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(10.0f);
     ASSERT_FRAME(10.0f);
 
-    dmGameObject::SetPosition(go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_ONCE_BACKWARD);
     ASSERT_FRAME(7.5f);
     ASSERT_FRAME(5.0f);
@@ -172,7 +174,7 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(0.0f);
     ASSERT_FRAME(0.0f);
 
-    dmGameObject::SetPosition(go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_ONCE_PINGPONG);
     ASSERT_FRAME(5.0f);
     ASSERT_FRAME(10.0f);
@@ -180,12 +182,12 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(0.0f);
     ASSERT_FRAME(0.0f);
 
-    dmGameObject::SetPosition(go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_NONE);
     ASSERT_FRAME(0.0f);
     ASSERT_FRAME(0.0f);
 
-    dmGameObject::SetPosition(go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_LOOP_FORWARD);
     ASSERT_FRAME(2.5f);
     ASSERT_FRAME(5.0f);
@@ -193,7 +195,7 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(0.0f);
     ASSERT_FRAME(2.5f);
 
-    dmGameObject::SetPosition(go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_LOOP_BACKWARD);
     ASSERT_FRAME(7.5f);
     ASSERT_FRAME(5.0f);
@@ -201,7 +203,7 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(10.0f);
     ASSERT_FRAME(7.5f);
 
-    dmGameObject::SetPosition(go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_LOOP_PINGPONG);
     ASSERT_FRAME(5.0f);
     ASSERT_FRAME(10.0f);
@@ -223,7 +225,7 @@ TEST_F(AnimTest, Playback)
 
 TEST_F(AnimTest, Cancel)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
@@ -232,10 +234,10 @@ TEST_F(AnimTest, Cancel)
     float delay = 0.f;
 
     Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, id));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::CancelAnimations(m_Collection, go, 0, id));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(0.0f, X(go));
+    ASSERT_EQ(0.0f, X(m_Collection, go));
 
     ASSERT_EQ(0u, this->m_FinishCount);
     ASSERT_EQ(1u, this->m_CancelCount);
@@ -245,7 +247,7 @@ TEST_F(AnimTest, Cancel)
 
 TEST_F(AnimTest, CancelAll)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id1 = hash("position");
@@ -257,11 +259,11 @@ TEST_F(AnimTest, CancelAll)
 
     Animate(m_Collection, go, 0, id1, dmGameObject::PLAYBACK_ONCE_FORWARD, var1, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
     Animate(m_Collection, go, 0, id2, dmGameObject::PLAYBACK_ONCE_FORWARD, var2, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::CancelAnimations(m_Collection, go, 0, 0));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(0.0f, X(go));
-    ASSERT_EQ(1.0f, dmGameObject::GetUniformScale(go));
+    ASSERT_EQ(0.0f, X(m_Collection, go));
+    ASSERT_EQ(1.0f, dmGameObject::GetUniformScale(m_Collection, go));
 
     ASSERT_EQ(0u, this->m_FinishCount);
     ASSERT_EQ(2u, this->m_CancelCount);
@@ -271,7 +273,7 @@ TEST_F(AnimTest, CancelAll)
 
 TEST_F(AnimTest, AnimateEuler)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("euler.z");
@@ -288,7 +290,7 @@ TEST_F(AnimTest, AnimateEuler)
 
 #define ASSERT_FRAME(q_z, q_w)\
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));\
-    r = dmGameObject::GetRotation(go);\
+    r = dmGameObject::GetRotation(m_Collection, go);\
     ASSERT_NEAR(q_z, r.getZ(), epsilon);\
     ASSERT_NEAR(q_w, r.getW(), epsilon);
 
@@ -303,22 +305,24 @@ TEST_F(AnimTest, AnimateEuler)
 #undef ASSERT_FRAME
 }
 
-void AnimationStoppedToDelete(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                                    bool finished, void* userdata1, void* userdata2)
+void AnimationStoppedToDelete(dmGameObject::HCollection collection, dmGameObject::HGameObject instance,
+                              dmhash_t component_id, dmhash_t property_id, bool finished,
+                              void* userdata1, void* userdata2)
 {
     AnimTest* test = (AnimTest*)userdata1;
     if (finished)
         ++test->m_FinishCount;
     else
         ++test->m_CancelCount;
-    *((dmhash_t*)userdata2) = instance->m_Identifier;
+    ASSERT_EQ(test->m_Collection, collection);
+    *((dmhash_t*)userdata2) = dmGameObject::GetIdentifier(collection, instance);
 }
 
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
+static dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
+        dmGameObject::HGameObject result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
@@ -328,7 +332,7 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
 TEST_F(AnimTest, DeleteInAnim)
 {
     const uint32_t instance_count = 3;
-    dmGameObject::HInstance gos[instance_count];
+    dmGameObject::HGameObject gos[instance_count];
     dmhash_t orig_instance_ids[instance_count];
     uint32_t order[instance_count] = {1, 0, 2};
     char id_buffer[32];
@@ -371,7 +375,7 @@ TEST_F(AnimTest, DeleteInAnim)
 // Tests that animation with duration=0 is equivalent with "set" of the target value
 TEST_F(AnimTest, ZeroDuration)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position.x");
@@ -383,14 +387,14 @@ TEST_F(AnimTest, ZeroDuration)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(10.0f, X(go));
+    ASSERT_EQ(10.0f, X(m_Collection, go));
 
     dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Delay)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position.x");
@@ -404,26 +408,26 @@ TEST_F(AnimTest, Delay)
     dmVMath::Point3 pos;
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(0.0f, X(go));
+    ASSERT_EQ(0.0f, X(m_Collection, go));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(0.0f, X(go));
+    ASSERT_EQ(0.0f, X(m_Collection, go));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(0.0f, X(go));
+    ASSERT_EQ(0.0f, X(m_Collection, go));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(0.0f, X(go));
+    ASSERT_EQ(0.0f, X(m_Collection, go));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_LT(0.0f, X(go));
+    ASSERT_LT(0.0f, X(m_Collection, go));
 
     dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, DelayAboveDuration)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position.x");
@@ -439,11 +443,11 @@ TEST_F(AnimTest, DelayAboveDuration)
     for (uint32_t i = 0; i < 8; ++i)
     {
         dmGameObject::Update(m_Collection, &m_UpdateContext);
-        ASSERT_EQ(0.0f, X(go));
+        ASSERT_EQ(0.0f, X(m_Collection, go));
     }
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_LT(0.0f, X(go));
+    ASSERT_LT(0.0f, X(m_Collection, go));
 
     dmGameObject::Delete(m_Collection, go, false);
 }
@@ -451,7 +455,7 @@ TEST_F(AnimTest, DelayAboveDuration)
 // Test that a delayed animation is not stopped when a new is started immediately
 TEST_F(AnimTest, DelayedNotStopped)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position.x");
@@ -470,11 +474,11 @@ TEST_F(AnimTest, DelayedNotStopped)
     for (uint32_t i = 0; i < 4; ++i)
     {
         dmGameObject::Update(m_Collection, &m_UpdateContext);
-        ASSERT_LT(0.0f, X(go));
+        ASSERT_LT(0.0f, X(m_Collection, go));
     }
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    ASSERT_EQ(1.0f, X(go));
+    ASSERT_EQ(1.0f, X(m_Collection, go));
 
     dmGameObject::Delete(m_Collection, go, false);
 }
@@ -488,7 +492,7 @@ TEST_F(AnimTest, LoadTest)
     float duration = 1.0f;
     float delay = 0.0f;
 
-    dmGameObject::HInstance gos[count];
+    dmGameObject::HGameObject gos[count];
     for (uint32_t i = 0; i < count; ++i)
     {
         gos[i] = dmGameObject::New(m_Collection, "/dummy.goc");
@@ -520,19 +524,19 @@ TEST_F(AnimTest, LinkedList)
     dmGameObject::PropertyVar var(1.0f);
     float duration = 1.0f;
     float delay = 0.0f;
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     dmhash_t ids[] = {hash("position.x"), hash("position.y"), hash("position.z")};
     dmVMath::Point3 p;
 
 #define ANIM\
-    dmGameObject::SetPosition(go, dmVMath::Point3(0, 0, 0));\
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(0, 0, 0));\
     Animate(m_Collection, go, 0, ids[0], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);\
     Animate(m_Collection, go, 0, ids[1], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);\
     Animate(m_Collection, go, 0, ids[2], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
 #define ASSERT_FRAME(x, y, z)\
     dmGameObject::Update(m_Collection, &m_UpdateContext);\
-    p = dmGameObject::GetPosition(go);\
+    p = dmGameObject::GetPosition(m_Collection, go);\
     ASSERT_NEAR(x, p.getX(), EPSILON);\
     ASSERT_NEAR(y, p.getY(), EPSILON);\
     ASSERT_NEAR(z, p.getZ(), EPSILON);
@@ -566,8 +570,8 @@ TEST_F(AnimTest, ScriptedRestart)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/restart.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/restart.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -579,8 +583,8 @@ TEST_F(AnimTest, ScriptedCancel)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/cancel.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -591,8 +595,8 @@ TEST_F(AnimTest, ScriptedCancel)
 TEST_F(AnimTest, ScriptedCancelAll)
 {
     m_UpdateContext.m_DT = 0.25f;
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel_all.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/cancel_all.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -602,13 +606,13 @@ TEST_F(AnimTest, ScriptedCancelAll)
 
 TEST_F(AnimTest, ScriptedAnimBadURL)
 {
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/anim_bad_url.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/anim_bad_url.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
     ASSERT_EQ(0, go);
 }
 
 TEST_F(AnimTest, ScriptedCancelBadURL)
 {
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel_bad_url.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/cancel_bad_url.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
     ASSERT_EQ(0, go);
 }
 
@@ -616,8 +620,8 @@ TEST_F(AnimTest, ScriptedChainOtherProp)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chain_other_prop.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/chain_other_prop.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 12; ++i)
     {
@@ -629,8 +633,8 @@ TEST_F(AnimTest, ScriptedChainDelayBug)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chain_delay_bug.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/chain_delay_bug.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 12; ++i)
     {
@@ -646,11 +650,11 @@ TEST_F(AnimTest, ScriptedDemo)
     for (uint32_t i = 0; i < count; ++i)
     {
         dmSnPrintf(id, 8, "box%d", i + 1);
-        dmGameObject::HInstance box = Spawn(m_Factory, m_Collection, "/demo_box.goc", hash(id), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-        ASSERT_NE((void*)0, box);
+        dmGameObject::HGameObject box = Spawn(m_Factory, m_Collection, "/demo_box.goc", hash(id), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, box);
     }
-    dmGameObject::HInstance demo = Spawn(m_Factory, m_Collection, "/demo.goc", hash("demo"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, demo);
+    dmGameObject::HGameObject demo = Spawn(m_Factory, m_Collection, "/demo.goc", hash("demo"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, demo);
 
     uint32_t frame_count = 1000;
     m_UpdateContext.m_DT = 0.25f;
@@ -665,16 +669,16 @@ TEST_F(AnimTest, ScriptedInvalidType)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/invalid_type.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_EQ((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/invalid_type.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, go);
 }
 
 TEST_F(AnimTest, ScriptedDelayedCompositeCallback)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/composite_delay.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/composite_delay.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -687,8 +691,8 @@ TEST_F(AnimTest, ScriptedCustomEasing)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -700,8 +704,8 @@ TEST_F(AnimTest, ScriptedChainedEasing)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chained_easing.goc", hash("chained_easing"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    dmGameObject::HGameObject go = Spawn(m_Factory, m_Collection, "/chained_easing.goc", hash("chained_easing"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     for (uint32_t i = 0; i < 20; ++i)
     {
@@ -711,9 +715,9 @@ TEST_F(AnimTest, ScriptedChainedEasing)
 
 TEST_F(AnimTest, PositionUniformAnim)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
-    dmGameObject::SetPosition(go, dmVMath::Point3(1.f, 2.f, 3.f));
+    dmGameObject::SetPosition(m_Collection, go, dmVMath::Point3(1.f, 2.f, 3.f));
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
     dmGameObject::PropertyVar var(2.f);
@@ -725,7 +729,7 @@ TEST_F(AnimTest, PositionUniformAnim)
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-    dmVMath::Point3 position = dmGameObject::GetPosition(go);
+    dmVMath::Point3 position = dmGameObject::GetPosition(m_Collection, go);
     ASSERT_NEAR(2.0f, position.getX(), 0.000001f);
     ASSERT_NEAR(2.0f, position.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, position.getZ(), 0.000001f);
@@ -736,9 +740,9 @@ TEST_F(AnimTest, PositionUniformAnim)
 // Test that the 3 component scale can be animated as a uniform scale (legacy)
 TEST_F(AnimTest, UniformScale)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
-    dmGameObject::SetScale(go, 1.0f);
+    dmGameObject::SetScale(m_Collection, go, 1.0f);
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("scale");
     dmGameObject::PropertyVar var(2.f);
@@ -750,16 +754,16 @@ TEST_F(AnimTest, UniformScale)
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-    ASSERT_NEAR(2.0f, dmGameObject::GetUniformScale(go), 0.000001f);
+    ASSERT_NEAR(2.0f, dmGameObject::GetUniformScale(m_Collection, go), 0.000001f);
 
     dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleUniformAnim)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
-    dmGameObject::SetScale(go, dmVMath::Vector3(1.f, 2.f, 3.f));
+    dmGameObject::SetScale(m_Collection, go, dmVMath::Vector3(1.f, 2.f, 3.f));
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("scale");
     dmGameObject::PropertyVar var(2.f);
@@ -771,7 +775,7 @@ TEST_F(AnimTest, ScaleUniformAnim)
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-    dmVMath::Vector3 scale = dmGameObject::GetScale(go);
+    dmVMath::Vector3 scale = dmGameObject::GetScale(m_Collection, go);
     ASSERT_NEAR(2.0f, scale.getX(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getZ(), 0.000001f);
@@ -781,9 +785,9 @@ TEST_F(AnimTest, ScaleUniformAnim)
 
 TEST_F(AnimTest, Scale)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
 
-    dmGameObject::SetScale(go, dmVMath::Vector3(1.f, 2.f, 3.f));
+    dmGameObject::SetScale(m_Collection, go, dmVMath::Vector3(1.f, 2.f, 3.f));
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("scale");
     dmGameObject::PropertyVar var(dmVMath::Vector3(2.f));
@@ -795,7 +799,7 @@ TEST_F(AnimTest, Scale)
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-    dmVMath::Vector3 scale = dmGameObject::GetScale(go);
+    dmVMath::Vector3 scale = dmGameObject::GetScale(m_Collection, go);
     ASSERT_NEAR(2.0f, scale.getX(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getZ(), 0.000001f);
@@ -805,8 +809,8 @@ TEST_F(AnimTest, Scale)
 
 TEST_F(AnimTest, ScaleX)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
-    dmGameObject::SetScale(go, 1.0);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::SetScale(m_Collection, go, 1.0);
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("scale.x");
     dmGameObject::PropertyVar var(2.f);
@@ -818,17 +822,17 @@ TEST_F(AnimTest, ScaleX)
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-    ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getX(), 0.000001f);
-    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
-    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
+    ASSERT_NEAR(2.0f, dmGameObject::GetScale(m_Collection, go).getX(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(m_Collection, go).getY(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(m_Collection, go).getZ(), 0.000001f);
 
     dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleY)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
-    dmGameObject::SetScale(go, 1.0);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::SetScale(m_Collection, go, 1.0);
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("scale.y");
     dmGameObject::PropertyVar var(2.f);
@@ -840,17 +844,17 @@ TEST_F(AnimTest, ScaleY)
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getX(), 0.000001f);
-    ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
-    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(m_Collection, go).getX(), 0.000001f);
+    ASSERT_NEAR(2.0f, dmGameObject::GetScale(m_Collection, go).getY(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(m_Collection, go).getZ(), 0.000001f);
 
     dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleZ)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
-    dmGameObject::SetScale(go, 1.0);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::SetScale(m_Collection, go, 1.0);
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("scale.z");
     dmGameObject::PropertyVar var(2.f);
@@ -862,9 +866,9 @@ TEST_F(AnimTest, ScaleZ)
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getX(), 0.000001f);
-    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
-    ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(m_Collection, go).getX(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(m_Collection, go).getY(), 0.000001f);
+    ASSERT_NEAR(2.0f, dmGameObject::GetScale(m_Collection, go).getZ(), 0.000001f);
 
     dmGameObject::Delete(m_Collection, go, false);
 }

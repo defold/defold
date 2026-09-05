@@ -15,6 +15,7 @@
 #include <stdio.h>
 
 #include <dlib/log.h>
+#include <dmsdk/gamesys/script.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -66,9 +67,9 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-        uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_EXT_HASH);
-        void* comp_world = dmGameObject::GetWorld(collection, component_type_index);
+        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
+        uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(hcollection, COLLISION_OBJECT_EXT_HASH);
+        void* comp_world = dmGameObject::GetWorld(hcollection, component_type_index);
         void* world = dmGameSystem::CompCollisionObjectGetBox2DWorld(comp_world);
 
         if (world)
@@ -82,16 +83,16 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
         dmMessage::URL url;
         dmGameObject::HComponent component = 0;
-        GetCollisionObject(L, 1, collection, &url, &component, 0);
+        GetCollisionObject(L, 1, hcollection, &url, &component, 0);
 
         void* body = dmGameSystem::CompCollisionObjectGetBox2DBody(component);
 
         if (body)
         {
-            PushBody(L, body, collection, url.m_Path);
+            PushBody(L, body, hcollection, dmGameObject::GetGameObjectFromIdentifier(hcollection, url.m_Path));
         }
         else
             lua_pushnil(L);

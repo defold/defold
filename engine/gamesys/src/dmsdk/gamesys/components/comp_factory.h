@@ -66,12 +66,12 @@ namespace dmGameSystem
      * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
      * @param scale [type: dmVMath::Vector3] Scale of the spawned object
      * @param properties [type: dmGameObject::HPropertyContainer] Property container with override properties
-     * @param out_instance [type: dmGameObject::HInstance] Output parameter for the new instance
+     * @param out_instance [type: dmGameObject::HGameObject*] Output parameter for the new instance. Set to dmGameObject::INVALID_GAME_OBJECT if spawning fails, including for an invalid or stale collection handle.
      * @return result [type: dmGameObject::Result] Result of the operation
      */
     dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                                dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance);
+                                                dmGameObject::HPropertyContainer properties, dmGameObject::HGameObject* out_instance);
 }
 
 #endif // DMSDK_GAMESYS_FACTORY_H

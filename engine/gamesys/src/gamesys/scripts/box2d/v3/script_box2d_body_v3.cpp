@@ -45,26 +45,15 @@ namespace dmGameSystem
     {
         b2BodyId                  m_Body;
         dmGameObject::HCollection m_Collection;
-        dmhash_t                  m_InstanceId;
-        uint32_t                  m_InstanceGeneration;
+        dmGameObject::HGameObject m_GameObject;
     };
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object)
     {
         B2DLuaBody* luabody   = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
         luabody->m_Body       = *(b2BodyId*) body;
         luabody->m_Collection = collection;
-        luabody->m_InstanceId = instance_id;
-        luabody->m_InstanceGeneration = 0;
-
-        if (instance_id)
-        {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, instance_id);
-            if (instance)
-            {
-                luabody->m_InstanceGeneration = dmGameObject::GetGeneration(instance);
-            }
-        }
+        luabody->m_GameObject = game_object;
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
@@ -166,12 +155,11 @@ namespace dmGameSystem
 
     static int VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
     {
-        if (luabody->m_InstanceId) // check if the instance is alive
+        if (luabody->m_GameObject)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
-            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(luabody->m_Collection, luabody->m_GameObject))
             {
-                return luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
+                return luaL_error(L, "Cannot get b2body. Has the game object been deleted?");
             }
         }
 
@@ -354,10 +342,9 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         B2DLuaBody* luabody = CheckBodyInternal(L, 1);
-        if (luabody->m_InstanceId)
+        if (luabody->m_GameObject)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
-            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(luabody->m_Collection, luabody->m_GameObject))
             {
                 lua_pushboolean(L, false);
                 return 1;

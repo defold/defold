@@ -401,7 +401,7 @@ namespace dmEngine
     : m_Config(0)
     , m_Window(0)
     , m_Alive(true)
-    , m_MainCollection(0)
+    , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
     , m_GraphicsContext(0)
@@ -433,7 +433,7 @@ namespace dmEngine
     , m_ThrottleEnabled(false)
     {
         m_EngineService = engine_service;
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         m_InputBuffer.SetCapacity(64);
         m_ResourceTypeContexts.SetCapacity(31, 64);
         m_PhysicsContextBox2D.m_Context = 0x0;
@@ -459,6 +459,11 @@ namespace dmEngine
         return new Engine(engine_service);
     }
 
+    static dmGameObject::HCollection GetMainCollection(HEngine engine)
+    {
+        return dmGameObject::GetCollectionFromResource(engine->m_MainCollectionResource);
+    }
+
     void Delete(HEngine engine)
     {
         {
@@ -469,8 +474,8 @@ namespace dmEngine
             dmExtension::DispatchEvent( params, &event );
         }
 
-        if (engine->m_MainCollection)
-            dmResource::Release(engine->m_Factory, engine->m_MainCollection);
+        if (engine->m_MainCollectionResource)
+            dmResource::Release(engine->m_Factory, engine->m_MainCollectionResource);
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
@@ -515,7 +520,7 @@ namespace dmEngine
 
         dmHttpClient::ReopenConnectionPool();
 
-        dmGameObject::DeleteRegister(engine->m_Register);
+        dmGameObject::DeleteContext(engine->m_Register);
 
         UnloadBootstrapContent(engine);
 
@@ -1680,10 +1685,10 @@ namespace dmEngine
         // setup streaming for resource types, before we load the first collection
         SetupStreamingResourceTypes(engine);
 
-        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
+        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**)&engine->m_MainCollectionResource);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
-        dmGameObject::Init(engine->m_MainCollection);
+        dmGameObject::Init(GetMainCollection(engine));
 
         engine->m_LastReloadMTime = 0;
 
@@ -2100,7 +2105,7 @@ bail:
                 uint32_t input_buffer_size = input_buffer.Size();
                 if (input_buffer_size > 0)
                 {
-                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                    dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
                 }
 
 
@@ -2109,7 +2114,7 @@ bail:
                 update_context.m_DT = dt;
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
-                dmGameObject::Update(engine->m_MainCollection, &update_context);
+                dmGameObject::Update(GetMainCollection(engine), &update_context);
 
                 dmSound::Update();
 
@@ -2128,7 +2133,7 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(engine->m_MainCollection);
+                    dmGameObject::Render(GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2158,7 +2163,7 @@ bail:
                     }
                 }
 
-                dmGameObject::PostUpdate(engine->m_MainCollection);
+                dmGameObject::PostUpdate(GetMainCollection(engine));
                 dmGameObject::PostUpdate(engine->m_Register);
 
                 if (do_render)

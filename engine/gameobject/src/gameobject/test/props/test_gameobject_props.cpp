@@ -128,9 +128,22 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
+    dmResource::Result GetCollectionResource(const char* path, dmGameObject::HCollectionResource* resource, dmGameObject::HCollection* collection)
+    {
+        *resource = 0;
+        dmResource::Result result = dmResource::Get(m_Factory, path, (void**)resource);
+        *collection = dmGameObject::GetCollectionFromResource(*resource);
+        return result;
+    }
+
+    void ReleaseCollectionResource(dmGameObject::HCollectionResource resource)
+    {
+        dmResource::Release(m_Factory, resource);
+    }
+
 public:
 
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmScript::HContext m_ScriptContext;
@@ -139,12 +152,15 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-static void SetProperties(dmGameObject::HInstance instance)
+static void SetProperties(dmGameObject::HCollection collection, dmGameObject::HGameObject instance)
 {
-    dmGameObject::Prototype::Component* components = instance->m_Prototype->m_Components;
-    uint32_t count = instance->m_Prototype->m_ComponentCount;
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
+    dmGameObject::Instance* instance_ptr = dmGameObject::GetGameObjectFromHandle(collection_ptr, instance);
+    dmGameObject::Prototype::Component* components = instance_ptr->m_Prototype->m_Components;
+    uint32_t count = instance_ptr->m_Prototype->m_ComponentCount;
     uint32_t component_instance_data_index = 0;
     dmGameObject::ComponentSetPropertiesParams params;
+    params.m_Collection = collection;
     params.m_Instance = instance;
     params.m_PropertySet.m_GetPropertyCallback = 0;
     params.m_PropertySet.m_FreeUserDataCallback = 0;
@@ -153,7 +169,7 @@ static void SetProperties(dmGameObject::HInstance instance)
         dmGameObject::ComponentType* type = components[i].m_Type;
         if (type->m_SetPropertiesFunction != 0x0)
         {
-            uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
+            uintptr_t* component_instance_data = &instance_ptr->m_ComponentInstanceUserData[component_instance_data_index];
             params.m_UserData = component_instance_data;
             type->m_SetPropertiesFunction(params);
         }
@@ -162,11 +178,11 @@ static void SetProperties(dmGameObject::HInstance instance)
     }
 }
 
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
+static dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
+        dmGameObject::HGameObject result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
@@ -175,9 +191,9 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
 
 TEST_F(PropsTest, PropsDefault)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_default.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-    SetProperties(go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/props_default.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    SetProperties(m_Collection, go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
@@ -188,9 +204,9 @@ TEST_F(PropsTest, PropsDefault)
 
 TEST_F(PropsTest, PropsGO)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_go.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-    SetProperties(go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/props_go.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    SetProperties(m_Collection, go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
@@ -199,33 +215,36 @@ TEST_F(PropsTest, PropsGO)
 
 TEST_F(PropsTest, PropsCollection)
 {
+    dmGameObject::HCollectionResource resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_coll.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_coll.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_coll.scriptc", 0x0));
-    dmResource::Release(m_Factory, collection);
+    ReleaseCollectionResource(resource);
 }
 
 TEST_F(PropsTest, PropsSubCollection)
 {
+    dmGameObject::HCollectionResource resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_sub.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_sub.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    dmResource::Release(m_Factory, collection);
+    ReleaseCollectionResource(resource);
 }
 
 TEST_F(PropsTest, PropsMultiScript)
 {
+    dmGameObject::HCollectionResource resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_multi_script.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_multi_script.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    dmResource::Release(m_Factory, collection);
+    ReleaseCollectionResource(resource);
 }
 
 TEST_F(PropsTest, PropsSpawn)
@@ -264,18 +283,18 @@ TEST_F(PropsTest, PropsSpawn)
 
     ASSERT_EQ(top, lua_gettop(L));
     ASSERT_NE((dmGameObject::HPropertyContainer)0, properties);
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), properties, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), properties, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
-    ASSERT_NE((void*)0u, instance);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
 
 TEST_F(PropsTest, PropsSpawnNoProperties)
 {
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
-    ASSERT_NE((void*)0u, instance);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
 }
 
 TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
@@ -301,18 +320,19 @@ TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
 
 TEST_F(PropsTest, PropsRelativeURL)
 {
+    dmGameObject::HCollectionResource resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_rel_url.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_rel_url.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    dmResource::Release(m_Factory, collection);
+    ReleaseCollectionResource(resource);
 }
 
 TEST_F(PropsTest, PropsNopDefInInit)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_nop_def_in_init.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/props_nop_def_in_init.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     dmGameObject::Delete(m_Collection, go, false);
@@ -320,8 +340,9 @@ TEST_F(PropsTest, PropsNopDefInInit)
 
 TEST_F(PropsTest, PropsFailNoUserData)
 {
+    dmGameObject::HCollectionResource resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_no_user_data.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_fail_no_user_data.collectionc", &resource, &collection);
     ASSERT_NE(dmResource::RESULT_OK, res);
 }
 
@@ -334,7 +355,7 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
     }\
@@ -343,18 +364,18 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyOptions opt;\
         dmGameObject::PropertyVar var(v0);\
-        dmGameObject::SetProperty(go, 0, hash(prop), opt, var);\
+        dmGameObject::SetProperty(m_Collection, go, 0, hash(prop), opt, var);\
         dmGameObject::PropertyDesc desc;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
     }\
 
 #define ASSERT_GET_PROP_V1(go, prop, v0, epsilon)\
     {\
-        dmGameObject::SetScale(go, v0);\
+        dmGameObject::SetScale(m_Collection, go, v0);\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
     }\
@@ -363,9 +384,9 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyOptions opt;\
         dmGameObject::PropertyVar var(v0);\
-        dmGameObject::SetProperty(go, 0, hash(prop), opt, var);\
+        dmGameObject::SetProperty(m_Collection, go, 0, hash(prop), opt, var);\
         dmGameObject::PropertyDesc desc;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
     }\
 
@@ -373,7 +394,7 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);\
         ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
         ASSERT_EQ(hash(prop ".y"), desc.m_ElementIds[1]);\
@@ -381,17 +402,17 @@ static dmhash_t hash(const char* s)
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
 \
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".x"), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop ".x"), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
 \
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".y"), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop ".y"), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[0], epsilon);\
 \
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".z"), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop ".z"), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[0], epsilon);\
     }
@@ -400,9 +421,9 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyVar var(v);\
         dmGameObject::PropertyOptions opt;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, hash(prop), opt, var));\
         dmGameObject::PropertyDesc desc;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
@@ -410,22 +431,22 @@ static dmhash_t hash(const char* s)
         float v0 = v.getX() + 1.0f;\
         dmhash_t id = hash(prop ".x");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, id, opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, id, opt, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getY() + 1.0f;\
         id = hash(prop ".y");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, id, opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, id, opt, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getZ() + 1.0f;\
         id = hash(prop ".z");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, id, opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, id, opt, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
     }
 
@@ -433,7 +454,7 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_VECTOR4 == desc.m_Variant.m_Type || dmGameObject::PROPERTY_TYPE_QUAT == desc.m_Variant.m_Type);\
         ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
         ASSERT_EQ(hash(prop ".y"), desc.m_ElementIds[1]);\
@@ -443,21 +464,21 @@ static dmhash_t hash(const char* s)
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
         ASSERT_NEAR(v.getW(), desc.m_ValuePtr[3], epsilon);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
 \
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".x"), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop ".x"), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
 \
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".y"), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop ".y"), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[0], epsilon);\
 \
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".z"), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop ".z"), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[0], epsilon);\
 \
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".w"), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop ".w"), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getW(), desc.m_ValuePtr[0], epsilon);\
 }
@@ -466,9 +487,9 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyVar var(v);\
         dmGameObject::PropertyOptions opt;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, hash(prop), opt, var));\
         dmGameObject::PropertyDesc desc;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, hash(prop), opt, desc));\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
@@ -477,69 +498,69 @@ static dmhash_t hash(const char* s)
         float v0 = v.getX() + 1.0f;\
         dmhash_t id = hash(prop ".x");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, id, opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, id, opt, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getY() + 1.0f;\
         id = hash(prop ".y");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, id, opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, id, opt, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getZ() + 1.0f;\
         id = hash(prop ".z");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, id, opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, id, opt, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getW() + 1.0f;\
         id = hash(prop ".w");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(m_Collection, go, 0, id, opt, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(m_Collection, go, 0, id, opt, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
     }
 
 TEST_F(PropsTest, PropsGetSet)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_go.goc");
-    SetProperties(go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/props_go.goc");
+    SetProperties(m_Collection, go);
     dmGameObject::Init(m_Collection);
 
     float epsilon = 0.000001f;
 
     Vector3 pos(1, 2, 3);
-    dmGameObject::SetPosition(go, Point3(pos));
+    dmGameObject::SetPosition(m_Collection, go, Point3(pos));
     ASSERT_GET_PROP_V3(go, "position", pos, epsilon);
     pos *= 2.0f;
     ASSERT_SET_PROP_V3(go, "position", pos, epsilon);
 
     // Uniform scale
-    dmGameObject::SetScale(go, 2.0f);
+    dmGameObject::SetScale(m_Collection, go, 2.0f);
     ASSERT_GET_PROP_V3(go, "scale", Vector3(2.0f), epsilon);
     ASSERT_SET_PROP_V3(go, "scale", Vector3(3.0f), epsilon);
 
     // Non-uniform scale
-    dmGameObject::SetScale(go, 2.0f);
+    dmGameObject::SetScale(m_Collection, go, 2.0f);
     ASSERT_SET_PROP_NUM(go, "scale.x", 3.0f, epsilon);
     ASSERT_GET_PROP_NUM(go, "scale.y", 2.0f, epsilon);
     ASSERT_GET_PROP_NUM(go, "scale.z", 2.0f, epsilon);
 
-    dmGameObject::SetScale(go, 2.0f);
+    dmGameObject::SetScale(m_Collection, go, 2.0f);
     ASSERT_SET_PROP_NUM(go, "scale.y", 3.0f, epsilon);
     ASSERT_GET_PROP_NUM(go, "scale.x", 2.0f, epsilon);
     ASSERT_GET_PROP_NUM(go, "scale.z", 2.0f, epsilon);
 
-    dmGameObject::SetScale(go, 2.0f);
+    dmGameObject::SetScale(m_Collection, go, 2.0f);
     ASSERT_SET_PROP_NUM(go, "scale.z", 3.0f, epsilon);
     ASSERT_GET_PROP_NUM(go, "scale.x", 2.0f, epsilon);
     ASSERT_GET_PROP_NUM(go, "scale.y", 2.0f, epsilon);
 
     Quat rot(1, 2, 3, 4);
-    dmGameObject::SetRotation(go, rot);
+    dmGameObject::SetRotation(m_Collection, go, rot);
     ASSERT_GET_PROP_V4(go, "rotation", rot, epsilon);
     rot *= 2.0f;
     ASSERT_SET_PROP_V4(go, "rotation", rot, epsilon);
@@ -547,7 +568,7 @@ TEST_F(PropsTest, PropsGetSet)
     epsilon = 0.02f;
 
     rot = Quat(M_SQRT1_2, 0, 0, M_SQRT1_2);   // Based on conversion tool (YZX rotation sequence) on http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/
-    dmGameObject::SetRotation(go, rot);
+    dmGameObject::SetRotation(m_Collection, go, rot);
     Vector3 euler(90.0f, 0.0f, 0.0f);               // bank, heading, attitude
 
     ASSERT_GET_PROP_V3(go, "euler", euler, epsilon);
@@ -581,8 +602,8 @@ float DiffQuat(dmVMath::Quat a, dmVMath::Quat b)
 
 TEST_F(PropsTest, PropsGetSetAs)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/props_go.goc");
-    SetProperties(instance);
+    dmGameObject::HGameObject instance = dmGameObject::New(m_Collection, "/props_go.goc");
+    SetProperties(m_Collection, instance);
     dmGameObject::Init(m_Collection);
 
     dmGameObject::PropertyResult r;
@@ -590,95 +611,95 @@ TEST_F(PropsTest, PropsGetSetAs)
     dmhash_t geth;
     dmhash_t seth = hash("foobar");
     // check initial value
-    r = dmGameObject::GetPropertyAsHash(instance, hash("script"), hash("hash"), &geth);
+    r = dmGameObject::GetPropertyAsHash(m_Collection, instance, hash("script"), hash("hash"), &geth);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(hash("hash"), geth);
     // set new value
-    r = dmGameObject::SetPropertyFromHash(instance, hash("script"), hash("hash"), seth);
+    r = dmGameObject::SetPropertyFromHash(m_Collection, instance, hash("script"), hash("hash"), seth);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     // check that it was set
-    r = dmGameObject::GetPropertyAsHash(instance, hash("script"), hash("hash"), &geth);
+    r = dmGameObject::GetPropertyAsHash(m_Collection, instance, hash("script"), hash("hash"), &geth);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(seth, geth);
     // check that it verifies property type
-    r = dmGameObject::GetPropertyAsHash(instance, 0, hash("rotation"), &geth);
+    r = dmGameObject::GetPropertyAsHash(m_Collection, instance, 0, hash("rotation"), &geth);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::SetPropertyFromHash(instance, 0, hash("rotation"), seth);
+    r = dmGameObject::SetPropertyFromHash(m_Collection, instance, 0, hash("rotation"), seth);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     float getf;
     float setf = -123;
-    r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("number"), &getf);
+    r = dmGameObject::GetPropertyAsFloat(m_Collection, instance, hash("script"), hash("number"), &getf);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(200, getf);
-    r = dmGameObject::SetPropertyFromFloat(instance, hash("script"), hash("number"), setf);
+    r = dmGameObject::SetPropertyFromFloat(m_Collection, instance, hash("script"), hash("number"), setf);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("number"), &getf);
+    r = dmGameObject::GetPropertyAsFloat(m_Collection, instance, hash("script"), hash("number"), &getf);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(setf, getf);
-    r = dmGameObject::GetPropertyAsFloat(instance, 0, hash("rotation"), &getf);
+    r = dmGameObject::GetPropertyAsFloat(m_Collection, instance, 0, hash("rotation"), &getf);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::SetPropertyFromFloat(instance, 0, hash("rotation"), setf);
+    r = dmGameObject::SetPropertyFromFloat(m_Collection, instance, 0, hash("rotation"), setf);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Vector3 getvec3;
     dmVMath::Vector3 setvec3 = dmVMath::Vector3(-10, -1, 9);
-    r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("vec3"), &getvec3);
+    r = dmGameObject::GetPropertyAsVector3(m_Collection, instance, hash("script"), hash("vec3"), &getvec3);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector3(dmVMath::Vector3(1, 2, 3), getvec3), 0.0001f);
-    r = dmGameObject::SetPropertyFromVector3(instance, hash("script"), hash("vec3"), setvec3);
+    r = dmGameObject::SetPropertyFromVector3(m_Collection, instance, hash("script"), hash("vec3"), setvec3);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("vec3"), &getvec3);
+    r = dmGameObject::GetPropertyAsVector3(m_Collection, instance, hash("script"), hash("vec3"), &getvec3);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector3(setvec3, getvec3), 0.0001f);
-    r = dmGameObject::GetPropertyAsVector3(instance, 0, hash("rotation"), &getvec3);
+    r = dmGameObject::GetPropertyAsVector3(m_Collection, instance, 0, hash("rotation"), &getvec3);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::SetPropertyFromVector3(instance, 0, hash("rotation"), setvec3);
+    r = dmGameObject::SetPropertyFromVector3(m_Collection, instance, 0, hash("rotation"), setvec3);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Vector4 getvec4;
     dmVMath::Vector4 setvec4 = dmVMath::Vector4(-10, -1, 9, 500);
-    r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("vec4"), &getvec4);
+    r = dmGameObject::GetPropertyAsVector4(m_Collection, instance, hash("script"), hash("vec4"), &getvec4);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector4(dmVMath::Vector4(4, 5, 6, 7), getvec4), 0.0001f);
-    r = dmGameObject::SetPropertyFromVector4(instance, hash("script"), hash("vec4"), setvec4);
+    r = dmGameObject::SetPropertyFromVector4(m_Collection, instance, hash("script"), hash("vec4"), setvec4);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("vec4"), &getvec4);
+    r = dmGameObject::GetPropertyAsVector4(m_Collection, instance, hash("script"), hash("vec4"), &getvec4);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector4(setvec4, getvec4), 0.0001f);
-    r = dmGameObject::GetPropertyAsVector4(instance, 0, hash("rotation"), &getvec4);
+    r = dmGameObject::GetPropertyAsVector4(m_Collection, instance, 0, hash("rotation"), &getvec4);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::SetPropertyFromVector4(instance, 0, hash("rotation"), setvec4);
+    r = dmGameObject::SetPropertyFromVector4(m_Collection, instance, 0, hash("rotation"), setvec4);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Quat getquat;
     dmVMath::Quat setquat = dmVMath::Quat(-10, -1, 9, 500);
-    r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("quat"), &getquat);
+    r = dmGameObject::GetPropertyAsQuat(m_Collection, instance, hash("script"), hash("quat"), &getquat);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffQuat(dmVMath::Quat(8, 9, 10, 11), getquat), 0.0001f);
-    r = dmGameObject::SetPropertyFromQuat(instance, hash("script"), hash("quat"), setquat);
+    r = dmGameObject::SetPropertyFromQuat(m_Collection, instance, hash("script"), hash("quat"), setquat);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("quat"), &getquat);
+    r = dmGameObject::GetPropertyAsQuat(m_Collection, instance, hash("script"), hash("quat"), &getquat);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffQuat(setquat, getquat), 0.0001f);
-    r = dmGameObject::GetPropertyAsQuat(instance, 0, hash("position"), &getquat);
+    r = dmGameObject::GetPropertyAsQuat(m_Collection, instance, 0, hash("position"), &getquat);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::SetPropertyFromQuat(instance, 0, hash("position"), setquat);
+    r = dmGameObject::SetPropertyFromQuat(m_Collection, instance, 0, hash("position"), setquat);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     bool getb;
     bool setb = 1;
-    r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("bool"), &getb);
+    r = dmGameObject::GetPropertyAsBool(m_Collection, instance, hash("script"), hash("bool"), &getb);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(0, getb);
-    r = dmGameObject::SetPropertyFromBool(instance, hash("script"), hash("bool"), setb);
+    r = dmGameObject::SetPropertyFromBool(m_Collection, instance, hash("script"), hash("bool"), setb);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("bool"), &getb);
+    r = dmGameObject::GetPropertyAsBool(m_Collection, instance, hash("script"), hash("bool"), &getb);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(setb, getb);
-    r = dmGameObject::GetPropertyAsBool(instance, 0, hash("rotation"), &getb);
+    r = dmGameObject::GetPropertyAsBool(m_Collection, instance, 0, hash("rotation"), &getb);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::SetPropertyFromBool(instance, 0, hash("position"), setb);
+    r = dmGameObject::SetPropertyFromBool(m_Collection, instance, 0, hash("position"), setb);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmMessage::URL geturl;
@@ -686,41 +707,41 @@ TEST_F(PropsTest, PropsGetSetAs)
     seturl.m_Socket = hash("foo");
     seturl.m_Path = hash("bar");
     seturl.m_Fragment = hash("baz");
-    r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("url"), &geturl);
+    r = dmGameObject::GetPropertyAsURL(m_Collection, instance, hash("script"), hash("url"), &geturl);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(hash("/path"), geturl.m_Path);
-    r = dmGameObject::SetPropertyFromURL(instance, hash("script"), hash("url"), seturl);
+    r = dmGameObject::SetPropertyFromURL(m_Collection, instance, hash("script"), hash("url"), seturl);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("url"), &geturl);
+    r = dmGameObject::GetPropertyAsURL(m_Collection, instance, hash("script"), hash("url"), &geturl);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(seturl.m_Socket, geturl.m_Socket);
     ASSERT_EQ(seturl.m_Path, geturl.m_Path);
     ASSERT_EQ(seturl.m_Fragment, geturl.m_Fragment);
-    r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("vec3"), &geturl);
+    r = dmGameObject::GetPropertyAsURL(m_Collection, instance, hash("script"), hash("vec3"), &geturl);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::GetPropertyAsURL(instance, 0, hash("rotation"), &geturl);
+    r = dmGameObject::GetPropertyAsURL(m_Collection, instance, 0, hash("rotation"), &geturl);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
-    r = dmGameObject::SetPropertyFromURL(instance, 0, hash("position"), seturl);
+    r = dmGameObject::SetPropertyFromURL(m_Collection, instance, 0, hash("position"), seturl);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     const char* gettext;
     char settext[] = "runtime text with a longer value";
-    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    r = dmGameObject::GetPropertyAsText(m_Collection, instance, hash("script"), hash("text"), &gettext);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_STREQ("override text", gettext);
-    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("text"), settext);
+    r = dmGameObject::SetPropertyFromText(m_Collection, instance, hash("script"), hash("text"), settext);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     settext[0] = 'X';
-    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    r = dmGameObject::GetPropertyAsText(m_Collection, instance, hash("script"), hash("text"), &gettext);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_STREQ("runtime text with a longer value", gettext);
-    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("number"), &gettext);
+    r = dmGameObject::GetPropertyAsText(m_Collection, instance, hash("script"), hash("number"), &gettext);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
-    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("number"), "invalid");
+    r = dmGameObject::SetPropertyFromText(m_Collection, instance, hash("script"), hash("number"), "invalid");
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
-    r = dmGameObject::SetPropertyFromFloat(instance, hash("script"), hash("text"), 1.0f);
+    r = dmGameObject::SetPropertyFromFloat(m_Collection, instance, hash("script"), hash("text"), 1.0f);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
-    r = dmGameObject::SetPropertyFromText(instance, 0, hash("position"), "invalid");
+    r = dmGameObject::SetPropertyFromText(m_Collection, instance, 0, hash("position"), "invalid");
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
 
     dmGameObject::Delete(m_Collection, instance, false);
@@ -728,18 +749,19 @@ TEST_F(PropsTest, PropsGetSetAs)
 
 TEST_F(PropsTest, PropsGetSetScript)
 {
+    dmGameObject::HCollectionResource resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_get_set.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_get_set.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     ASSERT_TRUE(dmGameObject::Init(collection));
     dmGameObject::UpdateContext context;
     context.m_DT = 1 / 60.0f;
     ASSERT_TRUE(dmGameObject::Update(collection, &context));
-    dmResource::Release(m_Factory, collection);
+    ReleaseCollectionResource(resource);
 }
 
 #define ASSERT_SPAWN_FAILS(path)\
-    dmGameObject::HInstance i = Spawn(m_Factory, m_Collection, path, dmHashString64("id"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
+    dmGameObject::HGameObject i = Spawn(m_Factory, m_Collection, path, dmHashString64("id"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
     ASSERT_EQ(0, i);
 
 TEST_F(PropsTest, PropsGetBadURL)

@@ -46,20 +46,19 @@ namespace dmGameSystem
 
     struct GuiComponent
     {
-        struct GuiWorld*        m_World;
-        GuiSceneResource*       m_Resource;
-        dmGui::HScene           m_Scene;
-        dmGameObject::HInstance m_Instance;
-        MaterialResource*       m_Material;
-        GuiLayoutObjectTarget   m_HoveredLayoutObject;
-        GuiLayoutObjectTarget   m_PressedLayoutObject;
-        uint16_t                m_ComponentIndex;
-        uint8_t                 m_Enabled       : 1;
-        uint8_t                 m_AddedToUpdate : 1;
-        uint8_t                 m_Initialized   : 1;
-        uint8_t                 m_Padding       : 5;
-        dmArray<void*>          m_ResourcePropertyPointers;
-        dmHashTable64<HNodeDDF> m_DefaultNodeDescs;
+        GuiSceneResource*         m_Resource;
+        dmGui::HScene             m_Scene;
+        dmGameObject::HGameObject m_Instance;
+        MaterialResource*         m_Material;
+        GuiLayoutObjectTarget     m_HoveredLayoutObject;
+        GuiLayoutObjectTarget     m_PressedLayoutObject;
+        uint16_t                  m_ComponentIndex;
+        uint8_t                   m_Enabled       : 1;
+        uint8_t                   m_AddedToUpdate : 1;
+        uint8_t                   m_Initialized   : 1;
+        uint8_t                   m_Padding       : 5;
+        dmArray<void*>            m_ResourcePropertyPointers;
+        dmHashTable64<HNodeDDF>   m_DefaultNodeDescs;
     };
 
     struct BoxVertex
@@ -150,6 +149,7 @@ namespace dmGameSystem
         dmArray<GuiRenderObject>                 m_GuiRenderObjects;
         dmArray<HComponentRenderConstants>       m_RenderConstants;
         dmArray<GuiComponent*>                   m_Components;
+        dmGameObject::HCollection                m_Collection;
         dmGraphics::HVertexDeclaration           m_VertexDeclaration;
         dmGraphics::HVertexBuffer                m_VertexBuffer;
         dmBuffer::StreamDeclaration*             m_BoxVertexStreamDeclaration;

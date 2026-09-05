@@ -265,8 +265,9 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::HCollection hcollection;
+        dmGameObject::HGameObject hsender;
+        dmScript::CheckCollectionAndInstance(L, &hcollection, &hsender);
 
         HFactoryWorld world;
         HFactoryComponent component;
@@ -280,7 +281,7 @@ namespace dmGameSystem
         }
         else
         {
-            position = dmGameObject::GetWorldPosition(sender_instance);
+            position = dmGameObject::GetWorldPosition(hcollection, hsender);
         }
         dmVMath::Quat rotation;
         if (top >= 3 && !lua_isnil(L, 3))
@@ -289,7 +290,7 @@ namespace dmGameSystem
         }
         else
         {
-            rotation = dmGameObject::GetWorldRotation(sender_instance);
+            rotation = dmGameObject::GetWorldRotation(hcollection, hsender);
         }
 
         dmGameObject::HPropertyContainer properties = 0;
@@ -315,7 +316,7 @@ namespace dmGameSystem
         }
         else
         {
-            scale = dmGameObject::GetWorldScale(sender_instance);
+            scale = dmGameObject::GetWorldScale(hcollection, hsender);
         }
 
         dmhash_t id = dmGameObject::CreateInstanceId();
@@ -324,7 +325,7 @@ namespace dmGameSystem
         bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
         if (msg_passing)
         {
-            FactoryComp_CreateWithMessage(L, collection, &receiver, id, properties, position, rotation, scale);
+            FactoryComp_CreateWithMessage(L, hcollection, &receiver, id, properties, position, rotation, scale);
             // We currently don't know if the creation succeeds
             dmScript::PushHash(L, id);
         }
@@ -335,9 +336,9 @@ namespace dmGameSystem
             dmScript::GetInstance(L);
             int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-            dmGameObject::HInstance instance;
-            dmGameObject::Result result = CompFactorySpawn(world, component, collection,
-                                                            id, position, rotation, scale, properties, &instance);
+            dmGameObject::HGameObject hinstance;
+            dmGameObject::Result result = CompFactorySpawn(world, component, hcollection,
+                                                            id, position, rotation, scale, properties, &hinstance);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
             dmScript::SetInstance(L);
