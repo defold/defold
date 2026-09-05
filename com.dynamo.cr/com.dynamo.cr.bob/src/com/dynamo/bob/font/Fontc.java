@@ -206,7 +206,8 @@ public class Fontc {
             glyph.width = source.width;
             glyph.pixelHeight = source.height;
             glyphs.add(glyph);
-            maxAscent = Math.max(maxAscent, glyph.ascent);
+            maxAscent = i == 0 ? glyph.ascent : Math.max(maxAscent, glyph.ascent);
+            // Font-level descent includes the baseline, even when every glyph lies above it.
             maxDescent = Math.max(maxDescent, glyph.descent);
         }
         glyphBankBuilder.setMaxAscent(maxAscent).setMaxDescent(maxDescent);
@@ -405,9 +406,9 @@ public class Fontc {
         }
 
         int cellWidth = 1;
-        int maxAscent = 0;
-        int maxDescent = 0;
-        int cellMaxAscent = 0;
+        int maxAscent = glyphs.isEmpty() ? 0 : glyphs.get(0).ascent;
+        int maxDescent = glyphs.isEmpty() ? 0 : glyphs.get(0).descent;
+        int cellMaxAscent = maxAscent;
         for (Glyph glyph : glyphs) {
             cellWidth = Math.max(cellWidth, glyph.width + 2);
             maxAscent = Math.max(maxAscent, glyph.ascent);

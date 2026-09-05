@@ -600,7 +600,10 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             layout.bytesPerRow = extent.width * repack_bpp;
             if (is_cube_texture)
             {
-                const size_t source_face_stride = params.m_DataSize ? params.m_DataSize : pixels_per_face * 3;
+                const size_t source_face_size   = (size_t)pixels_per_face * 3;
+                size_t source_face_stride       = params.m_DataSize ? params.m_DataSize : source_face_size;
+                if (source_face_stride == source_face_size * upload_layer_count)
+                    source_face_stride = source_face_size;
                 const size_t repacked_face_size = (size_t)pixels_per_face * repack_bpp;
                 uint8_t* repacked_face           = new uint8_t[repacked_face_size];
                 const uint8_t* source_data       = (const uint8_t*)params.m_Data;
@@ -1510,6 +1513,8 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
+        // WebGPU (unlike WebGL2) allows BC formats on array/3D targets.
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
     }
     if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionETC2))
     {

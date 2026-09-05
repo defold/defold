@@ -25,7 +25,19 @@ function(defold_target_link_bullet3d target platform)
     message(FATAL_ERROR "defold_target_link_bullet3d: target and platform are required")
   endif()
 
-  # Use the Defold lib linker helper to handle Windows name prefixing
+  # Imported targets preserve the filenames produced by build_ext on every
+  # platform, including Windows-based consoles.
+  foreach(_lib IN ITEMS BulletDynamics BulletCollision LinearMath)
+    if(NOT TARGET ${_lib})
+      set(_path "${DEFOLD_SDK_ROOT}/ext/lib/${platform}/lib${_lib}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+      if(NOT EXISTS "${_path}")
+        message(FATAL_ERROR "Missing ${_path}. Run ./scripts/build.py --platform=${platform} build_ext first.")
+      endif()
+      add_library(${_lib} STATIC IMPORTED GLOBAL)
+      set_target_properties(${_lib} PROPERTIES IMPORTED_LOCATION "${_path}")
+    endif()
+  endforeach()
+
   defold_target_link_libraries(${target} ${platform} SCOPE ${DB3D_SCOPE}
     BulletDynamics BulletCollision LinearMath)
 endfunction()

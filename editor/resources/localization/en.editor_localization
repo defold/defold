@@ -936,6 +936,8 @@ command.edit.add-embedded-component.variant.collection = Add Game Object
 command.edit.add-embedded-component.variant.collision-object = Add Shape
 command.edit.add-embedded-component.variant.collision-object.option.box = Box
 command.edit.add-embedded-component.variant.collision-object.option.capsule = Capsule
+command.edit.add-embedded-component.variant.collision-object.option.hull = Hull
+command.edit.add-embedded-component.variant.collision-object.option.mesh = Mesh
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
 command.edit.add-embedded-component.variant.game-object = Add Component
 command.edit.add-embedded-component.variant.gui.option.textures = Textures…
@@ -1344,6 +1346,10 @@ property.collision-object.shape.dimensions = Dimensions
 property.collision-object.shape.dimensions.tooltip = The box shape's full **Width**, **Height**, and **Depth**. **Depth** affects only 3D physics, but every dimension must be greater than zero.
 property.collision-object.shape.height = Height
 property.collision-object.shape.height.tooltip = **3D physics only.** The length of a capsule's straight section between its rounded ends. Its total end-to-end length is **Height + Diameter**.
+property.collision-object.shape.mesh-scene = Scene
+property.collision-object.shape.mesh-scene.tooltip = The glTF or GLB scene containing the collision mesh.
+property.collision-object.shape.mesh = Mesh
+property.collision-object.shape.mesh.tooltip = A named raw mesh from the selected scene.
 
 # Properties: compute
 
@@ -1547,10 +1553,14 @@ property.model.create-go-bones = Create GO Bones
 property.model.create-go-bones.tooltip = Creates a runtime game object for every skeleton bone, allowing attachments such as a weapon parented to a hand bone. Bone objects can be found with `model.get_go()` and count toward the collection's game-object capacity.
 property.model.default-animation = Default Animation
 property.model.default-animation.tooltip = Animation from **Animations** that starts automatically with the model. Leave empty when animation should be started explicitly with `model.play_anim()`.
+property.model.scene = Scene
+property.model.scene.tooltip = glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the scene.
 property.model.mesh = Mesh
 property.model.mesh.tooltip = glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the mesh.
+property.model.mesh-name = Mesh
+property.model.mesh-name.tooltip = Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms.
 property.model.skeleton = Skeleton
-property.model.skeleton.tooltip = glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Mesh**.
+property.model.skeleton.tooltip = glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Scene**.
 
 # Properties: particlefx
 
@@ -2713,6 +2723,13 @@ error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is =
 error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = Incorrect depth/stencil attachment: height is greater than zero, but width is zero.
 error.collision-object-shape-dimensions-must-be-greater-than-zero = All dimensions must be greater than zero.
 error.collision-object-has-no-shapes = Collision Object has no shapes.
+error.collision-object-mesh-shape-scene-required = Select a glTF or GLB scene for the Mesh or Hull shape.
+error.collision-object-mesh-shape-no-named-meshes = The selected scene contains no named meshes.
+error.collision-object-mesh-shape-mesh-required = Select a mesh from the scene.
+error.collision-object-mesh-shape-mesh-missing = Mesh "{mesh}" no longer exists or is ambiguous in the selected scene.
+error.collision-object-mesh-shape-triangle-topology-required = The selected mesh contains a non-triangle primitive.
+error.collision-object-mesh-shape-empty = The selected mesh contains no triangles.
+error.collision-object-hull-shape-empty = The selected mesh contains no vertices.
 error.collision-shape-conflict = Cannot combine embedded shapes with a referenced Collision Shape. Remove one of them.
 error.collision-object-shape-not-supported-in-physics = {shape} shapes are not supported in {physics} physics.
 error.texture-profiles.format-not-supported-by-texture-compressor = Texture format is not supported by the texture compressor.
@@ -2749,6 +2766,9 @@ error.material-does-not-support-paged-atlases = The Material does not support pa
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}.
 error.model-unsupported-file-format = {property} "{resource}" has unsupported format {format}. Defold supports only {supported_formats} files for {property}.
 error.model-load-failed = The file "{file}" failed to load:\n{error}
+error.model-mesh-selection-file-type = Mesh is only available for glTF and GLB scenes.
+error.model-mesh-selection-name-required = The selected mesh index does not have a mesh name.
+error.model-mesh-selection-missing = Mesh "{mesh}" was not found in the scene.
 error.animation-not-found = "{animation}" could not be found in "{property}".
 error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.

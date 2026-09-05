@@ -124,7 +124,7 @@ struct FontGlyphVertexParams
     float      m_RenderScale;
     uint32_t   m_CellX;
     uint32_t   m_CellY;
-    uint32_t   m_CacheCellMaxAscent;
+    int32_t    m_CacheCellMaxAscent;
     uint32_t   m_CacheCellPadding;
     bool       m_MetricsFromTtf;
 };

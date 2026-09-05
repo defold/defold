@@ -284,6 +284,7 @@ static jobject CreateModel(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, 
     jobject obj = env->AllocObject(types->m_ModelJNI.cls);
     dmJNI::SetInt(env, obj, types->m_ModelJNI.index, model->m_Index);
     dmJNI::SetString(env, obj, types->m_ModelJNI.name, model->m_Name);
+    dmJNI::SetBoolean(env, obj, types->m_ModelJNI.nameIsGenerated, model->m_NameIsGenerated);
     // Bones aren't created yet. See FixupModelBones
     //dmJNI::SetObject(env, obj, types->m_ModelJNI.boneParent, model->m_ParentBone ? bones[model->m_ParentBone->m_Index] : 0);
     dmJNI::SetObjectDeref(env, obj, types->m_ModelJNI.meshes, CreateMeshesArray(env, types, materials, model->m_Meshes.Size(), model->m_Meshes.Begin()));

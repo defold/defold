@@ -411,7 +411,7 @@ namespace dmRender
 
         if (!cached)
         {
-            const int16_t cell_offset_y = glyph_context->m_FontMap->m_CacheCellMaxAscent - (int16_t)glyph->m_Ascent;
+            const int32_t cell_offset_y = glyph_context->m_FontMap->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
             cached = AddGlyphToCache(glyph_context->m_FontMap, glyph_context->m_Frame, glyph_key, glyph, cell_offset_y);
         }
 

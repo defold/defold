@@ -1768,8 +1768,9 @@ namespace dmGameSystem
  * Cast shapes can also specify `target_rotation`, which defaults to `rotation`.
  * Capsule `height` is the length of the cylindrical middle section; total
  * end-to-end height is `height + diameter`. Query sizes are always expressed
- * in Defold world units. A table returned by `bullet3d.shape.get_shape` can be
- * reused directly after adding the desired query transform fields.
+ * in Defold world units. Except for triangle meshes, a table returned by
+ * `bullet3d.shape.get_shape` can be reused directly after adding the desired
+ * query transform fields. Queries accept only sphere, box, capsule, and hull.
  * Hull vertices describe a convex hull; concave input is convexified by Bullet.
  * All query vectors and scalar sizes must be finite. Diameters, dimensions and
  * capsule heights must be greater than zero; hulls require at least four finite
