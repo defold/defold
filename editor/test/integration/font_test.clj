@@ -646,6 +646,8 @@
           default-node (:node-id (first (g/node-value node :style-infos)))
           original-markup "<outline size=1.0 alpha=0.1><shadow x=1.0 y=2.0 blur=1.0 alpha=0.5>"
           updated-markup "<outline size=2.375 alpha=0.12345679><shadow x=-1.25 y=2.5 blur=0.0 alpha=0.375>"]
+      (is (= "" (g/node-value default-node :markup)))
+      (g/set-property! node :render-mode :mode-multi-layer)
       (is (= original-markup (get-in (g/node-value default-node :_properties) [:properties :markup :value])))
       (is (true? (get-in (g/node-value default-node :_properties) [:properties :markup :read-only?])))
       (g/reset-undo! :undo/global)
@@ -668,6 +670,8 @@
       (is (= original-markup (g/node-value default-node :markup)))
       (g/redo! :undo/global)
       (is (= updated-markup (g/node-value default-node :markup)))
+      (test-util/with-prop [node :render-mode :mode-single-layer]
+        (is (= "" (g/node-value default-node :markup))))
       (g/transact [(g/set-property node :outline-alpha 0)
                    (g/set-property node :shadow-alpha 0)])
       (is (= "" (g/node-value default-node :markup)))

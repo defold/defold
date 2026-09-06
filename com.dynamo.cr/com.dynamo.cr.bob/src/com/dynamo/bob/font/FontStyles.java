@@ -22,6 +22,7 @@ import java.util.Set;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.render.proto.Font.CompiledStyle;
 import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.StyleDesc;
 import com.dynamo.render.proto.Font.StyleEffect;
 
@@ -74,7 +75,8 @@ public final class FontStyles {
             FontRenderer.Style style;
             if (source.getName().equals("default")) {
                 style = new FontRenderer.Style();
-                if (!font.getFont().toLowerCase(java.util.Locale.ROOT).endsWith(".fnt")) {
+                if (font.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER
+                        && !font.getFont().toLowerCase(java.util.Locale.ROOT).endsWith(".fnt")) {
                     if (font.getOutlineWidth() > 0 && font.getOutlineAlpha() > 0) {
                         style.flags |= FontRenderer.Style.FLAG_OUTLINE_WIDTH | FontRenderer.Style.FLAG_OUTLINE_ALPHA;
                         style.outlineWidth = font.getOutlineWidth();

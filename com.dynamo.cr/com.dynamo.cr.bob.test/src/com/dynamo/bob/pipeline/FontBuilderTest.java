@@ -77,6 +77,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testAuthoredStylesAreCompiled() throws Exception {
         String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\n"
+                + "render_mode: MODE_MULTI_LAYER\n"
                 + "outline_width: 1.375\noutline_alpha: 0.3725\nshadow_alpha: 0.6235\n"
                 + "shadow_x: 2.125\nshadow_y: -1.625\nshadow_blur: 0\n"
                 + "styles { name: \"default\" }\n"
@@ -95,6 +96,23 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(3, compiled.getStyles(1).getDecorationFlags());
         assertEquals(com.dynamo.render.proto.Font.StyleEffect.Type.WAVE, compiled.getStyles(1).getEffects(0).getType());
         assertEquals(com.dynamo.render.proto.Font.StyleEffect.Type.SHAKE, compiled.getStyles(1).getEffects(1).getType());
+    }
+
+    @Test
+    public void testSingleLayerDefaultStyle() throws Exception {
+        for (String outputFormat : new String[] { "TYPE_BITMAP", "TYPE_DISTANCE_FIELD" }) {
+            for (String renderMode : new String[] { "", "render_mode: MODE_SINGLE_LAYER\n" }) {
+                String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\ncharacters: \"A\"\n"
+                        + "output_format: " + outputFormat + "\n" + renderMode
+                        + "outline_width: 1.375\noutline_alpha: 0.3725\nshadow_alpha: 0.6235\n"
+                        + "shadow_x: 2.125\nshadow_y: -1.625\nshadow_blur: 1\n";
+                FontMap compiled = getFontMap(build("/single-layer.font", source));
+                assertEquals(1, compiled.getLayerMask());
+                assertEquals(0, compiled.getStyles(0).getFlags());
+                assertEquals(1.375f, compiled.getOutlineWidth(), 0.0f);
+                assertEquals(1, compiled.getShadowBlur());
+            }
+        }
     }
 
     @Test
