@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.ConnectException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -180,7 +181,7 @@ public class BundleHelper {
         if (data == null) {
             return "";
         }
-        String s = new String(data);
+        String s = new String(data, StandardCharsets.UTF_8);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
         try {
@@ -205,7 +206,7 @@ public class BundleHelper {
     }
 
     public void formatResourceToFile(byte[] content, final String sourceLocation, File toFile) throws IOException {
-        FileUtils.write(toFile, formatResource(content, sourceLocation));
+        FileUtils.write(toFile, formatResource(content, sourceLocation), StandardCharsets.UTF_8);
     }
 
     public File getTargetManifestDir(Platform platform){
