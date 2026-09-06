@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
@@ -39,6 +40,9 @@ import org.apache.commons.io.FileUtils;
 import com.dynamo.bob.pipeline.Shaderc;
 
 public class ShaderCompilePipeline {
+    private static final String WGSL_FLIPPED_VERTEX_ENTRY_POINT_MARKER = "// defold-webgpu-flipped-entry-point: ";
+    private static final String WGSL_FLIPPED_VERTEX_ENTRY_POINT_BASE = "_defold_webgpu_main_flipped";
+
     public static class Options {
         public boolean splitTextureSamplers;
         public boolean remapVertexFragmentIOForHLSL;
@@ -223,8 +227,13 @@ public class ShaderCompilePipeline {
             throw new CompileExceptionError("Unable to add the WebGPU vertex Y-flip entry point for " + resourcePath);
         }
 
+        String flippedEntryPointName = WGSL_FLIPPED_VERTEX_ENTRY_POINT_BASE;
+        while (Pattern.compile("\\b" + Pattern.quote(flippedEntryPointName) + "\\b").matcher(source).find()) {
+            flippedEntryPointName += "_";
+        }
+
         flippedEntryPoint = flippedEntryPoint.substring(0, flippedFunction) +
-                            "fn main_flipped(" +
+                            "fn " + flippedEntryPointName + "(" +
                             flippedEntryPoint.substring(flippedFunction + "fn main(".length());
         entryPointReturn = flippedEntryPoint.indexOf("  return ");
         flippedEntryPoint = flippedEntryPoint.substring(0, entryPointReturn) +
@@ -232,6 +241,7 @@ public class ShaderCompilePipeline {
                             flippedEntryPoint.substring(entryPointReturn);
 
         return source.substring(0, entryPointEnd) + "\n\n" +
+               WGSL_FLIPPED_VERTEX_ENTRY_POINT_MARKER + flippedEntryPointName + "\n" +
                flippedEntryPoint + source.substring(entryPointEnd);
     }
 

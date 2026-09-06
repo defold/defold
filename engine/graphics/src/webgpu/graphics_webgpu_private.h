@@ -73,6 +73,7 @@ namespace dmGraphics
     {
         WGPUShaderModule m_Module = NULL;
         uint64_t         m_Hash;
+        char*            m_FlippedEntryPoint = NULL;
     };
 
     struct WebGPUProgram
