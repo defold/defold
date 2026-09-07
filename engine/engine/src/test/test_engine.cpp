@@ -22,6 +22,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
+#include <script/sys_ddf.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -490,6 +491,58 @@ TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
     ASSERT_EQ(0u, effective_swap_interval);
     ASSERT_GE(elapsed, 150000u);
     ASSERT_LE(elapsed, 300000u);
+}
+
+TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
+{
+    // Verify that changing vsync does not restart an active update-frequency timer.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool posted = false;
+    uint64_t deadline_before = 0;
+    uint64_t deadline_after = 0;
+    uint32_t pacing_frequency = 0;
+
+    if (initialized)
+    {
+        dmEngine::Step(engine);
+        deadline_before = engine->m_NextFrameTime;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetVsync message;
+        message.m_SwapInterval = 0;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        // The message is handled during StepFrame, after this frame's deadline advances.
+        dmEngine::Step(engine);
+        deadline_after = engine->m_NextFrameTime;
+        pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_NE(0u, deadline_before);
+    ASSERT_GT(deadline_after, deadline_before);
+    ASSERT_EQ(100u, pacing_frequency);
 }
 
 TEST_F(EngineTest, FramePacingDeadlineDoesNotAccumulateRoundingError)
