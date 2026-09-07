@@ -15,3 +15,10 @@ cache_width: 2048
 cache_height: 2048
 render_mode: MODE_MULTI_LAYER
 characters: " !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\303\245\303\244\303\266"
+styles {
+  name: "default"
+}
+styles {
+  name: "notice"
+  markup: "<color=#ff6600><ul>"
+}
