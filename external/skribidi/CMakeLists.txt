@@ -1,14 +1,7 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 4.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
-include(functions)
-include(functions_sdk)
-include(sdk)
-
-if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)(_sim)?-(macos|ios)$")
-  set(SKRIBIDI_APPLE_ARCH "${CMAKE_MATCH_1}")
-  set(CMAKE_OSX_ARCHITECTURES "${SKRIBIDI_APPLE_ARCH}" CACHE STRING "Skribidi Apple target architecture" FORCE)
-endif()
+include(defold)
 
 project(skribidi LANGUAGES C)
 
@@ -51,6 +44,7 @@ target_include_directories(skribidi PRIVATE
   "${DEFOLD_SDK_ROOT}/ext/include"
   "${DEFOLD_SDK_ROOT}/ext/include/harfbuzz"
   "${DEFOLD_SDK_ROOT}/ext/include/libunibreak")
+target_link_libraries(skribidi PRIVATE defold_sdk)
 
 if(MSVC)
   set_property(TARGET skribidi PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
