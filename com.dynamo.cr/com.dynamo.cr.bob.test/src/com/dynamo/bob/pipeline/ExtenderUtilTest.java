@@ -14,19 +14,27 @@
 
 package com.dynamo.bob.pipeline;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.yaml.snakeyaml.Yaml;
 
+import com.defold.extender.client.ExtenderResource;
+
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -106,5 +114,86 @@ public class ExtenderUtilTest {
         assertTrue(resources.containsKey("bundle1/values/strings.xml"));
         assertTrue(resources.containsKey("bundle2/values/strings.xml"));
     }
-}
 
+    private ExtenderResource findResource(List<ExtenderResource> resources, String path) {
+        for (ExtenderResource resource : resources) {
+            if (path.equals(resource.getPath())) {
+                return resource;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testLegacyWindowsAppManifestLibrariesAreMigratedBeforeUpload() throws Exception {
+        String libraries = "[libphysics, libphysics_3d.lib, record_null.lib, "
+                + "librender_font_default, librender_font_default.lib, render_font_default.lib, render_font_default, "
+                + "libmbedtls, libmbedtls.lib, mbedtls.lib, mbedtls, "
+                + "libmbedtls_noasan, libmbedtls_noasan.lib, mbedtls_noasan.lib, mbedtls_noasan, "
+                + "libdmbedtls.lib, libdmbedtls_noasan, libfont_render, libgameobject.lib, "
+                + "libBulletDynamics, libBulletCollision, libLinearMath, "
+                + "physics, libbox2d_defold, libopus.lib, vpx, vulkan-1, libcustom.lib, null, 42]";
+        List<Object> expectedLibraries = Arrays.asList(
+                "physics", "physics_3d", "record_null",
+                "render_font_default", "render_font_default", "render_font_default", "render_font_default",
+                "dmbedtls", "dmbedtls", "dmbedtls", "dmbedtls",
+                "dmbedtls_noasan", "dmbedtls_noasan", "dmbedtls_noasan", "dmbedtls_noasan",
+                "dmbedtls", "dmbedtls_noasan", "libfont_render", "gameobject",
+                "libBulletDynamics", "libBulletCollision", "libLinearMath",
+                "physics", "libbox2d_defold", "libopus.lib", "vpx", "vulkan-1", "libcustom.lib", null, 42);
+        String manifestYaml = "context:\n    libs: " + libraries + "\nplatforms:\n";
+        for (String platform : List.of("win32", "x86-win32", "x86_64-win32", "common", "x86_64-linux")) {
+            manifestYaml += "    " + platform + ":\n        context:\n";
+            for (String key : List.of("excludeLibs", "libs", "engineLibs", "symbols")) {
+                manifestYaml += "            " + key + ": " + libraries + "\n";
+            }
+        }
+        byte[] originalContent = manifestYaml.getBytes(StandardCharsets.UTF_8);
+        createFile(fileSystem, "legacy-windows.appmanifest", originalContent);
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "legacy-windows.appmanifest");
+
+        ExtenderResource uploadedResource = findResource(
+                ExtenderUtil.getExtensionSources(project, Platform.X86_64Win32, null), ExtenderUtil.appManifestPath);
+        byte[] migratedContent = uploadedResource.getContent();
+        Map<String, Object> manifest = new Yaml().load(new String(migratedContent, StandardCharsets.UTF_8));
+        Map<String, Object> original = new Yaml().load(manifestYaml);
+        Map<String, Object> platforms = (Map<String, Object>) manifest.get("platforms");
+        Map<String, Object> originalPlatforms = (Map<String, Object>) original.get("platforms");
+        for (String platform : List.of("win32", "x86-win32", "x86_64-win32")) {
+            Map<String, Object> context = (Map<String, Object>) ((Map<String, Object>) platforms.get(platform)).get("context");
+            for (String key : List.of("excludeLibs", "libs", "engineLibs")) {
+                assertEquals(platform + "/" + key, expectedLibraries, context.get(key));
+            }
+            assertEquals(new Yaml().load(libraries), context.get("symbols"));
+        }
+        assertEquals(original.get("context"), manifest.get("context"));
+        assertEquals(originalPlatforms.get("common"), platforms.get("common"));
+        assertEquals(originalPlatforms.get("x86_64-linux"), platforms.get("x86_64-linux"));
+        assertArrayEquals(originalContent, project.getResource("legacy-windows.appmanifest").getContent());
+
+        createFile(fileSystem, "current-windows.appmanifest", migratedContent);
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "current-windows.appmanifest");
+        ExtenderResource currentResource = findResource(
+                ExtenderUtil.getExtensionSources(project, Platform.X86_64Win32, null), ExtenderUtil.appManifestPath);
+        assertArrayEquals(migratedContent, currentResource.getContent());
+    }
+
+    @Test
+    public void testUnchangedAppManifestsPreserveTheirContent() throws Exception {
+        for (String manifestYaml : List.of(
+                "# Preserve comments and formatting\nplatforms: {win32: {context: {libs: [render_font_default, dmbedtls, libcustom.lib]}}}\n",
+                "platforms: {win32: {context: {libs: [libfont_render, libfont_richtext, libfont_richtext_null, libgamesys_gui, libgamesys_particle, libgui_null, libparticle_null, libscript_bullet3d]}}}\n",
+                "platforms: [",
+                "platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}",
+                "", "null", "[]", "not a map", "platforms: null")) {
+            byte[] originalContent = manifestYaml.getBytes(StandardCharsets.UTF_8);
+            createFile(fileSystem, "unchanged.appmanifest", originalContent);
+            project.getProjectProperties().putStringValue("native_extension", "app_manifest", "unchanged.appmanifest");
+            ExtenderResource uploadedResource = findResource(
+                    ExtenderUtil.getExtensionSources(project, Platform.X86_64Win32, null), ExtenderUtil.appManifestPath);
+            assertArrayEquals(originalContent, uploadedResource.getContent());
+        }
+    }
+
+}
