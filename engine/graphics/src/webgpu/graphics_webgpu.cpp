@@ -2200,6 +2200,7 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
 {
     TRACE_CALL;
     assert(size);
+    const size_t write_alignment = 4;
     if (!buffer->m_Buffer) // create it
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -2208,16 +2209,45 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
         WGPUBufferDescriptor desc = {};
 #endif
         desc.usage                = buffer->m_Usage;
-        desc.size                 = size;
+        // queue.writeBuffer() requires four-byte writes. Keep the engine-facing
+        // size exact, but leave room for padding when the data ends mid-word.
+        desc.size                 = DM_ALIGN(size, write_alignment);
         buffer->m_Buffer          = wgpuDeviceCreateBuffer(context->m_Device, &desc);
-        buffer->m_Used = buffer->m_Base.m_Size = desc.size;
+        buffer->m_Used = buffer->m_Base.m_Size = size;
     }
     else if (buffer->m_LastRenderPass && buffer->m_LastRenderPass > context->m_LastSubmittedRenderPass) // flush pipeline
     {
         //dmLogWarning("Deoptimization: Forcing pipeline flush due to buffer write");
         WebGPUSubmitCommandEncoder(context);
     }
-    wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+
+    if (!data)
+        return;
+
+    if (offset % write_alignment)
+    {
+        dmLogError("WebGPU buffer write offset must be a multiple of four (offset: %zu).", offset);
+        return;
+    }
+
+    const size_t aligned_size = size & ~(write_alignment - 1);
+    // Padding is only safe at the logical end of the buffer; an interior
+    // partial-word update would overwrite bytes outside the requested range.
+    if (aligned_size != size && offset + size != buffer->m_Used)
+    {
+        dmLogError("WebGPU buffer sub-data writes must end on a four-byte boundary.");
+        return;
+    }
+
+    if (aligned_size)
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, aligned_size);
+
+    if (aligned_size != size)
+    {
+        uint32_t tail = 0;
+        memcpy(&tail, (const uint8_t*)data + aligned_size, size - aligned_size);
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset + aligned_size, &tail, sizeof(tail));
+    }
 }
 
 static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
