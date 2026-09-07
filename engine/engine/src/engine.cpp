@@ -2452,11 +2452,12 @@ bail:
         // Pace before calculating dt so the wait is included in frame_time.
         // This remains effective even when StepFrame skips rendering and Flip().
         bool frame_was_paced = false;
-        // Change pacing ownership only at a frame boundary. This prevents a
-        // runtime setting change during StepFrame from making that frame wait
-        // first in PaceFrame and then again in Flip. Platform-owned loops still
-        // need their requested swap interval applied here even though they do
-        // not use the engine-side timer.
+        // Choose at the frame boundary whether PaceFrame's timer or Flip's
+        // presentation vsync will wait for the next frame. Runtime setting changes
+        // made during StepFrame only update the requested state, so the current
+        // frame keeps the mechanism selected at its start and cannot wait in both.
+        // Platform-owned loops still apply their requested swap interval here even
+        // though they do not use the engine-side timer.
         ApplyEffectiveSwapInterval(engine);
         if (dmEngine::UseEngineFramePacing())
         {
