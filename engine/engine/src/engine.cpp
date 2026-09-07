@@ -858,6 +858,12 @@ namespace dmEngine
         }
 
         uint32_t validated_frequency = (uint32_t) frequency;
+        // Reapplying the active value must not restart the established cadence.
+        if (engine->m_UpdateFrequency == validated_frequency)
+        {
+            return;
+        }
+
         engine->m_UpdateFrequency = validated_frequency;
         engine->m_AccumFrameTime = 0.0f;
 

@@ -613,6 +613,58 @@ TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
     ASSERT_EQ(100u, pacing_frequency);
 }
 
+TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
+{
+    // Setting the active frequency again must not restart its pacing deadline.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=7",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool posted = false;
+    uint64_t expected_deadline = 0;
+    uint64_t deadline_after = 0;
+    uint32_t expected_remainder = 0;
+    uint32_t remainder_after = 0;
+
+    if (initialized)
+    {
+        expected_deadline = engine->m_NextFrameTime;
+        expected_remainder = engine->m_FrameTimeRemainder;
+        expected_deadline = dmEngine::AdvanceFrameDeadline(expected_deadline, 7, expected_remainder);
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetUpdateFrequency message;
+        message.m_Frequency = 7;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        dmEngine::Step(engine);
+        deadline_after = engine->m_NextFrameTime;
+        remainder_after = engine->m_FrameTimeRemainder;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_EQ(expected_deadline, deadline_after);
+    ASSERT_EQ(expected_remainder, remainder_after);
+}
+
 TEST_F(EngineTest, FramePacingDeadlineDoesNotAccumulateRoundingError)
 {
     // Verify that fractional frame periods do not accumulate deadline drift.
