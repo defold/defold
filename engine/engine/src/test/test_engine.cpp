@@ -345,6 +345,9 @@ TEST_F(EngineTest, SetEngineThrottle)
 
 TEST_F(EngineTest, FramePacingWithoutRendering)
 {
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
     dmEngineInitialize();
 
     dmEngine::HEngine engine = dmEngine::New(0);
@@ -388,6 +391,9 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
 
 TEST_F(EngineTest, FallbackPacingWithoutRendering)
 {
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
     dmEngineInitialize();
 
     dmEngine::HEngine engine = dmEngine::New(0);
@@ -435,6 +441,9 @@ TEST_F(EngineTest, FallbackPacingWithoutRendering)
 
 TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
 {
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
     dmEngineInitialize();
 
     dmEngine::HEngine engine = dmEngine::New(0);
