@@ -454,16 +454,16 @@
 
 (defn setup-project!
   ([workspace]
-   (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [project-graph (g/node-id->graph-id workspace)
+         extensions (extensions/make project-graph)
+         project (project/make-project project-graph workspace extensions)
          project (project/load-project! project)]
      (g/reset-undo! :undo/global)
      project))
   ([workspace resources]
-   (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [project-graph (g/node-id->graph-id workspace)
+         extensions (extensions/make project-graph)
+         project (project/make-project project-graph workspace extensions)
          project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! :undo/global)
      project)))

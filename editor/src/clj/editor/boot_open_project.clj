@@ -72,7 +72,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
 (def ^:dynamic *view-graph*)
 
@@ -85,12 +84,11 @@
 (defn initialize-project! [system-config]
   (when (nil? @the-root)
     (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
-    (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-    (alter-var-root #'*project-graph* (fn [_] (g/make-graph! :volatility 1)))
+    (alter-var-root #'*project-graph* (fn [_] (g/last-graph-added)))
     (alter-var-root #'*view-graph* (fn [_] (g/make-graph! :volatility 2)))))
 
 (defn- setup-workspace! [project-path build-settings workspace-config localization]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config localization)]
+  (let [workspace (workspace/make-workspace *project-graph* project-path build-settings workspace-config localization)]
     (g/transact
       {:undoable false}
       (concat
