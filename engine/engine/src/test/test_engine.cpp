@@ -373,7 +373,8 @@ TEST_F(EngineTest, SetEngineThrottle)
 
 TEST_F(EngineTest, FramePacingWithoutRendering)
 {
-    // Verify that a fixed update frequency remains timer-paced when rendering is disabled.
+    // Verify that disabling rendering does not disable timer pacing for a fixed
+    // update frequency.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -421,8 +422,8 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
 
 TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
 {
-    // A headless engine with variable update frequency should run as fast as
-    // possible, regardless of the requested presentation swap interval.
+    // Verify that a headless variable-rate engine does not enable timer pacing,
+    // even when a presentation swap interval is requested.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -465,6 +466,8 @@ TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
 
 TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
 {
+    // Verify that negative configuration and runtime frequencies select variable
+    // rate pacing instead of wrapping to a large unsigned frequency.
     dmEngineInitialize();
 
     dmEngine::HEngine engine = dmEngine::New(0);
@@ -513,8 +516,8 @@ TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
 
 TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
 {
-    // Verify that timer pacing selects an effective swap interval of 0 while
-    // preserving the application's requested interval.
+    // With no presenter, verify that a fixed update frequency uses timer pacing,
+    // applies a swap interval of 0, and retains the requested interval.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -564,7 +567,8 @@ TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
 
 TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
 {
-    // Verify that changing vsync does not restart an active update-frequency timer.
+    // Verify that a runtime swap-interval change leaves the active fixed-frequency
+    // pacer running with an advancing deadline.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -616,7 +620,8 @@ TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
 
 TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
 {
-    // Setting the active frequency again must not restart its pacing deadline.
+    // Verify that setting the active frequency again preserves the exact next
+    // deadline and fractional-period remainder.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -668,7 +673,8 @@ TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
 
 TEST_F(EngineTest, FramePacingDeadlineDoesNotAccumulateRoundingError)
 {
-    // Verify that fractional frame periods do not accumulate deadline drift.
+    // Verify that fractional frame periods total exactly one second after 60
+    // periods at 60 Hz and 144 periods at 144 Hz.
     const uint64_t start = 1234567;
 
     // Advance one second at 60 Hz, whose period is not a whole number of
