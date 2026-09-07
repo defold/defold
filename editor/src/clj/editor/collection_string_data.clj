@@ -75,13 +75,18 @@
   (keyword (.replace component-type "_" "-")))
 
 (defn- selected-payload-key [payload-keys desc desc-kind]
-  (let [selected-payload-keys (into []
-                                    (filter #(contains? desc %))
-                                    payload-keys)]
+  (let [selected-payload-keys
+        (into []
+              (filter #(contains? desc %))
+              payload-keys)]
     (case (count selected-payload-keys)
-      0 (throw (ex-info (str "Missing " desc-kind " payload.")
-                        {:desc desc}))
-      1 (nth selected-payload-keys 0)
+      0
+      (throw (ex-info (str "Missing " desc-kind " payload.")
+                      {:desc desc}))
+
+      1
+      (nth selected-payload-keys 0)
+
       (throw (ex-info (str "Multiple " desc-kind " payloads are selected.")
                       {:desc desc
                        :payload-keys selected-payload-keys})))))
@@ -89,18 +94,17 @@
 (defn- typed-payload-field-info [component-type component-resource-type]
   (let [payload-key (component-type->payload-key component-type)]
     (when-let [field-info (embedded-component-payload-field-infos payload-key)]
-      (when (= :message (:value-type-kw field-info))
-        (let [resource-ddf-type (:ddf-type component-resource-type)
-              payload-ddf-type (:value-class field-info)]
-          (when-not (= resource-ddf-type payload-ddf-type)
-            (throw (ex-info (format "Embedded component type '%s' uses '%s', but its typed payload expects '%s'."
-                                    component-type
-                                    (.getName ^Class resource-ddf-type)
-                                    (.getName ^Class payload-ddf-type))
-                            {:component-type component-type
-                             :resource-ddf-type resource-ddf-type
-                             :payload-ddf-type payload-ddf-type})))
-          field-info)))))
+      (let [resource-ddf-type (:ddf-type component-resource-type)
+            payload-ddf-type (:value-class field-info)]
+        (when-not (= resource-ddf-type payload-ddf-type)
+          (throw (ex-info (format "Embedded component type '%s' uses '%s', but its typed payload expects '%s'."
+                                  component-type
+                                  (.getName ^Class resource-ddf-type)
+                                  (.getName ^Class payload-ddf-type))
+                          {:component-type component-type
+                           :resource-ddf-type resource-ddf-type
+                           :payload-ddf-type payload-ddf-type})))
+        field-info))))
 
 (defn- strip-embedded-component-payload [embedded-component-desc]
   (apply dissoc embedded-component-desc embedded-component-payload-keys))
@@ -110,14 +114,20 @@
   [ext->embedded-component-resource-type source-embedded-component-desc]
   (let [component-type (:type source-embedded-component-desc)
         component-resource-type (ext->embedded-component-resource-type component-type)
-        payload-key (selected-payload-key embedded-component-payload-keys
-                                          source-embedded-component-desc
-                                          "embedded component")
+
+        payload-key
+        (selected-payload-key embedded-component-payload-keys
+                              source-embedded-component-desc
+                              "embedded component")
+
         payload (payload-key source-embedded-component-desc)
-        legacy-text (case payload-key
-                      :data (when (string? payload) payload)
-                      :component-data (get-in payload [:data :string])
-                      nil)
+
+        legacy-text
+        (case payload-key
+          :data (when (string? payload) payload)
+          :component-data (get-in payload [:data :string])
+          nil)
+
         component-data
         (cond
           legacy-text
@@ -153,9 +163,11 @@
 (defn source-decode-embedded-instance-desc
   "Converts a legacy string or typed source prototype to canonical :data."
   [source-embedded-instance-desc]
-  (let [payload-key (selected-payload-key embedded-instance-payload-keys
-                                          source-embedded-instance-desc
-                                          "embedded instance")
+  (let [payload-key
+        (selected-payload-key embedded-instance-payload-keys
+                              source-embedded-instance-desc
+                              "embedded instance")
+
         prototype-desc
         (case payload-key
           :data
@@ -202,12 +214,12 @@
         (component-type->payload-key component-type) ((:encode-pb-map-fn component-resource-type) component-data))
       (assoc source-embedded-component-desc
         :component-data
-        (if ddf-type
+        (if-not ddf-type
+          {:data {:string ((:write-fn component-resource-type) component-data)}}
           (let [pb-map ((:encode-pb-map-fn component-resource-type) component-data)]
             (if (= DataProto$Data ddf-type)
               pb-map
-              (protobuf/pb-map->data ddf-type pb-map)))
-          {:data {:string ((:write-fn component-resource-type) component-data)}})))))
+              (protobuf/pb-map->data ddf-type pb-map))))))))
 
 (defn source-encode-prototype-desc
   [ext->embedded-component-resource-type prototype-desc]
@@ -218,8 +230,9 @@
 
 (defn source-encode-embedded-instance-desc
   [ext->embedded-component-resource-type embedded-instance-desc]
-  (let [source-prototype-desc (source-encode-prototype-desc ext->embedded-component-resource-type
-                                                            (:data embedded-instance-desc))]
+  (let [source-prototype-desc
+        (source-encode-prototype-desc ext->embedded-component-resource-type
+                                      (:data embedded-instance-desc))]
     (assoc (dissoc embedded-instance-desc :data :prototype)
       :prototype source-prototype-desc)))
 

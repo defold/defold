@@ -81,7 +81,7 @@
   ;; GameObject$EmbeddedComponentDesc in map format.
   (let [component-ext (:type embedded-component-desc)
         resource-type (ext->embedded-component-resource-type component-ext)]
-    (if (nil? resource-type)
+    (if-not resource-type
       embedded-component-desc ; Unknown resource-type. Leave unsanitized.
       (let [tag-opts (:tag-opts resource-type)
             sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))
@@ -95,10 +95,10 @@
                 sanitized-data (:data embedded-component-desc)
 
                 [embedded-component-desc sanitized-data]
-                (if (and sanitize-embedded-component-fn
-                         (not canonical-data))
-                  (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
-                  [embedded-component-desc sanitized-data])]
+                (if-not (and sanitize-embedded-component-fn
+                             (not canonical-data))
+                  [embedded-component-desc sanitized-data]
+                  (sanitize-embedded-component-fn embedded-component-desc sanitized-data))]
             (assoc embedded-component-desc :data sanitized-data))
           (catch Exception error
             ;; Leave unsanitized.

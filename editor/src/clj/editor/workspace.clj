@@ -339,49 +339,60 @@ ordinary paths."
                                 when there is a :write-fn, default true
 
   Additional options are retained in the registered resource type."
-  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?] :as args}]
+  [workspace & {:keys [language editable ext build-ext node-type connect-fn load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label lazy-loaded allow-unloaded-use]
+                :as args}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [view-types (mapv canonical-view-type-id view-types)
         editable (if (nil? editable) true (boolean editable))
-        textual (true? textual?)
-        resource-type (merge args
-                             {:textual? textual
-                              :language (when textual (or language "plaintext"))
-                              :editable editable
-                              :editor-openable (some? (coll/some editor-openable-view-type? view-types))
-                              :node-type node-type
-                              :connect-fn connect-fn
-                              :load-fn load-fn
-                              :dependencies-fn dependencies-fn
-                              :write-fn write-fn
-                              :read-fn read-fn
-                              :search-fn search-fn
-                              :search-value-fn (or search-value-fn default-search-value-fn)
-                              :source-value-fn source-value-fn
-                              :icon icon
-                              :icon-class icon-class
-                              :category category
-                              :view-types (mapv (partial get-view-type workspace) view-types)
-                              :view-opts view-opts
-                              :tags tags
-                              :tag-opts tag-opts
-                              :template template
-                              :test-info test-info
-                              :label label
-                              :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
-                              :lazy-loaded (boolean lazy-loaded)
-                              :allow-unloaded-use (boolean allow-unloaded-use)
-                              :auto-connect-save-data? (and editable
-                                                            (some? write-fn)
-                                                            (not (false? auto-connect-save-data?)))})
-        resource-types-by-ext (if (string? ext)
-                                (let [ext (string/lower-case ext)]
-                                  {ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))})
-                                (into {}
-                                      (map (fn [ext]
-                                             (let [ext (string/lower-case ext)]
-                                               (pair ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))))))
-                                      ext))]
+        textual (true? (:textual? args))
+
+        resource-type
+        (merge args
+               {:textual? textual
+                :language (when textual (or language "plaintext"))
+                :editable editable
+                :editor-openable (coll/any? editor-openable-view-type? view-types)
+                :node-type node-type
+                :connect-fn connect-fn
+                :load-fn load-fn
+                :dependencies-fn dependencies-fn
+                :write-fn write-fn
+                :read-fn read-fn
+                :search-fn search-fn
+                :search-value-fn (or search-value-fn default-search-value-fn)
+                :source-value-fn source-value-fn
+                :icon icon
+                :icon-class icon-class
+                :category category
+                :view-types (mapv (partial get-view-type workspace) view-types)
+                :view-opts view-opts
+                :tags tags
+                :tag-opts tag-opts
+                :template template
+                :test-info test-info
+                :label label
+                :lazy-loaded (boolean lazy-loaded)
+                :allow-unloaded-use (boolean allow-unloaded-use)
+
+                :stateless?
+                (if-some [stateless (:stateless? args)]
+                  stateless
+                  (nil? load-fn))
+
+                :auto-connect-save-data?
+                (boolean (and editable
+                              write-fn
+                              (not (false? (:auto-connect-save-data? args)))))})
+
+        resource-types-by-ext
+        (if (string? ext)
+          (let [ext (string/lower-case ext)]
+            {ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))})
+          (into {}
+                (map (fn [ext]
+                       (let [ext (string/lower-case ext)]
+                         (pair ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))))))
+                ext))]
     (g/non-undoable
       (g/update-property workspace :resource-types editable-resource-type-map-update-fn resource-types-by-ext)
       (g/update-property workspace :resource-types-non-editable non-editable-resource-type-map-update-fn resource-types-by-ext))))

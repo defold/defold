@@ -30,12 +30,15 @@
   (protobuf/map->str pb-class (encode-pb-map-fn pb-map)))
 
 (def ^:private sprite-resource-type
-  (let [sanitize-pb-map-fn #(if (#{"legacy" "encoded"} (:default-animation %))
-                              (assoc % :default-animation "sanitized")
-                              %)
-        encode-pb-map-fn #(if (= "sanitized" (:default-animation %))
-                            (assoc % :default-animation "encoded")
-                            %)]
+  (let [sanitize-pb-map-fn
+        #(if-not (#{"legacy" "encoded"} (:default-animation %))
+           %
+           (assoc % :default-animation "sanitized"))
+
+        encode-pb-map-fn
+        #(if-not (= "sanitized" (:default-animation %))
+           %
+           (assoc % :default-animation "encoded"))]
     {:ddf-type Sprite$SpriteDesc
      :sanitize-pb-map-fn sanitize-pb-map-fn
      :encode-pb-map-fn encode-pb-map-fn
@@ -56,9 +59,10 @@
 ;; Verifies that legacy and typed component payloads decode to the same validated editor map.
 (deftest embedded-component-source-decode-test
   (testing "Legacy strings and typed messages decode to the same canonical map."
-    (let [expected {:id "sprite"
-                    :type "sprite"
-                    :data {:default-animation "sanitized"}}]
+    (let [expected
+          {:id "sprite"
+           :type "sprite"
+           :data {:default-animation "sanitized"}}]
       (is (= expected
              (collection-string-data/source-decode-embedded-component-desc
                ext->resource-type
@@ -112,11 +116,12 @@
               :data {:default-animation "sanitized"}}))))
 
   (testing "Extension components use structured fields in the shared data payload."
-    (let [source-desc (collection-string-data/source-encode-embedded-component-desc
-                        ext->resource-type
-                        {:id "spine"
-                         :type "spinemodel"
-                         :data {:prototype "/spine/spine.go"}})]
+    (let [source-desc
+          (collection-string-data/source-encode-embedded-component-desc
+            ext->resource-type
+            {:id "spine"
+             :type "spinemodel"
+             :data {:prototype "/spine/spine.go"}})]
       (is (= {:id "spine"
               :type "spinemodel"
               :component-data {:data {:struct {:fields {"prototype" {:string "/spine/spine.go"}}}}}}
@@ -138,12 +143,15 @@
 (deftest embedded-instance-source-roundtrip-test
   (let [canonical-instance
         {:id "go"
-         :data {:embedded-components [{:id "sprite"
-                                       :type "sprite"
-                                       :data {:default-animation "sanitized"}}
-                                      {:id "spine"
-                                       :type "spinemodel"
-                                       :data {:prototype "/spine/spine.go"}}]}}
+
+         :data
+         {:embedded-components
+          [{:id "sprite"
+            :type "sprite"
+            :data {:default-animation "sanitized"}}
+           {:id "spine"
+            :type "spinemodel"
+            :data {:prototype "/spine/spine.go"}}]}}
 
         source-instance
         (collection-string-data/source-encode-embedded-instance-desc
@@ -174,10 +182,13 @@
 
 ;; Verifies that an explicitly selected empty prototype survives source conversion in both directions.
 (deftest empty-embedded-instance-prototype-test
-  (let [source-instance {:id "empty"
-                         :prototype {}}
-        canonical-instance {:id "empty"
-                            :data {}}]
+  (let [source-instance
+        {:id "empty"
+         :prototype {}}
+
+        canonical-instance
+        {:id "empty"
+         :data {}}]
     (is (= canonical-instance
            (collection-string-data/source-decode-embedded-instance-desc
              source-instance)))
@@ -218,10 +229,15 @@
         (collection-string-data/source-encode-collection-desc
           ext->resource-type
           {:name "main"
-           :embedded-instances [{:id "go"
-                                 :data {:embedded-components [{:id "sprite"
-                                                               :type "sprite"
-                                                               :data {}}]}}]})]
+
+           :embedded-instances
+           [{:id "go"
+
+             :data
+             {:embedded-components
+              [{:id "sprite"
+                :type "sprite"
+                :data {}}]}}]})]
     (is (= {}
            (get-in source-collection [:embedded-instances 0 :prototype :embedded-components 0 :sprite])))
     (is (not (contains? (get-in source-collection [:embedded-instances 0]) :data)))))
@@ -252,14 +268,19 @@
 ;; All light types share the same payload while keeping Data resource conversions.
 (deftest shared-light-data-roundtrip-test
   (doseq [light-type ["ambient_light" "directional_light" "point_light" "spot_light"]]
-    (let [light-resource-type {:ddf-type DataProto$Data
-                               :sanitize-pb-map-fn data/data-desc-pb-map->data-desc
-                               :encode-pb-map-fn data/data-desc->data-desc-pb-map}
+    (let [light-resource-type
+          {:ddf-type DataProto$Data
+           :sanitize-pb-map-fn data/data-desc-pb-map->data-desc
+           :encode-pb-map-fn data/data-desc->data-desc-pb-map}
+
           resource-types {light-type light-resource-type}
-          canonical {:id "light"
-                     :type light-type
-                     :data {:data {"intensity" 2.5
-                                   "color" [1.0 0.5 0.0]}}}
+
+          canonical
+          {:id "light"
+           :type light-type
+           :data {:data {"intensity" 2.5
+                         "color" [1.0 0.5 0.0]}}}
+
           source (collection-string-data/source-encode-embedded-component-desc resource-types canonical)]
       (is (contains? source :component-data))
       (is (= canonical
@@ -267,9 +288,11 @@
 
 ;; Legacy extension files migrate on save without losing their component data.
 (deftest legacy-extension-migrates-to-structured-data-test
-  (let [legacy {:id "spine"
-                :type "spinemodel"
-                :data "prototype: \"/spine/spine.go\"\n"}
+  (let [legacy
+        {:id "spine"
+         :type "spinemodel"
+         :data "prototype: \"/spine/spine.go\"\n"}
+
         canonical (collection-string-data/source-decode-embedded-component-desc ext->resource-type legacy)
         source (collection-string-data/source-encode-embedded-component-desc ext->resource-type canonical)]
     (is (= "/spine/spine.go"

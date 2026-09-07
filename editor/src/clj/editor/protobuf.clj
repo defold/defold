@@ -1354,9 +1354,8 @@ Macros currently mean no foreseeable performance gain, however."
 
                   :pb-field-kind/optional
                   (when (if (resource-field? field-info)
-                          (if (= "" value)
-                            (not= "" (key->default key))
-                            true)
+                          (or (not= "" value)
+                              (not= "" (key->default key)))
                           (not (or (and (not (:is-oneof-field field-info))
                                         (message-field? field-info)
                                         (coll/empty? value))

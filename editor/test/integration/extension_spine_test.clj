@@ -281,8 +281,8 @@
               (is (g/defective? main-collection))
               (is (g/defective? main-gui)))
             (testing "Without the extension, resources with embedded Spine data aren't connected to the save-data system, and cannot be corrupted by save."
-              (is (not-any? #{main-collection-resource main-gui-resource}
-                            (map :resource (project/all-save-data project)))))
+              (is (coll/not-any? (comp #{main-collection-resource main-gui-resource} :resource)
+                                 (project/all-save-data project))))
             (testing "Without the extension, resources with embedded Spine data report build errors due to invalid content."
               (letfn [(invalid-content-error? [error-resource-path error-value]
                         (is (g/error? error-value))
@@ -334,8 +334,8 @@
               (let [save-data-connected-resource? (into #{}
                                                         (map :resource)
                                                         (project/all-save-data project))]
-                (is (every? save-data-connected-resource?
-                            [main-collection-resource main-gui-resource]))))
+                (is (coll/every? save-data-connected-resource?
+                                 [main-collection-resource main-gui-resource]))))
             (testing "With the extension, resources with embedded Spine data report build errors for references to unmigrated spine json files."
               (letfn [(unmigrated-spine-json-error? [project error-resource-path error-value]
                         (is (g/error? error-value))
@@ -418,7 +418,7 @@
                     (is (= "spineboy" (custom-property spine-gui-node "spine_scene" :string)))
                     (is (= "walk" (custom-property spine-gui-node "spine_default_animation" :string)))
                     (is (not (contains? spine-gui-node :spine-skin)))
-                    (is (empty? (:overridden-fields spine-gui-node)))))
+                    (is (coll/empty? (:overridden-fields spine-gui-node)))))
 
                 (testing "Expected save-data differences post-update."
                   (let [save-data-content-by-proj-path-after (save-data-content-by-proj-path project)

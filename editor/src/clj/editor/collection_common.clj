@@ -78,9 +78,13 @@
   (if (map? (:data embedded-instance-desc))
     embedded-instance-desc
     (try
-      (let [embedded-instance-desc (collection-string-data/source-decode-embedded-instance-desc embedded-instance-desc)
+      (let [embedded-instance-desc
+            (collection-string-data/source-decode-embedded-instance-desc embedded-instance-desc)
+
             unsanitized-prototype-desc (:data embedded-instance-desc)
-            sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
+
+            sanitized-prototype-desc
+            (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
         (assoc embedded-instance-desc
           :data sanitized-prototype-desc))
       (catch Exception error

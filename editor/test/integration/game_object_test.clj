@@ -73,12 +73,17 @@
                   source-value (protobuf/str->map-without-defaults GameObjectSource$PrototypeDesc save-data-content)
                   source-embedded-component (first (:embedded-components source-value))
                   source-payload-key (keyword (string/replace (:ext resource-type) \_ \-))
-                  typed-source-payload (= (:ddf-type resource-type)
-                                          (-> (protobuf/field-infos GameObjectSource$EmbeddedComponentDesc)
-                                              (get source-payload-key)
-                                              (:value-class)))
-                  load-value (with-open [reader (StringReader. save-data-content)]
-                               (go-read-fn reader))
+
+                  typed-source-payload
+                  (= (:ddf-type resource-type)
+                     (-> (protobuf/field-infos GameObjectSource$EmbeddedComponentDesc)
+                         (get source-payload-key)
+                         (:value-class)))
+
+                  load-value
+                  (with-open [reader (StringReader. save-data-content)]
+                    (go-read-fn reader))
+
                   saved-embedded-components (:embedded-components save-value)
                   loaded-embedded-components (:embedded-components load-value)
                   [only-in-saved only-in-loaded] (data/diff saved-embedded-components loaded-embedded-components)]
@@ -91,8 +96,7 @@
                   (is (not (contains? source-embedded-component source-payload-key)))))
               (is (nil? only-in-saved))
               (is (nil? only-in-loaded))
-              (when (or (some? only-in-saved)
-                        (some? only-in-loaded))
+              (when (or only-in-saved only-in-loaded)
                 (println "When comparing" (:ext resource-type))
                 (prn 'disk only-in-loaded)
                 (prn 'save only-in-saved)))))))))

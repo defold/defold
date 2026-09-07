@@ -404,10 +404,6 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
 
-(defn- source-encode-non-editable-collection [workspace collection-desc]
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-string-data/source-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
-
 (defn- load-non-editable-collection [_project self resource collection-desc]
   ;; Validate the collection-desc.
   ;; We want to throw an exception if we encounter corrupt data to ensure our
@@ -433,7 +429,10 @@
       :strict-source true
       :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
       :sanitize-fn (partial sanitize-non-editable-collection workspace)
-      :pb-encode-fn (partial source-encode-non-editable-collection workspace)
+      :pb-encode-fn (fn [collection-desc]
+                      (collection-string-data/source-encode-collection-desc
+                        (workspace/get-resource-type-map workspace :non-editable)
+                        collection-desc))
       :load-fn load-non-editable-collection
       :allow-unloaded-use true
       :icon collection-common/collection-icon

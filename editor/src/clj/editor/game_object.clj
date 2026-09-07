@@ -671,11 +671,6 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
 
-(defn- source-encode-game-object [workspace prototype-desc]
-  ;; GameObject$PrototypeDesc in map format.
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (collection-string-data/source-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
-
 (defn- handle-drop
   [root-id _selection workspace world-pos resources]
   (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
@@ -794,7 +789,10 @@
       :allow-unloaded-use true
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
       :sanitize-fn (partial sanitize-game-object workspace)
-      :pb-encode-fn (partial source-encode-game-object workspace)
+      :pb-encode-fn (fn [prototype-desc]
+                      (collection-string-data/source-encode-prototype-desc
+                        (workspace/get-resource-type-map workspace)
+                        prototype-desc))
       :icon game-object-common/game-object-icon
       :icon-class :design
       :category (localization/message "resource.category.objects")

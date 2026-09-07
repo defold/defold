@@ -352,7 +352,7 @@
             sprite-resource (test-util/make-resource! workspace "/test.sprite" {:tile-set atlas-proj-path :default-animation "logo"})]
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)
-              app-view (test-util/setup-app-view! project)]
+              _app-view (test-util/setup-app-view! project)]
 
           (testing "Components in game object."
             (let [game-object (project/get-resource-node project game-object-resource)

@@ -1147,58 +1147,57 @@
         type-token (some->> type-field-value pb-type-token)
 
         typed-pb-path
-        (if type-token
-          (conj pb-path type-token)
-          pb-path)
+        (cond-> pb-path
+          type-token (conj type-token))
 
         field-frequencies
         (into (sorted-map)
-              (keep (fn [^Descriptors$FieldDescriptor field-desc]
-                      (let [field-name (.getName field-desc)
+              (comp
+                ;; Only the selected oneof arm is part of this message value.
+                (remove (fn [^Descriptors$FieldDescriptor field-desc]
+                          (and (game-object-source-payload-field? field-desc)
+                               (not (.hasField pb field-desc)))))
+                (keep (fn [^Descriptors$FieldDescriptor field-desc]
+                        (let [field-name (.getName field-desc)
 
-                            field-frequency
-                            (cond
-                              (pb-message-field? field-desc)
-                              ;; Message-valued oneof arms are source envelopes
-                              ;; for protobuf types covered by their own files.
-                              (if (game-object-source-payload-field? field-desc)
-                                1
-                                (let [pb-path (conj typed-pb-path field-name)]
-                                  (if (.isRepeated field-desc)
-                                    (transduce
-                                      (map #(pb-nested-field-frequencies % pb-path count-field-value?))
-                                      merge-nested-frequencies
-                                      (.getField pb field-desc))
-                                    (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?))))
+                              field-frequency
+                              (cond
+                                (pb-message-field? field-desc)
+                                ;; Message-valued oneof arms are source envelopes
+                                ;; for protobuf types covered by their own files.
+                                (if (game-object-source-payload-field? field-desc)
+                                  1
+                                  (let [pb-path (conj typed-pb-path field-name)]
+                                    (if (.isRepeated field-desc)
+                                      (transduce
+                                        (map #(pb-nested-field-frequencies % pb-path count-field-value?))
+                                        merge-nested-frequencies
+                                        (.getField pb field-desc))
+                                      (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?))))
 
-                              (.isRepeated field-desc)
-                              (.getRepeatedFieldCount pb field-desc) ; Repeated fields cannot specify a default, so any values count.
+                                (.isRepeated field-desc)
+                                (.getRepeatedFieldCount pb field-desc) ; Repeated fields cannot specify a default, so any values count.
 
-                              (.hasField pb field-desc)
-                              (if (or (pb-field-has-single-valid-value? field-desc)
-                                      (count-field-value? (.getField pb field-desc) field-desc))
-                                1
-                                0)
+                                (.hasField pb field-desc)
+                                (if (or (pb-field-has-single-valid-value? field-desc)
+                                        (count-field-value? (.getField pb field-desc) field-desc))
+                                  1
+                                  0)
 
-                              :else
-                              0)]
+                                :else
+                                0)]
 
-                        (when (or (number? field-frequency)
-                                  (pos? (count field-frequency)))
-                          (pair field-name
-                                field-frequency)))))
-              ;; Only the selected oneof arm is part of this message value.
-              (into []
-                    (remove (fn [^Descriptors$FieldDescriptor field-desc]
-                              (and (game-object-source-payload-field? field-desc)
-                                   (not (.hasField pb field-desc)))))
-                    (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable :non-overridable})))]
+                          (when (or (number? field-frequency)
+                                    (pos? (count field-frequency)))
+                            (pair field-name
+                                  field-frequency))))))
+              (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable :non-overridable}))]
 
     (if (nil? type-field-desc)
       field-frequencies
       (cond-> (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc))
-              (pos? (count field-frequencies))
-              (assoc type-token field-frequencies)))))
+        (pos? (count field-frequencies))
+        (assoc type-token field-frequencies)))))
 
 (defn- pb-read-resource
   ^Message [resource]

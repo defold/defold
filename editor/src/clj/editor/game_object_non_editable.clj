@@ -356,10 +356,6 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
 
-(defn- source-encode-non-editable-game-object [workspace prototype-desc]
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-string-data/source-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
-
 (defn- load-non-editable-game-object [_project self resource prototype-desc]
   ;; Validate the prototype-desc.
   ;; We want to throw an exception if we encounter corrupt data to ensure our
@@ -382,7 +378,10 @@
       :strict-source true
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
       :sanitize-fn (partial sanitize-non-editable-game-object workspace)
-      :pb-encode-fn (partial source-encode-non-editable-game-object workspace)
+      :pb-encode-fn (fn [prototype-desc]
+                      (collection-string-data/source-encode-prototype-desc
+                        (workspace/get-resource-type-map workspace :non-editable)
+                        prototype-desc))
       :load-fn load-non-editable-game-object
       :allow-unloaded-use true
       :icon game-object-common/game-object-icon

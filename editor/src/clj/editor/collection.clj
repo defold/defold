@@ -912,11 +912,6 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
 
-(defn- source-encode-collection [workspace collection-desc]
-  ;; GameObject$CollectionDesc in map format.
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (collection-string-data/source-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
-
 (defn- add-dropped-resource
   [collection transform-props [id resource] evaluation-context]
   (let [ext (resource/type-ext resource)]
@@ -1024,7 +1019,10 @@
       :allow-unloaded-use true
       :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
       :sanitize-fn (partial sanitize-collection workspace)
-      :pb-encode-fn (partial source-encode-collection workspace)
+      :pb-encode-fn (fn [collection-desc]
+                      (collection-string-data/source-encode-collection-desc
+                        (workspace/get-resource-type-map workspace)
+                        collection-desc))
       :icon collection-common/collection-icon
       :icon-class :design
       :category (localization/message "resource.category.objects")
