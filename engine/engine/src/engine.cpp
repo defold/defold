@@ -804,10 +804,15 @@ namespace dmEngine
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
         swap_interval = dmMath::Max(0, swap_interval);
+        if (engine->m_SwapInterval == (uint32_t) swap_interval)
+        {
+            return;
+        }
+
         engine->m_SwapInterval = (uint32_t) swap_interval;
-        // The swap interval only determines the fallback timer frequency. It
-        // cannot affect pacing while an explicit update frequency is active, so
-        // preserve that timer's deadline rather than allow an immediate extra frame.
+        // Reset only when the fallback timer may depend on the new interval. An
+        // explicit update frequency does not, so preserve its deadline rather than
+        // allow an immediate extra frame.
         if (engine->m_UpdateFrequency == 0)
         {
             ResetFramePacing(engine);

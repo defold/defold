@@ -393,7 +393,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
 
 TEST_F(EngineTest, FallbackPacingWithoutRendering)
 {
-    // Verify that the swap interval determines fallback timer pacing without rendering.
+    // Verify fallback timer pacing survives repeated identical swap-interval settings.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -412,6 +412,7 @@ TEST_F(EngineTest, FallbackPacingWithoutRendering)
     };
 
     bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool posted = true;
     uint64_t elapsed = 0;
     uint32_t pacing_frequency = 0;
     dmEngine::Stats stats;
@@ -424,6 +425,11 @@ TEST_F(EngineTest, FallbackPacingWithoutRendering)
         uint64_t start = dmTime::GetMonotonicTime();
         for (uint32_t i = 0; i < 4; ++i)
         {
+            dmMessage::URL receiver = {};
+            receiver.m_Socket = engine->m_SystemSocket;
+            dmSystemDDF::SetVsync message;
+            message.m_SwapInterval = 2;
+            posted &= dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
             dmEngine::Step(engine);
         }
         elapsed = dmTime::GetMonotonicTime() - start;
@@ -437,6 +443,7 @@ TEST_F(EngineTest, FallbackPacingWithoutRendering)
     dmEngineFinalize();
 
     ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
     ASSERT_EQ(4u, stats.m_FrameCount);
     ASSERT_EQ(30u, pacing_frequency);
     ASSERT_GE(elapsed, 80000u);
