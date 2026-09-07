@@ -42,7 +42,7 @@ if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web|x86_64-xbone"))
 
     # Platform specific extras
     if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
-    elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
+    elseif (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
         target_link_libraries(test_platform_app PRIVATE "-framework IOKit" "-framework QuartzCore")
     elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
         target_link_libraries(test_platform_app PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")

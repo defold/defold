@@ -42,7 +42,7 @@ endif()
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
         include(platform_macos)
-elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
+elseif (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
         include(platform_ios)
 elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
         include(platform_android)
@@ -107,7 +107,7 @@ elseif(DEFINED ENV{GITHUB_WORKFLOW})
 endif()
 
 set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
-if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|x86_64-ios)$")
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64_sim-ios)$")
     set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE OFF)
 endif()
 

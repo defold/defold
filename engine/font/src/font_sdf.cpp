@@ -627,6 +627,12 @@ static float FindCurveCrossingX(const FontSDFSegment& segment, float y)
     for (uint32_t i = 0; i < 8; ++i)
     {
         double curve_y = EvaluateSegmentCoordinate(segment, t, false);
+        // Newton may have already found the crossing. Continuing would move t
+        // to a bracket endpoint, reject it as not strictly inside the bracket,
+        // and replace the correct value with the bracket midpoint.
+        if (curve_y == y)
+            break;
+
         bool below = curve_y < y;
         if (below == increasing)
             low = t;

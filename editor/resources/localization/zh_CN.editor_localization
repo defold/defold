@@ -1549,7 +1549,6 @@ form.label.project.android.input_method = 输入方式
 form.label.project.android.immersive_mode = 沉浸模式
 form.label.project.android.display_cutout = 刘海屏
 form.label.project.android.debuggable = 可调试
-form.label.project.android.proguard = ProGuard 配置
 form.label.project.android.extract_native_libs = 提取原生库
 
 form.label.project.html5 = HTML5

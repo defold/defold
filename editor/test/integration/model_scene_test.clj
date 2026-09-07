@@ -13,13 +13,20 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.model-scene-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.gl.vertex2 :as vtx]
+            [editor.resource :as resource]
             [editor.types :as types]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [service.log :as log])
-  (:import [javax.vecmath Point3d]))
+            [service.log :as log]
+            [support.test-support :as test-support]
+            [util.coll :as coll])
+  (:import [java.nio ByteBuffer ByteOrder]
+           [javax.vecmath Point3d]))
 
 (vtx/defvertex vtx-pos-nrm-tex
   (vec3 position)
@@ -60,3 +67,52 @@
         (is (re-find #"glTF validation failed" msg))
         (is (re-find #"ACCESSOR_MAX_MISMATCH" msg))
         (is (re-find #"ACCESSOR_ELEMENT_OUT_OF_MAX_BOUND" msg))))))
+
+(deftest external-buffer-change-invalidates-content
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [model-scene (test-util/resource-node project "/mesh/triangle/gltf/Triangle.gltf")
+          collision-object (test-util/resource-node project "/collision_object/mesh_shape.collisionobject")
+          collision-shape (:node-id (test-util/outline collision-object [0]))
+          model-scene-resource (workspace/find-resource workspace "/mesh/triangle/gltf/Triangle.gltf")
+          buffer-resource (workspace/find-resource workspace "/mesh/triangle/gltf/simpleTriangle.bin")
+          buffer-node (project/get-resource-node project buffer-resource)
+          first-x (fn []
+                    (-> (g/node-value model-scene :content)
+                        (get-in [:mesh-set :models 0 :meshes 0 :positions 0])
+                        double))
+          collision-preview-position-buffer
+          (fn []
+            (get-in (g/node-value collision-shape :selected-collision-mesh-renderable)
+                    [:primitives 0 :position-buffer]))]
+      (g/set-property! collision-shape :mesh-scene model-scene-resource)
+      (g/set-properties! collision-shape :mesh-name "Triangle" :mesh-index 0)
+
+      (is (= ["simpleTriangle.bin"] (g/node-value model-scene :source-value)))
+      (is (= [[buffer-node :sha256]]
+             (g/sources-of model-scene :external-buffer-sha256s)))
+      (is (coll/empty? (get-in (g/node-value model-scene :content)
+                               [:mesh-set :raw-models 0 :meshes])))
+      (is (= 0.0 (first-x)))
+
+      (let [initial-mesh-set-content-hash (:content-hash (g/node-value model-scene :mesh-set-build-target))
+            initial-collision-content-hash (-> (g/node-value collision-object :build-targets)
+                                               first
+                                               :content-hash)
+            initial-collision-preview-position-buffer (collision-preview-position-buffer)
+            bytes (resource/resource->bytes buffer-resource)]
+        (-> (ByteBuffer/wrap bytes)
+            (.order ByteOrder/LITTLE_ENDIAN)
+            (.putFloat 8 0.5))
+        (test-support/write-until-new-mtime (io/as-file buffer-resource) bytes)
+
+        (workspace/resource-sync! workspace)
+
+        (is (= 0.5 (first-x)))
+        (is (not= initial-mesh-set-content-hash
+                  (:content-hash (g/node-value model-scene :mesh-set-build-target))))
+        (is (not= initial-collision-content-hash
+                  (-> (g/node-value collision-object :build-targets)
+                      first
+                      :content-hash)))
+        (is (not (identical? initial-collision-preview-position-buffer
+                             (collision-preview-position-buffer))))))))

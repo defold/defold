@@ -1,4 +1,6 @@
-mesh: "/referenced/mesh.glb"
+mesh: "/referenced/mesh_selection.gltf"
+mesh_name: "LooseMesh"
+mesh_index: 2
 skeleton: "/referenced/mesh.glb"
 animations: "/referenced/mesh.glb"
 default_animation: "cube_flip"

@@ -60,6 +60,20 @@ local function local_multiline_signature(self,
     print(message_id)
 end
 
+-- Commented out: we disagree with LuaLS when a function header splits before
+-- its parameter list. We keep the function block indentation and align later
+-- parameters under the first one; LuaLS leaves both parameter lines at column
+-- zero. Our shape is:
+--     function split_function_header
+--         (a,
+--          b)
+--     end
+--
+-- function split_function_header
+--     (a,
+--      b)
+-- end
+
 -- repeat / until.
 function repeat_until(i)
     repeat
