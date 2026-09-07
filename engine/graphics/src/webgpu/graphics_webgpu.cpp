@@ -1146,6 +1146,16 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         surface_conf.width                    = width;
         surface_conf.height                   = height;
         surface_conf.presentMode              = WGPUPresentMode_Fifo;
+#if defined(__EMSCRIPTEN__)
+        // Match the WebGL canvas policy controlled by
+        // html5.transparent_graphics_context. Explicitly selecting opaque is
+        // important because framebuffer alpha must not affect page compositing
+        // when transparency is disabled. WebGL uses premultiplied alpha when a
+        // transparent context is requested, so use the same mode here.
+        surface_conf.alphaMode = dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_ALPHA_BITS) > 0
+            ? WGPUCompositeAlphaMode_Premultiplied
+            : WGPUCompositeAlphaMode_Opaque;
+#endif
         wgpuSurfaceConfigure(context->m_Surface, &surface_conf);
     }
 
@@ -1339,6 +1349,8 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
         descriptor.requiredFeatures = features;
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionETC2))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionETC2;
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_Float32Filterable))
@@ -1402,6 +1414,11 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     dmLogInfo("WebGPU v%d", webgpu_version);
 
     context->m_Instance = wgpuCreateInstance(nullptr);
+    if (!context->m_Instance)
+    {
+        dmLogError("WebGPU: Unable to create instance");
+        return false;
+    }
 
 #if defined(DM_GRAPHICS_WEBGPU2)
     WGPURequestAdapterCallbackInfo requestAdapterCallbackInfo = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
@@ -1425,6 +1442,13 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         emscripten_sleep(100);
 #endif
 #endif
+
+    // requestAdapter() is allowed to return no adapter and requesting a device
+    // may also fail. Do not continue into limits or feature queries with a
+    // partially initialized context.
+    if (!context->m_Adapter || !context->m_Device)
+        return false;
+
     context->m_SamplerCache.SetCapacity(32, 64);
     context->m_BindGroupCache.SetCapacity(32, 64);
     context->m_RenderPipelineCache.SetCapacity(32, 64);
