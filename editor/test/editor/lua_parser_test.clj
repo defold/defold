@@ -195,6 +195,8 @@
               {:type :script-property-type-number :value -4.0e-10}
               {:type :script-property-type-text :value "foo"}
               {:type :script-property-type-text :value "bar"}
+              {:type :script-property-type-text :value "Spelare å\nsecond line"}
+              {:type :script-property-type-text :value "å"}
               {:type :script-property-type-hash :value ""}
               {:type :script-property-type-hash :value "aBc3"}
               {:type :script-property-type-url :value ""}
@@ -244,6 +246,8 @@
                                        "go.property(\"test\", -4.0e-10)"
                                        "go.property(\"test\", 'foo')"
                                        "go.property(\"test\", \"bar\")"
+                                       "go.property(\"test\", [[Spelare å\nsecond line]])"
+                                       "go.property(\"test\", \"\\xC3\\xA5\")"
                                        "go.property(\"test\", hash(''))"
                                        "go.property(\"test\", hash('aBc3'))"
                                        "go.property(\"test\", msg.url())"

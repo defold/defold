@@ -611,10 +611,7 @@ Result LoadResourceToBufferWithOffset(HFactory factory, const char* path, const 
             is_streaming = true;
         }
 
-        if (buffer->Capacity() < bytes_to_read) {
-            buffer->SetCapacity(bytes_to_read);
-        }
-        buffer->SetSize(bytes_to_read);
+        buffer->EnsureSize(bytes_to_read);
 
         // Only actually read the resource if we requested any bytes
         uint32_t nread = 0;
@@ -1644,6 +1641,7 @@ const char* ResultToString(Result r)
         DM_RESOURCE_RESULT_TO_STRING_CASE(VERSION_MISMATCH);
         DM_RESOURCE_RESULT_TO_STRING_CASE(SIGNATURE_MISMATCH);
         DM_RESOURCE_RESULT_TO_STRING_CASE(UNKNOWN_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(TOO_MANY_COMPONENTS);
         default: break;
     }
     #undef DM_RESOURCE_RESULT_TO_STRING_CASE

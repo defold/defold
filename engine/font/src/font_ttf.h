@@ -17,11 +17,11 @@
 
 #include <stdint.h>
 
-struct Font;
-typedef Font* HFont;
+#include <dmsdk/font/font.h>
 
 HFont FontLoadFromMemoryTTF(const char* name, const void* data, uint32_t data_size, bool allocate);
 
 bool FontGetGlyphBoxTTF(HFont font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
+FontResult FontGetGlyphSDFMetricsTTF(HFont font, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph);
 
 #endif // DM_FONT_TTF_H

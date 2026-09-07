@@ -6,7 +6,7 @@ blddir = 'build'
 APPNAME='SkriBidi'
 VERSION='1e8038'
 
-import os, shutil
+import os, shutil, glob
 import waf_dynamo
 import run
 from waflib import Build
@@ -34,7 +34,12 @@ def build(bld):
     budouxc_packagedir = 'package/budouxc-main/src'
     budouxc_includedir = 'package/budouxc-main/include'
 
-    harfbuzz_includedir  = '../harfbuzz/package/harfbuzz-11.3.2/src'
+    # Resolve the harfbuzz sources instead of hardcoding a version, so that this doesn't
+    # silently break every time harfbuzz is upgraded.
+    harfbuzz_packages = sorted(glob.glob(os.path.join(bld.path.abspath(), '..', 'harfbuzz', 'package', 'harfbuzz-*')))
+    if not harfbuzz_packages:
+        bld.fatal('Could not find the harfbuzz sources in external/harfbuzz/package. Build the harfbuzz package first.')
+    harfbuzz_includedir  = os.path.relpath(os.path.join(harfbuzz_packages[-1], 'src'), bld.path.abspath())
     sheenbidi_includedir = '../sheenbidi/package/SheenBidi-2.9.0/Headers'
     libunibreak_includedir = '../libunibreak/package/libunibreak-6.1/src'
 

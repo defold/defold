@@ -224,7 +224,14 @@ if(TARGET_PLATFORM MATCHES "arm64-android")
     set(ANDROID_NATIVE_API_LEVEL ${SDK_VERSION_ANDROID_ARM64_API_LEVEL} CACHE STRING "Android API Level" FORCE)
     set(ANDROID_TOOLCHAIN "aarch64-linux-android${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
 
-else(TARGET_PLATFORM MATCHES "armv7-android")
+elseif(TARGET_PLATFORM MATCHES "x86_64-android")
+    # For x86_64-android, ensure Clang uses x86_64-linux-android21 target triple.
+    # Uses the same api level as arm64, and the ABI folder name is simply "x86_64".
+    set(ANDROID_ABI "x86_64" CACHE STRING "Android ABI" FORCE)
+    set(ANDROID_NATIVE_API_LEVEL ${SDK_VERSION_ANDROID_ARM64_API_LEVEL} CACHE STRING "Android API Level" FORCE)
+    set(ANDROID_TOOLCHAIN "x86_64-linux-android${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
+
+else()
     # For armv7-android, ensure Clang uses armv7-linux-android21 target triple
     set(ANDROID_ABI "armeabi-v7a" CACHE STRING "Android ABI" FORCE)
     set(ANDROID_NATIVE_API_LEVEL ${SDK_VERSION_ANDROID_ARMV7_API_LEVEL} CACHE STRING "Android API Level" FORCE)

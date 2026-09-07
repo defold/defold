@@ -24,6 +24,7 @@
 #include <dlib/utf8.h>
 
 #include <graphics/graphics.h>
+#include <font/render/glyph_vertex.h>
 
 namespace dmRender
 {
@@ -48,22 +49,26 @@ namespace dmRender
         }
     }
 
-    // Helper to calculate vertical pivot point
-    static inline float OffsetY(uint32_t valign, float height, float ascent, float descent, float leading, uint32_t line_count)
+    static inline float OffsetLayoutY(uint32_t valign, float height, float layout_height)
     {
-        float line_height = ascent + descent;
         switch (valign)
         {
-            case TEXT_VALIGN_TOP:
-                return height - ascent;
-            case TEXT_VALIGN_MIDDLE:
-                return height * 0.5f + (line_count * (line_height * leading) - line_height * (leading - 1.0f)) * 0.5f - ascent;
-            case TEXT_VALIGN_BOTTOM:
-                return (line_height * leading * (line_count - 1)) + descent;
-            default:
-                return height - ascent;
+            case TEXT_VALIGN_TOP:    return height - layout_height;
+            case TEXT_VALIGN_MIDDLE: return (height - layout_height) * 0.5f;
+            case TEXT_VALIGN_BOTTOM: return 0.0f;
+            default:                 return height - layout_height;
         }
     }
+
+    uint32_t CreateFontVertexData(HFontMap         font_map,
+                                  uint32_t         frame,
+                                  const char*      text,
+                                  const TextEntry& text_entry,
+                                  float            sdf_scale,
+                                  float            recip_w,
+                                  float            recip_h,
+                                  FontGlyphVertex* vertices,
+                                  uint32_t         max_vertices);
 }
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE_H

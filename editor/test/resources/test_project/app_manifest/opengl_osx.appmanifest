@@ -41,6 +41,15 @@ platforms:
       libs: []
       linkFlags: []
       jetifier: true
+  x86_64-android:
+    context:
+      excludeLibs: []
+      excludeJars: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
+      jetifier: true
   arm64-osx:
     context:
       excludeLibs: [graphics_metal, graphics_vulkan, platform_vulkan, MoltenVK]

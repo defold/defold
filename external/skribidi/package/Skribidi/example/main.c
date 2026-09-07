@@ -8,29 +8,42 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
-#include "debug_draw.h"
+#include "render.h"
+#include "debug_render.h"
 #include "utils.h"
 #include "ime.h"
 
 #include "skb_common.h"
 
+#if defined( _MSC_VER )
+#include <crtdbg.h>
+#endif
+
 GLFWwindow* g_window = NULL;
 int g_done = 0;
 int g_last_key_mods = 0;
+render_context_t* g_render_context = NULL;
 
 typedef struct example_stub_t {
 	example_create_t* create;
 	const char* name;
 } example_stub_t;
 
-void* richtext_create(void);
-void* testbed_create(void);
-void* icons_create(void);
-void* cached_create(void);
-void* fallback_create(void);
-void* decorations_create(void);
-void* aligns_create(void);
-void* inlineobj_create(void);
+void* richtext_create(GLFWwindow* window, render_context_t* rc);
+void* testbed_create(GLFWwindow* window, render_context_t* rc);
+void* icons_create(GLFWwindow* window, render_context_t* rc);
+void* cached_create(GLFWwindow* window, render_context_t* rc);
+void* fallback_create(GLFWwindow* window, render_context_t* rc);
+void* decorations_create(GLFWwindow* window, render_context_t* rc);
+void* aligns_create(GLFWwindow* window, render_context_t* rc);
+void* inlineobj_create(GLFWwindow* window, render_context_t* rc);
+void* culling_create(GLFWwindow* window, render_context_t* rc);
+void* hyperlink_create(GLFWwindow* window, render_context_t* rc);
+void* baseattribs_create(GLFWwindow* window, render_context_t* rc);
+void* notes_create(GLFWwindow* window, render_context_t* rc);
+void* inputfilter_create(GLFWwindow* window, render_context_t* rc);
+void* paragraphs_create(GLFWwindow* window, render_context_t* rc);
+
 
 static example_stub_t g_examples[] = {
 	{ .create = richtext_create, .name = "Rich text" },
@@ -41,6 +54,12 @@ static example_stub_t g_examples[] = {
 	{ .create = decorations_create, .name = "Text Decorations" },
 	{ .create = aligns_create, .name = "Layout Align" },
 	{ .create = inlineobj_create, .name = "Inline Objects" },
+	{ .create = culling_create, .name = "Culling" },
+	{ .create = hyperlink_create, .name = "Hyperlink" },
+	{ .create = baseattribs_create, .name = "Base Attributes" },
+	{ .create = notes_create, .name = "Notes" },
+	{ .create = inputfilter_create, .name = "Input Filter" },
+	{ .create = paragraphs_create, .name = "Paragraphs" },
 };
 static const int32_t g_examples_count = SKB_COUNTOF(g_examples);
 int32_t g_example_idx = SKB_INVALID_INDEX;
@@ -68,7 +87,7 @@ static void set_example(int32_t example_idx)
 
 	g_example_idx = skb__wrap(example_idx, g_examples_count);
 
-	g_example = g_examples[g_example_idx].create();
+	g_example = g_examples[g_example_idx].create(g_window, g_render_context);
 	assert(g_example);
 }
 
@@ -151,6 +170,12 @@ static void mouse_scroll_callback(GLFWwindow* window, double xoffset, double yof
 
 int main(int argc, char** args)
 {
+#if defined( _MSC_VER )
+	// Enable memory-leak reports
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+//	_CrtSetBreakAlloc(5166);
+#endif
+
 	glfwSetErrorCallback(glfw_error_callback);
 	if (!glfwInit())
 		return -1;
@@ -196,13 +221,14 @@ int main(int argc, char** args)
 		return -1;
 	}
 
-	if (!draw_init()) {
-		skb_debug_log("Failed to initialize draw\n");
+	g_render_context = render_create(NULL);
+	if (!g_render_context) {
+		skb_debug_log("Failed to initialize renderer\n");
 		return -1;
 	}
 
 	// Init first example
-	set_example(0);
+	set_example(11);
 
 	while (!g_done) {
 		main_loop(0);
@@ -213,7 +239,8 @@ int main(int argc, char** args)
 		g_example = NULL;
 	}
 
-	draw_terminate();
+	render_destroy(g_render_context);
+	g_render_context = 0;
 	ime_terminate();
 	glfwDestroyWindow(g_window);
 	glfwTerminate();
@@ -243,24 +270,41 @@ static void main_loop(void* arg)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_DEPTH_TEST);
 
+	render_begin_frame(g_render_context, fb_width, fb_height);
+
 	if (g_example && g_example->on_update)
 		g_example->on_update(g_example, fb_width, fb_height);
 
-	draw_filled_rect(0, (float)fb_height - 35.f, (float)fb_width, 35.f, skb_rgba(255,255,255,128));
-	draw_text(15.f, (float)fb_height - 15.f, 12.f, 0.f, skb_rgba(0,0,0,255), "F1: Next Example (%s)   ESC: Exit", g_examples[skb__wrap(g_example_idx+1, g_examples_count)].name);
+	debug_render_filled_rect(g_render_context, 0, (float)fb_height - 35.f, (float)fb_width, 35.f, skb_rgba(255,255,255,128));
 
-	float title_width = draw_text_width(15.f, g_examples[g_example_idx].name);
-	draw_filled_rect(0, 0, 25+title_width+25, 30.f, skb_rgba(0,0,0,128));
-	draw_line_width(2.f);
-	draw_text(20.f, 20.f, 15.f, 0.0f, skb_rgba(255,255,255,255), g_examples[g_example_idx].name);
-	draw_line_width(1.f);
+	debug_render_text(g_render_context, 15.f, (float)fb_height - 15.f, 13, RENDER_ALIGN_START, skb_rgba(0,0,0,255),
+		"F1: Next Example (%s)   ESC: Exit   RMB: Pan view   Wheel: Zoom View",
+		g_examples[skb__wrap(g_example_idx+1, g_examples_count)].name);
 
-	draw_flush(fb_width, fb_height);
+	float title_width = debug_render_text_width(g_render_context, 15.f, g_examples[g_example_idx].name);
+	debug_render_filled_rect(g_render_context, 0, 0, 25+title_width+25, 30.f, skb_rgba(0,0,0,128));
+	debug_render_text(g_render_context, 25.f, 20.f, 15, RENDER_ALIGN_START, skb_rgba(255,255,255,255), g_examples[g_example_idx].name);
+
+	debug_render_text(g_render_context, 25+title_width+25+15, 20.f, 15, RENDER_ALIGN_START, skb_rgba(0,0,0,128), "%d/%d", g_example_idx+1, g_examples_count);
+
+	static int32_t c = 0;
+	static int32_t n = 0;
+
+	debug_render_text(g_render_context, 25, 50.f, 15, RENDER_ALIGN_START, skb_rgba(0,0,0,192), "%d  %d", c, n);
+
+	render_end_frame(g_render_context);
 
 	glEnable(GL_DEPTH_TEST);
 	glfwSwapBuffers(g_window);
 
-	glfwWaitEventsTimeout(1.0);
+	n++;
+	if (c > 0) {
+		glfwPollEvents();
+		c--;
+	} else {
+		glfwWaitEventsTimeout(1.0);
+		c = 2;
+	}
 }
 
 

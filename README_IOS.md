@@ -44,6 +44,12 @@ or
 
 ## Running CMake Tests On A Connected Device
 
+After completing [build setup](README_BUILD.md), install and build dependencies
+for each platform you will test (also repeat this after `distclean`):
+
+    $ ./scripts/build.py --platform=arm64-ios install_ext build_ext
+    $ ./scripts/build.py --platform=x86_64-ios install_ext build_ext
+
 The top-level CMake `build_engine` flow can build, sign, install and run `arm64-ios`
 unit tests on a locally connected iOS device:
 

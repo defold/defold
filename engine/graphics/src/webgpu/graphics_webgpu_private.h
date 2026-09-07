@@ -73,6 +73,7 @@ namespace dmGraphics
     {
         WGPUShaderModule m_Module = NULL;
         uint64_t         m_Hash;
+        char*            m_FlippedEntryPoint = NULL;
     };
 
     struct WebGPUProgram
@@ -121,6 +122,9 @@ namespace dmGraphics
         Texture                 m_Base;
         WGPUTexture             m_Texture;
         WGPUTextureView         m_TextureView;
+        // Depth/stencil textures that are sampled use a depth-only view for
+        // shader binding and a separate all-aspects view as an attachment.
+        WGPUTextureView         m_RenderTargetView;
         WGPUSampler             m_Sampler;
         WGPUTextureFormat       m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -143,10 +147,15 @@ namespace dmGraphics
         AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        BufferType   m_ColorBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture     m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture     m_TextureDepthStencil;
         float        m_Scissor[4];
         uint32_t     m_Width;
         uint32_t     m_Height;
+        uint32_t     m_BufferTypeFlags;
+        uint32_t     m_TransientBufferTypes;
         uint8_t      m_Multisample;
     };
 
@@ -160,6 +169,7 @@ namespace dmGraphics
     {
         WGPUBindGroup         m_BindGroups[MAX_SET_COUNT];
         WGPUBuffer            m_VertexBuffers[MAX_VERTEX_BUFFERS];
+        uint64_t              m_VertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPURenderTarget*   m_Target;
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
@@ -173,6 +183,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
     };
@@ -187,11 +198,14 @@ namespace dmGraphics
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_VertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
+        uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         WebGPUTexture*                     m_DefaultTexture2D;
@@ -230,6 +244,8 @@ namespace dmGraphics
         uint32_t            m_OriginalHeight;
 
         uint32_t            m_ViewportChanged : 1;
+        uint32_t            m_ApplyRenderTargetLoadOps : 1;
+        uint32_t            m_HasValidationError : 1;
         uint32_t            m_InitComplete : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];

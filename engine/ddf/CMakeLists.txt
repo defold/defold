@@ -123,9 +123,13 @@ endfunction()
 
 set(DDF_PROTO_CC)
 set(DDF_PROTO_HEADERS)
-set(DDF_PROTO_PBCC)
 set(DDF_PROTO_PY)
 set(DDF_PROTO_PY_INIT "${DDF_PROTO_PY_DIR}/__init__.py")
+
+set(DDF_PROTOBUF_INTEROP_TESTS OFF)
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|win32|x86_64-win32)$")
+  set(DDF_PROTOBUF_INTEROP_TESTS ON)
+endif()
 
 set(_ddf_python_path_entries
   "${DDF_PLUGIN_PY_DIR}"
@@ -178,12 +182,9 @@ foreach(_proto IN LISTS DDF_PROTO_FILES)
   get_filename_component(_base "${_proto}" NAME_WE)
   set(_cc "${DDF_GEN_DIR}/${_base}.cpp")
   set(_h "${DDF_GEN_DIR}/${_base}.h")
-  set(_pbcc "${DDF_GEN_DIR}/${_base}.pb.cc")
   ddf_protoc_gen_cpp("${_cc}" "${_proto}")
-  ddf_protoc_gen_core_protobuf_cpp("${_pbcc}" "${_proto}")
   list(APPEND DDF_PROTO_CC "${_cc}")
   list(APPEND DDF_PROTO_HEADERS "${_h}")
-  list(APPEND DDF_PROTO_PBCC "${_pbcc}")
 endforeach()
 
 add_custom_target(ddf_generated_sources DEPENDS ${DDF_PROTO_CC} ${DDF_PROTO_HEADERS})
@@ -216,25 +217,41 @@ target_compile_definitions(ddf_generated_noasan PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"
 add_dependencies(ddf_generated_noasan ddf_generated_sources ddf_proto_py ddf_plugin_py)
 defold_target_link_libraries(ddf_generated_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_NOASAN_DEPENDENCIES})
 
-defold_add_library(ddf_proto_core_generated OBJECT ${DDF_PROTO_PBCC})
-target_include_directories(ddf_proto_core_generated PUBLIC
-  "${DDF_SRC_DIR}"
-  "${DDF_PROTO_DIR}/.."
-  "${CMAKE_CURRENT_BINARY_DIR}")
-target_compile_definitions(ddf_proto_core_generated PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
-add_dependencies(ddf_proto_core_generated ddf_proto_py ddf_plugin_py)
-defold_target_link_libraries(ddf_proto_core_generated "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_DEPENDENCIES})
+if(BUILD_TESTS AND DDF_PROTOBUF_INTEROP_TESTS)
+  set(DDF_PROTO_PBCC)
+  foreach(_proto IN LISTS DDF_PROTO_FILES)
+    get_filename_component(_base "${_proto}" NAME_WE)
+    set(_pbcc "${DDF_GEN_DIR}/${_base}.pb.cc")
+    ddf_protoc_gen_core_protobuf_cpp("${_pbcc}" "${_proto}")
+    list(APPEND DDF_PROTO_PBCC "${_pbcc}")
+  endforeach()
+
+  defold_add_library(ddf_proto_core_generated OBJECT ${DDF_PROTO_PBCC})
+  target_include_directories(ddf_proto_core_generated PUBLIC
+    "${DDF_SRC_DIR}"
+    "${DDF_PROTO_DIR}/.."
+    "${CMAKE_CURRENT_BINARY_DIR}")
+  target_compile_definitions(ddf_proto_core_generated PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
+  target_compile_features(ddf_proto_core_generated PRIVATE cxx_std_17)
+  add_dependencies(ddf_proto_core_generated ddf_proto_py ddf_plugin_py)
+
+  defold_add_library(ddf_proto_core STATIC $<TARGET_OBJECTS:ddf_proto_core_generated>)
+  target_include_directories(ddf_proto_core PUBLIC
+    "${DDF_SRC_DIR}"
+    "${DDF_PROTO_DIR}/.."
+    "${CMAKE_CURRENT_BINARY_DIR}")
+  add_dependencies(ddf_proto_core ddf_proto_core_generated)
+endif()
 
 defold_add_library(ddf STATIC
   ${DDF_SOURCES}
-  $<TARGET_OBJECTS:ddf_generated>
-  $<TARGET_OBJECTS:ddf_proto_core_generated>)
+  $<TARGET_OBJECTS:ddf_generated>)
 target_include_directories(ddf PUBLIC
   "${DDF_SRC_DIR}"
   "${DDF_PROTO_DIR}/.."
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
-add_dependencies(ddf ddf_generated ddf_proto_core_generated ddf_proto_py ddf_plugin_py)
+add_dependencies(ddf ddf_generated ddf_proto_py ddf_plugin_py)
 defold_target_link_libraries(ddf "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_DEPENDENCIES})
 
 defold_add_library(ddf_noasan STATIC
@@ -285,6 +302,6 @@ install(FILES "${DDF_PLUGIN_PY}" DESTINATION lib/python)
 install(FILES "${DDF_PROTO_PY_INIT}" ${DDF_PROTO_PY} DESTINATION lib/python/ddf)
 install(DIRECTORY "${DDF_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
-if(BUILD_TESTS)
+if(BUILD_TESTS AND DDF_PROTOBUF_INTEROP_TESTS)
   add_subdirectory(src/test)
 endif()

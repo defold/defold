@@ -1,0 +1,622 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+    <Type Name="skb_color_t">
+        <DisplayString>{{RGBA({(int)r}, {(int)g}, {(int)b}, {(int)a})}}</DisplayString>
+        <Expand>
+            <ArrayItems>
+                <Size>count</Size>
+                <ValuePointer>items</ValuePointer>
+            </ArrayItems>
+            <Item Name="parent">parent</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_text_property_t">
+        <Expand>
+            <Item Name="GB" Condition="flags &amp; 1">1</Item>
+            <Item Name="WB" Condition="flags &amp; 2">2</Item>
+            <Item Name="LB!" Condition="flags &amp; 4">4</Item>
+            <Item Name="LB?" Condition="flags &amp; 8">8</Item>
+            <Item Name="Emoji" Condition="flags &amp; 16">16</Item>
+            <Item Name="Ctrl" Condition="flags &amp; 32">32</Item>
+            <Item Name="Space" Condition="flags &amp; 64">64</Item>
+            <Item Name="Punc" Condition="flags &amp; 128">128</Item>
+            <Item Name="flags">flags</Item>
+            <Item Name="script">script</Item>
+            <Item Name="direction">(skb_text_direction_t)direction</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_set_t">
+        <DisplayString>{{count: {attributes_count}}}</DisplayString>
+        <Expand>
+            <ArrayItems>
+                <Size>attributes_count</Size>
+                <ValuePointer>attributes</ValuePointer>
+            </ArrayItems>
+            <Item Name="set_handle">set_handle</Item>
+            <Item Name="parent">parent_set</Item>
+        </Expand>
+    </Type>
+
+
+    <Type Name="skb_attribute_text_direction_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="direction">direction</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_lang_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="lang">lang</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_font_family_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="family">(skb_font_family_t)family</Item>
+            <Item Name="stretch">stretch</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_font_size_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="size">size</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_font_weight_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="size">size</Item>
+            <Item Name="weight">weight</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_font_style_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="size">size</Item>
+            <Item Name="style">style</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_font_stretch_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="stretch">stretch</Item>
+        </Expand>
+    </Type>
+
+
+    <Type Name="skb_attribute_font_feature_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;tag)+3,[1]sb}, {((char*)&amp;tag)+2,[1]sb}, {((char*)&amp;tag)+1,[1]sb}, {((char*)&amp;tag)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="value">value</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_letter_spacing_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="spacing">spacing</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_word_spacing_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="spacing">spacing</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_line_height_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="type">(skb_line_height_t)type</Item>
+            <Item Name="height">height</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_tab_stop_increment_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="increment">increment</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_text_wrap_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="text_wrap">text_wrap</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_text_overflow_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="text_overflow">text_overflow</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_vertical_trim_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="vertical_trim">vertical_trim</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_align_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="align">align</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_baseline_align_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="baseline">baseline</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_paint_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Synthetic Name="paint_tag"><DisplayString>{((char*)&amp;paint_tag)+3,[1]sb}, {((char*)&amp;paint_tag)+2,[1]sb}, {((char*)&amp;paint_tag)+1,[1]sb}, {((char*)&amp;paint_tag)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="state">(skb_paint_state_t)state</Item>
+            <Item Name="color">color</Item>
+            <Item Name="paint_id">paint_id</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_decoration_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="position">(skb_decoration_position_t)position</Item>
+            <Item Name="style">(skb_decoration_style_t)style</Item>
+            <Item Name="thickness">thickness</Item>
+            <Item Name="offset">offset</Item>
+            <Synthetic Name="paint_tag"><DisplayString>{((char*)&amp;paint_tag)+3,[1]sb}, {((char*)&amp;paint_tag)+2,[1]sb}, {((char*)&amp;paint_tag)+1,[1]sb}, {((char*)&amp;paint_tag)+0,[1]sb}</DisplayString></Synthetic>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_object_align_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="baseline_ratio">baseline_ratio</Item>
+            <Item Name="align_ref">(skb_object_align_reference_t)align_ref</Item>
+            <Item Name="align_baseline">(skb_baseline_t)align_baseline</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_object_padding_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="start">start</Item>
+            <Item Name="end">end</Item>
+            <Item Name="top">top</Item>
+            <Item Name="bottom">bottom</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_reference_t">
+        <Expand>
+            <Synthetic Name="kind"><DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString></Synthetic>
+            <Item Name="handle">handle</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_attribute_t">
+        <DisplayString Condition="kind=='tdir'">Text Direction</DisplayString>
+        <DisplayString Condition="kind=='lang'">Language</DisplayString>
+        <DisplayString Condition="kind=='font'">Font Family</DisplayString>
+        <DisplayString Condition="kind=='fsiz'">Font Size</DisplayString>
+        <DisplayString Condition="kind=='fwei'">Font Weight</DisplayString>
+        <DisplayString Condition="kind=='fsty'">Font Style</DisplayString>
+        <DisplayString Condition="kind=='fstr'">Font Stretch</DisplayString>
+        <DisplayString Condition="kind=='feat'">Font Feature</DisplayString>
+        <DisplayString Condition="kind=='lesp'">Letter Spacing</DisplayString>
+        <DisplayString Condition="kind=='wosp'">Word Spacing</DisplayString>
+        <DisplayString Condition="kind=='lnhe'">Line height</DisplayString>
+        <DisplayString Condition="kind=='tabs'">Tab Stop Increment</DisplayString>
+        <DisplayString Condition="kind=='vpad'">Vertical Padding</DisplayString>
+        <DisplayString Condition="kind=='hpad'">Horizontal Padding</DisplayString>
+        <DisplayString Condition="kind=='ilvl'">Indent Level</DisplayString>
+        <DisplayString Condition="kind=='iinc'">Idnent Increment</DisplayString>
+        <DisplayString Condition="kind=='twrp'">Text Wrap</DisplayString>
+        <DisplayString Condition="kind=='tofl'">Text Overflow</DisplayString>
+        <DisplayString Condition="kind=='vtrm'">Vertical Trim</DisplayString>
+        <DisplayString Condition="kind=='haln'">Horizontal Align</DisplayString>
+        <DisplayString Condition="kind=='valn'">Vertical Align</DisplayString>
+        <DisplayString Condition="kind=='baln'">Baseline Align</DisplayString>
+        <DisplayString Condition="kind=='pant'">Paint</DisplayString>
+        <DisplayString Condition="kind=='deco'">Decoration</DisplayString>
+        <DisplayString Condition="kind=='obal'">Object Align</DisplayString>
+        <DisplayString Condition="kind=='obpa'">Object Padding</DisplayString>
+        <DisplayString Condition="kind=='aref'">Reference</DisplayString>
+
+        <DisplayString>{((char*)&amp;kind)+3,[1]sb}, {((char*)&amp;kind)+2,[1]sb}, {((char*)&amp;kind)+1,[1]sb}, {((char*)&amp;kind)+0,[1]sb}</DisplayString>
+        <Expand>
+            <ExpandedItem Condition="kind=='tdir'">text_direction</ExpandedItem>
+            <ExpandedItem Condition="kind=='lang'">lang</ExpandedItem>
+            <ExpandedItem Condition="kind=='font'">font_family</ExpandedItem>
+            <ExpandedItem Condition="kind=='fsiz'">font_size</ExpandedItem>
+            <ExpandedItem Condition="kind=='fwei'">font_weight</ExpandedItem>
+            <ExpandedItem Condition="kind=='fsty'">font_style</ExpandedItem>
+            <ExpandedItem Condition="kind=='feat'">font_feature</ExpandedItem>
+            <ExpandedItem Condition="kind=='lesp'">letter_spacing</ExpandedItem>
+            <ExpandedItem Condition="kind=='wosp'">word_spacing</ExpandedItem>
+            <ExpandedItem Condition="kind=='lnhe'">line_height</ExpandedItem>
+            <ExpandedItem Condition="kind=='tabs'">tab_stop_increment</ExpandedItem>
+            <ExpandedItem Condition="kind=='vpad'">vertical_padding</ExpandedItem>
+            <ExpandedItem Condition="kind=='hpad'">horizontal_padding</ExpandedItem>
+            <ExpandedItem Condition="kind=='ilvl'">indent_level</ExpandedItem>
+            <ExpandedItem Condition="kind=='iinc'">indent_increment</ExpandedItem>
+            <ExpandedItem Condition="kind=='twrp'">text_wrap</ExpandedItem>
+            <ExpandedItem Condition="kind=='tofl'">text_overflow</ExpandedItem>
+            <ExpandedItem Condition="kind=='vtrm'">vertical_trim</ExpandedItem>
+            <ExpandedItem Condition="kind=='haln'">horizontal_align</ExpandedItem>
+            <ExpandedItem Condition="kind=='valn'">vertical_align</ExpandedItem>
+            <ExpandedItem Condition="kind=='baln'">baseline_align</ExpandedItem>
+            <ExpandedItem Condition="kind=='pant'">paint</ExpandedItem>
+            <ExpandedItem Condition="kind=='deco'">decoration</ExpandedItem>
+            <ExpandedItem Condition="kind=='obal'">object_align</ExpandedItem>
+            <ExpandedItem Condition="kind=='obpa'">object_padding</ExpandedItem>
+            <ExpandedItem Condition="kind=='aref'">reference</ExpandedItem>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_layout_t">
+        <Expand>
+            <Item Name="params">params</Item>
+            <Item Name="bounds">bounds</Item>
+            <Item Name="padding">padding</Item>
+            <item Name="advance_y">advance_y</item>
+            <Item Name="resolved_direction">(skb_text_direction_t)resolved_direction</Item>
+
+            <Item Name="text">text,[text_count] s32</Item>
+            <Item Name="text_count">text_count</Item>
+            <Item Name="text_cap">text_cap</Item>
+
+            <Synthetic Name="text_props">
+                <DisplayString>{{count: {text_count}, cap: {text_cap}}}</DisplayString>
+                <Expand>
+                    <ArrayItems>
+                        <Size>text_count</Size>
+                        <ValuePointer>text_props</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="content_runs">
+                <DisplayString>{{count: {content_runs_count}, cap: {content_runs_cap}}}</DisplayString>
+                <Expand>
+                    <ArrayItems>
+                        <Size>content_runs_count</Size>
+                        <ValuePointer>content_runs</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="attributes">
+                <DisplayString>{{count: {attributes_count}, cap: {attributes_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="attributes_count">attributes_count</Item>
+                    <Item Name="attributes_cap">attributes_cap</Item>
+                    <ArrayItems>
+                        <Size>attributes_count</Size>
+                        <ValuePointer>attributes</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="shaping_runs">
+                <DisplayString>{{count: {shaping_runs_count}, cap: {shaping_runs_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="shaping_runs_count">shaping_runs_count</Item>
+                    <Item Name="shaping_runs_cap">shaping_runs_cap</Item>
+                    <ArrayItems>
+                        <Size>shaping_runs_count</Size>
+                        <ValuePointer>shaping_runs</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="glyphs">
+                <DisplayString>{{count: {glyphs_count}, cap: {glyphs_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="glyphs_count">glyphs_count</Item>
+                    <Item Name="glyphs_cap">glyphs_cap</Item>
+                    <ArrayItems>
+                        <Size>glyphs_count</Size>
+                        <ValuePointer>glyphs</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="clusters">
+                <DisplayString>{{count: {clusters_count}, cap: {clusters_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="clusters_count">clusters_count</Item>
+                    <Item Name="clusters_cap">clusters_cap</Item>
+                    <ArrayItems>
+                        <Size>clusters_count</Size>
+                        <ValuePointer>clusters</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="lines">
+                <DisplayString>{{count: {lines_count}, cap: {lines_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="lines_count">lines_count</Item>
+                    <Item Name="lines_cap">lines_cap</Item>
+                    <ArrayItems>
+                        <Size>lines_count</Size>
+                        <ValuePointer>lines</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="layout_runs">
+                <DisplayString>{{count: {layout_runs_count}, cap: {layout_runs_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="layout_runs_count">layout_runs_count</Item>
+                    <Item Name="layout_runs_cap">layout_runs_cap</Item>
+                    <ArrayItems>
+                        <Size>layout_runs_count</Size>
+                        <ValuePointer>layout_runs</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="decorations">
+                <DisplayString>{{count: {decorations_count}, cap: {decorations_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="decorations_count">decorations_count</Item>
+                    <Item Name="decorations_cap">decorations_cap</Item>
+                    <ArrayItems>
+                        <Size>decorations_count</Size>
+                        <ValuePointer>decorations</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Item Name="should_free_instance">should_free_instance</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_content_text_utf32_t">
+        <Expand>
+            <Item Name="type">(skb_content_run_type_t)type</Item>
+            <Item Name="direction">(skb_text_direction_t)direction</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_content_text_utf32_t">
+        <Expand>
+            <Item Name="text">text,s32</Item>
+            <Item Name="text_count">text_count</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_content_run_t">
+        <Expand>
+            <Item Name="type">(skb_content_run_type_t)type</Item>
+            <Item Name="utf8" Condition="type==0">utf8</Item>
+            <Item Name="utf32" Condition="type==1">utf32</Item>
+            <Item Name="object" Condition="type==2">object</Item>
+            <Item Name="icon" Condition="type==3">icon</Item>
+            <Item Name="run_id">run_id</Item>
+            <Item Name="attributes">attributes</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_layout_run_t">
+        <DisplayString Condition="type==0">Text UTF-8 {{dir:{(skb_text_direction_t)direction}, clusters:{cluster_range.start}..{cluster_range.end}, glyphs:{glyph_range.start}..{glyph_range.end} }}</DisplayString>
+        <DisplayString Condition="type==1">Text UTF-32  {{dir:{(skb_text_direction_t)direction}, clusters:{cluster_range.start}..{cluster_range.end}, glyphs:{glyph_range.start}..{glyph_range.end} }}</DisplayString>
+        <DisplayString Condition="type==2">Object</DisplayString>
+        <DisplayString Condition="type==3">Icon</DisplayString>
+        <Expand>
+            <Item Name="type">(skb_content_run_type_t)type</Item>
+            <Item Name="direction">(skb_text_direction_t)direction</Item>
+            <Item Name="script">script</Item>
+            <Item Name="bidi_level">bidi_level</Item>
+            <Item Name="content_run_idx">content_run_idx</Item>
+            <Item Name="glyph_range">glyph_range</Item>
+            <Item Name="cluster_range">cluster_range</Item>
+            <Item Name="bounds">bounds</Item>
+            <Item Name="padding">padding</Item>
+            <Item Name="ref_baseline">ref_baseline</Item>
+            <Item Name="font_size">font_size</Item>
+            <Item Name="attributes_range">attributes_range</Item>
+            <Item Name="(skb_layout_run_flags_t)flags">flags</Item>
+            <Item Name="content_id">content_id</Item>
+            <Item Name="font_handle" Condition="type==0 || type==1">font_handle</Item>
+            <Item Name="object_data" Condition="type==2">object_data</Item>
+            <Item Name="icon_handle" Condition="type==3">icon_handle</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_decoration_t">
+        <DisplayString>Style {(skb_decoration_style_t)style}</DisplayString>
+        <Expand>
+            <Item Name="layout_run_idx">layout_run_idx</Item>
+            <Item Name="offset_x">offset_x</Item>
+            <Item Name="offset_y">offset_y</Item>
+            <Item Name="length">length</Item>
+            <Item Name="pattern_offset">pattern_offset</Item>
+            <Item Name="thickness">thickness</Item>
+            <Item Name="position">(skb_decoration_position_t)position</Item>
+            <Item Name="style">(skb_decoration_style_t)style</Item>
+            <Synthetic Name="paint_tag"><DisplayString>{((char*)&amp;paint_tag)+3,[1]sb}, {((char*)&amp;paint_tag)+2,[1]sb}, {((char*)&amp;paint_tag)+1,[1]sb}, {((char*)&amp;paint_tag)+0,[1]sb}</DisplayString></Synthetic>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_text_t">
+        <Expand>
+
+            <Item Name="text">text,[text_count] s32</Item>
+            <Item Name="text_count">text_count</Item>
+            <Item Name="text_cap">text_cap</Item>
+
+            <Synthetic Name="spans">
+                <DisplayString>{{count: {spans_count}, cap: {spans_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="spans_count">spans_count</Item>
+                    <Item Name="spans_cap">spans_cap</Item>
+                    <ArrayItems>
+                        <Size>spans_count</Size>
+                        <ValuePointer>spans</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_text_paragraph_t">
+        <Expand>
+
+            <Item Name="text">text</Item>
+            <Item Name="global_text_offset">global_text_offset</Item>
+            <Item Name="version">version</Item>
+
+            <Synthetic Name="attributes">
+                <DisplayString>{{count: {attributes_count}, cap: {attributes_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="attributes_count">attributes_count</Item>
+                    <Item Name="attributes_cap">attributes_cap</Item>
+                    <ArrayItems>
+                        <Size>attributes_count</Size>
+                        <ValuePointer>attributes</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_rich_text_t">
+        <Expand>
+            <Synthetic Name="paragraphs">
+                <DisplayString>{{count: {paragraphs_count}, cap: {paragraphs_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="paragraphs_count">paragraphs_count</Item>
+                    <Item Name="paragraphs_cap">paragraphs_cap</Item>
+                    <ArrayItems>
+                        <Size>paragraphs_count</Size>
+                        <ValuePointer>paragraphs</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Item Name="version_counter">version_counter</Item>
+            <Item Name="should_free_instance">should_free_instance</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_rich_layout_t">
+        <Expand>
+            <Synthetic Name="paragraphs">
+                <DisplayString>{{count: {paragraphs_count}, cap: {paragraphs_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="paragraphs_count">paragraphs_count</Item>
+                    <Item Name="paragraphs_cap">paragraphs_cap</Item>
+                    <ArrayItems>
+                        <Size>paragraphs_count</Size>
+                        <ValuePointer>paragraphs</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Item Name="should_free_instance">should_free_instance</Item>
+        </Expand>
+    </Type>
+
+    <Type Name="skb_editor_t">
+        <Expand>
+            <Item Name="params">params</Item>
+
+            <Synthetic Name="attributes">
+                <DisplayString>{{count: {attributes_count}, cap: {attributes_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="attributes_count">attributes_count</Item>
+                    <Item Name="attributes_cap">attributes_cap</Item>
+                    <ArrayItems>
+                        <Size>attributes_count</Size>
+                        <ValuePointer>attributes</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Item Name="on_change_callback">on_change_callback</Item>
+            <Item Name="on_change_context">on_change_context</Item>
+
+            <Synthetic Name="active_attributes">
+                <DisplayString>{{count: {active_attributes_count}, cap: {active_attributes_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="active_attributes_count">active_attributes_count</Item>
+                    <Item Name="active_attributes_cap">active_attributes_cap</Item>
+                    <ArrayItems>
+                        <Size>active_attributes_count</Size>
+                        <ValuePointer>active_attributes</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Synthetic Name="paragraphs">
+                <DisplayString>{{count: {paragraphs_count}, cap: {paragraphs_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="paragraphs_count">paragraphs_count</Item>
+                    <Item Name="paragraphs_cap">paragraphs_cap</Item>
+                    <ArrayItems>
+                        <Size>paragraphs_count</Size>
+                        <ValuePointer>paragraphs</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+
+            <Item Name="selection">selection</Item>
+
+            <Item Name="last_click_time">last_click_time</Item>
+            <Item Name="drag_start_x">drag_start_x</Item>
+            <Item Name="drag_start_y">drag_start_y</Item>
+            <Item Name="preferred_x">preferred_x</Item>
+            <Item Name="click_count">click_count</Item>
+            <Item Name="drag_initial_selection">drag_initial_selection</Item>
+            <Item Name="drag_moved">drag_moved</Item>
+            <Item Name="drag_mode">drag_mode</Item>
+
+            <Item Name="composition_text">composition_text,[composition_text_count] s32</Item>
+            <Item Name="composition_text_count">composition_text_count</Item>
+            <Item Name="composition_text_cap">composition_text_cap</Item>
+
+            <Item Name="composition_position">composition_position</Item>
+            <Item Name="composition_selection_base">composition_selection_base</Item>
+            <Item Name="composition_selection">composition_selection</Item>
+            <Item Name="composition_cleared_selection">composition_cleared_selection</Item>
+
+            <Synthetic Name="undo_stack">
+                <DisplayString>{{count: {undo_stack_count}, cap: {undo_stack_cap}}}</DisplayString>
+                <Expand>
+                    <Item Name="undo_stack_count">undo_stack_count</Item>
+                    <Item Name="undo_stack_cap">undo_stack_cap</Item>
+                    <ArrayItems>
+                        <Size>undo_stack_count</Size>
+                        <ValuePointer>undo_stack</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+            <Item Name="undo_stack_head">undo_stack_head</Item>
+            <Item Name="allow_append_undo">allow_append_undo</Item>
+        </Expand>
+    </Type>
+
+
+</AutoVisualizer>

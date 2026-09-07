@@ -37,6 +37,19 @@ namespace dmDDF
 
     static inline const FieldDescriptor* FindField(const Descriptor* desc, uint32_t key, uint32_t* index)
     {
+        // Most generated schemas use dense field numbers starting at one. Keep the
+        // linear fallback for sparse schemas and extension-style field numbers.
+        if (key > 0 && key <= desc->m_FieldCount)
+        {
+            const FieldDescriptor* f = &desc->m_Fields[key - 1];
+            if (f->m_Number == key)
+            {
+                if (index)
+                    *index = key - 1;
+                return f;
+            }
+        }
+
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* f = &desc->m_Fields[i];

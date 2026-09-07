@@ -57,6 +57,8 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static const char* SPRITE_MAX_COUNT_KEY = "sprite.max_count";
+
     // In general, rare overrides should be kept out of the struct, to keep memory down
     struct SpriteResourceOverrides
     {
@@ -738,8 +740,8 @@ namespace dmGameSystem
 
         if (sprite_world->m_Components.Full())
         {
-            ShowFullBufferError("Sprite", "sprite.max_count", sprite_world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Sprite", SPRITE_MAX_COUNT_KEY, sprite_world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = sprite_world->m_Components.Alloc();
         SpriteComponent* component = &sprite_world->m_Components.Get(index);
@@ -818,15 +820,6 @@ namespace dmGameSystem
 
         sprite_world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    template <typename T>
-    static void EnsureSize(dmArray<T>& array, uint32_t size)
-    {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
-        }
-        array.SetSize(size);
     }
 
     static void FillSlice9Uvs(const float us[4], const float vs[4], bool rotated, float uvs[SPRITE_VERTEX_COUNT_SLICE9*2]) {
@@ -954,7 +947,7 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+            uvs.EnsureSize(SPRITE_VERTEX_COUNT_SLICE9*2);
 
             uint32_t frame_index = anim_data->m_Frames[i];
             if (frame_index == 0xFFFFFFFF)
@@ -1021,7 +1014,7 @@ namespace dmGameSystem
         if (texture_num == 0)
         {
             dmArray<float>& uvs = scratch_uvs[0];
-            EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+            uvs.EnsureSize(SPRITE_VERTEX_COUNT_SLICE9*2);
 
             float us[4];
             float vs[4];
@@ -1051,19 +1044,22 @@ namespace dmGameSystem
         xs[0] = ys[0] = 0;
         xs[3] = ys[3] = 1;
 
-        xs[1] = sx * slice9.getX();
-        xs[2] = 1 - sx * slice9.getZ();
-        ys[1] = sy * slice9.getW();
-        ys[2] = 1 - sy * slice9.getY();
+        // Flipping the UV grid also moves the fixed-size slice borders to the
+        // opposite side of the sprite. Keep the geometry subdivisions aligned
+        // with the reversed UV subdivisions for asymmetric slice values.
+        xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
+        xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
+        ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
+        ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
 
         if (has_world_position_attribute)
         {
-            EnsureSize(*scratch_positions_world, SPRITE_VERTEX_COUNT_SLICE9);
+            scratch_positions_world->EnsureSize(SPRITE_VERTEX_COUNT_SLICE9);
         }
 
         if (has_local_position_attribute)
         {
-            EnsureSize(*scratch_positions_local, SPRITE_VERTEX_COUNT_SLICE9);
+            scratch_positions_local->EnsureSize(SPRITE_VERTEX_COUNT_SLICE9);
         }
 
         const float* world_matrix_channels[] = { (float*) &world_matrix };
@@ -1287,7 +1283,7 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            EnsureSize(uvs, 4*2);
+            uvs.EnsureSize(4*2);
 
             uint32_t frame_index = data->m_Frames[i];
             if (frame_index == 0xFFFFFFFF)
@@ -1339,7 +1335,7 @@ namespace dmGameSystem
         if (texture_num == 0)
         {
             dmArray<float>& uvs = scratch_uvs[0];
-            EnsureSize(uvs, 4*2);
+            uvs.EnsureSize(4*2);
 
             // top left
             uvs[0] = 0.0f;
@@ -1380,13 +1376,13 @@ namespace dmGameSystem
         float* orig_vertices = anim_data->m_Geometries[0]->m_Vertices.m_Data;
         int step = reverse ? -2 : 2;
 
-        EnsureSize(scratch_pos, num_vertices);
+        scratch_pos.EnsureSize(num_vertices);
 
         uint8_t textures_num = component->m_NumTextures;
         for (uint8_t i = 0; i < textures_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            EnsureSize(uvs, num_vertices * 2);
+            uvs.EnsureSize(num_vertices * 2);
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = &anim_data->m_PageIndices[i];
@@ -1569,7 +1565,7 @@ namespace dmGameSystem
 
                 if (has_local_position_attribute)
                 {
-                    EnsureSize(sprite_world->m_ScratchPositionLocal, sprite_world->m_ScratchPositionWorld.Size());
+                    sprite_world->m_ScratchPositionLocal.EnsureSize(sprite_world->m_ScratchPositionWorld.Size());
                 }
 
                 const float* world_matrix_channel[]    = { (float*) &world_matrix };
@@ -1764,6 +1760,34 @@ namespace dmGameSystem
         *ib_where = indices;
     }
 
+    static void EnsureVertexBufferCapacity(SpriteWorld* sprite_world, uint32_t vertex_stride, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    {
+        uint32_t write_offset = sprite_world->m_VertexBufferWritePtr - sprite_world->m_VertexBufferData;
+        uint32_t required_size = write_offset;
+
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
+        for (uint32_t* i = begin; i != end; ++i)
+        {
+            uint32_t component_index = (uint32_t) buf[*i].m_UserData;
+            const SpriteComponent& component = components[component_index];
+            uint32_t remainder = required_size % vertex_stride;
+            if (remainder != 0)
+            {
+                required_size += vertex_stride - remainder;
+            }
+            required_size += component.m_VertexCount * vertex_stride;
+        }
+
+        if (required_size <= sprite_world->m_VertexMemorySize)
+        {
+            return;
+        }
+
+        sprite_world->m_VertexBufferData = (uint8_t*) realloc(sprite_world->m_VertexBufferData, required_size);
+        sprite_world->m_VertexBufferWritePtr = sprite_world->m_VertexBufferData + write_offset;
+        sprite_world->m_VertexMemorySize = required_size;
+    }
+
     static void RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("SpriteRenderBatch");
@@ -1791,6 +1815,10 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
         FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
+
+        // The context material can have a larger vertex format than the component material
+        // used during update. Grow the CPU staging buffer before writing this batch.
+        EnsureVertexBufferCapacity(sprite_world, material_attribute_info.m_VertexStride, buf, begin, end);
 
         // Fill in vertex buffer
         uint8_t* vb_begin = sprite_world->m_VertexBufferWritePtr;
@@ -2143,7 +2171,7 @@ namespace dmGameSystem
         world->m_ReallocBuffers   |= vertex_memsize > world->m_VertexMemorySize || num_indices > world->m_IndexCount;
         world->m_VertexCount      = num_vertices;
         world->m_IndexCount       = num_indices;
-        world->m_VertexMemorySize = vertex_memsize;
+        world->m_VertexMemorySize = dmMath::Max(world->m_VertexMemorySize, vertex_memsize);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -2742,6 +2770,11 @@ namespace dmGameSystem
         SpriteWorld* world = (SpriteWorld*) sprite_world;
         *vx_buffer = world->m_VertexBuffer;
         *ix_buffer = world->m_IndexBuffer;
+    }
+
+    uint32_t GetSpriteWorldVertexBufferCapacity(void* sprite_world)
+    {
+        return ((SpriteWorld*) sprite_world)->m_VertexMemorySize;
     }
 
     void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out)

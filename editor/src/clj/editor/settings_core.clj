@@ -206,6 +206,13 @@
 (def ^:private empty-meta-info
   {:settings []})
 
+(defn- meta-setting-default-values [meta-setting]
+  (if-let [default-values (:defaults meta-setting)]
+    default-values
+    (if (contains? meta-setting :default)
+      [(:default meta-setting)]
+      [])))
+
 (defn merge-meta-infos
   ([] empty-meta-info)
   ([a] a)
@@ -219,12 +226,19 @@
                             (let [path->index (key e)
                                   settings (val e)]
                               (if-let [index (path->index (:path setting))]
-                                (if (and (:unknown-setting (settings index))
-                                         (not (:unknown-setting setting)))
+                                (let [existing-setting (settings index)
+                                      merged-setting (if (and (:unknown-setting existing-setting)
+                                                              (not (:unknown-setting setting)))
+                                                       setting
+                                                       existing-setting)
+                                      default-values (into (meta-setting-default-values existing-setting)
+                                                           (meta-setting-default-values setting))]
                                   (coll/pair
                                     path->index
-                                    (assoc! settings index setting))
-                                  e)
+                                    (assoc! settings index
+                                            (cond-> merged-setting
+                                                    (coll/not-empty default-values)
+                                                    (assoc :defaults default-values)))))
                                 (coll/pair
                                   (assoc! path->index (:path setting) (count settings))
                                   (conj! settings setting)))))
@@ -476,6 +490,11 @@
 (defn get-default-setting [meta-settings path]
   (when-let [index (setting-index meta-settings path)]
     (:default (nth meta-settings index))))
+
+(defn get-default-setting-values [meta-settings path]
+  (if-let [index (setting-index meta-settings path)]
+    (meta-setting-default-values (nth meta-settings index))
+    []))
 
 (defn get-setting-or-default [meta-settings settings path]
   (if-let [index (setting-index settings path)]

@@ -32,11 +32,13 @@
 namespace dmAndroid {
 
 /*# sets the android app
+ * @name SetAndroidApp
  * @param app [type: struct android_app*] The registered android app
  */
 void SetAndroidApp(struct android_app* app);
 
 /*# get's the previously registered android app
+ * @name GetAndroidApp
  * @return app [type: struct android_app*] The registered android app
  */
 struct android_app* GetAndroidApp();

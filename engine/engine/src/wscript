@@ -126,8 +126,6 @@ def build(bld):
               '%s/ext/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/sound_android.jar' % (dynamo_home)]
-    if 'GraphicsAdapterVulkan' in graphics_lib_symbols and len(graphics_lib_symbols) > 1:
-        android_jar_paths.append('%s/ext/share/java/vkquality.jar' % (dynamo_home))
 
     glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM
 
@@ -217,7 +215,7 @@ def build(bld):
         obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup', 'Psapi.lib'])
 
     additional_libs = []
-    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-android', 'x86_64-macos'):
         additional_libs += ['UNWIND']
 
     if bld.env['PLATFORM'] in ('x86_64-xbone', 'x86_64-ps4', 'x86_64-ps5'):
@@ -229,7 +227,7 @@ def build(bld):
                         'ScriptFont','ResourceTypeFont','ResourceTypeTTF']
 
     graphics_lib = 'GRAPHICS_NULL'
-    if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-ios', 'x86_64-ios'):
+    if bld.env['PLATFORM'] in ('arm64-android','armv7-android','x86_64-android', 'arm64-ios', 'x86_64-ios'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # glfwAndroidHandleCommand etc are in glfw. UIApplicationMain is currently in glfw
 
     bld.add_group()

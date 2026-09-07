@@ -42,6 +42,45 @@ namespace dmCrash
      * @language Lua
      */
 
+    /*# System crash fields
+     * @enum
+     * @name crash.SYSFIELD
+     * @member crash.SYSFIELD_ENGINE_VERSION engine version as release number
+     * @member crash.SYSFIELD_ENGINE_HASH engine version as hash
+     * @member crash.SYSFIELD_DEVICE_MODEL device model as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_MANUFACTURER device manufacturer as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_SYSTEM_NAME system name as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_SYSTEM_VERSION system version as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_LANGUAGE system language as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_DEVICE_LANGUAGE system device language as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_TERRITORY system territory as reported by sys.get_sys_info
+     * @member crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT android build fingerprint
+     */
+
+    /*# User crash-field slot index
+     *
+     * An integer index identifying one of the 32 user-defined fields stored in a
+     * crash dump. Valid indices are 0 through 31. Each field stores a string of at
+     * most `crash.USERFIELD_SIZE` bytes; longer strings are truncated.
+     *
+     * @typedef
+     * @name crash.USERFIELD
+     * @param value [type:integer] zero-based user-field index
+     * @examples
+     *
+     * ```lua
+     * crash.set_user_field(0, "level=forest")
+     * crash.set_user_field(1, "checkpoint=3")
+     * ```
+     */
+
+    /*# Loaded crash module
+     * @struct
+     * @name crash.module_info
+     * @member name [type:string] module name
+     * @member address [type:string] module load address
+     */
+
     static HDump CheckHandle(lua_State* L, int index)
     {
         HDump h = (HDump) luaL_checkint(L, index);
@@ -120,7 +159,7 @@ namespace dmCrash
      * There are 32 slots indexed from 0. Each slot stores at most 255 characters.
      *
      * @name crash.set_user_field
-     * @param index [type:number] slot index. 0-indexed
+     * @param index [type:crash.USERFIELD] slot index. 0-indexed
      * @param value [type:string] string value to store
      */
     static int Crash_SetUserField(lua_State* L)
@@ -144,12 +183,9 @@ namespace dmCrash
 
     /*# get all loaded modules from when the crash occured
      *
-     * The function returns a table containing entries with sub-tables that
-     * have fields 'name' and 'address' set for all loaded modules.
-     *
      * @name crash.get_modules
      * @param handle [type:number] crash dump handle
-     * @return modules [type:table] module table
+     * @return modules [type:crash.module_info[]] loaded modules
      */
     static int Crash_GetModules(lua_State* L)
     {
@@ -192,7 +228,7 @@ namespace dmCrash
      *
      * @name crash.get_user_field
      * @param handle [type:number] crash dump handle
-     * @param index [type:number] user data slot index
+     * @param index [type:crash.USERFIELD] user data slot index
      * @return value [type:string] user data value recorded in the crash dump
      */
     static int Crash_GetUserField(lua_State* L)
@@ -221,7 +257,7 @@ namespace dmCrash
      *
      * @name crash.get_sys_field
      * @param handle [type:number] crash dump handle
-     * @param index [type:number] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
+     * @param index [type:crash.SYSFIELD] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
      * @return value [type:string|nil] value recorded in the crash dump, or `nil` if it didn't exist
      */
     static int Crash_GetSysField(lua_State* L)
@@ -265,7 +301,7 @@ namespace dmCrash
      *
      * @name crash.get_backtrace
      * @param handle [type:number] crash dump handle
-     * @return backtrace [type:table] table containing the backtrace
+     * @return backtrace [type:string[]] table containing the backtrace
      */
     static int Crash_GetBacktrace(lua_State* L)
     {
@@ -331,80 +367,30 @@ namespace dmCrash
             lua_pushnumber(L, (lua_Number) name); \
             lua_setfield(L, -2, #name);\
 
-        /*# engine version as release number
-         *
-         * @name crash.SYSFIELD_ENGINE_VERSION
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_ENGINE_VERSION);
 
-        /*# engine version as hash
-         *
-         * @name crash.SYSFIELD_ENGINE_HASH
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_ENGINE_HASH);
 
-        /*# device model as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_DEVICE_MODEL
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_DEVICE_MODEL);
 
-        /*# device manufacturer as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_MANUFACTURER
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_MANUFACTURER);
 
-        /*# system name as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_SYSTEM_NAME
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_SYSTEM_NAME);
 
-        /*# system version as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_SYSTEM_VERSION
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_SYSTEM_VERSION);
 
-        /*# system language as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_LANGUAGE
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_LANGUAGE);
 
-        /*# system device language as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_DEVICE_LANGUAGE
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_DEVICE_LANGUAGE);
 
-        /*# system territory as reported by sys.get_sys_info
-         *
-         * @name crash.SYSFIELD_TERRITORY
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_TERRITORY);
 
-        /*# android build fingerprint
-         *
-         * @name crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT
-         * @constant
-         */
         SETCONSTANT(SYSFIELD_ANDROID_BUILD_FINGERPRINT);
 
         /*# The max number of sysfields.
          *
          * @name crash.SYSFIELD_MAX
-         * @constant
+         * @constant [type:integer]
          */
         SETCONSTANT(SYSFIELD_MAX);
 
@@ -418,14 +404,14 @@ namespace dmCrash
         /*# The max number of user fields.
          *
          * @name crash.USERFIELD_MAX
-         * @constant
+         * @constant [type:integer]
          */
         SETCUSTOMCONSTANT(USERFIELD_MAX, AppState::USERDATA_SLOTS);
 
         /*# The max size of a single user field.
          *
          * @name crash.USERFIELD_SIZE
-         * @constant
+         * @constant [type:integer]
          */
         SETCUSTOMCONSTANT(USERFIELD_SIZE, AppState::USERDATA_SIZE-1);
 

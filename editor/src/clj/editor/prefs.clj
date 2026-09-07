@@ -130,6 +130,8 @@
                           :scope :project}
             :auto-closing-parens {:type :boolean
                                   :default true}
+            :format-on-save {:type :boolean
+                             :default false}
             :visibility {:type :object
                          :properties
                          {:indentation-guides {:type :boolean :default true}

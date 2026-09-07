@@ -152,7 +152,7 @@ static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::Compon
     // Hard coded for the specific case "CreateCallback" below
     dmGameObject::HInstance instance = params.m_Instance;
     if (dmGameObject::GetIdentifier(instance) != dmHashString64("/go2")) {
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
     }
     if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
@@ -444,7 +444,7 @@ TEST_F(CollectionTest, CollectionComponentFail)
         else
             r = PreloaderGet(m_Factory, "/failing_component.collectionc", (void**) &coll);
 
-        ASSERT_NE(dmResource::RESULT_OK, r);
+        ASSERT_EQ(dmResource::RESULT_TOO_MANY_COMPONENTS, r);
         dmGameObject::PostUpdate(m_Register);
     }
     dmLogSetLevel(LOG_SEVERITY_WARNING);

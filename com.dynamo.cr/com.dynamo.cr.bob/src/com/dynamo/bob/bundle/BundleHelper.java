@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.ConnectException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -180,7 +181,7 @@ public class BundleHelper {
         if (data == null) {
             return "";
         }
-        String s = new String(data);
+        String s = new String(data, StandardCharsets.UTF_8);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
         try {
@@ -205,7 +206,7 @@ public class BundleHelper {
     }
 
     public void formatResourceToFile(byte[] content, final String sourceLocation, File toFile) throws IOException {
-        FileUtils.write(toFile, formatResource(content, sourceLocation));
+        FileUtils.write(toFile, formatResource(content, sourceLocation), StandardCharsets.UTF_8);
     }
 
     public File getTargetManifestDir(Platform platform){
@@ -314,7 +315,7 @@ public class BundleHelper {
     public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, platform);
 
         File manifestFile;
         if (!hasExtensions) {
@@ -351,7 +352,7 @@ public class BundleHelper {
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
         List<ExtenderResource> resources = new ArrayList<>();
 
-        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
+        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android) || platform.equals(Platform.X86_64Android)) {
             File platformDir = new File(buildDir, platform.toString());
             if (!platformDir.exists()) {
                 platformDir.mkdirs();

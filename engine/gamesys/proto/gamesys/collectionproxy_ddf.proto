@@ -7,6 +7,17 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "CollectionProxy";
 
+/*# Collection proxy API documentation
+ *
+ * Messages for controlling and interacting with collection proxies
+ * which are used to dynamically load collections into the runtime.
+ *
+ * @document
+ * @name Collection proxy
+ * @namespace collectionproxy
+ * @language Lua
+ */
+
 message CollectionProxyDesc
 {
     required string collection = 1 [(resource)=true];

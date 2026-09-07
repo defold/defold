@@ -15,11 +15,12 @@
 (ns editor.editor-extensions.coerce
   "Define efficient Varargs (0 or more LuaValues, typically 1) to Clojure
   conversions."
-  (:refer-clojure :exclude [boolean integer hash-map vector-of])
+  (:refer-clojure :exclude [boolean hash-map vector-of])
   (:require [clojure.string :as string]
             [editor.editor-extensions.vm :as vm]
             [editor.util :as util]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue Varargs]))
@@ -27,7 +28,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(deftype Failure [lua-varargs explain-fn])
+(defonce/type Failure [lua-varargs explain-fn])
 
 (defmacro failure [lua-varargs-expr explain-expr]
   `(->Failure ~lua-varargs-expr (fn ~'explain-failure [] ~explain-expr)))
@@ -42,8 +43,8 @@
     (if (zero? n)
       ((.-explain-fn failure))
       (str (->> (range (.narg varargs))
-                (map #(vm/lua-value->string vm (.arg varargs (inc (int %)))))
-                (string/join ", "))
+                (e/map #(vm/lua-value->string vm (.arg varargs (inc (int %)))))
+                (coll/join-to-string ", "))
            " "
            ((.-explain-fn failure))))))
 
@@ -167,7 +168,7 @@
 
   Does not enforce the absence of other keys in the table"
   [& coercers]
-  {:pre [(not (empty? coercers))]}
+  {:pre [(not (coll/empty? coercers))]}
   (let [coercers (vec coercers)]
     ^{:schema {:type :tuple
                :items (mapv schema coercers)}}
@@ -271,32 +272,33 @@
     :min-count    minimum number of items in the collection
     :distinct     if true, ensures that the result does not have repeated items"
   [item-coercer & {:keys [min-count distinct]}]
-  (let [f ^{:schema {:type :array :item (schema item-coercer)}}
-          (fn coerce-coll-of [vm ^Varargs x]
-            (let [x (.arg1 x)]
-              (if (.istable x)
-                (let [acc (vm/with-lock vm
-                            (let [len (.rawlen x)]
-                              (transduce
-                                (comp
-                                  (map (fn [i]
-                                         (item-coercer vm (.rawget x (unchecked-inc-int i)))))
-                                  (halt-when failure?))
-                                conj!
-                                (range len))))]
-                  (if (failure? acc)
-                    acc
-                    (persistent! acc)))
-                (failure x "is not an array"))))]
+  (let [f
+        ^{:schema {:type :array :item (schema item-coercer)}}
+        (fn coerce-coll-of [vm ^Varargs x]
+          (let [x (.arg1 x)]
+            (if (.istable x)
+              (let [acc (vm/with-lock vm
+                          (let [len (.rawlen x)]
+                            (transduce
+                              (comp
+                                (map (fn [i]
+                                       (item-coercer vm (.rawget x (unchecked-inc-int i)))))
+                                (halt-when failure?))
+                              conj!
+                              (range len))))]
+                (if (failure? acc)
+                  acc
+                  (persistent! acc)))
+              (failure x "is not an array"))))]
     (cond-> f
 
-            min-count
-            (wrap-with-pred
-              #(<= ^long min-count (count %))
-              (str "needs at least " min-count " element" (when (< 1 ^long min-count) "s")))
+      min-count
+      (wrap-with-pred
+        #(<= ^long min-count (count %))
+        (str "needs at least " min-count " element" (when (< 1 ^long min-count) "s")))
 
-            distinct
-            (wrap-with-pred #(apply distinct? %) "should not have repeated elements"))))
+      distinct
+      (wrap-with-pred #(apply distinct? %) "should not have repeated elements"))))
 
 (defn hash-map
   "Coerces 1st Varargs arg to a Clojure map with required and optional keys
@@ -367,7 +369,7 @@
 (defn one-of
   "Tries several coercers in the provided order, returns first success result"
   [& coercers]
-  {:pre [(not (empty? coercers))]}
+  {:pre [(not (coll/empty? coercers))]}
   (let [v (vec coercers)
         schemas (into []
                       (comp
@@ -388,14 +390,16 @@
         (if (failure? ret)
           (failure x (str "does not satisfy any of its requirements:\n"
                           (->> coercers
-                               (map (fn [coercer]
-                                      (let [failure (coercer vm x)]
-                                        (assert (failure? failure))
-                                        (string/join "\n"
-                                                     (map str
-                                                          (cons "- " (repeat "  "))
-                                                          (string/split-lines (failure-message vm failure)))))))
-                               (string/join "\n"))))
+                               (e/map (fn [coercer]
+                                        (let [failure (coercer vm x)]
+                                          (assert (failure? failure))
+                                          (coll/join-to-string
+                                            "\n"
+                                            (e/map-indexed
+                                              (fn [^long i line]
+                                                (str (if (zero? i) "- " "  ") line))
+                                              (string/split-lines (failure-message vm failure)))))))
+                               (coll/join-to-string "\n"))))
           ret)))))
 
 (defn by-key
@@ -449,13 +453,124 @@
       LuaValue/NONE
       (str "Invalid argument:\n"
            (->> (conj failures final-failure)
-                (map (fn [failure]
-                       (string/join
-                         "\n"
-                         (map str
-                              (cons "- " (repeat "  "))
-                              (string/split-lines (failure-message vm failure))))))
-                (string/join "\n"))))))
+                (e/map (fn [failure]
+                         (coll/join-to-string
+                           "\n"
+                           (e/map-indexed
+                             (fn [^long i line]
+                               (str (if (zero? i) "- " "  ") line))
+                             (string/split-lines (failure-message vm failure))))))
+                (coll/join-to-string "\n"))))))
+
+(defonce/record RegexOp [key quantifier coerce group])
+(defonce/type RegexMatch [value ^long input-index failures])
+(defonce/type RegexFailure [failures final-failure])
+
+(defn- parse-regex-ops [source]
+  (let [ops (reduce
+              (fn [ops el]
+                (let [last-op (peek ops)
+                      last-op-complete (or (:coerce last-op) (:group last-op))]
+                  (cond
+                    (not (:key last-op))
+                    (do
+                      (when-not (keyword? el)
+                        (throw (IllegalArgumentException. "op key must be a keyword")))
+                      (conj ops (->RegexOp el nil nil nil)))
+
+                    (and (not (:quantifier last-op)) (#{:? :1} el))
+                    (assoc ops (dec (count ops)) (assoc last-op :quantifier el))
+
+                    (and (not last-op-complete) (fn? el))
+                    (assoc ops (dec (count ops)) (-> last-op
+                                                     (update :quantifier #(or % :1))
+                                                     (assoc :coerce el)))
+
+                    (and (not last-op-complete) (vector? el))
+                    (let [group (parse-regex-ops el)]
+                      (when (coll/empty? group)
+                        (throw (IllegalArgumentException. "regex group must include at least one op")))
+                      (assoc ops (dec (count ops)) (-> last-op
+                                                       (update :quantifier #(or % :1))
+                                                       (assoc :group group))))
+
+                    (and (keyword? el) last-op-complete)
+                    (conj ops (->RegexOp el nil nil nil))
+
+                    :else
+                    (throw (IllegalArgumentException. (str "unexpected input: " el))))))
+              []
+              source)]
+    (when-let [last-op (peek ops)]
+      (when-not (or (:coerce last-op) (:group last-op))
+        (throw (IllegalArgumentException. "regex op must include a pattern"))))
+    ops))
+
+(defn- finish-regex-failure [vm root failures final-failure]
+  (if-not root
+    (RegexFailure. failures final-failure)
+    (regex-failure vm failures final-failure)))
+
+(defn- match-regex-ops [vm ^Varargs inputs inputs-len ops input-index root]
+  (let [ops-len (count ops)]
+    (loop [result {}
+           input-index (long input-index)
+           op-index 0
+           failures []]
+      (cond
+        (= op-index ops-len)
+        (if (and root (not= input-index inputs-len))
+          (let [extra (.subargs inputs (inc input-index))]
+            (regex-failure vm failures (failure extra (if (= 1 (.narg extra)) "is unexpected" "are unexpected"))))
+          (if root
+            result
+            (RegexMatch. result input-index failures)))
+
+        :else
+        (let [^RegexOp op (ops op-index)
+              key (.-key op)
+              quantifier (.-quantifier op)
+              coerce (.-coerce op)
+              group (.-group op)]
+          (cond
+            group
+            (let [match (match-regex-ops vm inputs inputs-len group input-index false)]
+              (if (instance? RegexFailure match)
+                (let [^RegexFailure match match
+                      group-failures (.-failures match)
+                      group-final-failure (.-final-failure match)]
+                  (case quantifier
+                    :1 (finish-regex-failure vm root (into failures group-failures) group-final-failure)
+                    :? (recur result
+                              input-index
+                              (inc op-index)
+                              (into failures (conj group-failures group-final-failure)))))
+                (let [^RegexMatch match match
+                      match-input-index (.-input-index match)]
+                  (recur (if (and (= :? quantifier)
+                                  (= input-index match-input-index))
+                           result
+                           (assoc result key (.-value match)))
+                         match-input-index
+                         (inc op-index)
+                         (if (= input-index match-input-index)
+                           (into failures (.-failures match))
+                           (.-failures match))))))
+
+            (= input-index inputs-len)
+            (case quantifier
+              :1 (finish-regex-failure vm root failures (failure LuaValue/NONE "more arguments expected"))
+              :? (recur result input-index (inc op-index) failures))
+
+            :else
+            (let [value (coerce vm (.arg inputs (inc input-index)))]
+              (case quantifier
+                :1 (if (failure? value)
+                     (finish-regex-failure vm root failures value)
+                     (recur (assoc result key value) (inc input-index) (inc op-index) []))
+                :? (if (failure? value)
+                     (recur result input-index (inc op-index) (conj failures value))
+                     (recur (assoc result key value) (inc input-index) (inc op-index) []))))))))))
 
 (defn regex
   "Create a regex-like coercer that coerces Varargs to a clojure map
@@ -463,10 +578,13 @@
   Returns a coerced map of identifiers to coerced values
 
   Args:
-    ops    regex ops specification, a flat sequence of following values:
+    ops    regex ops specification, a sequence of following values:
              keyword       required, subsequence identifier
              quantifier    optional, currently only :? and :1 are supported
-             coercer       required, subsequence LuaValue coercer
+             pattern       required, either a LuaValue coercer or a vector
+                           containing a nested regex ops specification; a
+                           group must contain at least one op; an optional group
+                           that consumes no arguments is omitted from the result
 
   Examples:
     ;; Coerce Varargs with 0-3 LuaValues into an HTTP response map
@@ -475,59 +593,17 @@
                   :body :? coerce/string)
     ;; Coerce 2-element Varargs into person map (:1 can be omitted)
     (coerce/regex :first-name :1 coerce/string
-                  :last-name :1 coerce/string)"
+                  :last-name :1 coerce/string)
+    ;; Coerce 3 elements, nesting grouped captures under :range
+    (coerce/regex :path coerce/string
+                  :range [:from coerce/integer
+                          :to coerce/integer])
+    ;; Coerce either 1 or 3 elements; optional groups match atomically
+    (coerce/regex :path coerce/string
+                  :range :? [:from coerce/integer
+                             :to coerce/integer])"
   [& ops]
-  (let [ops (reduce
-              (fn [acc el]
-                (let [last-op (peek acc)]
-                  (cond
-                    (not (:key last-op))
-                    (do
-                      (when-not (keyword? el)
-                        (throw (IllegalArgumentException. "op key must be a keyword")))
-                      (conj acc (assoc last-op :key el)))
-
-                    (and (not (:quantifier last-op)) (#{:? :1} el))
-                    (assoc acc (dec (count acc)) (assoc last-op :quantifier el))
-
-                    (and (not (:coerce last-op)) (fn? el))
-                    (assoc acc (dec (count acc)) (-> last-op (update :quantifier #(or % :1)) (assoc :coerce el)))
-
-                    (and (keyword? el) (:coerce last-op))
-                    (conj acc {:key el})
-
-                    :else
-                    (throw (IllegalArgumentException. (str "unexpected input: " el))))))
-              []
-              ops)
-        ops-len (count ops)]
+  (let [ops (parse-regex-ops ops)]
     ^{:schema {:type :any}}
     (fn coerce-regex [vm ^Varargs inputs]
-      (let [inputs-len (.narg inputs)]
-        (loop [acc {}
-               input-index 0
-               op-index 0
-               failures []]
-          (cond
-            (= input-index inputs-len) ; finished input
-            (if (= op-index ops-len) ; also finished ops
-              acc
-              (case (:quantifier (ops op-index)) ; check if remaining ops are all optional
-                :1 (regex-failure vm failures (failure LuaValue/NONE "more arguments expected"))
-                :? (recur acc input-index (inc op-index) failures)))
-
-            (= op-index ops-len) ; finished ops, but there is more input
-            (let [extra (.subargs inputs (inc input-index))]
-              (regex-failure vm failures (failure extra (if (= 1 (.narg extra)) "is unexpected" "are unexpected"))))
-
-            :else
-            (let [{:keys [key quantifier coerce]} (ops op-index)
-                  lua-value (.arg inputs (inc input-index))
-                  v (coerce vm lua-value)]
-              (case quantifier
-                :1 (if (failure? v)
-                     (regex-failure vm failures v)
-                     (recur (assoc acc key v) (inc input-index) (inc op-index) []))
-                :? (if (failure? v)
-                     (recur acc input-index (inc op-index) (conj failures v))
-                     (recur (assoc acc key v) (inc input-index) (inc op-index) []))))))))))
+      (match-regex-ops vm inputs (.narg inputs) ops 0 true))))

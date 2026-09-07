@@ -14,10 +14,11 @@
 
 #include <dlfcn.h>
 #include <android_native_app_glue.h>
-#include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/time.h>
 #include <dmsdk/dlib/android.h>
 #include <platform/platform_window_android.h>
+#include <vkquality/vkquality.h>
 
 #include "../graphics_vulkan_defines.h"
 #include "../graphics_vulkan_private.h"
@@ -150,137 +151,119 @@ namespace dmGraphics
 {
     void* g_lib_vulkan = 0;
 
-    enum VkQualityRecommendation
+    static const char* const VKQUALITY_LIBRARY_NAME = "libvkquality.so";
+    static const char* const VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
+    static const uint32_t VKQUALITY_RECOMMENDATION_RETRY_COUNT = 10;
+    static const uint32_t VKQUALITY_RECOMMENDATION_RETRY_INTERVAL_US = 25 * 1000;
+
+    typedef vkQualityInitResult (*VkQualityInitializeFlagsInfoFn)(JNIEnv*, AAssetManager*, const char*, const char*, const vkqGraphicsAPIInfo*, int32_t);
+    typedef vkQualityRecommendation (*VkQualityGetRecommendationFn)();
+    typedef void (*VkQualityDestroyFn)(JNIEnv*);
+
+    struct VkQualityLibrary
     {
-        // Mirrored by DefoldVkQuality.VULKAN_RECOMMENDATION_*.
-        VKQUALITY_RECOMMENDATION_ALLOW = 0,
-        VKQUALITY_RECOMMENDATION_DENY  = 1
+        void*                           m_Handle;
+        VkQualityInitializeFlagsInfoFn m_InitializeFlagsInfo;
+        VkQualityGetRecommendationFn   m_GetRecommendation;
+        VkQualityDestroyFn             m_Destroy;
     };
 
-    static void AndroidSetVkQualityJavaExceptionError(JNIEnv* env, const char* message, char* error_buffer, uint32_t error_buffer_size)
+    static bool LoadVkQualityLibrary(VkQualityLibrary* library)
     {
-        if (!error_buffer || error_buffer_size == 0)
+        memset(library, 0, sizeof(*library));
+        library->m_Handle = dlopen(VKQUALITY_LIBRARY_NAME, RTLD_NOW | RTLD_LOCAL);
+        if (!library->m_Handle)
+            return false;
+
+        library->m_InitializeFlagsInfo = (VkQualityInitializeFlagsInfoFn) dlsym(library->m_Handle, "vkQuality_initializeFlagsInfo");
+        library->m_GetRecommendation = (VkQualityGetRecommendationFn) dlsym(library->m_Handle, "vkQuality_getRecommendation");
+        library->m_Destroy = (VkQualityDestroyFn) dlsym(library->m_Handle, "vkQuality_destroy");
+        if (!library->m_InitializeFlagsInfo || !library->m_GetRecommendation || !library->m_Destroy)
         {
-            return;
+            dlclose(library->m_Handle);
+            memset(library, 0, sizeof(*library));
+            return false;
+        }
+        return true;
+    }
+
+    bool AndroidVulkanIsRecommended(const VkPhysicalDeviceProperties* physical_device_properties)
+    {
+        if (!physical_device_properties)
+        {
+            dmLogWarning("VkQuality device information unavailable, allowing Vulkan.");
+            return true;
         }
 
-        if (!env->ExceptionCheck())
+        VkQualityLibrary library;
+        if (!LoadVkQualityLibrary(&library))
         {
-            dmSnPrintf(error_buffer, error_buffer_size, "%s", message);
-            return;
+            dmLogWarning("VkQuality native library unavailable, allowing Vulkan.");
+            return true;
         }
 
-        jthrowable exception = env->ExceptionOccurred();
-        env->ExceptionClear();
-
-        jclass throwable_class = env->FindClass("java/lang/Throwable");
-        jmethodID to_string_method = throwable_class ? env->GetMethodID(throwable_class, "toString", "()Ljava/lang/String;") : 0;
-        jstring exception_string = (jstring) (to_string_method && exception ? env->CallObjectMethod(exception, to_string_method) : 0);
-
-        if (exception_string && !env->ExceptionCheck())
+        bool recommended = true;
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        android_app* app = dmAndroid::GetAndroidApp();
+        if (!env || !app || !app->activity)
         {
-            const char* exception_utf = env->GetStringUTFChars(exception_string, 0);
-            dmSnPrintf(error_buffer, error_buffer_size, "%s: %s", message, exception_utf ? exception_utf : "<exception string unavailable>");
-            if (exception_utf)
+            dmLogWarning("VkQuality Android runtime information unavailable, allowing Vulkan.");
+            dlclose(library.m_Handle);
+            return true;
+        }
+
+        vkqGraphicsAPIInfo api_info = {};
+        api_info.vk_physical_device_properties = (void*) physical_device_properties;
+        vkQualityInitResult init_result = library.m_InitializeFlagsInfo(
+            env,
+            app->activity->assetManager,
+            app->activity->internalDataPath,
+            VKQUALITY_DATA_FILE,
+            &api_info,
+            kInitFlagSkipFingerprintRecommendationCheck);
+
+        if (init_result == kSuccess)
+        {
+            vkQualityRecommendation recommendation = library.m_GetRecommendation();
+            for (uint32_t i = 0; recommendation == kRecommendationNotReady && i < VKQUALITY_RECOMMENDATION_RETRY_COUNT; ++i)
             {
-                env->ReleaseStringUTFChars(exception_string, exception_utf);
+                dmTime::Sleep(VKQUALITY_RECOMMENDATION_RETRY_INTERVAL_US);
+                recommendation = library.m_GetRecommendation();
+            }
+
+            if (recommendation >= kRecommendationVulkanBecauseDeviceMatch &&
+                recommendation <= kRecommendationVulkanBecauseFutureAndroid)
+            {
+                dmLogInfo("VkQuality recommends Vulkan (%d).", recommendation);
+            }
+            else if (recommendation >= kRecommendationGLESBecauseOldDevice &&
+                     recommendation <= kRecommendationGLESBecausePredictionMatch)
+            {
+                dmLogInfo("VkQuality recommends OpenGL ES (%d), disabling Vulkan adapter.", recommendation);
+                recommended = false;
+            }
+            else if (recommendation == kRecommendationNotReady)
+            {
+                dmLogWarning("VkQuality recommendation was not ready after waiting, disabling Vulkan adapter.");
+                recommended = false;
+            }
+            else
+            {
+                dmLogWarning("VkQuality returned unknown recommendation (%d), allowing Vulkan.", recommendation);
             }
         }
         else
         {
-            env->ExceptionClear();
-            dmSnPrintf(error_buffer, error_buffer_size, "%s: <exception details unavailable>", message);
+            dmLogWarning("VkQuality initialization failed (%d), allowing Vulkan.", init_result);
         }
 
-        if (exception_string)
-        {
-            env->DeleteLocalRef(exception_string);
-        }
-        if (throwable_class)
-        {
-            env->DeleteLocalRef(throwable_class);
-        }
-        if (exception)
-        {
-            env->DeleteLocalRef(exception);
-        }
+        library.m_Destroy(env);
+        dlclose(library.m_Handle);
+        return recommended;
     }
 
-    static bool AndroidLoadDefoldVkQualityClass(JNIEnv* env, jclass* vkquality_class, char* error_buffer, uint32_t error_buffer_size)
-    {
-        *vkquality_class = dmAndroid::LoadClass(env, "com.dynamo.android.DefoldVkQuality");
-        if (env->ExceptionCheck() || !*vkquality_class)
-        {
-            AndroidSetVkQualityJavaExceptionError(env, "Could not load com.dynamo.android.DefoldVkQuality", error_buffer, error_buffer_size);
-            return false;
-        }
-
-        return true;
-    }
-
-    static bool AndroidGetDefoldVkQualityRecommendation(int32_t* recommendation, char* error_buffer, uint32_t error_buffer_size)
-    {
-        dmAndroid::ThreadAttacher thread;
-        JNIEnv* env = thread.GetEnv();
-        if (!env)
-        {
-            dmSnPrintf(error_buffer, error_buffer_size, "JNI environment unavailable while calling DefoldVkQuality.getVulkanRecommendation");
-            return false;
-        }
-
-        jclass vkquality_class = 0;
-        if (!AndroidLoadDefoldVkQualityClass(env, &vkquality_class, error_buffer, error_buffer_size))
-        {
-            return false;
-        }
-
-        jmethodID method_id = env->GetStaticMethodID(vkquality_class, "getVulkanRecommendation", "()I");
-        if (env->ExceptionCheck() || !method_id)
-        {
-            AndroidSetVkQualityJavaExceptionError(env, "Could not find DefoldVkQuality.getVulkanRecommendation()I", error_buffer, error_buffer_size);
-            env->DeleteLocalRef(vkquality_class);
-            return false;
-        }
-
-        jint result = env->CallStaticIntMethod(vkquality_class, method_id);
-        if (env->ExceptionCheck())
-        {
-            AndroidSetVkQualityJavaExceptionError(env, "Exception while calling DefoldVkQuality.getVulkanRecommendation()I", error_buffer, error_buffer_size);
-            env->DeleteLocalRef(vkquality_class);
-            return false;
-        }
-
-        env->DeleteLocalRef(vkquality_class);
-        *recommendation = (int32_t) result;
-        return true;
-    }
-
-    bool AndroidVulkanIsRecommended()
-    {
-        int32_t recommendation = VKQUALITY_RECOMMENDATION_ALLOW;
-        char error_buffer[256];
-        if (!AndroidGetDefoldVkQualityRecommendation(&recommendation, error_buffer, sizeof(error_buffer)))
-        {
-            // MVP1 policy: missing or unavailable VkQuality must not disable Vulkan.
-            // Warn and keep Defold's existing Vulkan support probe as the source of truth.
-            dmLogWarning("VkQuality result unavailable (%s), allowing Vulkan support probe.", error_buffer);
-            return true;
-        }
-
-        if (recommendation == VKQUALITY_RECOMMENDATION_DENY)
-        {
-            return false;
-        }
-
-        if (recommendation != VKQUALITY_RECOMMENDATION_ALLOW)
-        {
-            dmLogWarning("VkQuality returned unknown Vulkan recommendation (%d), allowing Vulkan support probe.", recommendation);
-        }
-
-        return true;
-    }
-
-    VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI, void** nativeWindowOut)
     {
         PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR = (PFN_vkCreateAndroidSurfaceKHR)
             vkGetInstanceProcAddr(vkInstance, "vkCreateAndroidSurfaceKHR");
@@ -290,14 +273,51 @@ namespace dmGraphics
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
-        struct android_app* app = dmAndroid::GetAndroidApp();
-        assert(app);
+        *vkSurfaceOut = VK_NULL_HANDLE;
+        if (nativeWindowOut)
+            *nativeWindowOut = 0;
 
-        VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
-        vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-        vk_surface_create_info.window = app->window;
+        // Android may destroy and replace the native window while the app is
+        // paused or resumed. WaitForAndroidWindow() blocks (and sleeps between
+        // checks) until GLFW can return an acquired reference to the current
+        // window, so this loop is not a tight busy-wait.
+        //
+        // The lifecycle may still change while the Vulkan driver is creating
+        // the surface. The loop lets us revalidate the window afterwards and,
+        // if it became stale, discard that surface and retry with the window
+        // supplied by the next lifecycle state.
+        while (true)
+        {
+            ANativeWindow* native_window = dmPlatform::WaitForAndroidWindow();
+            if (!native_window)
+                return VK_ERROR_SURFACE_LOST_KHR;
 
-        return vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
+            VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
+            vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+            vk_surface_create_info.window = native_window;
+
+            VkResult result = vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
+            bool is_current = dmPlatform::IsAndroidWindowCurrent(native_window);
+
+            // A successfully created Vulkan surface retains the native window.
+            // Keep its pointer only as an identity token so later frames can
+            // detect when Android has replaced the window.
+            if (is_current && result == VK_SUCCESS && nativeWindowOut)
+                *nativeWindowOut = native_window;
+
+            dmPlatform::ReleaseAndroidWindow(native_window);
+
+            if (is_current)
+                return result;
+
+            // The lifecycle changed while Vulkan was creating the surface.
+            // Discard it and retry with the next current native window.
+            if (result == VK_SUCCESS)
+            {
+                vkDestroySurfaceKHR(vkInstance, *vkSurfaceOut, 0);
+            }
+            *vkSurfaceOut = VK_NULL_HANDLE;
+        }
     }
 
     void SyncAndroidVulkanWindowSize(VulkanContext* context)
@@ -329,11 +349,9 @@ namespace dmGraphics
             context->m_WindowSurface = VK_NULL_HANDLE;
         }
 
-        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
+        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI), &context->m_AndroidVulkanWindow);
         if (res == VK_SUCCESS)
         {
-            android_app* app = dmAndroid::GetAndroidApp();
-            context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
             context->m_SwapChain->m_Surface = context->m_WindowSurface;
         }
         return res;
@@ -346,26 +364,27 @@ namespace dmGraphics
 
     bool AndroidVulkanHandleWindowSurfaceChange(VulkanContext* context, uint32_t window_width, uint32_t window_height)
     {
-        android_app* app = dmAndroid::GetAndroidApp();
-        ANativeWindow* native_window = app ? app->window : 0;
+        ANativeWindow* native_window = dmPlatform::AcquireAndroidWindow();
+        if (!native_window)
+            return false;
+
         ANativeWindow* context_native_window = (ANativeWindow*) context->m_AndroidVulkanWindow;
+        bool window_changed = native_window != context_native_window;
         uint32_t target_window_width = window_width;
         uint32_t target_window_height = window_height;
 
-        if (native_window)
+        int native_width = ANativeWindow_getWidth(native_window);
+        int native_height = ANativeWindow_getHeight(native_window);
+        dmPlatform::ReleaseAndroidWindow(native_window);
+        if (native_width > 0 && native_height > 0)
         {
-            int native_width = ANativeWindow_getWidth(native_window);
-            int native_height = ANativeWindow_getHeight(native_window);
-            if (native_width > 0 && native_height > 0)
-            {
-                target_window_width = (uint32_t) native_width;
-                target_window_height = (uint32_t) native_height;
-            }
+            target_window_width = (uint32_t) native_width;
+            target_window_height = (uint32_t) native_height;
         }
 
-        if (native_window && (native_window != context_native_window ||
+        if (window_changed ||
             target_window_width != context->m_AndroidVulkanWindowWidth ||
-            target_window_height != context->m_AndroidVulkanWindowHeight))
+            target_window_height != context->m_AndroidVulkanWindowHeight)
         {
             if (window_width != target_window_width || window_height != target_window_height)
             {
@@ -377,7 +396,7 @@ namespace dmGraphics
             SwapChainChanged(context,
                 &context->m_WindowWidth,
                 &context->m_WindowHeight,
-                native_window != context_native_window ? RecreateAndroidWindowSurface : 0,
+                window_changed ? RecreateAndroidWindowSurface : 0,
                 context);
             SyncAndroidVulkanWindowSize(context);
             return true;
@@ -388,8 +407,6 @@ namespace dmGraphics
 
     void AndroidVulkanInitializeContext(VulkanContext* context)
     {
-        android_app* app = dmAndroid::GetAndroidApp();
-        context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
         SyncAndroidVulkanWindowSize(context);
     }
 

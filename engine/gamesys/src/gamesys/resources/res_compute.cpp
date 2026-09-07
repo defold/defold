@@ -128,19 +128,20 @@ namespace dmGameSystem
             dmhash_t base_name_hash             = dmHashString64(sampler[i].m_Name);
             dmGraphics::TextureWrap uwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapU);
             dmGraphics::TextureWrap vwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapV);
+            dmGraphics::TextureWrap wwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapW);
             dmGraphics::TextureFilter minfilter = dmRender::FilterMinFromDDF(sampler[i].m_FilterMin);
             dmGraphics::TextureFilter magfilter = dmRender::FilterMagFromDDF(sampler[i].m_FilterMag);
             float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
             uint32_t sampler_unit_before = sampler_unit;
-            if (dmRender::SetComputeProgramSampler(resource->m_Program, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+            if (dmRender::SetComputeProgramSampler(resource->m_Program, base_name_hash, sampler_unit, uwrap, vwrap, wwrap, minfilter, magfilter, anisotropy))
             {
                 sampler_unit++;
             }
 
             for (int j = 0; j < sampler[i].m_NameIndirections.m_Count; ++j)
             {
-                if (dmRender::SetComputeProgramSampler(resource->m_Program, sampler[i].m_NameIndirections[j], sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+                if (dmRender::SetComputeProgramSampler(resource->m_Program, sampler[i].m_NameIndirections[j], sampler_unit, uwrap, vwrap, wwrap, minfilter, magfilter, anisotropy))
                 {
                     sampler_unit++;
                 }

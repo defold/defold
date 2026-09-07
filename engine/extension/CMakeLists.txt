@@ -23,7 +23,7 @@ set(EXTENSION_SOURCES "${EXTENSION_SRC_DIR}/extension.cpp")
 if(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
   list(APPEND EXTENSION_SOURCES "${EXTENSION_SRC_DIR}/extension_ios.cpp")
 endif()
-if(TARGET_PLATFORM MATCHES "^arm.*android$")
+if(TARGET_PLATFORM MATCHES "android$")
   list(APPEND EXTENSION_SOURCES "${EXTENSION_SRC_DIR}/extension_android.cpp")
 endif()
 

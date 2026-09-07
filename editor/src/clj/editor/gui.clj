@@ -2174,6 +2174,7 @@
             (set (layout-property-setter manual-size)))
   (property text g/Str (default (protobuf/default Gui$NodeDesc :text))
             (dynamic edit-type (layout-property-edit-type text {:type :multi-line-text}))
+            (dynamic error (g/fnk [markup-error] markup-error))
             (dynamic label (properties/label-dynamic :gui :text))
             (dynamic tooltip (properties/tooltip-dynamic :gui :text))
             (value (layout-property-getter text))
@@ -2270,21 +2271,34 @@
                     :color color+alpha
                     :override-material-shader font-shader
                     :renderable-tags #{:gui-text}})))
+  (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
+                                            (font/markup-error _node-id :text (:font-map font-data) text)))
   (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking]
                                            (font/layout-text (:font-map font-data) text line-break (first manual-size) text-tracking text-leading)))
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot]
-                                   (cond-> {:text-layout text-layout
-                                            :font-data font-data
-                                            :color (assoc color 3 alpha)
-                                            :outline (assoc outline 3 outline-alpha)
-                                            :shadow (assoc shadow 3 shadow-alpha)
-                                            :align (pivot->h-align pivot)}
-                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
-                                                                          h (second aabb-size)]
-                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size manual-size pivot]
+                                   (let [text-data {:text-layout text-layout
+                                                    :font-data font-data
+                                                    :color (assoc color 3 alpha)
+                                                    :outline (assoc outline 3 outline-alpha)
+                                                    :shadow (assoc shadow 3 shadow-alpha)
+                                                    :align (pivot->h-align pivot)}]
+                                     (cond
+                                       (nil? font-data)
+                                       text-data
+
+                                       (get-in font-data [:font-map :native-renderer-spec])
+                                       (assoc text-data
+                                              :box-height (second manual-size)
+                                              :offset (pivot-offset pivot manual-size)
+                                              :vertical-align (pivot->v-align pivot))
+
+                                       :else
+                                       (assoc text-data :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                      h (second aabb-size)]
+                                                                  [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output own-build-errors g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font]
             (let [font-names (:font-names basic-gui-scene-info)]

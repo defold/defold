@@ -42,6 +42,30 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Hashed identifier
+     *
+     * Defold represents resource paths, message names, object ids, and many other
+     * identifiers as 64-bit hash values. Create one from a string with [ref:hash],
+     * or receive one from an engine API. Hashes can be compared for equality and
+     * used as table keys, but the original string is not generally recoverable in
+     * release builds.
+     *
+     * @typedef
+     * @name hash
+     * @param value [type:userdata] hashed identifier
+     * @examples
+     *
+     * ```lua
+     * local damage_message = hash("take_damage")
+     *
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == damage_message then
+     *         self.health = self.health - message.amount
+     *     end
+     * end
+     * ```
+     */
+
     #define SCRIPT_TYPE_NAME_HASH "hash"
     static uint32_t SCRIPT_HASH_TYPE_HASH = 0;
 

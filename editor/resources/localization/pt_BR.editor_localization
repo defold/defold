@@ -558,6 +558,7 @@ dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
 dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
 dialog.bundle.label.sign-application = Assinar Aplicação
 dialog.bundle.label.code-signing-identity = Identidade de Assinatura de Código
 dialog.bundle.label.provisioning-profile = Perfil de Provisão
@@ -1638,7 +1639,6 @@ form.label.project.android.input_method = Método de Entrada
 form.label.project.android.immersive_mode = Modo Imersivo
 form.label.project.android.display_cutout = Exibir recorte da tela
 form.label.project.android.debuggable = Depurável
-form.label.project.android.proguard = Configuração ProGuard
 form.label.project.android.extract_native_libs = Extrair Bibliotecas Nativas
 
 form.label.project.html5 = HTML5

@@ -135,19 +135,27 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     dirs = [x for x in os.listdir(path)]
     return _get_latest_version_from_list(dirs, replace_patterns)
 
+def _parse_folder_version(s, replace_patterns=[]):
+    for pattern, replace in replace_patterns:
+        s = s.replace(pattern, replace)
+    # handle -ext to fix Android versions like android-34-ext12
+    if '-ext' in s:
+        s = re.sub(r'-ext\d+$', '', s)
+    # skip anything that isn't a plain numeric version, e.g. the preview platforms
+    # 'android-37.2-beta2' or named releases like 'android-Baklava'
+    if not re.match(r'^\d+(\.\d+)*$', s):
+        return None
+    return tuple(int(token) for token in s.split('.'))
+
+def _sort_versions(entries, replace_patterns=[]):
+    versions = [(_parse_folder_version(x, replace_patterns), x) for x in entries]
+    versions = [x for x in versions if x[0] is not None]
+    return [x[1] for x in sorted(versions, reverse=True)]
+
 def _get_latest_version_from_list(entries, replace_patterns=[]):
+    entries = _sort_versions(entries, replace_patterns)
     if len(entries) == 0:
         return None
-
-    def _replace_pattern(s, patterns):
-        for pattern, replace in patterns:
-            s = s.replace(pattern, replace)
-        # handle -ext to fix Android versions like android-34-ext12
-        if '-ext' in s:
-            s = re.sub(r'-ext\d+$', '', s)
-        return s
-
-    entries = sorted(entries, key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return entries[0]
 
 def _get_version_major_prefix(version):
@@ -157,12 +165,7 @@ def _get_version_major_prefix(version):
     return version
 
 def _sort_version_strings(values):
-    def _normalize_version(s):
-        if '-ext' in s:
-            s = re.sub(r'-ext\d+$', '', s)
-        return s
-
-    return sorted(values, key=lambda x: tuple(int(token) for token in _normalize_version(x).split('.')), reverse=True)
+    return _sort_versions(values)
 
 def _get_host_exe_suffix():
     if sys.platform == 'win32':
@@ -300,7 +303,14 @@ def get_android_local_build_tools_path(platform):
     if not os.path.exists(build_tools_path):
         raise SDKException(f"  Failed to find {build_tools_path}")
 
+    # prefer the version pinned by the build scripts, the same one the packaged sdk uses
+    path = os.path.join(build_tools_path, ANDROID_BUILD_TOOLS_VERSION)
+    if os.path.exists(path):
+        return path
+
     version = _get_latest_version_from_folders(build_tools_path)
+    if not version:
+        raise SDKException(f"  No build tools versions installed in {build_tools_path}")
     return os.path.join(build_tools_path, version)
 
 def get_android_local_sdk_version(platform):
@@ -309,8 +319,17 @@ def get_android_local_sdk_version(platform):
 def get_android_local_jar_path(verbose=False):
     sdkfolder = get_android_local_sdk_path()
     platforms_folder = os.path.join(sdkfolder, 'platforms')
+
+    # prefer the api level pinned by the build scripts, the same one the packaged sdk uses
+    path = os.path.join(platforms_folder, ANDROID_PACKAGE, 'android.jar')
+    if os.path.exists(path):
+        log_verbose(verbose, f"  Detected android jar {path}")
+        return path
+
     android_version = _get_latest_version_from_folders(platforms_folder, [('android-', '')])
-    path = os.path.join(sdkfolder, 'platforms', android_version, 'android.jar')
+    if not android_version:
+        raise SDKException(f"  No android platforms installed in {platforms_folder}")
+    path = os.path.join(platforms_folder, android_version, 'android.jar')
     if not os.path.exists(path):
         raise SDKException(f"Path {path} not found")
     return path
@@ -324,7 +343,7 @@ def get_android_bintools_path(ndk, platform):
     return f'{ndk}/toolchains/llvm/prebuilt/{ndk_os}-x86_64/bin'
 
 def get_android_api_version(platform):
-    if platform == 'arm64-android':
+    if platform in ('arm64-android', 'x86_64-android'):
         return ANDROID_64_NDK_API_VERSION
     else:
         return ANDROID_NDK_API_VERSION
@@ -332,6 +351,8 @@ def get_android_api_version(platform):
 def get_android_clang_name(platform, api_version):
     if platform == 'arm64-android':
         return f'aarch64-linux-android{api_version}-clang'
+    elif platform == 'x86_64-android':
+        return f'x86_64-linux-android{api_version}-clang'
     else:
         return f'armv7a-linux-androideabi{api_version}-clang'
 
@@ -956,7 +977,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         folders.append(get_android_sdk_path(sdkfolder))
         folders.append(get_android_ndk_path(sdkfolder))
 
@@ -1001,7 +1022,7 @@ def check_local_sdk(platform, verbose=False):
         if info is None:
             raise SDKException(error)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         path = get_android_local_sdk_path()
         ndkpath = get_android_local_ndk_path(platform, verbose)
         return path is not None and ndkpath is not None
@@ -1038,7 +1059,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         info['version']     = ANDROID_BUILD_TOOLS_VERSION
         info['sdk']         = get_android_sdk_path(sdkfolder)
         info['ndk']         = get_android_ndk_path(sdkfolder)
@@ -1084,7 +1105,7 @@ def _get_local_sdk_info(platform, verbose=False):
         windowsinfo = get_windows_local_sdk_info(platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         ndk_os = 'linux'
         if sys.platform == 'darwin':
             ndk_os = 'darwin'
@@ -1272,7 +1293,7 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
             log.log(clang)
     cmd = [clang]
 
-    if platform in ['arm64-android', 'armv7-android']:
+    if platform in ['arm64-android', 'armv7-android', 'x86_64-android']:
         clang = os.path.join(info['bintools'], info['clangname'])
         cmd = [clang]
 
@@ -1318,7 +1339,7 @@ def test_sdk(platform, info, verbose=False):
     if platform in ['arm64-linux', 'x86_64-linux',
                     'arm64-macos', 'x86_64-macos',
                     'arm64-ios', 'x86_64-ios',
-                    'arm64-android', 'armv7-android']:
+                    'arm64-android', 'armv7-android', 'x86_64-android']:
         use_clang = True
 
     try:
@@ -1341,7 +1362,7 @@ def get_toolchain_root(sdkinfo, platform):
 
 
 def get_strip_executable(platform, sdkinfo):
-    if platform in ('armv7-android', 'arm64-android'):
+    if platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         return os.path.join(sdkinfo['bintools'], 'llvm-strip')
 
     if platform in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):

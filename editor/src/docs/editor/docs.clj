@@ -17,16 +17,8 @@
             [clojure.string :as string]
             [editor.editor-extensions.docs :as ext-docs]
             [editor.util :as util]
-            [util.fn :as fn])
+            [util.coll :as coll])
   (:import [java.io Writer]))
-
-(defn- script-doc-group [script-doc]
-  (if (= "editor" (:name script-doc))
-    :module
-    (case (:type script-doc)
-      :function :function
-      (:variable :constant) :variable
-      :discard)))
 
 (defn- write-as-comment [^Writer w s]
   (let [lines (string/split-lines s)]
@@ -48,42 +40,68 @@
 (defn params->string [tag parameters]
   (->> parameters
        (map (fn [{:keys [name types doc]}]
-              (str "@" tag " " name " [type:" (string/join "|" types) "] " (string/replace doc "\n" " "))))
-       (string/join "\n")))
+              (str "@" tag " " name " [type:" (coll/join-to-string "|" types) "] " (string/replace (str doc) "\n" " "))))
+       (coll/join-to-string "\n")))
+
+(defn- enum-members->string [members]
+  (coll/join-to-string
+    "\n"
+    (into []
+          (map (fn [member]
+                 (let [{:keys [doc name types]} (if (string? member)
+                                                  {:name member}
+                                                  member)]
+                   (str "@member " name
+                        (when (coll/not-empty types)
+                          (str " [type:" (coll/join-to-string "|" types) "]"))
+                        (when (coll/not-empty doc)
+                          (str " " (string/replace doc "\n" " ")))))))
+          members)))
 
 (defn- write-docs [output-dir]
-  (let [groups (group-by script-doc-group (ext-docs/editor-script-docs))
-        {functions :function variables :variable} groups
-        docs (into
-               []
-               cat
-               [(eduction
-                  (map (fn [m] (assoc m :type :variable)))
-                  variables)
-                (eduction
-                  (map (fn [m]
-                         (-> m
-                             (update :returnvalues (fn [returnvalues]
-                                                     (mapv
-                                                       (fn [m]
-                                                         (update m :doc fn/or ""))
-                                                       returnvalues))))))
-                  functions)])]
-    (with-open [w (io/writer (doto (io/file output-dir "editor.apidoc") io/make-parents))]
-      (write-as-comment w (format "Editor scripting documentation\n\n@document\n@name Editor\n@namespace editor\n@language Lua"))
-      (doseq [{:keys [description type name] :as doc} docs
-              :let [brief (->brief description)]]
-        (case type
-          :variable
-          (write-as-comment w (str brief "\n\n" description "\n\n" "@variable\n@name " name))
-          :function
-          (let [{:keys [returnvalues parameters examples]} doc]
-            (write-as-comment w (str brief "\n\n" description "\n\n"
-                                     "@name " name "\n"
-                                     (params->string "param" parameters) "\n"
-                                     (params->string "return" returnvalues) "\n"
-                                     (when examples
-                                       (str "@examples\n\n" examples "\n"))))))))))
+  (with-open [w (io/writer (doto (io/file output-dir "editor.apidoc") io/make-parents))]
+    (write-as-comment w "Editor scripting documentation\n\n@document\n@name Editor\n@namespace editor\n@language Lua")
+    (doseq [{:keys [description type name] :as doc} (ext-docs/editor-script-docs)
+            :let [brief (->brief description)]]
+      (case type
+        :variable
+        (write-as-comment w (str brief "\n\n" description "\n\n" "@variable\n@name " name))
+
+        :constant
+        (let [{:keys [types]} doc]
+          (write-as-comment w (str brief "\n\n" description "\n\n"
+                                   "@constant"
+                                   (when (seq types)
+                                     (str " [type:" (coll/join-to-string "|" types) "]"))
+                                   "\n@name " name)))
+        :enum
+        (let [{:keys [members types]} doc]
+          (write-as-comment w (str brief "\n\n" description "\n\n"
+                                   "@enum\n@name " name "\n"
+                                   (when (coll/not-empty members)
+                                     (str (enum-members->string members) "\n"))
+                                   (when (seq types)
+                                     (str "@param value [type:" (coll/join-to-string "|" types) "] enum value")))))
+        :struct
+        (let [{:keys [members]} doc]
+          (write-as-comment w (str brief "\n\n" description "\n\n"
+                                   "@struct\n@name " name "\n"
+                                   (params->string "member" members))))
+        :typedef
+        (let [{:keys [types]} doc]
+          (write-as-comment w (str brief "\n\n" description "\n\n"
+                                   "@typedef\n@name " name "\n"
+                                   (params->string "param" [{:name "value" :types types :doc brief}]))))
+        :function
+        (let [{:keys [returnvalues parameters examples]} doc]
+          (write-as-comment w (str brief "\n\n" description "\n\n"
+                                   "@name " name "\n"
+                                   (params->string "param" parameters) "\n"
+                                   (params->string "return" returnvalues) "\n"
+                                   (when examples
+                                     (str "@examples\n\n" examples "\n")))))
+        
+        nil))))
 
 (defn -main [output-dir]
   (write-docs output-dir))

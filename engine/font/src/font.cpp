@@ -39,9 +39,9 @@ static FontType GetFontType(const char* path)
         return FONT_TYPE_UNKNOWN;
 
     if (strcmp(ext, ".ttf") == 0 || strcmp(ext, ".TTF") == 0)
-        return FONT_TYPE_STBTTF;
+        return FONT_TYPE_TTF;
     if (strcmp(ext, ".otf") == 0 || strcmp(ext, ".OTF") == 0)
-        return FONT_TYPE_STBOTF;
+        return FONT_TYPE_OTF;
 
     return FONT_TYPE_UNKNOWN;
 }
@@ -62,8 +62,8 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
     FontType type = GetFontType(path);
     switch(type)
     {
-    case FONT_TYPE_STBTTF:
-    case FONT_TYPE_STBOTF:  font = FontLoadFromMemoryTTF(path, data, data_size, allocate); break;
+    case FONT_TYPE_TTF:
+    case FONT_TYPE_OTF:  font = FontLoadFromMemoryTTF(path, data, data_size, allocate); break;
     default:
         {
             const char* ext = strrchr(path, '.');
@@ -173,7 +173,7 @@ uint32_t FontGetPathHash(HFont font)
 TextLayoutType FontGetLayoutType(HFont font)
 {
 #if defined(FONT_USE_HARFBUZZ) && defined(FONT_USE_SKRIBIDI)
-    if (font->m_Type == FONT_TYPE_STBTTF || font->m_Type == FONT_TYPE_STBOTF)
+    if (font->m_Type == FONT_TYPE_TTF || font->m_Type == FONT_TYPE_OTF)
         return TEXT_LAYOUT_TYPE_FULL;
 #endif
     return TEXT_LAYOUT_TYPE_LEGACY;
@@ -227,7 +227,7 @@ void FontDebug(HFont hfont, float scale, float padding, const char* text)
         FontGetGlyph(hfont, codepoint, &options, &glyph);
         FontDebugGlyph(&glyph, indent+2);
 
-        if (options.m_GenerateImage && (type == FONT_TYPE_STBTTF || type == FONT_TYPE_STBOTF))
+        if (options.m_GenerateImage && (type == FONT_TYPE_TTF || type == FONT_TYPE_OTF))
         {
             if(glyph.m_Bitmap.m_Data)
             {

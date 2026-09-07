@@ -301,9 +301,9 @@
     (fx.mutator/setter #(.setCellFactory ^ListView %1 %2))
     (fx.lifecycle/detached-prop-map fx.list-cell/props)
     :coerce
-    #(let [props-vol (volatile! {})]
-       (reify Callback
-         (call [_ _]
+    #(reify Callback
+       (call [_ _]
+         (let [props-vol (volatile! {})]
            (proxy [ListCell] []
              (updateItem [item empty]
                (let [^ListCell this this

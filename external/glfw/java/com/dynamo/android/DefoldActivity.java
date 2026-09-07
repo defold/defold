@@ -250,7 +250,6 @@ public class DefoldActivity extends NativeActivity {
     public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
-        DefoldVkQuality.runPreflight(this);
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 
@@ -604,7 +603,10 @@ public class DefoldActivity extends NativeActivity {
         String name = "Android Controller";
         InputDevice device = InputDevice.getDevice(deviceId);
         if (device != null) {
-            name = device.getName();
+            String deviceName = device.getName();
+            if (deviceName != null && !deviceName.isEmpty()) {
+                name = deviceName;
+            }
         }
         return name;
     }
@@ -622,7 +624,10 @@ public class DefoldActivity extends NativeActivity {
             if (descriptor != null && !descriptor.isEmpty()) {
                 return descriptor;
             }
-            return device.getName();
+            String deviceName = device.getName();
+            if (deviceName != null && !deviceName.isEmpty()) {
+                return deviceName;
+            }
         }
         return "Android Controller";
     }

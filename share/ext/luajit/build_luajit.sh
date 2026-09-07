@@ -87,6 +87,20 @@ function luajit_configure() {
 			export TARGET_FLAGS="$CFLAGS"
 			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${COMMON_XCFLAGS}"
 			;;
+		x86_64-android)
+			# LJ_ARCH_NUMMODE for x64 is LJ_NUMMODE_SINGLE_DUAL, so the dual number mode
+			# used by the other mobile targets is supported here as well. Keeping it means
+			# Lua number semantics are identical on all Android ABIs. GC64 is on by default
+			# for x64, matching arm64-android.
+			TAR_SKIP_BIN=1
+			XFLAGS="$COMMON_MOBILE_FLAGS_64"
+			export CROSS=""
+			export HOST_CC="clang"
+			export HOST_CFLAGS="$XFLAGS -m64 -I."
+			export HOST_ALDFLAGS="-m64"
+			export TARGET_FLAGS="$CFLAGS"
+			export XCFLAGS="${COMMON_XCFLAGS}"
+			;;
 		*)
 			return
 			;;
@@ -171,6 +185,19 @@ case ${PLATFORM} in
 			local host_platform=`uname | awk '{print tolower($0)}'`
 			export NDKBIN=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${host_platform}-x86_64/bin
 			export NDKCROSS=$NDKBIN/aarch64-linux-android-
+			make -j8 CROSS=$NDKCROSS \
+					STATIC_CC=${CC} DYNAMIC_CC="${CC} ${CFLAGS}" \
+					TARGET_LD=${CC} TARGET_AR="${AR} rcus" \
+					TARGET_STRIP=$NDKBIN/llvm-strip
+			make install
+		}
+		;;
+	x86_64-android)
+		export TARGET_SYS=Android
+		function cmi_make() {
+			local host_platform=`uname | awk '{print tolower($0)}'`
+			export NDKBIN=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${host_platform}-x86_64/bin
+			export NDKCROSS=$NDKBIN/x86_64-linux-android-
 			make -j8 CROSS=$NDKCROSS \
 					STATIC_CC=${CC} DYNAMIC_CC="${CC} ${CFLAGS}" \
 					TARGET_LD=${CC} TARGET_AR="${AR} rcus" \

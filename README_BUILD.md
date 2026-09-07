@@ -12,7 +12,8 @@ The standard workflow when building the engine is the following:
 
 1. [Setup](/README_SETUP.md) environment
 2. [Install](/README_SETUP.md#required-software---platform-sdks) libraries and SDKs
-3. Build the engine
+3. Build source dependencies with `build_ext`
+4. Build the engine
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
 
@@ -36,7 +37,11 @@ Once per platform to be built
 ```
 $ ./scripts/build.py install_ext    # extracts packages
 $ ./scripts/build.py check_sdk      # checks that it finds the platform SDK
+$ ./scripts/build.py build_ext      # builds and installs source dependencies, including Bullet
 ```
+
+Repeat these steps after `distclean`. Re-run `build_ext` when the external
+sources or toolchain change; ordinary engine rebuilds use the installed libraries.
 
 Build full engine, docs, bob light, tests + running the tests
 
@@ -59,6 +64,7 @@ You can also specify the platform explicitly:
 ```
 $ ./scripts/build.py install_ext --platform=arm64-android
 $ ./scripts/build.py check_sdk --platform=arm64-android
+$ ./scripts/build.py build_ext --platform=arm64-android
 $ ./scripts/build.py build_engine --platform=arm64-android
 ```
 
@@ -113,7 +119,7 @@ When the `install_ext` command has finished you will find the external packages 
 You need to rerun the `install_ext` command for each target platform, as different packages and SDKs are installed.
 
 #### Installing packages
-The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf).
+The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages include Box2D and Protocol Buffers (a.k.a. protobuf). Bullet is built from source by `build_ext` instead.
 
 This step also installs some Python dependencies:
 
@@ -153,7 +159,20 @@ $ DM_PACKAGES_URL=https://my.url ./scripts/build.py install_sdk --platform=...
 </p></details>
 
 
-### STEP 4 - Build the engine
+### STEP 4 - Build source dependencies
+
+Once the packages and platform SDK are installed, build the source dependencies:
+
+```sh
+$ ./scripts/build.py build_ext --platform=...
+```
+
+This uses the Defold CMake toolchain to build Bullet and install it into
+`${DYNAMO_HOME}/ext`. Run it for each target platform before building the engine
+or packaging a local platform SDK. Repeat it after `distclean` or changes to
+the external sources or toolchain. Subsequent calls reuse the CMake build cache.
+
+### STEP 5 - Build the engine
 
 With the setup and installation done you're ready to build the engine:
 

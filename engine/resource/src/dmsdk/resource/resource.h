@@ -105,6 +105,7 @@ struct ResourceRecreateParams;
  * @member RESOURCE_RESULT_VERSION_MISMATCH
  * @member RESOURCE_RESULT_SIGNATURE_MISMATCH
  * @member RESOURCE_RESULT_UNKNOWN_ERROR
+ * @member RESOURCE_RESULT_TOO_MANY_COMPONENTS
  */
 typedef enum ResourceResult
 {
@@ -130,6 +131,7 @@ typedef enum ResourceResult
     RESOURCE_RESULT_VERSION_MISMATCH          = -19,
     RESOURCE_RESULT_SIGNATURE_MISMATCH        = -20,
     RESOURCE_RESULT_UNKNOWN_ERROR             = -21,
+    RESOURCE_RESULT_TOO_MANY_COMPONENTS       = -22,
 } ResourceResult;
 
 

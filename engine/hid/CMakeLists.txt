@@ -61,6 +61,9 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
     target_link_libraries(hid PUBLIC "-framework GameController")
 endif()
 defold_target_link_libraries(hid "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_DEPENDENCIES})
+if(DEFOLD_PLATFORM_HID_LIBS)
+    target_link_libraries(hid PUBLIC ${DEFOLD_PLATFORM_HID_LIBS})
+endif()
 
 target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}"
@@ -152,7 +155,7 @@ if(BUILD_TESTS)
         "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp"
     )
 
-    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
         set(_DM_USE_OPENGLES ON)
 
     elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")

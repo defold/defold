@@ -37,6 +37,7 @@ mkdir -p libexec/arm64-ios
 mkdir -p libexec/x86_64-ios
 # mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
+mkdir -p libexec/x86_64-android
 mkdir -p libexec/wasm-web
 mkdir -p libexec/wasm_pthread-web
 
@@ -105,10 +106,9 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/strip_android libexec/x86_64-macos/strip
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/strip_android libexec/arm64-macos/strip_android
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android libexec/x86_64-linux/strip_android
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android.exe libexec/x86_64-win32/strip_android.exe
-
-# strip_android_aarch64
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android_aarch64 libexec/x86_64-linux/strip_android_aarch64
-cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android_aarch64.exe libexec/x86_64-win32/strip_android_aarch64.exe
+# only the macos tool is self contained, the others load these from next to the executable
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/libc++.so.1 libexec/x86_64-linux/libc++.so.1
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/libwinpthread-1.dll libexec/x86_64-win32/libwinpthread-1.dll
 
 # zipalign
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/zipalign libexec/x86_64-macos/zipalign
@@ -123,6 +123,7 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-android/classes.dex lib/classes.dex
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/fontrenderer.jar lib/fontrenderer.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/modelimporter.jar lib/modelimporter.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/shaderc.jar lib/shaderc.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/texturecompiler.jar lib/texturecompiler.jar
@@ -147,6 +148,13 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libshaderc_shared.so lib/a
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/shaderc_shared.dll lib/x86_64-win32/shaderc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libshaderc_shared.dylib lib/x86_64-macos/libshaderc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dylib
+
+# FONTC Shared
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libfontc_shared.so lib/x86_64-linux/libfontc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libfontc_shared.so lib/arm64-linux/libfontc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/fontc_shared.dll lib/x86_64-win32/fontc_shared.dll
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libfontc_shared.dylib lib/x86_64-macos/libfontc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libfontc_shared.dylib lib/arm64-macos/libfontc_shared.dylib
 
 fi
 
@@ -197,6 +205,8 @@ copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
 # copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
 copy arm64-android/stripped/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
+copy x86_64-android/stripped/libdmengine.so x86_64-android/libdmengine.so
+copy x86_64-android/stripped/libdmengine_release.so x86_64-android/libdmengine_release.so
 copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
