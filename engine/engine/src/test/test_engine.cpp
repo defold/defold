@@ -345,6 +345,7 @@ TEST_F(EngineTest, SetEngineThrottle)
 
 TEST_F(EngineTest, FramePacingWithoutRendering)
 {
+    // Verify that a fixed update frequency remains timer-paced when rendering is disabled.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -391,6 +392,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
 
 TEST_F(EngineTest, FallbackPacingWithoutRendering)
 {
+    // Verify that the swap interval determines fallback timer pacing without rendering.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -441,6 +443,7 @@ TEST_F(EngineTest, FallbackPacingWithoutRendering)
 
 TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
 {
+    // Verify that timer pacing replaces vsync while preserving the requested swap interval.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -491,6 +494,7 @@ TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
 
 TEST_F(EngineTest, FramePacingDeadlineDoesNotAccumulateRoundingError)
 {
+    // Verify that fractional frame periods do not accumulate deadline drift.
     const uint64_t start = 1234567;
 
     // Advance one second at 60 Hz, whose period is not a whole number of
