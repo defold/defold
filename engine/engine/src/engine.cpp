@@ -2423,24 +2423,25 @@ bail:
         // Fixed frame rate
         float fixed_dt = 1.0f / (float)engine->m_UpdateFrequency;
 
-        // We don't allow having a higher framerate than the actual variable frame
-        // rate since the update+render is currently coupled together and also
-        // Flip() would be called more than once.
-        // E.g. if the fixed_dt == 1/120 and the frame_dt == 1/60
-        if (fixed_dt < frame_dt)
-        {
-            fixed_dt = frame_dt;
-        }
-
         if (frame_was_paced)
         {
-            // PaceFrame has already waited for this frame's deadline.
+            // PaceFrame has already waited for this frame's deadline. Keep the
+            // simulation step fixed even if the timer wakes slightly late.
             step_dt = fixed_dt;
             num_steps = 1;
             engine->m_AccumFrameTime = 0.0f;
         }
         else
         {
+            // We don't allow having a higher framerate than the platform callback
+            // rate since update and render are currently coupled together and
+            // Flip() would otherwise be called more than once per callback.
+            // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
+            if (fixed_dt < frame_dt)
+            {
+                fixed_dt = frame_dt;
+            }
+
             // Platform-owned loops may call Step more frequently than the requested
             // fixed update rate. Accumulate their elapsed time so early callbacks run
             // no update, while retaining any fractional time for the next callback.

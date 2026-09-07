@@ -415,6 +415,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
 
     ASSERT_TRUE(initialized);
     ASSERT_EQ(4u, stats.m_FrameCount);
+    ASSERT_NEAR(4.0f / 100.0f, stats.m_TotalTime, 0.000001f);
     ASSERT_GE(elapsed, 20000u);
 }
 
