@@ -237,6 +237,14 @@ namespace dmRender
         render_context->m_RenderListSortIndices.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
+
+        // Light instances retain their latest data between frames, but only lights
+        // submitted while building this frame's render list are included in LightBuffer.
+        if (!render_context->m_LightBufferSubmitted.Empty())
+        {
+            memset(render_context->m_LightBufferSubmitted.Begin(), 0, render_context->m_LightBufferSubmitted.Size());
+        }
+        render_context->m_LightBufferDirtyInfo = 1;
     }
 
     HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer)

@@ -3226,6 +3226,17 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
 {
     dmRender::LightPrototypeParams params;
 
+    params.m_Type = dmRender::LIGHT_TYPE_AMBIENT;
+    params.m_Color = dmVMath::Vector4(0.25f, 0.5f, 0.75f, 1.0f);
+    params.m_Intensity = 2.0f;
+    dmRender::HLightPrototype proto_ambient = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_ambient);
+    dmRender::HLightInstance inst_ambient = dmRender::NewLightInstance(m_Context, proto_ambient);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_ambient);
+    dmRender::SetLightInstance(m_Context, inst_ambient, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    dmRender::DeleteLightInstance(m_Context, inst_ambient);
+    dmRender::DeleteLightPrototype(m_Context, proto_ambient);
+
     params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
     params.m_Color = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f);
     params.m_Intensity = 2.0f;
@@ -3261,6 +3272,27 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_spot);
     dmRender::DeleteLightPrototype(m_Context, proto_spot);
+}
+
+TEST_F(dmRenderTest, LightBufferSubmissionIsPerFrame)
+{
+    dmRender::LightPrototypeParams params;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, instance);
+
+    uint16_t light_buffer_index = instance & 0xFFFF;
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*) m_Context;
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitLightInstance(m_Context, instance);
+    ASSERT_EQ(1, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(0, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
 }
 
 TEST_F(dmRenderTest, LightBufferTestMultipleInstances)
