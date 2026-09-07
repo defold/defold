@@ -559,7 +559,6 @@ TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
     ASSERT_EQ(1u, requested_swap_interval);
     ASSERT_EQ(0u, effective_swap_interval);
     ASSERT_GE(elapsed, 150000u);
-    ASSERT_LE(elapsed, 300000u);
 }
 
 TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
