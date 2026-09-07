@@ -849,18 +849,25 @@ namespace dmEngine
         }
     }
 
-    static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
+    static void SetUpdateFrequency(HEngine engine, int32_t frequency)
     {
-        engine->m_UpdateFrequency = frequency;
+        if (frequency < 0)
+        {
+            dmLogWarning("Invalid update frequency %d. Falling back to variable frame rate.", frequency);
+            frequency = 0;
+        }
+
+        uint32_t validated_frequency = (uint32_t) frequency;
+        engine->m_UpdateFrequency = validated_frequency;
         engine->m_AccumFrameTime = 0.0f;
 
         uint64_t now = dmTime::GetMonotonicTime();
         engine->m_PreviousFrameTime = now;
         ResetFramePacing(engine);
-        if (frequency != 0)
+        if (validated_frequency != 0)
         {
-            engine->m_FramePacingFrequency = frequency;
-            engine->m_NextFrameTime = AdvanceFrameDeadline(now, frequency, engine->m_FrameTimeRemainder);
+            engine->m_FramePacingFrequency = validated_frequency;
+            engine->m_NextFrameTime = AdvanceFrameDeadline(now, validated_frequency, engine->m_FrameTimeRemainder);
         }
     }
 
@@ -2625,7 +2632,7 @@ bail:
             else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"
             {
                 dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) message->m_Data;
-                SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
+                SetUpdateFrequency(self, m->m_Frequency);
             }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor) // "hide_app"
             {

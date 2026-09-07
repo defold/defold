@@ -463,6 +463,54 @@ TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
     ASSERT_EQ(0u, pacing_frequency);
 }
 
+TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
+{
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=-1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool posted = false;
+    uint32_t configured_update_frequency = ~0U;
+    uint32_t configured_pacing_frequency = ~0U;
+    uint32_t runtime_update_frequency = ~0U;
+    uint32_t runtime_pacing_frequency = ~0U;
+    if (initialized)
+    {
+        configured_update_frequency = engine->m_UpdateFrequency;
+        configured_pacing_frequency = engine->m_FramePacingFrequency;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetUpdateFrequency message;
+        message.m_Frequency = -1;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        dmEngine::Step(engine);
+        runtime_update_frequency = engine->m_UpdateFrequency;
+        runtime_pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_EQ(0u, configured_update_frequency);
+    ASSERT_EQ(0u, configured_pacing_frequency);
+    ASSERT_EQ(0u, runtime_update_frequency);
+    ASSERT_EQ(0u, runtime_pacing_frequency);
+}
+
 TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
 {
     // Verify that timer pacing replaces vsync while preserving the requested swap interval.
