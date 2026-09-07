@@ -189,9 +189,10 @@ message Reboot
  * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank
  * before swapping the buffers. Default value is 1.
  *
- * When setting the swap interval to 0 and having `vsync` disabled in
- * "game.project", the engine will try to respect the set frame cap value from
- * "game.project" in software instead.
+ * On platforms where Defold owns the application loop, a positive
+ * `display.update_frequency` or a positive value set by `sys.set_update_frequency()`
+ * uses timer pacing and temporarily disables presentation vsync. The requested
+ * swap interval is retained and applied again when the update frequency is set to 0.
  *
  * This setting may be overridden by driver settings.
  *
@@ -211,11 +212,15 @@ message SetVsync
 }
 
 /*# set update frequency
- * Set game update-frequency (frame cap). This option is equivalent to `display.update_frequency` in
- * the "game.project" settings but set in run-time. If `Vsync` checked in "game.project", the rate will
- * be clamped to a swap interval that matches any detected main monitor refresh rate. If `Vsync` is
- * unchecked the engine will try to respect the rate in software using timers. There is no
- * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
+ * Set game update-frequency (frame cap). This option is equivalent to
+ * `display.update_frequency` in the "game.project" settings but set at run-time.
+ * On platforms where Defold owns the application loop, a positive value uses
+ * timer pacing and temporarily disables presentation vsync to avoid waiting for
+ * the same frame twice. Setting the frequency to 0 restores the requested swap
+ * interval and uses variable-rate updates. Platform-owned loops, such as HTML5
+ * and iOS, retain their platform scheduling and presentation behavior. There is
+ * no guarantee that the frame cap will be achieved depending on platform and
+ * hardware constraints.
  *
  * This message can only be sent to the designated `@system` socket.
  *
