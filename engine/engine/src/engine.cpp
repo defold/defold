@@ -2426,7 +2426,9 @@ bail:
         }
         else
         {
-            // Platform-paced loops may call Step before a fixed update is due.
+            // Platform-owned loops may call Step more frequently than the requested
+            // fixed update rate. Accumulate their elapsed time so early callbacks run
+            // no update, while retaining any fractional time for the next callback.
             engine->m_AccumFrameTime += frame_dt;
 
             float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
