@@ -2330,7 +2330,8 @@ bail:
      * Selects the frequency used by the engine-side frame pacer. An explicit
      * update frequency set via SetUpdateFrequency() always wins. With a
      * variable update frequency, Flip() normally provides the wait through
-     * vsync. When rendering is disabled or no pacing presenter is available,
+     * vsync. Headless engines remain unpaced so they can run as fast as
+     * possible. When rendering is temporarily disabled on a graphical backend,
      * the engine uses its fallback timer policy adjusted by the requested swap
      * interval instead of relying on platform refresh-rate discovery.
      * @return The number of engine frames per second
@@ -2340,6 +2341,13 @@ bail:
         if (engine->m_UpdateFrequency != 0)
         {
             return engine->m_UpdateFrequency;
+        }
+
+        dmGraphics::AdapterFamily adapter_family = dmGraphics::GetInstalledAdapterFamily();
+        if (adapter_family == dmGraphics::ADAPTER_FAMILY_NULL ||
+            adapter_family == dmGraphics::ADAPTER_FAMILY_NONE)
+        {
+            return 0;
         }
 
         if (engine->m_SwapInterval == 0)

@@ -419,9 +419,10 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
     ASSERT_GE(elapsed, 20000u);
 }
 
-TEST_F(EngineTest, FallbackPacingWithoutRendering)
+TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
 {
-    // Verify fallback timer pacing survives repeated identical swap-interval settings.
+    // A headless engine with variable update frequency should run as fast as
+    // possible, regardless of the requested presentation swap interval.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
@@ -434,47 +435,32 @@ TEST_F(EngineTest, FallbackPacingWithoutRendering)
     const char* argv[] = {
         "dmengine",
         "--config=display.update_frequency=0",
-        "--config=display.swap_interval=2",
+        "--config=display.swap_interval=1",
         "--config=dmengine.unload_builtins=0",
         project_path
     };
 
     bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
-    bool posted = true;
-    uint64_t elapsed = 0;
     uint32_t pacing_frequency = 0;
     dmEngine::Stats stats;
     memset(&stats, 0, sizeof(stats));
 
     if (initialized)
     {
-        dmEngine::SetRenderEnabled(false);
-
-        uint64_t start = dmTime::GetMonotonicTime();
         for (uint32_t i = 0; i < 4; ++i)
         {
-            dmMessage::URL receiver = {};
-            receiver.m_Socket = engine->m_SystemSocket;
-            dmSystemDDF::SetVsync message;
-            message.m_SwapInterval = 2;
-            posted &= dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
             dmEngine::Step(engine);
         }
-        elapsed = dmTime::GetMonotonicTime() - start;
         dmEngine::GetStats(engine, stats);
         pacing_frequency = engine->m_FramePacingFrequency;
-
-        dmEngine::SetRenderEnabled(true);
     }
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
 
     ASSERT_TRUE(initialized);
-    ASSERT_TRUE(posted);
     ASSERT_EQ(4u, stats.m_FrameCount);
-    ASSERT_EQ(30u, pacing_frequency);
-    ASSERT_GE(elapsed, 80000u);
+    ASSERT_EQ(0u, pacing_frequency);
 }
 
 TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
