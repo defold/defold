@@ -450,7 +450,7 @@
 
 (defn style-choices [font-map]
   {:type :choicebox
-   :options (into [["" ""] ["default" default-style-label]]
+   :options (into [["" ""] ["default" "(default)"]]
                   (comp (map :name)
                         (remove #{"default"})
                         (map (fn [name] [name name])))

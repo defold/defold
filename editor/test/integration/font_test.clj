@@ -590,7 +590,7 @@
       (is (= "Name" (test-util/localization (get-in (g/node-value link-node :_properties) [:properties :id :label]))))
       (is (= "Markup" (test-util/localization (get-in (g/node-value link-node :_properties) [:properties :markup :label]))))
       (is (= ["" "(default)" "link" "link:hover" "link:active"]
-             (mapv (comp test-util/localization second) (:options (font/style-choices (g/node-value node :font-map))))))
+             (mapv second (:options (font/style-choices (g/node-value node :font-map))))))
       (is (= "Font style 'missing' does not exist."
              (test-util/localization (g/error-message (font/style-error node (g/node-value node :font-map) "missing")))))
       (is (coll/every? #(not= (:icon font-outline) (:icon %)) children))
