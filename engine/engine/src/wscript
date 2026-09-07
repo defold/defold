@@ -113,7 +113,7 @@ def build(bld):
         additional_libs.append('UNWIND')
         additional_libs.append('CPP_RUNTIME')
 
-    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios', 'x86_64-xbone']:
+    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'arm64_sim-ios', 'x86_64-xbone']:
         sound_lib  = 'SOUND'
     else:
         sound_lib = 'SOUND OPENAL'
@@ -227,7 +227,7 @@ def build(bld):
                         'ScriptFont','ResourceTypeFont','ResourceTypeTTF']
 
     graphics_lib = 'GRAPHICS_NULL'
-    if bld.env['PLATFORM'] in ('arm64-android','armv7-android','x86_64-android', 'arm64-ios', 'x86_64-ios'):
+    if bld.env['PLATFORM'] in ('arm64-android','armv7-android','x86_64-android', 'arm64-ios', 'arm64_sim-ios'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # glfwAndroidHandleCommand etc are in glfw. UIApplicationMain is currently in glfw
 
     bld.add_group()

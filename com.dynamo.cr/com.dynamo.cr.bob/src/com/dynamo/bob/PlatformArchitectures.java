@@ -21,7 +21,8 @@ public enum PlatformArchitectures {
     Windows64(new String[] {"x86_64-win32"}, new String[] {"x86_64-win32"}),
     Linux(new String[] {"x86_64-linux"}, new String[] {"x86_64-linux"}),
     LinuxArm64(new String[] {"arm64-linux"}, new String[] {"arm64-linux"}),
-    iOS(new String[] {"arm64-ios", "x86_64-ios"}, new String[] {"arm64-ios"}),
+    iOS(new String[] {"arm64-ios"}, new String[] {"arm64-ios"}),
+    iOSSimulator(new String[] {"arm64_sim-ios"}, new String[] {"arm64_sim-ios"}),
     // x86_64-android is available but opt-in. It is mainly useful for Android emulators,
     // ChromeOS and Windows Subsystem for Android, so it isn't bundled by default.
     Android(new String[] {"arm64-android", "armv7-android", "x86_64-android"}, new String[] {"armv7-android","arm64-android"}),
