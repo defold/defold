@@ -452,7 +452,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   defold_target_link_libraries_web(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE ${ENGINE_WEB_LIBS})
   if(TARGET_PLATFORM MATCHES "win32")
     target_sources(${target} PRIVATE "${ENGINE_SRC_DIR}/engine.rc")
-    target_link_libraries(${target} PRIVATE Psapi.lib)
+    target_link_libraries(${target} PRIVATE Psapi.lib Winmm.lib)
     target_link_options(${target} PRIVATE /DEBUG)
     if(variant STREQUAL "release")
       target_link_options(${target} PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)

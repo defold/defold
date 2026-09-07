@@ -68,6 +68,11 @@
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
+#if defined(_WIN32)
+    #include <dmsdk/dlib/safe_windows.h>
+    #include <timeapi.h>
+#endif
+
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
@@ -116,8 +121,30 @@ DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references
 namespace dmEngine
 {
 #if !(defined(DM_PLATFORM_VENDOR))
-    bool PlatformInitialize() { return true; }
-    void PlatformFinalize() {}
+#if defined(_WIN32)
+    static bool g_TimerResolutionEnabled = false;
+#endif
+
+    bool PlatformInitialize()
+    {
+#if defined(_WIN32)
+        // Improve Sleep() accuracy for engine-side frame pacing. This request is
+        // process-local on current Windows versions and must be balanced at exit.
+        g_TimerResolutionEnabled = timeBeginPeriod(1) == TIMERR_NOERROR;
+#endif
+        return true;
+    }
+
+    void PlatformFinalize()
+    {
+#if defined(_WIN32)
+        if (g_TimerResolutionEnabled)
+        {
+            timeEndPeriod(1);
+            g_TimerResolutionEnabled = false;
+        }
+#endif
+    }
 #endif
 
     using namespace dmVMath;
