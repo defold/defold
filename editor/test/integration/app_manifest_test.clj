@@ -22,53 +22,57 @@
             [editor.yaml :as yaml]
             [integration.test-util :as test-util]))
 
-(deftest windows-library-name-migration-test
-  (testing "Windows engine library names are migrated without changing external libraries"
-    (doseq [platform [:win32 :x86-win32 :x86_64-win32]
-            key [:excludeLibs :libs :engineLibs]]
-      (let [manifest {:platforms {platform {:context {key ["libphysics" "libphysics_3d.lib" "record_null.lib"
-                                                          "libdecoder_opus.lib" "libliveupdate_null.lib" "libimage_null.lib"
-                                                          "libgameobject.lib" "libfont_render" "libdmbedtls.lib"
-                                                          "physics" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"]
-                                                     :symbols ["libphysics"]}}}}
-
-            expected (assoc-in manifest [:platforms platform :context key]
-                               ["physics" "physics_3d" "record_null"
-                                "decoder_opus" "liveupdate_null" "image_null"
-                                "gameobject" "font_render" "dmbedtls"
-                                "physics" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"])
-
-            migrated (#'app-manifest/migrate-windows-library-names manifest)]
-        (is (= expected migrated))
-        (is (= migrated (#'app-manifest/migrate-windows-library-names migrated))))))
-  (testing "Other platforms and incomplete or malformed data are preserved"
-    (doseq [manifest [nil
-                     "not a map"
-                     []
-                     {}
-                     {:platforms nil}
-                     {:platforms {:x86_64-win32 nil}}
-                     {:platforms {:x86_64-win32 {:context "not a map"}}}
-                     {:platforms {:x86_64-win32 {:context {:libs "libphysics.lib"}}}}
-                     {:platforms {:x86_64-win32 {:context {:libs [nil 42 "libcustom.lib"]}}}}
-                     {:platforms {:x86_64-linux {:context {:libs ["libphysics.lib"]}}
-                                  :common {:context {:excludeLibs ["libphysics"]}}}}]]
-      (is (= manifest (#'app-manifest/migrate-windows-library-names manifest))))))
-
 (deftest windows-library-name-load-migration-test
-  (test-util/with-loaded-project
-    (let [manifest-node (test-util/resource-node project "/app_manifest/legacy_windows_library_names.appmanifest")
-          manifest (g/node-value manifest-node :manifest)
-          save-data (g/node-value manifest-node :save-data)]
-      (doseq [platform [:x86-win32 :x86_64-win32]]
-        (is (= ["script_box2d_defold" "gamesys_model" "gamesys_rig"]
-               (get-in manifest [:platforms platform :context :excludeLibs])))
-        (is (= ["script_box2d" "gamesys_model_null" "gamesys_rig_null"]
-               (get-in manifest [:platforms platform :context :libs]))))
-      (is (true? (:dirty save-data)))
-      (is (= manifest (yaml/load (resource-node/save-data-content save-data) keyword))))
-    (testing "Loading a manifest that needs no migration preserves its formatting and comments"
-      (let [manifest-node (test-util/resource-node project "/app_manifest/default.appmanifest")
+  (let [migrated-content
+        (test-util/with-loaded-project
+          (let [manifest-node (test-util/resource-node project "/app_manifest/legacy_windows_library_names.appmanifest")
+                manifest (g/node-value manifest-node :manifest)
+                save-data (g/node-value manifest-node :save-data)
+                original-manifest (yaml/load (slurp (:resource save-data)) keyword)]
+            (doseq [platform [:x86-win32 :x86_64-win32]]
+              (is (= ["script_box2d_defold" "gamesys_model" "gamesys_rig"]
+                     (get-in manifest [:platforms platform :context :excludeLibs])))
+              (is (= ["script_box2d" "gamesys_model_null" "gamesys_rig_null"]
+                     (get-in manifest [:platforms platform :context :libs])))
+              (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "gameobject" "font_render" "dmbedtls" "dmbedtls_noasan"]
+                     (get-in manifest [:platforms platform :context :engineLibs]))))
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan"]
+                   (get-in manifest [:platforms :win32 :context :excludeLibs])))
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"]
+                   (get-in manifest [:platforms :win32 :context :libs])))
+            (is (= ["font_render" "font_render" "dmbedtls" "dmbedtls" "dmbedtls_noasan" "dmbedtls_noasan"]
+                   (get-in manifest [:platforms :win32 :context :engineLibs])))
+            (testing "Other platforms, the root context, and symbols are preserved"
+              (doseq [path [[:context]
+                            [:platforms :common]
+                            [:platforms :x86_64-linux]
+                            [:platforms :win32 :context :symbols]]]
+                (is (= (get-in original-manifest path) (get-in manifest path)))))
+            (is (true? (:dirty save-data)))
+            (let [content (resource-node/save-data-content save-data)]
+              (is (= manifest (yaml/load content keyword)))
+              content)))]
+    (testing "Reloading a migrated manifest does not mark it dirty"
+      (test-util/with-temp-project-content
+        {"/current.appmanifest" (data/string->lines migrated-content)}
+        (let [manifest-node (test-util/resource-node project "/current.appmanifest")
+              save-data (g/node-value manifest-node :save-data)]
+          (is (false? (:dirty save-data)))
+          (is (= migrated-content (resource-node/save-data-content save-data))))))))
+
+(deftest unchanged-app-manifest-load-test
+  (test-util/with-temp-project-content
+    {"/current.appmanifest"
+     ["# Preserve comments and formatting"
+      "platforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}"]
+
+     "/invalid.appmanifest"
+     ["platforms: ["]
+
+     "/malformed.appmanifest"
+     ["platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}"]}
+    (doseq [proj-path ["/current.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
+      (let [manifest-node (test-util/resource-node project proj-path)
             save-data (g/node-value manifest-node :save-data)]
         (is (false? (:dirty save-data)))
         (is (= (slurp (:resource save-data))
