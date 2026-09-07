@@ -15,10 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,7 +48,6 @@ import com.dynamo.gameobject.proto.GameObjectSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
-import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = GameObjectSource.PrototypeDesc.class, messageClass = GameObject.PrototypeDesc.class)
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
@@ -258,21 +253,14 @@ public class GameObjectBuilder extends ProtoBuilder<GameObjectSource.PrototypeDe
             // migrate label scale from LabelDesc to ComponentDesc
             if (isComponentOfType(cd, "label")) {
                 try {
-                    // find the label resource in one of two places:
-                    // * in the build directory if it is generated from an embedded label (see build step above)
-                    // * in the project
-                    IResource labelResource = project.getResource(cd.getComponent());
-                    if (!labelResource.exists()) {
-                        labelResource = labelResource.output();
-                    }
-                    try (Reader reader = Files.newBufferedReader(Paths.get(labelResource.getAbsPath()), StandardCharsets.UTF_8)) {
-                        LabelDesc.Builder lb = LabelDesc.newBuilder();
-                        TextFormat.merge(reader, lb);
-                        if (lb.hasScale()) {
-                            Vector4One labelScaleV4 = lb.getScale();
-                            Vector3One labelScaleV3 = Vector3One.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
-                            compBuilder.setScale(labelScaleV3);
-                        }
+                    // The compiled dependency retains the deprecated scale for
+                    // both standalone text and structured embedded labels.
+                    IResource labelResource = project.getResource(cd.getComponent()).changeExt(".labelc");
+                    LabelDesc label = LabelDesc.parseFrom(labelResource.getContent());
+                    if (label.hasScale()) {
+                        Vector4One labelScaleV4 = label.getScale();
+                        Vector3One labelScaleV3 = Vector3One.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
+                        compBuilder.setScale(labelScaleV3);
                     }
                 }
                 catch(IOException e) {

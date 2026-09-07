@@ -63,6 +63,21 @@ class SourceFormatTest(unittest.TestCase):
             self.assertEqual("component_data", parsed.WhichOneof("payload"))
             self.assertEqual(embedded.component_data, component_data_message(parsed.component_data, data_ddf_pb2.Data()))
 
+    def test_rejects_invalid_component_scalar_values(self):
+        for field, value in (("max_count", ddf_struct_pb2.Value(number=1.5)),
+                             ("max_count", ddf_struct_pb2.Value(string="3")),
+                             ("name_hash", ddf_struct_pb2.Value(number=42))):
+            with self.subTest(field=field, value=value):
+                data = data_ddf_pb2.Data()
+                data.data.struct.fields[field].CopyFrom(value)
+                with self.assertRaises(ValueError):
+                    component_data_message(data, gameobject_ddf_pb2.ComponenTypeDesc())
+
+        data = data_ddf_pb2.Data()
+        data.data.struct.fields["prototype"].number = 42
+        with self.assertRaises(ValueError):
+            component_data_message(data, gamesys_ddf_pb2.FactoryDesc())
+
     def test_rejects_conflicting_payloads(self):
         for text in ('id: "sprite" type: "sprite" data: "" sprite {}',
                      'id: "sprite" type: "sprite" component_data {} sprite {}'):

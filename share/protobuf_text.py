@@ -120,15 +120,26 @@ def component_data_message(data, message):
     import base64
 
     def scalar(value, field):
+        integer64_types = (field.TYPE_INT64, field.TYPE_UINT64, field.TYPE_SINT64, field.TYPE_FIXED64, field.TYPE_SFIXED64)
+        if field.type in (field.TYPE_STRING, field.TYPE_BYTES, field.TYPE_ENUM) + integer64_types:
+            expected_kind = "string"
+        elif field.type == field.TYPE_BOOL:
+            expected_kind = "bool"
+        else:
+            expected_kind = "number"
+        if value.WhichOneof("kind") != expected_kind:
+            raise ValueError("Expected %s for %s" % (expected_kind, field.full_name))
         if field.type == field.TYPE_BYTES:
-            return base64.b64decode(value.string)
+            return base64.b64decode(value.string, validate=True)
         if field.type == field.TYPE_ENUM:
             return field.enum_type.values_by_name[value.string].number
-        if field.type in (field.TYPE_INT64, field.TYPE_UINT64, field.TYPE_SINT64, field.TYPE_FIXED64, field.TYPE_SFIXED64):
+        if field.type in integer64_types:
             return int(value.string)
         if field.type in (field.TYPE_INT32, field.TYPE_UINT32, field.TYPE_SINT32, field.TYPE_FIXED32, field.TYPE_SFIXED32):
+            if not value.number.is_integer():
+                raise ValueError("Invalid integer for " + field.full_name)
             return int(value.number)
-        return getattr(value, value.WhichOneof("kind"))
+        return getattr(value, expected_kind)
 
     def merge_struct(value, target):
         if value.WhichOneof("kind") != "struct":

@@ -146,6 +146,35 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(animation, typedSprite.getDefaultAnimation());
     }
 
+    @Test
+    public void testEmbeddedAndReferencedLabelScale() throws Exception {
+        addTestFiles();
+        addFile("/test.material", "name: 'label' tags: 'text' vertex_program: '/test.vp' fragment_program: '/test.fp'");
+        addFile("/test.font", "font: '/Tuffy.ttf' material: '/test.material' size: 16");
+        String label = "size {} font: '/test.font' material: '/test.material' text: 'Spelare åäö'";
+        String scaledLabel = label + " scale { x: 2 y: 3 z: 4 }";
+        addFile("/test.label", scaledLabel);
+
+        String source = "components { id: 'referenced' component: '/test.label' }\n"
+                + "embedded_components { id: 'legacy' type: 'label' data: \""
+                + escapeProtobufString(scaledLabel) + "\" }\n"
+                + "embedded_components { id: 'typed' type: 'label' label { " + scaledLabel + " } }\n"
+                + "embedded_components { id: 'component-scale' type: 'label' scale { x: 5 y: 6 z: 7 } label { " + label + " } }\n"
+                + "embedded_components { id: 'unscaled' type: 'label' label { " + label + " } }\n";
+        PrototypeDesc prototype = getMessage(build("/labels.go", source), PrototypeDesc.class);
+        Assert.assertEquals(5, prototype.getComponentsCount());
+        for (ComponentDesc component : prototype.getComponentsList()) {
+            if (component.getId().equals("unscaled")) {
+                Assert.assertFalse(component.hasScale());
+            } else {
+                int x = component.getId().equals("component-scale") ? 5 : 2;
+                Assert.assertEquals(x, component.getScale().getX(), 0);
+                Assert.assertEquals(x + 1, component.getScale().getY(), 0);
+                Assert.assertEquals(x + 2, component.getScale().getZ(), 0);
+            }
+        }
+    }
+
     // Verifies deterministic typed-payload identities and unchanged UTF-8 identities for legacy payloads.
     @Test
     public void testTypedGeneratedInputUsesDeterministicBinaryIdentity() throws Exception {

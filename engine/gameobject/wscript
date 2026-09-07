@@ -13,6 +13,18 @@ import TestContext
 
 test_context = None
 
+def generate_source_proto(task):
+    output, package_init = task.outputs
+    output.parent.mkdir()
+    command = task.env.PROTOC + ['--python_out=' + output.parent.parent.abspath()]
+    for include in task.generator.protoc_includes:
+        command += ['-I', os.path.normpath(os.path.join(task.generator.path.abspath(), include))]
+    command.append(task.inputs[0].abspath())
+    result = task.exec_command(command)
+    if result == 0:
+        package_init.write('')
+    return result
+
 def init(ctx):
     global test_context
     if 'build' in waflib.Options.commands:
@@ -45,6 +57,21 @@ def build(bld):
 
     sys.path.insert(0, os.path.abspath('build/proto'))
     sys.path.insert(0, os.path.abspath('build/proto/gameobject'))
+
+    # This authoring schema imports component descriptions and must only
+    # generate Python, without passing through the native DDF compiler.
+    source_proto = bld.path.find_resource('proto/gameobject_source/gameobject_source_ddf.proto')
+    source_python = source_proto.change_ext('_pb2.py')
+    source_init = source_python.parent.find_or_declare('__init__.py')
+    bld(name='gameobject_source_proto_py',
+        rule=generate_source_proto,
+        source=source_proto,
+        target=[source_python, source_init],
+        scan=waf_ddf.scan,
+        protoc_includes=['proto', '../gamesys/proto', '../particle/proto',
+                         '../ddf/src', '../graphics/proto', bld.env['DYNAMO_HOME'] + '/ext/include'])
+    bld.install_files('${PREFIX}/lib/python/gameobject_source', [source_python, source_init])
+    bld.install_files('${PREFIX}/share/proto/gameobject_source', source_proto)
 
     bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)

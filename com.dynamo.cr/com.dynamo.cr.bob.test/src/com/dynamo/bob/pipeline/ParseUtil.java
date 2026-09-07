@@ -33,6 +33,7 @@ import com.dynamo.gamesys.proto.DataProto;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.Gui;
+import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.MeshProto;
 import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
@@ -113,6 +114,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return MeshProto.MeshDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("labelc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return LabelDesc.parseFrom(content);
             }
         });
         parseMap.put("particlefxc", new IParser() {
