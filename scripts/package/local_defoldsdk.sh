@@ -15,6 +15,9 @@
 
 
 
+set -e
+
+./scripts/build.py build_ext
 ./scripts/build.py build_platform_sdk
 
 # Unpack the sdk to a new folder

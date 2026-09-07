@@ -535,6 +535,9 @@
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
   (input background-id g/NodeID :cascade-delete)
+  (input controller-id g/NodeID :cascade-delete)
+  (input selection-id g/NodeID :cascade-delete)
+  (input rulers-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
   ;; NOTE: Part of an interface SceneView calls during update-image-view!
   (input update-tick-handlers Runnable :array)
@@ -685,6 +688,9 @@
 
                                    (g/connect camera :_node-id view-id :camera-id)
                                    (g/connect grid :_node-id view-id :grid-id)
+                                   (g/connect controller :_node-id view-id :controller-id)
+                                   (g/connect selection :_node-id view-id :selection-id)
+                                   (g/connect rulers :_node-id view-id :rulers-id)
                                    (g/connect camera :local-camera view-id :local-camera)
                                    (g/connect camera :camera view-id :camera)
                                    (g/connect camera :camera grid :camera)

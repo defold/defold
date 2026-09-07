@@ -2397,6 +2397,33 @@ TEST_F(dmGraphicsTest, TestIsTextureFormatCompressed)
     ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_16BPP));
 }
 
+// BC (S3TC/RGTC/BPTC) formats can't be uploaded to array/3D targets on all backends (WebGL2 forbids
+// it), so IsTextureFormatSupportedForType gates them behind CONTEXT_FEATURE_BC_ARRAY_TEXTURES while
+// still allowing them on plain 2D. This is what makes a WebGL paged atlas fall back from BC4 to ETC2.
+TEST_F(dmGraphicsTest, TestBCArrayTextureSupportedForType)
+{
+    dmGraphics::GraphicsContext* ctx = &m_NullContext->m_BaseContext;
+
+    // Make BC4/BC7 "supported" on the (otherwise BC-less) null context so we isolate the array guard.
+    dmGraphics::SetContextTextureFormatSupported(ctx, dmGraphics::TEXTURE_FORMAT_R_BC4);
+    dmGraphics::SetContextTextureFormatSupported(ctx, dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
+
+    // The null context does not advertise CONTEXT_FEATURE_BC_ARRAY_TEXTURES, so BC is 2D-only here.
+    ASSERT_TRUE (dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D,       dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_TRUE (dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D,       dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_3D,       dmGraphics::TEXTURE_FORMAT_R_BC4));
+
+    // A non-BC uncompressed format is never gated by the array/3D guard.
+    ASSERT_TRUE (dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_RGBA));
+
+    // Once the backend advertises BC array support, BC is allowed on array/3D targets too.
+    dmGraphics::SetContextFeatureSupported(ctx, dmGraphics::CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_3D,       dmGraphics::TEXTURE_FORMAT_R_BC4));
+}
+
 TEST_F(dmGraphicsTest, TestGetTextureParams)
 {
     const uint32_t texture_width  = 16;

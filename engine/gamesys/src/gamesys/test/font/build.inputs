@@ -1,4 +1,6 @@
 /font/dyn_glyph_bank_test_1.font
+/font/dyn_negative_ascent.font
+/font/dyn_negative_ascent_empty.font
 /font/glyph_bank_test_1.font
 /font/glyph_bank_test_2.font
 /font/invalid_material.font

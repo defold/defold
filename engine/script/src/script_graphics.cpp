@@ -124,6 +124,7 @@ namespace dmScript
      * @name graphics.CONTEXT_FEATURE
      * @member graphics.CONTEXT_FEATURE_3D_TEXTURES Context feature flag indicating support for 3D (volume) textures.
      * @member graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES Context feature flag indicating support for ASTC compressed 2D array textures. Some WebGL/GLES drivers fail array texture ASTC uploads while 2D ASTC works.
+     * @member graphics.CONTEXT_FEATURE_BC_ARRAY_TEXTURES Context feature flag indicating support for BC (S3TC/RGTC/BPTC) compressed 2D array and 3D textures. WebGL2 forbids these compressed families on array/3D targets while allowing them on 2D.
      * @member graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX Context feature flag indicating support for min/max blend equations. Requires GLES3+ or EXT_blend_minmax.
      * @member graphics.CONTEXT_FEATURE_COMPUTE_SHADER Context feature flag indicating support for compute shaders.
      * @member graphics.CONTEXT_FEATURE_INSTANCING Context feature flag indicating support for hardware instancing.
@@ -701,6 +702,7 @@ namespace dmScript
         SET_GRAPHICS_ENUM(CONTEXT_FEATURE_3D_TEXTURES);
         SET_GRAPHICS_ENUM(CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
         SET_GRAPHICS_ENUM(CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
 
     #undef SET_GRAPHICS_ENUM_NAMED
     #undef SET_GRAPHICS_ENUM

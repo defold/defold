@@ -409,6 +409,7 @@ namespace dmGraphics
     void                       SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                       IsTextureFormatCompressed(TextureFormat format);
     bool                       IsTextureFormatASTC(TextureFormat format);
+    bool                       IsTextureFormatBC(TextureFormat format); // S3TC/RGTC/BPTC families (BC1/BC3/BC4/BC5/BC7)
     const char*                TextureFormatToString(TextureFormat format);
     ShaderDesc::Language       GetShaderProgramLanguage(HContext context);
     uint32_t                   GetShaderTypeSize(ShaderDesc::ShaderDataType type);

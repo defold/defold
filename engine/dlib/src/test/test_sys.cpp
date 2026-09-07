@@ -257,7 +257,7 @@ TEST(dmSys, GetApplicationSupportPathBuffer)
 #endif
 
     char path[4];
-    path[3] = '!';
+    memset(path, '!', sizeof(path));
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
     ASSERT_EQ('\0', path[2]);
@@ -271,7 +271,7 @@ TEST(dmSys, GetApplicationSavePathBuffer)
 #endif
 
     char path[4];
-    path[3] = '!';
+    memset(path, '!', sizeof(path));
     dmSys::Result result = dmSys::GetApplicationSavePath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
     ASSERT_EQ('\0', path[2]);

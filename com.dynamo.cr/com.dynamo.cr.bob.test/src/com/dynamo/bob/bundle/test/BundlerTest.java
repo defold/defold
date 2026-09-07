@@ -690,6 +690,7 @@ public class BundlerTest {
         {
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
+                expectedFiles.add(".gitattributes");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
                 expectedFiles.add("archive/game0.arcd");
@@ -702,6 +703,7 @@ public class BundlerTest {
         {
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
+                expectedFiles.add(".gitattributes");
                 expectedFiles.add("unnamed_pthread_wasm.js");
                 expectedFiles.add("unnamed_pthread.wasm");
                 expectedFiles.add("archive/game0.arcd");

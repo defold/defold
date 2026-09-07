@@ -287,6 +287,60 @@ TEST(FontSDF, OppositeWindingContourRemainsHole)
     FontSDFFree(&bitmap);
 }
 
+TEST(FontSDF, CurvedOppositeWindingContourRetainsBoundaryDistance)
+{
+    FontOutlineCommand commands[11] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.0f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 0.0f, 48.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 60.0f, 48.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 60.0f, 0.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+
+    // Counter-clockwise quadratic counter inside the clockwise outer contour.
+    // Its first curve has a crossing exactly at t = 0.5.
+    commands[5].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[5].m_Points[0] = { 43.0f, 24.0f };
+    commands[6].m_Type = FONT_OUTLINE_QUADRATIC_TO;
+    commands[6].m_Points[0] = { 43.0f, 40.0f };
+    commands[6].m_Points[1] = { 31.0f, 40.0f };
+    commands[7].m_Type = FONT_OUTLINE_QUADRATIC_TO;
+    commands[7].m_Points[0] = { 19.0f, 40.0f };
+    commands[7].m_Points[1] = { 19.0f, 24.0f };
+    commands[8].m_Type = FONT_OUTLINE_QUADRATIC_TO;
+    commands[8].m_Points[0] = { 19.0f, 8.0f };
+    commands[8].m_Points[1] = { 31.0f, 8.0f };
+    commands[9].m_Type = FONT_OUTLINE_QUADRATIC_TO;
+    commands[9].m_Points[0] = { 43.0f, 8.0f };
+    commands[9].m_Points[1] = { 43.0f, 24.0f };
+    commands[10].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline       outline = { commands, 11 };
+
+    FontSDFParams     params = { 1.0f, 4, 128 };
+    FontGlyphBitmap  bitmap;
+    int32_t           offset_x;
+    int32_t           offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_EQ(68u, bitmap.m_Width);
+    ASSERT_EQ(56u, bitmap.m_Height);
+    ASSERT_EQ(-4, offset_x);
+    ASSERT_EQ(-52, offset_y);
+
+    // Adjacent pixel centers straddle the counter's right edge. Both must
+    // retain a finite distance to it instead of saturating to outside/inside.
+    const uint32_t row       = 27;
+    uint8_t        hole_side = bitmap.m_Data[row * bitmap.m_Width + 46];
+    uint8_t        fill_side = bitmap.m_Data[row * bitmap.m_Width + 47];
+    ASSERT_GT(hole_side, 0u);
+    ASSERT_LT(hole_side, params.m_OnEdgeValue);
+    ASSERT_GT(fill_side, params.m_OnEdgeValue);
+    ASSERT_LT(fill_side, 255u);
+    FontSDFFree(&bitmap);
+}
+
 TEST(FontOutline, BezierBounds)
 {
     FontOutlineCommand commands[2] = {};
@@ -507,7 +561,7 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     glyph_params.m_RecipAtlasWidth = 1.0f / 256.0f;
     glyph_params.m_RecipAtlasHeight = 1.0f / 256.0f;
     glyph_params.m_RenderScale = 1.0f;
-    glyph_params.m_CacheCellMaxAscent = (uint32_t)glyph.m_Ascent;
+    glyph_params.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
     glyph_params.m_CacheCellPadding = 1;
     glyph_params.m_MetricsFromTtf = true;
 
@@ -570,6 +624,44 @@ TEST_F(FontTest, PackLayeredGlyphVertices)
     FontFreeGlyph(m_Font, &glyph);
 }
 
+TEST_F(FontTest, PackGlyphVerticesWithSignedAscent)
+{
+    FontGlyph glyph = {};
+    glyph.m_Bitmap.m_Width = 53;
+    glyph.m_Bitmap.m_Height = 19;
+    glyph.m_Width = 53.0f;
+    glyph.m_Ascent = -3.0f;
+    glyph.m_Descent = 22.0f;
+
+    FontGlyphVertex vertices[6] = {};
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    uint32_t face_colors[4] = { 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff };
+    FontGlyphVertexParams glyph_params = {};
+    glyph_params.m_Glyph = &glyph;
+    glyph_params.m_RecipAtlasWidth = 1.0f / 128.0f;
+    glyph_params.m_RecipAtlasHeight = 1.0f / 65535.0f;
+    glyph_params.m_RenderScale = 1.0f;
+    glyph_params.m_CellY = 7;
+    glyph_params.m_MetricsFromTtf = true;
+    FontVertexLayerParams layers = {};
+    layers.m_Transform = &transform;
+    layers.m_FaceColors = face_colors;
+    layers.m_FaceVertices = vertices;
+    layers.m_LayerCount = 1;
+
+    const int32_t cache_ascents[] = {-3, 102, 32767};
+    const uint16_t top_texels[] = {7, 112, 32777};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cache_ascents); ++i)
+    {
+        glyph_params.m_CacheCellMaxAscent = cache_ascents[i];
+        FontPackGlyphVertices(glyph_params, layers);
+        ASSERT_EQ(top_texels[i], vertices[2].m_UV[1]);
+        ASSERT_EQ(top_texels[i] + 19, vertices[0].m_UV[1]);
+        ASSERT_EQ(-3.0f, vertices[2].m_Position[1]);
+        ASSERT_EQ(-22.0f, vertices[0].m_Position[1]);
+    }
+}
+
 struct TestLayoutCachedGlyph
 {
     FontGlyph* m_Glyph;
@@ -617,7 +709,7 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_SdfSpread = 6.0f;
     config.m_OutlineWidth = 2.0f;
     config.m_ShadowBlur = 2.0f;
-    config.m_CacheCellMaxAscent = (uint32_t)glyph.m_Ascent;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
     config.m_CacheCellPadding = 1;
     config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
     config.m_MetricsFromTtf = true;

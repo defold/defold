@@ -52,7 +52,7 @@ struct FontLayoutVertexConfig
     float                  m_ShadowBlur;
     float                  m_BaseShadowAlpha;
     float                  m_MonospacePadding;
-    uint32_t               m_CacheCellMaxAscent;
+    int32_t                m_CacheCellMaxAscent;
     uint32_t               m_CacheCellPadding;
     uint32_t               m_MaxVertexCount;
     uint32_t               m_Align;

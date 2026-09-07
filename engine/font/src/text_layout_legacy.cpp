@@ -364,9 +364,9 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     HFont font = FontCollectionGetFont(collection, 0);
     float scale = FontGetScaleFromSize(font, settings->m_Size);
 
-    uint32_t ascent = (uint32_t)FontGetAscent(font, 1.0f);
-    uint32_t descent = (uint32_t)fabsf(FontGetDescent(font, 1.0f));
-    uint32_t line_height = ascent + descent;
+    int32_t ascent = (int32_t)FontGetAscent(font, 1.0f);
+    int32_t descent = (int32_t)fabsf(FontGetDescent(font, 1.0f));
+    int32_t line_height = ascent + descent;
     float line_height_scaled = line_height * scale;
     float tracking = line_height_scaled * settings->m_Tracking;
 

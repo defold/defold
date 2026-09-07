@@ -233,7 +233,7 @@ struct FontcContext
     uint16_t             m_AtlasHeight;
     uint16_t             m_CellWidth;
     uint16_t             m_CellHeight;
-    uint16_t             m_CellMaxAscent;
+    int32_t              m_CellMaxAscent;
     uint8_t              m_CellPadding;
     uint8_t              m_SdfEdgeValue;
     uint8_t              m_Channels;
@@ -251,9 +251,9 @@ static uint32_t GetGlyphImageX(const FontcContext* session, uint32_t cell_x)
     return cell_x + (session->m_IsGlyphBank ? 0 : session->m_CellPadding);
 }
 
-static uint32_t GetGlyphImageY(const FontcContext* session, uint32_t cell_y, const FontGlyph& glyph)
+static int32_t GetGlyphImageY(const FontcContext* session, uint32_t cell_y, const FontGlyph& glyph)
 {
-    return cell_y + (session->m_IsGlyphBank ? 0 : session->m_CellPadding) + session->m_CellMaxAscent - (int32_t)glyph.m_Ascent;
+    return (int32_t)cell_y + (session->m_IsGlyphBank ? 0 : session->m_CellPadding) + session->m_CellMaxAscent - (int32_t)glyph.m_Ascent;
 }
 
 static void DestroySession(FontcContext* session)
@@ -284,10 +284,10 @@ static bool RebuildAtlas(FontcContext* session)
         const CachedGlyph& cached = session->m_Glyphs[i];
         const uint32_t     cell_x = (i % columns) * session->m_CellWidth;
         const uint32_t     cell_y = (i / columns) * session->m_CellHeight;
-        const uint32_t     image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
+        const int32_t      image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
         const uint32_t     width = cached.m_Glyph.m_Bitmap.m_Width;
         const uint32_t     height = cached.m_Glyph.m_Bitmap.m_Height;
-        if (GetGlyphImageX(session, cell_x) + width > session->m_AtlasWidth || image_y + height > session->m_AtlasHeight)
+        if (GetGlyphImageX(session, cell_x) + width > session->m_AtlasWidth || image_y < 0 || image_y + (int32_t)height > session->m_AtlasHeight)
             return false;
     }
 
@@ -298,7 +298,7 @@ static bool RebuildAtlas(FontcContext* session)
         CachedGlyph&   cached = session->m_Glyphs[i];
         const uint32_t cell_x = (i % columns) * session->m_CellWidth;
         const uint32_t cell_y = (i / columns) * session->m_CellHeight;
-        const uint32_t image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
+        const int32_t  image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
         const uint32_t width = cached.m_Glyph.m_Bitmap.m_Width;
         const uint32_t height = cached.m_Glyph.m_Bitmap.m_Height;
         const uint32_t row_bytes = width * session->m_Channels;
@@ -324,11 +324,11 @@ static bool WriteGlyphToAtlas(FontcContext* session, CachedGlyph* cached, uint32
     const uint32_t cell_x = (glyph_index % columns) * session->m_CellWidth;
     const uint32_t cell_y = (glyph_index / columns) * session->m_CellHeight;
     const uint32_t image_x = GetGlyphImageX(session, cell_x);
-    const uint32_t image_y = GetGlyphImageY(session, cell_y, cached->m_Glyph);
+    const int32_t  image_y = GetGlyphImageY(session, cell_y, cached->m_Glyph);
     const uint32_t width = cached->m_Glyph.m_Bitmap.m_Width;
     const uint32_t height = cached->m_Glyph.m_Bitmap.m_Height;
     const uint32_t row_bytes = width * session->m_Channels;
-    if (image_x + width > session->m_AtlasWidth || image_y + height > session->m_AtlasHeight)
+    if (image_x + width > session->m_AtlasWidth || image_y < 0 || image_y + (int32_t)height > session->m_AtlasHeight)
         return false;
     for (uint32_t y = 0; y < height; ++y)
     {
@@ -401,8 +401,8 @@ static FontResult GenerateRendererGlyph(FontcContext* session, HFont font, uint3
 static bool UpdateCellMetrics(FontcContext* session)
 {
     uint64_t cell_width = 1;
-    uint32_t cell_max_ascent = 0;
-    uint32_t cell_max_descent = 0;
+    int32_t  cell_max_ascent = 0;
+    int32_t  cell_max_descent = 0;
     for (uint32_t i = 0; i < session->m_Glyphs.Size(); ++i)
     {
         const FontGlyph& glyph = session->m_Glyphs[i].m_Glyph;
@@ -411,15 +411,15 @@ static bool UpdateCellMetrics(FontcContext* session)
         if (glyph.m_Ascent < INT16_MIN || glyph.m_Ascent > INT16_MAX ||
             glyph.m_Descent < INT16_MIN || glyph.m_Descent > INT16_MAX)
             return false;
-        cell_max_ascent = dmMath::Max(cell_max_ascent, (uint32_t)dmMath::Max(0, (int32_t)glyph.m_Ascent));
-        cell_max_descent = dmMath::Max(cell_max_descent, (uint32_t)dmMath::Max(0, (int32_t)glyph.m_Descent));
+        cell_max_ascent = i == 0 ? (int32_t)glyph.m_Ascent : dmMath::Max(cell_max_ascent, (int32_t)glyph.m_Ascent);
+        cell_max_descent = i == 0 ? (int32_t)glyph.m_Descent : dmMath::Max(cell_max_descent, (int32_t)glyph.m_Descent);
     }
-    const uint64_t cell_height = dmMath::Max((uint64_t)1, (uint64_t)cell_max_ascent + cell_max_descent + (uint32_t)session->m_CellPadding * 2);
-    if (cell_width > UINT16_MAX || cell_height > UINT16_MAX || cell_max_ascent > UINT16_MAX)
+    const int64_t  cell_height = dmMath::Max((int64_t)1, (int64_t)cell_max_ascent + cell_max_descent + session->m_CellPadding * 2);
+    if (cell_width > UINT16_MAX || cell_height > UINT16_MAX)
         return false;
     session->m_CellWidth = (uint16_t)cell_width;
     session->m_CellHeight = (uint16_t)cell_height;
-    session->m_CellMaxAscent = (uint16_t)cell_max_ascent;
+    session->m_CellMaxAscent = cell_max_ascent;
     return true;
 }
 
@@ -475,7 +475,7 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
 
     const uint16_t old_cell_width = session->m_CellWidth;
     const uint16_t old_cell_height = session->m_CellHeight;
-    const uint16_t old_cell_max_ascent = session->m_CellMaxAscent;
+    const int32_t  old_cell_max_ascent = session->m_CellMaxAscent;
     if (session->m_Glyphs.Full())
         session->m_Glyphs.OffsetCapacity(32);
     session->m_Glyphs.Push(new_glyph);
@@ -799,7 +799,7 @@ static bool ValidateGlyphBank(const FontcGlyphBankGlyph* glyphs,
     if (!glyphs || glyph_count == 0 || glyph_count > INT32_MAX ||
         (!glyph_data && glyph_data_count != 0) || glyph_padding > UINT8_MAX ||
         glyph_channels == 0 || glyph_channels > 4 || !isfinite(max_ascent) || !isfinite(max_descent) ||
-        max_ascent < 0.0f || max_descent < 0.0f)
+        max_descent < 0.0f || max_ascent + max_descent < 0.0f)
         return false;
 
     for (uint32_t i = 0; i < glyph_count; ++i)

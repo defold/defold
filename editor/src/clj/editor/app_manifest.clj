@@ -20,7 +20,8 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
-            [editor.yaml :as yaml]))
+            [editor.yaml :as yaml])
+  (:import [com.dynamo.bob.util AppManifestMigration]))
 
 (def macos #{:x86_64-osx :arm64-osx})
 
@@ -60,98 +61,6 @@
     ;; web
     :wasm-web :wasm_pthread-web})
 
-(def defold-windows-lib-names
-  #{"basis_encoder"
-    "basis_encoder_noasan"
-    "basis_transcoder"
-    "crashext"
-    "crashext_null"
-    "decoder_ogg"
-    "decoder_opus"
-    "decoder_wav"
-    "ddf"
-    "ddf_noasan"
-    "dlib"
-    "dlib_noasan"
-    "engine"
-    "engine_release"
-    "engine_service"
-    "engine_service_null"
-    "extension"
-    "font"
-    "font_richtext"
-    "font_richtext_null"
-    "font_skribidi"
-    "gamesys"
-    "gamesys_gui"
-    "gamesys_model"
-    "gamesys_model_null"
-    "gamesys_particle"
-    "gamesys_rig"
-    "gamesys_rig_null"
-    "graphics"
-    "graphics_dx12"
-    "graphics_null"
-    "graphics_null_noasan"
-    "graphics_opengles"
-    "graphics_proto"
-    "graphics_proto_noasan"
-    "graphics_transcoder_basisu"
-    "graphics_transcoder_null"
-    "graphics_vulkan"
-    "graphics_webgpu"
-    "graphics_webgpu_wagyu"
-    "gui"
-    "gui_null"
-    "hid"
-    "hid_null"
-    "image"
-    "image_noasan"
-    "image_null"
-    "image_null_noasan"
-    "input"
-    "launcherutil"
-    "liveupdate"
-    "liveupdate_null"
-    "lua"
-    "mbedtls"
-    "mbedtls_noasan"
-    "model"
-    "particle"
-    "particle_null"
-    "physics"
-    "physics_2d"
-    "physics_2d_defold"
-    "physics_3d"
-    "physics_null"
-    "platform"
-    "platform_null"
-    "platform_vulkan"
-    "profile"
-    "profile_noasan"
-    "profile_null"
-    "profile_null_noasan"
-    "profiler_js"
-    "profiler_remotery"
-    "profilerext"
-    "profilerext_null"
-    "record"
-    "record_null"
-    "render"
-    "resource"
-    "rig"
-    "rig_null"
-    "script"
-    "script_box2d"
-    "script_box2d_defold"
-    "script_bullet3d"
-    "sound"
-    "sound_nosimd"
-    "sound_null"
-    "sound_openal"
-    "zip"
-    "zip_noasan"})
-
 (def windows-lib-name-overrides
   {"vpx" "vpx"
    "vulkan" "vulkan-1"})
@@ -175,7 +84,7 @@
 
 (defn- windows-lib-name [lib]
   (or (windows-lib-name-overrides lib)
-      (and (contains? defold-windows-lib-names lib) lib)
+      (get AppManifestMigration/WINDOWS_LIBRARY_NAMES lib)
       (str "lib" lib)))
 
 (defn- legacy-windows-lib-name [lib]
@@ -851,6 +760,29 @@
                   [:wasm-web platform-pattern]
                   [:wasm_pthread-web platform-pattern]]]]))
 
+(defn- migrate-windows-library-names [manifest]
+  (reduce (fn [manifest platform]
+            (reduce (fn [manifest key]
+                      (if-let [libs (get-in-guarded manifest :platforms map? platform map? :context map? key vector?)]
+                        (assoc-in manifest [:platforms platform :context key]
+                                  (mapv #(get AppManifestMigration/WINDOWS_LIBRARY_NAMES % %) libs))
+                        manifest))
+                    manifest
+                    [:excludeLibs :libs :engineLibs]))
+          manifest
+          (conj windows :win32)))
+
+(defn- load-app-manifest [_project self _resource]
+  (g/expand-ec
+    (fn [evaluation-context]
+      (let [manifest (g/node-value self :manifest evaluation-context)]
+        (when-not (g/error? manifest)
+          (let [migrated-manifest (migrate-windows-library-names manifest)]
+            (when-not (= manifest migrated-manifest)
+              ;; Prevent the project loader from caching the original lines as save-data.
+              (g/flag-nodes-as-migrated! evaluation-context [self])
+              (g/set-property self :manifest migrated-manifest))))))))
+
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
   (output parsed-manifest g/Any :cached (g/fnk [lines _node-id resource]
@@ -1055,4 +987,5 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
+    :additional-load-fn load-app-manifest
     :lazy-loaded false))
