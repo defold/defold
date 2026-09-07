@@ -26,13 +26,15 @@
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lsp.project :as lsp.project]
             [editor.lsp.server :as lsp.server]
+            [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.async-support :as async-support]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [java.io PipedInputStream PipedOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -211,6 +213,24 @@
 
 (def ^:private foo-json-lines ["{\"asd\": 1}"])
 
+(deftest lua-language-server-only-trusts-bundled-plugin-test
+  (let [trust-action {:title "Trust and load this plugin\n"}
+        reject-action {:title "Don't load this plugin\n"}
+        bundled-plugin-path (str (path/of "/defold"
+                                          "shared"
+                                          "lua-language-server"
+                                          "plugin.lua"))
+        request {:actions [trust-action reject-action]
+                 :message (str "The current settings try to load the plugin at this location:"
+                               bundled-plugin-path
+                               "\n\nNote that malicious plugin may harm your computer\n")}
+        handler #'lsp.server/lua-language-server-show-message-request-handler]
+    (with-redefs [system/defold-unpack-path (constantly "/defold")]
+      (is (= trust-action (handler request)))
+      (is (= trust-action (handler (assoc request :actions [reject-action trust-action]))))
+      (is (nil? (handler (assoc request :actions [reject-action]))))
+      (is (nil? (handler (update request :message string/replace bundled-plugin-path "/tmp/plugin.lua")))))))
+
 (deftest lsp-server-test
   (testing "Initialize + open text document -> should publish diagnostics"
     (with-scratch-project "test/resources/lsp_project"
@@ -218,7 +238,8 @@
             out (a/chan 10)]
         (lsp.server/make
           project
-          (make-test-server-launcher default-handlers)
+          {:languages #{"json"}
+           :launcher (make-test-server-launcher default-handlers)}
           in out
           :on-publish-diagnostics #(apply vector :on-publish-diagnostics %&)
           :on-initialized #(vector :on-initialized %))

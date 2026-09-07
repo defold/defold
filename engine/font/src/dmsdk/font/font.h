@@ -47,12 +47,14 @@ enum FontResult
  * @name FontType
  * @member FONT_TYPE_TTF
  * @member FONT_TYPE_OTF
+ * @member FONT_TYPE_GLYPH_BANK
  * @member FONT_TYPE_UNKNOWN = 0xFFFFFFFF
  */
 enum FontType
 {
     FONT_TYPE_TTF,
     FONT_TYPE_OTF,
+    FONT_TYPE_GLYPH_BANK,
 
     FONT_TYPE_UNKNOWN = 0xFFFFFFFF // used to make it 4 bytes size
 };

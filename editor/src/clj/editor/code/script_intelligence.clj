@@ -15,7 +15,6 @@
 (ns editor.code.script-intelligence
   (:require [dynamo.graph :as g]
             [editor.graph-util :as gu]
-            [editor.lua :as lua]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll]
@@ -31,7 +30,7 @@
 
 (g/defnk produce-lua-completions
   [lua-completions]
-  (lua/combine-completions (apply (partial merge-with into) lua-completions)))
+  (reduce (partial merge-with into) {} lua-completions))
 
 (g/defnode ScriptIntelligenceNode
   (input lua-completions ScriptCompletions :array :substitute gu/array-subst-remove-errors)

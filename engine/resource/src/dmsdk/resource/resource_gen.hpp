@@ -171,11 +171,13 @@ namespace dmResource
 
     /*#
         * Generated from [ref:ResourceGetDescriptor]
+        * @name GetDescriptor
         */
     Result GetDescriptor(HFactory factory, const char * path, HDescriptor * descriptor);
 
     /*#
         * Generated from [ref:ResourceGetDescriptorByHash]
+        * @name GetDescriptorByHash
         */
     Result GetDescriptorByHash(HFactory factory, dmhash_t path_hash, HDescriptor * descriptor);
 
@@ -239,41 +241,49 @@ namespace dmResource
 
     /*#
         * Generated from [ref:ResourceDescriptorGetNameHash]
+        * @name GetNameHash
         */
     dmhash_t GetNameHash(HDescriptor rd);
 
     /*#
         * Generated from [ref:ResourceDescriptorSetResource]
+        * @name SetResource
         */
     void SetResource(HDescriptor rd, void * resource);
 
     /*#
         * Generated from [ref:ResourceDescriptorGetResource]
+        * @name GetResource
         */
     void * GetResource(HDescriptor rd);
 
     /*#
         * Generated from [ref:ResourceDescriptorSetPrevResource]
+        * @name SetPrevResource
         */
     void SetPrevResource(HDescriptor rd, void * resource);
 
     /*#
         * Generated from [ref:ResourceDescriptorGetPrevResource]
+        * @name GetPrevResource
         */
     void * GetPrevResource(HDescriptor rd);
 
     /*#
         * Generated from [ref:ResourceDescriptorSetResourceSize]
+        * @name SetResourceSize
         */
     void SetResourceSize(HDescriptor rd, uint32_t size);
 
     /*#
         * Generated from [ref:ResourceDescriptorGetResourceSize]
+        * @name GetResourceSize
         */
     uint32_t GetResourceSize(HDescriptor rd);
 
     /*#
         * Generated from [ref:ResourceDescriptorGetType]
+        * @name GetType
         */
     HResourceType GetType(HDescriptor rd);
 

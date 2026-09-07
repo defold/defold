@@ -58,7 +58,7 @@ function update(self, dt)
         local metrics_valid = {
             max_ascent  = 12.9951171875,
             width       = 818.15625,
-            height      = 15,
+            height      = 16.296875,
             max_descent = 3.3017578125
         }
 
@@ -69,7 +69,7 @@ function update(self, dt)
         local metrics_valid = {
             max_ascent  = 12.9951171875,
             width       = 818.15625,
-            height      = 15,
+            height      = 16.296875,
             max_descent = 3.3017578125,
         }
 

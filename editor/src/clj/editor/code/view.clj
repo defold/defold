@@ -1116,57 +1116,58 @@
              :hover-cursor-lsp-regions)
     :regions))
 
-(defn- set-properties
-  "Return transaction steps for the view changes"
+(defn set-properties
+  "Return transaction steps for the view changes, or nil if there are no changes."
   [view-node undo-grouping values-by-prop-kw]
-  (let [resource-node (g/node-value view-node :resource-node)
-        resource-node-type (g/node-type* resource-node)]
-    (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
-          (mapcat (fn [[prop-kw value]]
-                    (case prop-kw
-                      :cursor-ranges
-                      (if (g/has-property? resource-node-type :cursor-ranges)
-                        (g/set-property resource-node :cursor-ranges value)
-                        (g/non-undoable
-                          (g/set-property view-node :fallback-cursor-ranges value)))
-
-                      :regions
-                      (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
-                            (group-by region->prop-kw value)]
-                        (concat
-                          (g/set-property resource-node prop-kw (or regions []))
+  (when-not (coll/empty? values-by-prop-kw)
+    (let [resource-node (g/node-value view-node :resource-node)
+          resource-node-type (g/node-type* resource-node)]
+      (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
+            (mapcat (fn [[prop-kw value]]
+                      (case prop-kw
+                        :cursor-ranges
+                        (if (g/has-property? resource-node-type :cursor-ranges)
+                          (g/set-property resource-node :cursor-ranges value)
                           (g/non-undoable
-                            (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
-                            (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
-                            (g/set-property view-node :diagnostics (or diagnostics [])))))
+                            (g/set-property view-node :fallback-cursor-ranges value)))
 
-                      ;; Several actions might have invalidated rows since
-                      ;; we last produced syntax-info. We keep an ever-
-                      ;; growing history of invalidated-rows. Then when
-                      ;; producing syntax-info we find the first invalidated
-                      ;; row by comparing the history of invalidated rows to
-                      ;; what it was at the time of the last call. See the
-                      ;; invalidated-row function for details.
-                      :invalidated-row
-                      (g/update-property resource-node :invalidated-rows conj value)
+                        :regions
+                        (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
+                              (group-by region->prop-kw value)]
+                          (concat
+                            (g/set-property resource-node prop-kw (or regions []))
+                            (g/non-undoable
+                              (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
+                              (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
+                              (g/set-property view-node :diagnostics (or diagnostics [])))))
 
-                      ;; The :indent-type output in the resource node is
-                      ;; cached, but reads from disk unless a value exists
-                      ;; for the :modified-indent-type property.
-                      :indent-type
-                      (g/set-property resource-node :modified-indent-type value)
+                        ;; Several actions might have invalidated rows since
+                        ;; we last produced syntax-info. We keep an ever-
+                        ;; growing history of invalidated-rows. Then when
+                        ;; producing syntax-info we find the first invalidated
+                        ;; row by comparing the history of invalidated rows to
+                        ;; what it was at the time of the last call. See the
+                        ;; invalidated-row function for details.
+                        :invalidated-row
+                        (g/update-property resource-node :invalidated-rows conj value)
 
-                      ;; The :lines output in the resource node is uncached.
-                      ;; It reads from disk unless a value exists for the
-                      ;; :modified-lines property. This means only modified
-                      ;; or currently open files are kept in memory.
-                      :lines
-                      (g/set-property resource-node :modified-lines value)
+                        ;; The :indent-type output in the resource node is
+                        ;; cached, but reads from disk unless a value exists
+                        ;; for the :modified-indent-type property.
+                        :indent-type
+                        (g/set-property resource-node :modified-indent-type value)
 
-                      ;; All other properties are set on the view node.
-                      (g/non-undoable
-                        (g/set-property view-node prop-kw value)))))
-          values-by-prop-kw)))
+                        ;; The :lines output in the resource node is uncached.
+                        ;; It reads from disk unless a value exists for the
+                        ;; :modified-lines property. This means only modified
+                        ;; or currently open files are kept in memory.
+                        :lines
+                        (g/set-property resource-node :modified-lines value)
+
+                        ;; All other properties are set on the view node.
+                        (g/non-undoable
+                          (g/set-property view-node prop-kw value)))))
+            values-by-prop-kw))))
 
 (defn- set-resource-properties
   "Return transaction steps eduction for the editable resource node changes"
@@ -1185,11 +1186,8 @@
   "Sets values of properties that are managed by the functions in the code.data module.
   Returns true if any property changed, false otherwise."
   [view-node undo-grouping values-by-prop-kw]
-  (if (empty? values-by-prop-kw)
-    false
-    (do (g/transact
-          (set-properties view-node undo-grouping values-by-prop-kw))
-        true)))
+  (boolean
+    (some-> (set-properties view-node undo-grouping values-by-prop-kw) g/transact)))
 
 ;; endregion
 
@@ -1838,8 +1836,11 @@
     (g/user-data! resource-node :syntax-info syntax-info)
     syntax-info))
 
-(defn- get-current-syntax-info [resource-node]
-  (or (g/user-data resource-node :syntax-info) []))
+(defn- get-cursor-ranges-syntax-info [view-node cursor-ranges evaluation-context]
+  (get-valid-syntax-info
+    (get-property view-node :resource-node evaluation-context)
+    (get-property view-node :canvas-repaint-info evaluation-context)
+    (transduce (map #(inc (.-row (data/cursor-range-end %)))) max 1 cursor-ranges)))
 
 (defn- syntax-scope-before-cursor [view-node ^Cursor cursor evaluation-context]
   (if-let [syntax-info (coll/not-empty
@@ -2105,7 +2106,9 @@
                                        splices)]
                          (vec (sort-by first splices)))
                        splices)
-         props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout all-splices)]
+         syntax-info (g/with-auto-evaluation-context evaluation-context
+                       (get-cursor-ranges-syntax-info view-node replacement-cursor-ranges evaluation-context))
+         props (data/replace-typed-chars indent-level-pattern indent-string grammar syntax-info lines regions layout all-splices)]
      (when (some? props)
        (hide-hover! view-node)
        (hide-suggestions! view-node)
@@ -2433,7 +2436,7 @@
         (data/delete (get-property view-node :lines evaluation-context)
                      (get-property view-node :grammar evaluation-context)
                      (prefs/get prefs [:code :auto-closing-parens])
-                     (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
+                     (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
                      cursor-ranges
                      (get-property view-node :regions evaluation-context)
                      (get-property view-node :layout evaluation-context)
@@ -2473,13 +2476,16 @@
   (hide-hover! view-node)
   (hide-suggestions! view-node)
   (set-properties! view-node nil
-                   (data/indent (get-property view-node :indent-level-pattern)
-                                (get-property view-node :indent-string)
-                                (get-property view-node :grammar)
-                                (get-property view-node :lines)
-                                (get-property view-node :cursor-ranges)
-                                (get-property view-node :regions)
-                                (get-property view-node :layout))))
+                   (g/with-auto-evaluation-context evaluation-context
+                     (let [cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+                       (data/indent (get-property view-node :indent-level-pattern evaluation-context)
+                                    (get-property view-node :indent-string evaluation-context)
+                                    (get-property view-node :grammar evaluation-context)
+                                    (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
+                                    (get-property view-node :lines evaluation-context)
+                                    cursor-ranges
+                                    (get-property view-node :regions evaluation-context)
+                                    (get-property view-node :layout evaluation-context))))))
 
 (defn- deindent! [view-node]
   (hide-hover! view-node)
@@ -2578,7 +2584,10 @@
                                 (get-property view-node :cursor-ranges evaluation-context)
                                 (get-property view-node :regions evaluation-context)
                                 (get-property view-node :layout evaluation-context)
-                                (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
+                                (get-cursor-ranges-syntax-info
+                                  view-node
+                                  (get-property view-node :cursor-ranges evaluation-context)
+                                  evaluation-context)
                                 typed)))
         (hide-hover! view-node)
         (if (and show-suggestions (implies-completions? view-node))
@@ -2622,7 +2631,7 @@
                (not= (int (.charAt character 0)) 0x7f))
       (insert-text! view-node prefs character))))
 
-(defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
+(defn refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
         gesture-type (:type (get-property view-node :gesture-start))
         ^LayoutInfo layout (get-property view-node :layout)
@@ -2753,8 +2762,7 @@
             x (.getX event)
             y (.getY event)
             resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
-            row (data/y->row layout y)]
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
         (-> (data/mouse-moved (get-property view-node :lines evaluation-context)
                               (get-property view-node :cursor-ranges evaluation-context)
                               (get-property view-node :visible-regions evaluation-context)
@@ -2765,8 +2773,7 @@
                               x
                               y)
             (cond->
-              (and lsp
-                   (prefs/get prefs hover-pref-path)
+              (and (prefs/get prefs hover-pref-path)
                    (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
               (merge
                 (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
@@ -2853,14 +2860,17 @@
   (hide-hover! view-node)
   (hide-suggestions! view-node)
   (set-properties! view-node nil
-                   (data/paste (get-property view-node :indent-level-pattern)
-                               (get-property view-node :indent-string)
-                               (get-property view-node :grammar)
-                               (get-property view-node :lines)
-                               (get-property view-node :cursor-ranges)
-                               (get-property view-node :regions)
-                               (get-property view-node :layout)
-                               clipboard)))
+                   (g/with-auto-evaluation-context evaluation-context
+                     (let [cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+                       (data/paste (get-property view-node :indent-level-pattern evaluation-context)
+                                   (get-property view-node :indent-string evaluation-context)
+                                   (get-property view-node :grammar evaluation-context)
+                                   (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
+                                   (get-property view-node :lines evaluation-context)
+                                   cursor-ranges
+                                   (get-property view-node :regions evaluation-context)
+                                   (get-property view-node :layout evaluation-context)
+                                   clipboard)))))
 
 (defn split-selection-into-lines! [view-node]
   (hide-hover! view-node)
@@ -2967,13 +2977,16 @@
                 (get-property view-node :cursor-ranges evaluation-context)))
   (run [view-node]
     (set-properties! view-node nil
-                     (data/reindent (get-property view-node :indent-level-pattern)
-                                    (get-property view-node :indent-string)
-                                    (get-property view-node :grammar)
-                                    (get-property view-node :lines)
-                                    (get-property view-node :cursor-ranges)
-                                    (get-property view-node :regions)
-                                    (get-property view-node :layout)))))
+                     (g/with-auto-evaluation-context evaluation-context
+                       (let [cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
+                         (data/reindent (get-property view-node :indent-level-pattern evaluation-context)
+                                        (get-property view-node :indent-string evaluation-context)
+                                        (get-property view-node :grammar evaluation-context)
+                                        (get-cursor-ranges-syntax-info view-node cursor-ranges evaluation-context)
+                                        (get-property view-node :lines evaluation-context)
+                                        cursor-ranges
+                                        (get-property view-node :regions evaluation-context)
+                                        (get-property view-node :layout evaluation-context)))))))
 
 (handler/defhandler :code.convert-indentation :code-view
   (label [user-data]
@@ -3080,14 +3093,18 @@
                                line-edits
                                (get-property view-node :layout evaluation-context)))))))))
 
-(defn- format-whole-document! [view-node lsp resource indent-type lines]
+(defn- format-whole-document! [view-node lsp resource indent-type lines done! & {:as opts}]
   (lsp/format-document!
     lsp resource indent-type
     (fn [response]
       (ui/run-later
-        (if response
-          (apply-formatting-edits! view-node lines (:edits response))
-          (show-formatting-failed-notification! resource))))))
+        (try
+          (if response
+            (apply-formatting-edits! view-node lines (:edits response))
+            (show-formatting-failed-notification! resource))
+          (finally
+            (done!)))))
+    opts))
 
 (defn- format-selected-rows! [view-node lsp resource indent-type lines cursor-ranges]
   (when-let [row-spans (coll/not-empty (data/format-row-spans lines cursor-ranges))]
@@ -3100,6 +3117,36 @@
             (apply-formatting-edits!
               view-node lines
               (vec (sort-by key (into [] (mapcat :edits) responses))))))))))
+
+(defn async-format-on-save! [view-nodes done!]
+  (g/let-ec [basis (:basis evaluation-context)
+             pending
+             (into []
+                   (keep
+                     (fn [view-node]
+                       (when (g/node-instance? basis CodeEditorView view-node)
+                         (let [resource-node (get-property view-node :resource-node evaluation-context)
+                               resource (g/node-value resource-node :resource evaluation-context)
+                               lsp (lsp/get-node-lsp basis resource-node)]
+                           (when (and (resource/file-resource? resource)
+                                      (true? (g/node-value resource-node :dirty evaluation-context))
+                                      (lsp/has-language-servers-running-for-resource? lsp resource))
+                             {:view-node view-node
+                              :lsp lsp
+                              :resource resource
+                              :indent-type (get-property view-node :indent-type evaluation-context)
+                              :lines (get-property view-node :lines evaluation-context)})))))
+                   view-nodes)]
+    (if (coll/empty? pending)
+      (done!)
+      (let [remaining-volatile (volatile! (count pending))]
+        (doseq [{:keys [view-node lsp resource indent-type lines]} pending]
+          (format-whole-document!
+            view-node lsp resource indent-type lines
+            (fn []
+              (when (zero? (long (vswap! remaining-volatile #(dec (long %)))))
+                (done!)))
+            :timeout-ms 2000))))))
 
 (defn- formatting-selected-rows? [cursor-ranges]
   (coll/not-every? data/cursor-range-empty? cursor-ranges))
@@ -3116,11 +3163,11 @@
                indent-type (get-property view-node :indent-type evaluation-context)
                lines (get-property view-node :lines evaluation-context)
                cursor-ranges (get-property view-node :cursor-ranges evaluation-context)]
-      (if-not (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
         (show-no-language-server-for-resource-language-notification! resource)
         (if (formatting-selected-rows? cursor-ranges)
           (format-selected-rows! view-node lsp resource indent-type lines cursor-ranges)
-          (format-whole-document! view-node lsp resource indent-type lines))))))
+          (format-whole-document! view-node lsp resource indent-type lines fn/constantly-nil))))))
 
 (handler/defhandler :code.goto-definition :code-view
   (enabled? [view-node evaluation-context]
@@ -3131,7 +3178,7 @@
     (let [resource-node (get-property view-node :resource-node)
           resource (g/node-value resource-node :resource)
           lsp (lsp/get-node-lsp resource-node)]
-      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/goto-definition!
           lsp
           resource
@@ -3155,7 +3202,7 @@
     (let [resource-node (get-property view-node :resource-node)
           lsp (lsp/get-node-lsp resource-node)
           resource (g/node-value resource-node :resource)]
-      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+      (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/find-references!
           lsp
           resource
@@ -3186,7 +3233,7 @@
             lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
             resource (g/node-value resource-node :resource evaluation-context)
             localization (get-property view-node :localization evaluation-context)]
-        (if (not (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+        (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
           (show-no-language-server-for-resource-language-notification! resource)
           (let [document-symbols (get-property view-node :document-symbols evaluation-context)
                 items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])

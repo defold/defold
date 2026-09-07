@@ -611,10 +611,7 @@ Result LoadResourceToBufferWithOffset(HFactory factory, const char* path, const 
             is_streaming = true;
         }
 
-        if (buffer->Capacity() < bytes_to_read) {
-            buffer->SetCapacity(bytes_to_read);
-        }
-        buffer->SetSize(bytes_to_read);
+        buffer->EnsureSize(bytes_to_read);
 
         // Only actually read the resource if we requested any bytes
         uint32_t nread = 0;

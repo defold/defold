@@ -959,7 +959,7 @@ bail:
     }
 
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
-        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, VkSamplerAddressMode vk_wrap_w, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
     {
         VkSamplerCreateInfo vk_sampler_create_info;
         memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
@@ -969,7 +969,7 @@ bail:
         vk_sampler_create_info.minFilter               = vk_min_filter;
         vk_sampler_create_info.addressModeU            = vk_wrap_u;
         vk_sampler_create_info.addressModeV            = vk_wrap_v;
-        vk_sampler_create_info.addressModeW            = vk_wrap_u;
+        vk_sampler_create_info.addressModeW            = vk_wrap_w;
         vk_sampler_create_info.anisotropyEnable        = max_anisotropy > 1.0f;
         vk_sampler_create_info.maxAnisotropy           = max_anisotropy;
         vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -1209,8 +1209,13 @@ bail:
         VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         VK_BLEND_FACTOR_DST_ALPHA,
         VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
+        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+        VK_BLEND_FACTOR_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_CONSTANT_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
     };
+    DM_STATIC_ASSERT(DM_ARRAY_SIZE(g_vk_blend_factors) == BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA + 1, Invalid_Vulkan_Blend_Factor_Count);
 
     static const VkBlendOp g_vk_blend_equations[] = {
         VK_BLEND_OP_ADD,
@@ -1331,7 +1336,7 @@ bail:
         vk_rasterizer.lineWidth               = 1.0f;
         vk_rasterizer.cullMode                = vk_cull_mode;
         vk_rasterizer.frontFace               = g_vk_face_windings[pipelineState.m_FaceWinding];
-        vk_rasterizer.depthBiasEnable         = VK_FALSE;
+        vk_rasterizer.depthBiasEnable         = pipelineState.m_PolygonOffsetFillEnabled ? VK_TRUE : VK_FALSE;
         vk_rasterizer.depthBiasConstantFactor = 0.0f;
         vk_rasterizer.depthBiasClamp          = 0.0f;
         vk_rasterizer.depthBiasSlopeFactor    = 0.0f;
@@ -1423,7 +1428,7 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state_front;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state_back;
 
-        const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+        const VkDynamicState vk_dynamic_state[3] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS};
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
         vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;

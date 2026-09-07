@@ -37,6 +37,8 @@ struct FontViewerMacOSInput
     bool    m_UpDown;
     bool    m_DownDown;
     bool    m_ShiftDown;
+    bool    m_CopyDown;
+    bool    m_SelectAllDown;
 };
 
 void FontViewerMacOSInstallInput(HWindow                              window,
@@ -44,5 +46,8 @@ void FontViewerMacOSInstallInput(HWindow                              window,
                                  FontViewerKeyboardMarkedTextCallback marked_text_callback,
                                  void*                                user_data);
 void FontViewerMacOSPollInput(HWindow window, uint32_t layout_width, uint32_t layout_height, FontViewerMacOSInput* input);
+void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text_length);
+void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor);
+void FontViewerMacOSDestroyLinkCursor(HWindow window);
 
 #endif // DM_FONT_VIEWER_MACOS_H

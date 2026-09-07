@@ -12,11 +12,18 @@ set(RENDER_SRC_DIR "${RENDER_ROOT}/src")
 set(RENDER_PROTO_ROOT "${RENDER_ROOT}/proto")
 set(RENDER_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/render")
 set(RENDER_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/render")
+defold_feature_disabled(font_richtext RENDER_WITHOUT_FONT_RICHTEXT)
+if(RENDER_WITHOUT_FONT_RICHTEXT)
+  set(RENDER_RICHTEXT_DEPENDENCY font_richtext_null)
+else()
+  set(RENDER_RICHTEXT_DEPENDENCY font_richtext)
+endif()
 set(RENDER_DEPENDENCIES
   ddf
   dlib
   extension
   font
+  ${RENDER_RICHTEXT_DEPENDENCY}
   font_render
   graphics
   graphics_proto
@@ -29,7 +36,6 @@ set(RENDER_PUBLIC_HEADERS
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
-  "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h")
 file(GLOB_RECURSE RENDER_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${RENDER_SRC_DIR}/dmsdk/*.h"
@@ -118,7 +124,6 @@ install(FILES
   DESTINATION include/render)
 install(FILES
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
-  "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h"
   DESTINATION include/render/font)
 install(DIRECTORY "${RENDER_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

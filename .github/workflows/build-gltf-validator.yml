@@ -20,7 +20,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -59,7 +59,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -98,7 +98,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -137,7 +137,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -176,7 +176,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 

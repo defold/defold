@@ -727,6 +727,7 @@ namespace dmGui
         scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
         scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
+        scene->m_PrepareNodeTextLayoutCallback = params->m_PrepareNodeTextLayoutCallback;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
@@ -2584,6 +2585,10 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
+                if (node->m_Node.m_TextLayout.m_Handle)
+                {
+                    TextLayoutUpdate(node->m_Node.m_TextLayout.m_Handle, dt);
+                }
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -3732,6 +3737,11 @@ namespace dmGui
         return n->m_Node.m_LayerHash;
     }
 
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
+    {
+        return GetLayerIndex(scene, GetNode(scene, node));
+    }
+
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
     {
         uint16_t* layer_index = scene->m_Layers.Get(layer_id);
@@ -3959,6 +3969,14 @@ namespace dmGui
 
         scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, leading, tracking, metrics);
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
+        if (scene->m_PrepareNodeTextLayoutCallback)
+        {
+            scene->m_PrepareNodeTextLayoutCallback(scene, node);
+        }
     }
 
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
@@ -4527,6 +4545,35 @@ namespace dmGui
                 && node_pos.getX() <= 1.0f
                 && node_pos.getY() >= 0.0f
                 && node_pos.getY() <= 1.0f;
+    }
+
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
+    {
+        Vector4 scale((float)scene->m_Context->m_PhysicalWidth / (float)scene->m_Context->m_DefaultProjectWidth,
+                      (float)scene->m_Context->m_PhysicalHeight / (float)scene->m_Context->m_DefaultProjectHeight, 1.0f, 1.0f);
+        InternalNode* n = GetNode(scene, node);
+        CalculateNodeSize(n);
+
+        Matrix4 transform;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
+        // Preserve a sound inverse for flat GUI nodes, matching PickNode().
+        transform.setElem(2, 2, 1.0f);
+        transform = inverse(transform);
+
+        Vector4     node_pos = transform * Vector4(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
+        const float epsilon = 0.0001f;
+        if (dmMath::Abs(node_pos.getZ()) > epsilon)
+        {
+            Vector4 ray_dir = transform.getCol2();
+            if (dmMath::Abs(ray_dir.getZ()) < epsilon)
+            {
+                return false;
+            }
+            node_pos -= ray_dir * (node_pos.getZ() / ray_dir.getZ());
+        }
+
+        *position = Point3(node_pos.getXYZ());
+        return true;
     }
 
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive)

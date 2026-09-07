@@ -72,7 +72,7 @@ editor/.calva/output-window/output.calva-repl
 editor/.lsp/sqlite.db
 
 #build_external
-/packages/bullet-2.77/
+/packages/bullet-3.25/
 /packages/lib/
 
 #build bob

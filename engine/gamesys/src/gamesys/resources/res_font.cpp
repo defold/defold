@@ -38,11 +38,38 @@ namespace dmGameSystem
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_OTF = dmHashString64("otf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
+    const static dmhash_t STYLE_LINK = dmHashString64("link");
+    const static dmhash_t STYLE_LINK_HOVER = dmHashString64("link:hover");
+    const static dmhash_t STYLE_LINK_ACTIVE = dmHashString64("link:active");
 
     struct ImageDataHeader
     {
         uint8_t m_Compression; // FontGlyphCompression
     };
+
+    static TextRenderStyle MakeColorStyle(float r, float g, float b, float a)
+    {
+        TextRenderStyle style = {};
+        style.m_FaceColor[0] = r;
+        style.m_FaceColor[1] = g;
+        style.m_FaceColor[2] = b;
+        style.m_FaceColor[3] = a;
+        style.m_Flags = TEXT_RENDER_STYLE_FACE_COLOR;
+
+        return style;
+    }
+
+    static void SetDefaultNamedStyles(HFontCollection collection)
+    {
+        FontCollectionSetNamedStyle(collection, STYLE_LINK, MakeColorStyle(0.10f, 0.45f, 0.90f, 1.0f));
+        FontCollectionSetNamedStyle(collection, STYLE_LINK_HOVER, MakeColorStyle(0.30f, 0.65f, 1.00f, 1.0f));
+        FontCollectionSetNamedStyle(collection, STYLE_LINK_ACTIVE, MakeColorStyle(0.05f, 0.30f, 0.70f, 1.0f));
+
+        TextNamedStyleDecoration link_decoration = {};
+        link_decoration.m_Flags = TEXT_RESOLVED_DECORATION_UNDERLINE;
+        link_decoration.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
+        FontCollectionSetNamedStyleDecoration(collection, STYLE_LINK, link_decoration);
+    }
 
     template<typename T>
     static void SwapVar(T& a, T& b)
@@ -313,7 +340,6 @@ namespace dmGameSystem
     {
         // If it's empty, we don't have a glyph bank
         return ddf->m_GlyphBank[0] == 0;
-
     }
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
@@ -343,7 +369,6 @@ namespace dmGameSystem
             {
                 return result;
             }
-
         }
         return dmResource::RESULT_OK;
     }
@@ -392,6 +417,8 @@ namespace dmGameSystem
         params->m_NameHash           = dmHashString64(filename);
         params->m_ShadowX            = ddf->m_ShadowX;
         params->m_ShadowY            = ddf->m_ShadowY;
+        params->m_ShadowBlur         = ddf->m_ShadowBlur;
+        params->m_OutlineWidth       = ddf->m_OutlineWidth;
         params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
         params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
         params->m_Alpha              = ddf->m_Alpha;
@@ -405,10 +432,9 @@ namespace dmGameSystem
         params->m_IsDynamic          = 0;
     }
 
-    static void GetMaxCellSize(HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
+    static float GetMaxCellWidth(HFont hfont, float scale, const char* text)
     {
-        *cell_width = 0;
-        *cell_height = 0;
+        float cell_width = 0;
 
         FontGlyphOptions options;
 
@@ -424,15 +450,15 @@ namespace dmGameSystem
             FontResult r = FontGetGlyph(hfont, codepoint, &options, &glyph);
             if (r == FONT_RESULT_OK)
             {
-                *cell_width = dmMath::Max(*cell_width, glyph.m_Width);
-                *cell_height = dmMath::Max(*cell_height, glyph.m_Height);
+                cell_width = dmMath::Max(cell_width, glyph.m_Width);
             }
         }
+        return cell_width;
     }
 
     static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, HFont hfont, dmRender::FontMapParams* params)
     {
-        if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
+        if (ddf->m_ShadowBlur > 0.0f) {
             params->m_GlyphChannels = 3;
         }
         else {
@@ -486,12 +512,14 @@ namespace dmGameSystem
         if (!all_chars && has_chars)
         {
             // We can make a guesstimate of the needed cache and cell sizes
-            float cell_width, cell_height;
-            GetMaxCellSize(hfont, scale, ddf->m_Characters, &cell_width, &cell_height);
+            float cell_width = GetMaxCellWidth(hfont, scale, ddf->m_Characters);
+            int32_t cell_ascent = (int32_t)ceilf(params->m_MaxAscent) + (int32_t)ceilf(padding);
+            int32_t cell_descent = (int32_t)ceilf(params->m_MaxDescent) + (int32_t)ceilf(padding);
 
+            // The cell and its baseline must use the same padded vertical extents.
             params->m_CacheCellWidth     = (uint32_t)ceilf(cell_width) + 2 * ceilf(padding);
-            params->m_CacheCellHeight    = (uint32_t)ceilf(cell_height) + 2 * ceilf(padding);
-            params->m_CacheCellMaxAscent = (uint32_t)ceilf(params->m_MaxAscent) + ceilf(padding);
+            params->m_CacheCellHeight    = (uint32_t)dmMath::Max(1, cell_ascent + cell_descent);
+            params->m_CacheCellMaxAscent = cell_ascent;
 
             if (dynamic_cache_size)
             {
@@ -516,7 +544,7 @@ namespace dmGameSystem
         }
     }
 
-    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmRenderDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
+    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmFontDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
     {
         params->m_GlyphChannels      = glyph_bank->m_GlyphChannels;
         params->m_CacheWidth         = glyph_bank->m_CacheWidth;
@@ -606,11 +634,12 @@ namespace dmGameSystem
         else
         {
             hfont = dmGameSystem::GetFont(resource->m_GlyphBankResource);
-            dmRenderDDF::GlyphBank* glyph_bank = GetGlyphBank(resource->m_GlyphBankResource);
+            dmFontDDF::GlyphBank* glyph_bank = GetGlyphBank(resource->m_GlyphBankResource);
             SetupParamsForGlyphBank(ddf, path, glyph_bank, &params);
         }
 
         HFontCollection font_collection = FontCollectionCreate();
+        SetDefaultNamedStyles(font_collection);
         FontCollectionAddFont(font_collection, hfont);
 
         params.m_FontCollection = font_collection;
@@ -980,9 +1009,9 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    // static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font)
+    // static void PrintGlyph(uint32_t codepoint, dmFontDDF::GlyphBank::Glyph* glyph, FontResource* font)
     // {
-    //     dmRenderDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
+    //     dmFontDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
 
     //     printf("    ");
     //     printf("c: '%c' 0x%0X w: %.2f    ", codepoint, codepoint, glyph->m_Width);
@@ -1004,7 +1033,7 @@ namespace dmGameSystem
     //     printf("\n");
     // }
 
-    // static void PrintGlyphs(FontResource* font, const uint32_t* key, dmRenderDDF::GlyphBank::Glyph** pglyph)
+    // static void PrintGlyphs(FontResource* font, const uint32_t* key, dmFontDDF::GlyphBank::Glyph** pglyph)
     // {
     //     PrintGlyph(*key, *pglyph, font);
     // }

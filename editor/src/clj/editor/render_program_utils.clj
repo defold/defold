@@ -14,7 +14,8 @@
 
 (ns editor.render-program-utils
   (:require [editor.protobuf :as protobuf]
-            [editor.protobuf-forms :as protobuf-forms])
+            [editor.protobuf-forms :as protobuf-forms]
+            [util.coll :as coll])
   (:import [com.dynamo.render.proto Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$Sampler Material$MaterialDesc$WrapMode]))
 
 (set! *warn-on-reflection* true)
@@ -26,18 +27,24 @@
    :panel-key {:path [:name]
                :type :string
                :default "new_constant"}
-   :panel-form
-   {:sections
-    [{:fields
-      (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-        [{:path [:type]
-          :localization-key (str localization-key ".type")
-          :type :choicebox
-          :options (protobuf-forms/make-options constant-values)
-          :default (ffirst constant-values)}
-         {:path [:value]
-          :localization-key (str localization-key ".value")
-          :type :vec4}])}]}})
+   :panel-form-fn
+   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)
+         default-constant-type (ffirst constant-values)
+         constant-options (vec (sort-by first (protobuf-forms/make-options constant-values)))]
+     (fn panel-form-fn [selected-constant]
+       {:sections
+        [{:fields
+          [{:path [:type]
+            :localization-key (str localization-key ".type")
+            :type :choicebox
+            :options constant-options
+            :default default-constant-type}
+           {:path [:value]
+            :localization-key (str localization-key ".value")
+            :type (case (:type selected-constant default-constant-type)
+                    :constant-type-user-color :color
+                    :constant-type-user-matrix4 :mat4
+                    :vec4)}]}]}))})
 
 (defn gen-form-data-samplers [localization-key path-key]
   {:path [path-key]
@@ -59,6 +66,11 @@
           :default (ffirst wrap-options)}
          {:path [:wrap-v]
           :localization-key (str localization-key ".wrap-v")
+          :type :choicebox
+          :options (protobuf-forms/make-options wrap-options)
+          :default (ffirst wrap-options)}
+         {:path [:wrap-w]
+          :localization-key (str localization-key ".wrap-w")
           :type :choicebox
           :options (protobuf-forms/make-options wrap-options)
           :default (ffirst wrap-options)}
@@ -112,25 +124,49 @@
     :constant-type-viewproj-inverse false
     :constant-type-worldview-inverse false
     :constant-type-worldviewproj-inverse false
-    :constant-type-user-matrix4 true))
+    :constant-type-user-matrix4 true
+    :constant-type-user-color true))
 
 (defn sanitize-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (if (editable-constant-type? (:type constant))
-    (update constant :value #(or % [protobuf/vector4-zero]))
-    (dissoc constant :value)))
+  (if-not (editable-constant-type? (:type constant))
+    (dissoc constant :value)
+    (let [default-value (if (= :constant-type-user-matrix4 (:type constant))
+                          (vec (repeat 4 protobuf/vector4-zero))
+                          [protobuf/vector4-zero])]
+      (update constant :value #(or % default-value)))))
 
 (defn- constant->editable-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (if (editable-constant-type? (:type constant))
-    (protobuf/sanitize constant :value hack-downgrade-constant-value)
-    (assoc constant :value protobuf/vector4-zero)))
+  (let [constant-type (:type constant)]
+    (cond
+      (not (editable-constant-type? constant-type))
+      (assoc constant :value protobuf/vector4-zero)
+
+      (= :constant-type-user-matrix4 constant-type)
+      (protobuf/sanitize constant :value #(into [] cat (coll/resize % 4 protobuf/vector4-zero)))
+
+      :else
+      (protobuf/sanitize constant :value hack-downgrade-constant-value))))
 
 (defn- editable-constant->constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (if (editable-constant-type? (:type constant))
-    (protobuf/sanitize constant :value hack-upgrade-constant-value)
-    (dissoc constant :value)))
+  (let [constant-type (:type constant)]
+    (cond
+      (not (editable-constant-type? constant-type))
+      (dissoc constant :value)
+
+      (= :constant-type-user-matrix4 constant-type)
+      (protobuf/sanitize constant :value #(into [] (partition-all 4) %))
+
+      :else
+      (protobuf/sanitize constant :value hack-upgrade-constant-value))))
+
+(defn coerce-constant [constant]
+  {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
+  (update constant :value coll/resize
+          (if (= :constant-type-user-matrix4 (:type constant)) 16 4)
+          protobuf/float-zero))
 
 (def constants->editable-constants (partial mapv constant->editable-constant))
 

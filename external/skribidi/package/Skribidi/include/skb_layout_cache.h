@@ -30,13 +30,13 @@ typedef struct skb_layout_cache_t skb_layout_cache_t;
  * Creates a new layout cache.
  * @return newly created cache.
  */
-skb_layout_cache_t* skb_layout_cache_create(void);
+SKB_API skb_layout_cache_t* skb_layout_cache_create(void);
 
 /**
  * Destroy a layout cache.
  * @param cache pointer to layout cache to destroy.
  */
-void skb_layout_cache_destroy(skb_layout_cache_t* cache);
+SKB_API void skb_layout_cache_destroy(skb_layout_cache_t* cache);
 
 /**
  * Layouts specified text, or returns existing layout from cache if one exists.
@@ -45,13 +45,12 @@ void skb_layout_cache_destroy(skb_layout_cache_t* cache);
  * @param params layout parameters to use for the layout.
  * @param text text to layout in utf-8 encoding.
  * @param text_count length of the text, or -1 if null terminated.
- * @param attributes text attributes to
+ * @param attributes attributes to apply to the text.
  * @return const pointer to the requested layout.
  */
-const skb_layout_t* skb_layout_cache_get_utf8(
+SKB_API const skb_layout_t* skb_layout_cache_get_utf8(
 	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc,
-	const skb_layout_params_t* params, const char* text, int32_t text_count,
-	const skb_attribute_t* attributes, int32_t attributes_count);
+	const skb_layout_params_t* params, const char* text, int32_t text_count, skb_attribute_set_t attributes);
 
 /**
  * Layouts specified text, or returns existing layout from cache if one exists.
@@ -60,13 +59,12 @@ const skb_layout_t* skb_layout_cache_get_utf8(
  * @param params layout parameters to use for the layout.
  * @param text text to layout in utf-32 encoding.
  * @param text_count length of the text, or -1 if null terminated.
- * @param attributes text attributes to use.
+ * @param attributes attributes to apply to the text.
  * @return const pointer to the requested layout.
  */
-const skb_layout_t* skb_layout_cache_get_utf32(
+SKB_API const skb_layout_t* skb_layout_cache_get_utf32(
 	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc,
-	const skb_layout_params_t* params, const uint32_t* text, int32_t text_count,
-	const skb_attribute_t* attributes, int32_t attributes_count);
+	const skb_layout_params_t* params, const uint32_t* text, int32_t text_count, skb_attribute_set_t attributes);
 
 /**
  * Layouts specified text, or returns existing layout from cache if one exists.
@@ -77,22 +75,9 @@ const skb_layout_t* skb_layout_cache_get_utf32(
  * @param runs_count number of runs in runs array.
  * @return const pointer to the requested layout.
  */
-const skb_layout_t* skb_layout_cache_get_from_runs_utf8(
+SKB_API const skb_layout_t* skb_layout_cache_get_from_runs(
 	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc,
-	const skb_layout_params_t* params, const skb_text_run_utf8_t* runs, int32_t runs_count);
-
-/**
- * Layouts specified text, or returns existing layout from cache if one exists.
- * @param cache layout cache to use.
- * @param temp_alloc temp allocator used to during creation of the layout.
- * @param params layout parameters to use for the layout.
- * @param runs array of utf-32 text runs to layout.
- * @param runs_count number of runs in runs array.
- * @return const pointer to the requested layout.
- */
-const skb_layout_t* skb_layout_cache_get_from_runs_utf32(
-	skb_layout_cache_t* cache, skb_temp_alloc_t* temp_alloc,
-	const skb_layout_params_t* params, const skb_text_run_utf32_t* runs, int32_t runs_count);
+	const skb_layout_params_t* params, const skb_content_run_t* runs, int32_t runs_count);
 
 /**
  * Compects the layout cache by evicting old items from the cache.
@@ -100,7 +85,7 @@ const skb_layout_t* skb_layout_cache_get_from_runs_utf32(
  * @param cache layout cache to compect
  * @return true if layouts were evicted.
  */
-bool skb_layout_cache_compact(skb_layout_cache_t* cache);
+SKB_API bool skb_layout_cache_compact(skb_layout_cache_t* cache);
 
 /** @} */
 

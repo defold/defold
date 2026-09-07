@@ -42,6 +42,21 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Asynchronous request status values
+     * @enum
+     * @name sys.REQUEST_STATUS
+     * @member sys.REQUEST_STATUS_ERROR_IO_ERROR An I/O error occurred.
+     * @member sys.REQUEST_STATUS_ERROR_NOT_FOUND The requested resource was not found.
+     * @member sys.REQUEST_STATUS_FINISHED The request completed successfully.
+     */
+
+    /*# Asynchronous buffer-load result
+     * @struct
+     * @name sys.load_buffer_result
+     * @member status [type:sys.REQUEST_STATUS] Request status.
+     * @member buffer? [type:buffer_data] Loaded payload for a successful request.
+     */
+
     enum RequestStatus
     {
         REQUEST_STATUS_ERROR_IO_ERROR  = -2,
@@ -223,7 +238,7 @@ namespace dmGameSystem
      *
      * @name sys.load_buffer
      * @param path [type:string] the path to load the buffer from
-     * @return buffer [type:buffer] the buffer with data
+     * @return buffer [type:buffer_data] the buffer with data
      * @examples
      *
      * Load binary data from a custom project resource:
@@ -287,32 +302,21 @@ namespace dmGameSystem
      * For example "main/data/,assets/level_data.json".
      *
      * Note that issuing multiple requests of the same resource will yield
-     * individual buffers per request. There is no implic caching of the buffers
+     * individual buffers per request. There is no implicit caching of the buffers
      * based on request path.
      *
      * @name sys.load_buffer_async
      * @param path [type:string] the path to load the buffer from
-     * @param status_callback [type:function(self, request_id, result)] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
-     *
-     * `status`
-     * : [type:number] The status of the request, supported values are:
-     *
-     * - `resource.REQUEST_STATUS_FINISHED`
-     * - `resource.REQUEST_STATUS_ERROR_IO_ERROR`
-     * - `resource.REQUEST_STATUS_ERROR_NOT_FOUND`
-     *
-     * `buffer`
-     * : [type:buffer] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
-     *
-     * @return handle [type:number] a handle to the request
+     * @param status_callback [type:fun(self:script_instance, request_id:integer, result:sys.load_buffer_result)] callback invoked when the request completes or fails
+     * @return handle [type:integer] a handle to the request
      * @examples
      *
      * Load binary data from a custom project resource and update a texture resource:
      *
      * ```lua
      * function my_callback(self, request_id, result)
-     *   if result.status == resource.REQUEST_STATUS_FINISHED then
-     *      resource.set_texture("/my_texture", { ... }, result.buf)
+     *   if result.status == sys.REQUEST_STATUS_FINISHED then
+     *      resource.set_texture("/my_texture", { ... }, result.buffer)
      *   end
      * end
      *
@@ -325,18 +329,16 @@ namespace dmGameSystem
      * function my_callback(self, request_id, result)
      *   if result.status ~= sys.REQUEST_STATUS_FINISHED then
      *     -- uh oh! File could not be found, do something graceful
-     *   elseif request_id == self.first_asset then
+     *   elseif request_id == self.first_request then
      *     -- result.buffer contains data from my_level_asset.bin
-     *   elif request_id == self.second_asset then
+     *   elseif request_id == self.second_request then
      *     -- result.buffer contains data from 'my_level.bin'
      *   end
      * end
      *
      * function init(self)
-     *   self.first_asset = hash("folder_next_to_binary/my_level_asset.bin")
-     *   self.second_asset = hash("/some_absolute_path/my_level.bin")
-     *   self.first_request = sys.load_buffer_async(self.first_asset, my_callback)
-     *   self.second_request = sys.load_buffer_async(self.second_asset, my_callback)
+     *   self.first_request = sys.load_buffer_async("folder_next_to_binary/my_level_asset.bin", my_callback)
+     *   self.second_request = sys.load_buffer_async("/some_absolute_path/my_level.bin", my_callback)
      * end
      * ```
      */
@@ -393,21 +395,6 @@ namespace dmGameSystem
         {"load_buffer_async", Sys_LoadBufferAsync},
         {0, 0}
     };
-
-    /*# an asyncronous request has finished successfully
-     * @name sys.REQUEST_STATUS_FINISHED
-     * @constant
-     */
-
-    /*# an asyncronous request is unable to read the resource
-     * @name sys.REQUEST_STATUS_ERROR_IO_ERROR
-     * @constant
-     */
-
-    /*# an asyncronous request is unable to locate the resource
-     * @name sys.REQUEST_STATUS_ERROR_NOT_FOUND
-     * @constant
-     */
 
     void ScriptSysGameSysRegister(const ScriptLibContext& context)
     {

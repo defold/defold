@@ -58,26 +58,26 @@ typedef enum {
  * @param config pointer to rasterizer configuration.
  * @return pointer to the created rasterizer.
  */
-skb_rasterizer_t* skb_rasterizer_create(skb_rasterizer_config_t* config);
+SKB_API skb_rasterizer_t* skb_rasterizer_create(skb_rasterizer_config_t* config);
 
 /**
  * Returns default values for the rasterizer config. Can be used if you only want to modify a specific value.
  * @return default config.
  */
-skb_rasterizer_config_t skb_rasterizer_get_default_config(void);
+SKB_API skb_rasterizer_config_t skb_rasterizer_get_default_config(void);
 
 /**
  * Returns the config the rasterizer was initialized with.
  * @param rasterizer pointer to the rasterizer
  * @return config for the specified rasterizer.
  */
-skb_rasterizer_config_t skb_rasterizer_get_config(const skb_rasterizer_t* rasterizer);
+SKB_API skb_rasterizer_config_t skb_rasterizer_get_config(const skb_rasterizer_t* rasterizer);
 
 /**
  * Destroys a rasterizer previously created using skb_rasterizer_create().
  * @param rasterizer pointer to the rasterizer.
  */
-void skb_rasterizer_destroy(skb_rasterizer_t* rasterizer);
+SKB_API void skb_rasterizer_destroy(skb_rasterizer_t* rasterizer);
 
 /**
  * Calculates the dimensions required to rasterize a specific glyph at spcified size.
@@ -88,7 +88,7 @@ void skb_rasterizer_destroy(skb_rasterizer_t* rasterizer);
  * @param padding padding to leave around the glyph.
  * @return rect describing size and offset required to rasterize the glyph.
  */
-skb_rect2i_t skb_rasterizer_get_glyph_dimensions(uint32_t glyph_id, const skb_font_t* font, float font_size, int32_t padding);
+SKB_API skb_rect2i_t skb_rasterizer_get_glyph_dimensions(uint32_t glyph_id, const skb_font_t* font, float font_size, int32_t padding);
 
 /**
  * Rasterizes a glyph as alpha mask.
@@ -104,7 +104,7 @@ skb_rect2i_t skb_rasterizer_get_glyph_dimensions(uint32_t glyph_id, const skb_fo
  * @param target target image to rasterize to. The image must be 1 byte-per-pixel.
  * @return true of the rasterization succeeded.
  */
-bool skb_rasterizer_draw_alpha_glyph(
+SKB_API bool skb_rasterizer_draw_alpha_glyph(
 	skb_rasterizer_t* rasterizer, skb_temp_alloc_t* temp_alloc,
 	uint32_t glyph_id, const skb_font_t* font, float font_size, skb_rasterize_alpha_mode_t alpha_mode,
 	float offset_x, float offset_y, skb_image_t* target);
@@ -123,7 +123,7 @@ bool skb_rasterizer_draw_alpha_glyph(
  * @param target target image to rasterize to. The image must be 4 bytes-per-pixel.
  * @return true of the rasterization succeeded.
  */
-bool skb_rasterizer_draw_color_glyph(
+SKB_API bool skb_rasterizer_draw_color_glyph(
 	skb_rasterizer_t* rasterizer, skb_temp_alloc_t* temp_alloc,
 	uint32_t glyph_id, const skb_font_t* font, float font_size, skb_rasterize_alpha_mode_t alpha_mode,
 	int32_t offset_x, int32_t offset_y, skb_image_t* target);
@@ -132,11 +132,11 @@ bool skb_rasterizer_draw_color_glyph(
  * Calculates the dimensions required to rasterize a specific icon at spcified size.
  * The width and height of the returned rectangle defines the image size, and origin defines the offset the icon should be rasterized at.
  * @param icon icon to rasterize.
- * @param icon_scale icon scale (see skb_rasterizer_calc_proportional_icon_scale()).
+ * @param icon_scale icon scale.
  * @param padding padding to leave around the icon.
  * @return rect describing size and offset required to rasterize the icon.
  */
-skb_rect2i_t skb_rasterizer_get_icon_dimensions(const skb_icon_t* icon, skb_vec2_t icon_scale, int32_t padding);
+SKB_API skb_rect2i_t skb_rasterizer_get_icon_dimensions(const skb_icon_t* icon, skb_vec2_t icon_scale, int32_t padding);
 
 /**
  * Rasterizes an icon as alpha mask.
@@ -151,7 +151,7 @@ skb_rect2i_t skb_rasterizer_get_icon_dimensions(const skb_icon_t* icon, skb_vec2
  * @param target target image to draw to. The image must be 4 bytes-per-pixel.
  * @return true of the rasterization succeeded.
  */
-bool skb_rasterizer_draw_alpha_icon(
+SKB_API bool skb_rasterizer_draw_alpha_icon(
 	skb_rasterizer_t* rasterizer, skb_temp_alloc_t* temp_alloc,
 	const skb_icon_t* icon, skb_vec2_t icon_scale, skb_rasterize_alpha_mode_t alpha_mode,
 	int32_t offset_x, int32_t offset_y, skb_image_t* target);
@@ -169,7 +169,7 @@ bool skb_rasterizer_draw_alpha_icon(
  * @param target target image to draw to. The image must be 4 bytes-per-pixel.
  * @return true of the rasterization succeeded.
  */
-bool skb_rasterizer_draw_color_icon(
+SKB_API bool skb_rasterizer_draw_color_icon(
 	skb_rasterizer_t* rasterizer, skb_temp_alloc_t* temp_alloc,
 	const skb_icon_t* icon, skb_vec2_t icon_scale, skb_rasterize_alpha_mode_t alpha_mode,
 	int32_t offset_x, int32_t offset_y, skb_image_t* target);
@@ -182,7 +182,7 @@ bool skb_rasterizer_draw_color_icon(
  * @param thickness thickness of the decoration line.
  * @return size of the pattern.
  */
-skb_vec2_t skb_rasterizer_get_decoration_pattern_size(skb_decoration_style_t style, float thickness);
+SKB_API skb_vec2_t skb_rasterizer_get_decoration_pattern_size(skb_decoration_style_t style, float thickness);
 
 /**
  * Calculates the dimensions of a canvas needed to rasterize specified pattern.
@@ -191,7 +191,7 @@ skb_vec2_t skb_rasterizer_get_decoration_pattern_size(skb_decoration_style_t sty
  * @param padding vertical padding to leave around the pattern. Note: horizontal padding is always 1, so that the pattern can be repeated horizontally.
  * @return rect describing size and offset required to rasterize the icon.
  */
-skb_rect2i_t skb_rasterizer_get_decoration_pattern_dimensions(skb_decoration_style_t style, float thickness, int32_t padding);
+SKB_API skb_rect2i_t skb_rasterizer_get_decoration_pattern_dimensions(skb_decoration_style_t style, float thickness, int32_t padding);
 
 /**
  * Rasterizes specified repeatable decoration pattern as alpha image.
@@ -206,7 +206,7 @@ skb_rect2i_t skb_rasterizer_get_decoration_pattern_dimensions(skb_decoration_sty
  * @param target target image to draw to. The image must be 1 bytes-per-pixel.
  * @return true of the rasterization succeeded.
  */
-bool skb_rasterizer_draw_decoration_pattern(
+SKB_API bool skb_rasterizer_draw_decoration_pattern(
 	skb_rasterizer_t* rasterizer, skb_temp_alloc_t* temp_alloc,
 	skb_decoration_style_t style, float thickness, skb_rasterize_alpha_mode_t alpha_mode,
 	int32_t offset_x, int32_t offset_y, skb_image_t* target);

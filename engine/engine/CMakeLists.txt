@@ -555,11 +555,6 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
       \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\"")
-  list(LENGTH ENGINE_GRAPHICS_SYMBOLS ENGINE_GRAPHICS_SYMBOLS_COUNT)
-  if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS AND ENGINE_GRAPHICS_SYMBOLS_COUNT GREATER 1)
-    string(APPEND ENGINE_ANDROID_JARS_INSTALL_CODE "
-      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/vkquality.jar\"")
-  endif()
 
   install(CODE "
     set(_dex_dir \"\${CMAKE_INSTALL_PREFIX}/share/java/classes-dex\")

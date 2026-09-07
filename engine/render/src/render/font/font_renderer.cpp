@@ -33,6 +33,7 @@
 #include <dmsdk/font/text_layout.h>
 #include <font_render.h>
 #include <font/render/glyph_vertex.h>
+#include <layout_vertex.h>
 #include <font/text_layout.h>
 
 DM_PROPERTY_EXTERN(rmtp_Render);
@@ -44,6 +45,44 @@ namespace dmRender
     using namespace dmVMath;
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+
+    static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
+    {
+        static uint8_t decoration_pixels[4][4] = {
+            { 255, 0, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 255, 0 }, { 255, 255, 255, 255 }
+        };
+        static FontGlyph decoration_glyphs[4] = {};
+        const uint32_t channel_index = dmMath::Clamp((uint32_t)font_map->m_CacheChannels, 1U, 4U) - 1;
+        FontGlyph& glyph = decoration_glyphs[channel_index];
+
+        if (glyph.m_Bitmap.m_Data == 0)
+        {
+            glyph.m_Bitmap.m_Data = decoration_pixels[channel_index];
+            glyph.m_Bitmap.m_DataSize = channel_index + 1;
+            glyph.m_Bitmap.m_Width = 1;
+            glyph.m_Bitmap.m_Height = 1;
+            glyph.m_Bitmap.m_Channels = channel_index + 1;
+            glyph.m_Width = glyph.m_Height = glyph.m_Advance = glyph.m_Ascent = 1.0f;
+        }
+
+        const uint64_t key = 0xfffffffffffffff0ULL | (channel_index + 1);
+        CacheGlyph* cached = GetFromCache(font_map, key, frame);
+
+        return cached ? cached : AddGlyphToCache(font_map, frame, key, &glyph, 0);
+    }
+
+    static uint32_t GetDecorationQuadCount(HTextLayout layout)
+    {
+        const TextDecoration* decorations = TextLayoutGetDecorations(layout);
+        uint32_t count = 0;
+
+        for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+        {
+            count += FontGetDecorationQuadCount(layout, decorations[i]);
+        }
+
+        return count;
+    }
 
     static void ReleaseTextEntries(TextContext& text_context)
     {
@@ -198,10 +237,10 @@ namespace dmRender
         return dmMath::Max(local_scale, min_sdf_scale);
     }
 
-    static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics)
+    static dmVMath::Point3 CalcCenterPoint(const TextEntry& te, const TextMetrics& metrics)
     {
         float x_offset = OffsetX(te.m_Align, te.m_Width);
-        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, metrics.m_LineCount);
+        float layout_y = OffsetLayoutY(te.m_VAlign, te.m_Height, metrics.m_Height);
 
         // find X,Y local coordinate of text center
         float center_x = x_offset; // start from the X position of the pivot point
@@ -215,7 +254,7 @@ namespace dmRender
             break;
             // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
         }
-        float center_y = y_offset + font_map->m_MaxAscent - metrics.m_Height/2; // 'y_offset' to move to the baseline of first letter in text. +'MaAscent' to get to the top of the text. -layout_height to get to the center.
+        float center_y = layout_y + metrics.m_Height * 0.5f;
 
         dmVMath::Point3 center_point(center_x, center_y, 0); // fix at Z 0
         return center_point;
@@ -285,8 +324,9 @@ namespace dmRender
         te.m_Tail = -1;
 
         te.m_FaceColor = dmGraphics::PackRGBA(Vector4(params.m_FaceColor.getXYZ(), params.m_FaceColor.getW() * font_map->m_Alpha));
-        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), params.m_OutlineColor.getW() * font_map->m_OutlineAlpha));
-        te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(params.m_ShadowColor.getXYZ(), params.m_ShadowColor.getW() * font_map->m_ShadowAlpha));
+        const float outline_alpha = params.m_OutlineColor.getW() * (text_layout && text_layout->m_UseRichText ? 1.0f : font_map->m_OutlineAlpha);
+        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), outline_alpha));
+        te.m_ShadowColor = dmGraphics::PackRGBA(params.m_ShadowColor);
         te.m_RenderOrder = params.m_RenderOrder;
         te.m_Width = params.m_Width;
         te.m_Height = params.m_Height;
@@ -323,7 +363,7 @@ namespace dmRender
 
         // find center and radius for frustum culling
         // TODO: Calculate proper AABB
-        dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
+        dmVMath::Point3 centerpoint_local = CalcCenterPoint(te, metrics);
         dmVMath::Point3 cornerpoint_local(centerpoint_local.getX() + metrics.m_Width/2, centerpoint_local.getY() + metrics.m_Height/2, centerpoint_local.getZ());
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
@@ -338,141 +378,120 @@ namespace dmRender
         text_context->m_TextEntries.Push(te);
     }
 
+    struct LayoutGlyphContext
+    {
+        HFontMap m_FontMap;
+        uint32_t m_Frame;
+    };
+
+    static bool ResolveLayoutGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* output)
+    {
+        LayoutGlyphContext* glyph_context = (LayoutGlyphContext*)context;
+        uint32_t glyph_index = text_glyph.m_GlyphIndex;
+        FontGlyph* glyph = 0;
+        FontResult result = dmRender::GetOrCreateGlyphByIndex(glyph_context->m_FontMap, text_glyph.m_Font, glyph_index, &glyph);
+
+        if (result != FONT_RESULT_OK)
+        {
+            glyph_index = FontGetGlyphIndex(text_glyph.m_Font, FALLBACK_CODEPOINT);
+            result = dmRender::GetOrCreateGlyphByIndex(glyph_context->m_FontMap, text_glyph.m_Font, glyph_index, &glyph);
+        }
+
+        if (result != FONT_RESULT_OK || !glyph || glyph->m_Bitmap.m_Width == 0)
+        {
+            output->m_Glyph = 0;
+            output->m_CellX = 0;
+            output->m_CellY = 0;
+
+            return true;
+        }
+
+        const uint64_t glyph_key = dmRender::MakeGlyphIndexKey(text_glyph.m_Font, glyph_index);
+        CacheGlyph* cached = GetFromCache(glyph_context->m_FontMap, glyph_key, glyph_context->m_Frame);
+
+        if (!cached)
+        {
+            const int32_t cell_offset_y = glyph_context->m_FontMap->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+            cached = AddGlyphToCache(glyph_context->m_FontMap, glyph_context->m_Frame, glyph_key, glyph, cell_offset_y);
+        }
+
+        output->m_Glyph = glyph;
+        output->m_CellX = cached ? cached->m_X : 0;
+        output->m_CellY = cached ? cached->m_Y : 0;
+
+        return true;
+    }
+
     static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t frame, HTextLayout layout, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
     {
         assert(layout->m_FontCollection == GetFontCollection(font_map));
+        TextLayoutRefreshObjectStyles(layout);
 
-        const float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
-        const float leading = line_height * te.m_Leading;
         const Vector4 face_color = dmGraphics::UnpackRGBA(te.m_FaceColor);
-        const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
-        const Vector4 shadow_color = dmGraphics::UnpackRGBA(te.m_ShadowColor);
-        const float sdf_edge_value = 0.75f;
-        const float sdf_outline = font_map->m_SdfOutline;
-        const float sdf_shadow = font_map->m_SdfShadow;
-        const float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
-        const bool metrics_from_ttf = font_map->m_IsDynamic;
+        LayoutGlyphContext glyph_context = { font_map, frame };
+        CacheGlyph* decoration_cache = GetDecorationQuadCount(layout) > 0 ? GetDecorationCacheGlyph(font_map, frame) : 0;
 
-        const uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
-        TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-        const uint32_t line_count = TextLayoutGetLineCount(layout);
-        TextLine* lines = TextLayoutGetLines(layout);
-        uint32_t visible_glyph_count = glyph_count;
+        FontLayoutVertexConfig config = {};
+        config.m_Layout = layout;
+        config.m_ResolveGlyph = ResolveLayoutGlyph;
+        config.m_ResolveGlyphContext = &glyph_context;
+        config.m_Transform = te.m_Transform;
+        config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
+        config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
+        config.m_FaceColor[0] = face_color.getX();
+        config.m_FaceColor[1] = face_color.getY();
+        config.m_FaceColor[2] = face_color.getZ();
+        config.m_FaceColor[3] = face_color.getW();
+        config.m_Width = te.m_Width;
+        config.m_Height = te.m_Height;
+        config.m_RecipAtlasWidth = recip_w;
+        config.m_RecipAtlasHeight = recip_h;
+        config.m_DecorationU = decoration_cache ? (decoration_cache->m_X + 0.5f) * recip_w : 0.0f;
+        config.m_DecorationV = decoration_cache ? (decoration_cache->m_Y + 0.5f) * recip_h : 0.0f;
+        config.m_SdfEdge = 0.75f;
+        config.m_SdfOutline = font_map->m_SdfOutline;
+        config.m_SdfSmoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
+        config.m_SdfShadow = font_map->m_SdfShadow;
+        config.m_SdfSpread = font_map->m_SdfSpread;
+        config.m_OutlineWidth = font_map->m_OutlineWidth;
+        config.m_ShadowX = font_map->m_ShadowX;
+        config.m_ShadowY = font_map->m_ShadowY;
+        config.m_ShadowBlur = font_map->m_ShadowBlur;
+        config.m_BaseShadowAlpha = font_map->m_ShadowAlpha;
+        config.m_MonospacePadding = font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f;
+        config.m_CacheCellMaxAscent = font_map->m_CacheCellMaxAscent;
+        config.m_CacheCellPadding = font_map->m_CacheCellPadding;
+        config.m_MaxVertexCount = max_vertices;
+        config.m_Align = te.m_Align;
+        config.m_VerticalAlign = te.m_VAlign;
+        config.m_BaseLayerMask = font_map->m_LayerMask;
+        config.m_MetricsFromTtf = font_map->m_IsDynamic;
+        config.m_IsSdf = font_map->m_IsSdf;
+        // Authored BMFont atlases are RGBA and use a shader without separate outline or shadow layers.
+        config.m_IsBMFont = !font_map->m_IsSdf && font_map->m_CacheChannels == 4;
+        config.m_ShadowUsesFaceCoverage = !font_map->m_IsSdf && !config.m_IsBMFont && font_map->m_CacheChannels == 1;
+        config.m_ShadowIncludesOutline = !font_map->m_IsSdf && !config.m_IsBMFont &&
+                                         font_map->m_CacheChannels == 3 && font_map->m_OutlineWidth > 0.0f &&
+                                         font_map->m_OutlineAlpha > 0.0f &&
+                                         (font_map->m_ShadowAlpha > 0.0f || font_map->m_ShadowBlur > 0.0f);
+        config.m_RenderDecorations = decoration_cache != 0;
+        config.m_RenderObjectOutlines = false;
+        config.m_ResolveGlyphsForMetrics = false;
 
-        const uint32_t vertices_per_quad = 6;
-        uint32_t vertex_index = 0;
-        uint32_t layer_count = 1;
-        const uint8_t layer_mask = font_map->m_LayerMask;
-        if ((layer_mask & FACE) == 0)
+        FontLayoutVertexMetrics metrics;
+
+        if (!FontGetLayoutVertexMetrics(config, &metrics))
         {
             dmLogError("Encountered invalid layer mask when rendering font!");
+
             return 0;
         }
-
-        layer_count += (layer_mask & OUTLINE) != 0;
-        layer_count += (layer_mask & SHADOW) != 0;
-        if (layer_count > 1)
+        if (metrics.m_Truncated)
         {
-            for (uint32_t i = 0; i < glyph_count; ++i)
-            {
-                if (dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint))
-                    --visible_glyph_count;
-            }
+            dmLogWarning("Character buffer exceeded (size: %u), increase the \"graphics.max_characters\" property in your game.project file.", max_vertices / 6);
         }
-        const uint32_t max_visible_glyph_count = max_vertices / (vertices_per_quad * layer_count);
-        const uint32_t output_visible_glyph_count = dmMath::Min(visible_glyph_count, max_visible_glyph_count);
 
-        const uint32_t align = te.m_Align;
-        float x_offset = OffsetX(align, te.m_Width);
-        if (font_map->m_IsMonospaced)
-            x_offset -= font_map->m_Padding * 0.5f;
-        const float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
-
-        for (uint32_t line_index = 0; line_index < line_count; ++line_index)
-        {
-            TextLine& line = lines[line_index];
-            if (line.m_Length == 0)
-                continue;
-
-            const int32_t first_x = glyphs[line.m_Index].m_X;
-            const int32_t first_y = glyphs[line.m_Index].m_Y;
-            const float line_start_x = x_offset - OffsetX(align, line.m_Width);
-            const float line_start_y = y_offset - line_index * leading;
-            const uint32_t glyph_end = line.m_Index + line.m_Length;
-            for (uint32_t glyph_i = line.m_Index; glyph_i < glyph_end; ++glyph_i)
-            {
-                TextGlyph* text_glyph = &glyphs[glyph_i];
-                if (dmUtf8::IsWhiteSpace(text_glyph->m_Codepoint))
-                    continue;
-                if (vertex_index / vertices_per_quad >= output_visible_glyph_count)
-                {
-                    dmLogWarning("Character buffer exceeded (size: %u), increase the \"graphics.max_characters\" property in your game.project file.", max_vertices / 6);
-                    return vertex_index * layer_count;
-                }
-
-                const float x = line_start_x + text_glyph->m_X - first_x;
-                const float y = line_start_y + text_glyph->m_Y - first_y;
-                uint32_t cell_x = 0;
-                uint32_t cell_y = 0;
-                HFont font = text_glyph->m_Font;
-                uint32_t glyph_index = text_glyph->m_GlyphIndex;
-                FontGlyph* glyph = 0;
-                FontResult result = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
-                if (result != FONT_RESULT_OK)
-                {
-                    glyph_index = FontGetGlyphIndex(font, FALLBACK_CODEPOINT);
-                    result = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
-                }
-
-                if (glyph && glyph->m_Bitmap.m_Width > 0)
-                {
-                    const uint64_t glyph_key = dmRender::MakeGlyphIndexKey(font, glyph_index);
-                    CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key, frame);
-                    if (!cache_glyph)
-                    {
-                        const int16_t cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)glyph->m_Ascent;
-                        cache_glyph = AddGlyphToCache(font_map, frame, glyph_key, glyph, cell_offset_y);
-                    }
-                    if (cache_glyph)
-                    {
-                        cell_x = cache_glyph->m_X;
-                        cell_y = cache_glyph->m_Y;
-                    }
-                }
-                else
-                {
-                    result = FONT_RESULT_ERROR;
-                }
-
-                FontPackGlyphVertices(result == FONT_RESULT_OK ? glyph : 0,
-                                      recip_w,
-                                      recip_h,
-                                      cell_x,
-                                      cell_y,
-                                      font_map->m_CacheCellMaxAscent,
-                                      font_map->m_CacheCellPadding,
-                                      layer_count,
-                                      layer_mask,
-                                      vertex_index,
-                                      vertices_per_quad * output_visible_glyph_count,
-                                      te.m_Transform,
-                                      x,
-                                      y,
-                                      face_color,
-                                      outline_color,
-                                      shadow_color,
-                                      sdf_edge_value,
-                                      sdf_outline,
-                                      sdf_smoothing,
-                                      sdf_shadow,
-                                      font_map->m_ShadowX,
-                                      font_map->m_ShadowY,
-                                      metrics_from_ttf,
-                                      vertices);
-                vertex_index += vertices_per_quad;
-            }
-        }
-        return vertex_index * layer_count;
+        return FontCreateLayoutVertices(config, metrics, vertices, max_vertices);
     }
 
     uint32_t CreateFontVertexData(HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
@@ -495,10 +514,7 @@ namespace dmRender
         HTextLayout layout = 0;
         const TextResult result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layout_settings, &layout);
         if (result != TEXT_RESULT_OK)
-        {
-            TextLayoutRelease(layout);
             return 0;
-        }
         const uint32_t vertex_count = CreateFontVertexDataFromTextLayout(font_map, frame, layout, te, sdf_scale, recip_w, recip_h, vertices, max_vertices);
         TextLayoutRelease(layout);
         return vertex_count;

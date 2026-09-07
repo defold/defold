@@ -108,7 +108,15 @@
                              :skip-root? true}]}
 
                {:label "welcome.tab.samples"
-                :templates [{:name "welcome.new-project.sample-3d-third-person-playground.title"
+                :templates [{:name "welcome.new-project.sample-3d-platformer.title"
+                             :description "welcome.new-project.sample-3d-platformer.description"
+                             :image "sample-3d-platformer.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-3d-platformer/archive/5b92cb669968224a216542b0008797d2d1189ef7.zip"
+                             :skip-root? true}
+
+                            {:name "welcome.new-project.sample-3d-third-person-playground.title"
                              :description "welcome.new-project.sample-3d-third-person-playground.description"
                              :image "3d-third-person.png"
                              :duration "Short"

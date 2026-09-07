@@ -79,6 +79,7 @@ namespace dmGameSystem
         }
         dmRender::HRenderContext    m_RenderContext;
         uint32_t                    m_MaxLabelCount;
+        uint32_t                    m_ComponentTypeIndex;
         uint32_t                    m_Subpixels : 1;
     };
 

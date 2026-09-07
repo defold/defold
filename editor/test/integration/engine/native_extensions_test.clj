@@ -20,12 +20,10 @@
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.engine.native-extensions :as native-extensions]
-            [editor.fs :as fs]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.yaml :as yaml]
             [integration.test-util :as test-util]
-            [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
   (:import [com.defold.extender.client ExtenderResource]
@@ -128,28 +126,26 @@
 (deftest ^:native-extensions app-manifest-context-test
   (testing "app manifest is synthesized with editor build options"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+      (let [workspace (test-util/setup-workspace! world "test/resources/empty_project")
             project (test-util/setup-project! workspace)
             resources (make-extender-resources project "x86_64-macos")]
         (is (= {"context" expected-editor-build-context}
                (extender-resource-yaml resources "_app/app.manifest"))))))
   (testing "configured app manifest is merged with editor build options"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-            project (log/without-logging
-                      (test-util/setup-project! workspace))
+      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
             resources (make-extender-resources project "x86_64-macos")
-            app-manifest-file (io/file (workspace/project-directory workspace) "checked.appmanifest")
+            app-manifest-file (io/file (workspace/project-directory workspace) "game.appmanifest")
             app-manifest (yaml/load (slurp app-manifest-file))]
         (is (= 1 (count (extender-resources resources "_app/app.manifest"))))
         (is (= (assoc app-manifest "context" expected-editor-build-context)
                (extender-resource-yaml resources "_app/app.manifest"))))))
   (testing "configured app manifest in flow style is merged as yaml data"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-            project (log/without-logging
-                      (test-util/setup-project! workspace))
-            app-manifest (project/get-resource-node project "/checked.appmanifest")]
+      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
+            app-manifest (project/get-resource-node project "/game.appmanifest")]
         (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
         (let [resources (make-extender-resources project "wasm-web")]
           (is (= {"context" expected-editor-build-context
@@ -160,16 +156,13 @@
                    "context: true\n"]]
     (testing (str "configured invalid app manifest is uploaded unchanged: " (string/trim content))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-              project (log/without-logging
-                        (test-util/setup-project! workspace))
-              app-manifest (project/get-resource-node project "/checked.appmanifest")]
+        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+              project (test-util/setup-project! workspace)
+              app-manifest (project/get-resource-node project "/game.appmanifest")]
           (test-util/set-code-editor-source! app-manifest content)
           (let [resources (make-extender-resources project "x86_64-macos")]
             (is (= content
                    (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
-
-(defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 
 (defn- blocking-async-build! [project prefs]
   @(app-view/async-build! project :prefs prefs))

@@ -126,7 +126,6 @@ namespace dmResource
     // Assets mapped with this function should be unmapped with UnmapAsset(...)
     Result MapAsset(const char* name, void*& out_asset, uint32_t& out_size, void*& out_map);
     Result UnmapAsset(void*& asset, uint32_t size);
-
     /**
      * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
      * We check this by persisting the bundled manifest signature to file the first time a liveupdate.manifest

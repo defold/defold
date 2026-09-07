@@ -454,16 +454,16 @@
 
 (defn setup-project!
   ([workspace]
-   (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [project-graph (g/node-id->graph-id workspace)
+         extensions (extensions/make project-graph)
+         project (project/make-project project-graph workspace extensions)
          project (project/load-project! project)]
      (g/reset-undo! :undo/global)
      project))
   ([workspace resources]
-   (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [project-graph (g/node-id->graph-id workspace)
+         extensions (extensions/make project-graph)
+         project (project/make-project project-graph workspace extensions)
          project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! :undo/global)
      project)))
@@ -537,18 +537,18 @@
   (output active-view g/NodeID (gu/passthrough active-view)))
 
 (defn make-view-graph! []
-  (g/make-graph! :volatility 2))
+  (g/make-graph!))
 
 (defn setup-app-view! [project]
-  (let [view-graph (make-view-graph!)]
+  (let [project-graph (g/node-id->graph-id project)]
     (first
       (g/tx-nodes-added
         (g/transact
           {:undoable false}
-          (g/make-nodes view-graph [app-view [MockAppView
-                                              :active-tool :move
-                                              :manip-space :world
-                                              :scene (Scene. (VBox.))]]
+          (g/make-nodes project-graph [app-view [MockAppView
+                                                 :active-tool :move
+                                                 :manip-space :world
+                                                 :scene (Scene. (VBox.))]]
             (g/connect project :_node-id app-view :project-id)
             (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
               (g/connect project label app-view label))))))))
@@ -564,7 +564,7 @@
           {:undoable false}
           (g/set-property app-view :active-view view))
         [node-id view])
-      (let [view-graph (g/make-graph! :volatility 2)
+      (let [view-graph (g/make-graph!)
             view (make-view-fn! view-graph node-id)]
         (g/transact
           {:undoable false}

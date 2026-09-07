@@ -72,6 +72,8 @@ namespace dmRender
         float                   m_PixelScale;   // Scale factor from points to pixel scale
         float                   m_ShadowX;
         float                   m_ShadowY;
+        float                   m_ShadowBlur;
+        float                   m_OutlineWidth;
         float                   m_MaxAscent;
         float                   m_MaxDescent;
         float                   m_SdfSpread;
@@ -94,7 +96,7 @@ namespace dmRender
         uint16_t                m_CacheHeight;          // In texels
         uint16_t                m_CacheCellWidth;       // In texels
         uint16_t                m_CacheCellHeight;      // In texels
-        uint16_t                m_CacheCellMaxAscent;   // In texels
+        int32_t                 m_CacheCellMaxAscent;   // Signed ascent in texels
         uint16_t                m_CacheColumns;         // Number of cells in horizontal direction
         uint16_t                m_CacheRows;            // Number of cells in horizontal direction
         uint16_t                m_CacheCellCount;       // Number of cells in total

@@ -133,6 +133,13 @@ namespace dmGameSystem
         kind == BULLET3D_CONSTRAINT_HINGE2;
     }
 
+    static bool IsGeneric6DofConstraintKind(uint8_t kind)
+    {
+        return kind == BULLET3D_CONSTRAINT_GENERIC_6DOF ||
+        kind == BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING ||
+        kind == BULLET3D_CONSTRAINT_UNIVERSAL;
+    }
+
     static void EnsureConstraintCapacity()
     {
         if (g_Bullet3DConstraints.Full())
@@ -337,7 +344,7 @@ namespace dmGameSystem
         lua_pop(L, 1);
         if (present)
         {
-            luaL_error(L, "Field '%s' is ineffective for Bullet 2.77 %s constraints.", name, constraint_type);
+            luaL_error(L, "Field '%s' is ineffective for %s constraints with the bundled Bullet solver.", name, constraint_type);
         }
     }
 
@@ -564,7 +571,7 @@ namespace dmGameSystem
         btHingeConstraint* constraint = input.m_BodyB ? new btHingeConstraint(*input.m_BodyA, *input.m_BodyB, frame_a, frame_b, use_reference_frame_a) : new btHingeConstraint(*input.m_BodyA, frame_a, use_reference_frame_a);
         if (!input.m_BodyB)
         {
-            // Bullet 2.77 only transforms the origin of the fixed body's frame.
+            // Bullet's one-body constructor only transforms the origin of the fixed body's frame.
             constraint->getBFrame() = input.m_BodyA->getCenterOfMassTransform() * frame_a;
         }
         constraint->setAngularOnly(angular_only);
@@ -589,7 +596,7 @@ namespace dmGameSystem
         btConeTwistConstraint* constraint = input.m_BodyB ? new btConeTwistConstraint(*input.m_BodyA, *input.m_BodyB, frame_a, frame_b) : new btConeTwistConstraint(*input.m_BodyA, frame_a);
         if (!input.m_BodyB)
         {
-            // Bullet 2.77 copies the body-A-local frame into the fixed body's frame.
+            // Bullet's one-body constructor copies the body-A-local frame into the fixed body's frame.
             const_cast<btTransform&>(constraint->getBFrame()) = input.m_BodyA->getCenterOfMassTransform() * frame_a;
         }
         constraint->setMotorTargetInConstraintSpace(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f));
@@ -626,6 +633,11 @@ namespace dmGameSystem
         RejectIneffectiveField(L, 3, "use_linear_reference_frame_a", "generic spring 6-DOF");
 
         btGeneric6DofSpringConstraint* constraint = new btGeneric6DofSpringConstraint(*input.m_BodyA, *input.m_BodyB, frame_a, frame_b, true);
+        btScalar                       physics_scale = GetBullet3DPhysicsScale();
+        btScalar                       angular_damping = btScalar(1.0f) / (physics_scale * physics_scale);
+        // Keep the default damping factor scale-independent when angular stiffness is set later.
+        for (int axis = 3; axis < 6; ++axis)
+            constraint->setDamping(axis, angular_damping);
         PushConstraint(L, RegisterConstraint(L, input, constraint, BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING));
         return 1;
     }
@@ -796,9 +808,13 @@ namespace dmGameSystem
             case BULLET3D_CONSTRAINT_GENERIC_6DOF:
             case BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING:
             case BULLET3D_CONSTRAINT_UNIVERSAL:
-            case BULLET3D_CONSTRAINT_HINGE2:
             {
                 btGeneric6DofConstraint* constraint = (btGeneric6DofConstraint*)meta->m_Constraint;
+                return native_a ? &constraint->getFrameOffsetA() : &constraint->getFrameOffsetB();
+            }
+            case BULLET3D_CONSTRAINT_HINGE2:
+            {
+                btHinge2Constraint* constraint = (btHinge2Constraint*)meta->m_Constraint;
                 return native_a ? &constraint->getFrameOffsetA() : &constraint->getFrameOffsetB();
             }
             case BULLET3D_CONSTRAINT_SLIDER:
@@ -874,7 +890,7 @@ namespace dmGameSystem
         }
         CheckConstraintUnlocked(L, meta);
         *frame = btTransform(rotation, position);
-        if (Is6DofKind(meta->m_Kind))
+        if (IsGeneric6DofConstraintKind(meta->m_Kind))
         {
             ((btGeneric6DofConstraint*)meta->m_Constraint)->calculateTransforms();
         }
@@ -1131,40 +1147,81 @@ namespace dmGameSystem
         return 0;
     }
 
-    static btGeneric6DofConstraint* Check6Dof(lua_State* L, Bullet3DConstraintMeta* meta)
+    static void Check6DofKind(lua_State* L, Bullet3DConstraintMeta* meta)
     {
         if (!Is6DofKind(meta->m_Kind))
         {
             luaL_error(L, "Expected a 6-DOF-derived constraint.");
         }
+    }
+
+    static btGeneric6DofConstraint* GetGeneric6DofConstraint(Bullet3DConstraintMeta* meta)
+    {
         return (btGeneric6DofConstraint*)meta->m_Constraint;
     }
 
-    static void Get6DofLimit(btGeneric6DofConstraint* constraint, int axis, btScalar* lower, btScalar* upper)
+    static btGeneric6DofSpring2Constraint* GetGeneric6DofSpring2Constraint(Bullet3DConstraintMeta* meta)
     {
-        if (axis < 3)
+        return (btGeneric6DofSpring2Constraint*)meta->m_Constraint;
+    }
+
+    static void Calculate6DofTransforms(Bullet3DConstraintMeta* meta)
+    {
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
         {
-            btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
-            *lower = motor->m_lowerLimit[axis];
-            *upper = motor->m_upperLimit[axis];
+            GetGeneric6DofSpring2Constraint(meta)->calculateTransforms();
         }
         else
         {
-            btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
-            *lower = motor->m_loLimit;
-            *upper = motor->m_hiLimit;
+            GetGeneric6DofConstraint(meta)->calculateTransforms();
+        }
+    }
+
+    static void Get6DofLimit(Bullet3DConstraintMeta* meta, int axis, btScalar* lower, btScalar* upper)
+    {
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+        {
+            btGeneric6DofSpring2Constraint* constraint = GetGeneric6DofSpring2Constraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
+                *lower = motor->m_lowerLimit[axis];
+                *upper = motor->m_upperLimit[axis];
+            }
+            else
+            {
+                btRotationalLimitMotor2* motor = constraint->getRotationalLimitMotor(axis - 3);
+                *lower = motor->m_loLimit;
+                *upper = motor->m_hiLimit;
+            }
+        }
+        else
+        {
+            btGeneric6DofConstraint* constraint = GetGeneric6DofConstraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
+                *lower = motor->m_lowerLimit[axis];
+                *upper = motor->m_upperLimit[axis];
+            }
+            else
+            {
+                btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
+                *lower = motor->m_loLimit;
+                *upper = motor->m_hiLimit;
+            }
         }
     }
 
     static int Constraint_GetLimit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 2);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                 lower;
-        btScalar                 upper;
-        Get6DofLimit(constraint, axis, &lower, &upper);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar lower;
+        btScalar upper;
+        Get6DofLimit(meta, axis, &lower, &upper);
         btScalar output_scale = axis < 3 ? GetBullet3DInvPhysicsScale() : btScalar(1.0f);
         lua_pushnumber(L, lower * output_scale);
         lua_pushnumber(L, upper * output_scale);
@@ -1174,14 +1231,21 @@ namespace dmGameSystem
     static int Constraint_SetLimit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                 input_scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
-        btScalar                 lower = CheckBullet3DScalar(L, 3, input_scale, "lower");
-        btScalar                 upper = CheckBullet3DScalar(L, 4, input_scale, "upper");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar input_scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
+        btScalar lower = CheckBullet3DScalar(L, 3, input_scale, "lower");
+        btScalar upper = CheckBullet3DScalar(L, 4, input_scale, "upper");
         CheckConstraintUnlocked(L, meta);
-        constraint->setLimit(axis, lower, upper);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+        {
+            GetGeneric6DofSpring2Constraint(meta)->setLimit(axis, lower, upper);
+        }
+        else
+        {
+            GetGeneric6DofConstraint(meta)->setLimit(axis, lower, upper);
+        }
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1190,70 +1254,105 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
-        int                     axis = CheckAxis(L, 2, 6, "axis");
-        lua_pushboolean(L, Check6Dof(L, meta)->isLimited(axis));
+        Check6DofKind(L, meta);
+        int  axis = CheckAxis(L, 2, 6, "axis");
+        bool limited = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetGeneric6DofSpring2Constraint(meta)->isLimited(axis) : GetGeneric6DofConstraint(meta)->isLimited(axis);
+        lua_pushboolean(L, limited);
         return 1;
     }
 
     static int Constraint_Get6DofAxis(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, CheckConstraintMeta(L, 1));
-        int                      axis = CheckAxis(L, 2, 3, "axis");
-        constraint->calculateTransforms();
-        PushBullet3DVector3(L, constraint->getAxis(axis), 1.0f);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int axis = CheckAxis(L, 2, 3, "axis");
+        Calculate6DofTransforms(meta);
+        btVector3 value = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetGeneric6DofSpring2Constraint(meta)->getAxis(axis) : GetGeneric6DofConstraint(meta)->getAxis(axis);
+        PushBullet3DVector3(L, value, 1.0f);
         return 1;
     }
 
     static int Constraint_Get6DofAngle(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, CheckConstraintMeta(L, 1));
-        int                      axis = CheckAxis(L, 2, 3, "axis");
-        constraint->calculateTransforms();
-        lua_pushnumber(L, constraint->getAngle(axis));
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int axis = CheckAxis(L, 2, 3, "axis");
+        Calculate6DofTransforms(meta);
+        btScalar value = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetGeneric6DofSpring2Constraint(meta)->getAngle(axis) : GetGeneric6DofConstraint(meta)->getAngle(axis);
+        lua_pushnumber(L, value);
         return 1;
     }
 
     static int Constraint_Get6DofPosition(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, CheckConstraintMeta(L, 1));
-        int                      axis = CheckAxis(L, 2, 3, "axis");
-        constraint->calculateTransforms();
-        lua_pushnumber(L, constraint->getRelativePivotPosition(axis) * GetBullet3DInvPhysicsScale());
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int axis = CheckAxis(L, 2, 3, "axis");
+        Calculate6DofTransforms(meta);
+        btScalar value = meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2 ? GetGeneric6DofSpring2Constraint(meta)->getRelativePivotPosition(axis) : GetGeneric6DofConstraint(meta)->getRelativePivotPosition(axis);
+        lua_pushnumber(
+            L,
+            (lua_Number)value * (lua_Number)GetBullet3DInvPhysicsScale());
         return 1;
     }
 
     static int Constraint_Get6DofMotor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 4);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        bool                     enabled;
-        btScalar                 target_velocity;
-        btScalar                 max_impulse;
-        btScalar                 bounce = 0.0f;
-        if (axis < 3)
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        bool     enabled;
+        btScalar target_velocity;
+        btScalar max_force;
+        btScalar bounce = 0.0f;
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
         {
-            btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
-            enabled = motor->m_enableMotor[axis];
-            target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
-            max_impulse = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+            btGeneric6DofSpring2Constraint* constraint = GetGeneric6DofSpring2Constraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
+                enabled = motor->m_enableMotor[axis];
+                target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
+                max_force = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+                bounce = motor->m_bounce[axis];
+            }
+            else
+            {
+                btRotationalLimitMotor2* motor = constraint->getRotationalLimitMotor(axis - 3);
+                enabled = motor->m_enableMotor;
+                target_velocity = motor->m_targetVelocity;
+                btScalar inv_scale = GetBullet3DInvPhysicsScale();
+                max_force = motor->m_maxMotorForce * inv_scale * inv_scale;
+                bounce = motor->m_bounce;
+            }
         }
         else
         {
-            btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
-            enabled = motor->m_enableMotor;
-            target_velocity = motor->m_targetVelocity;
-            btScalar inv_scale = GetBullet3DInvPhysicsScale();
-            max_impulse = motor->m_maxMotorForce * inv_scale * inv_scale;
-            bounce = motor->m_bounce;
+            btGeneric6DofConstraint* constraint = GetGeneric6DofConstraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
+                enabled = motor->m_enableMotor[axis];
+                target_velocity = motor->m_targetVelocity[axis] * GetBullet3DInvPhysicsScale();
+                max_force = motor->m_maxMotorForce[axis] * GetBullet3DInvPhysicsScale();
+            }
+            else
+            {
+                btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
+                enabled = motor->m_enableMotor;
+                target_velocity = motor->m_targetVelocity;
+                btScalar inv_scale = GetBullet3DInvPhysicsScale();
+                max_force = motor->m_maxMotorForce * inv_scale * inv_scale;
+                bounce = motor->m_bounce;
+            }
         }
         lua_pushboolean(L, enabled);
         lua_pushnumber(L, target_velocity);
-        lua_pushnumber(L, max_impulse);
+        lua_pushnumber(L, max_force);
         lua_pushnumber(L, bounce);
         return 4;
     }
@@ -1261,63 +1360,89 @@ namespace dmGameSystem
     static int Constraint_Set6DofMotor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
-        int                      axis = CheckAxis(L, 2, 6, "axis");
-        bool                     enabled = CheckBoolean(L, 3, "enabled");
-        btScalar                 scale = GetBullet3DPhysicsScale();
-        btScalar                 target_scale = axis < 3 ? scale : btScalar(1.0f);
-        btScalar                 target_velocity = CheckBullet3DScalar(L, 4, target_scale, "target_velocity");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        Check6DofKind(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        bool     enabled = CheckBoolean(L, 3, "enabled");
+        btScalar scale = GetBullet3DPhysicsScale();
+        btScalar target_scale = axis < 3 ? scale : btScalar(1.0f);
+        btScalar target_velocity = CheckBullet3DScalar(L, 4, target_scale, "target_velocity");
         btScalar max_scale = axis < 3 ? scale : scale * scale;
-        btScalar max_impulse = CheckBullet3DScalar(L, 5, max_scale, "max_impulse");
-        if (max_impulse < btScalar(0.0f))
+        btScalar max_force = CheckBullet3DScalar(L, 5, max_scale, "max_force");
+        if (max_force < btScalar(0.0f))
         {
-            return luaL_error(L, "max_impulse must not be negative.");
+            return luaL_error(L, "max_force must not be negative.");
         }
         btScalar bounce = lua_isnoneornil(L, 6) ? btScalar(0.0f) : CheckBullet3DScalarInRange(L, 6, 1.0f, "bounce", 0.0f, 1.0f);
-        if (axis < 3 && bounce != btScalar(0.0f))
+        if (axis < 3 && meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2 && bounce != btScalar(0.0f))
         {
-            return luaL_error(L, "bounce is only supported by angular 6-DOF motors.");
+            return luaL_error(L, "Linear bounce is only supported by hinge2 constraints.");
         }
 
         CheckConstraintUnlocked(L, meta);
-        if (axis < 3)
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
         {
-            btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
-            motor->m_enableMotor[axis] = enabled;
-            motor->m_targetVelocity[axis] = target_velocity;
-            motor->m_maxMotorForce[axis] = max_impulse;
+            btGeneric6DofSpring2Constraint* constraint = GetGeneric6DofSpring2Constraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor2* motor = constraint->getTranslationalLimitMotor();
+                motor->m_enableMotor[axis] = enabled;
+                motor->m_targetVelocity[axis] = target_velocity;
+                motor->m_maxMotorForce[axis] = max_force;
+                motor->m_bounce[axis] = bounce;
+            }
+            else
+            {
+                btRotationalLimitMotor2* motor = constraint->getRotationalLimitMotor(axis - 3);
+                motor->m_enableMotor = enabled;
+                motor->m_targetVelocity = target_velocity;
+                motor->m_maxMotorForce = max_force;
+                motor->m_bounce = bounce;
+            }
         }
         else
         {
-            btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
-            motor->m_enableMotor = enabled;
-            motor->m_targetVelocity = target_velocity;
-            motor->m_maxMotorForce = max_impulse;
-            motor->m_bounce = bounce;
+            btGeneric6DofConstraint* constraint = GetGeneric6DofConstraint(meta);
+            if (axis < 3)
+            {
+                btTranslationalLimitMotor* motor = constraint->getTranslationalLimitMotor();
+                motor->m_enableMotor[axis] = enabled;
+                motor->m_targetVelocity[axis] = target_velocity;
+                motor->m_maxMotorForce[axis] = max_force;
+            }
+            else
+            {
+                btRotationalLimitMotor* motor = constraint->getRotationalLimitMotor(axis - 3);
+                motor->m_enableMotor = enabled;
+                motor->m_targetVelocity = target_velocity;
+                motor->m_maxMotorForce = max_force;
+                motor->m_bounce = bounce;
+            }
         }
         ActivateConstraintBodies(meta);
         return 0;
     }
 
-    static btGeneric6DofSpringConstraint* CheckSpring6Dof(lua_State* L, Bullet3DConstraintMeta* meta)
+    static void CheckSpring6Dof(lua_State* L, Bullet3DConstraintMeta* meta)
     {
         if (meta->m_Kind != BULLET3D_CONSTRAINT_GENERIC_6DOF_SPRING && meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2)
         {
             luaL_error(L, "Expected a spring 6-DOF or hinge2 constraint.");
         }
-        return (btGeneric6DofSpringConstraint*)meta->m_Constraint;
     }
 
     static int Constraint_EnableSpring(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
-        int                            axis = CheckAxis(L, 2, 6, "axis");
-        bool                           enabled = CheckBoolean(L, 3, "enabled");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
+        int  axis = CheckAxis(L, 2, 6, "axis");
+        bool enabled = CheckBoolean(L, 3, "enabled");
         CheckConstraintUnlocked(L, meta);
-        constraint->enableSpring(axis, enabled);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+            GetGeneric6DofSpring2Constraint(meta)->enableSpring(axis, enabled);
+        else
+            ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->enableSpring(axis, enabled);
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1325,16 +1450,21 @@ namespace dmGameSystem
     static int Constraint_SetSpringStiffness(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
-        int                            axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                       stiffness = CheckBullet3DScalar(L, 3, 1.0f, "stiffness");
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar physics_scale = GetBullet3DPhysicsScale();
+        btScalar stiffness_scale = axis < 3 ? btScalar(1.0f) : physics_scale * physics_scale;
+        btScalar stiffness = CheckBullet3DScalar(L, 3, stiffness_scale, "stiffness");
         if (stiffness < btScalar(0.0f))
         {
             return luaL_error(L, "stiffness must not be negative.");
         }
         CheckConstraintUnlocked(L, meta);
-        constraint->setStiffness(axis, stiffness);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+            GetGeneric6DofSpring2Constraint(meta)->setStiffness(axis, stiffness);
+        else
+            ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setStiffness(axis, stiffness);
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1342,12 +1472,35 @@ namespace dmGameSystem
     static int Constraint_SetSpringDamping(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
-        int                            axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                       damping = CheckBullet3DScalarInRange(L, 3, 1.0f, "damping", 0.0f, 1.0f);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
+        int      axis = CheckAxis(L, 2, 6, "axis");
+        btScalar damping = CheckBullet3DScalar(L, 3, 1.0f, "damping");
+        if (damping < btScalar(0.0f))
+        {
+            return luaL_error(L, "damping must not be negative.");
+        }
+        if (meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2 && damping > btScalar(1.0f))
+        {
+            return luaL_error(L, "Generic 6-DOF spring damping must be between 0 and 1.");
+        }
+        if (axis >= 3)
+        {
+            btScalar physics_scale = GetBullet3DPhysicsScale();
+            btScalar physics_scale_squared = physics_scale * physics_scale;
+            btScalar damping_scale = physics_scale_squared;
+            if (meta->m_Kind != BULLET3D_CONSTRAINT_HINGE2)
+            {
+                // Generic springs multiply damping by stiffness to derive target velocity.
+                damping_scale = btScalar(1.0f) / physics_scale_squared;
+            }
+            damping = CheckBullet3DScalar(L, 3, damping_scale, "damping");
+        }
         CheckConstraintUnlocked(L, meta);
-        constraint->setDamping(axis, damping);
+        if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+            GetGeneric6DofSpring2Constraint(meta)->setDamping(axis, damping);
+        else
+            ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setDamping(axis, damping);
         ActivateConstraintBodies(meta);
         return 0;
     }
@@ -1355,13 +1508,16 @@ namespace dmGameSystem
     static int Constraint_SetSpringEquilibriumPoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
-        btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
+        Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
+        CheckSpring6Dof(L, meta);
 
         if (lua_isnoneornil(L, 2))
         {
             CheckConstraintUnlocked(L, meta);
-            constraint->setEquilibriumPoint();
+            if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+                GetGeneric6DofSpring2Constraint(meta)->setEquilibriumPoint();
+            else
+                ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setEquilibriumPoint();
         }
         else
         {
@@ -1369,14 +1525,20 @@ namespace dmGameSystem
             if (lua_isnoneornil(L, 3))
             {
                 CheckConstraintUnlocked(L, meta);
-                constraint->setEquilibriumPoint(axis);
+                if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+                    GetGeneric6DofSpring2Constraint(meta)->setEquilibriumPoint(axis);
+                else
+                    ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setEquilibriumPoint(axis);
             }
             else
             {
                 btScalar scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
                 btScalar value = CheckBullet3DScalar(L, 3, scale, "value");
                 CheckConstraintUnlocked(L, meta);
-                constraint->setEquilibriumPoint(axis, value);
+                if (meta->m_Kind == BULLET3D_CONSTRAINT_HINGE2)
+                    GetGeneric6DofSpring2Constraint(meta)->setEquilibriumPoint(axis, value);
+                else
+                    ((btGeneric6DofSpringConstraint*)meta->m_Constraint)->setEquilibriumPoint(axis, value);
             }
         }
         ActivateConstraintBodies(meta);
@@ -1518,7 +1680,7 @@ namespace dmGameSystem
         {
             return luaL_error(L, "Expected a universal or hinge2 constraint.");
         }
-        ((btGeneric6DofConstraint*)meta->m_Constraint)->calculateTransforms();
+        Calculate6DofTransforms(meta);
         if (meta->m_Kind == BULLET3D_CONSTRAINT_UNIVERSAL)
         {
             btUniversalConstraint* constraint = (btUniversalConstraint*)meta->m_Constraint;
@@ -1565,7 +1727,7 @@ namespace dmGameSystem
         {
             return luaL_error(L, "Expected a universal or hinge2 constraint.");
         }
-        ((btGeneric6DofConstraint*)meta->m_Constraint)->calculateTransforms();
+        Calculate6DofTransforms(meta);
         if (meta->m_Kind == BULLET3D_CONSTRAINT_UNIVERSAL)
         {
             btUniversalConstraint* constraint = (btUniversalConstraint*)meta->m_Constraint;
@@ -1838,11 +2000,14 @@ namespace dmGameSystem
  * Creator positions and all other linear values use Defold units and are
  * converted with `physics.scale`. Angles are radians. Axes are one-based in
  * Lua: axes 1-3 are linear and axes 4-6 are angular. Mutating functions cannot
- * be called while the physics world is stepping.
+ * be called while the physics world is stepping. Floating-point and vector
+ * inputs must be finite. Axis vectors must be non-zero and are normalized.
+ * Input rotations must be finite, non-zero quaternions and are normalized by
+ * the binding.
  *
  * `CONSTRAINT_TYPE_*` values identify the concrete constraint exposed by this
  * binding. This deliberately distinguishes universal, hinge2, and spring 6-DOF
- * constraints even though Bullet 2.77 reports their native base type as 6-DOF.
+ * constraints independently of Bullet's internal constraint type hierarchy.
  *
  * @document
  * @name bullet3d.constraint
@@ -1856,57 +2021,117 @@ namespace dmGameSystem
  * @param value [type:userdata] opaque constraint handle
  */
 
-/*# Point-to-point constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_POINT_TO_POINT
- * @constant
+/*# Constraint types
+ * @enum
+ * @name bullet3d.constraint.CONSTRAINT_TYPE
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_CONE_TWIST Cone-twist constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF Generic 6-DOF constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF_SPRING Generic spring 6-DOF constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_HINGE Hinge constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_HINGE2 Hinge2 constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_POINT_TO_POINT Point-to-point constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_SLIDER Slider constraint type
+ * @member bullet3d.constraint.CONSTRAINT_TYPE_UNIVERSAL Universal constraint type
  */
 
-/*# Hinge constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_HINGE
- * @constant
+/*# Point-to-point constraint parameters
+ *
+ * `pivot_b` is required for a two-body constraint. For a one-body constraint,
+ * it is an optional world-space anchor.
+ * @struct
+ * @name bullet3d.constraint.point_to_point_params
+ * @member pivot_a [type:vector3] local body-A pivot
+ * @member pivot_b? [type:vector3] local body-B pivot or world-space anchor
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
 
-/*# Cone-twist constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_CONE_TWIST
- * @constant
+/*# Hinge constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
+ * @struct
+ * @name bullet3d.constraint.hinge_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member use_reference_frame_a? [type:boolean] whether angular calculations reference frame A
+ * @member angular_only? [type:boolean] whether to constrain angular motion only
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
 
-/*# Generic 6-DOF constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF
- * @constant
+/*# Cone-twist constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
+ * @struct
+ * @name bullet3d.constraint.cone_twist_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member angular_only? [type:boolean] whether to constrain angular motion only
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
 
-/*# Generic spring 6-DOF constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_GENERIC_6DOF_SPRING
- * @constant
+/*# Generic 6-DOF constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
+ * @struct
+ * @name bullet3d.constraint.generic_6dof_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
 
-/*# Slider constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_SLIDER
- * @constant
+/*# Generic spring 6-DOF constraint parameters
+ * @struct
+ * @name bullet3d.constraint.generic_6dof_spring_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position [type:vector3] local body-B frame position
+ * @member frame_b_rotation [type:quaternion] local body-B frame rotation
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
 
-/*# Universal constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_UNIVERSAL
- * @constant
+/*# Slider constraint parameters
+ *
+ * The frame-B fields are required for a two-body constraint.
+ * @struct
+ * @name bullet3d.constraint.slider_params
+ * @member frame_a_position [type:vector3] local body-A frame position
+ * @member frame_a_rotation [type:quaternion] local body-A frame rotation
+ * @member frame_b_position? [type:vector3] local body-B frame position
+ * @member frame_b_rotation? [type:quaternion] local body-B frame rotation
+ * @member use_linear_reference_frame_a? [type:boolean] whether linear calculations reference frame A
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
 
-/*# Hinge2 constraint type
- * @name bullet3d.constraint.CONSTRAINT_TYPE_HINGE2
- * @constant
+/*# Universal and hinge2 constraint parameters
+ * @struct
+ * @name bullet3d.constraint.anchor_axes_params
+ * @member anchor [type:vector3] world-space anchor
+ * @member axis1 [type:vector3] first non-zero world-space axis
+ * @member axis2 [type:vector3] second non-zero world-space axis, orthogonal to `axis1`
+ * @member collide_connected? [type:boolean] whether connected bodies can collide; defaults to `false`
  */
+
+
+
+
+
+
+
+
 
 /*# Create a point-to-point constraint
  *
- * `params.pivot_a` is required. `params.pivot_b` is required with `body_b`;
- * for a one-body constraint it is an optional world-space anchor. The params
- * table also accepts `collide_connected`, which defaults to `false`. The world
- * is derived from `body_a`; both bodies must belong to that same world.
+ * The world is derived from `body_a`; both bodies must belong to that same world.
  *
  * @name bullet3d.constraint.create_point_to_point
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] pivots and options
+ * @param params [type:bullet3d.constraint.point_to_point_params] pivots and options
  * @return constraint [type:btTypedConstraint] point-to-point constraint
  * @examples
  *
@@ -1933,15 +2158,12 @@ namespace dmGameSystem
 
 /*# Create a hinge constraint
  *
- * The params table requires `frame_a_position` and `frame_a_rotation`, plus
- * the corresponding frame B fields for a two-body constraint. It optionally
- * accepts `use_reference_frame_a`, `angular_only`, and
- * `collide_connected`. The world is derived from `body_a`.
+ * The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_hinge
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.hinge_params] local frames and options
  * @return constraint [type:btTypedConstraint] hinge constraint
  * @examples
  *
@@ -1971,43 +2193,41 @@ namespace dmGameSystem
 
 /*# Create a cone-twist constraint
  *
- * The params table uses the same local-frame fields as a hinge and optionally
- * accepts `angular_only` and `collide_connected`. The world is derived from
- * `body_a`.
+ * The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_cone_twist
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.cone_twist_params] local frames and options
  * @return constraint [type:btTypedConstraint] cone-twist constraint
  */
 
 /*# Create a generic six-degree-of-freedom constraint
  *
  * The params table requires local frame A and, for a two-body constraint,
- * local frame B. It optionally accepts
- * `collide_connected`. The world is derived from `body_a`. Bullet 2.77's active 6-DOF
- * solver ignores its legacy linear-reference-frame selector, so that field is
- * rejected rather than silently accepted.
+ * local frame B. It optionally accepts `collide_connected`. The world is
+ * derived from `body_a`. The active 6-DOF solver ignores its legacy
+ * linear-reference-frame selector, so that field is rejected rather than
+ * silently accepted.
  *
  * @name bullet3d.constraint.create_generic_6dof
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.generic_6dof_params] local frames and options
  * @return constraint [type:btTypedConstraint] generic 6-DOF constraint
  */
 
 /*# Create a generic spring six-degree-of-freedom constraint
  *
  * Both bodies and both local frames are required. The params table optionally
- * accepts `collide_connected`. The world is derived from `body_a`. Bullet 2.77's active
+ * accepts `collide_connected`. The world is derived from `body_a`. The active
  * spring 6-DOF solver ignores its legacy linear-reference-frame selector, so
  * that field is rejected rather than silently accepted.
  *
  * @name bullet3d.constraint.create_generic_6dof_spring
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody] second body
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.generic_6dof_spring_params] local frames and options
  * @return constraint [type:btTypedConstraint] spring 6-DOF constraint
  * @examples
  *
@@ -2040,41 +2260,35 @@ namespace dmGameSystem
 
 /*# Create a slider constraint
  *
- * The params table requires local frame A and, for a two-body constraint,
- * local frame B. It optionally accepts `use_linear_reference_frame_a` and
- * `collide_connected`. The world is derived from `body_a`.
+ * The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_slider
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody|nil] second body or world
- * @param params [type:table] local frames and options
+ * @param params [type:bullet3d.constraint.slider_params] local frames and options
  * @return constraint [type:btTypedConstraint] slider constraint
  */
 
 /*# Create a universal constraint
  *
- * Both bodies are required. The params table requires a world-space `anchor`
- * and non-zero, orthogonal `axis1` and `axis2` vectors. It optionally accepts
- * `collide_connected`. The world is derived from `body_a`.
+ * Both bodies are required. The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_universal
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody] second body
- * @param params [type:table] anchor, axes, and options
+ * @param params [type:bullet3d.constraint.anchor_axes_params] anchor, axes, and options
  * @return constraint [type:btTypedConstraint] universal constraint
  */
 
 /*# Create a hinge2 constraint
  *
- * Both bodies are required. The params table requires a world-space `anchor`
- * and non-zero, orthogonal `axis1` and `axis2` vectors. Its initial linear
- * suspension travel is one Defold unit in either direction. It optionally
- * accepts `collide_connected`. The world is derived from `body_a`.
+ * Both bodies are required. Its initial linear suspension travel is one Defold
+ * unit in either direction. The world is derived from `body_a`.
  *
  * @name bullet3d.constraint.create_hinge2
  * @param body_a [type:btRigidBody] first body
  * @param body_b [type:btRigidBody] second body
- * @param params [type:table] anchor, axes, and options
+ * @param params [type:bullet3d.constraint.anchor_axes_params] anchor, axes, and options
  * @return constraint [type:btTypedConstraint] hinge2 constraint
  */
 
@@ -2098,7 +2312,7 @@ namespace dmGameSystem
 /*# Get the constraint type
  * @name bullet3d.constraint.get_type
  * @param constraint [type:btTypedConstraint] constraint
- * @return type [type:number] one of the `bullet3d.constraint.CONSTRAINT_TYPE_*` constants
+ * @return type [type:bullet3d.constraint.CONSTRAINT_TYPE] constraint type
  */
 
 /*# Get the constraint type name
@@ -2151,6 +2365,10 @@ namespace dmGameSystem
 
 /*# Get local frame A
  *
+ * Supported constraint types are hinge, cone-twist, generic 6-DOF, generic
+ * spring 6-DOF, slider, universal, and hinge2. Point-to-point constraints use
+ * `get_pivots` instead.
+ *
  * Returns position and rotation. For one-body generic 6-DOF and slider
  * constraints this is the user-body frame, despite Bullet storing it as its
  * native frame B.
@@ -2162,6 +2380,10 @@ namespace dmGameSystem
  */
 
 /*# Get local frame B
+ *
+ * Supports the same constraint types as `get_frame_a`. For a one-body
+ * constraint, this is the frame attached to the fixed world body.
+ *
  * @name bullet3d.constraint.get_frame_b
  * @param constraint [type:btTypedConstraint] framed constraint
  * @return position [type:vector3] local position or world frame position
@@ -2169,17 +2391,26 @@ namespace dmGameSystem
  */
 
 /*# Set local frame A
+ *
+ * Frame mutation is supported for hinge, generic 6-DOF, generic spring 6-DOF,
+ * and slider constraints. Cone-twist, universal, and hinge2 frames are
+ * read-only through this API.
+ *
  * @name bullet3d.constraint.set_frame_a
  * @param constraint [type:btTypedConstraint] mutable framed constraint
- * @param position [type:vector3] local position
- * @param rotation [type:quaternion] local rotation
+ * @param position [type:vector3] finite local position
+ * @param rotation [type:quaternion] finite, non-zero local rotation; normalized by the binding
  */
 
 /*# Set local frame B
+ *
+ * Supports the same constraint types as `set_frame_a`. For a one-body
+ * constraint, this changes the frame attached to the fixed world body.
+ *
  * @name bullet3d.constraint.set_frame_b
  * @param constraint [type:btTypedConstraint] mutable framed constraint
- * @param position [type:vector3] local position or world frame position
- * @param rotation [type:quaternion] local rotation or world frame rotation
+ * @param position [type:vector3] finite local position or world frame position
+ * @param rotation [type:quaternion] finite, non-zero local or world frame rotation; normalized by the binding
  */
 
 /*# Test angular-only mode
@@ -2212,24 +2443,24 @@ namespace dmGameSystem
  * @param constraint [type:btTypedConstraint] hinge constraint
  * @param lower [type:number] lower angle in radians
  * @param upper [type:number] upper angle in radians
- * @param bias [type:number|nil] optional limit bias from 0 to 1
- * @param relaxation [type:number|nil] optional relaxation from 0 to 1
+ * @param [bias] [type:number|nil] optional limit bias from 0 to 1; defaults to `0.3`
+ * @param [relaxation] [type:number|nil] optional relaxation from 0 to 1; defaults to `1`
  */
 
 /*# Get hinge motor settings
  * @name bullet3d.constraint.get_hinge_motor
  * @param constraint [type:btTypedConstraint] hinge constraint
  * @return enabled [type:boolean] motor state
- * @return target_velocity [type:number] angular target velocity
- * @return max_impulse [type:number] maximum angular motor impulse
+ * @return target_velocity [type:number] angular target velocity in radians per second
+ * @return max_impulse [type:number] maximum angular motor impulse in Defold squared units
  */
 
 /*# Set hinge motor settings
  * @name bullet3d.constraint.set_hinge_motor
  * @param constraint [type:btTypedConstraint] hinge constraint
  * @param enabled [type:boolean] motor state
- * @param target_velocity [type:number] angular target velocity
- * @param max_impulse [type:number] non-negative maximum angular motor impulse
+ * @param target_velocity [type:number] angular target velocity in radians per second
+ * @param max_impulse [type:number] non-negative maximum angular motor impulse in Defold squared units
  */
 
 /*# Set a hinge motor angle target
@@ -2260,12 +2491,12 @@ namespace dmGameSystem
 /*# Set cone-twist angular spans
  * @name bullet3d.constraint.set_cone_twist_limits
  * @param constraint [type:btTypedConstraint] cone-twist constraint
- * @param swing_span_1 [type:number] non-negative first swing span
- * @param swing_span_2 [type:number] non-negative second swing span
- * @param twist_span [type:number] non-negative twist span
- * @param softness [type:number|nil] optional softness from 0 to 1
- * @param bias [type:number|nil] optional bias from 0 to 1
- * @param relaxation [type:number|nil] optional relaxation from 0 to 1
+ * @param swing_span_1 [type:number] non-negative first swing span in radians
+ * @param swing_span_2 [type:number] non-negative second swing span in radians
+ * @param twist_span [type:number] non-negative twist span in radians
+ * @param [softness] [type:number|nil] optional softness from 0 to 1; defaults to `1`
+ * @param [bias] [type:number|nil] optional bias from 0 to 1; defaults to `0.3`
+ * @param [relaxation] [type:number|nil] optional relaxation from 0 to 1; defaults to `1`
  */
 
 /*# Get the current cone-twist twist angle
@@ -2287,10 +2518,15 @@ namespace dmGameSystem
  */
 
 /*# Set the cone-twist motor target
+ *
+ * By default, `target` is the desired rotation of body A relative to body B.
+ * With `constraint_space` set, it is the desired rotation of frame A relative
+ * to frame B in constraint space.
+ *
  * @name bullet3d.constraint.set_cone_twist_motor_target
  * @param constraint [type:btTypedConstraint] cone-twist constraint
- * @param target [type:quaternion] target orientation
- * @param constraint_space [type:boolean|nil] target is already in constraint space
+ * @param target [type:quaternion] finite, non-zero target orientation; normalized by the binding
+ * @param [constraint_space] [type:boolean|nil] optional target-is-in-constraint-space flag; defaults to `false`
  */
 
 /*# Get a 6-DOF axis limit
@@ -2300,94 +2536,114 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.get_limit
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @return lower [type:number] lower limit
  * @return upper [type:number] upper limit
  */
 
 /*# Set a 6-DOF axis limit
+ *
+ * Axes 1-3 use Defold units and axes 4-6 use radians. A lower value less than
+ * the upper value creates a limited range, equal values lock the axis, and a
+ * lower value greater than the upper value makes the axis free.
+ *
  * @name bullet3d.constraint.set_limit
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param lower [type:number] lower limit
  * @param upper [type:number] upper limit
  */
 
 /*# Test whether a 6-DOF axis is limited
+ *
+ * Both a ranged and a locked axis are considered limited; a free axis is not.
+ *
  * @name bullet3d.constraint.is_limited
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @return limited [type:boolean] limit state
  */
 
 /*# Get a current 6-DOF angular axis
  * @name bullet3d.constraint.get_6dof_axis
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based angular-axis index from 1 to 3
+ * @param axis [type:integer] one-based angular-axis index from 1 to 3
  * @return direction [type:vector3] world-space unit axis
  */
 
 /*# Get a current 6-DOF angle
  * @name bullet3d.constraint.get_6dof_angle
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based angular-axis index from 1 to 3
+ * @param axis [type:integer] one-based angular-axis index from 1 to 3
  * @return angle [type:number] current angle in radians
  */
 
 /*# Get a current 6-DOF linear position
  * @name bullet3d.constraint.get_6dof_position
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based linear-axis index from 1 to 3
+ * @param axis [type:integer] one-based linear-axis index from 1 to 3
  * @return position [type:number] relative position in Defold units
  */
 
 /*# Get 6-DOF motor settings
  *
- * Axes 1-3 are linear and axes 4-6 are angular. Bounce is zero for linear
- * motors because Bullet only implements it for angular motors.
+ * Axes 1-3 are linear and axes 4-6 are angular. Generic 6-DOF, generic spring
+ * 6-DOF, and universal constraints support bounce only on angular axes; hinge2
+ * supports it on every axis. Linear target velocity uses Defold units per
+ * second and angular target velocity uses radians per second. `max_force` is a
+ * force for linear axes and a torque in Defold squared units for angular axes.
  *
  * @name bullet3d.constraint.get_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @return enabled [type:boolean] motor state
- * @return target_velocity [type:number] target velocity
- * @return max_impulse [type:number] maximum motor impulse
- * @return bounce [type:number] angular bounce from 0 to 1
+ * @return target_velocity [type:number] linear or angular target velocity
+ * @return max_force [type:number] maximum motor force for linear axes or torque for angular axes
+ * @return bounce [type:number] bounce from 0 to 1
  */
 
 /*# Set 6-DOF motor settings
+ *
+ * Linear and angular values use the units described by `get_6dof_motor`.
+ *
  * @name bullet3d.constraint.set_6dof_motor
  * @param constraint [type:btTypedConstraint] 6-DOF-derived constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param enabled [type:boolean] motor state
- * @param target_velocity [type:number] target velocity
- * @param max_impulse [type:number] non-negative maximum motor impulse
- * @param bounce [type:number|nil] optional angular bounce from 0 to 1
+ * @param target_velocity [type:number] linear or angular target velocity
+ * @param max_force [type:number] non-negative maximum motor force for linear axes or torque for angular axes
+ * @param [bounce] [type:number|nil] optional bounce from 0 to 1; defaults to `0`
  */
 
 /*# Enable or disable a spring axis
  * @name bullet3d.constraint.enable_spring
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param enabled [type:boolean] spring state
  */
 
 /*# Set spring stiffness
  *
- * Stiffness is Bullet's solver tuning coefficient, not a force or torque
- * value, and is therefore independent of `physics.scale` for every axis.
+ * Linear stiffness values are independent of `physics.scale`. Angular
+ * stiffness values are automatically converted using `physics.scale` squared.
  *
  * @name bullet3d.constraint.set_spring_stiffness
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number] one-based axis from 1 to 6
+ * @param axis [type:integer] one-based axis from 1 to 6
  * @param stiffness [type:number] non-negative stiffness
  */
 
 /*# Set spring damping
+ *
+ * Generic spring 6-DOF constraints use a scale-independent damping factor from
+ * 0 to 1, where 1 means no damping. Hinge2 constraints use a damping coefficient
+ * where 0 means no damping and any non-negative value is accepted. Hinge2
+ * angular damping is automatically converted using `physics.scale` squared.
+ *
  * @name bullet3d.constraint.set_spring_damping
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number] one-based axis from 1 to 6
- * @param damping [type:number] damping from 0 to 1
+ * @param axis [type:integer] one-based axis from 1 to 6
+ * @param damping [type:number] damping value in the range required by the constraint type
  */
 
 /*# Set spring equilibrium points
@@ -2398,8 +2654,8 @@ namespace dmGameSystem
  *
  * @name bullet3d.constraint.set_spring_equilibrium_point
  * @param constraint [type:btTypedConstraint] spring 6-DOF or hinge2 constraint
- * @param axis [type:number|nil] optional one-based axis from 1 to 6
- * @param value [type:number|nil] optional explicit equilibrium value
+ * @param [axis] [type:integer|nil] optional one-based axis from 1 to 6
+ * @param [value] [type:number|nil] optional explicit equilibrium value
  */
 
 /*# Get slider limits
@@ -2412,6 +2668,11 @@ namespace dmGameSystem
  */
 
 /*# Set slider limits
+ *
+ * Each lower/upper pair follows Bullet's limit convention: lower less than
+ * upper creates a limited range, equal values lock that axis, and lower greater
+ * than upper makes it free. Bullet normalizes the angular limits.
+ *
  * @name bullet3d.constraint.set_slider_limits
  * @param constraint [type:btTypedConstraint] slider constraint
  * @param lower_linear [type:number] lower linear limit in Defold units
@@ -2427,21 +2688,28 @@ namespace dmGameSystem
  */
 
 /*# Get slider motor settings
+ *
+ * The linear motor uses Defold units per second and maximum force. The angular
+ * motor uses radians per second and maximum torque in Defold squared units.
+ *
  * @name bullet3d.constraint.get_slider_motor
  * @param constraint [type:btTypedConstraint] slider constraint
  * @param motor [type:string] `linear` or `angular`
  * @return enabled [type:boolean] motor state
- * @return target_velocity [type:number] target velocity
- * @return max_force [type:number] maximum motor force
+ * @return target_velocity [type:number] linear or angular target velocity
+ * @return max_force [type:number] maximum linear force or angular torque
  */
 
 /*# Set slider motor settings
+ *
+ * Linear and angular values use the units described by `get_slider_motor`.
+ *
  * @name bullet3d.constraint.set_slider_motor
  * @param constraint [type:btTypedConstraint] slider constraint
  * @param motor [type:string] `linear` or `angular`
  * @param enabled [type:boolean] motor state
- * @param target_velocity [type:number] target velocity
- * @param max_force [type:number] non-negative maximum motor force
+ * @param target_velocity [type:number] linear or angular target velocity
+ * @param max_force [type:number] non-negative maximum linear force or angular torque
  */
 
 /*# Get the slider linear reference-frame choice

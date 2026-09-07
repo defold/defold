@@ -46,13 +46,19 @@
       (render-program-utils/gen-form-data-constants "compute.constants" :constants)
       (render-program-utils/gen-form-data-samplers "compute.samplers" :samplers)]}]})
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property node-id property
+                  (if-not (= :constants property)
+                    value
+                    (mapv render-program-utils/coerce-constant value))))
+
 (g/defnk produce-form-data [_node-id compute-program constants samplers :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
         (assoc :form-ops {:user-data {:node-id _node-id}
-                          :set protobuf-forms-util/set-form-op
+                          :set set-form-op
                           :clear protobuf-forms-util/clear-form-op}))))
 
 (g/defnk produce-save-value [compute-program constants samplers]

@@ -12,42 +12,101 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dmsdk/dlib/array.h>
-#include <dmsdk/font/fontcollection.h>
-
 #include "font_private.h"
+#include "fontcollection.h"
+#include "text_layout.h"
+
+#include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/font/fontcollection.h>
+#include <string.h>
 
 #if defined(FONT_USE_SKRIBIDI)
     #include <dmsdk/dlib/hashtable.h>
     #include <skribidi/skb_font_collection.h>
+    #include <skribidi/skb_layout.h>
     #include "harfbuzz/font_harfbuzz.h"
 #endif
 
+struct TextNamedStyle
+{
+    dmhash_t                 m_Name;
+    TextRenderStyle          m_Style;
+    TextNamedStyleDecoration m_Decoration;
+    dmArray<TextEffect>      m_Effects;
+};
+
 struct FontCollection
 {
-    dmArray<HFont> m_Fonts;
-    TextLayoutType m_LayoutType;
+    dmArray<HFont>                  m_Fonts;
+    dmArray<TextNamedStyle*>        m_NamedStyles;
+    TextLayoutType                  m_LayoutType;
+    uint32_t                        m_NamedStyleRevision;
+    FontCollectionFallbackCallback  m_FallbackCallback;
+    void*                           m_FallbackContext;
 
 #if defined(FONT_USE_SKRIBIDI)
-    skb_font_collection_t* m_Collection;
+    skb_font_collection_t*                m_Collection;
     dmHashTable<skb_font_handle_t, HFont> m_FontLookup;
 #endif
 };
 
+static TextNamedStyle* FindNamedStyle(HFontCollection collection, dmhash_t name)
+{
+    for (uint32_t i = 0; i < collection->m_NamedStyles.Size(); ++i)
+    {
+        if (collection->m_NamedStyles[i]->m_Name == name)
+        {
+            return collection->m_NamedStyles[i];
+        }
+    }
+
+    return 0;
+}
+
+static TextNamedStyle* GetOrCreateNamedStyle(HFontCollection collection, dmhash_t name)
+{
+    TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
+    if (named_style)
+    {
+        return named_style;
+    }
+
+    if (collection->m_NamedStyles.Full())
+    {
+        collection->m_NamedStyles.OffsetCapacity(1);
+    }
+
+    named_style = new TextNamedStyle;
+    named_style->m_Name = name;
+    memset(&named_style->m_Style, 0, sizeof(named_style->m_Style));
+    memset(&named_style->m_Decoration, 0, sizeof(named_style->m_Decoration));
+    collection->m_NamedStyles.Push(named_style);
+
+    return named_style;
+}
 
 HFontCollection FontCollectionCreate()
 {
     FontCollection* coll = new FontCollection;
     coll->m_LayoutType = TEXT_LAYOUT_TYPE_FULL;
+    coll->m_NamedStyleRevision = 0;
+    coll->m_FallbackCallback = 0;
+    coll->m_FallbackContext = 0;
 
 #if defined(FONT_USE_SKRIBIDI)
     coll->m_Collection = skb_font_collection_create();
 #endif
     return coll;
-};
+}
 
 void FontCollectionDestroy(HFontCollection coll)
 {
+    for (uint32_t i = 0; i < coll->m_NamedStyles.Size(); ++i)
+    {
+        delete coll->m_NamedStyles[i];
+    }
 #if defined(FONT_USE_SKRIBIDI)
     skb_font_collection_destroy(coll->m_Collection);
 #endif
@@ -73,9 +132,10 @@ FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
 #if defined(FONT_USE_SKRIBIDI)
     hb_font_t* hb_font = FontGetHarfbuzzFontFromTTF(hfont);
     skb_font_handle_t skbfont = skb_font_collection_add_hb_font(coll->m_Collection,
-                                                hb_font,
-                                                FontGetPath(hfont),
-                                                SKB_FONT_FAMILY_DEFAULT);
+                                                                FontGetPath(hfont),
+                                                                hb_font,
+                                                                SKB_FONT_FAMILY_DEFAULT,
+                                                                0);
 
     if (skbfont)
     {
@@ -123,6 +183,77 @@ TextLayoutType FontCollectionGetLayoutType(HFontCollection coll)
     return coll->m_LayoutType;
 }
 
+void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, const TextRenderStyle& style)
+{
+    TextNamedStyle* named_style = GetOrCreateNamedStyle(collection, name);
+    named_style->m_Style = style;
+    named_style->m_Effects.SetCapacity(0);
+    ++collection->m_NamedStyleRevision;
+}
+
+bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name, const char* definition, uint32_t definition_length, MarkupError* error)
+{
+    TextRenderStyle    style = {};
+    dmArray<TextEffect> effects;
+
+    if (!TextLayoutCompileStyleFragment(definition, definition_length, &style, &effects, error))
+    {
+        effects.SetCapacity(0);
+
+        return false;
+    }
+
+    TextNamedStyle* named_style = GetOrCreateNamedStyle(collection, name);
+    named_style->m_Style = style;
+    named_style->m_Effects.Swap(effects);
+    effects.SetCapacity(0);
+    ++collection->m_NamedStyleRevision;
+
+    return true;
+}
+
+void FontCollectionSetNamedStyleDecoration(HFontCollection collection, dmhash_t name, const TextNamedStyleDecoration& decoration)
+{
+    TextNamedStyle* named_style = GetOrCreateNamedStyle(collection, name);
+    named_style->m_Decoration = decoration;
+    ++collection->m_NamedStyleRevision;
+}
+
+const TextRenderStyle* FontCollectionGetNamedStyle(HFontCollection collection, dmhash_t name)
+{
+    const TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
+    return named_style ? &named_style->m_Style : 0;
+}
+
+const TextEffect* FontCollectionGetNamedStyleEffects(HFontCollection collection, dmhash_t name, uint32_t* effect_count)
+{
+    const TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
+    if (!named_style)
+    {
+        *effect_count = 0;
+
+        return 0;
+    }
+
+    *effect_count = named_style->m_Effects.Size();
+
+    return named_style->m_Effects.Begin();
+}
+
+const TextNamedStyleDecoration* FontCollectionGetNamedStyleDecoration(HFontCollection collection, dmhash_t name)
+{
+    const TextNamedStyle* named_style = FindNamedStyle(collection, name);
+
+    return named_style && named_style->m_Decoration.m_Flags ? &named_style->m_Decoration : 0;
+}
+
+uint32_t FontCollectionGetNamedStyleRevision(HFontCollection collection)
+{
+    return collection->m_NamedStyleRevision;
+}
+
 uint32_t FontCollectionGetFontCount(HFontCollection coll)
 {
     return coll->m_Fonts.Size();
@@ -131,6 +262,28 @@ uint32_t FontCollectionGetFontCount(HFontCollection coll)
 HFont FontCollectionGetFont(HFontCollection coll, uint32_t index)
 {
     return coll->m_Fonts[index];
+}
+
+#if defined(FONT_USE_SKRIBIDI)
+static bool OnFontFallback(skb_font_collection_t* collection, const char* language, uint8_t script,
+                           uint8_t font_family, void* context)
+{
+    (void)collection;
+    FontCollection* font_collection = (FontCollection*)context;
+
+    return font_collection->m_FallbackCallback(font_collection, language,
+                                                skb_script_to_iso15924_tag(script), font_family,
+                                                font_collection->m_FallbackContext);
+}
+#endif
+
+void FontCollectionSetFallbackCallback(HFontCollection collection, FontCollectionFallbackCallback callback, void* context)
+{
+    collection->m_FallbackCallback = callback;
+    collection->m_FallbackContext = context;
+#if defined(FONT_USE_SKRIBIDI)
+    skb_font_collection_set_on_font_fallback(collection->m_Collection, callback ? OnFontFallback : 0, collection);
+#endif
 }
 
 #if defined(FONT_USE_SKRIBIDI)

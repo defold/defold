@@ -188,6 +188,7 @@ namespace dmEngine
 
     HEngine New(dmEngineService::HEngineService engine_service);
     void Delete(HEngine engine);
+    bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
     bool Init(HEngine engine, int argc, char *argv[]);
     void Step(HEngine engine);
 

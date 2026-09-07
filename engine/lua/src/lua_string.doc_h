@@ -180,7 +180,7 @@
  * 
  * 
  * @name string.char
- * @param ...
+ * @param ... [type:any]
  */
 
 /*# converts a function into binary
@@ -266,7 +266,7 @@
  * 
  * @name string.format
  * @param formatstring [type:string]
- * @param ...
+ * @param ... [type:any]
  */
 
 /*# iterate over a string
@@ -391,6 +391,7 @@
  * @param s [type:string]
  */
 
+
 /*# converts a string to lower-case
  * Receives a string and returns a copy of this string with all
  * uppercase letters changed to lowercase.
@@ -467,4 +468,3 @@
  * @name string.upper
  * @param s [type:string]
  */
-

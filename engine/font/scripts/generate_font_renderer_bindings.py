@@ -17,8 +17,10 @@
 import argparse
 import hashlib
 import pathlib
+import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 
 
@@ -43,8 +45,15 @@ HEADER_CLASS = "FontRendererFFM"
 SYMBOLS_CLASS = "FontRendererSymbols"
 FUNCTIONS = (
     "FontcCreate",
+    "FontcCreateGlyphBank",
     "FontcDestroy",
+    "FontcParseMarkup",
+    "FontcDestroyMarkup",
+    "FontcGetMarkupData",
     "FontcMeasure",
+    "FontcMeasureMarkup",
+    "FontcMeasureParsedMarkup",
+    "FontcFilterMarkup",
     "FontcGenerateGlyph",
     "FontcFreeGlyph",
     "FontcGetGlyphMetrics",
@@ -53,6 +62,7 @@ FUNCTIONS = (
     "FontcFreeImage",
     "FontcSetProperties",
     "FontcSetText",
+    "FontcSetMarkup",
     "FontcHash",
     "FontcBeginBatch",
     "FontcGenerateTexture",
@@ -62,17 +72,26 @@ FUNCTIONS = (
 )
 STRUCTS = (
     "FontcParams",
+    "FontcGlyphBankGlyph",
     "FontcLayout",
     "FontcGlyph",
     "FontcGlyphMetrics",
     "FontcImage",
+    "FontcMarkupString",
+    "FontcMarkupAttribute",
+    "FontcMarkupNode",
+    "FontcMarkupSpan",
+    "FontcMarkupError",
+    "FontcMarkupData",
     "FontcProperties",
     "FontcTexture",
 )
 TYPEDEFS = (
     "HFontRenderer",
+    "HFontcMarkup",
     "FontRendererResult",
     "FontRendererLayer",
+    "FontcMarkupErrorType",
 )
 CONSTANTS = (
     "FONT_RENDERER_RESULT_OK",
@@ -84,6 +103,21 @@ CONSTANTS = (
     "FONT_RENDERER_LAYER_FACE",
     "FONT_RENDERER_LAYER_OUTLINE",
     "FONT_RENDERER_LAYER_SHADOW",
+    "FONTC_MARKUP_ERROR_NONE",
+    "FONTC_MARKUP_ERROR_INCOMPLETE_TAG",
+    "FONTC_MARKUP_ERROR_INCOMPLETE_ENTITY",
+    "FONTC_MARKUP_ERROR_UNCLOSED_TAG",
+    "FONTC_MARKUP_ERROR_INVALID_TAG",
+    "FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE",
+    "FONTC_MARKUP_ERROR_INVALID_ENTITY",
+    "FONTC_MARKUP_ERROR_UNEXPECTED_CLOSING_TAG",
+    "FONTC_MARKUP_ERROR_MISMATCHED_CLOSING_TAG",
+    "FONTC_MARKUP_ERROR_INVALID_UTF8",
+    "FONTC_MARKUP_ERROR_LIMIT_EXCEEDED",
+    "FONTC_MARKUP_ERROR_UNSUPPORTED",
+    "FONTC_MARKUP_ERROR_UNKNOWN_TAG",
+    "FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE",
+    "FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE",
 )
 HEADER_HASH_PREFIX = "// Font renderer header SHA-256: "
 
@@ -119,9 +153,18 @@ def main():
             if hash_lines != [expected_hash_line] or has_platform_dependent_long:
                 stale_files.append(filename)
         if stale_files:
+            regeneration_command = shlex.join((
+                sys.executable,
+                str(pathlib.Path(__file__).resolve()),
+                "--jextract", "/path/to/jextract",
+                "--header", str(args.header.resolve()),
+                "--include-dir", str(args.include_dir.resolve()),
+                "--output", str(args.output.resolve()),
+            ))
             raise SystemExit(
                 "error: Font renderer FFM bindings are stale or missing: " + ", ".join(stale_files) +
-                ". Regenerate them with the generate_font_renderer_ffm target and a jextract executable.")
+                ".\nRegenerate them with Java 25 jextract (https://jdk.java.net/jextract/):\n  " +
+                regeneration_command)
         return
     if not args.jextract:
         raise RuntimeError("--jextract is required when generating bindings")

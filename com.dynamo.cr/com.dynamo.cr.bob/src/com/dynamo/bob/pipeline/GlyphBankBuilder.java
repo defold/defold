@@ -34,7 +34,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.font.BMFont;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.Fontc;
-import com.dynamo.render.proto.Font.GlyphBank;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
 import com.dynamo.render.proto.Font.FontDesc;
 
 @ProtoParams(srcClass = FontDesc.class, messageClass = GlyphBank.class)

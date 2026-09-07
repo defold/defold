@@ -1,5 +1,6 @@
 /label/invalid_label.go
 /label/invalid_vertexspace.label
+/label/link_hover.go
 /label/test_comp.go
 /label/valid_label.go
 /font/dyn_glyph_bank_test_1.font

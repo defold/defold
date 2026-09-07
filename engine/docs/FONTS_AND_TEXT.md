@@ -48,8 +48,41 @@ The text layout api uses the `TextGlyph`.
 
 ### Rich text
 
-We currently do not have any native support for any form of rich text.
-It is in our plans however.
+Rich text parsing and style/effect resolution are provided by the `font_richtext`
+library. The parser API remains link-compatible when markup is excluded: an
+engine built with `--disable-feature=font_richtext` links `font_richtext_null`
+instead, and markup creation returns `MARKUP_RESULT_UNSUPPORTED`. Plain text
+layout and rendering continue to work through pass-through render-data helpers,
+without linking the parser or style/effect implementation.
+
+Markup can be applied through both the legacy and full layout paths. The parser
+itself is independent and may be used without enabling `font_layout`.
+
+#### Underline and strikethrough
+
+The markup resolver records `<ul>` and `<strike>` as decoration flags and a
+solid or dashed pattern on each affected text span. The selected layout backend
+then creates a `TextDecoration` for every part of the span on a physical line.
+At this point underline and strikethrough use the same representation: the
+backend has resolved their difference into a baseline-relative Y position and
+thickness. The full backend gets these metrics from Skribidi; the legacy backend
+derives them from the configured font size.
+
+Vertex generation normally emits one six-vertex quad for a complete decoration
+segment. It splits the segment at glyph boundaries only when this is necessary
+to preserve different styles, markup spans, or glyph-fitted gradients. The
+decoration colors are resolved from the geometrically outermost glyphs so that
+gradients also follow the visual direction of right-to-left text. Glyph-position
+effects such as shake and wave are deliberately not applied to decorations;
+they remain attached to the line baseline.
+
+Decoration quads sample a single opaque texel in the font atlas and render only
+in the face layer. A solid line needs no additional shader work. For a dashed
+line, normalized pattern position and duty are packed into otherwise unused
+decoration `layer_mask` components and interpolated across the quad. The built-in
+font shaders decode these values into the repeating dash mask. Custom font
+materials must apply the same decoding to render dashed decorations; otherwise
+the line appears solid.
 
 ### Runtime generation
 
