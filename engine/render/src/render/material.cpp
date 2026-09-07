@@ -255,6 +255,7 @@ namespace dmRender
 
         m->m_MaterialAttributes.SetCapacity(num_program_attributes);
         m->m_MaterialAttributes.SetSize(num_program_attributes);
+        memset(m->m_MaterialAttributes.Begin(), 0, sizeof(MaterialAttribute) * num_program_attributes);
         m->m_VertexAttributeInfos.SetCapacity(num_program_attributes);
         m->m_VertexAttributeInfos.SetSize(num_program_attributes);
 

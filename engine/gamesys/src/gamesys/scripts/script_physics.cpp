@@ -200,6 +200,7 @@ namespace dmGameSystem
      * @member physics.SHAPE_TYPE_BOX Box shape.
      * @member physics.SHAPE_TYPE_CAPSULE Capsule shape; supported only by 3D physics.
      * @member physics.SHAPE_TYPE_HULL Convex hull shape.
+     * @member physics.SHAPE_TYPE_MESH Triangle mesh shape; supported only by the Bullet 3D backend.
      * @member physics.SHAPE_TYPE_SPHERE Sphere shape.
      */
 
@@ -1449,11 +1450,6 @@ namespace dmGameSystem
         lua_pushboolean(L, (int) boolvalue);
         return 1;
     }
-
-
-
-
-
     /*# get collision shape info
      * Gets collision shape data from a collision object
      *
@@ -1516,6 +1512,7 @@ namespace dmGameSystem
                 lua_setfield(L, -2, "height");
                 break;
             case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+            case dmPhysicsDDF::CollisionShape::TYPE_MESH:
                 break;
             default:break;
         }
@@ -1533,6 +1530,7 @@ namespace dmGameSystem
      * @param shape [type:string|hash] the name of the shape to get data for.
      * @param table [type:physics.shape_data] updated collision shape data
      *
+     * Hull and mesh geometry cannot be changed with this function.
      * @examples
      *
      * ```lua
@@ -2204,6 +2202,7 @@ namespace dmGameSystem
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_BOX,     TYPE_BOX)
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_CAPSULE, TYPE_CAPSULE)
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_HULL,    TYPE_HULL)
+        SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_MESH,    TYPE_MESH)
 
 #undef SET_COLLISION_SHAPE_CONSTANT
 

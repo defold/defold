@@ -542,7 +542,11 @@ task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLib
     outputs.file("${project.bobDir}/dist/bob-light.jar")
 
     manifest {
-        def attrs = ['Main-Class': 'com.dynamo.bob.Bob', 'is-bob-light': 'true']
+        def attrs = [
+                'Main-Class': 'com.dynamo.bob.Bob',
+                'Enable-Native-Access': 'ALL-UNNAMED',
+                'is-bob-light': 'true'
+        ]
         if (privateBobPluginClassPath) {
             attrs['Class-Path'] = privateBobPluginClassPath
         }
@@ -775,6 +779,7 @@ task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, cr
                 zipOutputStream.setMethod(compressionMethod)
                 def manifestAttributes = [
                         'Main-Class': 'com.dynamo.bob.Bob',
+                        'Enable-Native-Access': 'ALL-UNNAMED',
                         'Gradle-Version': gradle.gradleVersion,
                         'Created-By': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
                 ]

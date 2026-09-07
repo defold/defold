@@ -219,6 +219,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD(aabb, "Aabb");
         GET_FLD_TYPESTR(indices, "[I");
         GET_FLD_TYPESTR(vertexCount, "I");
+        GET_FLD(primitiveType, "PrimitiveType");
         GET_FLD_ARRAY(morphTargets, "MorphTarget");
         GET_FLD_TYPESTR(morphBaseWeights, "[F");
     }
@@ -227,6 +228,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_ARRAY(meshes, "Mesh");
         GET_FLD_TYPESTR(index, "I");
+        GET_FLD_TYPESTR(nameIsGenerated, "Z");
         GET_FLD(parentBone, "Bone");
     }
     {
@@ -592,6 +594,7 @@ jobject C2J_CreateMesh(JNIEnv* env, TypeInfos* types, const Mesh* src) {
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.aabb, C2J_CreateAabb(env, types, &src->m_Aabb));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.indices, dmJNI::C2J_CreateUIntArray(env, src->m_Indices.Begin(), src->m_Indices.Size()));
     dmJNI::SetUInt(env, obj, types->m_MeshJNI.vertexCount, src->m_VertexCount);
+    dmJNI::SetEnum(env, obj, types->m_MeshJNI.primitiveType, src->m_PrimitiveType);
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.morphTargets, C2J_CreateMorphTargetArray(env, types, src->m_MorphTargets.Begin(), src->m_MorphTargets.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.morphBaseWeights, dmJNI::C2J_CreateFloatArray(env, src->m_MorphBaseWeights.Begin(), src->m_MorphBaseWeights.Size()));
     return obj;
@@ -603,6 +606,7 @@ jobject C2J_CreateModel(JNIEnv* env, TypeInfos* types, const Model* src) {
     dmJNI::SetString(env, obj, types->m_ModelJNI.name, src->m_Name);
     dmJNI::SetObjectDeref(env, obj, types->m_ModelJNI.meshes, C2J_CreateMeshArray(env, types, src->m_Meshes.Begin(), src->m_Meshes.Size()));
     dmJNI::SetUInt(env, obj, types->m_ModelJNI.index, src->m_Index);
+    dmJNI::SetBoolean(env, obj, types->m_ModelJNI.nameIsGenerated, src->m_NameIsGenerated);
     dmJNI::SetObjectDeref(env, obj, types->m_ModelJNI.parentBone, C2J_CreateBone(env, types, src->m_ParentBone));
     return obj;
 }
@@ -1986,6 +1990,7 @@ bool J2C_CreateMesh(JNIEnv* env, TypeInfos* types, jobject obj, Mesh* out) {
         }
     }
     out->m_VertexCount = dmJNI::GetUInt(env, obj, types->m_MeshJNI.vertexCount);
+    out->m_PrimitiveType = (PrimitiveType)dmJNI::GetEnum(env, obj, types->m_MeshJNI.primitiveType);
     {
         jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.morphTargets);
         if (field_object) {
@@ -2020,6 +2025,7 @@ bool J2C_CreateModel(JNIEnv* env, TypeInfos* types, jobject obj, Model* out) {
         }
     }
     out->m_Index = dmJNI::GetUInt(env, obj, types->m_ModelJNI.index);
+    out->m_NameIsGenerated = dmJNI::GetBoolean(env, obj, types->m_ModelJNI.nameIsGenerated);
     {
         jobject field_object = env->GetObjectField(obj, types->m_ModelJNI.parentBone);
         if (field_object) {

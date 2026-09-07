@@ -352,7 +352,7 @@ public class ShaderCompilers {
         ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-        } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        } else if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
         } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32 || platform == Platform.X86_64Linux) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);

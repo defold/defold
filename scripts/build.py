@@ -51,7 +51,7 @@ from BuildTimeTracker import BuildTimeTracker
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
-                    'x86_64-ios', 'arm64-ios',
+                    'arm64-ios', 'arm64_sim-ios',
                     'armv7-android', 'arm64-android', 'x86_64-android',
                     'wasm-web', 'wasm_pthread-web']
 
@@ -182,7 +182,7 @@ PACKAGES_HOST=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
-PACKAGES_IOS_X86_64=[
+PACKAGES_IOS_SIMULATOR=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "glfw-2.7.1",
@@ -418,7 +418,7 @@ PLATFORM_PACKAGES = {
     'x86_64-macos':     PACKAGES_MACOS_X86_64,
     'arm64-macos':      PACKAGES_MACOS_ARM64,
     'arm64-ios':        PACKAGES_IOS_64,
-    'x86_64-ios':       PACKAGES_IOS_X86_64,
+    'arm64_sim-ios':    PACKAGES_IOS_SIMULATOR,
     'armv7-android':    PACKAGES_ANDROID,
     'arm64-android':    PACKAGES_ANDROID_64,
     'x86_64-android':   PACKAGES_ANDROID_X86_64,
@@ -596,6 +596,7 @@ class Configuration(object):
                  defold_home = None,
                  dynamo_home = None,
                  target_platform = None,
+                 sdk_platforms = None,
                  skip_tests = False,
                  test_device = None,
                  ios_identity = None,
@@ -650,6 +651,7 @@ class Configuration(object):
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.target_platform = target_platform
+        self.sdk_platforms = sdk_platforms
         self.sdk_info = None
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
@@ -1356,12 +1358,12 @@ class Configuration(object):
         if sdk.get_host_platform() != target_platform:
             has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
 
-        if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+        if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
             download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), sdkfolder, force_extract=True)
 
-        if target_platform in ('arm64-ios', 'x86_64-ios'):
+        if target_platform in ('arm64-ios', 'arm64_sim-ios'):
             # iOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
@@ -1811,7 +1813,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios','armv7-android','arm64-android','x86_64-android']:
+        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios','armv7-android','arm64-android','x86_64-android']:
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
@@ -2958,7 +2960,7 @@ class Configuration(object):
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
                            'win32-bundling': [[win32_engine_platform, 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
-                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
+                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['arm64_sim-ios', 'arm64_sim-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
                            'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.items():
@@ -3058,15 +3060,18 @@ class Configuration(object):
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        # When a public checkout has a private platform added, only merge the
-        # requested private platform SDK. Public releases still merge all SDKs.
-        private_platforms = build_private.get_target_platforms()
-        if build_private.is_repo_private():
-            platforms = private_platforms
-        elif self.target_platform in private_platforms:
-            platforms = [self.target_platform]
+        if self.sdk_platforms:
+            platforms = self.sdk_platforms
         else:
-            platforms = get_target_platforms()
+            # When a public checkout has a private platform added, only merge the
+            # requested private platform SDK. Public releases still merge all SDKs.
+            private_platforms = build_private.get_target_platforms()
+            if build_private.is_repo_private():
+                platforms = private_platforms
+            elif self.target_platform in private_platforms:
+                platforms = [self.target_platform]
+            else:
+                platforms = get_target_platforms()
         print("Building combined SDK from platform SDK archives:", platforms)
 
         zipmerge_path = shutil.which('zipmerge')
@@ -3113,7 +3118,7 @@ class Configuration(object):
 
         print("Upload platform sdks mappings")
         platform_sdks_path = join(tempdir, 'platform.sdks.json')
-        write_merged_platform_sdks(self.defold_root, self.target_platform, platform_sdks_path)
+        write_merged_platform_sdks(self.defold_root, platforms, platform_sdks_path)
         self.upload_to_archive(platform_sdks_path, '%s/platform.sdks.json' % sdkurl)
 
         self.wait_uploads()
@@ -4119,6 +4124,10 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = None,
                       help = 'Target platform. Defaults to the host platform. With add_private_repo, this may be a new private platform to write to .defold-platforms')
 
+    parser.add_option('--platforms', dest='sdk_platforms',
+                      default = None,
+                      help = 'Comma-separated target platforms to include with build_sdk')
+
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',
                       default = False,
@@ -4312,6 +4321,19 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
     if options.target_platform and options.target_platform not in known_platforms and not is_add_private_repo:
         parser.error("option --platform: invalid choice: %r (choose from %s)" % (options.target_platform, ', '.join(known_platforms)))
 
+    sdk_platforms = None
+    if options.sdk_platforms is not None:
+        if 'build_sdk' not in args:
+            parser.error("option --platforms may only be used with build_sdk")
+        sdk_platforms = [platform.strip() for platform in options.sdk_platforms.split(',') if platform.strip()]
+        if not sdk_platforms:
+            parser.error("option --platforms requires at least one platform")
+        unknown_platforms = [platform for platform in sdk_platforms if platform not in known_platforms]
+        if unknown_platforms:
+            parser.error("option --platforms: invalid choice: %r (choose from %s)" % (', '.join(unknown_platforms), ', '.join(known_platforms)))
+        if len(sdk_platforms) != len(set(sdk_platforms)):
+            parser.error("option --platforms contains duplicate platforms")
+
     private_platform = None
     if is_add_private_repo:
         private_platform = options.target_platform or get_host_platform()
@@ -4329,6 +4351,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
+                      sdk_platforms = sdk_platforms,
                       skip_tests = options.skip_tests,
                       test_device = options.test_device,
                       ios_identity = options.ios_identity,

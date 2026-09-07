@@ -19,8 +19,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -682,17 +684,19 @@ public class BobProjectProperties {
      * @param pw {@link PrintWriter} to save to
      */
     public void save(PrintWriter pw) {
+        // Line endings are hardcoded to '\n' rather than the platform separator: this ends up
+        // in game.projectc, whose size the HTML5 loader verifies. See issue #10006.
         for (String category : getCategoryNames()) {
-            pw.format("[%s]%n", category);
+            pw.format("[%s]\n", category);
 
             for (String key : getKeys(category)) {
                 ProjectProperty prop = getValue(category, key);
                 String value = prop.getValue();
                 if (value != null) {
-                    pw.format("%s = %s%n", key, value);
+                    pw.format("%s = %s\n", key, value);
                 }
             }
-            pw.println();
+            pw.print("\n");
         }
         pw.close();
     }
@@ -703,7 +707,7 @@ public class BobProjectProperties {
      * @throws IOException
      */
     public void save(OutputStream os) throws IOException {
-        PrintWriter pw = new PrintWriter(os);
+        PrintWriter pw = new PrintWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8));
         save(pw);
         os.close();
     }

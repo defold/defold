@@ -33,8 +33,9 @@ import com.dynamo.gamesys.proto.DataProto;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.Gui;
-import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.gamesys.proto.MeshProto;
+import com.dynamo.gamesys.proto.ModelProto;
+import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -64,6 +65,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return CollectionDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("collisionobjectc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return CollisionObjectDesc.parseFrom(content);
             }
         });
         parseMap.put("scriptc", new IParser() {
