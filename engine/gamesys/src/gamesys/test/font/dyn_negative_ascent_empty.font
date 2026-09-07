@@ -1,0 +1,7 @@
+font: "/font/IBMPlexMono-Bold.ttf"
+material: "/font/material_valid.material"
+size: 96
+output_format: TYPE_DISTANCE_FIELD
+characters: ""
+cache_width: 128
+cache_height: 256

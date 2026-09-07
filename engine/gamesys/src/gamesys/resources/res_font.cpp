@@ -432,10 +432,9 @@ namespace dmGameSystem
         params->m_IsDynamic          = 0;
     }
 
-    static void GetMaxCellSize(HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
+    static float GetMaxCellWidth(HFont hfont, float scale, const char* text)
     {
-        *cell_width = 0;
-        *cell_height = 0;
+        float cell_width = 0;
 
         FontGlyphOptions options;
 
@@ -451,10 +450,10 @@ namespace dmGameSystem
             FontResult r = FontGetGlyph(hfont, codepoint, &options, &glyph);
             if (r == FONT_RESULT_OK)
             {
-                *cell_width = dmMath::Max(*cell_width, glyph.m_Width);
-                *cell_height = dmMath::Max(*cell_height, glyph.m_Height);
+                cell_width = dmMath::Max(cell_width, glyph.m_Width);
             }
         }
+        return cell_width;
     }
 
     static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, HFont hfont, dmRender::FontMapParams* params)
@@ -513,12 +512,14 @@ namespace dmGameSystem
         if (!all_chars && has_chars)
         {
             // We can make a guesstimate of the needed cache and cell sizes
-            float cell_width, cell_height;
-            GetMaxCellSize(hfont, scale, ddf->m_Characters, &cell_width, &cell_height);
+            float cell_width = GetMaxCellWidth(hfont, scale, ddf->m_Characters);
+            int32_t cell_ascent = (int32_t)ceilf(params->m_MaxAscent) + (int32_t)ceilf(padding);
+            int32_t cell_descent = (int32_t)ceilf(params->m_MaxDescent) + (int32_t)ceilf(padding);
 
+            // The cell and its baseline must use the same padded vertical extents.
             params->m_CacheCellWidth     = (uint32_t)ceilf(cell_width) + 2 * ceilf(padding);
-            params->m_CacheCellHeight    = (uint32_t)ceilf(cell_height) + 2 * ceilf(padding);
-            params->m_CacheCellMaxAscent = (uint32_t)ceilf(params->m_MaxAscent) + ceilf(padding);
+            params->m_CacheCellHeight    = (uint32_t)dmMath::Max(1, cell_ascent + cell_descent);
+            params->m_CacheCellMaxAscent = cell_ascent;
 
             if (dynamic_cache_size)
             {

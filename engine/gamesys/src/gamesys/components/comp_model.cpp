@@ -97,6 +97,7 @@ namespace dmGameSystem
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         dmGraphics::HTexture        m_MorphTargetTexture;
+        dmhash_t                    m_MorphModelId;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
@@ -165,6 +166,7 @@ namespace dmGameSystem
         dmRender::HBufferedRenderBuffer* m_VertexBuffers;
         dmArray<uint8_t>*                m_VertexBufferData;
         uint32_t*                        m_VertexBufferDispatchCounts;
+        uint32_t                         m_InstanceBufferDispatchCount;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
@@ -250,6 +252,7 @@ namespace dmGameSystem
         world->m_MaxBatchIndex             = 0;
         world->m_MaxElementsVertices       = dmGraphics::GetMaxElementsVertices(graphics_context);
         world->m_InstanceBufferLocalSpace  = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+        world->m_InstanceBufferDispatchCount = 0;
 
         dmGraphics::TextureCreationParams tp;
         world->m_SkinnedAnimationData.m_BindPoseCacheTexture = dmGraphics::NewTexture(graphics_context, tp);
@@ -540,7 +543,7 @@ namespace dmGameSystem
         }
         else if (component->m_RigInstance)
         {
-            w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_Model->m_Id, &wcount);
+            w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_MorphModelId, &wcount);
         }
 
         // Fallback to base weights (written DDF data)
@@ -1112,6 +1115,7 @@ namespace dmGameSystem
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
             item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture ? resource->m_Meshes[i].m_MorphTargetTexture->m_Texture : 0;
+            item.m_MorphModelId = resource->m_Meshes[i].m_MorphModelId;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -1510,6 +1514,12 @@ namespace dmGameSystem
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
     {
         DM_PROFILE("VSInstanced");
+
+        if (dmRender::GetBufferIndex(render_context, world->m_InstanceBufferLocalSpace) < world->m_InstanceBufferDispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, world->m_InstanceBufferLocalSpace);
+        }
+
         MeshRenderItem* render_item           = (MeshRenderItem*) buf[*begin].m_UserData;
         uint32_t instance_count               = end - begin;
         uint32_t instance_stride              = dmGraphics::GetVertexDeclarationStride(inst_decl);
@@ -2330,7 +2340,7 @@ namespace dmGameSystem
             }
 
             uint32_t wc = 0;
-            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, render_item.m_Model->m_Id, &wc);
+            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, render_item.m_MorphModelId, &wc);
             if (w && wc > 0)
             {
                 *out_weights = w;
@@ -2407,6 +2417,7 @@ namespace dmGameSystem
 
         dmRender::TrimBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
         dmRender::RewindBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
+        world->m_InstanceBufferDispatchCount = 0;
 
         world->m_ScratchConstantBuffersCount = 0;
         world->m_MaxBatchIndex = 0;
@@ -2474,6 +2485,7 @@ namespace dmGameSystem
 
                     // Update statistics for the instance buffer
                     world->m_StatisticsVertexDataSize += world->m_InstanceBufferDataLocalSpace.Size();
+                    world->m_InstanceBufferDispatchCount++;
                 }
 
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
