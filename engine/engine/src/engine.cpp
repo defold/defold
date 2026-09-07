@@ -129,7 +129,7 @@ namespace dmEngine
     {
 #if defined(_WIN32)
         // Improve Sleep() accuracy for engine-side frame pacing. This request is
-        // process-local on current Windows versions and must be balanced at exit.
+        // held until shutdown, where every successful call is balanced.
         g_TimerResolutionEnabled = timeBeginPeriod(1) == TIMERR_NOERROR;
 #endif
         return true;
@@ -151,10 +151,11 @@ namespace dmEngine
 
 #define SYSTEM_SOCKET_NAME "@system"
 
-    // Policy rate used when swap-interval pacing is requested but no presenter
-    // can pace the frame, such as when rendering is disabled or headless. It is
-    // deliberately independent of display refresh-rate discovery, which may be
-    // unavailable, stale, or ambiguous for windowed and variable-refresh output.
+    // Policy rate used when swap-interval pacing is requested but presentation
+    // cannot currently pace the frame, such as when rendering is disabled.
+    // Headless engines remain unpaced unless an explicit update frequency is set.
+    // This is deliberately independent of display refresh-rate discovery, which
+    // may be unavailable, stale, or ambiguous for windowed and variable-refresh output.
     static const uint32_t DEFAULT_TIMER_PACING_FREQUENCY = 60;
     static const uint32_t FRAME_PACING_TIME_BASE = 1000000; // Microseconds per second
 
@@ -794,7 +795,7 @@ namespace dmEngine
     {
         // An explicit update frequency is timer-paced on platforms whose engine
         // owns the application loop. Disable presentation pacing in that mode so
-        // Flip() cannot block for vsync after PaceFrame() has already waited.
+        // Flip() cannot add a presentation wait to the engine timer's pacing.
         uint32_t effective_swap_interval = UseEngineFramePacing() && engine->m_UpdateFrequency != 0 ? 0 : engine->m_SwapInterval;
         if (effective_swap_interval != engine->m_EffectiveSwapInterval)
         {
@@ -809,7 +810,7 @@ namespace dmEngine
     uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder)
     {
         // A microsecond clock cannot represent periods shorter than one
-        // microsecond. Preserve the previous minimum period for such inputs.
+        // microsecond, so clamp such periods to one microsecond.
         if (frequency >= FRAME_PACING_TIME_BASE)
         {
             remainder = 0;
@@ -2343,11 +2344,12 @@ bail:
      * Selects the frequency used by the engine-side frame pacer. An explicit
      * update frequency set via SetUpdateFrequency() always wins. With a
      * variable update frequency, Flip() normally provides the wait through
-     * vsync. Headless engines remain unpaced so they can run as fast as
-     * possible. When rendering is temporarily disabled on a graphical backend,
-     * the engine uses its fallback timer policy adjusted by the requested swap
-     * interval instead of relying on platform refresh-rate discovery.
-     * @return The number of engine frames per second
+     * vsync. Headless engines with a variable update frequency remain unpaced so
+     * they can run as fast as possible. When rendering is temporarily disabled
+     * on a graphical backend, the engine uses its fallback timer policy adjusted
+     * by the requested swap interval instead of relying on platform refresh-rate
+     * discovery.
+     * @return The timer-pacing frequency, or 0 when the engine timer is not needed
      */
     static uint32_t GetFramePacingFrequency(HEngine engine)
     {
@@ -2379,11 +2381,10 @@ bail:
     }
 
     /**
-     * Wait for the next absolute frame deadline. This function will immediately
-     * return without waiting if the frame pacing frequency is zero. In all
-     * other scenarios the function will wait until the frame deadline.
-     * @return true when engine-side pacing took place and the function slept
-     * until the frame deadline, and false if no engine-side pacing took place.
+     * Apply engine-side pacing against the next absolute frame deadline. This
+     * function returns immediately if timer pacing is disabled, and only sleeps
+     * when the active deadline is still in the future.
+     * @return true when the engine timer owns pacing, and false otherwise
      */
     static bool PaceFrame(HEngine engine)
     {
@@ -2446,8 +2447,8 @@ bail:
 
         if (frame_was_paced)
         {
-            // PaceFrame has already waited for this frame's deadline. Keep the
-            // simulation step fixed even if the timer wakes slightly late.
+            // The engine timer owns this frame's cadence. Keep the simulation
+            // step fixed even if no wait was needed or the timer woke late.
             step_dt = fixed_dt;
             num_steps = 1;
             engine->m_AccumFrameTime = 0.0f;

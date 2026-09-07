@@ -1354,7 +1354,8 @@ union SaveLoadBuffer
     * hardware constraints.
     *
     * @name sys.set_update_frequency
-    * @param frequency [type:number] target frequency. 60 for 60 fps
+    * @param frequency [type:number] target frequency in hertz. 0 selects a variable
+    * frame rate; negative values are treated as 0.
     * @examples
     *
     * Setting the update frequency to 60 frames per second

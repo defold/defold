@@ -513,7 +513,8 @@ TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
 
 TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
 {
-    // Verify that timer pacing replaces vsync while preserving the requested swap interval.
+    // Verify that timer pacing selects an effective swap interval of 0 while
+    // preserving the application's requested interval.
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 

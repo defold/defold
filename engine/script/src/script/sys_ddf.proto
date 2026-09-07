@@ -226,7 +226,8 @@ message SetVsync
  *
  * @message
  * @name set_update_frequency
- * @param frequency [type:number] target frequency. 60 for 60 fps
+ * @param frequency [type:number] target frequency in hertz. 0 selects a variable
+ * frame rate; negative values are treated as 0.
  * @examples
  * <pre>
  * msg.post("@system:", "set_update_frequency", { frequency = 60 } )

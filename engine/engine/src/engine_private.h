@@ -246,9 +246,9 @@ namespace dmEngine
     };
 
     /**
-     * Check if the engine should manually calculate and apply frame pacing or
-     * if the underlying platform handles it
-     * @return true if frame pacing should be handled manually
+     * Check whether Step() may use the engine-side frame pacer. Platform-owned
+     * callback loops perform their scheduling externally.
+     * @return true if Step() may apply engine-side frame pacing
      */
     bool UseEngineFramePacing();
 
