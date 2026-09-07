@@ -80,7 +80,39 @@
       (is (false? (proj-path-patterns-pred "/a/b")))
       (is (true? (proj-path-patterns-pred "/ab")))
       (is (false? (proj-path-patterns-pred "/aba")))
-      (is (true? (proj-path-patterns-pred "/ab/a"))))))
+      (is (true? (proj-path-patterns-pred "/ab/a")))))
+
+  (testing "Wildcard match rules."
+    (let [proj-path-patterns-pred (resource/make-proj-path-patterns-pred-raw ["/levels/*/tiled"])]
+      (is (true? (proj-path-patterns-pred "/levels/1/tiled")))
+      (is (true? (proj-path-patterns-pred "/levels/1/tiled/a.txt")))
+      (is (false? (proj-path-patterns-pred "/levels")))
+      (is (false? (proj-path-patterns-pred "/levels/1")))
+      (is (false? (proj-path-patterns-pred "/levels/tiled")))
+      (is (false? (proj-path-patterns-pred "/levelsX/1/tiled")))
+      (is (false? (proj-path-patterns-pred "/levels/1/tiledX")))
+      (is (false? (proj-path-patterns-pred "/levels/1/other.txt"))))
+    (let [proj-path-patterns-pred (resource/make-proj-path-patterns-pred-raw ["/levels/*"])]
+      (is (true? (proj-path-patterns-pred "/levels/a.txt")))
+      (is (true? (proj-path-patterns-pred "/levels/a/b.txt")))
+      (is (false? (proj-path-patterns-pred "/levels"))))
+    (let [proj-path-patterns-pred (resource/make-proj-path-patterns-pred-raw ["/levels/**"])]
+      (is (true? (proj-path-patterns-pred "/levels/a/b/c.txt")))
+      (is (false? (proj-path-patterns-pred "/levels"))))
+    (let [proj-path-patterns-pred (resource/make-proj-path-patterns-pred-raw ["/**/tiled"])]
+      (is (true? (proj-path-patterns-pred "/a/tiled")))
+      (is (true? (proj-path-patterns-pred "/a/b/tiled/c.txt")))
+      (is (false? (proj-path-patterns-pred "/tiled")))
+      (is (false? (proj-path-patterns-pred "/a/b/untiled"))))
+    (let [proj-path-patterns-pred (resource/make-proj-path-patterns-pred-raw ["/a?c"])]
+      (is (true? (proj-path-patterns-pred "/abc")))
+      (is (false? (proj-path-patterns-pred "/ac")))
+      (is (false? (proj-path-patterns-pred "/a/c"))))
+    (let [proj-path-patterns-pred (resource/make-proj-path-patterns-pred-raw ["/a.b" "/c.*"])]
+      (is (true? (proj-path-patterns-pred "/a.b")))
+      (is (false? (proj-path-patterns-pred "/aXb")))
+      (is (true? (proj-path-patterns-pred "/c.txt")))
+      (is (false? (proj-path-patterns-pred "/cXtxt"))))))
 
 (defn- set-file-lines! [file lines]
   (if (nil? lines)

@@ -547,6 +547,43 @@ public class ProjectBuildTest {
     }
 
     @Test
+    public void testFindResourcePathsRespectsDefignoreWildcards() throws IOException {
+        createFile(contentRoot, ".defignore", "/levels/*/tiled\n/a.b\n");
+        createFile(contentRoot, "levels/1/tiled/x.txt", "");
+        createFile(contentRoot, "levels/1/other.txt", "");
+        createFile(contentRoot, "levels/tiled/y.txt", "");
+        createFile(contentRoot, "levelsX/1/tiled/z.txt", "");
+        createFile(contentRoot, "aXb/k.txt", "");
+        createFile(contentRoot, "a.b/m.txt", "");
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            List<String> paths = new ArrayList<>();
+            project.findResourcePaths("", paths);
+            assertEquals(new HashSet<>(Arrays.asList(
+                    ".defignore",
+                    "game.project",
+                    "test.png",
+                    "levels/1/other.txt",
+                    "levels/tiled/y.txt",
+                    "levelsX/1/tiled/z.txt",
+                    "aXb/k.txt")),
+                    new HashSet<>(paths));
+
+            List<String> ignoredPaths = new ArrayList<>();
+            project.findResourcePaths("levels/1/tiled", ignoredPaths);
+            assertTrue(ignoredPaths.isEmpty());
+
+            List<String> dirs = new ArrayList<>();
+            project.findResourceDirs("levels/1", dirs);
+            assertTrue(dirs.isEmpty());
+
+            List<String> levelDirs = new ArrayList<>();
+            project.findResourceDirs("levels", levelDirs);
+            assertEquals(new HashSet<>(Arrays.asList("1", "tiled")), new HashSet<>(levelDirs));
+        }
+    }
+
+    @Test
     public void testGameProjectMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         projectName = "String Array";
         createDefaultFiles();
