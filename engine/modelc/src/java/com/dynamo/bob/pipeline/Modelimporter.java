@@ -44,6 +44,32 @@ public class Modelimporter {
         }
     };
 
+    public enum PrimitiveType {
+        PRIMITIVE_TYPE_INVALID(0),
+        PRIMITIVE_TYPE_POINTS(1),
+        PRIMITIVE_TYPE_LINES(2),
+        PRIMITIVE_TYPE_LINE_LOOP(3),
+        PRIMITIVE_TYPE_LINE_STRIP(4),
+        PRIMITIVE_TYPE_TRIANGLES(5),
+        PRIMITIVE_TYPE_TRIANGLE_STRIP(6),
+        PRIMITIVE_TYPE_TRIANGLE_FAN(7),
+        PRIMITIVE_TYPE_MAX_ENUM(8);
+        private final int value;
+        private PrimitiveType(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public PrimitiveType fromValue(int value) throws IllegalArgumentException {
+            for (PrimitiveType e : PrimitiveType.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to PrimitiveType: %d", value) );
+        }
+    };
+
     public static class Vector3 {
         public float x = 0.0f;
         public float y = 0.0f;
@@ -200,6 +226,7 @@ public class Modelimporter {
         public Aabb aabb;
         public int[] indices;
         public int vertexCount = 0;
+        public PrimitiveType primitiveType = PrimitiveType.PRIMITIVE_TYPE_INVALID;
         public MorphTarget[] morphTargets;
         public float[] morphBaseWeights;
     };
@@ -207,6 +234,7 @@ public class Modelimporter {
         public String name;
         public Mesh[] meshes;
         public int index = 0;
+        public boolean nameIsGenerated = false;
         public Bone parentBone;
     };
     public static class Bone {

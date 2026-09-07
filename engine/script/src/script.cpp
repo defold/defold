@@ -377,7 +377,7 @@ namespace dmScript
     // From https://zeux.io/2010/11/07/lua-callstack-with-c-debugger/
     // and also
     // https://github.com/defold/defold/blob/dev/engine/lua/src/lua/ldblib.c#L321
-    void GetLuaTraceback(lua_State* L, const char* infostring, void (*cbk)(lua_State* L, lua_Debug* entry, void* ctx), void* ctx)
+    static void GetLuaTraceback(lua_State* L, const char* infostring, void (*cbk)(lua_State* L, lua_Debug* entry, void* ctx), void* ctx)
     {
         const int LEVELS1 = 12;  // size of the first part of the stack
         const int LEVELS2 = 10;  // size of the second part of the stack
@@ -406,7 +406,7 @@ namespace dmScript
                 if (!lua_getstack(L1, level+LEVELS2, &entry)) {
                     level--;  // keep going
                 } else {
-                    lua_pushliteral(L, "\n\t...");  // too many levels
+                    cbk(L1, 0, ctx);  // too many levels
                     while (lua_getstack(L1, level+LEVELS2, &entry))  // find last levels
                         level++;
                 }
@@ -422,7 +422,7 @@ namespace dmScript
     }
 
     // From ldblib.c function db_errorfb()
-    uint32_t WriteLuaTracebackEntry(lua_Debug* entry, char* buffer, uint32_t buffer_size)
+    static int32_t WriteLuaTracebackEntry(lua_Debug* entry, char* buffer, uint32_t buffer_size)
     {
         int32_t nwritten = 0;
         if (*entry->namewhat != '\0')
@@ -442,11 +442,7 @@ namespace dmScript
             nwritten = dmSnPrintf(buffer, buffer_size, "  %s:%d: in function <%s:%d>\n", entry->short_src, entry->currentline, entry->short_src, entry->linedefined);
         }
 
-        // Truncated, so we'll just make sure we've not written anything
-        if (nwritten < 0)
-            nwritten = 0;
-
-        return (uint32_t)nwritten;
+        return nwritten;
     }
 
 
@@ -1468,45 +1464,100 @@ namespace dmScript
     }
 
 
-    struct LuaCallstackCtx
+    static const uint32_t LUA_TRACEBACK_BUFFER_SIZE = 8 * 1024;
+    static const char LUA_TRACEBACK_ELIDED[] = "  ...\n";
+    static const char LUA_TRACEBACK_TRUNCATED[] = "  ... (traceback truncated)\n";
+
+    struct LuaTracebackCtx
     {
-        bool     m_First;
-        char*    m_Buffer;
-        uint32_t m_BufferSize;
+        bool        m_First;
+        bool        m_Truncated;
+        const char* m_Header;
+        char*       m_Buffer;
+        uint32_t    m_BufferSize;
     };
 
-    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
+    static void MarkLuaTracebackTruncated(LuaTracebackCtx* ctx)
     {
-        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
+        if (ctx->m_BufferSize > 0)
+            dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "%s", LUA_TRACEBACK_TRUNCATED);
+        ctx->m_Truncated = true;
+    }
+
+    static uint32_t GetLuaTracebackWriteSize(const LuaTracebackCtx* ctx)
+    {
+        const uint32_t marker_length = sizeof(LUA_TRACEBACK_TRUNCATED) - 1;
+        return ctx->m_BufferSize > marker_length ? ctx->m_BufferSize - marker_length : 0;
+    }
+
+    static bool AppendLuaTracebackString(LuaTracebackCtx* ctx, const char* string)
+    {
+        uint32_t write_size = GetLuaTracebackWriteSize(ctx);
+        int32_t nwritten = write_size > 0 ? dmSnPrintf(ctx->m_Buffer, write_size, "%s", string) : -1;
+        if (nwritten < 0)
+        {
+            MarkLuaTracebackTruncated(ctx);
+            return false;
+        }
+        ctx->m_Buffer += nwritten;
+        ctx->m_BufferSize -= nwritten;
+        return true;
+    }
+
+    static void WriteLuaTracebackCallback(lua_State* L, lua_Debug* entry, void* _ctx)
+    {
+        LuaTracebackCtx* ctx = (LuaTracebackCtx*)_ctx;
+
+        if (ctx->m_Truncated)
+            return;
 
         if (ctx->m_First)
         {
-            int32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "stack traceback:\n");
-            if (nwritten < 0)
-                nwritten = 0;
-            ctx->m_Buffer += nwritten;
-            ctx->m_BufferSize -= nwritten;
             ctx->m_First = false;
+            if (!AppendLuaTracebackString(ctx, ctx->m_Header))
+                return;
         }
 
-        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
+        if (entry == 0)
+        {
+            AppendLuaTracebackString(ctx, LUA_TRACEBACK_ELIDED);
+            return;
+        }
+
+        uint32_t write_size = GetLuaTracebackWriteSize(ctx);
+        int32_t nwritten = write_size > 0 ? WriteLuaTracebackEntry(entry, ctx->m_Buffer, write_size) : -1;
+        if (nwritten < 0)
+        {
+            MarkLuaTracebackTruncated(ctx);
+            return;
+        }
         ctx->m_Buffer += nwritten;
         ctx->m_BufferSize -= nwritten;
     }
 
+    void WriteLuaTraceback(lua_State* L, const char* header, char* buffer, uint32_t buffer_size)
+    {
+        if (buffer_size == 0)
+            return;
+
+        buffer[0] = '\0';
+
+        LuaTracebackCtx ctx;
+        ctx.m_First = true;
+        ctx.m_Truncated = false;
+        ctx.m_Header = header;
+        ctx.m_Buffer = buffer;
+        ctx.m_BufferSize = buffer_size;
+        GetLuaTraceback(L, "Sln", WriteLuaTracebackCallback, &ctx);
+    }
+
     static int BacktraceErrorHandler(lua_State *m_state) {
         lua_createtable(m_state, 0, 2);
-        
-        // First, generate traceback BEFORE we modify the stack
-        // We need to do this first because GetLuaTraceback expects string errors
-        char traceback[1024];
-        traceback[0] = '\0'; // Initialize the buffer
-        LuaCallstackCtx ctx;
-        ctx.m_First = true;
-        ctx.m_Buffer = traceback;
-        ctx.m_BufferSize = sizeof(traceback);
-        
-        // If error is not a string, temporarily convert it for traceback generation
+        int result_table = lua_gettop(m_state);
+
+        char traceback[LUA_TRACEBACK_BUFFER_SIZE];
+
+        // GetLuaTraceback only generates output for string errors.
         if (!lua_isstring(m_state, 1))
         {
             // Replace stack position 1 with string version for GetLuaTraceback
@@ -1535,18 +1586,19 @@ namespace dmScript
                 lua_replace(m_state, 1); // Replace with type name
             }
         }
-        
+
         // Now generate traceback with string error message
-        dmScript::GetLuaTraceback(m_state, "Sln", GetLuaStackTraceCbk, &ctx);
-        
+        WriteLuaTraceback(m_state, "stack traceback:\n", traceback, sizeof(traceback));
+
         // Store the converted error message
         lua_pushvalue(m_state, 1);
-        lua_setfield(m_state, -2, "error");
+        lua_setfield(m_state, result_table, "error");
 
         // Store the traceback
         lua_pushstring(m_state, traceback);
-        lua_setfield(m_state, -2, "traceback");
+        lua_setfield(m_state, result_table, "traceback");
 
+        lua_settop(m_state, result_table);
         return 1;
     }
 

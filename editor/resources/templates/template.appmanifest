@@ -7,7 +7,7 @@ platforms:
       libs: []
       frameworks: []
       linkFlags: []
-  x86_64-ios:
+  arm64_sim-ios:
     context:
       excludeLibs: []
       excludeSymbols: []

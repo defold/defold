@@ -1,0 +1,21 @@
+# R8 keep rules for the Java classes shipped with the Defold engine.
+
+# Keep useful information in obfuscated stack traces.
+-renamesourcefileattribute SourceFile
+-keepattributes SourceFile,LineNumberTable
+
+# Defold owns these Android namespaces. Keep their complete Java surface so new
+# engine callbacks and JNI entry points do not require matching rule updates.
+-keep,allowoptimization class com.dynamo.android.** { *; }
+-keep,allowoptimization class com.defold.window.** { *; }
+-keep,allowoptimization class com.defold.sound.** { *; }
+
+# DefoldVkQuality accesses the bundled VKQuality API through reflection. Its
+# native methods use name-based JNI symbols from libvkquality.
+-keep,allowoptimization class com.google.android.games.vkquality.VKQuality {
+    public <init>(android.content.Context);
+    public int StartVkQualityWithFlags(java.lang.String, int);
+    public int GetVkQuality();
+    public native int startVkQualityFlags(android.content.res.AssetManager, java.lang.String, java.lang.String, int);
+    public native int getVkQuality();
+}

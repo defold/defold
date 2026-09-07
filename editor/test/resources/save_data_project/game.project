@@ -50,7 +50,7 @@ iap_provider = Amazon
 gcm_sender_id = com.defold.save-data-project
 fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
-proguard = /builtins/manifests/android/dmengine.pro
+r8_keep_rules = /builtins/manifests/android/dmengine.keep
 extract_native_libs = 1
 
 [project]
@@ -89,6 +89,7 @@ archive_location_prefix = archive_prefix
 archive_location_suffix = archive_suffix
 engine_arguments = --verify-graphics-calls=false
 wasm_streaming = 1
+verify_downloaded_file_size = 0
 show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0

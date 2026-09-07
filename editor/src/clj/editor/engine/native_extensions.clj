@@ -53,6 +53,8 @@
                                      :library-paths #{"osx" "x86_64-osx"}}
    (.getPair Platform/Arm64Ios)     {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
+   (.getPair Platform/Arm64IosSim)  {:platform      "arm64_sim-ios"
+                                     :library-paths #{"ios" "arm64_sim-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
    (.getPair Platform/Arm64Android) {:platform      "arm64-android"
@@ -211,8 +213,6 @@
         (resource-node-last-modified app-manifest-resource-node evaluation-context)
         0))))
 
-;; Note: When we do bundling for Android via the editor, we need add
-;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
   (let [project-settings (g/node-value project :settings evaluation-context)]
     (into {}
@@ -239,7 +239,7 @@
      "arm64-android"    ["android" "manifest"]
      "x86_64-android"   ["android" "manifest"]
      "arm64-ios"        ["ios" "infoplist"]
-     "armv7-ios"        ["ios" "infoplist"]
+     "arm64_sim-ios"    ["ios" "infoplist"]
      "arm64-osx"        ["osx" "infoplist"]
      "x86_64-osx"       ["osx" "infoplist"]
      "wasm-web"         ["html5" "htmlfile"]
@@ -251,7 +251,7 @@
     "arm64-android"    "AndroidManifest.xml"
     "x86_64-android"   "AndroidManifest.xml"
     "arm64-ios"        "Info.plist"
-    "armv7-ios"        "Info.plist"
+    "arm64_sim-ios"    "Info.plist"
     "arm64-osx"        "Info.plist"
     "x86_64-osx"       "Info.plist"
     "wasm-web"         "engine_template.html"
