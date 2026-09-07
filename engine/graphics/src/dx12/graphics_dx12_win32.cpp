@@ -237,7 +237,10 @@ void DX12NativeEndFrame(DX12Context* context)
 {
     // Present must use the effective interval selected by the engine; presenting
     // with zero here would bypass vsync while reporting that DX12 provides it.
-    HRESULT hr = context->m_SwapChain->Present(context->m_SwapInterval, 0);
+    // DXGI accepts sync intervals from 0 through 4, while Defold allows larger
+    // values for backends that support them.
+    uint32_t sync_interval = dmMath::Min(context->m_SwapInterval, 4U);
+    HRESULT hr = context->m_SwapChain->Present(sync_interval, 0);
     CHECK_HR_ERROR(hr);
 }
 
