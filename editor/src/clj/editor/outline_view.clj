@@ -802,8 +802,8 @@
                          (g/transact
                            {:undoable false}
                            (g/make-nodes graph [outline-view [OutlineView
-                                                                   :tree-view tree-view
-                                                                   :localization localization]]
+                                                              :tree-view tree-view
+                                                              :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]
     (setup-tree-view project tree-view outline-view app-view localization)
     outline-view))
