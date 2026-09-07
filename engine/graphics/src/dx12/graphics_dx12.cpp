@@ -4121,6 +4121,12 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         // TODO: Add this to the DX12 pipeline handle aswell, for now it's a NOP
     }
 
+    static void DX12SetSwapInterval(HContext _context, uint32_t swap_interval)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        context->m_SwapInterval = swap_interval;
+    }
+
     static PipelineState DX12GetPipelineState(HContext context)
     {
         return ((DX12Context*) context)->m_PipelineState;
@@ -4159,6 +4165,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, DX12);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, SetSwapInterval);
         return fn_table;
     }
 }
