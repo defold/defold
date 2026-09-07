@@ -2267,7 +2267,7 @@
                        offset (pivot-offset pivot manual-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
                        font-map (get-in text-data [:font-data :font-map])
-                       texture-recip-uniform (font/get-texture-recip-uniform font-map)
+                       texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
                        material-shader (when (not (empty? material)) material-shader)
                        font-shaders (:font-shaders costly-gui-scene-info)
                        font-shader (or material-shader (get font-shaders font) (get font-shaders ""))
@@ -2284,7 +2284,7 @@
   (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
                                             (font/markup-error _node-id :text (:font-map font-data) text)))
   (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking style]
-                                           (font/layout-text (assoc (:font-map font-data) :style style) text line-break (first manual-size) text-tracking text-leading)))
+                                           (font/layout-text (some-> font-data :font-map (assoc :style style)) text line-break (first manual-size) text-tracking text-leading)))
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))

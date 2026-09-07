@@ -132,7 +132,8 @@
                                          (update-in [:shadow 3] * alpha))))
                            renderables)
         node-ids (into #{} (map :node-id) renderables)]
-    (font/request-vertex-buffer gl node-ids font-data text-entries render-args)))
+    (when font-data
+      (font/request-vertex-buffer gl node-ids font-data text-entries render-args))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
@@ -207,7 +208,7 @@
   (let [scene {:node-id _node-id
                :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
-        texture-recip-uniform (font/get-texture-recip-uniform font-map)
+        texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
       (let [[w h _] size
@@ -347,7 +348,7 @@
                                             (when-not (g/error-value? font-map)
                                               (font/markup-error _node-id :text font-map text))))
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking style]
-                                           (font/layout-text (assoc font-map :style style) text line-break (first size) tracking leading)))
+                                           (font/layout-text (some-> font-map (assoc :style style)) text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot size]
                                         (let [text-size [(:width text-layout) (:height text-layout) 0]
                                               text-data {:text-layout text-layout

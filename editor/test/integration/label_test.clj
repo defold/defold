@@ -44,6 +44,18 @@
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
                                (is (g/error? (test-util/prop-error node-id prop)))))))))
 
+(deftest unassigned-font-label-preview-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
+      (test-util/with-prop [node-id :font nil]
+        (is (nil? (g/node-value node-id :font-map)))
+        (let [text-layout (g/node-value node-id :text-layout)]
+          (is (= [] (:lines text-layout)))
+          (is (= 0 (:height text-layout))))
+        (let [scene (g/node-value node-id :scene)]
+          (is (map? scene))
+          (is (nil? (label/render-tris nil {:pass pass/transparent} [(:renderable scene)] 1))))))))
+
 (deftest invalid-markup-is-label-text-property-warning-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
