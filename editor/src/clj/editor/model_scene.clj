@@ -960,12 +960,18 @@
   (property name g/Str
             (dynamic read-only? (g/constantly true)))
   (property material resource/Resource
+            (value (gu/passthrough material-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :material-resource])))
             (dynamic read-only? (g/constantly true)))
   (property samplers g/Str
             (dynamic read-only? (g/constantly true))
             (dynamic visible (g/fnk [samplers] (not (string/blank? samplers)))))
 
   (display-order [:index :name :material :samplers])
+
+  (input material-resource resource/Resource)
 
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id index material outline-label]
@@ -988,6 +994,10 @@
   (property name g/Str
             (dynamic read-only? (g/constantly true)))
   (property image resource/Resource
+            (value (gu/passthrough image-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :image-resource])))
             (dynamic read-only? (g/constantly true)))
   (property image-index g/Int
             (dynamic read-only? (g/constantly true)))
@@ -1015,6 +1025,8 @@
 
   (display-order [:index :name :image :image-index :image-name :uri :mime-type :source-kind
                   :sampler-index :min-filter :mag-filter :wrap-s :wrap-t :basisu])
+
+  (input image-resource resource/Resource)
 
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id image index outline-label]

@@ -362,3 +362,21 @@
                    (preview-texture-paths source-node)))
             (is (= (workspace/find-resource workspace source-path)
                    (g/node-value source-node :resource)))))))))
+
+(deftest container-outline-links-follow-renames
+  (with-gltf-project :file (gltf-content "Paint")
+    (fn [_project-path workspace project]
+      (let [source-path "/models/robot.gltf"
+            renamed-path "/models/renamed.gltf"
+            source-node (test-util/resource-node project source-path)]
+        (g/node-value source-node :node-outline)
+        (test-util/move-file! workspace source-path renamed-path)
+        (is (= source-node (test-util/resource-node project renamed-path)))
+        (let [links (into []
+                          (comp (mapcat :children) (keep :link))
+                          (:children (g/node-value source-node :node-outline)))]
+          (is (= #{(str renamed-path "/materials/0.material")
+                   (str renamed-path "/images/0.png")}
+                 (proj-paths links)))
+          (doseq [link links]
+            (is (resource/exists? link))))))))
