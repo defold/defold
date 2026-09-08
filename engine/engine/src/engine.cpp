@@ -464,6 +464,7 @@ namespace dmEngine
     , m_NextFrameTime(0)
     , m_FramePacingFrequency(0)
     , m_FrameTimeRemainder(0)
+    , m_PacedFrameTimeDebt(0.0f)
     , m_AccumFrameTime(0.0f)
     , m_UpdateFrequency(0)
     , m_FixedUpdateFrequency(0)
@@ -866,6 +867,7 @@ namespace dmEngine
         }
 
         engine->m_UpdateFrequency = validated_frequency;
+        engine->m_PacedFrameTimeDebt = 0.0f;
         engine->m_AccumFrameTime = 0.0f;
 
         uint64_t now = dmTime::GetMonotonicTime();
@@ -2448,9 +2450,22 @@ bail:
         if (frame_was_paced)
         {
             // The engine timer owns this frame's cadence. Keep the simulation
-            // step fixed even if no wait was needed or the timer woke late.
+            // step fixed through ordinary timer jitter. If frames consistently
+            // miss their deadlines, retain the elapsed-time debt and periodically
+            // apply it through one larger step. This keeps simulation time aligned
+            // without running the coupled update and render multiple times.
             step_dt = fixed_dt;
             num_steps = 1;
+
+            engine->m_PacedFrameTimeDebt = dmMath::Max(0.0f, engine->m_PacedFrameTimeDebt + frame_dt - fixed_dt);
+            if (engine->m_PacedFrameTimeDebt >= fixed_dt)
+            {
+                float max_correction = dmMath::Max(0.0f, engine->m_MaxTimeStep - fixed_dt);
+                float correction = dmMath::Min(engine->m_PacedFrameTimeDebt, max_correction);
+                step_dt += correction;
+                engine->m_PacedFrameTimeDebt -= correction;
+            }
+
             engine->m_AccumFrameTime = 0.0f;
         }
         else

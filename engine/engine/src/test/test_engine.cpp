@@ -420,6 +420,50 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
     ASSERT_GE(elapsed, 20000u);
 }
 
+TEST_F(EngineTest, FramePacingPreservesMissedDeadlineTime)
+{
+    // Verify that timer-paced frames retain simulation time when work takes
+    // longer than the requested frame period.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        dmEngine::Step(engine);
+        dmTime::Sleep(25000);
+        dmEngine::Step(engine);
+        dmEngine::GetStats(engine, stats);
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(2u, stats.m_FrameCount);
+    ASSERT_GT(stats.m_TotalTime, 0.025f);
+}
+
 TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
 {
     // Verify that a headless variable-rate engine does not enable timer pacing,
