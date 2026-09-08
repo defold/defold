@@ -27,8 +27,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def image-exts ["jpg" "jpeg" "png"])
-
 (defn- convert-to-abgr
   [^BufferedImage image]
   (let [type (.getType image)]

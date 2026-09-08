@@ -17,6 +17,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.gltf :as gltf]
             [editor.library :as library]
             [editor.resource :as resource]
             [editor.system :as system]
@@ -200,12 +201,16 @@
 (defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
   (resource/with-defignore-pred project-directory
     (let [lib-results (library/cached project-directory library-uris)
-          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)]
-      {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                           (make-directory-snapshot workspace project-directory)
-                                           (make-debugger-snapshot workspace)
-                                           (make-library-snapshots new-library-snapshot-cache lib-results)))
-       :snapshot-cache new-library-snapshot-cache})))
+          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)
+          snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
+                                            (make-directory-snapshot workspace project-directory)
+                                            (make-debugger-snapshot workspace)
+                                            (make-library-snapshots new-library-snapshot-cache lib-results)))
+          {:keys [resources status-map cache]} (gltf/make-snapshot (:resources snapshot)
+                                                                 (:status-map snapshot)
+                                                                 (::gltf-expansions snapshot-cache))]
+      {:snapshot (assoc snapshot :resources resources :status-map status-map)
+       :snapshot-cache (assoc new-library-snapshot-cache ::gltf-expansions cache)})))
 
 (defn make-resource-map [snapshot]
   (into {}

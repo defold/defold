@@ -1276,7 +1276,6 @@
       :label (localization/message "resource.type.model-scene")
       :node-type ModelSceneNode
       :load-fn load-model-scene-node
-      :expand-fn gltf/expand-resource
       :read-fn model-loader/read-external-buffer-uris
       :icon mesh-icon
       :icon-class :design

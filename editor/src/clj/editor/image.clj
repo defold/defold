@@ -15,7 +15,6 @@
 (ns editor.image
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
@@ -33,7 +32,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def exts image-util/image-exts)
+(def exts ["jpg" "jpeg" "png"])
 
 (defn image-resource?
   [resource]
@@ -103,30 +102,18 @@
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
 
-  (property resource resource/Resource :unjammable
-            (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self old-value new-value]
-                   ;; Initial connections are made by load-image, after all resource nodes exist.
-                   (when old-value
-                     (let [basis (:basis evaluation-context)]
-                       (into (g/disconnect-sources basis self :_content-sha256)
-                             (when-let [path (resource/content-source-path new-value)]
-                               (:tx-data (project/connect-resource-node evaluation-context (project/get-project basis self)
-                                                                        path self [[:sha256 :_content-sha256]])))))))))
-
   (input build-settings g/Any)
   (input texture-profiles g/Any)
-  (input _content-sha256 g/Str)
 
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
-  (output size g/Any :cached (g/fnk [_node-id resource ^:try _content-sha256]
+  (output size g/Any :cached (g/fnk [_node-id resource]
                                (resource-io/with-error-translation resource _node-id :size
                                  (image-util/read-size resource))))
 
   (output content-generator g/Any :cached
-          (g/fnk [_node-id resource ^:try _content-sha256]
+          (g/fnk [_node-id resource]
             (texture-util/make-buffered-image-generator resource _node-id :content-generator)))
 
   (output gpu-texture-generator g/Any :cached
@@ -147,24 +134,15 @@
                                              :atlas-rotated false}]
                                    :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
 
-  ;; Deferred image bytes can change without changing the containing resource.
-  (output sha256 g/Str :cached
-          (g/fnk [save-data ^:try _content-sha256]
-            (resource-node/save-data-sha256 save-data)))
-
   (output texture-page-count g/Int (g/constantly texture/non-paged-page-count))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-image
-  [project self resource]
-  (into (into (g/connect project :build-settings self :build-settings)
-              (g/connect project :texture-profiles self :texture-profiles))
-        (when-let [path (resource/content-source-path resource)]
-          (g/expand-ec
-            (fn [evaluation-context]
-              (:tx-data (project/connect-resource-node evaluation-context project path self
-                                                       [[:sha256 :_content-sha256]])))))))
+  [project self _resource]
+  (concat
+    (g/connect project :build-settings self :build-settings)
+    (g/connect project :texture-profiles self :texture-profiles)))
 
 (defn register-resource-types [workspace]
   (concat

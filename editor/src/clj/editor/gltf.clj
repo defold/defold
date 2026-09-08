@@ -212,7 +212,7 @@
                :basisu (.basisu texture)})
             (.getTextures image-asset)))))))
 
-(defn expand-resource
+(defn- expand-resource
   "Adapts shared asset metadata, resolving headers only when image format is unspecified."
   [source resolve-resource]
   (when (#{"gltf" "glb"} (resource/type-ext source))
@@ -278,6 +278,61 @@
                   :exception exception)
         {:data {::diagnostics [(ex-message exception)]}
          :children []}))))
+
+(defn make-snapshot
+  "Returns the resource tree, status map and cached discovery for loaded glTF containers."
+  [resources source-status-map cached-expansions]
+  (let [source-resources (delay (into {}
+                                     (comp resource/xform-recursive-resources
+                                           (coll/pair-map-by resource/proj-path))
+                                     resources))
+        expansions (volatile! {})
+        status-map (volatile! source-status-map)]
+    (letfn [(expand [source]
+              (let [proj-path (resource/proj-path source)
+                    source-status (get source-status-map proj-path)
+                    expansion
+                    (when (and (= :file (resource/source-type source))
+                               (resource/loaded? source)
+                               (#{"gltf" "glb"} (resource/type-ext source)))
+                      (let [old-expansion (get cached-expansions proj-path)
+                            cache-key [source-status source]
+                            cached (and (= cache-key (:key old-expansion))
+                                        (coll/every? (fn [[path status]]
+                                                       (= status (get source-status-map path)))
+                                                     (:dependencies old-expansion)))
+                            dependencies (volatile! (if cached (:dependencies old-expansion) {}))
+                            expansion (if cached
+                                        (:value old-expansion)
+                                        (expand-resource source
+                                                         (fn [path]
+                                                           (vswap! dependencies assoc path (get source-status-map path))
+                                                           (get @source-resources path))))]
+                        (vswap! expansions assoc proj-path {:key cache-key
+                                                           :dependencies @dependencies
+                                                           :value expansion})
+                        ;; Header reads can change which embedded resources exist.
+                        (when (coll/not-empty @dependencies)
+                          (vswap! status-map assoc proj-path
+                                  (assoc source-status :expansion-dependencies @dependencies)))
+                        expansion))]
+                (if expansion
+                  (let [source (resource/sort-resource-tree (merge source expansion))]
+                    (vswap! status-map into
+                            (map (fn [child]
+                                   ;; Like ZIP entry versions, backing content versions use
+                                   ;; the ordinary resource diff to invalidate cached outputs.
+                                   (pair (resource/proj-path child)
+                                         (assoc source-status :version
+                                                [child (get source-status-map (resource/content-source-path child))]))))
+                            (eduction resource/xform-recursive-resources (resource/children source)))
+                    source)
+                  (if-let [children (resource/children source)]
+                    (assoc source :children (mapv expand children))
+                    source))))]
+      {:resources (mapv expand resources)
+       :status-map @status-map
+       :cache @expansions})))
 
 (defn diagnostics
   "Returns extraction diagnostics by source path for display in the editor."

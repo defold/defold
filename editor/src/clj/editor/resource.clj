@@ -22,6 +22,7 @@
             [editor.fs :as fs]
             [editor.settings-core :as settings-core]
             [editor.system :as system]
+            [editor.util :as util]
             [schema.core :as schema]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
@@ -585,6 +586,17 @@
   [resource]
   (and (instance? FileResource resource)
        (nil? (:entry resource))))
+
+(defn sort-resource-tree [{:keys [children] :as tree}]
+  (let [sorted-children (->> children
+                             (map sort-resource-tree)
+                             (sort
+                               (util/comparator-chain
+                                 (util/comparator-on file-resource?)
+                                 (util/comparator-on #({:folder 0 :file 1} (source-type %)))
+                                 (util/comparator-on util/natural-order resource-name)))
+                             vec)]
+    (assoc tree :children sorted-children)))
 
 (core/register-read-handler!
   "file-resource"

@@ -300,7 +300,7 @@
               (is (= "Material 0" (:name (first materials))))
               (is (= ["gltf_material_0"] (mapv :name (gltf/material-binding-descriptors source nil)))))))))))
 
-(deftest changing-an-image-uri-reconnects-content-dependencies
+(deftest changing-an-image-uri-tracks-the-new-content-source
   (with-gltf-project :file (gltf-content "Paint")
     (fn [project-path workspace project]
       (let [source-file (io/file project-path "models/robot.gltf")
@@ -316,6 +316,7 @@
           (workspace/resource-sync! workspace)
           (is (= image-node (test-util/resource-node project image-path)))
           (let [generator (g/node-value image-node :content-generator)
+                sha256 (g/node-value image-node :sha256)
                 build-target (first (g/node-value image-node :build-targets))]
             (is (not (g/error-value? generator)))
             (test-support/write-until-new-mtime new-image-file (png-bytes 0xff778899))
@@ -323,6 +324,7 @@
             (let [updated-generator (g/node-value image-node :content-generator)]
               (is (not (g/error-value? updated-generator)))
               (is (not= (:sha1 generator) (:sha1 updated-generator)))
+              (is (not= sha256 (g/node-value image-node :sha256)))
               (is (not= (:content-hash build-target)
                         (:content-hash (first (g/node-value image-node :build-targets)))))
               (when-not (g/error-value? updated-generator)
