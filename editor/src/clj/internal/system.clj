@@ -159,10 +159,7 @@
 
 (defn- remove-deleted-user-data
   [user-data deleted-node-ids]
-  (reduce-kv (fn [user-data graph-id deleted-node-ids]
-               (update user-data graph-id #(apply dissoc % deleted-node-ids)))
-             user-data
-             (group-by gt/node-id->graph-id deleted-node-ids)))
+  (reduce dissoc user-data deleted-node-ids))
 
 (defn- commit-transaction-effects
   [system outputs-modified nodes-deleted]
@@ -449,29 +446,21 @@
     system))
 
 (defn user-data [system node-id key]
-  (let [graph-id (gt/node-id->graph-id node-id)]
-    (-> system :user-data (get graph-id) (get node-id) (get key))))
+  (get-in system [:user-data node-id key]))
 
 (defn assoc-user-data [system node-id key value]
-  (let [graph-id (gt/node-id->graph-id node-id)]
-    (update system :user-data update graph-id update node-id assoc key value)))
+  (assoc-in system [:user-data node-id key] value))
 
 (defn update-user-data [system node-id key f & args]
-  (let [graph-id (gt/node-id->graph-id node-id)]
-    (update-in system [:user-data graph-id node-id key] #(apply f %1 %2) args)))
+  (update-in system [:user-data node-id key] #(apply f %1 %2) args))
 
 (defn merge-user-data [system values-by-key-by-node-id]
-  (assoc system
-    :user-data (reduce (fn [user-data [graph-id values-by-key-by-node-id]]
-                         (assoc user-data
-                           graph-id (reduce (fn [graph-user-data [node-id values-by-key]]
-                                              (update graph-user-data node-id coll/merge values-by-key))
-                                            (get user-data graph-id)
-                                            values-by-key-by-node-id)))
-                       (:user-data system)
-                       (group-by (fn [[node-id]]
-                                   (gt/node-id->graph-id node-id))
-                                 values-by-key-by-node-id))))
+  (update system :user-data
+          (fn [user-data]
+            (reduce-kv (fn [user-data node-id values-by-key]
+                         (update user-data node-id coll/merge values-by-key))
+                       user-data
+                       values-by-key-by-node-id))))
 
 (defn clone-system [system]
   {:graphs (:graphs system)

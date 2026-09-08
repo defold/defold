@@ -733,13 +733,29 @@
       (g/user-data! view-node ::my-user-data :view)
       (is (= :project (g/user-data project-node ::my-user-data)))
       (is (= :view (g/user-data view-node ::my-user-data)))
+
+      (testing "merging values"
+        (g/user-data-merge! {project-node {::merged-user-data :project-merged}
+                             view-node {::merged-user-data :view-merged}})
+        (is (= {project-node {::merged-user-data :project-merged
+                              ::my-user-data :project}
+                view-node {::merged-user-data :view-merged
+                           ::my-user-data :view}}
+               (:user-data @g/*the-system*))))
+
       (testing "swapping in a value"
         (is (= :new-view (g/user-data-swap! view-node ::my-user-data (fn [v prefix] (keyword (str prefix (name v)))) "new-")))
         (is (= :new-view (g/user-data view-node ::my-user-data))))
+
       (testing "value removed after node is deleted"
         (g/delete-node! project-node)
         (is (nil? (g/user-data project-node ::my-user-data)))
-        (is (= :new-view (g/user-data view-node ::my-user-data))))
+        (is (= :new-view (g/user-data view-node ::my-user-data)))
+        (is (= {view-node {::merged-user-data :view-merged
+                           ::my-user-data :new-view}}
+               (:user-data @g/*the-system*))))
+
       (testing "value removed after view node is deleted"
         (g/delete-node! view-node)
-        (is (nil? (g/user-data view-node ::my-user-data)))))))
+        (is (nil? (g/user-data view-node ::my-user-data)))
+        (is (= {} (:user-data @g/*the-system*)))))))
