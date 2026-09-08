@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.regex.Pattern;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
@@ -30,6 +30,7 @@ import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.PathUtil;
 import com.dynamo.bob.util.TimeProfiler;
 
 // Owns project-local resource walking, ignore rules, and the cached resource path list.
@@ -39,7 +40,7 @@ class ProjectResourceWalker {
     private final IFileSystem fileSystem;
     private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private List<String> ignoredResourcePathPatterns;
-    private List<Pattern> ignoredResourcePathGlobs;
+    private Predicate<String> ignoredResourcePathPredicate;
 
     ProjectResourceWalker(Project project, IFileSystem fileSystem) {
         this.project = project;
@@ -49,7 +50,7 @@ class ProjectResourceWalker {
     public void clearCaches() {
         allResourcePathsCache = null;
         ignoredResourcePathPatterns = null;
-        ignoredResourcePathGlobs = null;
+        ignoredResourcePathPredicate = null;
     }
 
     public void initIgnorePatterns() throws CompileExceptionError {
@@ -144,17 +145,8 @@ class ProjectResourceWalker {
         }, results);
     }
 
-    /*
-        The same `.defignore` matching logic is implemented in the Editor.
-        If you change something here, make sure you change it in resource.clj
-        (make-proj-path-patterns-pred-raw).
-
-        A pattern matches a path if it equals the path or is a directory prefix
-        of it. Patterns may contain wildcards: `*` matches any run of non-slash
-        characters, `**` matches across slashes and `?` matches a single
-        non-slash character. Everything else is literal. Note that `**` does
-        not absorb adjacent slashes, so `/a/**` does not match `/a` itself.
-    */
+    // Returns the `.defignore` patterns as project paths. The matching rules
+    // live in PathUtil.makeProjPathPredicate, which the editor uses as well.
     private List<String> loadIgnoredResourcePathPatterns() throws CompileExceptionError {
         if (ignoredResourcePathPatterns != null) {
             return ignoredResourcePathPatterns;
@@ -186,58 +178,18 @@ class ProjectResourceWalker {
             }
         }
 
-        ignoredResourcePathPatterns = new ArrayList<>();
-        ignoredResourcePathGlobs = new ArrayList<>();
-        for (String pattern : patterns) {
-            if (isGlobPattern(pattern)) {
-                ignoredResourcePathGlobs.add(globToRegex(pattern));
-            } else {
-                ignoredResourcePathPatterns.add(pattern);
-            }
-        }
+        ignoredResourcePathPatterns = new ArrayList<>(patterns);
+        ignoredResourcePathPredicate = PathUtil.makeProjPathPredicate(ignoredResourcePathPatterns);
         return ignoredResourcePathPatterns;
     }
 
-    private static boolean isGlobPattern(String pattern) {
-        return pattern.indexOf('*') >= 0 || pattern.indexOf('?') >= 0;
-    }
-
-    private static Pattern globToRegex(String glob) {
-        StringBuilder regex = new StringBuilder("^");
-        StringBuilder literal = new StringBuilder();
-        int n = glob.length();
-        for (int i = 0; i < n; ++i) {
-            char c = glob.charAt(i);
-            if (c == '*' || c == '?') {
-                if (literal.length() > 0) {
-                    regex.append(Pattern.quote(literal.toString()));
-                    literal.setLength(0);
-                }
-                if (c == '?') {
-                    regex.append("[^/]");
-                } else if (i + 1 < n && glob.charAt(i + 1) == '*') {
-                    regex.append(".*");
-                    ++i;
-                } else {
-                    regex.append("[^/]*");
-                }
-            } else {
-                literal.append(c);
-            }
-        }
-        if (literal.length() > 0) {
-            regex.append(Pattern.quote(literal.toString()));
-        }
-        regex.append("(/.*)?$");
-        return Pattern.compile(regex.toString());
-    }
-
-    private List<String> getIgnoredResourcePathPatterns() {
+    private Predicate<String> getIgnoredResourcePathPredicate() {
         try {
-            return loadIgnoredResourcePathPatterns();
+            loadIgnoredResourcePathPatterns();
         } catch (CompileExceptionError e) {
             throw new RuntimeException(e);
         }
+        return ignoredResourcePathPredicate;
     }
 
     private boolean isIgnoredResourcePath(String path) {
@@ -246,24 +198,12 @@ class ProjectResourceWalker {
             return false;
         }
 
-        for (String ignoredPathPattern : getIgnoredResourcePathPatterns()) {
-            if (normalizedPath.equals(ignoredPathPattern) || normalizedPath.startsWith(ignoredPathPattern + "/")) {
-                return true;
-            }
-        }
-
-        for (Pattern glob : ignoredResourcePathGlobs) {
-            if (glob.matcher(normalizedPath).matches()) {
-                return true;
-            }
-        }
-
-        return false;
+        return getIgnoredResourcePathPredicate().test("/" + normalizedPath);
     }
 
     private static String normalizeIgnoredPathPattern(String path) {
-        path = FilenameUtils.separatorsToUnix(path);
-        return Project.stripLeadingAndTrailingSlashes(path);
+        path = Project.stripLeadingAndTrailingSlashes(FilenameUtils.separatorsToUnix(path));
+        return path.isEmpty() ? path : "/" + path;
     }
 
     private static String normalizeResourcePathForMatching(String path) {

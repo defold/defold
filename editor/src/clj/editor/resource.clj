@@ -33,10 +33,10 @@
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
+           [com.dynamo.bob.util PathUtil]
            [java.io Closeable File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
-           [java.util.regex Pattern]
            [java.util.zip ZipEntry ZipFile]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
@@ -348,73 +348,20 @@
        (make-defignore-patterns-key)
        (make-defignore-patterns project-directory)))
 
-(defn- glob-pattern? [^String pattern]
-  (or (string/includes? pattern "*")
-      (string/includes? pattern "?")))
-
-(defn- glob->regex
-  ^Pattern [^String glob]
-  (let [regex (StringBuilder. "^")
-        literal (StringBuilder.)
-        length (.length glob)
-        flush-literal! (fn flush-literal! []
-                         (when (pos? (.length literal))
-                           (.append regex (Pattern/quote (.toString literal)))
-                           (.setLength literal 0)))]
-    (loop [i 0]
-      (when (< i length)
-        (let [c (.charAt glob i)]
-          (case c
-            \? (do (flush-literal!)
-                   (.append regex "[^/]")
-                   (recur (inc i)))
-            \* (do (flush-literal!)
-                   (if (and (< (inc i) length)
-                            (= \* (.charAt glob (inc i))))
-                     (do (.append regex ".*")
-                         (recur (+ i 2)))
-                     (do (.append regex "[^/]*")
-                         (recur (inc i)))))
-            (do (.append literal c)
-                (recur (inc i)))))))
-    (flush-literal!)
-    (.append regex "(/.*)?$")
-    (Pattern/compile (.toString regex))))
-
 (defn make-proj-path-patterns-pred-raw
   "Returns a predicate that takes a proj-path and returns true if it starts with
   or matches one of the listed proj-path-patterns. Patterns may contain
-  wildcards: `*` matches any run of non-slash characters, `**` matches across
-  slashes and `?` matches a single non-slash character. Note that `**` does not
-  absorb adjacent slashes, so `/a/**` does not match `/a` itself.
-
-  The same matching logic is implemented in Bob. If you change something here,
-  make sure you change it in ProjectResourceWalker.java as well."
+  wildcards. The matching rules are shared with Bob, see
+  PathUtil.makeProjPathPredicate."
   [proj-path-patterns]
   {:pre [(or (nil? proj-path-patterns)
              (s/assert ::proj-path-patterns proj-path-patterns))]
    :post [(s/assert ::proj-path-pred %)]}
   (if (zero? (count proj-path-patterns))
     fn/constantly-false
-    (let [{literal-patterns false glob-patterns true} (group-by glob-pattern? proj-path-patterns)
-          regexes (mapv glob->regex glob-patterns)]
+    (let [pred (PathUtil/makeProjPathPredicate proj-path-patterns)]
       (fn matched-proj-path? [^String proj-path]
-        (let [proj-path-length (.length proj-path)]
-          (boolean
-            (or
-              (coll/some
-                (fn [^String pattern]
-                  ;; Make sure a "/dir" pattern matches "/dir" and "/dir/entry",
-                  ;; but not "/dire".
-                  (and (string/starts-with? proj-path pattern)
-                       (let [pattern-length (.length pattern)]
-                         (or (= pattern-length proj-path-length)
-                             (= \/ (.charAt proj-path pattern-length))))))
-                literal-patterns)
-              (coll/some
-                (fn [^Pattern regex]
-                  (.matches (.matcher regex proj-path)))
-                regexes))))))))
+        (.test pred proj-path)))))
 
 (def ^:private make-proj-path-patterns-pred-fn
   (fn/memoize
