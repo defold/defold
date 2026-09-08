@@ -451,6 +451,8 @@ TEST_F(EngineTest, FramePacingPreservesMissedDeadlineTime)
         dmEngine::Step(engine);
         dmTime::Sleep(25000);
         dmEngine::Step(engine);
+        dmTime::Sleep(25000);
+        dmEngine::Step(engine);
         dmEngine::GetStats(engine, stats);
 
         dmEngine::SetRenderEnabled(true);
@@ -460,8 +462,33 @@ TEST_F(EngineTest, FramePacingPreservesMissedDeadlineTime)
     dmEngineFinalize();
 
     ASSERT_TRUE(initialized);
-    ASSERT_EQ(2u, stats.m_FrameCount);
-    ASSERT_GT(stats.m_TotalTime, 0.025f);
+    ASSERT_EQ(3u, stats.m_FrameCount);
+    ASSERT_GT(stats.m_TotalTime, 0.040f);
+}
+
+TEST_F(EngineTest, FramePacingPreservesSignedTimeBalance)
+{
+    // Alternating slow and fast frames must not discard time already advanced
+    // by a previous catch-up correction.
+    const float fixed_dt = 1.0f / 60.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const float frame_times[] = { 0.032f, 0.006f, 0.032f };
+    const uint32_t frame_count = 300;
+
+    float elapsed_time = 0.0f;
+    float simulation_time = 0.0f;
+    float frame_time_balance = 0.0f;
+
+    for (uint32_t i = 0; i < frame_count; ++i)
+    {
+        float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+        elapsed_time += frame_dt;
+        simulation_time += dmEngine::CalcPacedTimeStep(frame_dt, fixed_dt, max_time_step, frame_time_balance);
+    }
+
+    ASSERT_NEAR(7.0f, elapsed_time, 0.0001f);
+    ASSERT_NEAR(elapsed_time, simulation_time + frame_time_balance, 0.0001f);
+    ASSERT_LE(elapsed_time - simulation_time, fixed_dt + 0.0001f);
 }
 
 TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)

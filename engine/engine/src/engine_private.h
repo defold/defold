@@ -169,7 +169,7 @@ namespace dmEngine
         uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
         uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
         uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
-        float                                       m_PacedFrameTimeDebt;       // Elapsed simulation time not yet applied by timer-paced updates
+        float                                       m_PacedFrameTimeDebt;       // Signed elapsed-versus-simulated time balance for timer-paced updates
         float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_FixedUpdateFrequency;
@@ -256,6 +256,10 @@ namespace dmEngine
     // Advances a deadline by one rational frame period without accumulating
     // integer microsecond rounding error. Exposed here for unit testing.
     uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder);
+
+    // Calculates a timer-paced simulation step while preserving a signed time
+    // balance. Exposed here for deterministic unit testing.
+    float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
 
     /**
      *

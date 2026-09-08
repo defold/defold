@@ -2439,6 +2439,35 @@ bail:
         return true;
     }
 
+    /**
+     * Calculates the simulation step for a timer-paced frame while carrying a
+     * signed balance between elapsed and simulated time. Positive balance is
+     * applied as a bounded catch-up correction, while negative balance records
+     * simulation time already advanced.
+     * @param frame_dt [type:float] elapsed time for the current frame in seconds
+     * @param fixed_dt [type:float] requested fixed simulation step in seconds
+     * @param max_time_step [type:float] maximum simulation step in seconds
+     * @param frame_time_balance [type:float&] signed time balance to update
+     * @return step_dt [type:float] simulation step for the current frame
+     */
+    float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance)
+    {
+        float step_dt = fixed_dt;
+
+        // Keep a signed balance so a short frame can offset a previous catch-up
+        // correction instead of allowing that elapsed time to be counted twice.
+        frame_time_balance += frame_dt - fixed_dt;
+        if (frame_time_balance >= fixed_dt)
+        {
+            float max_correction = dmMath::Max(0.0f, max_time_step - fixed_dt);
+            float correction = dmMath::Min(frame_time_balance, max_correction);
+            step_dt += correction;
+            frame_time_balance -= correction;
+        }
+
+        return step_dt;
+    }
+
     static void CalcTimeStep(HEngine engine, bool frame_was_paced, float& step_dt, uint32_t& num_steps)
     {
         uint64_t time = dmTime::GetMonotonicTime();
@@ -2470,17 +2499,8 @@ bail:
             // miss their deadlines, retain the elapsed-time debt and periodically
             // apply it through one larger step. This keeps simulation time aligned
             // without running the coupled update and render multiple times.
-            step_dt = fixed_dt;
+            step_dt = CalcPacedTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, engine->m_PacedFrameTimeDebt);
             num_steps = 1;
-
-            engine->m_PacedFrameTimeDebt = dmMath::Max(0.0f, engine->m_PacedFrameTimeDebt + frame_dt - fixed_dt);
-            if (engine->m_PacedFrameTimeDebt >= fixed_dt)
-            {
-                float max_correction = dmMath::Max(0.0f, engine->m_MaxTimeStep - fixed_dt);
-                float correction = dmMath::Min(engine->m_PacedFrameTimeDebt, max_correction);
-                step_dt += correction;
-                engine->m_PacedFrameTimeDebt -= correction;
-            }
 
             engine->m_AccumFrameTime = 0.0f;
         }
