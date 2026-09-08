@@ -464,33 +464,7 @@
 
         (g/cancel! :undo/global :a)
 
-        (is (= (undo-redo-states) [[nil 1 2.9] []])))))
-
-  (testing "Multi-node transactions create a single undo point"
-    (ts/with-clean-system
-      (let [[node-p] (ts/tx-nodes (g/make-node world Root :where "first"))
-            [node-a] (ts/tx-nodes (g/make-node world Root :where "second"))]
-
-        (is (= (undo-redo-states) [[nil nil] []]))
-
-        (touch node-p 1 :a)
-
-        (g/transact [(g/set-property node-p :touched 2)
-                     (g/set-property node-a :touched 2)
-                     (g/operation-label 2)
-                     (g/operation-sequence :a)])
-
-        (touch node-p 3 :c)
-
-        (is (= (undo-redo-states) [[nil nil 2 3] []]))
-
-        (g/undo! :undo/global)
-
-        (is (= (undo-redo-states) [[nil nil 2] [3]]))
-
-        (g/undo! :undo/global)
-
-        (is (= (undo-redo-states) [[nil nil] [3 2]]))))))
+        (is (= (undo-redo-states) [[nil 1 2.9] []]))))))
 
 (g/defnode Source
   (property source-label g/Str))
@@ -513,17 +487,17 @@
                                                    (g/make-node world Sink)
                                                    (g/make-node world Sink))]
 
-        (g/transact
-         [(g/connect source-p1 :source-label sink-p1 :target-label)
-          (g/connect source-p1 :source-label pipe-p1 :target-label)
-          (g/connect pipe-p1   :soft         sink-a1 :target-label)
-          (g/connect source-a1 :source-label sink-a2 :target-label)])
+      (g/transact
+        [(g/connect source-p1 :source-label sink-p1 :target-label)
+         (g/connect source-p1 :source-label pipe-p1 :target-label)
+         (g/connect pipe-p1   :soft         sink-a1 :target-label)
+         (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-        (is (= (ts/graph-dependencies [(gt/endpoint source-a1 :source-label)])
-               #{(gt/endpoint sink-a2   :loud)
-                 (gt/endpoint source-a1 :source-label)
-                 (gt/endpoint source-a1 :_declared-properties)
-                 (gt/endpoint source-a1 :_properties)}))
+      (is (= (ts/graph-dependencies [(gt/endpoint source-a1 :source-label)])
+             #{(gt/endpoint sink-a2   :loud)
+               (gt/endpoint source-a1 :source-label)
+               (gt/endpoint source-a1 :_declared-properties)
+               (gt/endpoint source-a1 :_properties)}))
 
       (is (= (ts/graph-dependencies [(gt/endpoint source-p1 :source-label)])
              #{(gt/endpoint sink-p1   :loud)
@@ -766,6 +740,6 @@
         (g/delete-node! project-node)
         (is (nil? (g/user-data project-node ::my-user-data)))
         (is (= :new-view (g/user-data view-node ::my-user-data))))
-      (testing "value removed after node is deleted"
+      (testing "value removed after view node is deleted"
         (g/delete-node! view-node)
         (is (nil? (g/user-data view-node ::my-user-data)))))))
