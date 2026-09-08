@@ -147,8 +147,9 @@
                     material-resource (workspace/find-resource workspace (str source-proj-path "/materials/0.material"))
                     meshes-resource (workspace/find-resource workspace (str source-proj-path "/meshes"))]
                 (is (some? source-resource))
-                (is (= "Albedo [0].png" (resource/display-name image-resource)))
-                (is (= material-label (resource/display-name material-resource)))
+                (is (= "Albedo [0].png" (resource/resource-name image-resource)))
+                (is (= "0.png" (resource/export-name image-resource)))
+                (is (= material-label (resource/resource-name material-resource)))
                 (is (= "Albedo [0].png" (#'app-view/tab-title image-resource false)))
                 (is (= material-label (#'app-view/tab-title material-resource false)))
                 (is (some? meshes-resource))
@@ -160,7 +161,9 @@
                     (is (= (expected-tree-proj-paths source-proj-path)
                            (tree-item-proj-paths source-tree-item)))
                     (is (false? (.isLeaf meshes-tree-item)))
-                    (is (= expected-mesh-resource-names
+                    (is (= (into #{}
+                                 (map #(str (resource/resource-name source-resource) " : " %))
+                                 expected-mesh-resource-names)
                            (into #{} (map resource/resource-name) mesh-resources)))
                     (is (= (count expected-mesh-resource-names)
                            (count mesh-resources)))
@@ -170,8 +173,6 @@
                       (is (.isLeaf mesh-tree-item)))
                     (doseq [mesh-resource mesh-resources]
                       (is (= (resource/resource-name mesh-resource)
-                             (resource/display-name mesh-resource)))
-                      (is (= (str (resource/resource-name source-resource) " : " (resource/resource-name mesh-resource))
                              (#'app-view/tab-title mesh-resource false)))
                       (is (= :file (resource/source-type mesh-resource)))
                       (is (resource/read-only? mesh-resource))

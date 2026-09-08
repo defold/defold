@@ -89,18 +89,6 @@
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
-(defn display-name
-  "Returns the optional ::display-name from resource data, defaulting to the filename."
-  ^String [resource]
-  (or (get-in resource [:data ::display-name])
-      (resource-name resource)))
-
-(defn tab-title
-  "Returns the optional ::tab-title from resource data, defaulting to the display name."
-  ^String [resource]
-  (or (get-in resource [:data ::tab-title])
-      (display-name resource)))
-
 (defn export-name
   "Returns the optional filesystem-safe ::export-name from resource data, defaulting to the filename."
   ^String [resource]
@@ -764,19 +752,20 @@
   "Creates a read-only entry in a physical file or ZIP entry. Content is ByteString,
   a project-relative {:path :offset :length} byte range (-1 means to EOF), or nil.
   File/path coercion retains the physical origin; abs-path is nil for entries."
-  [source {:keys [path ext content children data]}]
+  [source {:keys [path name ext content children data]}]
   {:pre [(or (file-resource? source) (zip-resource? source))
          (= :file (source-type source))
          (nil? (entry-source source))
          (not (string/starts-with? path "/"))]}
   (let [entry-path (str (proj-path source) "/" path)
-        name (FilenameUtils/getName ^String path)
-        ext (or ext (FilenameUtils/getExtension name))
+        filename (FilenameUtils/getName ^String path)
+        ext (or ext (FilenameUtils/getExtension filename))
         resource (assoc source
-                   :name name
+                   :name (or name filename)
                    :ext ext
                    :children children
-                   :data data
+                   :data (cond-> data
+                           name (update ::export-name #(or % filename)))
                    :entry {:source source :content content})]
     (if (zip-resource? source)
       (assoc resource :path (subs entry-path 1) :zip-entry (when-not children (:zip-entry source)))

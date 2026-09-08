@@ -906,7 +906,7 @@
      :graphic {:fx/type ui/image-icon :path "icons/32/Icons_03-Builtins.png" :size 16.0}}
 
     :else
-    {:text (resource/display-name item)
+    {:text (resource/resource-name item)
      :style-class (into ["cell" "indexed-cell" "tree-cell"] (resource/style-classes item))
      :on-drag-over drag-over
      :on-drag-entered drag-entered

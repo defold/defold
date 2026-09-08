@@ -289,6 +289,9 @@
                     mesh-outline (get-in meshes-group [:children 0])
                     material-outlines (:children materials-group)
                     texture-outlines (:children textures-group)]
+                (is (= (str "preview." (resource/type-ext (g/node-value source-node-id :resource)))
+                       (:label source-outline)))
+                (is (= "icons/32/Icons_27-AT-Mesh.png" (:icon source-outline)))
                 (is (= ["Meshes" "Materials" "Textures"]
                        (mapv (comp test-util/localization :label) groups)))
                 (is (= ["Mesh 0"] (mapv :label (:children meshes-group))))

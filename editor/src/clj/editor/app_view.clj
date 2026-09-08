@@ -263,7 +263,7 @@
   ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
   ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
   ;; underscores with the a unicode character that looks somewhat similar.
-  (let [resource-name (or (some-> resource resource/tab-title) "")
+  (let [resource-name (or (some-> resource resource/resource-name) "")
         escaped-resource-name (string/replace resource-name "_" "\u02CD")]
     (if dirty
       (str "*" escaped-resource-name)

@@ -1221,6 +1221,16 @@
   (input mesh-scene-infos g/Any :array)
   (input project-settings g/Any)
 
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
+            {:node-id _node-id
+             :node-outline-key (resource/type-ext resource)
+             :label (resource/resource-name resource)
+             :icon mesh-icon
+             :children (cond-> child-outlines source-outline (into (:children source-outline)))
+             :outline-error? (g/error-fatal? own-build-errors)
+             :outline-overridden? (not (coll/empty? _overridden-properties))}))
+
   (output content g/Any :cached produce-content)
   (output bones g/Any produce-bones)
   (output animation-info g/Any produce-animation-info)

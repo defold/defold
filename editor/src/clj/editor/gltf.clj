@@ -249,13 +249,10 @@
 
                                   :else
                                   (ByteString/copyFrom (.getContent asset)))
+                        resource-name (if (= :mesh kind)
+                                        (str (resource/resource-name source) " : " (FilenameUtils/getName path))
+                                        (format "%s [%d].%s" name index (FilenameUtils/getExtension path)))
                         data (cond-> {::asset info}
-                               (#{:image :material} kind)
-                               (assoc ::resource/display-name (format "%s [%d].%s" name index (FilenameUtils/getExtension path)))
-
-                               (= :mesh kind)
-                               (assoc ::resource/tab-title (str (resource/resource-name source) " : " (FilenameUtils/getName path)))
-
                                (= :material kind)
                                (assoc ::resource/export-name (format "%s [%d].material"
                                                                     (-> name
@@ -264,6 +261,7 @@
                                                                     index)))
                         child (resource/make-resource-entry source
                                                             {:path path
+                                                             :name resource-name
                                                              :ext (when (= :mesh kind) "gltf-mesh")
                                                              :content content
                                                              :data data})]
