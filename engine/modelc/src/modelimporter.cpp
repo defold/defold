@@ -55,6 +55,7 @@ Options::Options()
 : dummy(0)
 , m_LoadMaterialsOnly(false)
 , m_LoadMeshMetadata(false)
+, m_SkipImageData(false)
 {
 }
 

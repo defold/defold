@@ -90,6 +90,9 @@ static jobjectArray CreateImagesArray(JNIEnv* env, dmModelImporter::jni::TypeInf
         dmJNI::SetString(env, obj, types->m_ImageJNI.uri, image->m_Uri);
         dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, image->m_MimeType);
         dmJNI::SetUInt(env, obj, types->m_ImageJNI.index, image->m_Index);
+        dmJNI::SetInt(env, obj, types->m_ImageJNI.bufferIndex, image->m_BufferIndex);
+        dmJNI::SetUInt(env, obj, types->m_ImageJNI.bufferOffset, image->m_BufferOffset);
+        dmJNI::SetUInt(env, obj, types->m_ImageJNI.bufferSize, image->m_BufferSize);
 
         dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.buffer, C2J_CreateBuffer(env, types, image->m_Buffer));
 

@@ -81,6 +81,9 @@ namespace dmModelImporter
         const char* m_MimeType; // valid when buffer is set
         Buffer*     m_Buffer;
         uint32_t    m_Index;    // The index into the scene.images array
+        int32_t     m_BufferIndex; // -1 for URI images; otherwise an index into scene.buffers
+        uint32_t    m_BufferOffset;
+        uint32_t    m_BufferSize;
     };
 
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-sampler
@@ -381,6 +384,7 @@ namespace dmModelImporter
         int dummy; // for the java binding to not be zero size
         bool m_LoadMaterialsOnly;
         bool m_LoadMeshMetadata;
+        bool m_SkipImageData; // Enumerate image locations without resolving their contents
     };
 
     // End of JNI struct api

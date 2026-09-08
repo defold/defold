@@ -367,6 +367,33 @@ TEST(ModelGLTF, MaterialsOnlyMeshMetadataIgnoresUnresolvedGeometryBuffers)
     dmModelImporter::DestroyScene(scene);
 }
 
+TEST(ModelGLTF, ImageMetadataDoesNotRequireBufferContents)
+{
+    const char* json =
+        "{\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"uri\":\"missing.bin\",\"byteLength\":20}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":4,\"byteLength\":16}],"
+        "\"images\":[{\"bufferView\":0,\"mimeType\":\"image/png\"},"
+        "{\"uri\":\"missing.png\"}]}";
+
+    dmModelImporter::Options options;
+    options.m_LoadMaterialsOnly = true;
+    options.m_LoadMeshMetadata = true;
+    options.m_SkipImageData = true;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
+    ASSERT_EQ(2U, scene->m_Images.Size());
+    ASSERT_EQ(0, scene->m_Images[0].m_BufferIndex);
+    ASSERT_EQ(4U, scene->m_Images[0].m_BufferOffset);
+    ASSERT_EQ(16U, scene->m_Images[0].m_BufferSize);
+    ASSERT_EQ((dmModelImporter::Buffer*)0, scene->m_Images[0].m_Buffer);
+    ASSERT_EQ(-1, scene->m_Images[1].m_BufferIndex);
+    ASSERT_EQ(0U, scene->m_Buffers[0].m_BufferCount);
+    dmModelImporter::DestroyScene(scene);
+}
+
 TEST(ModelGLTF, RejectsSparseAnimationAccessors)
 {
     const char* json =

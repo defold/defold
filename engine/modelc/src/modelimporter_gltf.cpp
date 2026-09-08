@@ -63,6 +63,7 @@ struct GltfData
     cgltf_data* m_Data;
     bool        m_LoadMaterialsOnly;
     bool        m_LoadMeshMetadata;
+    bool        m_SkipImageData;
 };
 
 static dmTransform::Transform& ToTransform(const dmModelImporter::Transform& in, dmTransform::Transform& out)
@@ -641,7 +642,7 @@ static void LoadSamplers(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void
     }
 }
 
-static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
+static void LoadImages(Scene* scene, cgltf_data* gltf_data, bool skip_image_data, dmHashTable64<void*>* cache)
 {
     InitSize(scene->m_Images, gltf_data->images_count, gltf_data->images_count);
 
@@ -659,11 +660,19 @@ static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>
         Image* image = &scene->m_Images[i];
         memset(image, 0, sizeof(*image));
         image->m_Index = i;
+        image->m_BufferIndex = -1;
         image->m_Name = DuplicateObjectName(gltf_image);
         image->m_Uri = gltf_image->uri ? strdup(gltf_image->uri): 0;
         image->m_MimeType = gltf_image->mime_type ? strdup(gltf_image->mime_type): 0;
 
         if (gltf_image->buffer_view)
+        {
+            image->m_BufferIndex = (int32_t)(gltf_image->buffer_view->buffer - gltf_data->buffers);
+            image->m_BufferOffset = (uint32_t)gltf_image->buffer_view->offset;
+            image->m_BufferSize = (uint32_t)gltf_image->buffer_view->size;
+        }
+
+        if (gltf_image->buffer_view && !skip_image_data)
         {
             const uint8_t* buffer_data = cgltf_buffer_view_data(gltf_image->buffer_view);
             if (!buffer_data)
@@ -2255,6 +2264,8 @@ static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer)
 {
     if (!data->m_LoadMaterialsOnly)
         return true;
+    if (data->m_SkipImageData)
+        return false;
 
     for (cgltf_size i = 0; i < data->m_Data->images_count; ++i)
     {
@@ -2341,7 +2352,7 @@ static void CreateNames(cgltf_options* options, cgltf_data* data)
 #undef CREATE_NAME
 }
 
-static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, bool load_mesh_metadata)
+static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, bool load_mesh_metadata, bool skip_image_data)
 {
     dmHashTable64<void*> cache;
     if (!load_materials_only)
@@ -2352,7 +2363,7 @@ static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, 
         LoadNodes(scene, data);
     }
     LoadSamplers(scene, data, &cache);
-    LoadImages(scene, data, &cache);
+    LoadImages(scene, data, skip_image_data, &cache);
     LoadTextures(scene, data, &cache);
     LoadMaterials(scene, data, &cache);
     if (scene->m_LoadError)
@@ -2582,7 +2593,7 @@ static bool LoadFinalizeGltf(Scene* scene)
         return false;
     if (!data->m_LoadMaterialsOnly && !ValidateSparseAccessorsForUnpack(scene, data->m_Data))
         return false;
-    LoadScene(scene, data->m_Data, data->m_LoadMaterialsOnly, data->m_LoadMeshMetadata);
+    LoadScene(scene, data->m_Data, data->m_LoadMaterialsOnly, data->m_LoadMeshMetadata, data->m_SkipImageData);
     return scene->m_LoadError == 0;
 }
 
@@ -2629,6 +2640,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     scenedata->m_Data = data;
     scenedata->m_LoadMaterialsOnly = importeroptions && importeroptions->m_LoadMaterialsOnly;
     scenedata->m_LoadMeshMetadata = importeroptions && importeroptions->m_LoadMeshMetadata;
+    scenedata->m_SkipImageData = importeroptions && importeroptions->m_SkipImageData;
 
     scene->m_OpaqueSceneData = scenedata;
     scene->m_LoadFinalizeFn = LoadFinalizeGltf;
@@ -2644,7 +2656,11 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     }
 
     // resolve as many buffers as possible
-    result = ResolveBuffers(&options, data, 0);
+    // Resource discovery needs stable image locations even when buffers are missing.
+    // It also avoids decoding geometry data URIs that are unused by metadata loads.
+    result = scenedata->m_LoadMaterialsOnly && scenedata->m_SkipImageData
+        ? cgltf_result_success
+        : ResolveBuffers(&options, data, 0);
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);

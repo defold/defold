@@ -96,6 +96,9 @@ public class Modelimporter {
         public String mimeType;
         public Buffer buffer;
         public int index = 0;
+        public int bufferIndex = 0;
+        public int bufferOffset = 0;
+        public int bufferSize = 0;
     };
     public static class Sampler {
         public String name;
@@ -306,5 +309,6 @@ public class Modelimporter {
         public int dummy = 0;
         public boolean loadMaterialsOnly = false;
         public boolean loadMeshMetadata = false;
+        public boolean skipImageData = false;
     };
 }
