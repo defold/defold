@@ -1406,8 +1406,6 @@ namespace dmEngine
         engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 1.0f / 30);
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
-        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
-
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
         params.m_MaxResources = max_resources;
@@ -1895,7 +1893,11 @@ namespace dmEngine
             dmExtension::DispatchEvent( params, &event );
         }
 
+        // Establish the elapsed-time origin and first pacing deadline only after
+        // initialization has completed, so startup work cannot expire the first
+        // deadline before the application loop begins.
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime();
+        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
         return true;
 

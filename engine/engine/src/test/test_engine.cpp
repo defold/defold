@@ -393,11 +393,15 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
 
     bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
     uint64_t elapsed = 0;
+    uint64_t previous_frame_time = 0;
+    uint64_t first_frame_deadline = 0;
     dmEngine::Stats stats;
     memset(&stats, 0, sizeof(stats));
 
     if (initialized)
     {
+        previous_frame_time = engine->m_PreviousFrameTime;
+        first_frame_deadline = engine->m_NextFrameTime;
         dmEngine::SetRenderEnabled(false);
 
         uint64_t start = dmTime::GetMonotonicTime();
@@ -415,6 +419,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
     dmEngineFinalize();
 
     ASSERT_TRUE(initialized);
+    ASSERT_GE(first_frame_deadline, previous_frame_time + 10000);
     ASSERT_EQ(4u, stats.m_FrameCount);
     ASSERT_NEAR(4.0f / 100.0f, stats.m_TotalTime, 0.000001f);
     ASSERT_GE(elapsed, 20000u);
