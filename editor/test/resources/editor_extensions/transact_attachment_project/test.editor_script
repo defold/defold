@@ -111,6 +111,18 @@ local function print_collision_object(collision, indent)
     end
 end
 
+local function print_font(font)
+    local styles = editor.get(font, "styles")
+    print(("  styles: %s"):format(#styles))
+    for i = 1, #styles do
+        local style = styles[i]
+        print(("    id: %s"):format(editor.get(style, "id")))
+        print(("    markup: [%s]"):format(editor.get(style, "markup"):gsub("\n", "\\n")))
+        assert(editor.can_set(style, "id"))
+        assert(editor.can_set(style, "markup"))
+    end
+end
+
 local function print_gui(gui)
     local layers = editor.get(gui, "layers")
     print(("  layers: %s"):format(#layers))
@@ -825,6 +837,62 @@ function M.get_commands()
 
                 print("After transaction (clear collection)")
                 print_coll(coll)
+
+                print("Font initial state:")
+                local font = "/test.font"
+                local markup = "<color=#aa3300>\n<ul>"
+                print_font(font)
+                print(("  can get styles: %s"):format(tostring(editor.can_get(font, "styles"))))
+                print(("  can add styles: %s"):format(tostring(editor.can_add(font, "styles"))))
+                print(("  can set styles: %s"):format(tostring(editor.can_set(font, "styles"))))
+
+                print("Transaction: add and edit font styles")
+                local styles = editor.get(font, "styles")
+                editor.transact({
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"}),
+                    editor.tx.set(styles[1], "id", "notice"),
+                    editor.tx.set(styles[1], "markup", markup)
+                })
+                print("After transaction (add and edit font styles):")
+                print_font(font)
+
+                print("Transaction: remove font style")
+                styles = editor.get(font, "styles")
+                editor.transact({editor.tx.remove(font, "styles", styles[2])})
+                print("After transaction (remove font style):")
+                print_font(font)
+
+                print("Transaction: clear font styles")
+                editor.transact({editor.tx.clear(font, "styles")})
+                print("After transaction (clear font styles):")
+                print_font(font)
+
+                print("Transaction: add font styles after clear")
+                editor.transact({
+                    editor.tx.add(font, "styles", {id = "notice", markup = markup}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"})
+                })
+                print("After transaction (add font styles after clear):")
+                print_font(font)
+            end
+        }),
+        editor.command({
+            id = "defold.test-font-default",
+            label = "Test font default style",
+            locations = {"Outline"},
+            query = {selection = {type = "outline", cardinality = "one"}},
+            run = function(opts)
+                local default_style = opts.selection
+                assert(editor.get(default_style, "id") == "default")
+                assert(editor.get(default_style, "markup") == "")
+                assert(not editor.can_set(default_style, "id"))
+                assert(not editor.can_set(default_style, "markup"))
+                print("Expected default font style errors:")
+                expect_error("rename default style", editor.tx.set, default_style, "id", "renamed")
+                expect_error("set default style markup", editor.tx.set, default_style, "markup", "<ul>")
+                expect_error("remove default style", editor.tx.remove, "/test.font", "styles", default_style)
             end
         })
     }

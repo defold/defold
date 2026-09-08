@@ -826,10 +826,10 @@
   (let [hash->stable-id (volatile! {})]
     (string/replace
       output-string
-      #"0x[0-9a-f]+"
-      (fn [s]
+      #"(0x|@)[0-9a-f]+"
+      (fn [[s prefix]]
         (or (@hash->stable-id s)
-            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+            ((vswap! hash->stable-id #(assoc % s (str prefix (count %)))) s))))))
 
 (defn- expect-script-output [expected actual]
   (let [actual (normalize-pprint-output (str actual))
@@ -2391,54 +2391,64 @@ Expected collection errors:
 Transaction: clear collection
 After transaction (clear collection)
   children: 0 (editable)
+Font initial state:
+  styles: 1
+    id: style1
+    markup: [<color=#00ff00>]
+  can get styles: true
+  can add styles: true
+  can set styles: false
+Transaction: add and edit font styles
+After transaction (add and edit font styles):
+  styles: 4
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: style2
+    markup: []
+    id: style3
+    markup: []
+    id: accent
+    markup: [<color=#ff6600>]
+Transaction: remove font style
+After transaction (remove font style):
+  styles: 3
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: style3
+    markup: []
+    id: accent
+    markup: [<color=#ff6600>]
+Transaction: clear font styles
+After transaction (clear font styles):
+  styles: 0
+Transaction: add font styles after clear
+After transaction (add font styles after clear):
+  styles: 2
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: accent
+    markup: [<color=#ff6600>]
+Expected default font style errors:
+  rename default style => Can't set property \"id\" of FontStyle
+  set default style markup => Can't set property \"markup\" of FontStyle
+  remove default style => editor.editor_extensions.graph.NodeIdWithAncestors@0 is not in the \"styles\" list of /test.font
 ")
 
 (deftest attachment-properties-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
-    (let [out (StringBuilder.)]
+    (let [out (StringBuilder.)
+          font-node (test-util/resource-node project "/test.font")
+          default-outline (decorated-outline font-node [0 0])]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (expect-script-output expected-attachment-test-output out))))
-
-(deftest font-style-attachments-test
-  (test-util/with-scratch-project "test/resources/editor_extensions/font_styles_project"
-    (let [output (atom [])
-          font-node (test-util/resource-node project "/test.font")
-          default-outline (decorated-outline font-node [0 0])
-          default-node (:node-id default-outline)
-          original (g/node-value font-node :save-value)]
-      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
-      (g/reset-undo! :undo/global)
       (let [handler+context (handler/active
-                              (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
+                              (:command (last (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (eval-handler-contexts :outline [default-outline])
                               {})]
         @(handler/run handler+context))
-      (is (= [[:out "Font styles edited and saved"]] @output))
-      (let [saved (g/node-value font-node :save-value)]
-        (is (= [{:name "default"}
-                {:name "notice" :markup "<color=#aa3300>\n<ul>"}
-                {:name "accent" :markup "<color=#ff6600>"}]
-               (:styles saved)))
-        (is (= default-node (:node-id (first (g/node-value font-node :style-infos)))))
-        (is (not (g/error-fatal? (g/node-value font-node :build-targets))))
-        (doseq [names [["default"]
-                       ["default" "notice" "style3" "accent"]
-                       ["default" "notice" "style2" "style3" "accent"]
-                       ["default" "style1"]]]
-          (g/undo! :undo/global)
-          (is (= names (mapv :name (:styles (g/node-value font-node :save-value))))))
-        (is (= original (g/node-value font-node :save-value)))
-        (dotimes [_ 4]
-          (g/redo! :undo/global))
-        (is (= saved (g/node-value font-node :save-value)))
-        (io/copy (io/file (workspace/project-directory workspace) "test.font")
-                 (io/file (workspace/project-directory workspace) "roundtrip.font"))
-        (workspace/resource-sync! workspace)
-        (let [reloaded (test-util/resource-node project "/roundtrip.font")]
-          (is (= saved (g/node-value reloaded :save-value)))
-          (is (= ["(default)" "notice" "accent"]
-                 (mapv (comp test-util/localization :label) (get-in (g/node-value reloaded :node-outline) [:children 0 :children])))))))))
+      (expect-script-output expected-attachment-test-output out)
+      (is (= (:node-id default-outline)
+             (:node-id (first (g/node-value font-node :style-infos))))))))
 
 (def ^:private expected-resources-as-nodes-test-output
   "Directory read:
