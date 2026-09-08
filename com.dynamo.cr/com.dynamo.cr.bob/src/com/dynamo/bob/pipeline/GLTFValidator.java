@@ -35,13 +35,9 @@ import org.codehaus.jackson.map.ObjectMapper;
 public class GLTFValidator {
     private static String gltfValidatorExePath;
 
-    // Skip validation errors for features the importer can safely omit. Clearcoat
-    // normal textures can require tangent data even though the rest of the model
-    // remains usable without that material extension.
-    static boolean isIgnoredError(String pointer, String code) {
-        return pointer.startsWith("/images/")
-                || pointer.startsWith("/textures/")
-                || "MESH_PRIMITIVE_NO_TANGENT_SPACE".equals(code);
+    // Skip external validation of textures, since we don't support those yet.
+    private static boolean isTextureRelatedPointer(String pointer) {
+        return pointer.startsWith("/images/") || pointer.startsWith("/textures/");
     }
 
     public static record ValidateError(String message, String pointer, String code) {}
@@ -107,7 +103,7 @@ public class GLTFValidator {
                 String pointer = msgNode.get("pointer").asText();
                 String code = msgNode.get("code").asText();
 
-                if (isIgnoredError(pointer, code)) {
+                if (isTextureRelatedPointer(pointer)) {
                     continue;
                 }
 

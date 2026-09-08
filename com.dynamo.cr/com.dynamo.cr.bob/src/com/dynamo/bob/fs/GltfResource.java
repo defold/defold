@@ -147,8 +147,8 @@ public abstract class GltfResource extends AbstractResource<IFileSystem> {
             }
             for (GltfContainer.TextureMetadata texture : image.getTextures()) {
                 output.printf("  texture[%d]: name=%s sampler=%d min=%d mag=%d wrap_s=%d wrap_t=%d basisu=%s%n",
-                        texture.getIndex(), texture.getName(), texture.getSamplerIndex(), texture.getMinFilter(),
-                        texture.getMagFilter(), texture.getWrapS(), texture.getWrapT(), texture.isBasisu());
+                        texture.index(), texture.name(), texture.samplerIndex(), texture.minFilter(),
+                        texture.magFilter(), texture.wrapS(), texture.wrapT(), texture.basisu());
             }
         } else if (resource instanceof GltfMeshResource) {
             GltfMeshResource mesh = (GltfMeshResource)resource;

@@ -192,11 +192,11 @@
           :sampler-bindings
           (mapv
             (fn [^GltfContainer$SamplerBinding sampler-binding]
-              {:sampler (.getSamplerName sampler-binding)
-               :material-index (.getMaterialIndex sampler-binding)
-               :texture-index (.getTextureIndex sampler-binding)
-               :image-index (.getImageIndex sampler-binding)
-               :image-path (.getImagePath sampler-binding)})
+              {:sampler (.samplerName sampler-binding)
+               :material-index (.materialIndex sampler-binding)
+               :texture-index (.textureIndex sampler-binding)
+               :image-index (.imageIndex sampler-binding)
+               :image-path (.imagePath sampler-binding)})
             (.values sampler-bindings))))
 
       (instance? GltfContainer$MeshMetadata asset)
@@ -219,14 +219,14 @@
           :textures
           (mapv
             (fn [^GltfContainer$TextureMetadata texture]
-              {:index (.getIndex texture)
-               :name (.getName texture)
-               :sampler-index (.getSamplerIndex texture)
-               :min-filter (.getMinFilter texture)
-               :mag-filter (.getMagFilter texture)
-               :wrap-s (.getWrapS texture)
-               :wrap-t (.getWrapT texture)
-               :basisu (.isBasisu texture)})
+              {:index (.index texture)
+               :name (.name texture)
+               :sampler-index (.samplerIndex texture)
+               :min-filter (.minFilter texture)
+               :mag-filter (.magFilter texture)
+               :wrap-s (.wrapS texture)
+               :wrap-t (.wrapT texture)
+               :basisu (.basisu texture)})
             (.getTextures image-asset)))))))
 
 (defn- make-gltf-children+status
@@ -256,7 +256,7 @@
                                    :container source-proj-path})}))
           {:children-by-group (sorted-map)
            :status-map {}}
-          (.getAssets extraction))]
+          (.assets extraction))]
     (reduce-kv
       (fn [{:keys [children status-map]} group-name group-children]
         (let [group-proj-path (str source-proj-path "/" group-name)
@@ -285,7 +285,7 @@
                 ;; Keep unsupported KTX2 images quiet in the editor for now.
                 diagnostics (into []
                                   (remove #(re-matches #"Image \d+: unsupported image MIME type 'image/ktx2'" %))
-                                  (.getDiagnostics extraction))]
+                                  (.diagnostics extraction))]
             (run!
               (fn [diagnostic]
                 (log/warn :message (format "Failed to expose part of glTF resource '%s': %s"

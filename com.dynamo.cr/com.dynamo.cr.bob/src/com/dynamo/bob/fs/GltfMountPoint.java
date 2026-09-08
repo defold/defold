@@ -281,15 +281,7 @@ public class GltfMountPoint implements IMountPoint {
         return "gltf".equals(extension) || "glb".equals(extension);
     }
 
-    private static final class VirtualPath {
-        final String containerPath;
-        final String childPath;
-
-        VirtualPath(String containerPath, String childPath) {
-            this.containerPath = containerPath;
-            this.childPath = childPath;
-        }
-    }
+    private record VirtualPath(String containerPath, String childPath) {}
 
     private static VirtualPath splitVirtualPath(String path) {
         String normalizedPath = normalizePath(path);

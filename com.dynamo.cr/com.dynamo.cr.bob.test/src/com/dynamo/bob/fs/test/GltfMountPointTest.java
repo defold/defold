@@ -171,12 +171,12 @@ public class GltfMountPointTest {
         GltfContainer.Extraction extraction = GltfContainer.extract(
                 sourceBytes, "nested/robot.gltf", resolver);
 
-        assertTrue(extraction.getDiagnostics().isEmpty());
-        assertEquals(5, extraction.getAssets().size());
-        assertEquals(1, extraction.getMeshes().size());
+        assertTrue(extraction.diagnostics().isEmpty());
+        assertEquals(5, extraction.assets().size());
+        assertEquals(1, extraction.meshes().size());
 
-        GltfContainer.MeshMetadata mesh = extraction.getMeshes().get(0);
-        assertSame(mesh, extraction.getAssets().get(4));
+        GltfContainer.MeshMetadata mesh = extraction.meshes().get(0);
+        assertSame(mesh, extraction.assets().get(4));
         assertEquals(GltfContainer.AssetKind.MESH, mesh.getKind());
         assertEquals("meshes/Mesh 0", mesh.getPath());
         assertEquals(0, mesh.getIndex());
@@ -186,7 +186,7 @@ public class GltfMountPointTest {
         assertEquals(3, mesh.getVertexCount());
         assertEquals(0, mesh.getContent().length);
 
-        GltfContainer.Asset material = extraction.getAssets().get(0);
+        GltfContainer.Asset material = extraction.assets().get(0);
         assertTrue(material instanceof GltfContainer.MaterialAsset);
         assertEquals(GltfContainer.AssetKind.MATERIAL, material.getKind());
         assertEquals("materials/0.material", material.getPath());
@@ -194,9 +194,9 @@ public class GltfMountPointTest {
         GltfContainer.MaterialAsset materialAsset = (GltfContainer.MaterialAsset)material;
         assertEquals("Paint", materialAsset.getMaterialDesc().getName());
         assertEquals("images/0.png", materialAsset.getSamplerBindings()
-                .get("PbrMetallicRoughness_baseColorTexture").getImagePath());
+                .get("PbrMetallicRoughness_baseColorTexture").imagePath());
 
-        GltfContainer.Asset externalImage = extraction.getAssets().get(1);
+        GltfContainer.Asset externalImage = extraction.assets().get(1);
         assertTrue(externalImage instanceof GltfContainer.ImageAsset);
         assertEquals(GltfContainer.AssetKind.IMAGE, externalImage.getKind());
         assertEquals("images/0.png", externalImage.getPath());
@@ -212,12 +212,12 @@ public class GltfMountPointTest {
         assertArrayEquals(png, externalImage.getContent());
 
         try {
-            extraction.getAssets().clear();
+            extraction.assets().clear();
             fail("Expected immutable extraction assets");
         } catch (UnsupportedOperationException expected) {
         }
         try {
-            extraction.getMeshes().clear();
+            extraction.meshes().clear();
             fail("Expected immutable mesh metadata");
         } catch (UnsupportedOperationException expected) {
         }
@@ -435,10 +435,10 @@ public class GltfMountPointTest {
         assertSamplerBinding(bindings, "PbrMaterial_emissiveTexture",
                 0, 3, 0, "images/0.png");
 
-        assertEquals(bindings.get("PbrMetallicRoughness_baseColorTexture").getImagePath(),
-                bindings.get("PbrMaterial_emissiveTexture").getImagePath());
-        assertEquals(bindings.get("PbrMetallicRoughness_metallicRoughnessTexture").getImagePath(),
-                bindings.get("PbrMaterial_normalTexture").getImagePath());
+        assertEquals(bindings.get("PbrMetallicRoughness_baseColorTexture").imagePath(),
+                bindings.get("PbrMaterial_emissiveTexture").imagePath());
+        assertEquals(bindings.get("PbrMetallicRoughness_metallicRoughnessTexture").imagePath(),
+                bindings.get("PbrMaterial_normalTexture").imagePath());
         try {
             bindings.clear();
             fail("Expected immutable sampler bindings");
@@ -477,9 +477,9 @@ public class GltfMountPointTest {
                 if (resource instanceof GltfImageResource) {
                     GltfImageResource image = (GltfImageResource)resource;
                     for (GltfContainer.TextureMetadata texture : image.getTextures()) {
-                        assertNull(imageIndexByTextureIndex.put(texture.getIndex(), image.getIndex()));
-                        if (texture.getIndex() == 0) {
-                            assertEquals(preferredAvailable, texture.isBasisu());
+                        assertNull(imageIndexByTextureIndex.put(texture.index(), image.getIndex()));
+                        if (texture.index() == 0) {
+                            assertEquals(preferredAvailable, texture.basisu());
                         }
                     }
                 }
@@ -551,23 +551,23 @@ public class GltfMountPointTest {
         assertEquals(1, external.getWidth());
         assertEquals(1, external.getHeight());
         assertEquals(2, external.getTextures().size());
-        assertEquals(0, external.getTextures().get(0).getIndex());
-        assertEquals("ExternalTexture", external.getTextures().get(0).getName());
-        assertEquals(3, external.getTextures().get(1).getIndex());
+        assertEquals(0, external.getTextures().get(0).index());
+        assertEquals("ExternalTexture", external.getTextures().get(0).name());
+        assertEquals(3, external.getTextures().get(1).index());
 
         GltfImageResource dataUri = imageResource(1);
         assertArrayEquals(png, dataUri.getContent());
         assertEquals("data-uri", dataUri.getSourceKind());
         assertEquals("image/png", dataUri.getMimeType());
         assertEquals(1, dataUri.getTextures().size());
-        assertEquals(1, dataUri.getTextures().get(0).getIndex());
+        assertEquals(1, dataUri.getTextures().get(0).index());
 
         GltfImageResource bufferView = imageResource(2);
         assertArrayEquals(png, bufferView.getContent());
         assertEquals("buffer-view", bufferView.getSourceKind());
         assertNull(bufferView.getUri());
         assertEquals(1, bufferView.getTextures().size());
-        assertEquals(2, bufferView.getTextures().get(0).getIndex());
+        assertEquals(2, bufferView.getTextures().get(0).index());
     }
 
     @Test
@@ -668,7 +668,7 @@ public class GltfMountPointTest {
         GltfMaterialResource material = (GltfMaterialResource)mountPoint.get(
                 "models/jpeg.gltf/materials/0.material");
         assertEquals("images/0.jpg", material.getSamplerBindings()
-                .get("PbrMetallicRoughness_baseColorTexture").getImagePath());
+                .get("PbrMetallicRoughness_baseColorTexture").imagePath());
     }
 
     @Test
@@ -847,11 +847,11 @@ public class GltfMountPointTest {
                     });
 
             assertEquals(list("image.bin", "external.png"), resolvedUris);
-            assertTrue(extraction.getDiagnostics().isEmpty());
-            assertEquals(5, extraction.getAssets().size());
-            assertArrayEquals(png, extraction.getAssets().get(3).getContent());
-            assertEquals(1, extraction.getMeshes().size());
-            assertEquals(3, extraction.getMeshes().get(0).getVertexCount());
+            assertTrue(extraction.diagnostics().isEmpty());
+            assertEquals(5, extraction.assets().size());
+            assertArrayEquals(png, extraction.assets().get(3).getContent());
+            assertEquals(1, extraction.meshes().size());
+            assertEquals(3, extraction.meshes().get(0).getVertexCount());
         }
     }
 
@@ -1036,11 +1036,11 @@ public class GltfMountPointTest {
             int materialIndex, int textureIndex, int imageIndex, String imagePath) {
         GltfContainer.SamplerBinding binding = bindings.get(samplerName);
         assertNotNull(binding);
-        assertEquals(samplerName, binding.getSamplerName());
-        assertEquals(materialIndex, binding.getMaterialIndex());
-        assertEquals(textureIndex, binding.getTextureIndex());
-        assertEquals(imageIndex, binding.getImageIndex());
-        assertEquals(imagePath, binding.getImagePath());
+        assertEquals(samplerName, binding.samplerName());
+        assertEquals(materialIndex, binding.materialIndex());
+        assertEquals(textureIndex, binding.textureIndex());
+        assertEquals(imageIndex, binding.imageIndex());
+        assertEquals(imagePath, binding.imagePath());
     }
 
     private static byte[] createPng(int color) throws IOException {

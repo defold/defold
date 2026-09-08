@@ -60,64 +60,15 @@ public final class GltfContainer {
     }
 
     /** Immutable metadata for a glTF texture and its selected virtual image. */
-    public static final class TextureMetadata {
-        private final int index;
-        private final String name;
-        private final int samplerIndex;
-        private final int minFilter;
-        private final int magFilter;
-        private final int wrapS;
-        private final int wrapT;
-        private final boolean basisu;
-
-        TextureMetadata(int index, String name, int samplerIndex, int minFilter, int magFilter,
-                        int wrapS, int wrapT, boolean basisu) {
-            this.index = index;
-            this.name = name;
-            this.samplerIndex = samplerIndex;
-            this.minFilter = minFilter;
-            this.magFilter = magFilter;
-            this.wrapS = wrapS;
-            this.wrapT = wrapT;
-            this.basisu = basisu;
-        }
-
-        public int getIndex() { return index; }
-        public String getName() { return name; }
-        public int getSamplerIndex() { return samplerIndex; }
-        public int getMinFilter() { return minFilter; }
-        public int getMagFilter() { return magFilter; }
-        public int getWrapS() { return wrapS; }
-        public int getWrapT() { return wrapT; }
-        public boolean isBasisu() { return basisu; }
-    }
+    public record TextureMetadata(int index, String name, int samplerIndex, int minFilter, int magFilter,
+                                  int wrapS, int wrapT, boolean basisu) {}
 
     /**
      * Immutable native-backed relationship from a generated material sampler to
      * the virtual image asset that supplies it.
      */
-    public static final class SamplerBinding {
-        private final String samplerName;
-        private final int materialIndex;
-        private final int textureIndex;
-        private final int imageIndex;
-        private final String imagePath;
-
-        SamplerBinding(String samplerName, int materialIndex, int textureIndex,
-                       int imageIndex, String imagePath) {
-            this.samplerName = samplerName;
-            this.materialIndex = materialIndex;
-            this.textureIndex = textureIndex;
-            this.imageIndex = imageIndex;
-            this.imagePath = imagePath;
-        }
-
-        public String getSamplerName() { return samplerName; }
-        public int getMaterialIndex() { return materialIndex; }
-        public int getTextureIndex() { return textureIndex; }
-        public int getImageIndex() { return imageIndex; }
-        public String getImagePath() { return imagePath; }
-    }
+    public record SamplerBinding(String samplerName, int materialIndex, int textureIndex,
+                                 int imageIndex, String imagePath) {}
 
     /**
      * Immutable, file-system-independent description of one virtual glTF asset.
@@ -242,27 +193,11 @@ public final class GltfContainer {
     }
 
     /** Immutable result from the native-backed, file-system-independent extractor. */
-    public static final class Extraction {
-        private final List<Asset> assets;
-        private final List<MeshMetadata> meshes;
-        private final List<String> diagnostics;
-
-        Extraction(List<Asset> assets, List<MeshMetadata> meshes, List<String> diagnostics) {
-            this.assets = Collections.unmodifiableList(new ArrayList<Asset>(assets));
-            this.meshes = Collections.unmodifiableList(new ArrayList<MeshMetadata>(meshes));
-            this.diagnostics = Collections.unmodifiableList(new ArrayList<String>(diagnostics));
-        }
-
-        public List<Asset> getAssets() {
-            return assets;
-        }
-
-        public List<MeshMetadata> getMeshes() {
-            return meshes;
-        }
-
-        public List<String> getDiagnostics() {
-            return diagnostics;
+    public record Extraction(List<Asset> assets, List<MeshMetadata> meshes, List<String> diagnostics) {
+        public Extraction {
+            assets = List.copyOf(assets);
+            meshes = List.copyOf(meshes);
+            diagnostics = List.copyOf(diagnostics);
         }
     }
 
@@ -307,7 +242,7 @@ public final class GltfContainer {
         Extraction extraction = extract(sourceBytes, sourceResource.getPath(), dataResolver);
 
         List<GltfResource> resources = new ArrayList<GltfResource>();
-        for (Asset asset : extraction.getAssets()) {
+        for (Asset asset : extraction.assets()) {
             String path = sourceResource.getPath() + "/" + asset.getPath();
             if (asset instanceof MaterialAsset) {
                 MaterialAsset material = (MaterialAsset)asset;
@@ -324,7 +259,7 @@ public final class GltfContainer {
             }
         }
 
-        return new GltfContainer(sourceResource, resources, extraction.getDiagnostics(),
+        return new GltfContainer(sourceResource, resources, extraction.diagnostics(),
                 dependencyTracker.getDigests());
     }
 
@@ -701,19 +636,7 @@ public final class GltfContainer {
         return null;
     }
 
-    private static final class ResolvedImage {
-        final String uri;
-        final String mimeType;
-        final String sourceKind;
-        final byte[] content;
-
-        ResolvedImage(String uri, String mimeType, String sourceKind, byte[] content) {
-            this.uri = uri;
-            this.mimeType = mimeType;
-            this.sourceKind = sourceKind;
-            this.content = content;
-        }
-    }
+    private record ResolvedImage(String uri, String mimeType, String sourceKind, byte[] content) {}
 
     private static ResolvedImage resolveImage(String sourcePath, ModelImporterJni.DataResolver dataResolver,
                                               Modelimporter.Image image) throws IOException {
@@ -769,7 +692,7 @@ public final class GltfContainer {
             result.add(new TextureMetadata(texture.index, texture.name, samplerIndex,
                     minFilter, magFilter, wrapS, wrapT, image == texture.basisuImage));
         }
-        result.sort(Comparator.comparingInt(TextureMetadata::getIndex));
+        result.sort(Comparator.comparingInt(TextureMetadata::index));
         return result;
     }
 
@@ -787,15 +710,7 @@ public final class GltfContainer {
         }
     }
 
-    private static final class DataUri {
-        final String mimeType;
-        final byte[] content;
-
-        DataUri(String mimeType, byte[] content) {
-            this.mimeType = mimeType;
-            this.content = content;
-        }
-    }
+    private record DataUri(String mimeType, byte[] content) {}
 
     private static DataUri decodeDataUri(String uri) throws IOException {
         int comma = uri.indexOf(',');
@@ -1001,18 +916,8 @@ public final class GltfContainer {
         }
     }
 
-    private static final class ResourceDataResolver implements ModelImporterJni.DataResolver {
-        private final IFileSystem fileSystem;
-        private final IResource sourceResource;
-        private final DependencyTracker dependencyTracker;
-
-        ResourceDataResolver(IFileSystem fileSystem, IResource sourceResource,
-                             DependencyTracker dependencyTracker) {
-            this.fileSystem = fileSystem;
-            this.sourceResource = sourceResource;
-            this.dependencyTracker = dependencyTracker;
-        }
-
+    private record ResourceDataResolver(IFileSystem fileSystem, IResource sourceResource,
+                                        DependencyTracker dependencyTracker) implements ModelImporterJni.DataResolver {
         @Override
         public byte[] getData(String path, String uri) {
             if (uri == null || uri.isEmpty()) {

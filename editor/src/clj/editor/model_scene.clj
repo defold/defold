@@ -750,21 +750,13 @@
                                      :vertex-space-local :coordinate-space-local
                                      :vertex-space-world :coordinate-space-world)]
       (assert (map? gpu-textures))
-      (assert (coll/every? (fn [[sampler-name _]]
-                             (string? sampler-name))
-                           gpu-textures))
-      (assert (coll/every? (fn [[_ gpu-texture]]
-                             (texture/texture-lifecycle? gpu-texture))
-                           gpu-textures))
+      (assert (coll/every? string? (coll/keys gpu-textures)))
+      (assert (coll/every? texture/texture-lifecycle? (coll/vals gpu-textures)))
       (assert (coll/every? map? material-attribute-infos))
       (assert (coll/every? (comp keyword? :name-key) material-attribute-infos))
       (assert (shader/shader-lifecycle? shader))
-      (assert (coll/every? (fn [[attribute-key _]]
-                             (keyword? attribute-key))
-                           vertex-attribute-bytes))
-      (assert (coll/every? (fn [[_ attribute-bytes]]
-                             (bytes? attribute-bytes))
-                           vertex-attribute-bytes))
+      (assert (coll/every? keyword? (coll/keys vertex-attribute-bytes)))
+      (assert (coll/every? bytes? (coll/vals vertex-attribute-bytes)))
       (update mesh-scene :renderable
               update :user-data
               (fn [user-data]
