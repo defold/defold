@@ -1722,7 +1722,10 @@ namespace dmGraphics
             {
                 colorAttachment->setTexture(frame.m_MSAAColorTexture);
                 colorAttachment->setResolveTexture(tex->m_Texture);
-                colorAttachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+                // The main render target can be resumed after rendering to an
+                // offscreen target. Preserve its multisample attachment so the
+                // resumed pass can load the pixels written by the previous pass.
+                colorAttachment->setStoreAction(MTL::StoreActionStoreAndMultisampleResolve);
             }
             else if (rt->m_Base.m_SampleCount > 1)
             {
@@ -1770,12 +1773,12 @@ namespace dmGraphics
                     if (depthAttachment)
                     {
                         depthAttachment->setTexture(frame.m_MSAADepthTexture);
-                        depthAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        depthAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                     if (stencilAttachment)
                     {
                         stencilAttachment->setTexture(frame.m_MSAADepthTexture);
-                        stencilAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        stencilAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                 }
                 else
@@ -4538,16 +4541,6 @@ namespace dmGraphics
 
         if (context->m_RenderTargetBound)
         {
-            // A later pass resumes the main target with load actions. Preserve
-            // its multisample attachments before switching to an offscreen
-            // target; the final pass can still use the cheaper discard actions.
-            if (context->m_CurrentRenderTarget == context->m_MainRenderTarget && context->m_MSAASampleCount > 1)
-            {
-                MetalFrameResource& frame = GetCurrentFrameResource(context);
-                frame.m_RenderCommandEncoder->setColorStoreAction(MTL::StoreActionStoreAndMultisampleResolve, 0);
-                frame.m_RenderCommandEncoder->setDepthStoreAction(MTL::StoreActionStore);
-                frame.m_RenderCommandEncoder->setStencilStoreAction(MTL::StoreActionStore);
-            }
             EndRenderPass(context);
         }
 
