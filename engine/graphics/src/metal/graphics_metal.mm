@@ -4538,6 +4538,16 @@ namespace dmGraphics
 
         if (context->m_RenderTargetBound)
         {
+            // A later pass resumes the main target with load actions. Preserve
+            // its multisample attachments before switching to an offscreen
+            // target; the final pass can still use the cheaper discard actions.
+            if (context->m_CurrentRenderTarget == context->m_MainRenderTarget && context->m_MSAASampleCount > 1)
+            {
+                MetalFrameResource& frame = GetCurrentFrameResource(context);
+                frame.m_RenderCommandEncoder->setColorStoreAction(MTL::StoreActionStoreAndMultisampleResolve, 0);
+                frame.m_RenderCommandEncoder->setDepthStoreAction(MTL::StoreActionStore);
+                frame.m_RenderCommandEncoder->setStencilStoreAction(MTL::StoreActionStore);
+            }
             EndRenderPass(context);
         }
 
