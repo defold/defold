@@ -25,6 +25,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +35,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -228,6 +230,75 @@ public class GltfMountPointTest {
                 "models/robot.gltf", "Box With Spaces.bin"));
         assertExternalResourcePathFails("models/robot.gltf", "../../outside.png");
         assertExternalResourcePathFails("models/robot.gltf", "external.png?cache=1");
+    }
+
+    @Test
+    public void testInspectionKeepsMissingExternalImagesAndBindings() throws Exception {
+        String source = withExternalImageBuffer(gltf("missing.png"), png.length)
+                .replace("data:application/octet-stream;base64," + GEOMETRY_BUFFER_BASE64, "missing.bin");
+        GltfContainer.Extraction extraction = GltfContainer.inspect(
+                new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8)), "models/robot.gltf", null);
+        assertTrue(extraction.diagnostics().isEmpty());
+        assertEquals(5, extraction.assets().size());
+        GltfContainer.MaterialAsset material = (GltfContainer.MaterialAsset)extraction.assets().get(0);
+        assertEquals(5, material.getSamplerBindings().size());
+        GltfContainer.ImageAsset external = (GltfContainer.ImageAsset)extraction.assets().get(1);
+        assertEquals(new GltfContainer.ImageLocation("models/missing.png", 0, -1), external.getLocation());
+        GltfContainer.ImageAsset embedded = (GltfContainer.ImageAsset)extraction.assets().get(2);
+        assertArrayEquals(png, embedded.getContent());
+        GltfContainer.ImageAsset buffer = (GltfContainer.ImageAsset)extraction.assets().get(3);
+        assertEquals(new GltfContainer.ImageLocation("models/image.bin", 0, png.length), buffer.getLocation());
+    }
+
+    @Test
+    public void testInspectionAndExtractionAgreeOnExternalImageFormats() throws Exception {
+        for (String format : List.of("png", "jpg")) {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            assertTrue(ImageIO.write(new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB), format, output));
+            byte[] content = output.toByteArray();
+            for (String uri : List.of("albedo", "albedo.bin", "albedo." + format,
+                    "albedo.%" + Integer.toHexString(format.charAt(0)) + format.substring(1))) {
+                String json = "{\"asset\":{\"version\":\"2.0\"},\"images\":[{\"uri\":\"" + uri
+                        + "\"}],\"textures\":[{\"source\":0}],\"materials\":[{\"pbrMetallicRoughness\":{"
+                        + "\"baseColorTexture\":{\"index\":0}}}]}";
+                byte[] source = json.getBytes(StandardCharsets.UTF_8);
+                List<String> headerReads = new ArrayList<>();
+                GltfContainer.Extraction inspected = GltfContainer.inspect(new ByteArrayInputStream(source),
+                        "models/robot.gltf", (path, imageUri) -> {
+                            headerReads.add(imageUri);
+                            return Arrays.copyOf(content, 8);
+                        });
+                GltfContainer.Extraction extracted = GltfContainer.extract(source, "models/robot.gltf",
+                        (path, imageUri) -> content);
+                assertEquals(uri, List.of(), inspected.diagnostics());
+                assertEquals(uri, extracted.assets().stream().map(GltfContainer.Asset::getPath).toList(),
+                        inspected.assets().stream().map(GltfContainer.Asset::getPath).toList());
+                assertEquals(uri, ((GltfContainer.MaterialAsset)extracted.assets().get(0)).getSamplerBindings(),
+                        ((GltfContainer.MaterialAsset)inspected.assets().get(0)).getSamplerBindings());
+                assertEquals(uri, ((GltfContainer.ImageAsset)extracted.assets().get(1)).getMimeType(),
+                        ((GltfContainer.ImageAsset)inspected.assets().get(1)).getMimeType());
+                assertEquals(uri, uri.equals("albedo") || uri.endsWith(".bin") ? List.of(uri) : List.of(), headerReads);
+            }
+        }
+    }
+
+    @Test
+    public void testInspectionLeavesGlbImagePayloadUnread() throws Exception {
+        byte[] binary = new byte[4 + png.length];
+        System.arraycopy(png, 0, binary, 4, png.length);
+        String json = "{\"asset\":{\"version\":\"2.0\"},"
+                + "\"buffers\":[{\"byteLength\":" + binary.length + "}],"
+                + "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":4,\"byteLength\":" + png.length + "}],"
+                + "\"images\":[{\"bufferView\":0,\"mimeType\":\"image/png\"}]}";
+        byte[] glb = glbFromJson(json, binary);
+        ByteArrayInputStream stream = new ByteArrayInputStream(glb);
+        GltfContainer.Extraction extraction = GltfContainer.inspect(stream, "models/image.glb", null);
+        assertTrue(extraction.diagnostics().isEmpty());
+        assertEquals(1, extraction.assets().size());
+        assertEquals((binary.length + 3) & ~3, stream.available());
+        GltfContainer.ImageLocation location = ((GltfContainer.ImageAsset)extraction.assets().get(0)).getLocation();
+        assertEquals("models/image.glb", location.path());
+        assertArrayEquals(png, Arrays.copyOfRange(glb, (int)location.offset(), (int)(location.offset() + location.length())));
     }
 
     @Test
@@ -1230,6 +1301,10 @@ public class GltfMountPointTest {
                 + GEOMETRY_BUFFER_BASE64 + "\",\"byteLength\":" + geometry.length + "}";
         String json = source.replace(
                 embeddedGeometry, "{\"byteLength\":" + geometry.length + "}");
+        return glbFromJson(json, geometry);
+    }
+
+    private byte[] glbFromJson(String json, byte[] geometry) {
         byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
         int paddedJsonLength = (jsonBytes.length + 3) & ~3;
         int paddedGeometryLength = (geometry.length + 3) & ~3;

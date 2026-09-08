@@ -97,6 +97,45 @@ public class ModelUtil {
     private record JsonRange(int offset, int length, long totalLength) {
     }
 
+    /** JSON source and the optional GLB BIN chunk location, without reading BIN bytes. */
+    public record ModelSource(byte[] json, long binaryOffset, long binaryLength) {}
+
+    /** Reads JSON and locates BIN data; the caller owns and closes the stream. */
+    public static ModelSource readModelSource(InputStream input) throws IOException {
+        PushbackInputStream stream = new PushbackInputStream(input, Integer.BYTES);
+        byte[] prefix = stream.readNBytes(Integer.BYTES);
+        stream.unread(prefix);
+        if (!isGlbMagic(prefix)) {
+            return new ModelSource(stream.readAllBytes(), -1, 0);
+        }
+
+        JsonRange range = getGlbJsonRange(stream.readNBytes(GLB_JSON_OFFSET), -1);
+        byte[] json = stream.readNBytes(range.length);
+        if (json.length != range.length) {
+            throw new IOException("GLB JSON chunk is truncated");
+        }
+        long offset = GLB_JSON_OFFSET + (long)range.length;
+        while (offset < range.totalLength) {
+            byte[] header = stream.readNBytes(8);
+            if (header.length != 8 || range.totalLength - offset < 8) {
+                throw new IOException("GLB chunk header is truncated");
+            }
+            ByteBuffer chunk = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
+            long length = Integer.toUnsignedLong(chunk.getInt());
+            int type = chunk.getInt();
+            offset += 8;
+            if (length > range.totalLength - offset) {
+                throw new IOException("Invalid GLB chunk length");
+            }
+            if (type == 0x004e4942) {
+                return new ModelSource(json, offset, length);
+            }
+            stream.skipNBytes(length);
+            offset += length;
+        }
+        return new ModelSource(json, -1, 0);
+    }
+
     private static final class CountingInputStream extends FilterInputStream {
         private long byteCount;
 

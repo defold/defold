@@ -16,6 +16,7 @@ package com.dynamo.bob.fs;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -144,15 +145,17 @@ public final class GltfContainer {
         private final String mimeType;
         private final String sourceKind;
         private final List<TextureMetadata> textures;
+        private final ImageLocation location;
 
         ImageAsset(String path, int index, String name, String uri, String mimeType, String sourceKind,
-                   byte[] content, List<TextureMetadata> textures) {
+                   byte[] content, List<TextureMetadata> textures, ImageLocation location) {
             super(path, AssetKind.IMAGE, index, name, content);
             this.uri = uri;
             this.mimeType = mimeType;
             this.sourceKind = sourceKind;
             this.textures = Collections.unmodifiableList(
                     new ArrayList<TextureMetadata>(textures));
+            this.location = location;
         }
 
         public String getUri() {
@@ -171,7 +174,15 @@ public final class GltfContainer {
         public List<TextureMetadata> getTextures() {
             return textures;
         }
+
+        /** Non-null when inspection defers reading this image's bytes. */
+        public ImageLocation getLocation() {
+            return location;
+        }
     }
+
+    /** Project-relative encoded image location; length -1 denotes the whole resource. */
+    public record ImageLocation(String path, long offset, long length) {}
 
     /** A virtual glTF mesh plus its immutable native-backed summary metadata. */
     public static final class MeshMetadata extends Asset {
@@ -285,16 +296,81 @@ public final class GltfContainer {
         Modelimporter.Scene scene = ModelUtil.loadScene(
                 sourceBytes, sourcePath, options, dataResolver);
 
-        List<Asset> assets = new ArrayList<Asset>();
-        List<String> diagnostics = new ArrayList<String>();
-        Map<Integer, String> imagePaths = extractImages(
-                sourcePath, dataResolver, scene, assets, diagnostics);
+        return extractAssets(scene, image -> resolveImage(sourcePath, dataResolver, image));
+    }
+
+    /** Builds the same asset paths and bindings for eager extraction and deferred inspection. */
+    private static Extraction extractAssets(Modelimporter.Scene scene, ImageResolver imageResolver) {
+        List<Asset> assets = new ArrayList<>();
+        List<String> diagnostics = new ArrayList<>();
+        Map<Integer, String> imagePaths = extractImages(scene, imageResolver, assets, diagnostics);
         extractMaterials(scene, imagePaths, assets);
         List<MeshMetadata> meshes = extractMeshMetadata(scene);
         assets.addAll(meshes);
-
         assets.sort(Comparator.comparing(Asset::getKind).thenComparingInt(Asset::getIndex));
         return new Extraction(assets, meshes, diagnostics);
+    }
+
+    /**
+     * Enumerates assets without reading external payloads or the GLB BIN chunk.
+     * If neither MIME type nor URI identifies an external image, headerResolver supplies
+     * its first eight bytes (or null if missing) for the same format detection as extract().
+     */
+    public static Extraction inspect(InputStream stream, String sourcePath,
+                                     ModelImporterJni.DataResolver headerResolver) throws IOException {
+        ModelUtil.ModelSource source = ModelUtil.readModelSource(stream);
+        Modelimporter.Options options = new Modelimporter.Options();
+        options.loadMaterialsOnly = true;
+        options.loadMeshMetadata = true;
+        options.skipImageData = true;
+        // The importer accepts JSON for both suffixes; sourcePath still anchors image URIs.
+        Modelimporter.Scene scene = ModelUtil.loadScene(source.json(), sourcePath, options, null);
+        Map<Integer, byte[]> dataBuffers = new LinkedHashMap<>();
+        return extractAssets(scene, image -> {
+            if (isDataUri(image.uri)) {
+                return resolveImage(sourcePath, null, image);
+            }
+            String mimeType = normalizedMimeType(image.mimeType);
+            if (image.bufferIndex >= 0) {
+                String bufferUri = scene.buffers[image.bufferIndex].uri;
+                if (isDataUri(bufferUri)) {
+                    byte[] buffer = dataBuffers.get(image.bufferIndex);
+                    if (buffer == null) {
+                        buffer = decodeDataUri(bufferUri).content;
+                        dataBuffers.put(image.bufferIndex, buffer);
+                    }
+                    if ((long)image.bufferOffset + image.bufferSize > buffer.length) {
+                        throw new IOException("image buffer view exceeds its buffer");
+                    }
+                    return new ResolvedImage(null, mimeType, "buffer-view",
+                            Arrays.copyOfRange(buffer, image.bufferOffset, image.bufferOffset + image.bufferSize), null);
+                }
+                ImageLocation location;
+                if (bufferUri != null) {
+                    location = new ImageLocation(resolveExternalResourcePath(sourcePath, bufferUri),
+                            image.bufferOffset, image.bufferSize);
+                } else {
+                    if (source.binaryOffset() < 0 || (long)image.bufferOffset + image.bufferSize > source.binaryLength()) {
+                        throw new IOException("image buffer view exceeds the GLB BIN chunk");
+                    }
+                    location = new ImageLocation(sourcePath, source.binaryOffset() + image.bufferOffset, image.bufferSize);
+                }
+                if (mimeType == null) {
+                    throw new IOException("embedded image has no mimeType");
+                }
+                return new ResolvedImage(null, mimeType, "buffer-view", null, location);
+            }
+            ImageLocation location = new ImageLocation(resolveExternalResourcePath(sourcePath, image.uri), 0, -1);
+            if (extensionForImage(mimeType, image.uri, null) == null) {
+                byte[] header = headerResolver == null ? null : headerResolver.getData(sourcePath, image.uri);
+                if (header == null) {
+                    throw new IOException(String.format("external image format cannot be determined: '%s'",
+                            uriForDiagnostic(image.uri)));
+                }
+                mimeType = mimeTypeForExtension(extensionForImage(null, image.uri, header));
+            }
+            return new ResolvedImage(image.uri, mimeType, "external-uri", null, location);
+        });
     }
 
     /**
@@ -568,8 +644,8 @@ public final class GltfContainer {
     }
 
     private static Map<Integer, String> extractImages(
-            String sourcePath, ModelImporterJni.DataResolver dataResolver,
-            Modelimporter.Scene scene, List<Asset> assets, List<String> diagnostics) {
+            Modelimporter.Scene scene, ImageResolver imageResolver,
+            List<Asset> assets, List<String> diagnostics) {
         Map<Integer, String> imagePaths = new LinkedHashMap<Integer, String>();
         if (scene.images == null) {
             return imagePaths;
@@ -579,7 +655,7 @@ public final class GltfContainer {
         ExtractionBudget extractionBudget = new ExtractionBudget();
         for (Modelimporter.Image image : scene.images) {
             try {
-                ResolvedImage resolvedImage = resolveImage(sourcePath, dataResolver, image);
+                ResolvedImage resolvedImage = imageResolver.resolve(image);
                 extractionBudget.include(resolvedImage.content);
                 String extension = extensionForImage(
                         resolvedImage.mimeType, resolvedImage.uri, resolvedImage.content);
@@ -589,7 +665,7 @@ public final class GltfContainer {
                 String path = String.format("images/%d.%s", image.index, extension);
                 imagePaths.put(image.index, path);
                 resolvedImages.put(image.index, new ResolvedImage(resolvedImage.uri, mimeType,
-                        resolvedImage.sourceKind, resolvedImage.content));
+                        resolvedImage.sourceKind, resolvedImage.content, resolvedImage.location));
             } catch (IOException e) {
                 diagnostics.add(String.format("Image %d: %s", image.index, e.getMessage()));
             }
@@ -602,7 +678,8 @@ public final class GltfContainer {
             }
             assets.add(new ImageAsset(imagePaths.get(image.index), image.index, image.name,
                     resolvedImage.uri, resolvedImage.mimeType, resolvedImage.sourceKind,
-                    resolvedImage.content, textureMetadata(scene, image.index, imagePaths)));
+                    resolvedImage.content == null ? new byte[0] : resolvedImage.content,
+                    textureMetadata(scene, image.index, imagePaths), resolvedImage.location));
         }
         return imagePaths;
     }
@@ -636,7 +713,13 @@ public final class GltfContainer {
         return null;
     }
 
-    private record ResolvedImage(String uri, String mimeType, String sourceKind, byte[] content) {}
+    @FunctionalInterface
+    private interface ImageResolver {
+        ResolvedImage resolve(Modelimporter.Image image) throws IOException;
+    }
+
+    private record ResolvedImage(String uri, String mimeType, String sourceKind,
+                                 byte[] content, ImageLocation location) {}
 
     private static ResolvedImage resolveImage(String sourcePath, ModelImporterJni.DataResolver dataResolver,
                                               Modelimporter.Image image) throws IOException {
@@ -650,7 +733,7 @@ public final class GltfContainer {
                             mimeType, dataUri.mimeType));
                 }
                 return new ResolvedImage(uri, mimeType == null ? dataUri.mimeType : mimeType,
-                        "data-uri", dataUri.content);
+                        "data-uri", dataUri.content, null);
             }
 
             byte[] content = dataResolver == null ? null : dataResolver.getData(sourcePath, uri);
@@ -658,7 +741,7 @@ public final class GltfContainer {
                 throw new IOException(String.format("external resource does not exist: '%s'",
                         uriForDiagnostic(uri)));
             }
-            return new ResolvedImage(uri, mimeType, "external-uri", content);
+            return new ResolvedImage(uri, mimeType, "external-uri", content, null);
         }
 
         if (image.buffer == null || image.buffer.buffer == null || image.buffer.buffer.length == 0) {
@@ -667,7 +750,7 @@ public final class GltfContainer {
         if (mimeType == null || mimeType.isEmpty()) {
             throw new IOException("embedded image has no mimeType");
         }
-        return new ResolvedImage(null, mimeType, "buffer-view", image.buffer.buffer);
+        return new ResolvedImage(null, mimeType, "buffer-view", image.buffer.buffer, null);
     }
 
     private static List<TextureMetadata> textureMetadata(Modelimporter.Scene scene, int imageIndex,
@@ -700,6 +783,9 @@ public final class GltfContainer {
         private long totalImageBytes;
 
         void include(byte[] content) throws IOException {
+            if (content == null) {
+                return;
+            }
             if (content.length > MAX_IMAGE_BYTES) {
                 throw new IOException("encoded image exceeds the virtual image size limit");
             }
@@ -799,6 +885,25 @@ public final class GltfContainer {
             }
         }
 
+        String uriExtension = null;
+        if (uri != null && !isDataUri(uri)) {
+            uriExtension = FilenameUtils.getExtension(new String(percentDecode(uri), StandardCharsets.UTF_8)).toLowerCase(Locale.ROOT);
+            if ("jpeg".equals(uriExtension)) {
+                uriExtension = "jpg";
+            }
+            if (!"png".equals(uriExtension) && !"jpg".equals(uriExtension)) {
+                uriExtension = null;
+            }
+        }
+        // Discovery can use declarations without fetching the image payload.
+        if (content == null) {
+            if (mimeExtension != null && uriExtension != null && !mimeExtension.equals(uriExtension)) {
+                throw new IOException(String.format("image URI '%s' does not match MIME type '%s'",
+                        uriForDiagnostic(uri), mimeType));
+            }
+            return mimeExtension == null ? uriExtension : mimeExtension;
+        }
+
         String signatureExtension = null;
         if (content.length >= 8
                 && (content[0] & 0xff) == 0x89
@@ -824,16 +929,8 @@ public final class GltfContainer {
             throw new IOException(String.format("image MIME type '%s' does not match encoded bytes", mimeType));
         }
 
-        if (uri != null && !isDataUri(uri)) {
-            String uriExtension = FilenameUtils.getExtension(uri).toLowerCase(Locale.ROOT);
-            if ("jpeg".equals(uriExtension)) {
-                uriExtension = "jpg";
-            }
-            if (("png".equals(uriExtension) || "jpg".equals(uriExtension))
-                    && !uriExtension.equals(signatureExtension)) {
-                throw new IOException(String.format("image URI '%s' does not match encoded bytes",
-                        uriForDiagnostic(uri)));
-            }
+        if (uriExtension != null && !uriExtension.equals(signatureExtension)) {
+            throw new IOException(String.format("image URI '%s' does not match encoded bytes", uriForDiagnostic(uri)));
         }
         return signatureExtension;
     }
