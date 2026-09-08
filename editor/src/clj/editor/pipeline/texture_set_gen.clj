@@ -18,7 +18,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Layout TextureSetLayout$Rect]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
@@ -190,7 +190,7 @@
                                           layout-images)
             geometry->layout-rect-index (mapv #(path->layout-rect-index (-> % :path resource/proj-path))
                                               geometry-images)
-            use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) geometry-images) 0 1)
+            use-geometries (if (coll/every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) geometry-images) 0 1)
             result (TextureSetGenerator/calculateLayout
                      layout-rects geometries geometry->layout-rect-index use-geometries anim-iterator margin inner-padding extrude-borders
                      true false nil (get max-page-size 0) (get max-page-size 1))]
