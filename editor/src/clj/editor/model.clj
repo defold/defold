@@ -79,19 +79,6 @@
         (keep :material-index)
         (:primitives selected-mesh)))
 
-(defn- source-collision-meshes
-  "Looks up source mesh metadata in the consumer's project before changing its resource binding."
-  [evaluation-context consumer-node-id source-resource]
-  (when-let [project-node-id (project/get-project (:basis evaluation-context) consumer-node-id)]
-    (when-let [source-node-id (project/get-resource-node project-node-id source-resource evaluation-context)]
-      (g/node-value source-node-id :collision-meshes evaluation-context))))
-
-(defn- multiple-selectable-meshes?
-  "True when valid mesh metadata offers more than one selectable mesh."
-  [collision-meshes]
-  (and (not (g/error-value? collision-meshes))
-       (< 1 (count (model-loader/named-meshes collision-meshes)))))
-
 (defn- gltf-auto-fill-candidate
   "Prepares available material bindings and records whether applying them would replace existing ones."
   [evaluation-context node-id source-resource material-indices]
@@ -138,7 +125,7 @@
            candidates)}))
 
 (defn- prepare-mesh-user-edit
-  "Offers material auto-fill when changing a source that needs no further mesh selection."
+  "Offers all source materials when selecting a glTF file."
   [evaluation-context _property set-operations]
   (let [candidates
         (into []
@@ -146,14 +133,12 @@
                 (fn [[node-id _prop-kw old-value new-value]]
                   (when (and (not= old-value new-value)
                              (gltf-source-resource? new-value))
-                    (let [collision-meshes (source-collision-meshes evaluation-context node-id new-value)]
-                      (when-not (multiple-selectable-meshes? collision-meshes)
-                        (gltf-auto-fill-candidate evaluation-context node-id new-value nil))))))
+                    (gltf-auto-fill-candidate evaluation-context node-id new-value nil))))
               set-operations)]
     (prepare-gltf-auto-fill evaluation-context candidates)))
 
 (defn- prepare-mesh-index-user-edit
-  "Offers material auto-fill for the selected mesh in a source with multiple meshes."
+  "Offers the selected mesh's materials, or all materials when clearing the selection."
   [evaluation-context _property set-operations]
   (let [candidates
         (into []
@@ -164,13 +149,13 @@
                           collision-meshes (g/node-value node-id :collision-meshes evaluation-context)
                           selected-mesh (resolve-selected-mesh collision-meshes new-value)]
                       (when (and (gltf-source-resource? source-resource)
-                                 (multiple-selectable-meshes? collision-meshes)
-                                 selected-mesh)
+                                 (or (= -1 new-value) selected-mesh))
                         (gltf-auto-fill-candidate
                           evaluation-context
                           node-id
                           source-resource
-                          (selected-mesh-material-indices selected-mesh)))))))
+                          (when selected-mesh
+                            (selected-mesh-material-indices selected-mesh))))))))
               set-operations)]
     (prepare-gltf-auto-fill evaluation-context candidates)))
 

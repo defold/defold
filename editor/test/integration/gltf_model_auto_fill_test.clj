@@ -14,6 +14,7 @@
 
 (ns integration.gltf-model-auto-fill-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
@@ -178,8 +179,16 @@
               (g/undo! :undo/global)
               (is (= initial-state (model-state model-node-id)))))
 
-          (testing "multi-mesh sources wait for a mesh selection and only bind its assets"
+          (testing "source selection offers all materials and mesh selection offers its own"
             (let [dialog-call-count (atom 0)
+                  all-meshes-state (assoc generated-state :mesh "/models/two_meshes.gltf"
+                                                         :materials
+                                                         (into (sorted-map)
+                                                               (map (fn [[name binding]]
+                                                                      [name (-> binding
+                                                                                (update :material #(string/replace % "robot.gltf" "two_meshes.gltf"))
+                                                                                (update :textures update-vals #(string/replace % "robot.gltf" "two_meshes.gltf")))]))
+                                                               (:materials generated-state)))
                   selected-mesh-state
                   {:mesh "/models/two_meshes.gltf"
                    :materials
@@ -194,8 +203,8 @@
                               true)]
                 (edit-property! model-node-id :mesh multi-mesh-gltf-resource)
 
-                (is (zero? @dialog-call-count))
-                (is (= (assoc initial-state :mesh "/models/two_meshes.gltf")
+                (is (= 1 @dialog-call-count))
+                (is (= all-meshes-state
                        (model-state model-node-id)))
                 (is (= [[-1 ""] [0 "PaintMesh"] [1 "ChromeMesh"]]
                        (get-in (g/node-value model-node-id :_properties)
@@ -203,7 +212,7 @@
 
                 (edit-property! model-node-id :mesh-index 1))
 
-              (is (= 1 @dialog-call-count))
+              (is (= 2 @dialog-call-count))
               (is (= "ChromeMesh" (test-util/prop model-node-id :mesh-name)))
               (is (= [{:index 0
                        :name "PaintMesh"
@@ -221,9 +230,15 @@
               (is (nil? (get-in (g/node-value model-node-id :_properties)
                                [:properties :__material__0 :error])))
 
+              (with-redefs [dialogs/make-confirmation-dialog (fn [_ _] true)]
+                (edit-property! model-node-id :mesh-index -1))
+              (is (= all-meshes-state (model-state model-node-id)))
+              (g/undo! :undo/global)
+              (is (= selected-mesh-state (model-state model-node-id)))
+
               (g/undo! :undo/global)
               (is (= -1 (test-util/prop model-node-id :mesh-index)))
-              (is (= (assoc initial-state :mesh "/models/two_meshes.gltf")
+              (is (= all-meshes-state
                      (model-state model-node-id)))
 
               (g/undo! :undo/global)
