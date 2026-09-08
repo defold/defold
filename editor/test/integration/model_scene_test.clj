@@ -35,11 +35,14 @@
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :as coll])
-  (:import [java.nio ByteBuffer ByteOrder]
+  (:import [ch.qos.logback.classic Logger]
+           [ch.qos.logback.core.read ListAppender]
+           [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
            [java.util.concurrent CyclicBarrier TimeUnit]
-           [javax.vecmath Point3d Vector4d]))
+           [javax.vecmath Point3d Vector4d]
+           [org.slf4j LoggerFactory]))
 
 (vtx/defvertex vtx-pos-nrm-tex
   (vec3 position)
@@ -375,14 +378,22 @@
 (deftest gltf-invalid-scene
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/mesh/accessor_element_out_of_max_bound.gltf")
-          scene (log/without-logging
-                  (g/node-value node-id :scene))]
-      (is (g/error? scene))
-      (let [errors (g/flatten-errors scene)
-            msg    (some-> errors g/error-message test-util/localization)]
-        (is (re-find #"glTF validation failed" msg))
-        (is (re-find #"ACCESSOR_MAX_MISMATCH" msg))
-        (is (re-find #"ACCESSOR_ELEMENT_OUT_OF_MAX_BOUND" msg))))))
+          ^Logger logger (LoggerFactory/getLogger "editor.model-loader")
+          ^ListAppender appender (doto (ListAppender.)
+                                   (.start))]
+      (.addAppender logger appender)
+      (try
+        (let [scene (g/node-value node-id :scene)]
+          (is (g/error-fatal? scene))
+          (let [errors (g/flatten-errors scene)
+                msg (some-> errors g/error-message test-util/localization)]
+            (is (re-find #"glTF validation failed" msg))
+            (is (re-find #"ACCESSOR_MAX_MISMATCH" msg))
+            (is (re-find #"ACCESSOR_ELEMENT_OUT_OF_MAX_BOUND" msg))))
+        (is (zero? (count (.-list appender))))
+        (finally
+          (.detachAppender logger appender)
+          (.stop appender))))))
 
 (deftest external-buffer-change-invalidates-content
   (test-util/with-scratch-project "test/resources/test_project"
