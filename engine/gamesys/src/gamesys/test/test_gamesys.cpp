@@ -659,23 +659,28 @@ TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(3u, render_ctx->m_LightBufferScratch.Size());
-    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), render_ctx->m_AmbientLight);
+    ASSERT_EQ(4u, render_ctx->m_LightBufferScratch.Size());
 
-    // Creation order (point, directional, spot) matches CompLightWorld component order and light buffer indices 0..2
-    const dmRender::LightSTD140& L_point = render_ctx->m_LightBufferScratch[0];
+    // Ambient lights now retain the same per-instance source data as the other
+    // types, but are folded into light_info.xyz instead of the uploaded lights[].
+    const dmRender::LightSTD140& L_ambient = render_ctx->m_LightBufferScratch[0];
+    ASSERT_VEC4(dmVMath::Vector4(0.1f, 0.2f, 0.3f, 1.0f), L_ambient.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_AMBIENT, 5.0f, 0.0f, 0.0f), L_ambient.m_Params);
+
+    // Creation order matches CompLightWorld component order and light buffer indices 0..3.
+    const dmRender::LightSTD140& L_point = render_ctx->m_LightBufferScratch[1];
     ASSERT_VEC3(pos_point, L_point.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), L_point.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, 0.0f, 10.0f), L_point.m_DirectionRange);
     ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_POINT, 2.0f, 0.0f, 0.0f), L_point.m_Params);
 
-    const dmRender::LightSTD140& L_dir = render_ctx->m_LightBufferScratch[1];
+    const dmRender::LightSTD140& L_dir = render_ctx->m_LightBufferScratch[2];
     ASSERT_VEC3(pos_dir, L_dir.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), L_dir.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 0.0f), L_dir.m_DirectionRange);
     ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_DIRECTIONAL, 3.0f, 0.0f, 0.0f), L_dir.m_Params);
 
-    const dmRender::LightSTD140& L_spot = render_ctx->m_LightBufferScratch[2];
+    const dmRender::LightSTD140& L_spot = render_ctx->m_LightBufferScratch[3];
     ASSERT_VEC3(pos_spot, L_spot.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), L_spot.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), L_spot.m_DirectionRange);
@@ -685,14 +690,14 @@ TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
     dmGameObject::SetPosition(go_point, pos_point_moved);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_VEC3(pos_point_moved, render_ctx->m_LightBufferScratch[0].m_Position);
-    ASSERT_VEC3(pos_dir, render_ctx->m_LightBufferScratch[1].m_Position);
-    ASSERT_VEC3(pos_spot, render_ctx->m_LightBufferScratch[2].m_Position);
+    ASSERT_VEC3(pos_point_moved, render_ctx->m_LightBufferScratch[1].m_Position);
+    ASSERT_VEC3(pos_dir, render_ctx->m_LightBufferScratch[2].m_Position);
+    ASSERT_VEC3(pos_spot, render_ctx->m_LightBufferScratch[3].m_Position);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(LightResourceTest, AmbientLightsDoNotUseLightBufferSlots)
+TEST_F(LightResourceTest, AmbientLightsAreCompactedIntoLightInfo)
 {
     dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
@@ -711,8 +716,21 @@ TEST_F(LightResourceTest, AmbientLightsDoNotUseLightBufferSlots)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(0u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_EQ(ambient_count, render_ctx->m_LightBufferScratch.Size());
+
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+
+    dmGameSystem::MaterialResource* material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
+
+    ASSERT_EQ(0u, render_ctx->m_LightBufferUploadScratch.Size());
     ASSERT_VEC3(Vector3(0.5f * ambient_count, 1.0f * ambient_count, 1.5f * ambient_count), render_ctx->m_AmbientLight);
+
+    dmResource::Release(m_Factory, (void*) material_res);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -738,15 +756,15 @@ TEST_F(LightResourceTest, LightComponentUsesWorldTransform)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(1u, render_ctx->m_LightBufferScratch.Size());
-    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[0].m_Position);
-    ASSERT_NEAR(10.0f, render_ctx->m_LightBufferScratch[0].m_DirectionRange.getW(), EPSILON);
+    ASSERT_EQ(2u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[1].m_Position);
+    ASSERT_NEAR(10.0f, render_ctx->m_LightBufferScratch[1].m_DirectionRange.getW(), EPSILON);
 
     dmGameObject::SetScale(parent, Vector3(2.0f, 3.0f, 4.0f));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[0].m_Position);
-    ASSERT_NEAR(20.0f, render_ctx->m_LightBufferScratch[0].m_DirectionRange.getW(), EPSILON);
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[1].m_Position);
+    ASSERT_NEAR(20.0f, render_ctx->m_LightBufferScratch[1].m_DirectionRange.getW(), EPSILON);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1504,6 +1522,78 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     lua_getglobal(L, "cp_single_target_finalized");
     ASSERT_TRUE(lua_toboolean(L, -1) != 0);
     lua_pop(L, 1);
+}
+
+TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProxy)
+{
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_NE((void*)0, render_ctx);
+
+    dmGameSystem::MaterialResource* material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
+    ASSERT_NE((void*)0, material_res);
+
+    dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/ambient_light_root.goc", dmHashString64("/proxy"), 0,
+                                              Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, proxy_go);
+
+    CollectionProxyComponentRef proxy = GetCollectionProxyComponentRef(proxy_go, dmHashString64("collectionproxy"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyLoad(proxy.m_World, proxy.m_Component, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyInitialize(proxy.m_World, proxy.m_Component));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyEnable(proxy.m_World, proxy.m_Component));
+
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
+
+    // The enabled proxy renders its child collection, which submits the ambient
+    // and point instances before the light buffer snapshot is compacted.
+    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), render_ctx->m_AmbientLight);
+    ASSERT_EQ(1u, render_ctx->m_LightBufferUploadScratch.Size());
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyDisable(proxy.m_World, proxy.m_Component));
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    dmRender::BeginFrame(m_RenderContext, 2.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
+
+    // The light instance still owns its latest data, but the disabled child is
+    // not rendered and therefore does not submit the instance for this frame.
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), render_ctx->m_AmbientLight);
+    ASSERT_EQ(0u, render_ctx->m_LightBufferUploadScratch.Size());
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyEnable(proxy.m_World, proxy.m_Component));
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    dmRender::BeginFrame(m_RenderContext, 3.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
+
+    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), render_ctx->m_AmbientLight);
+    ASSERT_EQ(1u, render_ctx->m_LightBufferUploadScratch.Size());
+
+    dmGameObject::Delete(m_Collection, proxy_go, true);
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    dmRender::BeginFrame(m_RenderContext, 4.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
+
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), render_ctx->m_AmbientLight);
+    ASSERT_EQ(0u, render_ctx->m_LightBufferUploadScratch.Size());
+
+    dmResource::Release(m_Factory, (void*) material_res);
 }
 
 TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection)
@@ -10129,11 +10219,9 @@ TEST_F(MaterialTest, TestLightBufferSmallerThanProjectMax)
 
 TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
 {
-    // Spawns multiple point-light components from the same .lightc with distinct transforms, runs the
-    // game-object update (LateUpdate -> SetLightInstance -> scratch), then applies light_buffer.material
-    // (fragment shader sums lights[i].color from LightBuffer) so ApplyMaterialProgramLightBuffers uploads
-    // scratch + active light count into the render light uniform buffer. On the null graphics adapter we
-    // memcmp the UBO backing store against scratch to prove the upload path ran with the expected layout.
+    // Spawns ambient and point-light components, updates their persistent instance data, renders the
+    // collection to submit the visible instances, then applies light_buffer.material. The ambient
+    // instance is folded into light_info.xyz while only point lights are uploaded to lights[].
     dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
 
@@ -10156,11 +10244,16 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     // Light data is commited into a scratch buffer before pushing it to the GPU
-    ASSERT_EQ(10u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_EQ(11u, render_ctx->m_LightBufferScratch.Size());
     for (uint32_t i = 0; i < 10; ++i)
     {
-        ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i].m_Position);
+        ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i + 1].m_Position);
     }
+
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
 
     dmGameSystem::MaterialResource* material_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
@@ -10185,7 +10278,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
     const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
     ASSERT_LE(light_data_offset + light_data_bytes, ubo->m_BufferSize);
-    ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferScratch.Begin(), light_data_bytes));
+    ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferUploadScratch.Begin(), light_data_bytes));
 
     dmGameSystem::MaterialResource* small_material_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer_small.materialc", (void**) &small_material_res));
@@ -10242,6 +10335,11 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboAfterDelete)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+
     dmGameSystem::MaterialResource* material_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
     ASSERT_NE((void*)0, material_res);
@@ -10253,6 +10351,11 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboAfterDelete)
 
     DeleteInstance(m_Collection, gos[1]);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::BeginFrame(m_RenderContext, 2.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
 
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material);
 
@@ -10318,6 +10421,11 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboCompute)
         ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i].m_Position);
     }
 
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+
     dmGameSystem::ComputeResource* compute_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/shader/light_buffer.computec", (void**) &compute_res));
     ASSERT_NE((void*)0, compute_res);
@@ -10338,7 +10446,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboCompute)
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
     const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
     ASSERT_LE(light_data_offset + light_data_bytes, ubo->m_BufferSize);
-    ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferScratch.Begin(), light_data_bytes));
+    ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferUploadScratch.Begin(), light_data_bytes));
 
     dmResource::Release(m_Factory, (void*) compute_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
