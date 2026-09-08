@@ -1017,7 +1017,7 @@
 
 (defn successors
   "Public only for tests and introspection tooling. Implementation detail."
-  [basis node-id label]
+  ^Object/1 [basis node-id label]
   (query-successors
     (-> basis :graphs (get (gt/node-id->graph-id node-id)) :successors)
     basis
