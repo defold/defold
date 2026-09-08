@@ -175,6 +175,7 @@
               project (test-util/setup-project! workspace)
               source-resource (workspace/find-resource workspace "/robot.glb")
               material-resource (workspace/find-resource workspace "/robot.glb/materials/0.material")
+              meshes-resource (workspace/find-resource workspace "/robot.glb/meshes")
               mesh-resource (workspace/find-resource workspace "/robot.glb/meshes/Mesh 1")
               mesh-node (test-util/resource-node project (resource/proj-path mesh-resource))
               model-node (test-util/resource-node project "/robot.model")]
@@ -183,6 +184,12 @@
               (with-open [_export-deleter (test-util/make-directory-deleter (.getParentFile exported))]
                 (is (= "Paint_Chrome [0].material" (.getName exported)))
                 (is (= (slurp material-resource) (slurp exported))))))
+
+          (testing "metadata meshes and their folders cannot be copied as empty files"
+            (is (asset-browser/copyable-resource? source-resource))
+            (is (asset-browser/copyable-resource? material-resource))
+            (is (not (asset-browser/copyable-resource? mesh-resource)))
+            (is (not (asset-browser/copyable-resource? meshes-resource))))
 
           (testing "an unreferenced, unnamed mesh has its own read-only preview"
             (is (resource/editor-openable-resource? mesh-resource))

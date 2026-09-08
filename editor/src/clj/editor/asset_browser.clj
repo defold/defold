@@ -191,9 +191,20 @@
     (.putFiles content files)
     (.setContent cb content)))
 
+(defn copyable-resource?
+  "True for resources that can be exported to files, including every child of a folder."
+  [value]
+  (and (resource/resource? value)
+       (if (= :folder (resource/source-type value))
+         (coll/every? copyable-resource? (resource/children value))
+         (not (and (resource/gltf-resource? value)
+                   (= :mesh (:kind (resource/gltf-resource-asset-info value))))))))
+
 (handler/defhandler :edit.copy :asset-browser
   (enabled? [selection]
-    (coll/any? resource/resource? selection))
+    (let [resources (filterv resource/resource? selection)]
+      (and (coll/not-empty resources)
+           (coll/every? copyable-resource? resources))))
   (run [selection]
     (copy (fileify-resources! (roots (filterv resource/resource? selection))))))
 
@@ -789,7 +800,7 @@
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots (filterv resource/resource? selection))
-        files (fileify-resources! resources)
+        files (fileify-resources! (filterv copyable-resource? resources))
         paths (->> resources
                    (mapv resource/proj-path)
                    (string/join "\n"))
