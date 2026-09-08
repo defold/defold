@@ -493,7 +493,10 @@ TEST_F(EngineTest, FramePacingPreservesSignedTimeBalance)
 
     ASSERT_NEAR(7.0f, elapsed_time, 0.0001f);
     ASSERT_NEAR(elapsed_time, simulation_time + frame_time_balance, 0.0001f);
-    ASSERT_LE(elapsed_time - simulation_time, fixed_dt + 0.0001f);
+    // The threshold may retain up to one fixed step of positive lag, but this
+    // sequence must not leave the simulation ahead of elapsed wall-clock time.
+    ASSERT_GE(frame_time_balance, -0.0001f);
+    ASSERT_LE(frame_time_balance, fixed_dt + 0.0001f);
 }
 
 TEST_F(EngineTest, UpdateFrequencyChangePreservesTimeBalance)
