@@ -2403,9 +2403,9 @@ After transaction (add and edit font styles):
   styles: 4
     id: notice
     markup: [<color=#aa3300>\\n<ul>]
-    id: style2
+    id: style
     markup: []
-    id: style3
+    id: style2
     markup: []
     id: accent
     markup: [<color=#ff6600>]
@@ -2414,7 +2414,7 @@ After transaction (remove font style):
   styles: 3
     id: notice
     markup: [<color=#aa3300>\\n<ul>]
-    id: style3
+    id: style2
     markup: []
     id: accent
     markup: [<color=#ff6600>]

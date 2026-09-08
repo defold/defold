@@ -743,7 +743,7 @@
                                                        (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
           styles-node (g/node-value node :styles-node)]
       (is (= "Style: (default)" (g/node-value view :tool-info-text)))
-      (doseq [[parent name] [[node "style1"] [styles-node "style2"]]]
+      (doseq [[parent name] [[node "style"] [styles-node "style1"]]]
         (let [contexts [{:name :workbench :env {:selection [parent] :app-view app-view}}]]
           (is (test-util/handler-enabled? :edit.add-embedded-component contexts nil))
           (test-util/handler-run :edit.add-embedded-component contexts nil)

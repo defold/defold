@@ -34,6 +34,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.outline :as outline]
@@ -2086,14 +2087,6 @@
       (when-let [font-node (handler/adapt-single selection FontNode evaluation-context)]
         (g/node-value font-node :styles-node evaluation-context))))
 
-(defn- next-style-name [parent evaluation-context]
-  (let [names (set (g/node-value parent :style-names evaluation-context))]
-    (loop [index 1]
-      (let [candidate (str "style" index)]
-        (if-not (contains? names candidate)
-          candidate
-          (recur (inc index)))))))
-
 (handler/defhandler :edit.add-embedded-component :workbench
   :label (localization/message "command.edit.add-embedded-component.variant.font")
   (active? [selection evaluation-context]
@@ -2101,7 +2094,7 @@
   (run [selection app-view]
     (g/with-auto-evaluation-context evaluation-context
       (let [parent (selection->styles-node selection evaluation-context)
-            name (next-style-name parent evaluation-context)
+            name (id/gen "style" (g/node-value parent :style-names evaluation-context))
             op-seq (gensym)
             nodes (g/tx-nodes-added
                     (g/transact
@@ -2114,7 +2107,7 @@
   [evaluation-context rt project parent-node-id _child-node-type child-node-id attachment]
   (-> attachment
       (eutil/provide-defaults
-        "id" (rt/->lua (next-style-name parent-node-id evaluation-context)))
+        "id" (rt/->lua (id/gen "style" (g/node-value parent-node-id :style-names evaluation-context))))
       (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defn register-resource-types [workspace]
