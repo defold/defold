@@ -38,6 +38,7 @@
 #include <harfbuzz/hb.h>
 #include <markup.h>
 #include <text_layout.h>
+#include <fontcollection.h>
 
 using dmVMath::Matrix4;
 using dmVMath::Vector4;
@@ -49,7 +50,7 @@ static_assert(sizeof(FontcLayout) == 28, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
 static_assert(sizeof(FontcGlyphMetrics) == 32, "Unexpected FontcGlyphMetrics ABI layout");
-static_assert(sizeof(FontcProperties) == 84, "Unexpected FontcProperties ABI layout");
+static_assert(sizeof(FontcProperties) == 104, "Unexpected FontcProperties ABI layout");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
 static_assert(offsetof(FontcTexture, m_AtlasVersion) == 8, "Unexpected FontcTexture ABI layout");
 static_assert(sizeof(FontcMarkupString) == sizeof(MarkupString), "Unexpected FontcMarkupString ABI layout");
@@ -551,6 +552,8 @@ static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_LineBreak = line_break;
+    settings.m_BaseStyle = session->m_Properties.m_BaseStyle;
+    settings.m_UseBaseStyle = session->m_Properties.m_UseBaseStyle;
     if (!session->m_UseTextShaping)
         return TextLayoutLegacyCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
     return TextLayoutCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
@@ -580,6 +583,8 @@ static TextResult CreateParsedMarkupLayout(FontcContext* session, HMarkup parsed
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_LineBreak = line_break;
+    settings.m_BaseStyle = session->m_Properties.m_BaseStyle;
+    settings.m_UseBaseStyle = session->m_Properties.m_UseBaseStyle;
     settings.m_ResolveObject = ResolvePreviewLayoutObject;
 
     return session->m_UseTextShaping ? TextLayoutCreateMarkup(session->m_Collection, parsed_markup, &settings, layout) : TextLayoutLegacyCreateMarkup(session->m_Collection, parsed_markup, &settings, layout);
@@ -672,6 +677,8 @@ static void UpdateStateHash(FontcContext* renderer)
 {
     HashState64 hash_state;
     dmHashInit64(&hash_state, false);
+    const uint32_t style_revision = FontCollectionGetNamedStyleRevision(renderer->m_Collection);
+    dmHashUpdateBuffer64(&hash_state, &style_revision, sizeof(style_revision));
     dmHashUpdateBuffer64(&hash_state, &renderer->m_HasProperties, sizeof(renderer->m_HasProperties));
     if (renderer->m_HasProperties)
         dmHashUpdateBuffer64(&hash_state, &renderer->m_Properties, sizeof(renderer->m_Properties));
@@ -1482,5 +1489,137 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
 
     FontCreateLayoutVertices(config, metrics, (FontGlyphVertex*)vertex_buffer, metrics.m_VertexCount);
     TextLayoutRelease(layout);
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcCompileStyle(const char* markup, uint32_t length, FontcStyleData* output, FontcMarkupError* error)
+{
+    if (!output || (!markup && length))
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    memset(output, 0, sizeof(*output));
+    TextRenderStyle          style = {};
+    dmArray<TextEffect>      effects;
+    TextNamedStyleDecoration decoration = {};
+    MarkupError              markup_error = {};
+    if (!TextLayoutCompileStyleFragment(markup ? markup : "", length, &style, &effects, &decoration, &markup_error))
+    {
+        if (error)
+        {
+            error->m_ByteOffset = markup_error.m_ByteOffset;
+            error->m_Type = (FontcMarkupErrorType)markup_error.m_Type;
+        }
+        return FONT_RENDERER_RESULT_TEXT_ERROR;
+    }
+    memcpy(output->m_Style.m_FaceColor, style.m_FaceColor, sizeof(style.m_FaceColor));
+    memcpy(output->m_Style.m_OutlineColor, style.m_OutlineColor, sizeof(style.m_OutlineColor));
+    memcpy(output->m_Style.m_ShadowColor, style.m_ShadowColor, sizeof(style.m_ShadowColor));
+    output->m_Style.m_OutlineWidth = style.m_OutlineWidth;
+    output->m_Style.m_ShadowX = style.m_ShadowX;
+    output->m_Style.m_ShadowY = style.m_ShadowY;
+    output->m_Style.m_ShadowBlur = style.m_ShadowBlur;
+    output->m_Style.m_OutlineAlpha = style.m_OutlineAlpha;
+    output->m_Style.m_ShadowAlpha = style.m_ShadowAlpha;
+    output->m_Style.m_Flags = style.m_Flags;
+    output->m_Style.m_DecorationFlags = decoration.m_Flags;
+    output->m_Style.m_UnderlinePattern = decoration.m_UnderlinePattern;
+    output->m_Style.m_StrikePattern = decoration.m_StrikePattern;
+    output->m_EffectCount = effects.Size();
+    output->m_Effects = effects.Empty() ? 0 : (FontcStyleEffect*)calloc(effects.Size(), sizeof(FontcStyleEffect));
+    if (!effects.Empty() && !output->m_Effects)
+        return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
+    for (uint32_t i = 0; i < effects.Size(); ++i)
+    {
+        const TextEffect& effect = effects[i];
+        FontcStyleEffect& target = output->m_Effects[i];
+        target.m_Type = effect.m_Type;
+        if (effect.m_Type == TEXT_EFFECT_GRADIENT)
+        {
+            memcpy(target.m_Colors, effect.m_Gradient.m_BottomLeft, sizeof(target.m_Colors));
+            target.m_Hz = effect.m_Gradient.m_Hz;
+            target.m_Fit = effect.m_Gradient.m_Fit;
+            target.m_GradientMode = effect.m_Gradient.m_Mode;
+        }
+        else if (effect.m_Type == TEXT_EFFECT_WAVE)
+        {
+            target.m_Amplitude = effect.m_Wave.m_Amplitude;
+            target.m_Hz = effect.m_Wave.m_Hz;
+            target.m_Wavelength = effect.m_Wave.m_Wavelength;
+            target.m_Fit = effect.m_Wave.m_Fit;
+        }
+        else
+        {
+            target.m_Amplitude = effect.m_Shake.m_Amplitude;
+            target.m_Hz = effect.m_Shake.m_Hz;
+            target.m_Fit = effect.m_Shake.m_Fit;
+        }
+    }
+    return FONT_RENDERER_RESULT_OK;
+}
+
+void FontcFreeStyle(FontcStyleData* style)
+{
+    if (style)
+    {
+        free(style->m_Effects);
+        memset(style, 0, sizeof(*style));
+    }
+}
+
+FontRendererResult FontcSetStyle(HFontRenderer renderer, uint64_t name, const FontcStyleData* input)
+{
+    if (!renderer || !input || !name || (input->m_EffectCount && !input->m_Effects))
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    TextRenderStyle style = {};
+    memcpy(style.m_FaceColor, input->m_Style.m_FaceColor, sizeof(style.m_FaceColor));
+    memcpy(style.m_OutlineColor, input->m_Style.m_OutlineColor, sizeof(style.m_OutlineColor));
+    memcpy(style.m_ShadowColor, input->m_Style.m_ShadowColor, sizeof(style.m_ShadowColor));
+    style.m_OutlineWidth = input->m_Style.m_OutlineWidth;
+    style.m_ShadowX = input->m_Style.m_ShadowX;
+    style.m_ShadowY = input->m_Style.m_ShadowY;
+    style.m_ShadowBlur = input->m_Style.m_ShadowBlur;
+    style.m_OutlineAlpha = input->m_Style.m_OutlineAlpha;
+    style.m_ShadowAlpha = input->m_Style.m_ShadowAlpha;
+    style.m_Flags = input->m_Style.m_Flags;
+    TextNamedStyleDecoration decoration = {};
+    decoration.m_Flags = input->m_Style.m_DecorationFlags;
+    decoration.m_UnderlinePattern = input->m_Style.m_UnderlinePattern;
+    decoration.m_StrikePattern = input->m_Style.m_StrikePattern;
+    dmArray<TextEffect> effects;
+    effects.SetCapacity(input->m_EffectCount);
+    for (uint32_t i = 0; i < input->m_EffectCount; ++i)
+    {
+        const FontcStyleEffect& source = input->m_Effects[i];
+        TextEffect              effect = {};
+        effect.m_Type = source.m_Type;
+        if (effect.m_Type == TEXT_EFFECT_GRADIENT)
+        {
+            effect.m_Flags = TEXT_EFFECT_AFFECTS_COLOR;
+            memcpy(effect.m_Gradient.m_BottomLeft, source.m_Colors, sizeof(source.m_Colors));
+            effect.m_Gradient.m_Hz = source.m_Hz;
+            effect.m_Gradient.m_Fit = source.m_Fit;
+            effect.m_Gradient.m_Mode = source.m_GradientMode;
+        }
+        else if (effect.m_Type == TEXT_EFFECT_WAVE)
+        {
+            effect.m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+            effect.m_Wave.m_Amplitude = source.m_Amplitude;
+            effect.m_Wave.m_Hz = source.m_Hz;
+            effect.m_Wave.m_Wavelength = source.m_Wavelength;
+            effect.m_Wave.m_Fit = source.m_Fit;
+        }
+        else if (effect.m_Type == TEXT_EFFECT_SHAKE)
+        {
+            effect.m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+            effect.m_Shake.m_Amplitude = source.m_Amplitude;
+            effect.m_Shake.m_Hz = source.m_Hz;
+            effect.m_Shake.m_Fit = source.m_Fit;
+        }
+        else
+            return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+        effects.Push(effect);
+    }
+    FontCollectionSetNamedStyle(renderer->m_Collection, name, style, effects.Begin(), effects.Size());
+    FontCollectionSetNamedStyleDecoration(renderer->m_Collection, name, decoration);
+    UpdateStateHash(renderer);
     return FONT_RENDERER_RESULT_OK;
 }

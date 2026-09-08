@@ -30,25 +30,25 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
 
 /**
  * {@snippet lang=c :
- * struct FontcMarkupSpan {
- *     uint32_t m_TextOffset;
- *     uint32_t m_TextLength;
- *     uint16_t m_NodeIndex;
+ * struct FontcStyleData {
+ *     FontcStyle m_Style;
+ *     FontcStyleEffect *m_Effects;
+ *     uint32_t m_EffectCount;
  * }
  * }
  */
-public class FontcMarkupSpan {
+public class FontcStyleData {
 
-    FontcMarkupSpan() {
+    FontcStyleData() {
         // Should not be called directly
     }
 
     private static final GroupLayout $LAYOUT = MemoryLayout.structLayout(
-        FontRendererFFM.C_INT.withName("m_TextOffset"),
-        FontRendererFFM.C_INT.withName("m_TextLength"),
-        FontRendererFFM.C_SHORT.withName("m_NodeIndex"),
-        MemoryLayout.paddingLayout(2)
-    ).withName("FontcMarkupSpan");
+        FontcStyle.layout().withName("m_Style"),
+        FontRendererFFM.C_POINTER.withName("m_Effects"),
+        FontRendererFFM.C_INT.withName("m_EffectCount"),
+        MemoryLayout.paddingLayout(4)
+    ).withName("FontcStyleData");
 
     /**
      * The layout of this struct
@@ -57,136 +57,136 @@ public class FontcMarkupSpan {
         return $LAYOUT;
     }
 
-    private static final OfInt m_TextOffset$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_TextOffset"));
+    private static final GroupLayout m_Style$LAYOUT = (GroupLayout)$LAYOUT.select(groupElement("m_Style"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_TextOffset
+     * FontcStyle m_Style
      * }
      */
-    public static final OfInt m_TextOffset$layout() {
-        return m_TextOffset$LAYOUT;
+    public static final GroupLayout m_Style$layout() {
+        return m_Style$LAYOUT;
     }
 
-    private static final long m_TextOffset$OFFSET = $LAYOUT.byteOffset(groupElement("m_TextOffset"));
+    private static final long m_Style$OFFSET = $LAYOUT.byteOffset(groupElement("m_Style"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_TextOffset
+     * FontcStyle m_Style
      * }
      */
-    public static final long m_TextOffset$offset() {
-        return m_TextOffset$OFFSET;
+    public static final long m_Style$offset() {
+        return m_Style$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_TextOffset
+     * FontcStyle m_Style
      * }
      */
-    public static int m_TextOffset(MemorySegment struct) {
-        return struct.get(m_TextOffset$LAYOUT, m_TextOffset$OFFSET);
+    public static MemorySegment m_Style(MemorySegment struct) {
+        return struct.asSlice(m_Style$OFFSET, m_Style$LAYOUT.byteSize());
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_TextOffset
+     * FontcStyle m_Style
      * }
      */
-    public static void m_TextOffset(MemorySegment struct, int fieldValue) {
-        struct.set(m_TextOffset$LAYOUT, m_TextOffset$OFFSET, fieldValue);
+    public static void m_Style(MemorySegment struct, MemorySegment fieldValue) {
+        MemorySegment.copy(fieldValue, 0L, struct, m_Style$OFFSET, m_Style$LAYOUT.byteSize());
     }
 
-    private static final OfInt m_TextLength$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_TextLength"));
+    private static final AddressLayout m_Effects$LAYOUT = (AddressLayout)$LAYOUT.select(groupElement("m_Effects"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_TextLength
+     * FontcStyleEffect *m_Effects
      * }
      */
-    public static final OfInt m_TextLength$layout() {
-        return m_TextLength$LAYOUT;
+    public static final AddressLayout m_Effects$layout() {
+        return m_Effects$LAYOUT;
     }
 
-    private static final long m_TextLength$OFFSET = $LAYOUT.byteOffset(groupElement("m_TextLength"));
+    private static final long m_Effects$OFFSET = $LAYOUT.byteOffset(groupElement("m_Effects"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_TextLength
+     * FontcStyleEffect *m_Effects
      * }
      */
-    public static final long m_TextLength$offset() {
-        return m_TextLength$OFFSET;
+    public static final long m_Effects$offset() {
+        return m_Effects$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_TextLength
+     * FontcStyleEffect *m_Effects
      * }
      */
-    public static int m_TextLength(MemorySegment struct) {
-        return struct.get(m_TextLength$LAYOUT, m_TextLength$OFFSET);
+    public static MemorySegment m_Effects(MemorySegment struct) {
+        return struct.get(m_Effects$LAYOUT, m_Effects$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_TextLength
+     * FontcStyleEffect *m_Effects
      * }
      */
-    public static void m_TextLength(MemorySegment struct, int fieldValue) {
-        struct.set(m_TextLength$LAYOUT, m_TextLength$OFFSET, fieldValue);
+    public static void m_Effects(MemorySegment struct, MemorySegment fieldValue) {
+        struct.set(m_Effects$LAYOUT, m_Effects$OFFSET, fieldValue);
     }
 
-    private static final OfShort m_NodeIndex$LAYOUT = (OfShort)$LAYOUT.select(groupElement("m_NodeIndex"));
+    private static final OfInt m_EffectCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_EffectCount"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint16_t m_NodeIndex
+     * uint32_t m_EffectCount
      * }
      */
-    public static final OfShort m_NodeIndex$layout() {
-        return m_NodeIndex$LAYOUT;
+    public static final OfInt m_EffectCount$layout() {
+        return m_EffectCount$LAYOUT;
     }
 
-    private static final long m_NodeIndex$OFFSET = $LAYOUT.byteOffset(groupElement("m_NodeIndex"));
+    private static final long m_EffectCount$OFFSET = $LAYOUT.byteOffset(groupElement("m_EffectCount"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint16_t m_NodeIndex
+     * uint32_t m_EffectCount
      * }
      */
-    public static final long m_NodeIndex$offset() {
-        return m_NodeIndex$OFFSET;
+    public static final long m_EffectCount$offset() {
+        return m_EffectCount$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint16_t m_NodeIndex
+     * uint32_t m_EffectCount
      * }
      */
-    public static short m_NodeIndex(MemorySegment struct) {
-        return struct.get(m_NodeIndex$LAYOUT, m_NodeIndex$OFFSET);
+    public static int m_EffectCount(MemorySegment struct) {
+        return struct.get(m_EffectCount$LAYOUT, m_EffectCount$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint16_t m_NodeIndex
+     * uint32_t m_EffectCount
      * }
      */
-    public static void m_NodeIndex(MemorySegment struct, short fieldValue) {
-        struct.set(m_NodeIndex$LAYOUT, m_NodeIndex$OFFSET, fieldValue);
+    public static void m_EffectCount(MemorySegment struct, int fieldValue) {
+        struct.set(m_EffectCount$LAYOUT, m_EffectCount$OFFSET, fieldValue);
     }
 
     /**
