@@ -54,7 +54,7 @@
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")})]
                (outline-seq outline))))
 
-      (testing "the round and box shapes are presented as Circle and Rectangle under 2D physics, while Capsule keeps its name"
+      (testing "the round and box shapes are presented as Circle and Rectangle under 2D physics, an existing Capsule keeps its name, and only 2D shapes are offered"
         (with-open [_ (test-util/make-system-reverter)]
           (test-util/set-setting! (test-util/resource-node project "/game.project") ["physics" "type"] "2D")
           (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")
@@ -68,7 +68,7 @@
                    (nth (outline-seq outline) 3)))
             (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")))
             (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.rectangle")))
-            (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule"))))
             (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere"))))
             (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box"))))))))))
 
