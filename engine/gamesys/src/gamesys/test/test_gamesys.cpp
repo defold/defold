@@ -655,6 +655,7 @@ TEST_F(LightResourceTest, AmbientLightsAreCompactedIntoLightInfo)
 
     ASSERT_EQ(ambient_count, render_ctx->m_LightBufferScratch.Size());
 
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -1480,6 +1481,7 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
 
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
 
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -1493,6 +1495,7 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyDisable(proxy.m_World, proxy.m_Component));
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
 
+    dmRender::BeginFrame(m_RenderContext, 2.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -1506,6 +1509,7 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyEnable(proxy.m_World, proxy.m_Component));
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
 
+    dmRender::BeginFrame(m_RenderContext, 3.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -1517,6 +1521,7 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
     dmGameObject::Delete(m_Collection, proxy_go, true);
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
 
+    dmRender::BeginFrame(m_RenderContext, 4.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -10069,6 +10074,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
         ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i + 1].m_Position);
     }
 
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -10153,6 +10159,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboAfterDelete)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -10169,6 +10176,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboAfterDelete)
     DeleteInstance(m_Collection, gos[1]);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    dmRender::BeginFrame(m_RenderContext, 2.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
@@ -10237,6 +10245,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboCompute)
         ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i].m_Position);
     }
 
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);

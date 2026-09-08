@@ -3284,11 +3284,16 @@ TEST_F(dmRenderTest, LightBufferSubmissionIsPerFrame)
     uint16_t light_buffer_index = instance & 0xFFFF;
     dmRender::RenderContext* render_context = (dmRender::RenderContext*) m_Context;
 
+    dmRender::BeginFrame(m_Context, 1.0f, 1.0f / 60.0f);
     dmRender::RenderListBegin(m_Context);
     dmRender::SubmitLightInstance(m_Context, instance);
     ASSERT_EQ(1, render_context->m_LightBufferSubmitted[light_buffer_index]);
 
+    // Starting another render list in the same frame must preserve submissions.
     dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(1, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    dmRender::BeginFrame(m_Context, 2.0f, 1.0f / 60.0f);
     ASSERT_EQ(0, render_context->m_LightBufferSubmitted[light_buffer_index]);
 
     dmRender::DeleteLightInstance(m_Context, instance);
@@ -3458,10 +3463,10 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
     dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
     uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
 
-    // Set frame time values on the render context.
+    // Begin the frame with time values on the render context.
     float time = 123.0f;
     float dt   = 1.0f / 60.0f;
-    dmRender::SetFrameTime(m_Context, time, dt);
+    dmRender::BeginFrame(m_Context, time, dt);
 
     // Enable the program so constants can be written to its uniform buffer.
     dmGraphics::EnableProgram(m_GraphicsContext, program);
