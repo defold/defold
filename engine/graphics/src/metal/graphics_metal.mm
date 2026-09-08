@@ -1923,13 +1923,6 @@ namespace dmGraphics
 
         color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
-
-        rt->m_ColorTextureParams[0].m_Width  = drawable_width;
-        rt->m_ColorTextureParams[0].m_Height = drawable_height;
-        rt->m_Base.m_ColorTextureParams[0].m_Width  = rt->m_ColorTextureParams[0].m_Width;
-        rt->m_Base.m_ColorTextureParams[0].m_Height = rt->m_ColorTextureParams[0].m_Height;
-        rt->m_Width = drawable_width;
-        rt->m_Height = drawable_height;
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)

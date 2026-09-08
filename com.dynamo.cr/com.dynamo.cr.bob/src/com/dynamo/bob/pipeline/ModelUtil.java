@@ -84,7 +84,7 @@ public class ModelUtil {
 
         public TextureGenerator.GenerateResult toGenerateResult() {
             // Mipmap sizes are per layer; data size covers the complete array.
-            int layerDataSize = width * height * 4 * Float.BYTES;
+            int layerDataSize = data.length / layerCount;
             TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder()
                     .setWidth(width)
                     .setHeight(height)
