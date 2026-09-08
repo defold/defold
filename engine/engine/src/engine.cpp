@@ -883,11 +883,10 @@ namespace dmEngine
         }
 
         engine->m_UpdateFrequency = validated_frequency;
-        engine->m_PacedFrameTimeDebt = 0.0f;
-        engine->m_AccumFrameTime = 0.0f;
 
+        // Timing balances are measured in seconds and remain valid when the
+        // frequency changes. Reset only the cadence, not elapsed time.
         uint64_t now = dmTime::GetMonotonicTime();
-        engine->m_PreviousFrameTime = now;
         ResetFramePacing(engine);
         if (validated_frequency != 0)
         {
@@ -2484,8 +2483,15 @@ bail:
         // Variable frame rate
         if (engine->m_UpdateFrequency == 0)
         {
-            step_dt = frame_dt;
-            num_steps = 1;
+            // A frequency change may leave time that was not simulated by the
+            // previous pacing mode. Apply as much as the maximum time step
+            // permits and retain the rest for later frames.
+            engine->m_PacedFrameTimeDebt += engine->m_AccumFrameTime + frame_dt;
+            engine->m_AccumFrameTime = 0.0f;
+
+            step_dt = dmMath::Clamp(engine->m_PacedFrameTimeDebt, 0.0f, engine->m_MaxTimeStep);
+            engine->m_PacedFrameTimeDebt -= step_dt;
+            num_steps = step_dt > 0.0f ? 1 : 0;
             return;
         }
 

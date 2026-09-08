@@ -169,7 +169,7 @@ namespace dmEngine
         uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
         uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
         uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
-        float                                       m_PacedFrameTimeDebt;       // Signed elapsed-versus-simulated time balance for timer-paced updates
+        float                                       m_PacedFrameTimeDebt;       // Signed elapsed-versus-simulated time balance, preserved across pacing modes
         float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_FixedUpdateFrequency;

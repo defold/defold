@@ -491,6 +491,84 @@ TEST_F(EngineTest, FramePacingPreservesSignedTimeBalance)
     ASSERT_LE(elapsed_time - simulation_time, fixed_dt + 0.0001f);
 }
 
+TEST_F(EngineTest, UpdateFrequencyChangePreservesTimeBalance)
+{
+    // Verify that changing and then disabling a fixed update frequency neither
+    // clears pending simulation time nor strands it in the fixed-rate pacer.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool change_posted = false;
+    bool disable_posted = false;
+    float balance_after_change = 0.0f;
+    float balance_before_variable_frame = 0.0f;
+    float balance_after_variable_frame = 0.0f;
+    float variable_step = 0.0f;
+    uint32_t final_update_frequency = ~0U;
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        // The correction applied before message dispatch is bounded by
+        // max_time_step, leaving enough balance to test the setter itself.
+        engine->m_PacedFrameTimeDebt = 1.0f;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+
+        dmSystemDDF::SetUpdateFrequency change_message;
+        change_message.m_Frequency = 50;
+        change_posted = dmMessage::PostDDF(&change_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_after_change = engine->m_PacedFrameTimeDebt;
+
+        dmSystemDDF::SetUpdateFrequency disable_message;
+        disable_message.m_Frequency = 0;
+        disable_posted = dmMessage::PostDDF(&disable_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_before_variable_frame = engine->m_PacedFrameTimeDebt;
+
+        dmEngine::Stats stats_before;
+        dmEngine::GetStats(engine, stats_before);
+        dmEngine::Step(engine);
+        dmEngine::Stats stats_after;
+        dmEngine::GetStats(engine, stats_after);
+
+        variable_step = stats_after.m_TotalTime - stats_before.m_TotalTime;
+        balance_after_variable_frame = engine->m_PacedFrameTimeDebt;
+        final_update_frequency = engine->m_UpdateFrequency;
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(change_posted);
+    ASSERT_TRUE(disable_posted);
+    ASSERT_EQ(0u, final_update_frequency);
+    ASSERT_GT(balance_after_change, 0.9f);
+    ASSERT_GT(balance_before_variable_frame, 0.9f);
+    ASSERT_NEAR(1.0f / 30.0f, variable_step, 0.000001f);
+    ASSERT_LT(balance_after_variable_frame, balance_before_variable_frame);
+}
+
 TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
 {
     // Verify that a headless variable-rate engine does not enable timer pacing,
