@@ -1766,6 +1766,8 @@
 
 (def ^:private validate-texture-resource (partial validate-optional-gui-resource-localized error-gui-texture-not-found-in-scene-message-fn :texture))
 
+(def ^:private is-font-pb-field-index? (partial = (prop-key->pb-field-index :font)))
+
 (def ^:private size-pb-field-index (prop-key->pb-field-index :manual-size))
 
 (def ^:private is-size-pb-field-index? (partial = size-pb-field-index))
@@ -4240,6 +4242,7 @@
             custom-property-overrides
             (coll/merge custom-property-overrides))))
 
+(def ^:private default-font-proj-path "/builtins/fonts/default.font")
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
 
 (defn load-gui-scene [project self resource scene]
@@ -4332,7 +4335,7 @@
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
                                        :name ""
-                                       :font (resolve-resource "/builtins/fonts/default.font")]]
+                                       :font (resolve-resource default-font-proj-path)]]
                     (g/connect fonts-node :_node-id self :fonts-node) ; for the tests :/
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)
@@ -4666,6 +4669,37 @@
   [root-id _selection workspace _world-pos resources]
   (mapv (partial add-dropped-resource root-id workspace) resources))
 
+(defn scene-node-desc-uses-default-font? [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (and (= :type-text (:type node-desc))
+       (= "" (:font node-desc ""))
+       (or (not (:template-node-child node-desc))
+           (coll/any? is-font-pb-field-index?
+                      (:overridden-fields node-desc)))))
+
+(defn layout-node-desc-uses-default-font? [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (and (= :type-text (:type node-desc))
+       (= "" (:font node-desc ""))
+       (coll/any? is-font-pb-field-index?
+                  (:overridden-fields node-desc))))
+
+(defonce ^:private default-gui-scene-dependencies-fn (resource-node/make-ddf-dependencies-fn Gui$SceneDesc))
+
+(defn gui-scene-dependencies [scene-desc]
+  {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
+  (let [default-dependencies (default-gui-scene-dependencies-fn scene-desc)]
+    (if-not (or (coll/any? scene-node-desc-uses-default-font?
+                           (:nodes scene-desc))
+                (coll/any? layout-node-desc-uses-default-font?
+                           (eduction
+                             (mapcat :nodes)
+                             (:layouts scene-desc))))
+      default-dependencies
+      (into []
+            (distinct)
+            (conj default-dependencies default-font-proj-path)))))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
@@ -4677,6 +4711,7 @@
           :build-ext (:build-ext def)
           :node-type GuiSceneNode
           :ddf-type (:pb-class def)
+          :dependencies-fn gui-scene-dependencies
           :load-fn load-gui-scene
           :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
           :sanitize-fn (partial sanitize-scene workspace)

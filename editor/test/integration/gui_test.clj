@@ -42,6 +42,139 @@
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
            [java.io StringReader]))
 
+(defn gui-scene-dependencies [scene-desc]
+  (vec
+    (sort
+      (gui/gui-scene-dependencies
+        scene-desc))))
+
+(deftest gui-scene-dependencies-test
+  (testing "Empty scene."
+    (is (= ["/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {}))))
+
+  (testing "Script specified."
+    (is (= ["/builtins/materials/gui.material"
+            "/specified.gui_script"]
+           (gui-scene-dependencies
+             {:script "/specified.gui_script"}))))
+
+  (testing "Default material specified."
+    (is (= ["/specified.material"]
+           (gui-scene-dependencies
+             {:material "/specified.material"}))))
+
+  (testing "Declared font."
+    (is (= ["/builtins/materials/gui.material"
+            "/declared.font"]
+           (gui-scene-dependencies
+             {:fonts [{:name "declared"
+                       :font "/declared.font"}]}))))
+
+  (testing "Declared material."
+    (is (= ["/builtins/materials/gui.material"
+            "/declared.material"]
+           (gui-scene-dependencies
+             {:materials [{:name "declared"
+                           :material "/declared.material"}]}))))
+
+  (testing "Declared particlefx."
+    (is (= ["/builtins/materials/gui.material"
+            "/declared.particlefx"]
+           (gui-scene-dependencies
+             {:particlefxs [{:name "declared"
+                             :particlefx "/declared.particlefx"}]}))))
+
+  (testing "Declared resource."
+    (is (= ["/builtins/materials/gui.material"
+            "/declared.resource"]
+           (gui-scene-dependencies
+             {:resources [{:name "declared"
+                           :path "/declared.resource"}]}))))
+
+  (testing "Declared spine scene (legacy)."
+    (is (= ["/builtins/materials/gui.material"
+            "/declared.spinescene"]
+           (gui-scene-dependencies
+             {:spine-scenes [{:name "declared"
+                              :spine-scene "/declared.spinescene"}]}))))
+
+  (testing "Declared texture."
+    (is (= ["/builtins/materials/gui.material"
+            "/declared.atlas"]
+           (gui-scene-dependencies
+             {:textures [{:name "declared"
+                          :texture "/declared.atlas"}]}))))
+
+  (testing "Shape node without dependencies."
+    (is (= ["/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {:nodes [{:type :type-pie}]}))))
+
+  (testing "Template node."
+    (is (= ["/builtins/materials/gui.material"
+            "/template.gui"]
+           (gui-scene-dependencies
+             {:nodes [{:type :type-template
+                       :template "/template.gui"}]}))))
+
+  (testing "Text node brings in the default font when font is unspecified."
+    (is (= ["/builtins/fonts/default.font"
+            "/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {:nodes [{:type :type-text}]}))))
+
+  (testing "Text node does not bring in the default font when font is specified."
+    (is (= ["/builtins/materials/gui.material"
+            "/declared.font"]
+           (gui-scene-dependencies
+             {:nodes [{:type :type-text
+                       :font "declared"}]
+              :fonts [{:name "declared"
+                       :font "/declared.font"}]}))))
+
+  (testing "Template-overridden text node does not bring in the default font when font is not overridden."
+    (is (= ["/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {:nodes [{:type :type-text
+                       :template-node-child true
+                       :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}))))
+
+  (testing "Template-overridden text node brings in the default font when font is overridden."
+    (is (= ["/builtins/fonts/default.font"
+            "/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {:nodes [{:type :type-text
+                       :template-node-child true
+                       :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}))))
+
+  (testing "Layout-overridden text node does not bring in the default font when font is not overridden."
+    (is (= ["/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {:layouts [{:nodes [{:type :type-text
+                                  :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}]}))))
+
+  (testing "Layout-overridden text node brings in the default font when font is overridden."
+    (is (= ["/builtins/fonts/default.font"
+            "/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {:layouts [{:nodes [{:type :type-text
+                                  :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]}))))
+
+  (testing "Default font is not reported multiple times."
+    (is (= ["/builtins/fonts/default.font"
+            "/builtins/materials/gui.material"]
+           (gui-scene-dependencies
+             {:fonts [{:name "default"
+                       :font "/builtins/fonts/default.font"}]
+              :nodes [{:type :type-text}
+                      {:type :type-text
+                       :template-node-child true
+                       :overridden-fields [(gui/prop-key->pb-field-index :font)]}]
+              :layouts [{:nodes [{:type :type-text
+                                  :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]})))))
+
 (defn- prop [node-id label]
   (test-util/prop node-id label))
 
