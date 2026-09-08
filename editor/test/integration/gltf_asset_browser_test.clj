@@ -167,15 +167,26 @@
         source-file (io/file project-path "robot.glb")]
     (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
       (fs/create-file! source-file (glb-content "Paint/Chrome"))
+      (fs/create-file! (io/file project-path "robot.model")
+                       "mesh: \"/robot.glb\"\nmaterials { name: \"Paint/Chrome\" material: \"/robot.glb/materials/0.material\" }\n")
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world project-path)
               project (test-util/setup-project! workspace)
+              source-resource (workspace/find-resource workspace "/robot.glb")
               mesh-resource (workspace/find-resource workspace "/robot.glb/meshes/Mesh 1")
-              mesh-node (test-util/resource-node project (resource/proj-path mesh-resource))]
+              mesh-node (test-util/resource-node project (resource/proj-path mesh-resource))
+              model-node (test-util/resource-node project "/robot.model")]
           (testing "an unreferenced, unnamed mesh has its own read-only preview"
             (is (resource/editor-openable-resource? mesh-resource))
             (is (= [:scene] (mapv :id (workspace/resource-view-types mesh-resource))))
             (let [scene (g/node-value mesh-node :scene)]
               (is (not (g/error-value? scene)))
               (is (= mesh-node (:node-id scene)))
-              (is (= [1] (into [] (keep :mesh-index) (:children scene)))))))))))
+              (is (= [1] (into [] (keep :mesh-index) (:children scene))))))
+
+          (testing "deleting the container removes children and reports missing references"
+            ;; Exercise the resource lifecycle without placing a test fixture in the OS trash.
+            (with-redefs [fs/move-to-trash! (fn [file _opts] (fs/delete-file! file))]
+              (asset-browser/delete [source-resource]))
+            (is (nil? (workspace/find-resource workspace "/robot.glb/materials/0.material")))
+            (is (g/error-value? (g/node-value model-node :scene)))))))))
