@@ -49,57 +49,42 @@ namespace dmGameObject
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
-    typedef struct PropertyContainer* HPropertyContainer;
-
-    /**
-     * Create a new component type register
-     * @param regist Register
-     * @return Register handle
-     */
-    HRegister NewRegister();
-
-    /**
-     * Delete a component type register
-     * @param regist Register to delete
-     */
-    void DeleteRegister(HRegister regist);
-
     /**
      * Delete a the loaded collections
      * @param regist the register
      */
-    void DeleteCollections(HRegister regist);
+    void DeleteCollections(HContext regist);
 
     /**
      * Initialize system
      * @param context Script context
      */
-    void Initialize(HRegister regist, dmScript::HContext context);
+    void Initialize(HContext regist, dmScript::HContext context);
 
     /**
      * Set default capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-65534).
+     * @param capacity Default capacity of collections in this context (1-INT32_MAX).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
-    Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
+    Result SetCollectionDefaultCapacity(HContext regist, uint32_t capacity);
 
     /**
      * Get default capacity of collections in this register.
      * @param regist Register
      * @return Default capacity
      */
-    uint32_t GetCollectionDefaultCapacity(HRegister regist);
+    uint32_t GetCollectionDefaultCapacity(HContext regist);
 
-    void SetContextRegistry(HRegister regist, HContextRegistry context_registry);
-    HContextRegistry GetContextRegistry(HRegister regist);
+    void SetContextRegistry(HContext regist, HContextRegistry context_registry);
+    HContextRegistry GetContextRegistry(HContext regist);
 
     /**
      * Set default input stack capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
      * @param capacity Default capacity of collections in this register.
      */
-    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity);
+    void SetInputStackDefaultCapacity(HContext regist, uint32_t capacity);
 
     /**
      * Creates a new gameobject collection
@@ -110,7 +95,7 @@ namespace dmGameObject
      * @param collection_desc description data of collections
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HContext regist, uint32_t max_instances, HCollectionDesc collection_desc);
 
     /**
      * Deletes a gameobject collection
@@ -139,7 +124,7 @@ namespace dmGameObject
      * @return RESULT_OK on success
      */
     Result Spawn(HCollection collection, HPrototype proto, const char *prototype_name, dmhash_t id, 
-                        HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance);
+                        HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HGameObject* out_instance);
 
     /**
      * Spawns a collection into an existing one, from a collection definition resource. Script properties
@@ -174,7 +159,7 @@ namespace dmGameObject
      * @param identifier Identifier
      * @return RESULT_OK on success
      */
-    Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
+    Result SetIdentifier(HCollection collection, HGameObject instance, const char* identifier);
 
     /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
@@ -183,7 +168,7 @@ namespace dmGameObject
      * @param component_index Component index as out-argument
      * @return RESULT_OK if the comopnent was found
      */
-    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
+    Result GetComponentIndex(HCollection collection, HGameObject instance, dmhash_t component_id, uint16_t* component_index);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -225,7 +210,7 @@ namespace dmGameObject
      * @param reg Game object register
      * @return True on success
      */
-    bool PostUpdate(HRegister reg);
+    bool PostUpdate(HContext reg);
 
     /**
      * Dispatches input actions to the input focus stacks in the supplied game object collection.
@@ -235,8 +220,8 @@ namespace dmGameObject
      */
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count);
 
-    void AcquireInputFocus(HCollection collection, HInstance instance);
-    void ReleaseInputFocus(HCollection collection, HInstance instance);
+    void AcquireInputFocus(HCollection collection, HGameObject instance);
+    void ReleaseInputFocus(HCollection collection, HGameObject instance);
 
     /**
      * Retrieve a factory from the specified collection
@@ -244,21 +229,6 @@ namespace dmGameObject
      * @return The resource factory bound to the specified collection
      */
     dmResource::HFactory GetFactory(HCollection collection);
-
-    /**
-     * Retrieve a factory from the specified instance
-     * Convenience for GetFactory(GetCollection(instance)).
-     * @param instance Game object instance
-     * @return The resource factory bound to the specified instance, via its collection
-     */
-    dmResource::HFactory GetFactory(HInstance instance);
-
-    /**
-     * Retrieve a register from the specified collection
-     * @param collection Game object collection
-     * @return The register bound to the specified collection
-     */
-    HRegister GetRegister(HCollection collection);
 
     /**
      * Retrieve the frame message socket for the specified collection.
@@ -269,53 +239,59 @@ namespace dmGameObject
 
     /**
      * Get instance hierarchical depth
+     * @param collection Collection containing the instance
      * @param instance Gameobject instance
      * @return Hierarchical depth
      */
-    uint32_t GetDepth(HInstance instance);
+    uint32_t GetDepth(HCollection collection, HGameObject instance);
 
     /**
      * Get child count
      * @note O(n) operation. Should only be used for debugging purposes.
+     * @param collection Collection containing the instance
      * @param instance Gameobject instance
      * @return Child count
      */
-    uint32_t GetChildCount(HInstance instance);
+    uint32_t GetChildCount(HCollection collection, HGameObject instance);
 
     /**
      * Test if "child" is a direct parent of "parent"
+     * @param collection Collection containing both instances
      * @param child Child Gamebject
      * @param parent Parent Gameobject
      * @return True if child of
      */
-    bool IsChildOf(HInstance child, HInstance parent);
+    bool IsChildOf(HCollection collection, HGameObject child, HGameObject parent);
 
     /**
      * Retrieve a property from a component.
-     * @param instance Instance of the game object
+     * @param hcollection Collection containing the game object
+     * @param hinstance Game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param options [type:PropertyOptions] Additional options when getting value
      * @param out_value [type:PropertyDesc] Description of the retrieved property value
      * @return PROPERTY_RESULT_OK if the out-parameters were written
      */
-    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
+    PropertyResult GetProperty(HCollection hcollection, HGameObject hinstance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
 
     /**
      * Sets the value of a property on a component.
-     * @param instance Instance of the game object
+     * @param hcollection Collection containing the game object
+     * @param hinstance Game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param options [type:PropertyOptions] Additional options when setting value
      * @param value [type:PropertyVar] Value and type of the property
      * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value);
+    PropertyResult SetProperty(HCollection hcollection, HGameObject hinstance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value);
 
-    typedef void (*AnimationStopped)(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                                        bool finished, void* userdata1, void* userdata2);
+    typedef void (*AnimationStopped)(dmGameObject::HCollection collection, dmGameObject::HGameObject instance,
+                                     dmhash_t component_id, dmhash_t property_id, bool finished,
+                                     void* userdata1, void* userdata2);
 
-    PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,
+    PropertyResult Animate(HCollection hcollection, HGameObject hinstance, dmhash_t component_id,
                      dmhash_t property_id,
                      Playback playback,
                      PropertyVar& to,
@@ -325,14 +301,14 @@ namespace dmGameObject
                      AnimationStopped animation_stopped,
                      void* userdata1, void* userdata2);
 
-    PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
+    PropertyResult CancelAnimations(HCollection hcollection, HGameObject hinstance, dmhash_t component_id,
                      dmhash_t property_id);
     /**
-     * Cancel all animations belonging to the specified instance.
-     * @param collection Collection the instance belongs to
-     * @param instance Instance for which to cancel all animations
+     * Cancel all animations belonging to the specified game object.
+     * @param hcollection Collection containing the game object
+     * @param hinstance Game object whose animations should be canceled
      */
-    void CancelAnimations(HCollection collection, HInstance instance);
+    void CancelAnimations(HCollection hcollection, HGameObject hinstance);
 
     /**
      * Cancel animation callbacks installed during callbacks to Animate

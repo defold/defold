@@ -91,12 +91,20 @@ namespace dmEngine
      */
     dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params);
 
-    /*# get the game object register
-     * @name GetGameObjectRegister
-     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
-     * @return register [type:dmGameObject::HRegister] The game object register
+    /*# get the game object context
+     * @name GetGameObjectContext
+     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppFinalize
+     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. Do not pass it to dmGameObject::DeleteContext.
      */
-    dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params);
+    dmGameObject::HContext GetGameObjectContext(dmExtension::AppParams* app_params);
+
+    /*# get the game object context
+     * Deprecated compatibility name for GetGameObjectContext.
+     * @name GetGameObjectRegister
+     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppFinalize
+     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. Do not pass it to dmGameObject::DeleteContext.
+     */
+    dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
 
     /*# get the hid context
      * @name GetHIDContext

@@ -578,9 +578,7 @@ namespace dmGameSystem
             return luaL_error(L, "Could not resolve shape body owner.");
         }
 
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(component->m_Instance);
-        dmhash_t instance_id = dmGameObject::GetIdentifier(component->m_Instance);
-        PushBody(L, &body, collection, instance_id);
+        PushBody(L, &body, component->m_Collection, component->m_Instance);
         return 1;
     }
 

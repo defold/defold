@@ -176,7 +176,8 @@ namespace dmGameSystem
     struct CollisionComponent
     {
         CollisionObjectResource*      m_Resource;
-        dmGameObject::HInstance       m_Instance;
+        dmGameObject::HCollection     m_Collection;
+        dmGameObject::HGameObject     m_Instance;
         uint16_t                      m_Mask;
         uint16_t                      m_ComponentIndex;
         // Tracking initial state.
@@ -265,7 +266,7 @@ namespace dmGameSystem
 
         lua_State*              m_LuaState;
         dmResource::HFactory    m_Factory;
-        dmGameObject::HRegister m_Register;
+        dmGameObject::HContext  m_Register;
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
         HJobContext             m_JobContext;
@@ -318,7 +319,7 @@ namespace dmGameSystem
         ModelContext* model_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist,
+                                                  dmGameObject::HContext regist,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   SpriteContext* sprite_context,

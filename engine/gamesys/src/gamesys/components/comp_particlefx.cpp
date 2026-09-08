@@ -78,7 +78,7 @@ namespace dmGameSystem
 
     struct ParticleFXComponent
     {
-        dmGameObject::HInstance       m_Instance;
+        dmGameObject::HGameObject     m_Instance;
         dmhash_t                      m_ComponentId;
         dmParticle::HInstance         m_ParticleInstance;
         dmParticle::HPrototype        m_ParticlePrototype;
@@ -241,7 +241,7 @@ namespace dmGameSystem
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
 
-        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
         DeleteOverrides(factory, prototype);
 
         uint32_t index = prototype - w->m_Prototypes.Begin();
@@ -292,7 +292,7 @@ namespace dmGameSystem
             {
                 ParticleFXComponentPrototype* prototype = &w->m_Prototypes[c.m_PrototypeIndex];
                 dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
-                world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(c.m_Instance), world_transform);
+                world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Collection, c.m_Instance), world_transform);
                 dmParticle::SetPosition(particle_context, c.m_ParticleInstance, Point3(world_transform.GetTranslation()));
                 dmParticle::SetRotation(particle_context, c.m_ParticleInstance, world_transform.GetRotation());
                 dmParticle::SetScale(particle_context, c.m_ParticleInstance, world_transform.GetUniformScale());
@@ -673,7 +673,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
+    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HGameObject go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
         if (world->m_Components.Full())
         {
@@ -784,7 +784,7 @@ namespace dmGameSystem
             dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, component_id, prototype, &emitter_state_changed_data);
 
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
-            world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
+            world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Collection, params.m_Instance), world_transform);
             dmParticle::SetPosition(particle_context, instance, Point3(world_transform.GetTranslation()));
             dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
             dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
@@ -942,12 +942,12 @@ namespace dmGameSystem
         if (property_id == PROP_MATERIAL)
         {
             MaterialResource* emitter_material_res = GetEmitterMaterialResource(prototype, emitter_index);
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), emitter_material_res, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), emitter_material_res, out_value);
         }
         else if (property_id == PROP_IMAGE)
         {
             TextureSetResource* emitter_texture_set_res = GetEmitterTextureSet(prototype, emitter_index);
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), emitter_texture_set_res, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), emitter_texture_set_res, out_value);
         }
         else if (property_id == PROP_ANIMATION)
         {
@@ -1013,11 +1013,11 @@ namespace dmGameSystem
 
         if (property_id == PROP_MATERIAL)
         {
-            return AddOverrideMaterial(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, params.m_Value.m_Hash);
+            return AddOverrideMaterial(dmGameObject::GetFactory(params.m_Collection), prototype, emitter_index, params.m_Value.m_Hash);
         }
         else if (property_id == PROP_IMAGE)
         {
-            dmGameObject::PropertyResult res = AddOverrideTileSource(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, params.m_Value.m_Hash);
+            dmGameObject::PropertyResult res = AddOverrideTileSource(dmGameObject::GetFactory(params.m_Collection), prototype, emitter_index, params.m_Value.m_Hash);
 
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
@@ -1039,7 +1039,7 @@ namespace dmGameSystem
                         const char* new_animation_name = dmHashReverseSafe64Alloc(&hash_ctx, current_animation);
                         dmLogWarning("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name);
 
-                        AddOverrideAnimation(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, current_animation);
+                        AddOverrideAnimation(dmGameObject::GetFactory(params.m_Collection), prototype, emitter_index, current_animation);
                     }
                     else
                     {
@@ -1060,7 +1060,7 @@ namespace dmGameSystem
                 dmLogError("Animation '%s' not found in atlas", dmHashReverseSafe64(new_animation));
                 return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
             }
-            return AddOverrideAnimation(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, new_animation);
+            return AddOverrideAnimation(dmGameObject::GetFactory(params.m_Collection), prototype, emitter_index, new_animation);
         }
 
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;

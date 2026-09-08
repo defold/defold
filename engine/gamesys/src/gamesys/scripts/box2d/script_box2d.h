@@ -17,11 +17,7 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
-
-namespace dmGameObject
-{
-    typedef struct CollectionHandle* HCollection;
-}
+#include <dmsdk/gameobject/gameobject.h>
 
 namespace dmGameSystem
 {
@@ -29,7 +25,7 @@ namespace dmGameSystem
     float GetInvPhysicsScale();
 
     void  PushWorld(struct lua_State* L, void* world);
-    void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
+    void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object);
     void  PushBox2DVersion(struct lua_State* L);
 
     void  ScriptBox2DInitializeBody(struct lua_State* L);

@@ -36,7 +36,7 @@ namespace dmGameObject
     Result LuaLoad(dmResource::HFactory factory, dmScript::HContext context, dmLuaDDF::LuaModule* module);
     int    LuaToPropertyOptions(lua_State* L, int index, LuaToPropertyOptionsResult* result);
     int    CheckGetPropertyResult(lua_State* L, const char* module_name, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested, bool keys_requested);
-    int    HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options);
+    int    HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmGameObject::HCollection hcollection, dmGameObject::HGameObject hinstance, dmhash_t property_id, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options);
 
     static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
         "number",        // PROPERTY_TYPE_NUMBER

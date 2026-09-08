@@ -106,7 +106,7 @@ namespace dmGameSystem
     };
 
     // A wrapper for dmScript::CheckGoInstance
-    dmGameObject::HInstance CheckGoInstance(lua_State* L);
+    dmGameObject::HGameObject CheckGoInstance(lua_State* L);
 
     // Logs an error for when a component buffer is full
     void ShowFullBufferError(const char* object_name, const char* config_key, int max_count);

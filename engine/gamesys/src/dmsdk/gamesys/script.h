@@ -45,9 +45,9 @@ namespace dmScript
      *
      * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
-     * @return instance [type: dmGameObject::HInstance]
+     * @return instance [type: dmGameObject::HGameObject]
      */
-    dmGameObject::HInstance CheckGOInstance(lua_State* L);
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L);
 
     /*#
      * Get gameobject instance
@@ -58,7 +58,7 @@ namespace dmScript
      * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
      * @param index [type: int] lua-arg
-     * @return instance [type: dmGameObject::HInstance] gameobject instance
+     * @return instance [type: dmGameObject::HGameObject] gameobject instance
      *
      * @examples
      *
@@ -68,8 +68,9 @@ namespace dmScript
      * static int get_position(lua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 3);
-     *     dmGameObject::HInstance instance = dmScript::CheckGOInstance(L, 1);
-     *     dmVMath::Point3 position = dmGameObject::GetPosition(instance);
+     *     dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
+     *     dmGameObject::HGameObject hinstance = dmScript::CheckGOInstance(L, 1);
+     *     dmVMath::Point3 position = dmGameObject::GetPosition(hcollection, hinstance);
      *     lua_pushnumber(L, position.getX());
      *     lua_pushnumber(L, position.getY());
      *     lua_pushnumber(L, position.getZ());
@@ -77,7 +78,18 @@ namespace dmScript
      * }
      * ```
      */
-    dmGameObject::HInstance CheckGOInstance(lua_State* L, int index);
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L, int index);
+
+    /*#
+     * Get the current game object's collection and instance handles.
+     * Works in both game object and GUI scripts.
+     *
+     * @name CheckCollectionAndInstance
+     * @param L [type: lua_State*] lua state
+     * @param out_hcollection [type: dmGameObject::HCollection*] game object collection output. May be 0
+     * @param out_hinstance [type: dmGameObject::HGameObject*] game object instance output. May be 0
+     */
+    void CheckCollectionAndInstance(lua_State* L, dmGameObject::HCollection* out_hcollection, dmGameObject::HGameObject* out_hinstance);
 
     /*#
      * Get current gameobject's collection handle
@@ -86,8 +98,7 @@ namespace dmScript
      *
      * @name CheckCollection
      * @param L [type: lua_State*] lua state
-     * @param index [type: int] lua-arg
-     * @return instance [type: lua_State*] gameobject instance
+     * @return collection [type: dmGameObject::HCollection] game object collection
      */
     dmGameObject::HCollection CheckCollection(lua_State* L);
 

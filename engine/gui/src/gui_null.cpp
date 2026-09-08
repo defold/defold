@@ -43,6 +43,10 @@ namespace dmGui
     {
     }
 
+    void SetScriptInstanceMetaData(dmScript::HContext, const char*, void*)
+    {
+    }
+
 
     // gui_null.cpp
     const dmhash_t DEFAULT_LAYER = dmHashString64("");
@@ -174,6 +178,11 @@ namespace dmGui
     }
 
     void* GetSceneUserData(HScene scene)
+    {
+        return 0;
+    }
+
+    void* GetSceneCustomNodeCallbackContext(HScene scene)
     {
         return 0;
     }

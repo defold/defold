@@ -24,11 +24,6 @@ static void GetURL(dmGui::HScene, dmMessage::URL*)
 {
 }
 
-static uintptr_t GetUserData(dmGui::HScene)
-{
-    return 0;
-}
-
 static dmhash_t ResolvePath(dmGui::HScene, const char* path)
 {
     return dmHashString64(path);
@@ -53,7 +48,6 @@ TEST(dmGuiParticleNull, EmptyScene)
     dmGui::NewContextParams context_params;
     context_params.m_ScriptContext = script_context;
     context_params.m_GetURLCallback = GetURL;
-    context_params.m_GetUserDataCallback = GetUserData;
     context_params.m_ResolvePathCallback = ResolvePath;
     context_params.m_GetTextMetricsCallback = GetTextMetrics;
     context_params.m_PhysicalWidth = 1;

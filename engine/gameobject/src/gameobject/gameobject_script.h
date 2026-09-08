@@ -33,7 +33,6 @@ namespace dmGameObject
 {
     struct Instance;
     struct UpdateContext;
-    typedef Instance* HInstance;
 
     enum ScriptResult
     {
@@ -73,7 +72,7 @@ namespace dmGameObject
     struct ScriptInstance
     {
         HScript     m_Script;
-        Instance*   m_Instance;
+        HGameObject m_Instance;
         dmScript::HScriptWorld m_ScriptWorld;
         HProperties m_Properties;
 
@@ -81,6 +80,7 @@ namespace dmGameObject
         int         m_ScriptDataReference;
         int         m_ContextTableReference;
         uint32_t    m_UniqueScriptId;
+        HCollection m_Collection;
 
         uint16_t    m_ComponentIndex;
         uint8_t    m_Update       : 1;
@@ -96,16 +96,16 @@ namespace dmGameObject
         dmScript::HScriptWorld m_ScriptWorld;
     };
 
-    void    InitializeScript(HRegister regist, dmScript::HContext context);
+    void    InitializeScript(HContext regist, dmScript::HContext context);
 
     HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
 
-    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index);
+    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HCollection hcollection, HGameObject hinstance, uint16_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
-    PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
+    PropertyResult PropertiesToLuaTable(HGameObject hinstance, HScript script, const HProperties properties, lua_State* L, int index);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

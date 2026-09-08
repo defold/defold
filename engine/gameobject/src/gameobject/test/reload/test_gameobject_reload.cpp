@@ -152,7 +152,7 @@ public:
 
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -277,8 +277,8 @@ void ReloadTest::CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadP
 
 TEST_F(ReloadTest, TestComponentReload)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/component_reload.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ReloadTargetWorld* world = m_World;
     ReloadTargetComponent* component = m_World->m_Components[0];
@@ -313,8 +313,8 @@ TEST_F(ReloadTest, TestComponentReload)
 
 TEST_F(ReloadTest, TestComponentReloadScriptFail)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload_fail.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/component_reload_fail.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/component_reload_fail.scriptc", 0);
     ASSERT_EQ(dmResource::RESULT_OK, rr);
@@ -324,9 +324,10 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
 
 TEST_F(ReloadTest, TestGameObjectReload)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/rt.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/rt.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
     dmGameObject::SetIdentifier(m_Collection, go, 1);
+    ASSERT_EQ(go, dmGameObject::GetGameObjectFromIdentifier(m_Collection, 1));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     bool r = dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -350,6 +351,7 @@ TEST_F(ReloadTest, TestGameObjectReload)
     ASSERT_TRUE(r);
     r = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(r);
+    ASSERT_EQ(go, dmGameObject::GetGameObjectFromIdentifier(m_Collection, 1));
 
     ASSERT_EQ(1, m_World->m_CreateCount);
     ASSERT_EQ(1, m_World->m_DestroyCount);

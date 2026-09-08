@@ -83,43 +83,45 @@ public:
 
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
 };
 
-static void SetCachedWorldTransform(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Matrix4& transform)
+static void SetCachedWorldTransform(dmGameObject::HCollection collection, dmGameObject::HGameObject instance, const Matrix4& transform)
 {
-    collection->m_Collection->m_WorldTransforms[instance->m_Index] = transform;
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
+    dmGameObject::Instance* instance_ptr = dmGameObject::GetGameObjectFromHandle(collection_ptr, instance);
+    collection_ptr->m_WorldTransforms[instance_ptr->m_Index] = transform;
 }
 
-static void AssertWorldPosition(dmGameObject::HInstance instance, const Point3& expected)
+static void AssertWorldPosition(dmGameObject::HCollection collection, dmGameObject::HGameObject instance, const Point3& expected)
 {
-    Point3 actual = dmGameObject::GetWorldPosition(instance);
+    Point3 actual = dmGameObject::GetWorldPosition(collection, instance);
     ASSERT_NEAR(expected.getX(), actual.getX(), EPSILON);
     ASSERT_NEAR(expected.getY(), actual.getY(), EPSILON);
     ASSERT_NEAR(expected.getZ(), actual.getZ(), EPSILON);
 }
 
-static void AssertPosition(dmGameObject::HInstance instance, const Point3& expected)
+static void AssertPosition(dmGameObject::HCollection collection, dmGameObject::HGameObject instance, const Point3& expected)
 {
-    Point3 actual = dmGameObject::GetPosition(instance);
+    Point3 actual = dmGameObject::GetPosition(collection, instance);
     ASSERT_NEAR(expected.getX(), actual.getX(), EPSILON);
     ASSERT_NEAR(expected.getY(), actual.getY(), EPSILON);
     ASSERT_NEAR(expected.getZ(), actual.getZ(), EPSILON);
 }
 
-static void PostSetParentMessage(dmGameObject::HCollection collection, dmGameObject::HInstance child, dmGameObject::HInstance parent, bool keep_world_transform)
+static void PostSetParentMessage(dmGameObject::HCollection collection, dmGameObject::HGameObject child, dmGameObject::HGameObject parent, bool keep_world_transform)
 {
     dmGameObjectDDF::SetParent ddf = {};
-    ddf.m_ParentId = parent ? dmGameObject::GetIdentifier(parent) : 0;
+    ddf.m_ParentId = parent ? dmGameObject::GetIdentifier(collection, parent) : 0;
     ddf.m_KeepWorldTransform = keep_world_transform ? 1 : 0;
 
     dmMessage::URL receiver = {};
     receiver.m_Socket = dmGameObject::GetMessageSocket(collection);
-    receiver.m_Path = dmGameObject::GetIdentifier(child);
+    receiver.m_Path = dmGameObject::GetIdentifier(collection, child);
     receiver.m_Fragment = 0;
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
@@ -130,8 +132,8 @@ TEST_F(HierarchyTest, TestHierarchy1)
 {
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-        dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
 
         const float parent_rot = 3.14159265f / 4.0f;
 
@@ -144,20 +146,20 @@ TEST_F(HierarchyTest, TestHierarchy1)
         Matrix4 child_m = Matrix4::identity();
         child_m.setCol3(Vector4(child_pos));
 
-        dmGameObject::SetPosition(parent, parent_pos);
-        dmGameObject::SetRotation(parent, Quat::rotationZ(parent_rot));
-        dmGameObject::SetPosition(child, child_pos);
+        dmGameObject::SetPosition(m_Collection, parent, parent_pos);
+        dmGameObject::SetRotation(m_Collection, parent, Quat::rotationZ(parent_rot));
+        dmGameObject::SetPosition(m_Collection, child, child_pos);
 
-        ASSERT_EQ(0U, dmGameObject::GetDepth(child));
-        ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
 
-        dmGameObject::SetParent(child, parent);
+        dmGameObject::SetParent(m_Collection, child, parent);
 
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(child));
-        ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child));
+        ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, parent));
 
-        ASSERT_EQ(1U, dmGameObject::GetDepth(child));
-        ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
+        ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
 
         bool ret;
         ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -167,16 +169,16 @@ TEST_F(HierarchyTest, TestHierarchy1)
 
         Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
 
-        ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(parent) - parent_pos), 0.001f);
-        ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child) - expected_child_pos), 0.001f);
+        ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, parent) - parent_pos), 0.001f);
+        ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, child) - expected_child_pos), 0.001f);
 
         if (i % 2 == 0)
         {
             dmGameObject::Delete(m_Collection, parent, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
-            ASSERT_EQ(0U, dmGameObject::GetDepth(child));
-            ASSERT_EQ(0U, dmGameObject::GetChildCount(child));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child));
+            ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child));
             dmGameObject::Delete(m_Collection, child, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
@@ -186,8 +188,8 @@ TEST_F(HierarchyTest, TestHierarchy1)
             dmGameObject::Delete(m_Collection, child, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
-            ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
-            ASSERT_EQ(0U, dmGameObject::GetChildCount(parent));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
+            ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, parent));
             dmGameObject::Delete(m_Collection, parent, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
@@ -198,9 +200,9 @@ TEST_F(HierarchyTest, TestHierarchy1)
 TEST_F(HierarchyTest, TestHierarchy2)
 {
     // Test transform
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child_child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child_child = dmGameObject::New(m_Collection, "/go.goc");
 
     const float parent_rot = 3.14159265f / 4.0f;
     const float child_rot = 3.14159265f / 5.0f;
@@ -218,21 +220,21 @@ TEST_F(HierarchyTest, TestHierarchy2)
     Matrix4 child_child_m = Matrix4::identity();
     child_child_m.setCol3(Vector4(child_child_pos));
 
-    dmGameObject::SetPosition(parent, parent_pos);
-    dmGameObject::SetRotation(parent, Quat::rotationZ(parent_rot));
-    dmGameObject::SetPosition(child, child_pos);
-    dmGameObject::SetRotation(child, Quat::rotationZ(child_rot));
-    dmGameObject::SetPosition(child_child, child_child_pos);
+    dmGameObject::SetPosition(m_Collection, parent, parent_pos);
+    dmGameObject::SetRotation(m_Collection, parent, Quat::rotationZ(parent_rot));
+    dmGameObject::SetPosition(m_Collection, child, child_pos);
+    dmGameObject::SetRotation(m_Collection, child, Quat::rotationZ(child_rot));
+    dmGameObject::SetPosition(m_Collection, child_child, child_child_pos);
 
-    dmGameObject::SetParent(child, parent);
-    dmGameObject::SetParent(child_child, child);
+    dmGameObject::SetParent(m_Collection, child, parent);
+    dmGameObject::SetParent(m_Collection, child_child, child);
 
-    ASSERT_EQ(1U, dmGameObject::GetChildCount(child));
-    ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
+    ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, child));
+    ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, parent));
 
-    ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
-    ASSERT_EQ(1U, dmGameObject::GetDepth(child));
-    ASSERT_EQ(2U, dmGameObject::GetDepth(child_child));
+    ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
+    ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child));
+    ASSERT_EQ(2U, dmGameObject::GetDepth(m_Collection, child_child));
 
     bool ret;
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -242,10 +244,10 @@ TEST_F(HierarchyTest, TestHierarchy2)
     Point3 expected_child_child_pos = Point3(((parent_m * child_m) * child_child_pos).getXYZ());
     Point3 expected_child_child_pos2 = Point3(((parent_m * child_m) * child_child_m).getCol3().getXYZ());
 
-    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(parent) - parent_pos), 0.001f);
-    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child) - expected_child_pos), 0.001f);
-    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child_child) - expected_child_child_pos), 0.001f);
-    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child_child) - expected_child_child_pos2), 0.001f);
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, parent) - parent_pos), 0.001f);
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, child) - expected_child_pos), 0.001f);
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, child_child) - expected_child_child_pos), 0.001f);
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, child_child) - expected_child_child_pos2), 0.001f);
 
     dmGameObject::Delete(m_Collection, parent, false);
     dmGameObject::Delete(m_Collection, child, false);
@@ -257,33 +259,33 @@ TEST_F(HierarchyTest, TestHierarchy3)
     // Test with siblings
     for (int i = 0; i < 3; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-        dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
-        dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject child1 = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject child2 = dmGameObject::New(m_Collection, "/go.goc");
 
-        ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
-        ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
-        ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child1));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child2));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
 
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(child1));
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(child2));
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(parent));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child1));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child2));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, parent));
 
-        dmGameObject::SetParent(child1, parent);
+        dmGameObject::SetParent(m_Collection, child1, parent);
 
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(child1));
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(child2));
-        ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child1));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child2));
+        ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, parent));
 
-        dmGameObject::SetParent(child2, parent);
+        dmGameObject::SetParent(m_Collection, child2, parent);
 
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(child1));
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(child2));
-        ASSERT_EQ(2U, dmGameObject::GetChildCount(parent));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child1));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, child2));
+        ASSERT_EQ(2U, dmGameObject::GetChildCount(m_Collection, parent));
 
-        ASSERT_EQ(1U, dmGameObject::GetDepth(child1));
-        ASSERT_EQ(1U, dmGameObject::GetDepth(child2));
-        ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
+        ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child1));
+        ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child2));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
 
         bool ret;
         ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -298,14 +300,14 @@ TEST_F(HierarchyTest, TestHierarchy3)
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
-            ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child1));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child2));
 
             dmGameObject::Delete(m_Collection, child1, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child2));
 
             dmGameObject::Delete(m_Collection, child2, false);
             ret = dmGameObject::PostUpdate(m_Collection);
@@ -317,15 +319,15 @@ TEST_F(HierarchyTest, TestHierarchy3)
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
-            ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
-            ASSERT_EQ(1U, dmGameObject::GetDepth(child2));
+            ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, parent));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
+            ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child2));
 
             dmGameObject::Delete(m_Collection, parent, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child2));
 
             dmGameObject::Delete(m_Collection, child2, false);
             ret = dmGameObject::PostUpdate(m_Collection);
@@ -337,15 +339,15 @@ TEST_F(HierarchyTest, TestHierarchy3)
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
-            ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
-            ASSERT_EQ(1U, dmGameObject::GetDepth(child1));
+            ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, parent));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, parent));
+            ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child1));
 
             dmGameObject::Delete(m_Collection, parent, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child1));
 
             dmGameObject::Delete(m_Collection, child1, false);
             ret = dmGameObject::PostUpdate(m_Collection);
@@ -361,9 +363,9 @@ TEST_F(HierarchyTest, TestHierarchy3)
 TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
 {
     // Build a simple three-level hierarchy: parent -> child -> grandchild
-    dmGameObject::HInstance parent      = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child       = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance grandchild  = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent      = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child       = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject grandchild  = dmGameObject::New(m_Collection, "/go.goc");
 
     // Initial local transforms
     Point3 parent_pos(1, 2, 0);
@@ -374,14 +376,14 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
     Quat   child_rot = Quat::rotationZ(child_angle);
     Point3 grandchild_pos(0, 4, 0);
 
-    dmGameObject::SetPosition(parent, parent_pos);
-    dmGameObject::SetRotation(parent, parent_rot);
-    dmGameObject::SetPosition(child, child_pos);
-    dmGameObject::SetRotation(child, child_rot);
-    dmGameObject::SetPosition(grandchild, grandchild_pos);
+    dmGameObject::SetPosition(m_Collection, parent, parent_pos);
+    dmGameObject::SetRotation(m_Collection, parent, parent_rot);
+    dmGameObject::SetPosition(m_Collection, child, child_pos);
+    dmGameObject::SetRotation(m_Collection, child, child_rot);
+    dmGameObject::SetPosition(m_Collection, grandchild, grandchild_pos);
 
-    dmGameObject::SetParent(child, parent);
-    dmGameObject::SetParent(grandchild, child);
+    dmGameObject::SetParent(m_Collection, child, parent);
+    dmGameObject::SetParent(m_Collection, grandchild, child);
 
     // Initialize world transforms
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -390,14 +392,15 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
     ASSERT_TRUE(ret);
 
     // Capture original world positions
-    Point3 grandchild_world_before  = dmGameObject::GetWorldPosition(grandchild);
+    Point3 grandchild_world_before  = dmGameObject::GetWorldPosition(m_Collection, grandchild);
 
     // Modify parent local transform mid-frame
     Point3 parent_pos_new(10, 0, 0);
-    dmGameObject::SetPosition(parent, parent_pos_new);
+    dmGameObject::SetPosition(m_Collection, parent, parent_pos_new);
 
     // Update transforms only for the child chain (parent -> child)
-    dmGameObject::UpdateTransformsForInstance(m_Collection->m_Collection, child);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    dmGameObject::UpdateTransformsForInstance(collection, dmGameObject::GetGameObjectFromHandle(collection, child));
 
     // Manually compute expected child world using matrices
     Matrix4 parent_world = Matrix4::rotationZ(parent_angle);
@@ -406,17 +409,17 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
     child_local.setCol3(Vector4(child_pos));
     Point3 expected_child_world = Point3((parent_world * child_local).getCol3().getXYZ());
 
-    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child) - expected_child_world), 0.001f);
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, child) - expected_child_world), 0.001f);
 
     // Parent world should also be updated by the chain update
-    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(parent) - parent_pos_new), 0.001f);
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, parent) - parent_pos_new), 0.001f);
 
     // Grandchild should still have the old world transform (since descendants aren't updated)
-    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(grandchild) - grandchild_world_before), 0.001f);
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(m_Collection, grandchild) - grandchild_world_before), 0.001f);
 
     // Now update grandchild specifically and verify it changes
-    dmGameObject::UpdateTransformsForInstance(m_Collection->m_Collection, grandchild);
-    Point3 grandchild_world_after = dmGameObject::GetWorldPosition(grandchild);
+    dmGameObject::UpdateTransformsForInstance(collection, dmGameObject::GetGameObjectFromHandle(collection, grandchild));
+    Point3 grandchild_world_after = dmGameObject::GetWorldPosition(m_Collection, grandchild);
     ASSERT_GT(length(grandchild_world_after - grandchild_world_before), 0.0001f);
 
     // Cleanup
@@ -427,60 +430,60 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
 
 TEST_F(HierarchyTest, TransformChangesMarkCollectionDirty)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    dmGameObject::SetPosition(parent, Point3(1, 2, 3));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::SetPosition(m_Collection, parent, Point3(1, 2, 3));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    dmGameObject::SetRotation(parent, Quat::rotationZ(0.5f));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::SetRotation(m_Collection, parent, Quat::rotationZ(0.5f));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    dmGameObject::SetScale(parent, Vector3(2, 3, 4));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::SetScale(m_Collection, parent, Vector3(2, 3, 4));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(parent, 0, dmHashString64("position"), Vector3(4, 5, 6)));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(m_Collection, parent, 0, dmHashString64("position"), Vector3(4, 5, 6)));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromQuat(parent, 0, dmHashString64("rotation"), Quat::rotationZ(0.25f)));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromQuat(m_Collection, parent, 0, dmHashString64("rotation"), Quat::rotationZ(0.25f)));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(parent, 0, dmHashString64("euler"), Vector3(0, 0, 45)));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(m_Collection, parent, 0, dmHashString64("euler"), Vector3(0, 0, 45)));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(parent, 0, dmHashString64("scale"), Vector3(2, 2, 2)));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(m_Collection, parent, 0, dmHashString64("scale"), Vector3(2, 2, 2)));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, child, parent));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    dmGameObject::SetBone(child, true);
+    dmGameObject::SetBone(m_Collection, child, true);
     dmTransform::Transform component_transform;
     component_transform.SetIdentity();
     dmTransform::Transform bone_transform;
     bone_transform.SetIdentity();
     bone_transform.SetTranslation(Vector3(7, 8, 9));
-    ASSERT_EQ(1u, dmGameObject::SetBoneTransforms(child, component_transform, &bone_transform, 1));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ(1u, dmGameObject::SetBoneTransforms(m_Collection, child, component_transform, &bone_transform, 1));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
     dmGameObject::Delete(m_Collection, parent, true);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -488,32 +491,32 @@ TEST_F(HierarchyTest, TransformChangesMarkCollectionDirty)
 
 TEST_F(HierarchyTest, DeleteWithReparentMarksCollectionDirty)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetParent(child, parent);
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetParent(m_Collection, child, parent);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
     dmGameObject::Delete(m_Collection, parent, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(child));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    ASSERT_EQ((dmGameObject::HGameObject) 0, dmGameObject::GetParent(m_Collection, child));
 
     dmGameObject::Delete(m_Collection, child, false);
 }
 
 TEST_F(HierarchyTest, DeleteWithReparentUpdatesPromotedSubtree)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance grandchild = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject grandchild = dmGameObject::New(m_Collection, "/go.goc");
 
-    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
-    dmGameObject::SetPosition(child, Point3(1, 0, 0));
-    dmGameObject::SetPosition(grandchild, Point3(2, 0, 0));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
+    dmGameObject::SetPosition(m_Collection, parent, Point3(10, 0, 0));
+    dmGameObject::SetPosition(m_Collection, child, Point3(1, 0, 0));
+    dmGameObject::SetPosition(m_Collection, grandchild, Point3(2, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, child, parent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, grandchild, child));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     SetCachedWorldTransform(m_Collection, child, Matrix4::translation(Vector3(100, 100, 100)));
@@ -521,71 +524,71 @@ TEST_F(HierarchyTest, DeleteWithReparentUpdatesPromotedSubtree)
 
     dmGameObject::Delete(m_Collection, parent, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
-    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(child));
+    ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+    ASSERT_EQ((dmGameObject::HGameObject) 0, dmGameObject::GetParent(m_Collection, child));
 
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    AssertWorldPosition(child, Point3(1, 0, 0));
-    AssertWorldPosition(grandchild, Point3(3, 0, 0));
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    AssertWorldPosition(m_Collection, child, Point3(1, 0, 0));
+    AssertWorldPosition(m_Collection, grandchild, Point3(3, 0, 0));
 
     dmGameObject::Delete(m_Collection, child, true);
 }
 
 TEST_F(HierarchyTest, DirtyCollectionRefreshesAllWorldTransforms)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
 
-    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
-    dmGameObject::SetPosition(child, Point3(1, 0, 0));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    dmGameObject::SetPosition(m_Collection, parent, Point3(10, 0, 0));
+    dmGameObject::SetPosition(m_Collection, child, Point3(1, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, child, parent));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     SetCachedWorldTransform(m_Collection, parent, Matrix4::translation(Vector3(100, 100, 100)));
     SetCachedWorldTransform(m_Collection, child, Matrix4::translation(Vector3(200, 200, 200)));
-    m_Collection->m_Collection->m_DirtyTransforms = 1;
+    dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms = 1;
 
-    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
-    AssertWorldPosition(parent, Point3(10, 0, 0));
-    AssertWorldPosition(child, Point3(11, 0, 0));
+    dmGameObject::UpdateTransforms(dmGameObject::GetCollectionFromHandle(m_Collection));
+    AssertWorldPosition(m_Collection, parent, Point3(10, 0, 0));
+    AssertWorldPosition(m_Collection, child, Point3(11, 0, 0));
 }
 
 TEST_F(HierarchyTest, FailedSetParentMessageDoesNotModifyTransform)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child, "child"));
 
-    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
-    dmGameObject::SetPosition(child, Point3(1, 0, 0));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    dmGameObject::SetPosition(m_Collection, parent, Point3(10, 0, 0));
+    dmGameObject::SetPosition(m_Collection, child, Point3(1, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, child, parent));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
-    Point3 parent_position_before = dmGameObject::GetPosition(parent);
-    Point3 parent_world_before = dmGameObject::GetWorldPosition(parent);
-    Point3 child_world_before = dmGameObject::GetWorldPosition(child);
+    Point3 parent_position_before = dmGameObject::GetPosition(m_Collection, parent);
+    Point3 parent_world_before = dmGameObject::GetWorldPosition(m_Collection, parent);
+    Point3 child_world_before = dmGameObject::GetWorldPosition(m_Collection, child);
 
     PostSetParentMessage(m_Collection, parent, child, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(parent));
-    ASSERT_EQ(parent, dmGameObject::GetParent(child));
-    AssertPosition(parent, parent_position_before);
-    AssertWorldPosition(parent, parent_world_before);
-    AssertWorldPosition(child, child_world_before);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ((dmGameObject::HGameObject) 0, dmGameObject::GetParent(m_Collection, parent));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child));
+    AssertPosition(m_Collection, parent, parent_position_before);
+    AssertWorldPosition(m_Collection, parent, parent_world_before);
+    AssertWorldPosition(m_Collection, child, child_world_before);
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
     PostSetParentMessage(m_Collection, parent, child, true);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(parent));
-    ASSERT_EQ(parent, dmGameObject::GetParent(child));
-    AssertPosition(parent, parent_position_before);
-    AssertWorldPosition(parent, parent_world_before);
-    AssertWorldPosition(child, child_world_before);
-    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ((dmGameObject::HGameObject) 0, dmGameObject::GetParent(m_Collection, parent));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child));
+    AssertPosition(m_Collection, parent, parent_position_before);
+    AssertWorldPosition(m_Collection, parent, parent_world_before);
+    AssertWorldPosition(m_Collection, child, child_world_before);
+    ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
 
     dmGameObject::Delete(m_Collection, parent, true);
 }
@@ -596,7 +599,7 @@ TEST_F(HierarchyTest, TestHierarchy4)
 
     static const uint32_t max_levels = dmGameObject::MAX_HIERARCHICAL_DEPTH+1;
 
-    dmGameObject::HInstance instances[max_levels];
+    dmGameObject::HGameObject instances[max_levels];
     for (uint32_t i = 0; i < max_levels; ++i)
     {
         instances[i] = dmGameObject::New(m_Collection, "/go.goc");
@@ -605,13 +608,13 @@ TEST_F(HierarchyTest, TestHierarchy4)
     dmGameObject::Result r;
     for (uint32_t i = 1; i < max_levels-1; ++i)
     {
-        r = dmGameObject::SetParent(instances[i], instances[i-1]);
+        r = dmGameObject::SetParent(m_Collection, instances[i], instances[i-1]);
         ASSERT_EQ(dmGameObject::RESULT_OK, r);
     }
-    r = dmGameObject::SetParent(instances[max_levels-1], instances[max_levels-2]);
+    r = dmGameObject::SetParent(m_Collection, instances[max_levels-1], instances[max_levels-2]);
     ASSERT_EQ(dmGameObject::RESULT_MAXIMUM_HIEARCHICAL_DEPTH, r);
 
-    ASSERT_EQ(0U, dmGameObject::GetChildCount(instances[max_levels-2]));
+    ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, instances[max_levels-2]));
 
     for (uint32_t i = 0; i < max_levels; ++i)
     {
@@ -623,19 +626,19 @@ TEST_F(HierarchyTest, TestHierarchy5)
 {
     // Test parent subtree
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child3 = dmGameObject::New(m_Collection, "/go.goc");
 
-    dmGameObject::SetParent(child1, parent);
-    dmGameObject::SetParent(child3, child2);
+    dmGameObject::SetParent(m_Collection, child1, parent);
+    dmGameObject::SetParent(m_Collection, child3, child2);
 
-    dmGameObject::SetParent(child2, child1);
+    dmGameObject::SetParent(m_Collection, child2, child1);
 
-    ASSERT_EQ(parent, dmGameObject::GetParent(child1));
-    ASSERT_EQ(child1, dmGameObject::GetParent(child2));
-    ASSERT_EQ(child2, dmGameObject::GetParent(child3));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child1));
+    ASSERT_EQ(child1, dmGameObject::GetParent(m_Collection, child2));
+    ASSERT_EQ(child2, dmGameObject::GetParent(m_Collection, child3));
 
     dmGameObject::Delete(m_Collection, parent, false);
     dmGameObject::Delete(m_Collection, child1, false);
@@ -648,18 +651,18 @@ TEST_F(HierarchyTest, TestHierarchy6)
     // Test invalid reparent.
     // Test that the child node is not present in the upward trace from parent
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child1 = dmGameObject::New(m_Collection, "/go.goc");
 
     // parent -> child1
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child1, parent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, child1, parent));
 
-    ASSERT_EQ(parent, dmGameObject::GetParent(child1));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child1));
 
     // child1 -> parent
-    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameObject::SetParent(parent, child1));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameObject::SetParent(m_Collection, parent, child1));
 
-    ASSERT_EQ(parent, dmGameObject::GetParent(child1));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child1));
 
     dmGameObject::Delete(m_Collection, parent, false);
     dmGameObject::Delete(m_Collection, child1, false);
@@ -669,21 +672,21 @@ TEST_F(HierarchyTest, TestHierarchy7)
 {
     // Test remove interior node
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child2 = dmGameObject::New(m_Collection, "/go.goc");
 
-    dmGameObject::SetParent(child1, parent);
-    dmGameObject::SetParent(child2, child1);
+    dmGameObject::SetParent(m_Collection, child1, parent);
+    dmGameObject::SetParent(m_Collection, child2, child1);
 
-    ASSERT_EQ(parent, dmGameObject::GetParent(child1));
-    ASSERT_EQ(child1, dmGameObject::GetParent(child2));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child1));
+    ASSERT_EQ(child1, dmGameObject::GetParent(m_Collection, child2));
 
     dmGameObject::Delete(m_Collection, child1, false);
     bool ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
-    ASSERT_EQ(parent, dmGameObject::GetParent(child2));
-    ASSERT_TRUE(dmGameObject::IsChildOf(child2, parent));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child2));
+    ASSERT_TRUE(dmGameObject::IsChildOf(m_Collection, child2, parent));
 
     dmGameObject::Delete(m_Collection, parent, false);
     dmGameObject::Delete(m_Collection, child2, false);
@@ -706,18 +709,18 @@ TEST_F(HierarchyTest, TestHierarchy8)
 
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance a1 = dmGameObject::New(m_Collection, "/go.goc");
-        dmGameObject::HInstance b2 = dmGameObject::New(m_Collection, "/go.goc");
-        dmGameObject::HInstance c2 = dmGameObject::New(m_Collection, "/go.goc");
-        dmGameObject::HInstance d3 = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject a1 = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject b2 = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject c2 = dmGameObject::New(m_Collection, "/go.goc");
+        dmGameObject::HGameObject d3 = dmGameObject::New(m_Collection, "/go.goc");
 
-        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(d3, b2));
-        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, a1));
-        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(c2, a1));
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, d3, b2));
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, b2, a1));
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, c2, a1));
 
-        ASSERT_EQ(a1, dmGameObject::GetParent(b2));
-        ASSERT_EQ(a1, dmGameObject::GetParent(c2));
-        ASSERT_EQ(b2, dmGameObject::GetParent(d3));
+        ASSERT_EQ(a1, dmGameObject::GetParent(m_Collection, b2));
+        ASSERT_EQ(a1, dmGameObject::GetParent(m_Collection, c2));
+        ASSERT_EQ(b2, dmGameObject::GetParent(m_Collection, d3));
 
         bool ret;
         ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -725,71 +728,71 @@ TEST_F(HierarchyTest, TestHierarchy8)
         ret = dmGameObject::PostUpdate(m_Collection);
         ASSERT_TRUE(ret);
 
-        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, c2));
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, b2, c2));
 
-        ASSERT_EQ(a1, dmGameObject::GetParent(c2));
-        ASSERT_EQ(c2, dmGameObject::GetParent(b2));
-        ASSERT_EQ(b2, dmGameObject::GetParent(d3));
+        ASSERT_EQ(a1, dmGameObject::GetParent(m_Collection, c2));
+        ASSERT_EQ(c2, dmGameObject::GetParent(m_Collection, b2));
+        ASSERT_EQ(b2, dmGameObject::GetParent(m_Collection, d3));
 
-        ASSERT_EQ(1U, dmGameObject::GetChildCount(a1));
-        ASSERT_EQ(1U, dmGameObject::GetChildCount(c2));
-        ASSERT_EQ(1U, dmGameObject::GetChildCount(b2));
-        ASSERT_EQ(0U, dmGameObject::GetChildCount(d3));
+        ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, a1));
+        ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, c2));
+        ASSERT_EQ(1U, dmGameObject::GetChildCount(m_Collection, b2));
+        ASSERT_EQ(0U, dmGameObject::GetChildCount(m_Collection, d3));
 
-        ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
-        ASSERT_EQ(1U, dmGameObject::GetDepth(c2));
-        ASSERT_EQ(2U, dmGameObject::GetDepth(b2));
-        ASSERT_EQ(3U, dmGameObject::GetDepth(d3));
+        ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, a1));
+        ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, c2));
+        ASSERT_EQ(2U, dmGameObject::GetDepth(m_Collection, b2));
+        ASSERT_EQ(3U, dmGameObject::GetDepth(m_Collection, d3));
 
-        ASSERT_TRUE(dmGameObject::IsChildOf(c2, a1));
-        ASSERT_TRUE(dmGameObject::IsChildOf(b2, c2));
-        ASSERT_TRUE(dmGameObject::IsChildOf(d3, b2));
+        ASSERT_TRUE(dmGameObject::IsChildOf(m_Collection, c2, a1));
+        ASSERT_TRUE(dmGameObject::IsChildOf(m_Collection, b2, c2));
+        ASSERT_TRUE(dmGameObject::IsChildOf(m_Collection, d3, b2));
 
         if (i == 0)
         {
-            ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, a1));
             dmGameObject::Delete(m_Collection, a1, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, c2));
             dmGameObject::Delete(m_Collection, c2, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(b2));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, b2));
             dmGameObject::Delete(m_Collection, b2, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, d3));
             dmGameObject::Delete(m_Collection, d3, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
         else
         {
-            ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
-            ASSERT_EQ(3U, dmGameObject::GetDepth(d3));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, a1));
+            ASSERT_EQ(3U, dmGameObject::GetDepth(m_Collection, d3));
             dmGameObject::Delete(m_Collection, a1, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(1U, dmGameObject::GetDepth(b2));
-            ASSERT_EQ(2U, dmGameObject::GetDepth(d3));
+            ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, b2));
+            ASSERT_EQ(2U, dmGameObject::GetDepth(m_Collection, d3));
             dmGameObject::Delete(m_Collection, b2, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
-            ASSERT_EQ(c2, dmGameObject::GetParent(d3));
-            ASSERT_TRUE(dmGameObject::IsChildOf(d3, c2));
+            ASSERT_EQ(c2, dmGameObject::GetParent(m_Collection, d3));
+            ASSERT_TRUE(dmGameObject::IsChildOf(m_Collection, d3, c2));
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
-            ASSERT_EQ(1U, dmGameObject::GetDepth(d3));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, c2));
+            ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, d3));
             dmGameObject::Delete(m_Collection, c2, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
-            ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
+            ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, d3));
             dmGameObject::Delete(m_Collection, d3, false);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
@@ -801,26 +804,26 @@ TEST_F(HierarchyTest, TestHierarchy9)
 {
     // Test unparent
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child2 = dmGameObject::New(m_Collection, "/go.goc");
 
-    dmGameObject::SetParent(child1, parent);
-    dmGameObject::SetParent(child2, child1);
+    dmGameObject::SetParent(m_Collection, child1, parent);
+    dmGameObject::SetParent(m_Collection, child2, child1);
 
-    ASSERT_EQ(parent, dmGameObject::GetParent(child1));
-    ASSERT_EQ(child1, dmGameObject::GetParent(child2));
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child1));
+    ASSERT_EQ(child1, dmGameObject::GetParent(m_Collection, child2));
 
-    ASSERT_EQ(1U, dmGameObject::GetDepth(child1));
-    ASSERT_EQ(2U, dmGameObject::GetDepth(child2));
+    ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child1));
+    ASSERT_EQ(2U, dmGameObject::GetDepth(m_Collection, child2));
 
-    dmGameObject::SetParent(child1, 0);
+    dmGameObject::SetParent(m_Collection, child1, 0);
 
-    ASSERT_EQ((void*)0, dmGameObject::GetParent(child1));
-    ASSERT_EQ(child1, dmGameObject::GetParent(child2));
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(m_Collection, child1));
+    ASSERT_EQ(child1, dmGameObject::GetParent(m_Collection, child2));
 
-    ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
-    ASSERT_EQ(1U, dmGameObject::GetDepth(child2));
+    ASSERT_EQ(0U, dmGameObject::GetDepth(m_Collection, child1));
+    ASSERT_EQ(1U, dmGameObject::GetDepth(m_Collection, child2));
 
     dmGameObject::Delete(m_Collection, parent, false);
     dmGameObject::Delete(m_Collection, child1, false);
@@ -831,21 +834,21 @@ TEST_F(HierarchyTest, TestMultiReparent)
 {
     // Test unparent
 
-    dmGameObject::HInstance parent1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance parent2 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child2 = dmGameObject::New(m_Collection, "/go.goc");
 
-    dmGameObject::SetParent(child1, parent1);
-    dmGameObject::SetParent(child2, parent1);
+    dmGameObject::SetParent(m_Collection, child1, parent1);
+    dmGameObject::SetParent(m_Collection, child2, parent1);
 
-    ASSERT_EQ(parent1, dmGameObject::GetParent(child1));
-    ASSERT_EQ(parent1, dmGameObject::GetParent(child2));
+    ASSERT_EQ(parent1, dmGameObject::GetParent(m_Collection, child1));
+    ASSERT_EQ(parent1, dmGameObject::GetParent(m_Collection, child2));
 
-    dmGameObject::SetParent(child2, parent2);
+    dmGameObject::SetParent(m_Collection, child2, parent2);
 
-    ASSERT_EQ(parent2, dmGameObject::GetParent(child2));
-    ASSERT_EQ(parent1, dmGameObject::GetParent(child1));
+    ASSERT_EQ(parent2, dmGameObject::GetParent(m_Collection, child2));
+    ASSERT_EQ(parent1, dmGameObject::GetParent(m_Collection, child1));
 
     dmGameObject::Delete(m_Collection, parent1, false);
     dmGameObject::Delete(m_Collection, parent2, false);
@@ -855,17 +858,17 @@ TEST_F(HierarchyTest, TestMultiReparent)
 
 TEST_F(HierarchyTest, TestHierarchyScale)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
 
     const float scale = 2.0f;
 
-    dmGameObject::SetScale(parent, scale);
-    dmGameObject::SetPosition(child, Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetScale(m_Collection, parent, scale);
+    dmGameObject::SetPosition(m_Collection, child, Point3(1.0f, 0.0f, 0.0f));
 
-    dmGameObject::SetParent(child, parent);
+    dmGameObject::SetParent(m_Collection, child, parent);
 
-    dmTransform::Transform world = dmGameObject::GetWorldTransform(child);
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(m_Collection, child);
 
     // Needs update to obtain new world transform
     ASSERT_NE(scale, world.GetTranslation().getX());
@@ -875,18 +878,18 @@ TEST_F(HierarchyTest, TestHierarchyScale)
     ASSERT_TRUE(ret);
 
     // New world transform updated
-    world = dmGameObject::GetWorldTransform(child);
+    world = dmGameObject::GetWorldTransform(m_Collection, child);
     ASSERT_EQ(scale, world.GetTranslation().getX());
     ASSERT_EQ(scale, world.GetUniformScale());
 
     // Unparent to verify the scale is reset
-    dmGameObject::SetParent(child, 0);
+    dmGameObject::SetParent(m_Collection, child, 0);
 
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
 
     // New world transform updated
-    world = dmGameObject::GetWorldTransform(child);
+    world = dmGameObject::GetWorldTransform(m_Collection, child);
     ASSERT_NE(scale, world.GetTranslation().getX());
     ASSERT_NE(scale, world.GetUniformScale());
 
@@ -896,17 +899,17 @@ TEST_F(HierarchyTest, TestHierarchyScale)
 
 TEST_F(HierarchyTest, TestHierarchyNonUniformScale)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
 
     const Vector3 scale(4,5,6);
-    dmGameObject::SetScale(parent, scale);
-    dmGameObject::SetPosition(child, Point3(7.0f, 8.0f, 9.0f));
-    dmGameObject::SetParent(child, parent);
+    dmGameObject::SetScale(m_Collection, parent, scale);
+    dmGameObject::SetPosition(m_Collection, child, Point3(7.0f, 8.0f, 9.0f));
+    dmGameObject::SetParent(m_Collection, child, parent);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    dmTransform::Transform world = dmGameObject::GetWorldTransform(child);
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(m_Collection, child);
     ASSERT_EQ(world.GetScale().getX(), scale.getX());
     ASSERT_EQ(world.GetScale().getY(), scale.getY());
     ASSERT_EQ(world.GetScale().getZ(), scale.getZ());
@@ -917,17 +920,17 @@ TEST_F(HierarchyTest, TestHierarchyNonUniformScale)
 
 TEST_F(HierarchyTest, TestHierarchyInheritScale)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, "/go.goc");
 
     const float scale = 2.0f;
 
-    dmGameObject::SetScale(parent, scale);
-    dmGameObject::SetPosition(child, Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetScale(m_Collection, parent, scale);
+    dmGameObject::SetPosition(m_Collection, child, Point3(1.0f, 0.0f, 0.0f));
 
-    dmGameObject::SetParent(child, parent);
+    dmGameObject::SetParent(m_Collection, child, parent);
 
-    dmTransform::Transform world = dmGameObject::GetWorldTransform(child);
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(m_Collection, child);
 
     // Needs update to obtain new world transform
     ASSERT_NE(scale, world.GetTranslation().getX());
@@ -937,14 +940,14 @@ TEST_F(HierarchyTest, TestHierarchyInheritScale)
     ASSERT_TRUE(ret);
 
     // New world transform updated
-    world = dmGameObject::GetWorldTransform(child);
+    world = dmGameObject::GetWorldTransform(m_Collection, child);
     ASSERT_EQ(scale, world.GetTranslation().getX());
     ASSERT_EQ(scale, world.GetUniformScale());
 
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
 
-    world = dmGameObject::GetWorldTransform(child);
+    world = dmGameObject::GetWorldTransform(m_Collection, child);
     ASSERT_EQ(scale, world.GetTranslation().getX());
     ASSERT_EQ(scale, world.GetUniformScale());
 
@@ -955,51 +958,51 @@ TEST_F(HierarchyTest, TestHierarchyInheritScale)
 // Test depth-first order
 TEST_F(HierarchyTest, TestHierarchyBonesOrder)
 {
-    dmGameObject::HInstance root = dmGameObject::New(m_Collection, 0x0);
+    dmGameObject::HGameObject root = dmGameObject::New(m_Collection, 0x0);
 
     const uint32_t instance_count = 7;
-    dmGameObject::HInstance instances[instance_count];
+    dmGameObject::HGameObject instances[instance_count];
     uint32_t parent_indices[instance_count] = {~0u, 0u, 1u, 1u, 0u, 4u, 4u};
     dmTransform::Transform transforms[instance_count];
     for (uint32_t i = 0; i < instance_count; ++i)
     {
         instances[i] = dmGameObject::New(m_Collection, 0x0);
-        dmGameObject::SetBone(instances[i], true);
+        dmGameObject::SetBone(m_Collection, instances[i], true);
         transforms[i].SetIdentity();
         transforms[i].SetTranslation(Vector3((float)i + 1, (float)i + 2, (float)i + 3));
     }
     for (uint32_t i = 0; i < instance_count; ++i)
     {
         uint32_t index = instance_count - 1 - i;
-        dmGameObject::HInstance parent = root;
+        dmGameObject::HGameObject parent = root;
         if (parent_indices[index] != ~0u)
             parent = instances[parent_indices[index]];
-        dmGameObject::SetParent(instances[index], parent);
+        dmGameObject::SetParent(m_Collection, instances[index], parent);
     }
 
     dmTransform::Transform component_transform;
     component_transform.SetIdentity();
-    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
+    ASSERT_EQ(instance_count, dmGameObject::SetBoneTransforms(m_Collection, instances[0], component_transform, transforms, instance_count));
 
     for (uint32_t i = 0; i < instance_count; ++i)
     {
-        ASSERT_NEAR((float)i + 1.f, dmGameObject::GetPosition(instances[i]).getX(), EPSILON);
-        ASSERT_NEAR((float)i + 2.f, dmGameObject::GetPosition(instances[i]).getY(), EPSILON);
-        ASSERT_NEAR((float)i + 3.f, dmGameObject::GetPosition(instances[i]).getZ(), EPSILON);
+        ASSERT_NEAR((float)i + 1.f, dmGameObject::GetPosition(m_Collection, instances[i]).getX(), EPSILON);
+        ASSERT_NEAR((float)i + 2.f, dmGameObject::GetPosition(m_Collection, instances[i]).getY(), EPSILON);
+        ASSERT_NEAR((float)i + 3.f, dmGameObject::GetPosition(m_Collection, instances[i]).getZ(), EPSILON);
     }
 
     component_transform.SetTranslation(Vector3(100.0f, 100.0f, 100.0f));
-    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
+    ASSERT_EQ(instance_count, dmGameObject::SetBoneTransforms(m_Collection, instances[0], component_transform, transforms, instance_count));
 
-    ASSERT_NEAR((float)101.f, dmGameObject::GetPosition(instances[0]).getX(), EPSILON);
-    ASSERT_NEAR((float)102.f, dmGameObject::GetPosition(instances[0]).getY(), EPSILON);
-    ASSERT_NEAR((float)103.f, dmGameObject::GetPosition(instances[0]).getZ(), EPSILON);
+    ASSERT_NEAR((float)101.f, dmGameObject::GetPosition(m_Collection, instances[0]).getX(), EPSILON);
+    ASSERT_NEAR((float)102.f, dmGameObject::GetPosition(m_Collection, instances[0]).getY(), EPSILON);
+    ASSERT_NEAR((float)103.f, dmGameObject::GetPosition(m_Collection, instances[0]).getZ(), EPSILON);
 
     for (uint32_t i = 1; i < instance_count; ++i)
     {
-        ASSERT_NEAR((float)i + 1, dmGameObject::GetPosition(instances[i]).getX(), EPSILON);
-        ASSERT_NEAR((float)i + 2, dmGameObject::GetPosition(instances[i]).getY(), EPSILON);
-        ASSERT_NEAR((float)i + 3, dmGameObject::GetPosition(instances[i]).getZ(), EPSILON);
+        ASSERT_NEAR((float)i + 1, dmGameObject::GetPosition(m_Collection, instances[i]).getX(), EPSILON);
+        ASSERT_NEAR((float)i + 2, dmGameObject::GetPosition(m_Collection, instances[i]).getY(), EPSILON);
+        ASSERT_NEAR((float)i + 3, dmGameObject::GetPosition(m_Collection, instances[i]).getZ(), EPSILON);
     }
 
     for (uint32_t i = 0; i < instance_count; ++i)
@@ -1011,25 +1014,25 @@ TEST_F(HierarchyTest, TestHierarchyBonesOrder)
 
 TEST_F(HierarchyTest, TestHierarchyBonesMulti)
 {
-    dmGameObject::HInstance root = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject root = dmGameObject::New(m_Collection, "/go.goc");
 
     // First hierarchy that will be transformed by SetBoneTransforms
-    dmGameObject::HInstance p1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetBone(p1, true);
-    dmGameObject::SetParent(p1, root);
-    dmGameObject::HInstance c1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetBone(c1, true);
-    dmGameObject::SetParent(c1, p1);
-    dmGameObject::SetPosition(c1, Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::HGameObject p1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetBone(m_Collection, p1, true);
+    dmGameObject::SetParent(m_Collection, p1, root);
+    dmGameObject::HGameObject c1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetBone(m_Collection, c1, true);
+    dmGameObject::SetParent(m_Collection, c1, p1);
+    dmGameObject::SetPosition(m_Collection, c1, Point3(1.0f, 0.0f, 0.0f));
 
     // Second hierarchy, attached to the first, that should not be moved with SetBoneTransforms
-    dmGameObject::HInstance root2 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetParent(root2, c1);
-    dmGameObject::HInstance p2 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetParent(p2, root2);
-    dmGameObject::HInstance c2 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetBone(c2, true);
-    dmGameObject::SetParent(c2, p2);
+    dmGameObject::HGameObject root2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetParent(m_Collection, root2, c1);
+    dmGameObject::HGameObject p2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetParent(m_Collection, p2, root2);
+    dmGameObject::HGameObject c2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetBone(m_Collection, c2, true);
+    dmGameObject::SetParent(m_Collection, c2, p2);
 
     dmTransform::Transform t[2];
     t[0].SetIdentity();
@@ -1039,21 +1042,21 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
 
-    dmTransform::Transform world = dmGameObject::GetWorldTransform(c2);
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(m_Collection, c2);
 
     ASSERT_NEAR(1.0f, world.GetTranslation().getX(), EPSILON);
 
     dmTransform::Transform component_transform;
     component_transform.SetIdentity();
-    ASSERT_EQ(2u, SetBoneTransforms(p1, component_transform, t, 2));
+    ASSERT_EQ(2u, dmGameObject::SetBoneTransforms(m_Collection, p1, component_transform, t, 2));
 
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
 
-    world = dmGameObject::GetWorldTransform(c2);
+    world = dmGameObject::GetWorldTransform(m_Collection, c2);
 
     ASSERT_NEAR(2.0f, world.GetTranslation().getX(), EPSILON);
-    ASSERT_NEAR(0.0f, dmGameObject::GetPosition(c2).getX(), EPSILON);
+    ASSERT_NEAR(0.0f, dmGameObject::GetPosition(m_Collection, c2).getX(), EPSILON);
 
     dmGameObject::Delete(m_Collection, root, false);
     dmGameObject::Delete(m_Collection, p1, false);
@@ -1065,32 +1068,32 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
 
 TEST_F(HierarchyTest, TestTransformGettersFromScript)
 {
-    dmGameObject::HInstance controller = dmGameObject::New(m_Collection, "/transform.goc");
-    dmGameObject::HInstance parent     = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child      = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject controller = dmGameObject::New(m_Collection, "/transform.goc");
+    dmGameObject::HGameObject parent     = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child      = dmGameObject::New(m_Collection, "/go.goc");
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, controller, "controller"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child, "child"));
 
-    dmGameObject::SetPosition(parent, Point3(12,4,2));
-    dmGameObject::SetPosition(child, Point3(-12,-4,-2));
+    dmGameObject::SetPosition(m_Collection, parent, Point3(12,4,2));
+    dmGameObject::SetPosition(m_Collection, child, Point3(-12,-4,-2));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Test 0: go.get_world_position(child)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    dmGameObject::SetScale(parent, Vector3(100, 99, 1));
-    dmGameObject::SetScale(child,  Vector3(1.0/100.0, 1.0/99.0, 1.0));
+    dmGameObject::SetScale(m_Collection, parent, Vector3(100, 99, 1));
+    dmGameObject::SetScale(m_Collection, child,  Vector3(1.0/100.0, 1.0/99.0, 1.0));
 
     // Test 1: go.get_world_scale(child)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     const float rot_90_deg = 3.14159265f / 2.0f;
 
-    dmGameObject::SetRotation(parent, Quat::rotationZ(rot_90_deg));
-    dmGameObject::SetRotation(child, Quat::rotationZ(-rot_90_deg));
+    dmGameObject::SetRotation(m_Collection, parent, Quat::rotationZ(rot_90_deg));
+    dmGameObject::SetRotation(m_Collection, child, Quat::rotationZ(-rot_90_deg));
 
     // Test 2: go.get_world_rotation(child)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1105,9 +1108,9 @@ TEST_F(HierarchyTest, TestTransformGettersFromScript)
 
 TEST_F(HierarchyTest, TestHierarchyFromScript)
 {
-    dmGameObject::HInstance controller = dmGameObject::New(m_Collection, "/parenting.goc");
-    dmGameObject::HInstance parent     = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child      = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject controller = dmGameObject::New(m_Collection, "/parenting.goc");
+    dmGameObject::HGameObject parent     = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child      = dmGameObject::New(m_Collection, "/go.goc");
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, controller, "controller"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
@@ -1116,42 +1119,42 @@ TEST_F(HierarchyTest, TestHierarchyFromScript)
     Point3 parent_pos(12, 4, 2);
     Point3 child_pos(-12, -4, -2);
 
-    dmGameObject::SetPosition(parent, parent_pos);
-    dmGameObject::SetPosition(child, child_pos);
+    dmGameObject::SetPosition(m_Collection, parent, parent_pos);
+    dmGameObject::SetPosition(m_Collection, child, child_pos);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Test 0: go.set_parent(child,parent) - set parent
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(parent, dmGameObject::GetParent(child));
-    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(child).getX(), EPSILON);
-    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(child).getY(), EPSILON);
-    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(child).getZ(), EPSILON);
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child));
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(m_Collection, child).getX(), EPSILON);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(m_Collection, child).getY(), EPSILON);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(m_Collection, child).getZ(), EPSILON);
 
     // Test 1: go.set_parent(child) - detaching
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ((void*)0, dmGameObject::GetParent(child));
-    ASSERT_NEAR(-12.0f, dmGameObject::GetWorldPosition(child).getX(), EPSILON);
-    ASSERT_NEAR( -4.0f, dmGameObject::GetWorldPosition(child).getY(), EPSILON);
-    ASSERT_NEAR( -2.0f, dmGameObject::GetWorldPosition(child).getZ(), EPSILON);
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(m_Collection, child));
+    ASSERT_NEAR(-12.0f, dmGameObject::GetWorldPosition(m_Collection, child).getX(), EPSILON);
+    ASSERT_NEAR( -4.0f, dmGameObject::GetWorldPosition(m_Collection, child).getY(), EPSILON);
+    ASSERT_NEAR( -2.0f, dmGameObject::GetWorldPosition(m_Collection, child).getZ(), EPSILON);
 
     // Test 2: go.set_parent(child,parent,true) - set parent and maintain world pos
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(parent, dmGameObject::GetParent(child));
-    ASSERT_NEAR(-12.0f, dmGameObject::GetWorldPosition(child).getX(), EPSILON);
-    ASSERT_NEAR( -4.0f, dmGameObject::GetWorldPosition(child).getY(), EPSILON);
-    ASSERT_NEAR( -2.0f, dmGameObject::GetWorldPosition(child).getZ(), EPSILON);
+    ASSERT_EQ(parent, dmGameObject::GetParent(m_Collection, child));
+    ASSERT_NEAR(-12.0f, dmGameObject::GetWorldPosition(m_Collection, child).getX(), EPSILON);
+    ASSERT_NEAR( -4.0f, dmGameObject::GetWorldPosition(m_Collection, child).getY(), EPSILON);
+    ASSERT_NEAR( -2.0f, dmGameObject::GetWorldPosition(m_Collection, child).getZ(), EPSILON);
 
     // Test 3: go.set_parent(child,not_found) - unknown id should fail
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     // Test 4: go.set_parent() - default args should detach object that owns script
-    dmGameObject::SetParent(controller, parent);
+    dmGameObject::SetParent(m_Collection, controller, parent);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ((void*)0, dmGameObject::GetParent(controller));
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(m_Collection, controller));
 
     dmGameObject::Delete(m_Collection, controller, false);
     dmGameObject::Delete(m_Collection, parent, false);
@@ -1160,16 +1163,16 @@ TEST_F(HierarchyTest, TestHierarchyFromScript)
 
 TEST_F(HierarchyTest, TestEmptyInstance)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0x0);
+    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, 0x0);
 
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
-    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go));
+    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go));
 
     dmGameObject::Result r;
     r = dmGameObject::SetIdentifier(m_Collection, go, "go");
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go));
+    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go));
 
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -1247,12 +1250,15 @@ static void TraverseHierarchy(dmGameObject::SceneNode* node, TestHierarchyCtx* c
     }
 }
 
-static void SetProperties(dmGameObject::HInstance instance)
+static void SetProperties(dmGameObject::HCollection collection, dmGameObject::HGameObject instance)
 {
-    dmGameObject::Prototype::Component* components = instance->m_Prototype->m_Components;
-    uint32_t count = instance->m_Prototype->m_ComponentCount;
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
+    dmGameObject::Instance* instance_ptr = dmGameObject::GetGameObjectFromHandle(collection_ptr, instance);
+    dmGameObject::Prototype::Component* components = instance_ptr->m_Prototype->m_Components;
+    uint32_t count = instance_ptr->m_Prototype->m_ComponentCount;
     uint32_t component_instance_data_index = 0;
     dmGameObject::ComponentSetPropertiesParams params;
+    params.m_Collection = collection;
     params.m_Instance = instance;
     params.m_PropertySet.m_GetPropertyCallback = 0;
     params.m_PropertySet.m_FreeUserDataCallback = 0;
@@ -1261,7 +1267,7 @@ static void SetProperties(dmGameObject::HInstance instance)
         dmGameObject::ComponentType* type = components[i].m_Type;
         if (type->m_SetPropertiesFunction != 0x0)
         {
-            uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
+            uintptr_t* component_instance_data = &instance_ptr->m_ComponentInstanceUserData[component_instance_data_index];
             params.m_UserData = component_instance_data;
             type->m_SetPropertiesFunction(params);
         }
@@ -1273,10 +1279,10 @@ static void SetProperties(dmGameObject::HInstance instance)
 // Testing the debug inspection api
 TEST_F(HierarchyTest, TestIterateHierarchy)
 {
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HGameObject child3 = dmGameObject::New(m_Collection, "/go.goc");
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child1, "child1"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child2, "child2"));
@@ -1286,17 +1292,17 @@ TEST_F(HierarchyTest, TestIterateHierarchy)
     // +--child1
     //   +--child2
     //     +--child3
-    dmGameObject::SetParent(child1, parent);
-    dmGameObject::SetParent(child3, child2);
-    dmGameObject::SetParent(child2, child1);
+    dmGameObject::SetParent(m_Collection, child1, parent);
+    dmGameObject::SetParent(m_Collection, child3, child2);
+    dmGameObject::SetParent(m_Collection, child2, child1);
 
-    dmGameObject::SetPosition(child1, Point3(1,2,3));
-    dmGameObject::SetPosition(child3, Point3(2,2,2));
+    dmGameObject::SetPosition(m_Collection, child1, Point3(1,2,3));
+    dmGameObject::SetPosition(m_Collection, child3, Point3(2,2,2));
 
-    SetProperties(parent);
-    SetProperties(child1);
-    SetProperties(child2);
-    SetProperties(child3);
+    SetProperties(m_Collection, parent);
+    SetProperties(m_Collection, child1);
+    SetProperties(m_Collection, child2);
+    SetProperties(m_Collection, child3);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 

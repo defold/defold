@@ -32,6 +32,7 @@
 #include <render/display_profiles.h>
 #include <render/font/font_renderer.h>
 #include <gameobject/component.h>
+#include <gameobject/script.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
 #include <dmsdk/gamesys/resources/res_font.h>
@@ -88,6 +89,11 @@ namespace dmGameSystem
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
+
+    static inline GuiWorld* GetGuiWorld(dmGui::HScene scene)
+    {
+        return (GuiWorld*)dmGui::GetSceneCustomNodeCallbackContext(scene);
+    }
 
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
     static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
@@ -667,6 +673,7 @@ namespace dmGameSystem
     {
         CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
         GuiWorld* gui_world = new GuiWorld();
+        gui_world->m_Collection = params.m_Collection;
         if (!gui_context->m_Worlds.Full())
         {
             gui_world->m_RenderOrder = gui_context->m_Worlds.Size();
@@ -965,10 +972,10 @@ namespace dmGameSystem
 
             case dmGuiDDF::NodeDesc::TYPE_CUSTOM:
             {
-                GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+                GuiWorld* gui_world = GetGuiWorld(scene);
                 uint32_t custom_type = dmGui::GetNodeCustomType(scene, n);
                 void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
-                const CompGuiNodeType* node_type = GetCompGuiCustomType(component->m_World->m_CompGuiContext, custom_type);
+                const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
 
                 if (node_type->m_SetNodeDesc)
                 {
@@ -1368,7 +1375,6 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
         GuiComponent* gui_component = new GuiComponent();
-        gui_component->m_World = gui_world;
         gui_component->m_Resource = scene_resource;
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_Material = 0;
@@ -1396,7 +1402,7 @@ namespace dmGameSystem
         scene_params.m_DestroyCustomNodeCallback = &DestroyCustomNodeCallback;
         scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
         scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
-        scene_params.m_CreateCustomNodeCallbackContext = gui_component;
+        scene_params.m_CreateCustomNodeCallbackContext = gui_world;
         scene_params.m_PrepareNodeTextLayoutCallback = &PrepareGuiNodeTextLayout;
         scene_params.m_GetResourceCallback = GetSceneResourceByHash;
         scene_params.m_GetResourceCallbackContext = gui_component;
@@ -1440,7 +1446,7 @@ namespace dmGameSystem
         {
             if (gui_world->m_Components[i] == gui_component)
             {
-                dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+                dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
                 ClearGuiLayoutObjectInteraction(gui_component);
                 dmGui::DeleteScene(gui_component->m_Scene);
                 if (gui_component->m_Material) {
@@ -2937,6 +2943,7 @@ namespace dmGameSystem
                                                             dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        GuiWorld* gui_world = GetGuiWorld(scene);
 
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
@@ -2960,7 +2967,7 @@ namespace dmGameSystem
         CreateTextureResourceParams params = {};
         params.m_Path               = resource_path;
         params.m_PathHash           = resolved_path_hash;
-        params.m_Collection         = dmGameObject::GetCollection(component->m_Instance);
+        params.m_Collection         = gui_world->m_Collection;
         params.m_Type               = dmGraphics::TEXTURE_TYPE_2D;
         params.m_Format             = texture_format;
         params.m_TextureType        = GraphicsTextureTypeToImageType(params.m_Type);
@@ -2977,7 +2984,7 @@ namespace dmGameSystem
 
         // Creates a texture and invokes the res_texture.cpp code path
         dmGameSystem::TextureResource* resource_out = 0;
-        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, (void**)&resource_out);
+        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(gui_world->m_Collection), params, (void**)&resource_out);
         if (res != dmResource::RESULT_OK)
         {
             dmLogError("Failed to create texture resource %s (status=%d)", resource_path, (int) res);
@@ -2990,7 +2997,8 @@ namespace dmGameSystem
     static void DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
+        GuiWorld* gui_world = GetGuiWorld(scene);
+        dmResource::HFactory factory = dmGameObject::GetFactory(gui_world->m_Collection);
         if (ReleaseResourcePropertyPointer(component, factory, (void*)(uintptr_t) texture_source))
         {
             return;
@@ -3008,6 +3016,7 @@ namespace dmGameSystem
     static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        GuiWorld* gui_world = GetGuiWorld(scene);
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
@@ -3041,7 +3050,7 @@ namespace dmGameSystem
         params.m_MipMap                 = 0;
         params.m_SubUpdate              = 0;
 
-        dmResource::Result res = SetTextureResource(dmGameObject::GetFactory(component->m_Instance), params);
+        dmResource::Result res = SetTextureResource(dmGameObject::GetFactory(gui_world->m_Collection), params);
         if (res != dmResource::RESULT_OK)
         {
             dmLogError("Failed to set texture resource %s (status=%d)", dmHashReverseSafe64(resolved_path_hash), (int) res);
@@ -3086,8 +3095,8 @@ namespace dmGameSystem
 
     static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
 
@@ -3097,8 +3106,8 @@ namespace dmGameSystem
 
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
 
@@ -3115,8 +3124,8 @@ namespace dmGameSystem
 
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         if (!type->m_Destroy)
@@ -3136,8 +3145,8 @@ namespace dmGameSystem
 
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         if (!type->m_Update)
@@ -3518,9 +3527,10 @@ namespace dmGameSystem
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        url->m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
-        url->m_Path = dmGameObject::GetIdentifier(component->m_Instance);
-        dmGameObject::Result result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &url->m_Fragment);
+        GuiWorld* gui_world = GetGuiWorld(scene);
+        url->m_Socket = dmGameObject::GetMessageSocket(gui_world->m_Collection);
+        url->m_Path = dmGameObject::GetIdentifier(gui_world->m_Collection, component->m_Instance);
+        dmGameObject::Result result = dmGameObject::GetComponentId(gui_world->m_Collection, component->m_Instance, component->m_ComponentIndex, &url->m_Fragment);
         if (result != dmGameObject::RESULT_OK)
         {
             dmLogError("Could not find gui component: %d", result);
@@ -3528,24 +3538,42 @@ namespace dmGameSystem
     }
 
     // Callback used to integrate GUI scenes with game objects
-    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
+    static uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
-        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        return (uintptr_t)component->m_Instance;
+        return (uintptr_t)dmGui::GetSceneUserData(scene);
     }
+
+    static bool GuiScriptInstanceGetGameObject(void* script_instance, dmGameObject::HCollection* out_hcollection, dmGameObject::HGameObject* out_hinstance)
+    {
+        dmGui::HScene scene = (dmGui::HScene)script_instance;
+        if (!scene)
+            return false;
+
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        GuiWorld* gui_world = GetGuiWorld(scene);
+        if (!component || !gui_world)
+            return false;
+
+        *out_hcollection = gui_world->m_Collection;
+        *out_hinstance = component->m_Instance;
+        return true;
+    }
+
+    static dmGameObject::ScriptInstanceGameObjectResolver g_GuiScriptInstanceGameObjectResolver = { GuiScriptInstanceGetGameObject };
 
     // Callback used to integrate GUI scenes with game objects
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        GuiWorld* gui_world = GetGuiWorld(scene);
         uint32_t path_size = strlen(path);
         if (path_size > 0)
         {
-            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path);
+            return dmGameObject::GetAbsoluteIdentifier(gui_world->m_Collection, component->m_Instance, path);
         }
         else
         {
-            return dmGameObject::GetIdentifier(component->m_Instance);
+            return dmGameObject::GetIdentifier(gui_world->m_Collection, component->m_Instance);
         }
     }
 
@@ -3576,7 +3604,7 @@ namespace dmGameSystem
         dmhash_t set_property = params.m_PropertyId;
         if (set_property == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(gui_component, gui_component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetMaterialResource(gui_component, gui_component->m_Resource), out_value);
         }
         else if (set_property == PROP_MATERIALS)
         {
@@ -3587,7 +3615,7 @@ namespace dmGameSystem
             }
 
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), dmGui::GetMaterial(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_FONTS)
         {
@@ -3597,7 +3625,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), dmGui::GetFont(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_TEXTURES)
         {
@@ -3607,7 +3635,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), (void*) dmGui::GetTexture(gui_component->m_Scene, key), out_value);
         }
 
         CompGuiPropertyGetterFn* getter_fn = g_CompGuiPropertyGetters.Get(set_property);
@@ -3624,7 +3652,7 @@ namespace dmGameSystem
         dmhash_t set_property = params.m_PropertyId;
         if (set_property == PROP_MATERIAL)
         {
-            return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&gui_component->m_Material);
+            return SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, MATERIAL_EXT_HASH, (void**)&gui_component->m_Material);
         }
         else if (set_property == PROP_FONTS)
         {
@@ -3633,7 +3661,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
-            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
             dmGameSystem::FontResource* font_resource = 0;
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font_resource);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
@@ -3659,7 +3687,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
-            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
             TextureSetResource* texture_source = 0x0;
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
@@ -3688,7 +3716,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
-            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
             MaterialResource* material_res = 0;
 
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, MATERIAL_EXT_HASH, (void**) &material_res);
@@ -3994,6 +4022,9 @@ namespace dmGameSystem
                                    GuiResolvePathCallback,
                                    (dmGui::GetTextMetricsCallback) GuiGetTextMetricsCallback);
         dmGui::InitializeScript(gui_context->m_ScriptContext);
+        dmGui::SetScriptInstanceMetaData(gui_context->m_ScriptContext,
+                                         dmGameObject::META_TABLE_GET_GAME_OBJECT,
+                                         &g_GuiScriptInstanceGameObjectResolver);
 
         ComponentTypeSetPrio(type, 300);
 

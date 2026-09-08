@@ -365,7 +365,7 @@ namespace dmGameSystem
 
     dmhash_t CompCollisionObjectGetIdentifier(CollisionComponent* component)
     {
-        return dmGameObject::GetIdentifier(component->m_Instance);
+        return dmGameObject::GetIdentifier(component->m_Collection, component->m_Instance);
     }
 
     static void StoreMessage(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
@@ -458,7 +458,7 @@ namespace dmGameSystem
     }
 
     template <class DDFMessage>
-    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint16_t component_index)
+    static void BroadCast(DDFMessage* ddf, dmGameObject::HCollection collection, dmGameObject::HInstance instance, dmhash_t instance_id, uint16_t component_index)
     {
         dmhash_t message_id = DDFMessage::m_DDFDescriptor->m_NameHash;
         uintptr_t descriptor = (uintptr_t)DDFMessage::m_DDFDescriptor;
@@ -467,11 +467,11 @@ namespace dmGameSystem
         dmMessage::ResetURL(&sender);
         dmMessage::URL receiver;
         dmMessage::ResetURL(&receiver);
-        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
+        receiver.m_Socket = dmGameObject::GetMessageSocket(collection);
         receiver.m_Path = instance_id;
         // sender is the same as receiver, but with the specific collision object as fragment
         sender = receiver;
-        dmGameObject::Result r = dmGameObject::GetComponentId(instance, component_index, &sender.m_Fragment);
+        dmGameObject::Result r = dmGameObject::GetComponentId(collection, instance, component_index, &sender.m_Fragment);
         if (r != dmGameObject::RESULT_OK)
         {
             dmLogError("Could not retrieve sender component when reporting %s: %d", DDFMessage::m_DDFDescriptor->m_Name, r);
@@ -493,7 +493,7 @@ namespace dmGameSystem
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
             response_ddf.m_Fraction = response.m_Fraction;
-            response_ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
+            response_ddf.m_Id = dmGameObject::GetIdentifier(component->m_Collection, component->m_Instance);
             response_ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
             response_ddf.m_Position = response.m_Position;
             response_ddf.m_Normal = response.m_Normal;
@@ -541,8 +541,8 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance_a = component_a->m_Instance;
         dmGameObject::HInstance instance_b = component_b->m_Instance;
-        dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
-        dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+        dmhash_t instance_a_id = dmGameObject::GetIdentifier(component_a->m_Collection, instance_a);
+        dmhash_t instance_b_id = dmGameObject::GetIdentifier(component_b->m_Collection, instance_b);
 
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_exit.m_GroupB);
@@ -574,7 +574,7 @@ namespace dmGameSystem
             ddf.m_Group = group_hash_b;
             ddf.m_OwnGroup = group_hash_a;
             ddf.m_OtherGroup = group_hash_b;
-            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+            BroadCast(&ddf, component_a->m_Collection, instance_a, instance_a_id, component_a->m_ComponentIndex);
         }
 
         // Broadcast to B components
@@ -584,7 +584,7 @@ namespace dmGameSystem
             ddf.m_Group = group_hash_a;
             ddf.m_OwnGroup = group_hash_b;
             ddf.m_OtherGroup = group_hash_a;
-            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+            BroadCast(&ddf, component_b->m_Collection, instance_b, instance_b_id, component_b->m_ComponentIndex);
         }
     }
 
@@ -601,8 +601,8 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance_a = component_a->m_Instance;
         dmGameObject::HInstance instance_b = component_b->m_Instance;
-        dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
-        dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+        dmhash_t instance_a_id = dmGameObject::GetIdentifier(component_a->m_Collection, instance_a);
+        dmhash_t instance_b_id = dmGameObject::GetIdentifier(component_b->m_Collection, instance_b);
 
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_enter.m_GroupB);
@@ -634,7 +634,7 @@ namespace dmGameSystem
             ddf.m_Group = group_hash_b;
             ddf.m_OwnGroup = group_hash_a;
             ddf.m_OtherGroup = group_hash_b;
-            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+            BroadCast(&ddf, component_a->m_Collection, instance_a, instance_a_id, component_a->m_ComponentIndex);
         }
 
         // Broadcast to B components
@@ -644,7 +644,7 @@ namespace dmGameSystem
             ddf.m_Group = group_hash_a;
             ddf.m_OwnGroup = group_hash_b;
             ddf.m_OtherGroup = group_hash_a;
-            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+            BroadCast(&ddf, component_b->m_Collection, instance_b, instance_b_id, component_b->m_ComponentIndex);
         }
     }
 
@@ -666,8 +666,8 @@ namespace dmGameSystem
 
             dmGameObject::HInstance instance_a = component_a->m_Instance;
             dmGameObject::HInstance instance_b = component_b->m_Instance;
-            dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
-            dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+            dmhash_t instance_a_id = dmGameObject::GetIdentifier(component_a->m_Collection, instance_a);
+            dmhash_t instance_b_id = dmGameObject::GetIdentifier(component_b->m_Collection, instance_b);
             uint64_t group_hash_a = GetLSBGroupHash(world, group_a);
             uint64_t group_hash_b = GetLSBGroupHash(world, group_b);
 
@@ -678,12 +678,12 @@ namespace dmGameSystem
                 dmPhysicsDDF::Collision& a = ddf.m_A;
                 a.m_Group =     group_hash_a;
                 a.m_Id =        instance_a_id;
-                a.m_Position =  dmGameObject::GetWorldPosition(instance_a);
+                a.m_Position =  dmGameObject::GetWorldPosition(component_a->m_Collection, instance_a);
 
                 dmPhysicsDDF::Collision& b = ddf.m_B;
                 b.m_Group =     group_hash_b;
                 b.m_Id =        instance_b_id;
-                b.m_Position =  dmGameObject::GetWorldPosition(instance_b);
+                b.m_Position =  dmGameObject::GetWorldPosition(component_b->m_Collection, instance_b);
 
                 RunPhysicsCallback(world, dmPhysicsDDF::CollisionEvent::m_DDFDescriptor, (const char*)&ddf);
                 return true;
@@ -697,8 +697,8 @@ namespace dmGameSystem
                 ddf.m_OtherGroup = group_hash_b;
                 ddf.m_Group = group_hash_b;
                 ddf.m_OtherId = instance_b_id;
-                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
-                BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(component_b->m_Collection, instance_b);
+                BroadCast(&ddf, component_a->m_Collection, instance_a, instance_a_id, component_a->m_ComponentIndex);
             }
 
             // Broadcast to B components
@@ -709,8 +709,8 @@ namespace dmGameSystem
                 ddf.m_OtherGroup = group_hash_a;
                 ddf.m_Group = group_hash_a;
                 ddf.m_OtherId = instance_a_id;
-                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
-                BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(component_a->m_Collection, instance_a);
+                BroadCast(&ddf, component_b->m_Collection, instance_b, instance_b_id, component_b->m_ComponentIndex);
             }
 
             return true;
@@ -739,8 +739,8 @@ namespace dmGameSystem
 
             dmGameObject::HInstance instance_a = component_a->m_Instance;
             dmGameObject::HInstance instance_b = component_b->m_Instance;
-            dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
-            dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+            dmhash_t instance_a_id = dmGameObject::GetIdentifier(component_a->m_Collection, instance_a);
+            dmhash_t instance_b_id = dmGameObject::GetIdentifier(component_b->m_Collection, instance_b);
             float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
             float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
             uint64_t group_hash_a = GetLSBGroupHash(world, contact_point.m_GroupA);
@@ -756,7 +756,7 @@ namespace dmGameSystem
                 a.m_Group               = group_hash_a;
                 a.m_Id                  = instance_a_id;
                 a.m_Position            = contact_point.m_PositionA;
-                a.m_InstancePosition    = dmGameObject::GetWorldPosition(instance_a);
+                a.m_InstancePosition    = dmGameObject::GetWorldPosition(component_a->m_Collection, instance_a);
                 a.m_Mass                = mass_a;
                 a.m_RelativeVelocity    = -contact_point.m_RelativeVelocity;
                 a.m_Normal              = -contact_point.m_Normal;
@@ -765,7 +765,7 @@ namespace dmGameSystem
                 b.m_Group               = group_hash_b;
                 b.m_Id                  = instance_b_id;
                 b.m_Position            = contact_point.m_PositionB;
-                b.m_InstancePosition    = dmGameObject::GetWorldPosition(instance_b);
+                b.m_InstancePosition    = dmGameObject::GetWorldPosition(component_b->m_Collection, instance_b);
                 b.m_Mass                = mass_b;
                 b.m_RelativeVelocity    = contact_point.m_RelativeVelocity;
                 b.m_Normal              = contact_point.m_Normal;
@@ -786,12 +786,12 @@ namespace dmGameSystem
                 ddf.m_Mass = mass_a;
                 ddf.m_OtherMass = mass_b;
                 ddf.m_OtherId = instance_b_id;
-                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(component_b->m_Collection, instance_b);
                 ddf.m_Group = group_hash_b;
                 ddf.m_OwnGroup = group_hash_a;
                 ddf.m_OtherGroup = group_hash_b;
                 ddf.m_LifeTime = 0;
-                BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+                BroadCast(&ddf, component_a->m_Collection, instance_a, instance_a_id, component_a->m_ComponentIndex);
             }
 
             // Broadcast to B components
@@ -806,12 +806,12 @@ namespace dmGameSystem
                 ddf.m_Mass = mass_b;
                 ddf.m_OtherMass = mass_a;
                 ddf.m_OtherId = instance_a_id;
-                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(component_a->m_Collection, instance_a);
                 ddf.m_Group = group_hash_a;
                 ddf.m_OwnGroup = group_hash_b;
                 ddf.m_OtherGroup = group_hash_a;
                 ddf.m_LifeTime = 0;
-                BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+                BroadCast(&ddf, component_b->m_Collection, instance_b, instance_b_id, component_b->m_ComponentIndex);
             }
 
             return true;

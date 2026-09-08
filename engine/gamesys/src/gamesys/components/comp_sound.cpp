@@ -43,20 +43,20 @@ namespace dmGameSystem
 
     struct PlayEntry
     {
-        Sound*                  m_Sound;
-        dmSound::HSoundInstance m_SoundInstance;
-        dmMessage::URL          m_Listener;
-        dmMessage::URL          m_Receiver;
-        dmGameObject::HInstance m_Instance;
-        uintptr_t               m_LuaCallback;
-        float                   m_Delay;
-        uint32_t                m_PlayId;
+        Sound*                    m_Sound;
+        dmSound::HSoundInstance   m_SoundInstance;
+        dmMessage::URL            m_Listener;
+        dmMessage::URL            m_Receiver;
+        dmGameObject::HGameObject m_Instance;
+        uintptr_t                 m_LuaCallback;
+        float                     m_Delay;
+        uint32_t                  m_PlayId;
 
-        uint8_t                 m_StopRequested         : 1;
-        uint8_t                 m_PauseRequested        : 1;
-        uint8_t                 m_Paused                : 1;
-        uint8_t                 m_ShouldDispatchEvents  : 1;
-        uint8_t                                         : 4;
+        uint8_t                   m_StopRequested         : 1;
+        uint8_t                   m_PauseRequested        : 1;
+        uint8_t                   m_Paused                : 1;
+        uint8_t                   m_ShouldDispatchEvents  : 1;
+        uint8_t                                           : 4;
     };
 
     struct SoundComponent
@@ -280,7 +280,7 @@ namespace dmGameSystem
         return update_result;
     }
 
-    static dmGameObject::PropertyResult SoundSetParameter(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, dmSound::Parameter type, float value)
+    static dmGameObject::PropertyResult SoundSetParameter(SoundWorld* world, dmGameObject::HGameObject instance, SoundComponent* component, dmSound::Parameter type, float value)
     {
         switch(type) {
         case dmSound::PARAMETER_GAIN:   component->m_Gain   = value; break;
@@ -316,7 +316,7 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_OK;
     }
 
-    static dmGameObject::PropertyResult SoundGetParameter(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, dmSound::Parameter type, dmGameObject::PropertyDesc& out_value)
+    static dmGameObject::PropertyResult SoundGetParameter(SoundWorld* world, dmGameObject::HGameObject instance, SoundComponent* component, dmSound::Parameter type, dmGameObject::PropertyDesc& out_value)
     {
         float value;
         switch(type) {
@@ -499,7 +499,7 @@ namespace dmGameSystem
         SoundComponent* component = &world->m_Components.Get(index);
 
         if (params.m_PropertyId == SOUND_PROP_SOUND) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetSoundDataResource(component), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Collection), GetSoundDataResource(component), out_value);
         } else {
             dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
             if (parameter == dmSound::PARAMETER_MAX) {
@@ -517,7 +517,7 @@ namespace dmGameSystem
 
         if (params.m_PropertyId == SOUND_PROP_SOUND)
         {
-            return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, (dmhash_t*)SOUND_EXT_HASHES, DM_ARRAY_SIZE(SOUND_EXT_HASHES), (void**)&component->m_SoundData);
+            return SetResourceProperty(dmGameObject::GetFactory(params.m_Collection), params.m_Value, (dmhash_t*)SOUND_EXT_HASHES, DM_ARRAY_SIZE(SOUND_EXT_HASHES), (void**)&component->m_SoundData);
         }
 
         dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);

@@ -638,7 +638,7 @@ namespace dmEngineService
     static void HttpGameObjectRequestCallback(void* context, dmWebServer::Request* request)
     {
         ResourceHandlerParams* params = (ResourceHandlerParams*)context;
-        dmGameObject::HRegister regist = params->m_Regist;
+        dmGameObject::HContext regist = params->m_Regist;
         if (!regist)
         {
             dmWebServer::SetStatusCode(request, 500);
@@ -788,7 +788,7 @@ namespace dmEngineService
     static void HttpSceneGraphRequestCallback(void* context, dmWebServer::Request* request)
     {
         ResourceHandlerParams* params = (ResourceHandlerParams*)context;
-        dmGameObject::HRegister regist = params->m_Regist;
+        dmGameObject::HContext regist = params->m_Regist;
         if (!regist)
         {
             dmWebServer::SetStatusCode(request, 500);
@@ -835,7 +835,7 @@ namespace dmEngineService
         }
     }
 
-    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
+    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HContext regist)
     {
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;

@@ -35,8 +35,7 @@ namespace dmGameSystem
     {
         btCollisionObject*        m_Object;
         dmGameObject::HCollection m_Collection;
-        dmhash_t                  m_InstanceId;
-        uint32_t                  m_InstanceGeneration;
+        dmGameObject::HGameObject m_GameObject;
     };
 
     // Bullet collision objects are raw pointers. Assign each live pointer a
@@ -109,16 +108,14 @@ namespace dmGameSystem
             return 0;
         }
 
-        if (meta->m_InstanceId)
+        if (meta->m_GameObject)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(meta->m_Collection, meta->m_InstanceId);
-            if (!instance || dmGameObject::GetGeneration(instance) != meta->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(meta->m_Collection, meta->m_GameObject))
             {
-                dmhash_t instance_id = meta->m_InstanceId;
                 InvalidateCollisionObjectId(lua_collision_object->m_Id);
                 if (report_error)
                 {
-                    luaL_error(L, "Cannot get bullet3d collision object for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(instance_id));
+                    luaL_error(L, "Cannot get bullet3d collision object. Has the game object been deleted?");
                 }
                 return 0;
             }
@@ -195,16 +192,14 @@ namespace dmGameSystem
         return meta ? meta->m_Collection : 0;
     }
 
-    uint64_t GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmhash_t instance_id)
+    uint64_t GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object)
     {
         if (!collision_object_ptr)
         {
             return 0;
         }
 
-        btCollisionObject*      collision_object = (btCollisionObject*)collision_object_ptr;
-        dmGameObject::HInstance instance = instance_id ? dmGameObject::GetInstanceFromIdentifier(collection, instance_id) : 0;
-        uint32_t                instance_generation = instance ? dmGameObject::GetGeneration(instance) : 0;
+        btCollisionObject* collision_object = (btCollisionObject*)collision_object_ptr;
 
         EnsureCollisionObjectCapacity();
 
@@ -215,23 +210,14 @@ namespace dmGameSystem
         Bullet3DCollisionObjectMeta* existing_meta = existing_id ? g_Bullet3DCollisionObjectMeta.Get(*existing_id) : 0;
         if (existing_meta)
         {
-            dmGameObject::HInstance existing_instance = 0;
-            if (existing_meta->m_InstanceId)
+            if (existing_meta->m_GameObject)
             {
-                existing_instance = dmGameObject::GetInstanceFromIdentifier(existing_meta->m_Collection,
-                                                                             existing_meta->m_InstanceId);
-            }
-            bool stale_instance = false;
-            if (existing_meta->m_InstanceId)
-            {
-                stale_instance = !existing_instance ||
-                                 dmGameObject::GetGeneration(existing_instance) != existing_meta->m_InstanceGeneration;
-            }
-            if (stale_instance)
-            {
-                InvalidateCollisionObjectId(*existing_id);
-                existing_id = 0;
-                existing_meta = 0;
+                if (!dmGameObject::IsValid(existing_meta->m_Collection, existing_meta->m_GameObject))
+                {
+                    InvalidateCollisionObjectId(*existing_id);
+                    existing_id = 0;
+                    existing_meta = 0;
+                }
             }
         }
 
@@ -252,8 +238,7 @@ namespace dmGameSystem
         Bullet3DCollisionObjectMeta meta = {};
         meta.m_Object = collision_object;
         meta.m_Collection = collection;
-        meta.m_InstanceId = instance_id;
-        meta.m_InstanceGeneration = instance_generation;
+        meta.m_GameObject = game_object;
         existing_meta = g_Bullet3DCollisionObjectMeta.Get(id);
         if (existing_meta)
         {
@@ -267,9 +252,9 @@ namespace dmGameSystem
         return id;
     }
 
-    void PushBullet3DCollisionObject(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmhash_t instance_id)
+    void PushBullet3DCollisionObject(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object)
     {
-        uint64_t id = GetOrCreateBullet3DCollisionObjectId(L, collision_object_ptr, collection, instance_id);
+        uint64_t id = GetOrCreateBullet3DCollisionObjectId(L, collision_object_ptr, collection, game_object);
         if (!id)
         {
             lua_pushnil(L);
@@ -311,27 +296,24 @@ namespace dmGameSystem
         collision_object->setInterpolationWorldTransform(transform);
         collision_object->activate(true);
 
-        if (meta && meta->m_InstanceId)
+        if (meta && meta->m_GameObject)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(meta->m_Collection, meta->m_InstanceId);
-            if (instance)
+            dmGameObject::HGameObject hinstance = meta->m_GameObject;
+            float                     inv_scale = GetBullet3DInvPhysicsScale();
+            dmVMath::Point3           world_position(position.getX() * inv_scale, position.getY() * inv_scale, position.getZ() * inv_scale);
+            dmVMath::Quat             world_rotation(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+            dmGameObject::HGameObject hparent = dmGameObject::GetParent(meta->m_Collection, hinstance);
+            if (hparent)
             {
-                float                   inv_scale = GetBullet3DInvPhysicsScale();
-                dmVMath::Point3         world_position(position.getX() * inv_scale, position.getY() * inv_scale, position.getZ() * inv_scale);
-                dmVMath::Quat           world_rotation(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
-                dmGameObject::HInstance parent = dmGameObject::GetParent(instance);
-                if (parent)
-                {
-                    dmVMath::Matrix4 inverse_parent = dmVMath::Inverse(dmGameObject::GetWorldMatrix(parent));
-                    dmVMath::Vector4 local_position = inverse_parent * dmVMath::Vector4(world_position);
-                    dmGameObject::SetPosition(instance, dmVMath::Point3(local_position.getXYZ()));
-                    dmGameObject::SetRotation(instance, dmVMath::Conjugate(dmGameObject::GetWorldRotation(parent)) * world_rotation);
-                }
-                else
-                {
-                    dmGameObject::SetPosition(instance, world_position);
-                    dmGameObject::SetRotation(instance, world_rotation);
-                }
+                dmVMath::Matrix4 inverse_parent = dmVMath::Inverse(dmGameObject::GetWorldMatrix(meta->m_Collection, hparent));
+                dmVMath::Vector4 local_position = inverse_parent * dmVMath::Vector4(world_position);
+                dmGameObject::SetPosition(meta->m_Collection, hinstance, dmVMath::Point3(local_position.getXYZ()));
+                dmGameObject::SetRotation(meta->m_Collection, hinstance, dmVMath::Conjugate(dmGameObject::GetWorldRotation(meta->m_Collection, hparent)) * world_rotation);
+            }
+            else
+            {
+                dmGameObject::SetPosition(meta->m_Collection, hinstance, world_position);
+                dmGameObject::SetRotation(meta->m_Collection, hinstance, world_rotation);
             }
         }
     }

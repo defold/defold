@@ -854,8 +854,6 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
             (int) compression_type, path, dmGraphics::GetTextureTypeLiteral(type));
     }
 
-    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
-
     params->m_Path            = path;
     params->m_PathHash        = path_hash;
     params->m_Width           = width;
@@ -869,7 +867,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_TextureFormat   = tex_format;
     params->m_CompressionType = compression_type;
     params->m_Buffer          = buffer;
-    params->m_Collection      = dmGameObject::GetCollection(sender_instance);
+    params->m_Collection      = dmScript::CheckCollection(L);
     params->m_UsageFlags      = usage_flags;
     params->m_Data            = 0;
     params->m_DataSize        = 0;
@@ -1379,9 +1377,8 @@ static int ReleaseResource(lua_State* L)
     if (!rd) {
         return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
     }
-    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
-    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
-    dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
+    dmGameObject::HCollection hcollection   = dmScript::CheckCollection(L);
+    dmGameObject::RemoveDynamicResourceHash(hcollection, path_hash);
     dmResource::Release(g_ResourceModule.m_Factory, dmResource::GetResource(rd));
     return 0;
 }
@@ -2491,8 +2488,7 @@ static int CreateAtlas(lua_State* L)
         lua_pop(L, 1); // args table
     }
 
-    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
-    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+    dmGameObject::HCollection hcollection   = dmScript::CheckCollection(L);
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
@@ -2508,7 +2504,7 @@ static int CreateAtlas(lua_State* L)
         return ReportPathError(L, res, canonical_path_hash);
     }
 
-    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmGameObject::AddDynamicResourceHash(hcollection, canonical_path_hash);
     dmScript::PushHash(L, canonical_path_hash);
 
     return 1;
@@ -2921,9 +2917,8 @@ static int CreateSoundData(lua_State* L)
         return ReportPathError(L, res, canonical_path_hash);
     }
 
-    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
-    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
-    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmGameObject::HCollection hcollection   = dmScript::CheckCollection(L);
+    dmGameObject::AddDynamicResourceHash(hcollection, canonical_path_hash);
     dmScript::PushHash(L, canonical_path_hash);
 
     return 1;
@@ -3035,8 +3030,7 @@ static int CreateBuffer(lua_State* L)
 
     lua_pop(L, 1); // args table
 
-    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
-    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+    dmGameObject::HCollection hcollection   = dmScript::CheckCollection(L);
 
     // JG: We have to do this awkwardness because the create functions for the resource
     //     dmDDF::LoadMessage won't accept an empty dmBufferDDF::BufferDesc structure
@@ -3119,7 +3113,7 @@ static int CreateBuffer(lua_State* L)
         lua_buffer->m_BufferResVersion  = dmResource::GetVersion(g_ResourceModule.m_Factory, resource);
     }
 
-    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmGameObject::AddDynamicResourceHash(hcollection, canonical_path_hash);
 
     dmScript::PushHash(L, canonical_path_hash);
 

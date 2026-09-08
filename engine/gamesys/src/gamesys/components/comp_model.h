@@ -58,7 +58,7 @@ namespace dmGameSystem
     struct ModelResource;
 
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
-    dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
+    dmGameObject::HGameObject CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
     bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
     bool                    CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out);
     uint32_t                CompModelGetMeshCount(ModelComponent* component);
@@ -71,7 +71,7 @@ namespace dmGameSystem
     bool                    CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count);
 
     // these aren't used yet??
-    bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
+    bool CompModelSetIKTargetInstance(ModelWorld* world, ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
     bool CompModelSetIKTargetPosition(ModelComponent* component, dmhash_t constraint_id, float mix, dmVMath::Point3 position);
 }
 

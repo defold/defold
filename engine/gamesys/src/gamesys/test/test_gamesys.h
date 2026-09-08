@@ -50,19 +50,19 @@
 
 #include <string.h>
 
-static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties,
+static inline dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties,
                                             const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
+        dmGameObject::HGameObject result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
     return 0x0;
 }
 
-static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
+static inline dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
 {
     return Spawn(factory, collection, prototype_name, id, 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
 }
@@ -158,7 +158,7 @@ protected:
     void WaitForTestsDone(int update_count, bool render, bool* result);
 
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_Config;
@@ -670,7 +670,7 @@ void GamesysTest<T>::SetUp()
     gui_params.m_HidContext = m_HidContext;
     m_GuiContext = dmGui::NewContext(&gui_params);
 
-    m_Register = dmGameObject::NewRegister();
+    m_Register = dmGameObject::NewContext();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
     char config_buffer[64];
@@ -838,7 +838,7 @@ void GamesysTest<T>::TearDown()
     SetupComponentCreateContext(component_create_ctx, component_create_ctx_impl);
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
-    dmGameObject::DeleteRegister(m_Register);
+    dmGameObject::DeleteContext(m_Register);
 
     dmSound::Finalize();
     dmInput::DeleteContext(m_InputContext);

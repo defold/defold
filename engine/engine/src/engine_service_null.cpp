@@ -42,7 +42,7 @@ dmWebServer::HServer dmEngineService::GetWebServer(dmEngineService::HEngineServi
     return 0;
 }
 
-void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
+void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HContext regist)
 {
 }
 
