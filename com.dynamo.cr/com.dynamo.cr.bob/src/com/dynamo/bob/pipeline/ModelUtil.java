@@ -1759,6 +1759,15 @@ public class ModelUtil {
     }
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector, Set<Integer> forcedRawModelIndices) throws LoaderException {
+        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, forcedRawModelIndices, false);
+    }
+
+    /** Includes unnamed raw meshes for editor previews without changing build output. */
+    public static void loadModelsForPreview(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, Collections.emptySet(), true);
+    }
+
+    private static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector, Set<Integer> forcedRawModelIndices, boolean includeUnnamedMeshes) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
@@ -1776,7 +1785,7 @@ public class ModelUtil {
 
         ArrayList<Rig.Model> rawModels = new ArrayList<>();
         for (Model model : scene.models) {
-            if (model.nameIsGenerated) {
+            if (model.nameIsGenerated && !includeUnnamedMeshes) {
                 continue;
             }
             boolean includeGeometry = forcedRawModelIndices.contains(model.index) || !instantiatedModelIndices.contains(model.index);

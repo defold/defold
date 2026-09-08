@@ -15,6 +15,7 @@
 (ns integration.gltf-asset-browser-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.fs :as fs]
             [editor.resource :as resource]
@@ -39,19 +40,19 @@
        "\"scenes\":[{\"nodes\":[0]}],"
        "\"nodes\":[{\"mesh\":0,\"name\":\"Node0\"}],"
        "\"meshes\":["
-       "{\"name\":\"mymesh\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]},"
-       "{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]},"
-       "{\"name\":\"Shared\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]},"
-       "{\"name\":\"Shared\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]},"
-       "{\"name\":\"   \",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]},"
-       "{\"name\":\"bad/name\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]}],"
+       "{\"name\":\"mymesh\",\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":2},\"indices\":1,\"material\":0}]},"
+       "{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":2},\"indices\":1,\"material\":0}]},"
+       "{\"name\":\"Shared\",\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":2},\"indices\":1,\"material\":0}]},"
+       "{\"name\":\"Shared\",\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":2},\"indices\":1,\"material\":0}]},"
+       "{\"name\":\"   \",\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":2},\"indices\":1,\"material\":0}]},"
+       "{\"name\":\"bad/name\",\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":2},\"indices\":1,\"material\":0}]}],"
        "\"buffers\":[" buffer-json "],"
        "\"bufferViews\":["
        "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},"
        "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":6}],"
        "\"accessors\":["
        "{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[1,1,0]},"
-       "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}],"
+       "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"},{\"componentType\":5126,\"count\":3,\"type\":\"VEC2\"}],"
        "\"images\":[{\"name\":\"Albedo\",\"uri\":\"data:image/png;base64,"
        image-base64
        "\"}],"
@@ -157,6 +158,24 @@
                              (asset-browser/resource-tree-cell-text mesh-resource)))
                       (is (= :file (resource/source-type mesh-resource)))
                       (is (resource/read-only? mesh-resource))
-                      (is (false? (resource/openable? mesh-resource)))
+                      (is (true? (resource/openable? mesh-resource)))
                       (is (= "icons/32/Icons_27-AT-Mesh.png"
                              (workspace/resource-icon mesh-resource))))))))))))))
+
+(deftest gltf-assets-copy-preview-and-delete
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
+        source-file (io/file project-path "robot.glb")]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! source-file (glb-content "Paint/Chrome"))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              mesh-resource (workspace/find-resource workspace "/robot.glb/meshes/Mesh 1")
+              mesh-node (test-util/resource-node project (resource/proj-path mesh-resource))]
+          (testing "an unreferenced, unnamed mesh has its own read-only preview"
+            (is (resource/editor-openable-resource? mesh-resource))
+            (is (= [:scene] (mapv :id (workspace/resource-view-types mesh-resource))))
+            (let [scene (g/node-value mesh-node :scene)]
+              (is (not (g/error-value? scene)))
+              (is (= mesh-node (:node-id scene)))
+              (is (= [1] (into [] (keep :mesh-index) (:children scene)))))))))))

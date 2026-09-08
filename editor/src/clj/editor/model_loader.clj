@@ -112,7 +112,7 @@
         morph-target-texture-collector (ModelUtil/createMorphTargetTextureCollector)]
     (when-not (coll/empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
+    (ModelUtil/loadModelsForPreview scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set

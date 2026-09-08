@@ -153,7 +153,7 @@
           (is (= :file (resource/source-type mesh-resource)))
           (is (= :file (resource/source-type material-resource)))
           (is (= :file (resource/source-type image-resource)))
-          (is (= "" (resource/type-ext mesh-resource)))
+          (is (= "gltf-mesh" (resource/type-ext mesh-resource)))
           (is (= "material" (resource/type-ext material-resource)))
           (is (= "png" (resource/type-ext image-resource)))
           (is (resource/read-only? mesh-resource))
@@ -162,7 +162,7 @@
           (is (resource/loaded? mesh-resource))
           (is (resource/loaded? material-resource))
           (is (resource/loaded? image-resource))
-          (is (false? (resource/openable? mesh-resource)))
+          (is (true? (resource/openable? mesh-resource)))
           (is (= "icons/32/Icons_27-AT-Mesh.png"
                  (workspace/resource-icon mesh-resource)))
           (is (zero? (count (resource/resource->bytes mesh-resource))))
@@ -326,7 +326,7 @@
                     (workspace/find-resource workspace "/models/renamed.gltf/images/0.png")))
               (let [renamed-mesh-resource (workspace/find-resource workspace renamed-mesh-proj-path)]
                 (is (resource/exists? renamed-mesh-resource))
-                (is (false? (resource/openable? renamed-mesh-resource)))
+                (is (true? (resource/openable? renamed-mesh-resource)))
                 (is (= "icons/32/Icons_27-AT-Mesh.png"
                        (workspace/resource-icon renamed-mesh-resource)))))))))))
 
@@ -451,7 +451,7 @@
               (is (resource/gltf-resource? image-resource))
               (is (= :file (resource/source-type mesh-resource)))
               (is (resource/read-only? mesh-resource))
-              (is (false? (resource/openable? mesh-resource)))
+              (is (true? (resource/openable? mesh-resource)))
               (is (= "icons/32/Icons_27-AT-Mesh.png"
                      (workspace/resource-icon mesh-resource)))
               (is (.contains (String. ^bytes (resource/resource->bytes material-resource)

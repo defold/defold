@@ -1232,13 +1232,44 @@
   (output source-scene g/Any :cached produce-source-scene)
   (output scene g/Any :cached produce-scene))
 
+(g/defnode GltfMeshNode
+  (inherits resource-node/ResourceNode)
+
+  (property source g/Any
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:scene :source-scene]))))
+
+  (input source-scene g/Any)
+
+  (output scene g/Any :cached
+          (g/fnk [_node-id resource source-scene]
+            (augment-scene source-scene _node-id "" (constantly nil) false
+                           (:index (resource/gltf-resource-asset-info resource))))))
+
+(defn- load-gltf-mesh-node
+  "Connects a virtual mesh preview to its source scene so materials and reloads are shared."
+  [_project self mesh-resource]
+  (let [source-proj-path (-> mesh-resource resource/proj-path resource/parent-proj-path resource/parent-proj-path)
+        source-resource (workspace/resolve-workspace-resource (resource/workspace mesh-resource) source-proj-path)]
+    (g/set-property self :source source-resource)))
+
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-    :ext model-file-types
-    :label (localization/message "resource.type.model-scene")
-    :node-type ModelSceneNode
-    :load-fn load-model-scene-node
-    :read-fn model-loader/read-external-buffer-uris
-    :icon mesh-icon
-    :icon-class :design
-    :view-types [:scene :text]))
+  (into
+    (workspace/register-resource-type workspace
+      :ext model-file-types
+      :label (localization/message "resource.type.model-scene")
+      :node-type ModelSceneNode
+      :load-fn load-model-scene-node
+      :read-fn model-loader/read-external-buffer-uris
+      :icon mesh-icon
+      :icon-class :design
+      :view-types [:scene :text])
+    (workspace/register-resource-type workspace
+      :ext "gltf-mesh"
+      :node-type GltfMeshNode
+      :load-fn load-gltf-mesh-node
+      :icon mesh-icon
+      :icon-class :design
+      :view-types [:scene])))

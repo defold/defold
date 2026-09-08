@@ -402,6 +402,13 @@ public class ModelUtilTest {
 
         assertEquals(1, meshSetBuilder.getRawModelsCount());
         assertEquals(0, meshSetBuilder.getRawModels(0).getMeshIndex());
+
+        Rig.MeshSet.Builder previewMeshSetBuilder = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModelsForPreview(scene, previewMeshSetBuilder, 0, 0, null);
+
+        assertEquals(2, previewMeshSetBuilder.getRawModelsCount());
+        assertEquals(0, previewMeshSetBuilder.getRawModels(0).getMeshIndex());
+        assertEquals(1, previewMeshSetBuilder.getRawModels(1).getMeshIndex());
     }
 
     @Test

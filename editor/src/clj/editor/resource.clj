@@ -571,7 +571,7 @@
   (children [_this] children)
   (ext [_this]
     (if (= :mesh (:kind asset-info))
-      ""
+      "gltf-mesh"
       (FilenameUtils/getExtension name)))
   (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [_this] (if content :file :folder))
@@ -585,8 +585,7 @@
   (workspace [_this] workspace)
   (resource-hash [this] (hash (proj-path this)))
   (openable? [this]
-    (and (not= :mesh (:kind asset-info))
-         content
+    (and content
          (if (:editor-openable (resource-type this))
            loaded
            true)))
