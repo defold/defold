@@ -183,7 +183,7 @@
   (digest-raw! "}" writer))
 
 (defn- to-sorted-set [set]
-  {:pre [(set? set)]}
+  {:pre [(instance? java.util.Set set)]}
   (if (or (sorted? set)
           (< (count set) 2))
     set
@@ -231,7 +231,7 @@
   (digest! [value writer opts]
     (digest-tagged! 'Function (fn->symbol value) writer opts))
 
-  clojure.lang.IPersistentSet
+  java.util.Set
   (digest! [value writer opts]
     (digest-set! value writer opts))
 
