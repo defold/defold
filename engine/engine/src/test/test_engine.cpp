@@ -384,9 +384,11 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
 
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
+    // Keep slow runners from exercising missed-deadline catch-up in this test.
     const char* argv[] = {
         "dmengine",
         "--config=display.update_frequency=100",
+        "--config=engine.max_time_step=0.01",
         "--config=dmengine.unload_builtins=0",
         project_path
     };
