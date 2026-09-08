@@ -47,7 +47,6 @@ namespace dmGraphics
 #endif
 
         WGPUBuffer                 m_Buffer = NULL;
-        dmArray<uint8_t>           m_ShadowData;
         size_t                     m_Used = 0;
         size_t                     m_LastRenderPass = 0;
     };

@@ -2275,17 +2275,11 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
         WGPUBufferDescriptor desc = {};
 #endif
         desc.usage                = buffer->m_Usage;
-        // Keep the engine-facing size exact, but leave room for the aligned
-        // writes required by queue.writeBuffer(). The shadow copy lets partial
-        // writes preserve bytes surrounding an unaligned update.
+        // Keep the engine-facing size exact, but leave room for padding when
+        // the data ends mid-word. queue.writeBuffer() requires four-byte writes.
         desc.size                 = DM_ALIGN(size, write_alignment);
         buffer->m_Buffer          = wgpuDeviceCreateBuffer(context->m_Device, &desc);
         buffer->m_Used = buffer->m_Base.m_Size = size;
-
-        if (buffer->m_ShadowData.Capacity() < desc.size)
-            buffer->m_ShadowData.SetCapacity(desc.size);
-        buffer->m_ShadowData.SetSize(desc.size);
-        memset(buffer->m_ShadowData.Begin(), 0, desc.size);
     }
     else if (buffer->m_LastRenderPass && buffer->m_LastRenderPass > context->m_LastSubmittedRenderPass) // flush pipeline
     {
@@ -2296,14 +2290,30 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
     if (!data)
         return;
 
-    assert(offset + size <= buffer->m_ShadowData.Size());
-    memcpy(buffer->m_ShadowData.Begin() + offset, data, size);
+    if (offset % write_alignment)
+    {
+        dmLogError("WebGPU buffer write offset must be a multiple of four (offset: %zu).", offset);
+        return;
+    }
 
-    const size_t aligned_offset = offset & ~(write_alignment - 1);
-    const size_t aligned_end    = DM_ALIGN(offset + size, write_alignment);
-    const size_t aligned_size   = aligned_end - aligned_offset;
-    wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, aligned_offset,
-                         buffer->m_ShadowData.Begin() + aligned_offset, aligned_size);
+    const size_t aligned_size = size & ~(write_alignment - 1);
+    // Padding is only safe at the logical end of the buffer. An interior
+    // partial-word update would overwrite bytes outside the requested range.
+    if (aligned_size != size && offset + size != buffer->m_Used)
+    {
+        dmLogError("WebGPU buffer sub-data writes must end on a four-byte boundary.");
+        return;
+    }
+
+    if (aligned_size)
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, aligned_size);
+
+    if (aligned_size != size)
+    {
+        uint32_t tail = 0;
+        memcpy(&tail, (const uint8_t*)data + aligned_size, size - aligned_size);
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset + aligned_size, &tail, sizeof(tail));
+    }
 }
 
 static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
