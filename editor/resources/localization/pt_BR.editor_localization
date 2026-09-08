@@ -1790,8 +1790,11 @@ form.label.project.display.fullscreen = Tela Cheia
 form.label.project.display.display_profiles = Perfis de Exibição
 form.label.project.display.dynamic_orientation = Orientação Dinâmica
 form.label.project.display.update_frequency = Frequência da Atualização
+form.help.project.display.update_frequency = Frequência desejada do loop do jogo e da renderização, em hertz. `0` usa uma taxa de quadros variável. Nas plataformas em que o Defold controla o loop do aplicativo, um valor positivo usa cadenciamento por temporizador e desativa temporariamente o VSync da apresentação; o **Intervalo de Troca** solicitado é restaurado quando este valor volta a `0`.
 form.label.project.display.swap_interval = Intervalo de Troca
+form.help.project.display.swap_interval = Solicita a apresentação em relação à taxa de atualização da tela. `0` desativa a sincronização vertical e `1` apresenta a cada atualização. Valores maiores podem pular intervalos no OpenGL, enquanto Vulkan e Metal tratam qualquer valor diferente de zero como sincronização vertical ativada. Nas plataformas em que o Defold controla o loop do aplicativo, uma **Frequência da Atualização** positiva substitui temporariamente este valor por `0`. O comportamento real depende do backend e do driver.
 form.label.project.display.vsync = Vsync
+form.help.project.display.vsync = **Configuração de compatibilidade obsoleta.** Quando desativada, força o **Intervalo de Troca** solicitado para `0`; quando ativada, o **Intervalo de Troca** determina o comportamento, a menos que uma **Frequência da Atualização** positiva habilite o cadenciamento por temporizador. Use o **Intervalo de Troca** em novos projetos.
 form.label.project.display.variable_dt = DT Variável
 form.label.project.display.display_device_info = Exibir Informações do Dispositivo
 
