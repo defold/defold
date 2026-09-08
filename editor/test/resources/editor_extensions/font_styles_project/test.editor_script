@@ -1,0 +1,78 @@
+local M = {}
+
+local function check_styles(expected)
+    local styles = editor.get("/test.font", "styles")
+    assert(#styles == #expected, "Unexpected number of authored styles")
+    for i, style in ipairs(styles) do
+        assert(editor.get(style, "id") == expected[i].id, "Unexpected style id")
+        assert(editor.get(style, "markup") == expected[i].markup, "Unexpected style markup")
+        assert(editor.can_set(style, "id"))
+        assert(editor.can_set(style, "markup"))
+    end
+    return styles
+end
+
+function M.get_commands()
+    return {
+        {
+            label = "Test font styles",
+            locations = {"Outline"},
+            query = {selection = {type = "outline", cardinality = "one"}},
+            run = function(opts)
+                local font = "/test.font"
+                local default_style = opts.selection
+                local markup = "<color=#aa3300>\n<ul>"
+
+                assert(editor.can_get(font, "styles"))
+                assert(editor.can_add(font, "styles"))
+                assert(not editor.can_set(font, "styles"))
+                assert(editor.get(default_style, "id") == "default")
+                assert(not editor.can_set(default_style, "id"))
+                assert(not editor.can_set(default_style, "markup"))
+                assert(not pcall(editor.tx.set, default_style, "id", "renamed"))
+                assert(not pcall(editor.tx.set, default_style, "markup", "<ul>"))
+                assert(not pcall(editor.tx.remove, font, "styles", default_style))
+
+                local styles = check_styles({{id = "style1", markup = "<color=#00ff00>"}})
+                editor.transact({
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"}),
+                    editor.tx.set(styles[1], "id", "notice"),
+                    editor.tx.set(styles[1], "markup", markup)
+                })
+                styles = check_styles({
+                    {id = "notice", markup = markup},
+                    {id = "style2", markup = ""},
+                    {id = "style3", markup = ""},
+                    {id = "accent", markup = "<color=#ff6600>"}
+                })
+
+                editor.transact({editor.tx.remove(font, "styles", styles[2])})
+                check_styles({
+                    {id = "notice", markup = markup},
+                    {id = "style3", markup = ""},
+                    {id = "accent", markup = "<color=#ff6600>"}
+                })
+
+                editor.transact({editor.tx.clear(font, "styles")})
+                check_styles({})
+                assert(editor.get(default_style, "id") == "default")
+                assert(editor.get(default_style, "markup") == "")
+
+                editor.transact({
+                    editor.tx.add(font, "styles", {id = "notice", markup = markup}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"})
+                })
+                check_styles({
+                    {id = "notice", markup = markup},
+                    {id = "accent", markup = "<color=#ff6600>"}
+                })
+                editor.save()
+                print("Font styles edited and saved")
+            end
+        }
+    }
+end
+
+return M

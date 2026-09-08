@@ -2400,6 +2400,46 @@ After transaction (clear collection)
       (run-edit-menu-test-command!)
       (expect-script-output expected-attachment-test-output out))))
 
+(deftest font-style-attachments-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/font_styles_project"
+    (let [output (atom [])
+          font-node (test-util/resource-node project "/test.font")
+          default-outline (decorated-outline font-node [0 0])
+          default-node (:node-id default-outline)
+          original (g/node-value font-node :save-value)]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (g/reset-undo! :undo/global)
+      (let [handler+context (handler/active
+                              (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
+                              (eval-handler-contexts :outline [default-outline])
+                              {})]
+        @(handler/run handler+context))
+      (is (= [[:out "Font styles edited and saved"]] @output))
+      (let [saved (g/node-value font-node :save-value)]
+        (is (= [{:name "default"}
+                {:name "notice" :markup "<color=#aa3300>\n<ul>"}
+                {:name "accent" :markup "<color=#ff6600>"}]
+               (:styles saved)))
+        (is (= default-node (:node-id (first (g/node-value font-node :style-infos)))))
+        (is (not (g/error-fatal? (g/node-value font-node :build-targets))))
+        (doseq [names [["default"]
+                       ["default" "notice" "style3" "accent"]
+                       ["default" "notice" "style2" "style3" "accent"]
+                       ["default" "style1"]]]
+          (g/undo! :undo/global)
+          (is (= names (mapv :name (:styles (g/node-value font-node :save-value))))))
+        (is (= original (g/node-value font-node :save-value)))
+        (dotimes [_ 4]
+          (g/redo! :undo/global))
+        (is (= saved (g/node-value font-node :save-value)))
+        (io/copy (io/file (workspace/project-directory workspace) "test.font")
+                 (io/file (workspace/project-directory workspace) "roundtrip.font"))
+        (workspace/resource-sync! workspace)
+        (let [reloaded (test-util/resource-node project "/roundtrip.font")]
+          (is (= saved (g/node-value reloaded :save-value)))
+          (is (= ["(default)" "notice" "accent"]
+                 (mapv (comp test-util/localization :label) (get-in (g/node-value reloaded :node-outline) [:children 0 :children])))))))))
+
 (def ^:private expected-resources-as-nodes-test-output
   "Directory read:
   can get path: true

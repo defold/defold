@@ -24,6 +24,8 @@
             [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.editor-extensions.graph :as ext-graph]
+            [editor.editor-extensions.runtime :as rt]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -43,6 +45,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
+            [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [schema.core :as schema]
@@ -2083,6 +2086,14 @@
       (when-let [font-node (handler/adapt-single selection FontNode evaluation-context)]
         (g/node-value font-node :styles-node evaluation-context))))
 
+(defn- next-style-name [parent evaluation-context]
+  (let [names (set (g/node-value parent :style-names evaluation-context))]
+    (loop [index 1]
+      (let [candidate (str "style" index)]
+        (if-not (contains? names candidate)
+          candidate
+          (recur (inc index)))))))
+
 (handler/defhandler :edit.add-embedded-component :workbench
   :label (localization/message "command.edit.add-embedded-component.variant.font")
   (active? [selection evaluation-context]
@@ -2090,12 +2101,7 @@
   (run [selection app-view]
     (g/with-auto-evaluation-context evaluation-context
       (let [parent (selection->styles-node selection evaluation-context)
-            names (set (g/node-value parent :style-names evaluation-context))
-            name (loop [index 1]
-                   (let [candidate (str "style" index)]
-                     (if (contains? names candidate)
-                       (recur (inc index))
-                       candidate)))
+            name (next-style-name parent evaluation-context)
             op-seq (gensym)
             nodes (g/tx-nodes-added
                     (g/transact
@@ -2104,11 +2110,22 @@
                        (make-style parent {:name name :markup ""})]))]
         (g/transact [(g/operation-sequence op-seq) (app-view/select app-view nodes)])))))
 
+(defmethod ext-graph/init-attachment ::FontStyle
+  [evaluation-context rt project parent-node-id _child-node-type child-node-id attachment]
+  (-> attachment
+      (eutil/provide-defaults
+        "id" (rt/->lua (next-style-name parent-node-id evaluation-context)))
+      (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
 (defn register-resource-types [workspace]
   (into [] cat
     [(attachment/register workspace FontStylesNode :styles
                          :add {FontStyle attach-style}
-                         :get (attachment/nodes-by-type-getter FontStyle))
+                         :get (fn [node evaluation-context]
+                                ;; The generated default is not part of the editable style list.
+                                (into []
+                                      (remove #(g/node-value % :generated evaluation-context))
+                                      (attachment/nodes-getter node evaluation-context))))
      (attachment/define-alternative workspace FontNode
                                     (fn [node evaluation-context]
                                       (g/node-value node :styles-node evaluation-context)))
