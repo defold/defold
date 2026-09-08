@@ -2490,8 +2490,8 @@
 (defn make-editor-tab!
   "Creates an editor tab from a tab specification, adds it to `tabs`, and returns
   the Tab. This is the resource-independent part of opening an editor tab: it
-  creates the view graph, connects the resulting WorkbenchView to the AppView,
-  and disposes the view graph when the tab closes.
+  creates the WorkbenchView in the AppView's graph, connects it to the AppView,
+  and disposes the view node when the tab closes.
 
   The tab specification is a map with:
     `:title` - required, tab label, a localization message or a string
@@ -2505,12 +2505,12 @@
     `:view-type` - optional, view-type map. See workspace/register-view-type
     `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
                          wrapping the view parent
-    `:make-view-fn` - required, (fn [view-graph parent opts]) returning a
+    `:make-view-fn` - required, (fn [graph parent opts]) returning a
                       view/WorkbenchView created in the supplied graph
     `:connect-view-fn` - optional, (fn [view-node-id]) returning transaction
                          data applied together with the AppView connections
     `:on-closed-fn` - optional, (fn [view-node-id]) called when the tab closes,
-                      before the view graph is disposed
+                      before the view node is disposed
 
   `opts` is passed on to `:make-view-fn` with the AppView and the Tab added."
   [app-view localization ^ObservableList tabs tab-spec opts]
@@ -2526,9 +2526,9 @@
               (.setGraphic icon)
               (editor-tab/set-view-type! view-type)
               (editor-tab/set-instance-key! instance-key))
-        view-graph (g/make-graph!)
+        graph (g/node-id->graph-id app-view)
         undo-stack-revisions-before (g/undo-stack-revisions)
-        view (make-view-fn view-graph parent (assoc opts :app-view app-view :tab tab))]
+        view (make-view-fn graph parent (assoc opts :app-view app-view :tab tab))]
     (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
             (format "The editor tab :make-view-fn created undo steps for '%s'."
                     (.getText tab)))
@@ -2551,7 +2551,7 @@
                      (when on-closed-fn
                        (on-closed-fn view))
 
-                     ;; The menu refresh can occur after the view graph is
+                     ;; The menu refresh can occur after the view node is
                      ;; deleted but before the tab controls lose input focus,
                      ;; causing handlers to evaluate against deleted graph
                      ;; nodes. Using run-later here prevents this.
@@ -2559,7 +2559,7 @@
                        (doto tab
                          (editor-tab/set-view-type! nil)
                          (editor-tab/set-view-node-id! nil))
-                       (g/delete-graph! view-graph))))
+                       (g/transact {:undoable false} (g/delete-node view)))))
     tab))
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
@@ -3454,7 +3454,7 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 view-graph (g/make-graph! :volatility 2)
+                                 graph (g/node-id->graph-id app-view)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
@@ -3462,19 +3462,21 @@
                                         :project project
                                         :workspace workspace)
                                  undo-stack-revisions-before (g/undo-stack-revisions)
-                                 preview (make-preview-fn view-graph resource-node opts 256 256)]
-                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-                                     (format "The %s view-type :make-preview-fn created undo steps for '%s'."
-                                             (:id view-type)
-                                             (resource/proj-path resource)))
-                             (.setImage image-view ^Image (g/node-value preview :image))
-                             (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
-                               (dispose-preview-fn preview))
-                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-                                     (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
-                                             (:id view-type)
-                                             (resource/proj-path resource)))
-                             (g/delete-graph! view-graph)))))}))))
+                                 preview (make-preview-fn graph resource-node opts 256 256)]
+                             (try
+                               (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                       (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                                               (:id view-type)
+                                               (resource/proj-path resource)))
+                               (.setImage image-view ^Image (g/node-value preview :image))
+                               (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                                 (dispose-preview-fn preview))
+                               (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                       (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                               (:id view-type)
+                                               (resource/proj-path resource)))
+                               (finally
+                                 (g/transact {:undoable false} (g/delete-node preview))))))))}))))
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])
 

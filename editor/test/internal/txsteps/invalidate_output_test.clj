@@ -23,8 +23,7 @@
 
 (deftest evicts-cache-entry-associated-with-invalidated-output-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          node-id (g/make-node! graph-id helpers/PropertyTestNode
+    (let [node-id (g/make-node! world helpers/PropertyTestNode
                     :basic-property :basic-property-value
                     :effecting-property :effecting-property-value)
           invalidated-output-endpoint (g/endpoint node-id :basic-output)
@@ -47,14 +46,12 @@
 
 (deftest evicts-cache-entries-associated-with-explicit-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id
+    (let [[source-node-id
            target-node-id
            downstream-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [source-node-id [helpers/ConnectionSourceNode :property :source-value]
                  target-node-id helpers/ConnectionTargetNode
                  downstream-node-id helpers/ConnectionTargetNode]
@@ -83,14 +80,12 @@
 
 (deftest evicts-cache-entries-associated-with-implicit-override-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [owner-node-id
+    (let [[owner-node-id
            directly-owned-node-id
            indirectly-owned-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [owner-node-id [helpers/OverrideTestNode :property :owner-property-value]
                  directly-owned-node-id [helpers/OverrideTestNode :property :directly-owned-property-value]
                  indirectly-owned-node-id [helpers/OverrideTestNode :property :indirectly-owned-property-value]]
@@ -133,8 +128,7 @@
 
 (deftest invalidates-output-on-undo-and-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          node-id (g/make-node! graph-id helpers/PropertyTestNode
+    (let [node-id (g/make-node! world helpers/PropertyTestNode
                     :basic-property :basic-property-value
                     :effecting-property :effecting-property-value)
           invalidated-output-endpoint (g/endpoint node-id :basic-output)
