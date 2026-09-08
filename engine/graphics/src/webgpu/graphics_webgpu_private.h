@@ -247,6 +247,7 @@ namespace dmGraphics
         uint32_t            m_ApplyRenderTargetLoadOps : 1;
         uint32_t            m_HasValidationError : 1;
         uint32_t            m_InitComplete : 1;
+        uint32_t            m_OpaqueSurface : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };

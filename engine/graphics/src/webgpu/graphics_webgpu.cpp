@@ -1095,6 +1095,17 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
             write_mask |= WGPUColorWriteMask_Blue;
         if (context->m_CurrentPipelineState.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_A)
             write_mask |= WGPUColorWriteMask_Alpha;
+
+        // A WebGL context created with alpha:false has no destination alpha
+        // channel. WebGPU surfaces are always RGBA, and alphaMode:"opaque"
+        // only controls how the browser presents that channel. Keep the
+        // backing alpha untouched on opaque HTML5 surfaces as well, both for
+        // WebGL parity and for browsers that do not yet honor opaque canvas
+        // compositing consistently (for example, Mozilla bug 2007510).
+        // Off-screen targets must retain the color mask requested by the
+        // application.
+        if (context->m_OpaqueSurface && context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
+            write_mask &= ~WGPUColorWriteMask_Alpha;
 #if defined(DM_GRAPHICS_WEBGPU2)
         WGPUBlendState blend_state  = WGPU_BLEND_STATE_INIT;
 #else
@@ -1152,9 +1163,10 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         // important because framebuffer alpha must not affect page compositing
         // when transparency is disabled. WebGL uses premultiplied alpha when a
         // transparent context is requested, so use the same mode here.
-        surface_conf.alphaMode = dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_ALPHA_BITS) > 0
-            ? WGPUCompositeAlphaMode_Premultiplied
-            : WGPUCompositeAlphaMode_Opaque;
+        context->m_OpaqueSurface = dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_ALPHA_BITS) == 0;
+        surface_conf.alphaMode = context->m_OpaqueSurface
+            ? WGPUCompositeAlphaMode_Opaque
+            : WGPUCompositeAlphaMode_Premultiplied;
 #endif
         wgpuSurfaceConfigure(context->m_Surface, &surface_conf);
     }
@@ -2051,7 +2063,12 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUEndRenderPass(context);
-    const float clear_color[] = { red / 255.0f, green / 255.0f, blue / 255.0f, alpha / 255.0f };
+    // WebGL alpha:false behaves as an RGB default framebuffer. Initialize the
+    // otherwise real WebGPU surface alpha channel to opaque before suppressing
+    // alpha writes in render pipelines (see the color-target setup above).
+    const bool clear_opaque_surface = context->m_OpaqueSurface && context->m_CurrentRenderTarget == context->m_MainRenderTarget;
+    const uint8_t effective_alpha = clear_opaque_surface ? 255 : alpha;
+    const float clear_color[] = { red / 255.0f, green / 255.0f, blue / 255.0f, effective_alpha / 255.0f };
     WebGPUBeginRenderPass(context, flags, (flags & (dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT | dmGraphics::BUFFER_TYPE_COLOR2_BIT | dmGraphics::BUFFER_TYPE_COLOR3_BIT)) ? clear_color : 0,
                           (flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT) ? &depth : 0,
                           (flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT) ? &stencil : 0);
