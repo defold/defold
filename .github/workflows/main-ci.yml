@@ -133,8 +133,8 @@ jobs:
             engine_args: "--skip-tests --skip-builtins --skip-docs"
             dotnet: true
             codesign: true
-          - name: "bld-eng-darwin (x86_64-ios, true)"
-            platform: x86_64-ios
+          - name: "bld-eng-darwin (arm64_sim-ios, true)"
+            platform: arm64_sim-ios
             runner: macos-26
             timeout: 30
             engine_args: "--skip-tests --skip-builtins --skip-docs"
@@ -205,7 +205,7 @@ jobs:
         # No cache for a contrib build, and none for a repository dispatch: that always
         # reports github.ref as the default branch, so it would cache into another's scope.
         if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: "~/.dcache"
           key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
@@ -214,7 +214,7 @@ jobs:
             ${{ runner.os }}-dcache-
       - name: "Cache lein installation and Maven dependencies for docs"
         if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |-
             editor/build/lein
@@ -227,7 +227,7 @@ jobs:
             ${{ runner.os }}-lein-docs-
       - &step_python
         name: "Install Python"
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: 3.13
       - name: "XCode"
@@ -302,7 +302,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: "Cache Android AVD"
         if: "matrix.emulator && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |-
             ~/.android/avd/*
@@ -477,7 +477,7 @@ jobs:
         # Without S3 credentials build_bob falls back to the artifacts in $DYNAMO_HOME,
         # so every engine build has to be restored there first.
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: "dynamo-home-*"
           merge-multiple: true
@@ -515,7 +515,7 @@ jobs:
       - *step_python
       - *step_java
       - name: "Download bob jar"
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: "bob-jar"
           path: "${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist"
@@ -620,7 +620,7 @@ jobs:
       - &step_cache_lein
         name: "Cache lein installation and Maven dependencies"
         if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |-
             editor/build/lein
@@ -641,7 +641,7 @@ jobs:
       - &step_download_bob
         name: "Download bob jar"
         if: *if_bob_enabled
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: "bob-jar"
           path: "${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist"
@@ -655,7 +655,7 @@ jobs:
         if: runner.os == 'Windows'
         run: "ci/ci.sh install"
       - name: "Download release notes"
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         continue-on-error: true
         with:
           name: "release-notes"
@@ -666,14 +666,14 @@ jobs:
         # binaries in $DYNAMO_HOME (--engine-artifacts=dynamo-home) rather than from the
         # archive, and --skip-distclean keeps them from being wiped.
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
           path: "tmp/dynamo_home"
       - *step_chmod_dynamo_home
       - name: "Download docs and builtins"
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && runner.os != 'Linux'
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: "engine-share"
           path: "tmp/dynamo_home/share"
@@ -756,7 +756,7 @@ jobs:
       - name: "Cache Defold downloads"
         # *should_release, plus the cache rule above.
         if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: "~/.dcache"
           key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
@@ -765,7 +765,7 @@ jobs:
             ${{ runner.os }}-dcache-
       - name: "Install Python"
         if: *should_release
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: 3.13
       - name: "Setup git user"
@@ -774,7 +774,7 @@ jobs:
       - name: "Download release notes"
         if: steps.release.outputs.should_release == 'true' && steps.release.outputs.requires_release_notes == 'true'
         continue-on-error: true
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: "release-notes"
           path: "releasenotes"

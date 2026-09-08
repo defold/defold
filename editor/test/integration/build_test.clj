@@ -32,6 +32,7 @@
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
+            [util.http-server :as http-server]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
@@ -1002,6 +1003,22 @@
       (with-setting ["project" "dependencies_metadata"] false
         (is (nil? (:error (project-build! project game-project))))
         (is (false? (.exists build-metadata-file)))))))
+
+(deftest build-with-dependencies-metadata-from-library
+  (with-open [server (http-server/start! test-util/lib-server-handler)]
+    (let [dependency-url (test-util/lib-server-uri server "lib_resource_project")
+          property-name "defold.extension.test-dependency.url"]
+      (System/setProperty property-name dependency-url)
+      (try
+        (test-util/with-scratch-project "test/resources/dependencies_metadata_project"
+          (let [game-project (test-util/resource-node project "/game.project")
+                build-result (project-build! project game-project)]
+            (when (is (nil? (:error build-result)))
+              (let [metadata-json (slurp (build-path workspace DependencyMetadata/OUTPUT_PATH))]
+                (is (string/includes? metadata-json dependency-url))
+                (is (string/includes? metadata-json "\"payload-sha1\""))))))
+        (finally
+          (System/clearProperty property-name))))))
 
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"

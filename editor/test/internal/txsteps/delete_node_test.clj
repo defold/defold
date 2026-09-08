@@ -197,8 +197,7 @@
 
 (deftest evicts-cache-entries-associated-with-deleted-nodes-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          key->node-id (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
+    (let [key->node-id (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
           node-id->key (set/map-invert key->node-id)
 
           cached-endpoints
@@ -246,15 +245,13 @@
 
 (deftest evicts-cache-entries-associated-with-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          {:as key->node-id
+    (let [{:as key->node-id
            :keys [owner-node-id
                   regular-owned-node-id
                   array-owned-node-id
                   first-order-override-owner-node-id
                   second-order-override-owner-node-id]}
-          (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
+          (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
 
           node-id->key (set/map-invert key->node-id)
 
@@ -310,13 +307,11 @@
 
 (deftest delete-override-node-captures-overrides-only-for-root-override-node-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [_owned-node-id
+    (let [[_owned-node-id
            owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [_owned-node-id helpers/OverrideTestNode
                  owner-node-id helpers/OverrideTestNode]
                 (g/connect _owned-node-id :property-output owner-node-id :regular-cascade-delete-input))))
@@ -340,8 +335,7 @@
 
 (deftest undo-redo-node-deletion-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          {:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
+    (let [{:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
           node-ids (sort (vals key->node-id))
           node-id->key (set/map-invert key->node-id)
 
@@ -387,8 +381,7 @@
   ;;   remove graph user-data as a concept and just store the information in
   ;;   regular properties without any loss of functionality.
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          {:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
+    (let [{:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
           node-id->key (coll/into-> key->node-id (sorted-map) (map coll/flip))
 
           current-user-data
@@ -427,9 +420,7 @@
 
 (deftest undo-node-deletion-restores-connection-order-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [target-node-id
+    (let [[target-node-id
            first-source-node-id
            second-source-node-id
            deleted-source-node-id
@@ -437,7 +428,7 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [target-node-id helpers/ConnectionTargetNode
                  first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
                  second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
@@ -502,15 +493,13 @@
 (deftest undo-node-deletion-preserves-empty-arc-table-next-pkid-test
   (testing "Source arcs."
     (test-support/with-clean-system
-      (let [graph-id (g/make-graph!)
-
-            [source-node-id
+      (let [[source-node-id
              first-target-node-id
              second-target-node-id]
             (g/tx-nodes-added
               (g/transact
                 {:undoable false}
-                (g/make-nodes graph-id
+                (g/make-nodes world
                   [source-node-id [helpers/ConnectionSourceNode :property :source-value]
                    first-target-node-id helpers/ConnectionTargetNode
                    _second-target-node-id helpers/ConnectionTargetNode]
@@ -538,15 +527,13 @@
 
   (testing "Target arcs."
     (test-support/with-clean-system
-      (let [graph-id (g/make-graph!)
-
-            [first-source-node-id
+      (let [[first-source-node-id
              second-source-node-id
              target-node-id]
             (g/tx-nodes-added
               (g/transact
                 {:undoable false}
-                (g/make-nodes graph-id
+                (g/make-nodes world
                   [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
                    _second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
                    target-node-id helpers/ConnectionTargetNode]
@@ -574,13 +561,11 @@
 
 (deftest undo-node-deletion-invalidates-restored-source-successors-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id target-node-id]
+    (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [source-node-id helpers/ConnectionSourceNode
-                                      target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes world [source-node-id helpers/ConnectionSourceNode
+                                   target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input))))
 
           successor-endpoint (g/endpoint target-node-id :regular-output)]
@@ -601,12 +586,10 @@
 
 (deftest delete-override-node-invalidates-original-successors-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [original-node-id]
+    (let [[original-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node graph-id helpers/OverrideTestNode)))
+              (g/make-node world helpers/OverrideTestNode)))
 
           [override-node-id]
           (g/tx-nodes-added
@@ -631,12 +614,10 @@
 
 (deftest undo-delete-override-node-preserves-later-overrides-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [original-node-id]
+    (let [[original-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node graph-id helpers/OverrideTestNode)))
+              (g/make-node world helpers/OverrideTestNode)))
 
           [deleted-override-node-id]
           (g/tx-nodes-added
@@ -674,12 +655,10 @@
 
 (deftest undo-delete-sibling-override-nodes-restores-original-overrides-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [original-node-id]
+    (let [[original-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node graph-id helpers/OverrideTestNode)))
+              (g/make-node world helpers/OverrideTestNode)))
 
           [first-override-node-id]
           (g/tx-nodes-added
@@ -713,13 +692,11 @@
 
 (deftest undo-delete-node-with-vanished-arc-target-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id target-node-id]
+    (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [source-node-id [helpers/ConnectionSourceNode :property :source-value]
                  target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input))))
@@ -776,76 +753,3 @@
       (testing "Redo source node deletion."
         (g/redo! ::delete-source)
         (ensure-no-nodes-exist!)))))
-
-(deftest redo-delete-node-with-vanished-arc-target-graph-test
-  (test-support/with-clean-system
-    (let [source-graph-id (g/make-graph!)
-          target-graph-id (g/make-graph! :volatility 10)
-
-          [target-node-id]
-          (g/tx-nodes-added
-            (g/transact
-              {:undoable false}
-              (g/make-nodes target-graph-id
-                [_target-node-id helpers/ConnectionTargetNode])))
-
-          [source-node-id]
-          (g/tx-nodes-added
-            (g/transact
-              {:undoable false}
-              (g/make-nodes source-graph-id
-                [source-node-id [helpers/ConnectionSourceNode :property :source-value]]
-                (g/connect source-node-id :property-output target-node-id :regular-input))))
-
-          ensure-connected!
-          (fn ensure-connected! []
-            (let [basis (g/now)]
-              (is (g/node-by-id basis source-node-id))
-              (is (g/node-by-id basis target-node-id))
-              (is (= [[target-node-id :regular-input]]
-                     (g/targets basis source-node-id :property-output)))))
-
-          ensure-only-target-node-exists!
-          (fn ensure-only-target-node-exists! []
-            (let [basis (g/now)]
-              (is (= nil (g/node-by-id basis source-node-id)))
-              (is (g/node-by-id basis target-node-id))
-              (is (= []
-                     (g/sources basis target-node-id :regular-input)))))
-
-          ensure-source-node-and-target-graph-deleted!
-          (fn ensure-source-node-and-target-graph-deleted! []
-            (let [basis (g/now)]
-              (is (= nil (g/node-by-id basis source-node-id)))
-              (is (= nil (g/node-by-id basis target-node-id)))
-              (is (= nil (g/graph target-graph-id)))))
-
-          ensure-source-node-restored!
-          (fn ensure-source-node-restored! []
-            (let [basis (g/now)]
-              (is (g/node-by-id basis source-node-id))
-              (is (= nil (g/node-by-id basis target-node-id)))
-              (is (= nil (g/graph target-graph-id)))
-              (is (= []
-                     (g/targets basis source-node-id :property-output)))))]
-
-      (testing "Before deleting source node."
-        (ensure-connected!))
-
-      (testing "Delete source node."
-        (g/transact
-          {:undo-key ::delete-source}
-          (g/delete-node source-node-id))
-        (ensure-only-target-node-exists!))
-
-      (testing "Delete target graph."
-        (g/delete-graph! target-graph-id)
-        (ensure-source-node-and-target-graph-deleted!))
-
-      (testing "Undo source node deletion."
-        (g/undo! ::delete-source)
-        (ensure-source-node-restored!))
-
-      (testing "Redo source node deletion."
-        (g/redo! ::delete-source)
-        (ensure-source-node-and-target-graph-deleted!)))))

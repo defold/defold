@@ -1145,18 +1145,18 @@
 
   (val (first @running-lsps))
   ;; Restart all servers:
-  ((g/graph-value 1 :lsp) (fn [state]
+  ((g/graph-value 0 :lsp) (fn [state]
                             (let [servers (set (keys (:server->server-state state)))]
                               (-> state
                                   ((set-servers #{}))
                                   ((set-servers servers))))))
   ;; Stop all LSP servers
-  (set-servers! (g/graph-value 1 :lsp) #{})
+  (set-servers! (g/graph-value 0 :lsp) #{})
   ;; Pull diagnostics
-  (pull-workspace-diagnostics! (g/graph-value 1 :lsp) tap>)
+  (pull-workspace-diagnostics! (g/graph-value 0 :lsp) tap>)
   ;; Start json LSP server (install: npm install -g vscode-json-languageserver)
   (set-servers!
-    (g/graph-value 1 :lsp)
+    (g/graph-value 0 :lsp)
     #{{:languages #{"json" "jsonc"}
        :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
       {:languages #{"lua"}

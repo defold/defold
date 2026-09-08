@@ -91,7 +91,10 @@ namespace dmSys
         }
         dmStrlCat(xdg_buf, "/", path_len);
         if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
+        {
+            dmStrlCpy(path_out, xdg_buf, path_len);
             return RESULT_INVAL;
+        }
 
         // No need to continue if {application_name} dir already exists
         if (realpath(xdg_buf, path_out))

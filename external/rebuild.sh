@@ -11,7 +11,7 @@ PLATFORMS_LINUX="arm64-linux x86_64-linux"
 PLATFORMS_WINDOWS="x86_64-win32 x86-win32"
 PLATFORMS_PLAYSTATION="x86_64-ps4 x86_64-ps5"
 PLATFORMS_NINTENDO="arm64-nx64"
-PLATFORMS_IOS="arm64-ios x86_64-ios"
+PLATFORMS_IOS="arm64-ios arm64_sim-ios"
 PLATFORMS_ANDROID="arm64-android armv7-android x86_64-android"
 PLATFORMS_WEB="wasm-web wasm_pthread-web"
 

@@ -216,8 +216,7 @@
                            [prop-kw decorated-value])))
                   original-property-values)
 
-            graph-id (g/make-graph!)
-            node-id (apply g/make-node! graph-id NumericPropertiesNode (mapcat identity property-values))]
+            node-id (apply g/make-node! world NumericPropertiesNode (mapcat identity property-values))]
         (doseq [prop-kw (sort (keys (:properties (g/node-value node-id :_properties))))]
           (testing (format "Types preserved after editing (property %s)" (name prop-kw))
             (test-property-widget! node-id prop-kw)))))))

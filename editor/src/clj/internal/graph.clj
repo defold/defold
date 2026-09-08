@@ -1543,8 +1543,6 @@
                (gt/node-by-id-at basis target-id))
       (let [graphs (:graphs basis)
             source-label (gt/source-label new-arc)
-            source-graph (graphs (gt/node-id->graph-id source-id))
-            target-graph (graphs (gt/node-id->graph-id target-id))
             old-source-arc-pkids (when old-arc
                                    (arc-table-find-arc-pkids
                                      (graphs-source-arc-table graphs old-arc)
@@ -1556,9 +1554,6 @@
                      (coll/not-empty old-source-arc-pkids))
               (nth old-source-arc-pkids 0)
               (arc-table-next-pkid (graphs-source-arc-table graphs new-arc)))]
-        ;; See the corresponding comment in basis-plan-connect-arc.
-        (assert (<= (:_volatility source-graph 0)
-                    (:_volatility target-graph 0)))
         {:new-arc new-arc
          :new-source-arc-pkids (int-map/int-set [source-arc-pkid])
          :old-arc old-arc
@@ -1595,17 +1590,8 @@
   (when (and (gt/node-by-id-at basis (gt/source-id arc))
              (gt/node-by-id-at basis (gt/target-id arc)))
     (let [graphs (:graphs basis)
-          source-graph (graphs (gt/node-id->graph-id (gt/source-id arc)))
-          target-graph (graphs (gt/node-id->graph-id (gt/target-id arc)))
           source-arc-pkid (arc-table-next-pkid (graphs-source-arc-table graphs arc))
           target-arc-pkid (arc-table-next-pkid (graphs-target-arc-table graphs arc))]
-      ;; There is no technical reason to respect volatility. Everything would
-      ;; work just fine if we removed this assert. It is merely there to
-      ;; safeguard against situations where the output of nodes in the project
-      ;; graph depend on view graph state. For example, it would be unfortunate
-      ;; if view graph state affected the save-data output of resource nodes.
-      (assert (<= (:_volatility source-graph 0)
-                  (:_volatility target-graph 0)))
       {:arc->source+target-pkids
        {arc (pair (int-map/int-set [source-arc-pkid])
                   (int-map/int-set [target-arc-pkid]))}})))
@@ -1635,9 +1621,6 @@
                            arc-table-append arc)))
             (let [source-graph (get graphs source-graph-id)
                   target-graph (get graphs target-graph-id)]
-              ;; See the corresponding comment in basis-plan-connect-arc.
-              (assert (<= (:_volatility source-graph 0)
-                          (:_volatility target-graph 0)))
               (assoc graphs
                 source-graph-id (update-in
                                   source-graph [:sarcs source-id source-label]

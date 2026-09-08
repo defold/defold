@@ -11,7 +11,7 @@ def build(bld):
     if platform in ('x86_64-macos','arm64-macos'):
         sources  = bld.path.ant_glob(['*.c', 'cocoa/*.m'])
         includes = '. cocoa'
-    elif platform in ('arm64-ios', 'x86_64-ios'):
+    elif platform in ('arm64-ios', 'arm64_sim-ios'):
         sources  = bld.path.ant_glob(['*.c', 'ios/*.m', 'ios/app/*.m'])
         includes = '. ios'
     elif re.match('.*?-android$', platform):

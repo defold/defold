@@ -1556,6 +1556,7 @@
   (property all-sub-selections g/Any)
 
   (input script-intelligence g/NodeID :cascade-delete)
+  (input code-transpilers g/NodeID :cascade-delete)
   (input editor-extensions g/NodeID :cascade-delete)
   (input script-annotations g/NodeID :cascade-delete)
   (input editor-localization-bundle g/NodeID :cascade-delete)
@@ -1763,25 +1764,17 @@
     (handle-resource-changes project-id changes render-progress!)))
 
 (defn make-project [graph workspace-id extensions]
-  (let [plugin-graph (g/make-graph! :volatility 2)
-        code-preprocessors (workspace/code-preprocessors workspace-id)
+  (let [code-preprocessors (workspace/code-preprocessors workspace-id)
 
-        transpilers-id
+        project-id
         (first
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
-                (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
-
-        project-id
-        (second
-          (g/tx-nodes-added
-            (g/transact
-              {:undoable false}
               (g/make-nodes graph
-                  [script-intelligence si/ScriptIntelligenceNode
-                   project [Project :workspace workspace-id]
+                  [project [Project :workspace workspace-id]
+                   code-transpilers code.transpilers/CodeTranspilersNode
+                   script-intelligence si/ScriptIntelligenceNode
                    script-annotations script-annotations/ScriptAnnotations
                    editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
                 (g/connect workspace-id :root script-annotations :root)
@@ -1789,12 +1782,14 @@
                 (g/connect editor-localization-bundle :_node-id project :editor-localization-bundle)
                 (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
+                (g/connect code-transpilers :_node-id project :code-transpilers)
+                (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :dependencies project :dependencies)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/set-graph-value graph :project-id project)
                 (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
-                (g/set-graph-value graph :code-transpilers transpilers-id)))))]
+                (g/set-graph-value graph :code-transpilers code-transpilers)))))]
 
     (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))

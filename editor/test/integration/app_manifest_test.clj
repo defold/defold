@@ -18,7 +18,65 @@
             [dynamo.graph :as g]
             [editor.app-manifest :as app-manifest]
             [editor.code.data :as data]
+            [editor.resource-node :as resource-node]
+            [editor.yaml :as yaml]
             [integration.test-util :as test-util]))
+
+(deftest windows-library-name-load-migration-test
+  (let [migrated-content
+        (test-util/with-loaded-project
+          (let [manifest-node (test-util/resource-node project "/app_manifest/legacy_windows_library_names.appmanifest")
+                manifest (g/node-value manifest-node :manifest)
+                save-data (g/node-value manifest-node :save-data)
+                original-manifest (yaml/load (slurp (:resource save-data)) keyword)]
+            (doseq [platform [:x86-win32 :x86_64-win32]]
+              (is (= ["script_box2d_defold" "gamesys_model" "gamesys_rig"]
+                     (get-in manifest [:platforms platform :context :excludeLibs])))
+              (is (= ["script_box2d" "gamesys_model_null" "gamesys_rig_null"]
+                     (get-in manifest [:platforms platform :context :libs])))
+              (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "gameobject" "font_render" "dmbedtls" "dmbedtls_noasan"]
+                     (get-in manifest [:platforms platform :context :engineLibs]))))
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan"]
+                   (get-in manifest [:platforms :win32 :context :excludeLibs])))
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"]
+                   (get-in manifest [:platforms :win32 :context :libs])))
+            (is (= ["font_render" "font_render" "dmbedtls" "dmbedtls" "dmbedtls_noasan" "dmbedtls_noasan"]
+                   (get-in manifest [:platforms :win32 :context :engineLibs])))
+            (testing "Other platforms, the root context, and symbols are preserved"
+              (doseq [path [[:context]
+                            [:platforms :common]
+                            [:platforms :x86_64-linux]
+                            [:platforms :win32 :context :symbols]]]
+                (is (= (get-in original-manifest path) (get-in manifest path)))))
+            (is (true? (:dirty save-data)))
+            (let [content (resource-node/save-data-content save-data)]
+              (is (= manifest (yaml/load content keyword)))
+              content)))]
+    (testing "Reloading a migrated manifest does not mark it dirty"
+      (test-util/with-temp-project-content
+        {"/current.appmanifest" (data/string->lines migrated-content)}
+        (let [manifest-node (test-util/resource-node project "/current.appmanifest")
+              save-data (g/node-value manifest-node :save-data)]
+          (is (false? (:dirty save-data)))
+          (is (= migrated-content (resource-node/save-data-content save-data))))))))
+
+(deftest unchanged-app-manifest-load-test
+  (test-util/with-temp-project-content
+    {"/current.appmanifest"
+     ["# Preserve comments and formatting"
+      "platforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}"]
+
+     "/invalid.appmanifest"
+     ["platforms: ["]
+
+     "/malformed.appmanifest"
+     ["platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}"]}
+    (doseq [proj-path ["/current.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
+      (let [manifest-node (test-util/resource-node project proj-path)
+            save-data (g/node-value manifest-node :save-data)]
+        (is (false? (:dirty save-data)))
+        (is (= (slurp (:resource save-data))
+               (resource-node/save-data-content save-data)))))))
 
 (deftest toggle-test
   (testing "contains toggles"
@@ -358,7 +416,7 @@
   (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (doseq [platform [:arm64-ios :x86_64-ios]]
+      (doseq [platform [:arm64-ios :arm64_sim-ios]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
@@ -374,7 +432,7 @@
   (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
           arm64-context (get-in manifest [:platforms :arm64-ios :context])
-          simulator-context (get-in manifest [:platforms :x86_64-ios :context])]
+          simulator-context (get-in manifest [:platforms :arm64_sim-ios :context])]
       (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
       (is (some #{"graphics_vulkan"} (:libs arm64-context)))
       (is (some #{"MoltenVK"} (:libs arm64-context)))

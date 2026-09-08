@@ -454,16 +454,16 @@
 
 (defn setup-project!
   ([workspace]
-   (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [project-graph (g/node-id->graph-id workspace)
+         extensions (extensions/make project-graph)
+         project (project/make-project project-graph workspace extensions)
          project (project/load-project! project)]
      (g/reset-undo! :undo/global)
      project))
   ([workspace resources]
-   (let [proj-graph (g/make-graph! :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [project-graph (g/node-id->graph-id workspace)
+         extensions (extensions/make project-graph)
+         project (project/make-project project-graph workspace extensions)
          project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! :undo/global)
      project)))
@@ -536,19 +536,16 @@
   (property active-view g/NodeID)
   (output active-view g/NodeID (gu/passthrough active-view)))
 
-(defn make-view-graph! []
-  (g/make-graph! :volatility 2))
-
 (defn setup-app-view! [project]
-  (let [view-graph (make-view-graph!)]
+  (let [project-graph (g/node-id->graph-id project)]
     (first
       (g/tx-nodes-added
         (g/transact
           {:undoable false}
-          (g/make-nodes view-graph [app-view [MockAppView
-                                              :active-tool :move
-                                              :manip-space :world
-                                              :scene (Scene. (VBox.))]]
+          (g/make-nodes project-graph [app-view [MockAppView
+                                                 :active-tool :move
+                                                 :manip-space :world
+                                                 :scene (Scene. (VBox.))]]
             (g/connect project :_node-id app-view :project-id)
             (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
               (g/connect project label app-view label))))))))
@@ -564,8 +561,8 @@
           {:undoable false}
           (g/set-property app-view :active-view view))
         [node-id view])
-      (let [view-graph (g/make-graph! :volatility 2)
-            view (make-view-fn! view-graph node-id)]
+      (let [graph (g/node-id->graph-id app-view)
+            view (make-view-fn! graph node-id)]
         (g/transact
           {:undoable false}
           (concat
@@ -579,8 +576,8 @@
 
 (defn open-tab! [project app-view path]
   (first
-    (make-tab! project app-view path (fn [view-graph _resource-node]
-                                       (->> (g/make-node view-graph MockView)
+    (make-tab! project app-view path (fn [graph _resource-node]
+                                       (->> (g/make-node graph MockView)
                                             (g/transact {:undoable false})
                                             g/tx-nodes-added
                                             first)))))
@@ -589,15 +586,15 @@
   ([project app-view path width height]
    (open-scene-view! project app-view path width height {}))
   ([project app-view path width height tool-opts]
-   (make-tab! project app-view path (fn [view-graph resource-node]
-                                      (scene/make-preview view-graph resource-node (merge {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} tool-opts) width height)))))
+   (make-tab! project app-view path (fn [graph resource-node]
+                                      (scene/make-preview graph resource-node (merge {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} tool-opts) width height)))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
         view (some (fn [[view-id {:keys [resource-node]}]]
                      (when (= resource-node node-id) view-id)) (g/node-value app-view :open-views))]
     (when view
-      (g/delete-graph! (g/node-id->graph-id view)))))
+      (g/transact {:undoable false} (g/delete-node view)))))
 
 (defn setup!
   ([graph]
