@@ -257,8 +257,10 @@ namespace dmEngine
     // integer microsecond rounding error. Exposed here for unit testing.
     uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder);
 
-    // Calculates a timer-paced simulation step while preserving a signed time
-    // balance. Exposed here for deterministic unit testing.
+    // Calculates a timer-paced simulation step while preserving the signed
+    // elapsed-minus-simulated time balance. Positive balance below one fixed step
+    // is retained; larger corrections are capped by max_time_step. Exposed here
+    // for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
 
     /**

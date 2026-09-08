@@ -2442,13 +2442,16 @@ bail:
 
     /**
      * Calculates the simulation step for a timer-paced frame while carrying a
-     * signed balance between elapsed and simulated time. Positive balance is
-     * applied as a bounded catch-up correction, while negative balance records
+     * signed elapsed-minus-simulated time balance. Positive balance smaller than
+     * one fixed step is retained. Once it reaches one fixed step, catch-up is
+     * applied up to the additional time allowed by max_time_step. Consequently,
+     * positive lag is less than one fixed step after any larger,
+     * max_time_step-limited hitch debt has been repaid. Negative balance records
      * simulation time already advanced.
      * @param frame_dt [type:float] elapsed time for the current frame in seconds
      * @param fixed_dt [type:float] requested fixed simulation step in seconds
      * @param max_time_step [type:float] maximum simulation step in seconds
-     * @param frame_time_balance [type:float&] signed time balance to update
+     * @param frame_time_balance [type:float&] elapsed-minus-simulated time balance to update
      * @return step_dt [type:float] simulation step for the current frame
      */
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance)
@@ -2505,8 +2508,10 @@ bail:
             // The engine timer owns this frame's cadence. Keep the simulation
             // step fixed through ordinary timer jitter. If frames consistently
             // miss their deadlines, retain the elapsed-time debt and periodically
-            // apply it through one larger step. This keeps simulation time aligned
-            // without running the coupled update and render multiple times.
+            // apply it through one larger step, capped by max_time_step. Once any
+            // capped hitch debt is repaid, simulation time trails elapsed time by
+            // less than one fixed step. Update and render remain coupled and run
+            // only once per engine frame.
             step_dt = CalcPacedTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, engine->m_PacedFrameTimeDebt);
             num_steps = 1;
 
