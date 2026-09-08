@@ -727,16 +727,15 @@
   (let [[_ h] layout-size
         geometries (:geometries texture-set)
         rect-index->rect (into {} (map (juxt :index identity)) layout-rects)]
-    (into {}
-          (map-indexed (fn [geometry-index image]
-                         (let [{:keys [path x y width height page]} (rect-index->rect (geometry->layout-rect-index geometry-index))
-                               geometry (get geometries geometry-index)
-                               rotated-vertices (if (:rotated geometry)
-                                                  (rotate-vertices-90-cw (:vertices geometry))
-                                                  (:vertices geometry))]
-                           [image (->AtlasRect path x (- h height y) width height page
-                                               (assoc geometry :vertices rotated-vertices))])))
-          geometry-images)))
+    (coll/into-> geometry-images {}
+      (map-indexed (fn [geometry-index image]
+                     (let [{:keys [path x y width height page]} (rect-index->rect (geometry->layout-rect-index geometry-index))
+                           geometry (get geometries geometry-index)
+                           rotated-vertices (if (:rotated geometry)
+                                              (rotate-vertices-90-cw (:vertices geometry))
+                                              (:vertices geometry))]
+                       [image (->AtlasRect path x (- h height y) width height page
+                                           (assoc geometry :vertices rotated-vertices))]))))))
 
 (defn- atlas-outline-sort-by-fn [basis v]
   ;; NOTE: unsafe basis from node output! Only use for node type access!
