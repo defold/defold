@@ -22,7 +22,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]])
-  (:import [java.nio ByteBuffer ByteOrder]
+  (:import [java.io File]
+           [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
            [javafx.scene.control TreeItem]))
@@ -173,9 +174,16 @@
         (let [workspace (test-util/setup-workspace! world project-path)
               project (test-util/setup-project! workspace)
               source-resource (workspace/find-resource workspace "/robot.glb")
+              material-resource (workspace/find-resource workspace "/robot.glb/materials/0.material")
               mesh-resource (workspace/find-resource workspace "/robot.glb/meshes/Mesh 1")
               mesh-node (test-util/resource-node project (resource/proj-path mesh-resource))
               model-node (test-util/resource-node project "/robot.model")]
+          (testing "copying preserves material names and content, including safe filenames"
+            (let [^File exported (first (#'asset-browser/fileify-resources! [material-resource]))]
+              (with-open [_export-deleter (test-util/make-directory-deleter (.getParentFile exported))]
+                (is (= "Paint_Chrome [0].material" (.getName exported)))
+                (is (= (slurp material-resource) (slurp exported))))))
+
           (testing "an unreferenced, unnamed mesh has its own read-only preview"
             (is (resource/editor-openable-resource? mesh-resource))
             (is (= [:scene] (mapv :id (workspace/resource-view-types mesh-resource))))

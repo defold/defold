@@ -150,7 +150,15 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [target (File. dir (resource/resource-name resource))]
+  (let [asset-info (when (resource/gltf-resource? resource)
+                     (resource/gltf-resource-asset-info resource))
+        name (if (= :material (:kind asset-info))
+               (str (-> (:name asset-info)
+                        (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
+                        string/trim)
+                    " [" (:index asset-info) "].material")
+               (resource/resource-name resource))
+        target (File. dir name)]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
                   out (io/output-stream target)]
