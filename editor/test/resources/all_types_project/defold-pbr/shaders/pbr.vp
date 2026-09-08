@@ -1,3 +1,5 @@
+#version 140
+
 // Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -11,8 +13,6 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
-
-#version 140
 
 in vec4 position;
 in vec2 texcoord0;
