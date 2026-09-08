@@ -18,6 +18,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   decoder_wav
   ddf
   ddf_noasan
+  debugger
   dlib
   dlib_noasan
   engine

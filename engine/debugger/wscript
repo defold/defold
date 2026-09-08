@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+VERSION = '0.1'
+APPNAME = 'debugger'
+srcdir = '.'
+blddir = 'build'
+
+import waf_dynamo
+import waflib.Options
+
+test_program = None
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    conf.load('waf_dynamo')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="DEBUGGER"')
+
+def build(bld):
+    global test_program
+    if 'web' in bld.env.PLATFORM:
+        return
+    bld.stlib(features='cxx', target='debugger',
+              source='src/dap.cpp src/debugger.cpp src/debugger_values.cpp src/debugger_extension.cpp',
+              includes='src ../script/src ..', uselib='LUA')
+    bld.install_files('${PREFIX}/include/debugger', 'src/debugger.h')
+    if not bld.options.skip_build_tests and bld.env.PLATFORM == bld.env.BUILD_PLATFORM:
+        test_program = bld.program(features='cxx', target='dap_debuggee', source='src/test/test_debugger.cpp',
+                                   includes='src', use='debugger DLIB LUA SOCKET THREAD PROFILE_NULL')
+
+def shutdown(ctx):
+    if test_program is None or getattr(waflib.Options.options, 'skip_tests', False):
+        return
+    import subprocess, sys
+    if getattr(test_program, 'link_task', None):
+        binary = test_program.link_task.outputs[0].abspath()
+        subprocess.check_call([sys.executable, 'src/test/test_dap.py', '--debuggee', binary])

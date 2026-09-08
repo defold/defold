@@ -67,7 +67,7 @@ def build(bld):
 
     bld.add_group()
 
-    bld.install_files('${PREFIX}/include/script', 'script.h')
+    bld.install_files('${PREFIX}/include/script', 'script.h script_extension.h')
 
     # for #imports to work for other projects
     # ..first for python

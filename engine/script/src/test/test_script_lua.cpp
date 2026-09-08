@@ -427,6 +427,50 @@ TEST_F(ScriptTestLua, TestErrorHandler) {
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+static int g_PreUnwindErrorCount;
+static bool g_PreUnwindErrorHasLocal;
+static bool g_PreUnwindErrorHasOriginalValue;
+
+static void InspectErrorBeforeUnwind(dmScript::HContext context, lua_State* L)
+{
+    (void)context;
+    ++g_PreUnwindErrorCount;
+    g_PreUnwindErrorHasOriginalValue = lua_istable(L, 1);
+    lua_Debug frame;
+    for (int level = 0; lua_getstack(L, level, &frame); ++level)
+    {
+        for (int local = 1;; ++local)
+        {
+            const char* name = lua_getlocal(L, &frame, local);
+            if (!name)
+                break;
+            if (strcmp(name, "detail") == 0 && lua_tointeger(L, -1) == 42)
+                g_PreUnwindErrorHasLocal = true;
+            lua_pop(L, 1);
+        }
+    }
+}
+
+TEST_F(ScriptTestLua, ScriptExtensionErrorBeforeUnwind)
+{
+    static dmScript::ScriptExtension extension = {};
+    extension.OnError = InspectErrorBeforeUnwind;
+    dmScript::RegisterScriptExtension(m_Context, &extension);
+    g_PreUnwindErrorCount = 0;
+    g_PreUnwindErrorHasLocal = false;
+    g_PreUnwindErrorHasOriginalValue = false;
+    int top = lua_gettop(L);
+    ASSERT_EQ(0, luaL_loadstring(L, "assert(not pcall(function() error('caught') end))"));
+    ASSERT_EQ(0, dmScript::PCall(L, 0, 0));
+    ASSERT_EQ(0, g_PreUnwindErrorCount);
+    ASSERT_EQ(0, luaL_loadstring(L, "local detail = 42; error({message='uncaught'}); return detail"));
+    ASSERT_EQ(LUA_ERRRUN, dmScript::PCall(L, 0, 0));
+    ASSERT_EQ(1, g_PreUnwindErrorCount);
+    ASSERT_TRUE(g_PreUnwindErrorHasLocal);
+    ASSERT_TRUE(g_PreUnwindErrorHasOriginalValue);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(ScriptTestLua, TestStackCheck) {
 
     DM_LUA_STACK_CHECK(L, 0);

@@ -1552,6 +1552,15 @@ namespace dmScript
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
+        HContext context = GetScriptContext(m_state);
+        if (context)
+        {
+            for (HScriptExtension* extension = context->m_ScriptExtensions.Begin(); extension != context->m_ScriptExtensions.End(); ++extension)
+            {
+                if ((*extension)->OnError)
+                    (*extension)->OnError(context, m_state);
+            }
+        }
         lua_createtable(m_state, 0, 2);
         int result_table = lua_gettop(m_state);
 

@@ -141,6 +141,12 @@ def build(bld):
     profile_null_symbols = ['ProfilerExt'] # for dmProfiler::SetUpdateFrequency
     profile_symbols = ['ProfilerExt', 'ProfilerBasic']
     profile_lib = ['PROFILE', 'PROFILEREXT']
+    debugger_libs = []
+    debugger_symbols = []
+    if 'web' not in bld.env.PLATFORM:
+        waf_dynamo.static_libs(bld, 'DEBUGGER', ['debugger'])
+        debugger_libs = ['DEBUGGER']
+        debugger_symbols = ['LuaDebugger']
     if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
         profile_lib = ['PROFILE', 'PROFILEREXT']
 
@@ -169,9 +175,9 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
+        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs + debugger_libs,
         web_libs = web_libs,
-        exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + resource_provider_symbols + component_type_symbols,
+        exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + resource_provider_symbols + component_type_symbols + debugger_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',
@@ -234,8 +240,8 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
-        exported_symbols = ['LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + profile_symbols + resource_type_symbols + component_type_symbols,
+        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs + debugger_libs,
+        exported_symbols = ['LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + profile_symbols + resource_type_symbols + component_type_symbols + debugger_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,
