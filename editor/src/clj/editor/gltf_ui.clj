@@ -16,7 +16,9 @@
   (:require [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.gltf :as gltf]
             [editor.localization :as localization]
+            [editor.notifications :as notifications]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -50,14 +52,40 @@
     (ui/execute-command (ui/contexts (ui/main-scene) true)
                         :private/add-dependency {:dep-url pbr-library-url})))
 
+(defn- update-diagnostics!
+  "Shows changed extraction warnings and clears warnings for repaired or removed sources."
+  [workspace old-diagnostics new-diagnostics]
+  (let [notifications (workspace/notifications workspace)]
+    (run! (fn [source-path]
+            (when-not (contains? new-diagnostics source-path)
+              (notifications/close! notifications [::diagnostics source-path])))
+          (coll/keys old-diagnostics))
+    (run! (fn [[source-path diagnostics]]
+            (when (not= diagnostics (old-diagnostics source-path))
+              (notifications/show!
+                notifications
+                {:id [::diagnostics source-path]
+                 :type :warning
+                 :message (localization/message "notification.gltf.unsupported-assets"
+                                                {"file" source-path
+                                                 "diagnostics" (coll/join-to-string "\n" diagnostics)})})))
+          new-diagnostics)))
+
 (defn register-resource-listener!
-  "Offers the shader library when glTF files are added to the project."
+  "Connects glTF import prompts and extraction warnings to the editor resource lifecycle."
   [workspace project localization-state]
-  (workspace/add-resource-listener!
-    workspace 0
-    (reify resource/ResourceListener
-      (handle-changes [_this changes _render-progress!]
-        ;; Show dialogs after resource-sync completes, outside graph transactions.
-        (ui/run-later
-          (when (g/node-exists? workspace)
-            (offer-pbr-library! project localization-state (:added changes))))))))
+  (let [previous-diagnostics (atom {})
+        handle-changes! (fn [changes]
+                          ;; Show dialogs after resource-sync completes, outside graph transactions.
+                          (ui/run-later
+                            (when (g/node-exists? workspace)
+                              (let [diagnostics (gltf/diagnostics (workspace/snapshot-cache workspace))]
+                                (update-diagnostics! workspace @previous-diagnostics diagnostics)
+                                (reset! previous-diagnostics diagnostics))
+                              (offer-pbr-library! project localization-state (:added changes)))))]
+    (workspace/add-resource-listener!
+      workspace 0
+      (reify resource/ResourceListener
+        (handle-changes [_this changes _render-progress!]
+          (handle-changes! changes))))
+    (handle-changes! {})))

@@ -276,3 +276,38 @@
                   (workspace/resource-sync! workspace))
                 (is (= 2 (count @prompts)))
                 (is (= 1 @fetch-count))))))))))
+
+(deftest unsupported-gltf-images-produce-visible-warnings
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
+        source-file (io/file project-path "unsupported.gltf")
+        content (gltf-content "Paint")
+        unsupported-content (string/replace content "data:image/png" "data:image/avif")]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! source-file unsupported-content)
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              notifications (workspace/notifications workspace)
+              warning-id [:editor.gltf-ui/diagnostics "/unsupported.gltf"]]
+          (test-util/with-ui-run-later-rebound
+            (gltf-ui/register-resource-listener! workspace project test-util/localization))
+          (let [warning (get-in (g/node-value notifications :notifications) [:id->notification warning-id])]
+            (is (= :warning (:type warning)))
+            (is (string/includes? (test-util/localization (:message warning)) "image/avif")))
+          (is (some? (workspace/find-resource workspace "/unsupported.gltf/materials/0.material")))
+          (is (nil? (workspace/find-resource workspace "/unsupported.gltf/images/0.png")))
+
+          (test-util/with-ui-run-later-rebound
+            (fs/create-file! source-file content)
+            (workspace/resource-sync! workspace))
+          (is (nil? (get-in (g/node-value notifications :notifications) [:id->notification warning-id])))
+          (is (some? (workspace/find-resource workspace "/unsupported.gltf/images/0.png")))
+
+          (test-util/with-ui-run-later-rebound
+            (fs/create-file! source-file unsupported-content)
+            (workspace/resource-sync! workspace))
+          (is (some? (get-in (g/node-value notifications :notifications) [:id->notification warning-id])))
+          (test-util/with-ui-run-later-rebound
+            (fs/delete-file! source-file)
+            (workspace/resource-sync! workspace))
+          (is (nil? (get-in (g/node-value notifications :notifications) [:id->notification warning-id]))))))))

@@ -287,14 +287,25 @@
                 (log/warn :message (format "Failed to expose part of glTF resource '%s': %s"
                                            source-proj-path diagnostic)))
               (.getDiagnostics extraction))
-            (make-gltf-children+status workspace source-resource extraction))
+            (assoc (make-gltf-children+status workspace source-resource extraction)
+              :diagnostics (vec (.getDiagnostics extraction))))
           (catch Exception exception
             (log/warn :message (format "Failed to expose glTF resources from '%s'" source-proj-path)
                       :exception exception)
-            {:children []
+            {:diagnostics [(ex-message exception)]
+             :children []
              :status-map {}}))]
     (assoc extraction-data
       :dependency-statuses (resource-statuses status-map @dependency-proj-paths))))
+
+(defn diagnostics
+  "Returns extraction diagnostics by source path for display in the editor."
+  [snapshot-cache]
+  (into {}
+        (keep (fn [[source-proj-path cache-entry]]
+                (when-let [diagnostics (coll/not-empty (:diagnostics cache-entry))]
+                  (pair source-proj-path diagnostics))))
+        (::snapshot-cache snapshot-cache)))
 
 (defn- attach-gltf-children
   "Attaches cached virtual children to glTF sources throughout a resource tree."
