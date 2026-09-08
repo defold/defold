@@ -2496,7 +2496,9 @@ bail:
 
             step_dt = dmMath::Clamp(engine->m_PacedFrameTimeDebt, 0.0f, engine->m_MaxTimeStep);
             engine->m_PacedFrameTimeDebt -= step_dt;
-            num_steps = step_dt > 0.0f ? 1 : 0;
+            // Variable-rate Step() performs one engine pass even when the
+            // monotonic clock has not advanced since the previous call.
+            num_steps = 1;
             return;
         }
 
