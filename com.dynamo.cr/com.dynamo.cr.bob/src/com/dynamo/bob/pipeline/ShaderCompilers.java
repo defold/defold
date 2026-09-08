@@ -323,6 +323,7 @@ public class ShaderCompilers {
 
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
+            compileResult.setShaderSourcePaths(shaderModules);
 
             for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
                 compileResult.reflectors.add(pipeline.getReflectionData(type));
@@ -351,12 +352,13 @@ public class ShaderCompilers {
         ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-        } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        } else if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
         } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32 || platform == Platform.X86_64Linux) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430); // Compute
         } else if (platform == Platform.Arm64Linux || platform == Platform.Armv7Android || platform == Platform.Arm64Android ||
+                platform == Platform.X86_64Android ||
                 platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);

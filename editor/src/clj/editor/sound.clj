@@ -194,7 +194,7 @@
             (dynamic error (g/fnk [_node-id loopcount]
                              (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount loopcount-message)))
             (dynamic read-only? (g/fnk [looping]
-                                   (not looping)))
+                                  (not looping)))
             (dynamic label (properties/label-dynamic :sound :loopcount))
             (dynamic tooltip (properties/tooltip-dynamic :sound :loopcount)))
   (property group g/Str (default (protobuf/default Sound$SoundDesc :group))
@@ -231,7 +231,7 @@
       :icon sound-icon
       :icon-class :property
       :category (localization/message "resource.category.components")
-      :view-types [:cljfx-form-view :text]
+      :view-types [:form :text]
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}

@@ -12,6 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if !defined(_LARGEFILE64_SOURCE)
+#define _LARGEFILE64_SOURCE 1
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,9 +35,24 @@
 
 namespace dmSys
 {
+    FILE* FileOpen64(const char* path)
+    {
+        return fopen64(path, "rb");
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko64(file, (off64_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
+    }
+
+    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        return dmSysPosix::GetHostFileName(buffer, buffer_size, path);
     }
 
     void SetNetworkConnectivityHost(const char* host)
@@ -72,7 +91,10 @@ namespace dmSys
         }
         dmStrlCat(xdg_buf, "/", path_len);
         if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
+        {
+            dmStrlCpy(path_out, xdg_buf, path_len);
             return RESULT_INVAL;
+        }
 
         // No need to continue if {application_name} dir already exists
         if (realpath(xdg_buf, path_out))

@@ -57,15 +57,29 @@ namespace dmGraphics
         if (size == 0)
         {
             size = texture->m_Mip0ResourceSize;
-            if (size == 0)
+        }
+
+        if (size == 0)
+        {
+            // Nothing was handed to us, so every level is sized from its own dimensions. Quartering
+            // the byte count per level undercounts compressed formats, whose mips never drop below
+            // one whole block - a three level 4x4 BC1 chain is 8+8+8 bytes, not 8+2+0.
+            for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
             {
-                size = texture->m_Width * texture->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(texture->m_Format) / 8);
+                uint16_t mip_width  = dmMath::Max((uint16_t) 1, GetMipmapSize(texture->m_Width, i));
+                uint16_t mip_height = dmMath::Max((uint16_t) 1, GetMipmapSize(texture->m_Height, i));
+                size_total         += dmMath::Max(1U, GetTextureFormatDataSize(texture->m_Format, mip_width, mip_height));
             }
         }
-        for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        else
         {
-            size_total += size;
-            size >>= 2;
+            // A supplied mip 0 size may include padding we can't re-derive (it comes from the
+            // uploaded buffer), so the smaller levels are approximated from it.
+            for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+            {
+                size_total += size;
+                size >>= 2;
+            }
         }
         if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
         {
@@ -102,13 +116,23 @@ namespace dmGraphics
         TextureParams m_StencilBufferParams;
         TextureParams m_DepthStencilTextureParams;
         HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_TextureColorResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture      m_TextureDepth;
         HTexture      m_TextureStencil;
         HTexture      m_TextureDepthStencil;
+        uint32_t      m_SampleCount;
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
         uint8_t       m_IsBound;
     };
+
+    static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)
+    {
+        return sample_count == 0 ? 1 : sample_count;
+    }
+
+    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts);
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name);
 
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
@@ -375,6 +399,7 @@ namespace dmGraphics
 
     uint32_t                   GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     bool                       GetTextureFormatCompressedBlockSize(TextureFormat format, TextureFormatCompressedBlockSize* out);
+    uint32_t                   GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height); // Size of one image slice, compressed or not
     uint32_t                   GetGraphicsTypeDataSize(Type type);
     void                       InstallAdapterVendor();
     PipelineState              GetDefaultPipelineState();
@@ -384,6 +409,7 @@ namespace dmGraphics
     void                       SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                       IsTextureFormatCompressed(TextureFormat format);
     bool                       IsTextureFormatASTC(TextureFormat format);
+    bool                       IsTextureFormatBC(TextureFormat format); // S3TC/RGTC/BPTC families (BC1/BC3/BC4/BC5/BC7)
     const char*                TextureFormatToString(TextureFormat format);
     ShaderDesc::Language       GetShaderProgramLanguage(HContext context);
     uint32_t                   GetShaderTypeSize(ShaderDesc::ShaderDataType type);

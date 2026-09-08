@@ -32,6 +32,15 @@ import com.dynamo.input.proto.Input.GamepadType;
 public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     @Test
+    public void testNormalizePlatform() throws Exception {
+        assertEquals("ios", GamepadConverter.normalizePlatform("arm64-ios"));
+        assertEquals("ios", GamepadConverter.normalizePlatform("arm64_sim-ios"));
+        assertEquals("macos", GamepadConverter.normalizePlatform("arm64-macos"));
+        assertEquals("android", GamepadConverter.normalizePlatform("arm64-android"));
+        assertEquals("web", GamepadConverter.normalizePlatform("wasm_pthread-web"));
+    }
+
+    @Test
     public void testConvertSdlMappingToGamepadMapsRuntime() throws Exception {
         String sdl = ""
                 + "03000000000000000000000000000000,Ignored Pad,a:b0,platform:Windows,\n"

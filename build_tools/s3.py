@@ -170,7 +170,7 @@ def move_release(archive_path, sha1, channel):
         # destination
         new_key = "archive/%s/%s/%s" % (channel, sha1, name)
 
-        print("Prepair %s to be moved to: %s" % (name, new_key))
+        print("Prepare %s to be moved to: %s" % (name, new_key))
 
         # the keys in archive/sha1/* are all redirects to files in archive/channel/sha1/*
         # get the actual file from the redirect

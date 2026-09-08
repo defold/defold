@@ -119,8 +119,8 @@
                                                               :label (localization/message "outline.collection-proxy")
                                                               :icon collection-proxy-icon}
 
-                                                             (resource/resource? collection)
-                                                             (assoc :link collection :outline-reference? false))))
+                                                       (resource/resource? collection)
+                                                       (assoc :link collection :outline-reference? false))))
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
@@ -135,7 +135,7 @@
     :icon collection-proxy-icon
     :icon-class :property
     :category (localization/message "resource.category.components")
-    :view-types [:cljfx-form-view :text]
+    :view-types [:form :text]
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}

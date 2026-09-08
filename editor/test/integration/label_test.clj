@@ -42,6 +42,25 @@
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
                                (is (g/error? (test-util/prop-error node-id prop)))))))))
 
+(deftest invalid-markup-is-label-text-property-warning-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
+      (test-util/with-prop [node-id :text "valid\n<color>bad</size>"]
+        (let [property-error (test-util/prop-error node-id :text)]
+          (is (g/error-warning? property-error))
+          (is (g/error-warning? (g/node-value node-id :markup-error)))
+          (is (not (g/error? (g/node-value node-id :text-layout))))
+          (is (not (g/error? (g/node-value node-id :build-targets)))))))))
+
+(deftest invalid-font-does-not-become-label-text-property-error-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          invalid-font (workspace/resolve-workspace-resource workspace "/fonts/unknown.font")]
+      (test-util/with-prop [node-id :font invalid-font]
+        (is (g/error-fatal? (test-util/prop-error node-id :font)))
+        (is (nil? (g/node-value node-id :markup-error)))
+        (is (nil? (test-util/prop-error node-id :text)))))))
+
 (deftest label-aabb-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
@@ -63,6 +82,18 @@
         (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
+
+(deftest native-label-text-box-alignment-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          distance-field-font (workspace/find-resource workspace "/editor1/test.font")]
+      (test-util/with-prop [node-id :font distance-field-font]
+        (let [text-data (g/node-value node-id :text-data)]
+          (is (some? (get-in text-data [:font-data :font-map :native-renderer-spec])))
+          (is (= {:box-height 32.0
+                  :offset [-64.0 -16.0 0.0]
+                  :vertical-align :middle}
+                 (select-keys text-data [:box-height :offset :vertical-align]))))))))
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]

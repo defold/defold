@@ -127,6 +127,9 @@ function(sdk_apply_header_test_settings target)
       DM_HOSTFS=\"G:\")
     target_compile_options(${target} PRIVATE /FIdmsdk/dlib/safe_windows.h)
   endif()
+  if(COMMAND defold_apply_platform_sdk_header_test_settings)
+    defold_apply_platform_sdk_header_test_settings(${target})
+  endif()
   foreach(_sdk_header_dependency IN ITEMS
       dlib_sdk_headers
       engine_sdk_headers

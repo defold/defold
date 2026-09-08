@@ -35,6 +35,11 @@ instances {
       value: "/script/resources/from_props_collection.png"
       type: PROPERTY_TYPE_HASH
     }
+    properties {
+      id: "text"
+      value: "collection text å\nsecond line"
+      type: PROPERTY_TYPE_TEXT
+    }
   }
   scale3 {
     x: 1.0
@@ -78,6 +83,11 @@ embedded_instances {
   "    id: \"texture\"\n"
   "    value: \"/script/resources/from_props_collection.png\"\n"
   "    type: PROPERTY_TYPE_HASH\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"text\"\n"
+  "    value: \"embedded text å\\nsecond line\"\n"
+  "    type: PROPERTY_TYPE_TEXT\n"
   "  }\n"
   "}\n"
   ""

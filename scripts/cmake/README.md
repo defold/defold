@@ -81,6 +81,13 @@ such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
 ## Invocation
 
+After `install_ext`, run `./scripts/build.py --platform=<platform> build_ext`
+before the first engine build. This builds source dependencies (currently
+Bullet) with the same platform toolchain and installs them into
+`tmp/dynamo_home/ext`. Re-run it when those sources or the toolchain change.
+Its persistent CMake cache lives under `external/build/<platform>` and is
+separate from the engine build to keep normal rebuilds fast.
+
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still
 gets its own binary directory under `engine/<lib>/build/<platform>`, so objects,
@@ -93,6 +100,7 @@ For local shorthand, the host platform, release-with-debug-symbols build type,
 and tests are all defaulted:
 
 ```bash
+./scripts/build.py --platform=arm64-macos build_ext
 cmake -S . -B engine/build/arm64-macos
 cmake --build engine/build/arm64-macos --target all build_tests install
 cmake --build engine/build/arm64-macos --target run_tests

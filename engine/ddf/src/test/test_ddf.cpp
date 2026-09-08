@@ -142,6 +142,19 @@ TEST(Simple, LoadWithTemplateFunction)
     }
 }
 
+TEST(Simple, LoadEmptyFixedLayoutMessage)
+{
+    uint8_t non_null_buffer = 0;
+    DUMMY::TestDDF::EmptyMsg* message = 0;
+    uint32_t message_size = 1;
+    dmDDF::Result e = dmDDF::LoadMessage(&non_null_buffer, 0, DUMMY::TestDDF::EmptyMsg::m_DDFDescriptor,
+                                         (void**) &message, 0, &message_size);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_NE((void*) 0, message);
+    ASSERT_EQ((uint32_t) sizeof(DUMMY::TestDDF::EmptyMsg), message_size);
+    dmDDF::FreeMessage(message);
+}
+
 #if !defined(DM_PLATFORM_IOS)
 // TODO: Disabled on iOS
 // We have add functionality to located tmp-dir on iOS. See issue #624
@@ -470,6 +483,30 @@ TEST(Mesh, Load)
     dmDDF::FreeMessage(message);
 }
 
+TEST(Mesh, LoadInterleavedRepeatedFields)
+{
+    // name="M", vertices={1.0, 2.0}, indices={7}, primitive_count=1,
+    // primitive_type=TRIANGLES. The repeated fields are deliberately interleaved.
+    const uint8_t msg_buf[] = {
+        0x0a, 0x01, 'M',
+        0x15, 0x00, 0x00, 0x80, 0x3f,
+        0x18, 0x07,
+        0x15, 0x00, 0x00, 0x00, 0x40,
+        0x20, 0x01,
+        0x28, 0x01,
+    };
+
+    DUMMY::TestDDF::Mesh* message = 0;
+    dmDDF::Result e = dmDDF::LoadMessage(msg_buf, sizeof(msg_buf), &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 2, message->m_Vertices.m_Count);
+    ASSERT_EQ((uint32_t) 1, message->m_Indices.m_Count);
+    ASSERT_EQ(1.0f, message->m_Vertices[0]);
+    ASSERT_EQ(2.0f, message->m_Vertices[1]);
+    ASSERT_EQ((uint32_t) 7, message->m_Indices[0]);
+    dmDDF::FreeMessage(message);
+}
+
 TEST(NestedArray, Load)
 {
     const int count1 = 2;
@@ -604,6 +641,18 @@ TEST(MissingRequired, Load)
     dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_MissingRequired_DESCRIPTOR, &message);
     ASSERT_EQ(dmDDF::RESULT_MISSING_REQUIRED, e);
     ASSERT_EQ(0, message);
+}
+
+TEST(MissingRequired, LoadNonFixedLayout)
+{
+    // MaterialDesc contains strings and repeated fields, so this exercises the
+    // multi-pass decoder's early validation return rather than the fixed-layout
+    // fast path.
+    uint8_t non_null_buffer = 0;
+    void* message = (void*) (uintptr_t) 1;
+    dmDDF::Result e = dmDDF::LoadMessage(&non_null_buffer, 0, &DUMMY::TestDDF_MaterialDesc_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_MISSING_REQUIRED, e);
+    ASSERT_EQ((void*) 0, message);
 }
 
 TEST(TestStructAlias, LoadSave)
@@ -995,6 +1044,48 @@ TEST(Recursive, TreeSimple)
 
     dmDDF::FreeMessage(message);
     dmDDF::FreeMessage(saved_message);
+}
+
+TEST(Recursive, DeepSaveAndSize)
+{
+    const uint32_t node_count = 12;
+    std::vector<DUMMY::TestDDF::MessageRecursiveB> nodes(node_count);
+    memset(nodes.data(), 0, sizeof(nodes[0]) * nodes.size());
+
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+        nodes[i].m_ValB = 100 + i;
+        nodes[i].m_MyA.m_ValA = 200 + i;
+        nodes[i].m_MyA.m_MyB = i + 1 < node_count ? &nodes[i + 1] : 0;
+    }
+
+    DUMMY::TestDDF::MessageRecursiveA root = {};
+    root.m_ValA = 1;
+    root.m_MyB = &nodes[0];
+
+    uint32_t calculated_size = 0;
+    dmDDF::Result e = dmDDF::SaveMessageSize(&root, root.m_DDFDescriptor, &calculated_size);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    std::string saved;
+    e = DDFSaveToString(&root, root.m_DDFDescriptor, saved);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(calculated_size, (uint32_t) saved.size());
+
+    TestDDF::MessageRecursiveA decoded;
+    ASSERT_TRUE(decoded.ParseFromString(saved));
+
+    const TestDDF::MessageRecursiveA* current = &decoded;
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+        ASSERT_TRUE(current->has_my_b());
+        const TestDDF::MessageRecursiveB& child = current->my_b();
+        ASSERT_EQ((int32_t) (100 + i), child.val_b());
+        ASSERT_TRUE(child.has_my_a());
+        ASSERT_EQ((int32_t) (200 + i), child.my_a().val_a());
+        current = &child.my_a();
+    }
+    ASSERT_FALSE(current->has_my_b());
 }
 
 TEST(Recursive, Repeated)

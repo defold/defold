@@ -27,13 +27,23 @@ def build(bld):
     if options.skip_build_tests:
        return
 
+    if bld.env.PLATFORM not in ('arm64-macos', 'x86_64-macos', 'arm64-linux', 'x86_64-linux', 'win32', 'x86_64-win32'):
+        return
+
     if not platform_supports_feature(bld.env.PLATFORM, "test_ddf", None):
         print("test_ddf isn't supported on this platform", bld.env.PLATFORM)
         return
 
-    bld(features = 'cxx cprogram ddf test',
+    ddf_proto_core_sources = [bld.path.find_resource('../ddf/' + proto).change_ext('.pb.cc')
+                              for proto in 'ddf_extensions.proto ddf_math.proto ddf_struct.proto'.split()]
+    ddf_proto_core = bld.stlib(features = 'cxx',
+        source = ddf_proto_core_sources,
+        includes = '. .. ../ddf',
+        target = 'ddf_proto_core')
+
+    test_ddf = bld(features = 'cxx cprogram ddf test',
         source = 'test_ddf.cpp test_ddf_struct.cpp test_ddf_proto.proto test_ddf_import.proto',
-        use = 'TESTMAIN PROTOBUF DLIB PROFILE_NULL PTHREAD SOCKET ddf',
+        use = 'TESTMAIN PROTOBUF DLIB PROFILE_NULL PTHREAD SOCKET ddf ddf_proto_core',
         web_libs = ['library_sys.js'],
         ddf_namespace = 'DUMMY',
         proto_gen_cc = True,
@@ -41,3 +51,7 @@ def build(bld):
         protoc_includes = '. ..',
         includes = '. .. ../ddf',
         target = 'test_ddf')
+
+    cxx17_flag = '/std:c++17' if bld.env.PLATFORM in ('win32', 'x86_64-win32') else '-std=c++17'
+    ddf_proto_core.env.append_unique('CXXFLAGS', [cxx17_flag])
+    test_ddf.env.append_unique('CXXFLAGS', [cxx17_flag])

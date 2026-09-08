@@ -486,6 +486,34 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
+    public void testWGSLFlippedEntryPointNameCollision() throws Exception {
+        String vsShader =
+                """
+                #version 140
+                in vec4 main_flipped;
+                void main() {
+                    gl_Position = main_flipped;
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc vsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        vsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vsDesc.source = vsShader;
+
+        ShaderCompilePipeline pipelineVertex = new ShaderCompilePipeline("testWGSLFlippedEntryPointNameCollision");
+        ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsDesc, new ShaderCompilePipeline.Options());
+        Shaderc.ShaderCompileResult compileResult = pipelineVertex.crossCompile(
+                ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
+                ShaderDesc.Language.LANGUAGE_WGSL);
+        String compiledStr = new String(compileResult.data);
+
+        assertTrue(compiledStr.contains("// defold-webgpu-flipped-entry-point: _defold_webgpu_main_flipped"));
+        assertTrue(compiledStr.contains("fn _defold_webgpu_main_flipped("));
+        assertFalse(compiledStr.contains("fn main_flipped("));
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineVertex);
+    }
+
+    @Test
     public void testUnusedResources() throws Exception {
         String fsShader =
                 """

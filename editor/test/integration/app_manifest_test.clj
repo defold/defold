@@ -18,7 +18,65 @@
             [dynamo.graph :as g]
             [editor.app-manifest :as app-manifest]
             [editor.code.data :as data]
+            [editor.resource-node :as resource-node]
+            [editor.yaml :as yaml]
             [integration.test-util :as test-util]))
+
+(deftest windows-library-name-load-migration-test
+  (let [migrated-content
+        (test-util/with-loaded-project
+          (let [manifest-node (test-util/resource-node project "/app_manifest/legacy_windows_library_names.appmanifest")
+                manifest (g/node-value manifest-node :manifest)
+                save-data (g/node-value manifest-node :save-data)
+                original-manifest (yaml/load (slurp (:resource save-data)) keyword)]
+            (doseq [platform [:x86-win32 :x86_64-win32]]
+              (is (= ["script_box2d_defold" "gamesys_model" "gamesys_rig"]
+                     (get-in manifest [:platforms platform :context :excludeLibs])))
+              (is (= ["script_box2d" "gamesys_model_null" "gamesys_rig_null"]
+                     (get-in manifest [:platforms platform :context :libs])))
+              (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "gameobject" "font_render" "dmbedtls" "dmbedtls_noasan"]
+                     (get-in manifest [:platforms platform :context :engineLibs]))))
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan"]
+                   (get-in manifest [:platforms :win32 :context :excludeLibs])))
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"]
+                   (get-in manifest [:platforms :win32 :context :libs])))
+            (is (= ["font_render" "font_render" "dmbedtls" "dmbedtls" "dmbedtls_noasan" "dmbedtls_noasan"]
+                   (get-in manifest [:platforms :win32 :context :engineLibs])))
+            (testing "Other platforms, the root context, and symbols are preserved"
+              (doseq [path [[:context]
+                            [:platforms :common]
+                            [:platforms :x86_64-linux]
+                            [:platforms :win32 :context :symbols]]]
+                (is (= (get-in original-manifest path) (get-in manifest path)))))
+            (is (true? (:dirty save-data)))
+            (let [content (resource-node/save-data-content save-data)]
+              (is (= manifest (yaml/load content keyword)))
+              content)))]
+    (testing "Reloading a migrated manifest does not mark it dirty"
+      (test-util/with-temp-project-content
+        {"/current.appmanifest" (data/string->lines migrated-content)}
+        (let [manifest-node (test-util/resource-node project "/current.appmanifest")
+              save-data (g/node-value manifest-node :save-data)]
+          (is (false? (:dirty save-data)))
+          (is (= migrated-content (resource-node/save-data-content save-data))))))))
+
+(deftest unchanged-app-manifest-load-test
+  (test-util/with-temp-project-content
+    {"/current.appmanifest"
+     ["# Preserve comments and formatting"
+      "platforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}"]
+
+     "/invalid.appmanifest"
+     ["platforms: ["]
+
+     "/malformed.appmanifest"
+     ["platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}"]}
+    (doseq [proj-path ["/current.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
+      (let [manifest-node (test-util/resource-node project proj-path)
+            save-data (g/node-value manifest-node :save-data)]
+        (is (false? (:dirty save-data)))
+        (is (= (slurp (:resource save-data))
+               (resource-node/save-data-content save-data)))))))
 
 (deftest toggle-test
   (testing "contains toggles"
@@ -167,6 +225,20 @@
                                 :mobile {:context {:libs []}}}}
                    setting
                    identity)))))))
+  (testing "rich text can be replaced with its null implementation"
+    (is (false? (app-manifest/get-setting-value {} app-manifest/rich-text-setting)))
+    (let [excluded-manifest (app-manifest/set-setting-value {} app-manifest/rich-text-setting true)
+          included-manifest (app-manifest/set-setting-value excluded-manifest app-manifest/rich-text-setting false)]
+      (is (true? (app-manifest/get-setting-value excluded-manifest app-manifest/rich-text-setting)))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                     "font_richtext"))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :libs]))
+                     "font_richtext_null"))
+      (is (false? (app-manifest/get-setting-value included-manifest app-manifest/rich-text-setting)))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                          "font_richtext")))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :libs]))
+                          "font_richtext_null")))))
   (testing "choice setting is a enum of options or nil (indeterminate) setting"
     (let [setting (app-manifest/make-choice-setting
                     :all [(app-manifest/boolean-toggle :desktop :enabled true)
@@ -221,12 +293,34 @@
                        (app-manifest/update-setting-value setting update-fn)
                        (app-manifest/get-setting-value setting))))))))))
 
+;; Verifies the combined 2D/3D physics selection round-trips and excludes the
+;; Bullet3D script library and symbol on every platform exactly when 3D is disabled.
+;; This prevents editor writes from linking an unavailable API or stripping the
+;; API from projects that still use 3D physics.
+(deftest physics-setting-test
+  (testing "Bullet script API follows the 3D physics selection"
+    (doseq [[selection exclude-bullet-script]
+            [[{:2d :none :3d false} true]
+             [{:2d :legacy :3d false} true]
+             [{:2d :v3 :3d false} true]
+             [{:2d :none :3d true} false]
+             [{:2d :v3 :3d true} false]
+             [{:2d :legacy :3d true} false]]]
+      (let [manifest (app-manifest/set-setting-value {} app-manifest/physics-setting selection)]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/physics-setting)))
+        (doseq [platform app-manifest/all-platforms]
+          (let [context (get-in manifest [:platforms platform :context])]
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeLibs context)) "script_bullet3d")))
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
+
 (deftest android-graphics-setting-test
   (testing "OpenGL-only Android excludes Vulkan link inputs"
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :both)
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
           (is (some #{"dmglfw"} (:libs context)))
@@ -239,7 +333,7 @@
           (is (some #{"GLESv2"} (:dynamicLibs context)))))))
   (testing "Vulkan-only Android excludes OpenGL ES link inputs"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-android :vulkan)]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
           (is (some #{"dmglfw_vulkan"} (:libs context)))
@@ -322,7 +416,7 @@
   (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (doseq [platform [:arm64-ios :x86_64-ios]]
+      (doseq [platform [:arm64-ios :arm64_sim-ios]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
@@ -338,7 +432,7 @@
   (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
           arm64-context (get-in manifest [:platforms :arm64-ios :context])
-          simulator-context (get-in manifest [:platforms :x86_64-ios :context])]
+          simulator-context (get-in manifest [:platforms :arm64_sim-ios :context])]
       (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
       (is (some #{"graphics_vulkan"} (:libs arm64-context)))
       (is (some #{"MoltenVK"} (:libs arm64-context)))
@@ -385,7 +479,8 @@
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
-        (is (= :web-gl (g/node-value manifest :graphics-web)))))
+        (is (= :web-gl (g/node-value manifest :graphics-web)))
+        (is (true? (g/node-value manifest :use-rich-text)))))
     (testing "/app_manifest/exclude_physics_2d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_2d.appmanifest")]
         (is (= :none (g/node-value manifest :physics-2d)))
@@ -618,4 +713,9 @@
       (g/set-property! manifest :exclude-tilemap false)
       (is (false? (string/includes? (text) "gui_null")))
       (is (false? (string/includes? (text) "particle_null")))
-      (is (false? (string/includes? (text) "ResourceTypeTileMap"))))))
+      (is (false? (string/includes? (text) "ResourceTypeTileMap")))
+
+      (testing "indeterminate rich-text settings remain indeterminate"
+        (g/set-property! manifest :manifest
+                         {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
+        (is (nil? (g/node-value manifest :use-rich-text)))))))

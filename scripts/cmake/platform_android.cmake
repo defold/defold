@@ -25,6 +25,12 @@ if(TARGET_PLATFORM MATCHES "arm64-android")
     target_compile_definitions(defold_sdk INTERFACE __aarch64__)
     target_compile_options(defold_sdk INTERFACE -march=armv8-a)
     target_link_options(defold_sdk INTERFACE -Wl,-z,max-page-size=16384)
+elseif(TARGET_PLATFORM MATCHES "x86_64-android")
+    # No -march: the NDK x86_64-linux-android<api>-clang wrapper already targets the
+    # baseline mandated by the Android x86_64 ABI (SSE4.2 + POPCNT).
+    target_compile_definitions(defold_sdk INTERFACE GOOGLE_PROTOBUF_NO_RTTI)
+    target_compile_options(defold_sdk INTERFACE -fvisibility=hidden)
+    target_link_options(defold_sdk INTERFACE -Wl,-z,max-page-size=16384)
 else()
     target_compile_definitions(defold_sdk INTERFACE
         __ARM_ARCH_5__ __ARM_ARCH_5T__ __ARM_ARCH_5E__ __ARM_ARCH_5TE__

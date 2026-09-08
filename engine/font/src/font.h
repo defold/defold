@@ -51,13 +51,4 @@ HFont FontCreate(Font* font);
 
 TextLayoutType FontGetLayoutType(HFont hfont);
 
-#if defined(FONT_USE_HARFBUZZ)
-
-typedef struct hb_font_t hb_font_t;
-
-hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont);
-
-#endif
-
-
 #endif // DM_FONT_H

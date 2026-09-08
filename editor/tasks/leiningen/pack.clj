@@ -16,10 +16,13 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [leiningen.util.http-cache :as http-cache])
-  (:import [java.io File]
-           [java.nio.file CopyOption Files FileSystems FileVisitor FileVisitResult LinkOption Path Paths]
-           [java.nio.file.attribute FileAttribute]
+  (:import [java.io File InputStream]
            [java.util.zip ZipEntry ZipFile]
+           [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.compress.archivers ArchiveEntry ArchiveInputStream]
+           [org.apache.commons.compress.archivers.tar TarArchiveEntry TarArchiveInputStream]
+           [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipArchiveInputStream]
+           [org.apache.commons.compress.compressors.gzip GzipCompressorInputStream]
            [org.apache.commons.io FileUtils]))
 
 (set! *warn-on-reflection* true)
@@ -86,6 +89,8 @@
    ;"${DYNAMO-HOME}/ext/bin/arm64-macos/tint"            "arm64-macos/tint"
    ;"${DYNAMO-HOME}/ext/bin/x86_64-win32/tint.exe"       "x86_64-win32/tint.exe"
 
+   "resources/lua-annotations"                         "shared/lua-annotations"
+   "resources/lua-language-server"                     "shared/lua-language-server"
    "${DYNAMO-HOME}/ext/share/luajit"                    "shared/luajit"
 
    "bundle-resources/_defold"                           "_defold"})
@@ -153,49 +158,53 @@
   (doseq [jogl-native-dep (filter jogl-native-dep? dependencies)]
     (extract-jogl-native-dep local-repo jogl-native-dep pack-path selected-platforms)))
 
-(defn pack-lua-language-server [pack-path lua-language-server-version selected-platforms]
-  (let [release-path (-> (format "https://github.com/defold/lua-language-server/releases/download/%s/release.zip"
-                                 lua-language-server-version)
-                         http-cache/download
-                         .toPath)
-        file-attributes (into-array FileAttribute [])
-        ^"[Ljava.nio.file.CopyOption;" copy-options (into-array CopyOption [])]
-   (with-open [fs (FileSystems/newFileSystem release-path)]
-     (doseq [platform selected-platforms
-             :let [zip-file-name (str platform ".zip")
-                   src-zip-path (.getPath fs "lsp-lua-language-server" (into-array String ["plugins" zip-file-name]))
-                   dst-root-path (Paths/get pack-path (into-array String [platform "bin" "lsp" "lua"]))]]
-       ;; Copy config.json to the pack path
-       (let [source-path (.getPath fs "lsp-lua-language-server" (into-array String ["plugins" "share" "config.json"]))
-             target-path (.resolve dst-root-path "config.json")]
-         (Files/createDirectories (.getParent target-path) file-attributes)
-         (Files/copy source-path target-path copy-options))
-       ;; Copy contents of bin zips to the pack path
-       (with-open [fs (FileSystems/newFileSystem src-zip-path)]
-         (doseq [^Path root-path (.getRootDirectories fs)
-                 :let [entry-path->dst-path (fn [^Path p]
-                                              (let [name-count (.getNameCount p)]
-                                                (when (< 2 name-count)
-                                                  (.resolve dst-root-path
-                                                            (-> root-path
-                                                                (.relativize p)
-                                                                ;; remove leading "bin/${platform}"
-                                                                (.subpath 2 name-count)
-                                                                str)))))]]
-           (Files/walkFileTree
-             root-path
-             (reify FileVisitor
-               (preVisitDirectory [_ path _]
-                 (when-let [^Path target-path (entry-path->dst-path path)]
-                   (when-not (Files/exists target-path (into-array LinkOption []))
-                     (Files/createDirectories target-path file-attributes)))
-                 FileVisitResult/CONTINUE)
-               (visitFile [_ path _]
-                 (when-let [^Path target-path (entry-path->dst-path path)]
-                   (Files/deleteIfExists target-path)
-                   (Files/copy ^Path path target-path copy-options))
-                 FileVisitResult/CONTINUE)
-               (postVisitDirectory [_ _ _] FileVisitResult/CONTINUE)))))))))
+(defn pack-lua-language-server [pack-path {:keys [version sha256]} selected-platforms]
+  (doseq [platform selected-platforms
+          :let [[release-platform extension] (case platform
+                                               "x86_64-macos" ["darwin-x64" "tar.gz"]
+                                               "arm64-macos" ["darwin-arm64" "tar.gz"]
+                                               "x86_64-linux" ["linux-x64" "tar.gz"]
+                                               "x86_64-win32" ["win32-x64" "zip"])
+                expected-sha256 (or (get sha256 platform)
+                                    (throw (IllegalArgumentException.
+                                             (format "Missing LuaLS archive SHA-256 for platform %s and version %s"
+                                                     platform
+                                                     version))))
+                archive-file (-> (format "https://github.com/LuaLS/lua-language-server/releases/download/%s/lua-language-server-%s-%s.%s"
+                                         version
+                                         version
+                                         release-platform
+                                         extension)
+                                 http-cache/download)
+                output-dir (.getCanonicalFile (io/file pack-path platform "bin" "lsp" "lua"))]]
+    (let [actual-sha256 (with-open [^InputStream input (io/input-stream archive-file)]
+                          (DigestUtils/sha256Hex input))]
+      (when-not (= expected-sha256 actual-sha256)
+        (throw (IllegalStateException.
+                 (format "LuaLS archive SHA-256 mismatch for %s: expected %s, got %s"
+                         archive-file
+                         expected-sha256
+                         actual-sha256)))))
+
+    (with-open [^ArchiveInputStream input
+                (case extension
+                  "tar.gz" (-> archive-file io/input-stream GzipCompressorInputStream. TarArchiveInputStream.)
+                  "zip" (-> archive-file io/input-stream ZipArchiveInputStream.))]
+      (loop []
+        (when-let [^ArchiveEntry entry (.getNextEntry input)]
+          (when-not (.isDirectory entry)
+            (let [output (.getCanonicalFile (io/file output-dir (.getName entry)))]
+              (when-not (.startsWith (.toPath output) (.toPath output-dir))
+                (throw (ex-info "Archive entry is outside the destination directory"
+                                {:entry (.getName entry)})))
+              (io/make-parents output)
+              (io/copy input output)
+              (when (pos? (bit-and (case extension
+                                     "tar.gz" (.getMode ^TarArchiveEntry entry)
+                                     "zip" (.getUnixMode ^ZipArchiveEntry entry))
+                                   2r001000000))
+                (.setExecutable output true))))
+          (recur))))))
 
 (defn copy-artifacts
   [pack-path archive-domain git-sha selected-platforms]
@@ -215,11 +224,11 @@
   [{:keys [dependencies local-repo packing] :as project} & [git-sha]]
   (let [sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)
-        {:keys [pack-path lua-language-server-version target-platform]} packing
+        {:keys [pack-path lua-language-server target-platform]} packing
         platforms-to-pack (selected-platforms target-platform)]
     (when-not local-repo
       (throw (ex-info "Missing project :local-repo" {:task "pack"})))
     (FileUtils/deleteQuietly (io/file pack-path))
     (copy-artifacts pack-path archive-domain sha platforms-to-pack)
     (pack-jogl-natives pack-path local-repo dependencies platforms-to-pack)
-    (pack-lua-language-server pack-path lua-language-server-version platforms-to-pack)))
+    (pack-lua-language-server pack-path lua-language-server platforms-to-pack)))

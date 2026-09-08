@@ -17,14 +17,28 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.util.Collections;
 import java.util.List;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.font.BMFont.BMFontFormatException;
+import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.FontRenderer;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.font.proto.GlyphBankProto.FontTextureFormat;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontDesc;
 
 import com.google.protobuf.Message;
 
@@ -72,6 +86,73 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testLegacyGlyphBankWireFormat() throws Exception {
+        // Produced by the former com.dynamo.render.proto.Font.GlyphBank schema.
+        byte[] bitmapGlyphBank = new byte[] { 0x50, 0x00 };
+        byte[] distanceFieldGlyphBank = new byte[] { 0x50, 0x01 };
+
+        assertEquals(FontTextureFormat.TYPE_BITMAP, GlyphBank.parseFrom(bitmapGlyphBank).getImageFormat());
+        assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, GlyphBank.parseFrom(distanceFieldGlyphBank).getImageFormat());
+        byte[] unsignedCacheAscent = new byte[] { (byte)0x90, 0x01, 0x66 };
+        assertEquals(102, GlyphBank.parseFrom(unsignedCacheAscent).getCacheCellMaxAscent());
+    }
+
+    @Test(timeout = 3000)
+    public void testTTFAllCharsBuildPerformance() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+        src.append("all_chars: true\n");
+
+        List<Message> buildResults = build("/all-chars.font", src.toString());
+        FontMap fontMap = getFontMap(buildResults);
+        GlyphBank glyphBank = null;
+        for (Message message : buildResults) {
+            if (message instanceof GlyphBank) {
+                glyphBank = (GlyphBank)message;
+                break;
+            }
+        }
+
+        assertTrue(fontMap != null);
+        assertTrue(fontMap.getAllChars());
+        assertTrue(fontMap.getGlyphBank().endsWith(".glyph_bankc"));
+        assertTrue(glyphBank != null);
+        assertEquals(1499, glyphBank.getGlyphsCount());
+    }
+
+    @Test
+    public void testRuntimeGeneratedOTF() throws Exception {
+        getProject().setOption("font-runtime-generation", "true");
+        addFile("/Test.otf", getFile("/Tuffy.ttf"));
+
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Test.otf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+
+        addFile("/test.font", src.toString());
+        getProject().setInputs(Collections.singletonList("/test.font"));
+        List<TaskResult> results = getProject().build(Progress.discarding(), "build");
+        assertTrue(results.stream().allMatch(TaskResult::isOk));
+
+        FontMap fontMap = null;
+        for (TaskResult result : results) {
+            for (IResource output : result.getTask().getOutputs()) {
+                if (output.getPath().endsWith(".fontc")) {
+                    fontMap = FontMap.parseFrom(output.getContent());
+                }
+            }
+        }
+        assertTrue(fontMap != null);
+        assertEquals("/Test.otf", fontMap.getFont());
+        assertTrue(fontMap.getGlyphBank().isEmpty());
+    }
+
+    @Test
     public void testFNT() throws Exception {
 
         StringBuilder src = new StringBuilder();
@@ -81,6 +162,100 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+    }
+
+    @Test
+    public void testFNTWithNegativeCacheAscent() throws Exception {
+        addFile("/negative.fnt", "info face=\"Negative\" size=10 bold=0 italic=0 charset=\"\" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1\n"
+                + "common lineHeight=10 base=10 scaleW=16 scaleH=16 pages=1 packed=0\n"
+                + "page id=0 file=\"bmfont.png\"\n"
+                + "chars count=1\n"
+                + "char id=95 x=1 y=1 width=2 height=3 xoffset=0 yoffset=13 xadvance=3 page=0 chnl=15\n");
+        List<Message> results = build("/negative.font", "font: \"/negative.fnt\"\nmaterial: \"/test.material\"\nsize: 10\n");
+        GlyphBank glyphBank = null;
+        for (Message message : results) {
+            if (message instanceof GlyphBank)
+                glyphBank = (GlyphBank)message;
+        }
+        assertTrue(glyphBank != null);
+        assertEquals(-3, glyphBank.getCacheCellMaxAscent());
+        assertEquals(-3, GlyphBank.parseFrom(glyphBank.toByteArray()).getCacheCellMaxAscent());
+        assertEquals(5, glyphBank.getCacheCellHeight());
+        assertEquals(-3.0f, glyphBank.getMaxAscent(), 0.0f);
+        assertEquals(6.0f, glyphBank.getMaxDescent(), 0.0f);
+        GlyphBank serializedGlyphBank = GlyphBank.parseFrom(glyphBank.toByteArray());
+        assertEquals(3.0f, serializedGlyphBank.getMaxAscent() + serializedGlyphBank.getMaxDescent(), 0.0f);
+    }
+
+    @Test
+    public void testFNTWithGlyphsAboveBaseline() throws Exception {
+        addFile("/above.fnt", "info face=\"Above\" size=10 bold=0 italic=0 charset=\"\" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1\n"
+                + "common lineHeight=10 base=10 scaleW=16 scaleH=16 pages=1 packed=0\n"
+                + "page id=0 file=\"bmfont.png\"\n"
+                + "chars count=1\n"
+                + "char id=65 x=1 y=1 width=2 height=2 xoffset=0 yoffset=1 xadvance=3 page=0 chnl=15\n");
+        List<Message> results = build("/above.font", "font: \"/above.fnt\"\nmaterial: \"/test.material\"\nsize: 10\n");
+        GlyphBank glyphBank = null;
+        for (Message message : results) {
+            if (message instanceof GlyphBank)
+                glyphBank = GlyphBank.parseFrom(message.toByteArray());
+        }
+        assertTrue(glyphBank != null);
+        assertEquals(9.0f, glyphBank.getMaxAscent(), 0.0f);
+        assertEquals(0.0f, glyphBank.getMaxDescent(), 0.0f);
+        assertEquals(-7, glyphBank.getGlyphs(0).getDescent());
+        assertEquals(4, glyphBank.getCacheCellHeight());
+
+        FontDesc desc = FontDesc.newBuilder().setFont("/above.fnt").setMaterial("/test.material").setSize(10).build();
+        try (ByteArrayInputStream input = new ByteArrayInputStream(getProject().getResource("/above.fnt").getContent());
+             ByteArrayInputStream bitmap = new ByteArrayInputStream(getProject().getResource("/bmfont.png").getContent())) {
+            GlyphBank previewBank = new Fontc().compileForEditor(input, desc, "bmfont.png", bitmap).glyphBank;
+            GlyphBank.Glyph glyph = previewBank.getGlyphs(0);
+            FontRenderer.GlyphBankGlyph[] glyphs = {
+                new FontRenderer.GlyphBankGlyph(glyph.getCharacter(), glyph.getWidth(), glyph.getAdvance(), glyph.getLeftBearing(),
+                        glyph.getAscent(), glyph.getDescent(), (int)glyph.getGlyphDataOffset(), (int)glyph.getGlyphDataSize())
+            };
+            FontRenderer.GlyphBank nativeBank = new FontRenderer.GlyphBank(glyphs, previewBank.getGlyphData().toByteArray(),
+                    (int)previewBank.getGlyphPadding(), previewBank.getGlyphChannels(), previewBank.getMaxAscent(), previewBank.getMaxDescent());
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.size = 10.0f;
+            params.cacheWidth = 16;
+            params.cacheHeight = 16;
+            try (FontRenderer renderer = new FontRenderer("above.fnt", nativeBank, params)) {
+                assertEquals(9.0f, renderer.measure("A", false, 0.0f, 1.0f, 0.0f).height, 0.001f);
+                FontRenderer.Properties properties = new FontRenderer.Properties();
+                properties.height = 16.0f;
+                properties.leading = 1.0f;
+                properties.faceColor = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+                properties.outlineColor = properties.faceColor;
+                properties.shadowColor = properties.faceColor;
+                properties.sdfScale = 1.0f;
+                renderer.setProperties(properties);
+                renderer.setText("A");
+                renderer.beginBatch();
+                assertTrue(renderer.generateTexture(0).pixels != null);
+            }
+        }
+    }
+
+    @Test
+    public void testInvalidFNTReportsCompileException() throws Exception {
+        addFile("/invalid.fnt", "invalid");
+
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/invalid.fnt\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        addFile("/invalid.font", src.toString());
+
+        Task task = getProject().createTask(getProject().getResource("/invalid.font"), GlyphBankBuilder.class);
+        try {
+            task.getBuilder().build(task);
+            fail("Expected malformed BMFont data to produce a CompileExceptionError");
+        } catch (CompileExceptionError e) {
+            assertEquals("invalid.font", e.getResource().getPath());
+            assertTrue(e.getCause() instanceof BMFontFormatException);
+        }
     }
 
     @Test

@@ -532,6 +532,8 @@
 
           (let [project (test-util/setup-project! workspace)
                 loaded-proj-path? #(loaded-proj-path? project %)
+                script-intelligence (project/script-intelligence project)
+                unloaded-lua-node (project/get-resource-node project "/unloaded/unloaded.lua")
 
                 call-logged-transact!
                 (fn call-logged-transact! [tx-data]
@@ -547,6 +549,12 @@
               (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
               (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
               (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script")))
+
+            (testing "Unloaded resource shells have their global connections."
+              (is (contains? (set (g/sources-of project :breakpoints))
+                             [unloaded-lua-node :breakpoints]))
+              (is (contains? (set (g/sources-of script-intelligence :required-module-infos))
+                             [unloaded-lua-node :required-module-info])))
 
             (testing "Editing a script to reference unloaded Lua modules will not load transitive dependencies."
               (let [node-load-info-tx-data-calls

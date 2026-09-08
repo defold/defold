@@ -218,10 +218,10 @@
   @*main-stage*)
 
 (defn main-scene ^Scene []
-  (.. (main-stage) (getScene)))
+  (some-> (main-stage) .getScene))
 
 (defn main-root ^Node []
-  (.. (main-scene) (getRoot)))
+  (some-> (main-scene) .getRoot))
 
 (defn- main-menu-id ^MenuBar []
   (:menu-id (user-data (main-root) ::menubar)))
@@ -1812,6 +1812,19 @@
           context-menu (init-context-menu! menu-location scene)]
       (.show context-menu node (.getScreenX event) (.getScreenY event)))))
 
+(defn request-context-menu!
+  "Queue a context menu to be shown after the next view refresh."
+  [show-fn!]
+  (user-data! (main-scene) ::requested-context-menu show-fn!))
+
+(defn show-requested-context-menu!
+  "Show the context menu queued by [[request-context-menu!]], if any."
+  []
+  (let [scene (main-scene)]
+    (when-let [show-fn! (user-data scene ::requested-context-menu)]
+      (user-data! scene ::requested-context-menu nil)
+      (show-fn!))))
+
 (defn register-context-menu
   "Register a context menu listener on a control for the menu location
 
@@ -2610,7 +2623,8 @@
     (.start timer))
   (reset! stopped-timers #{})
   (handler/enable-disabled-handlers!)
-  (user-data! (main-scene) ::refresh-requested? true)
+  (when-some [main-scene (main-scene)]
+    (user-data! main-scene ::refresh-requested? true))
   nil)
 
 (defn anim! [^double duration anim-fn end-fn]

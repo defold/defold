@@ -83,7 +83,7 @@ namespace dmGraphics
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
     typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
     typedef HProgram (*NewProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    typedef bool (*ReloadProgramFn)(HContext context, HProgram program, ShaderDesc* ddf);
+    typedef bool (*ReloadProgramFn)(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
     typedef void (*DeleteProgramFn)(HContext context, HProgram program);
     typedef bool (*IsShaderLanguageSupportedFn)(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
@@ -120,7 +120,7 @@ namespace dmGraphics
     typedef void (*DeleteTextureFn)(HContext context, HTexture t);
     typedef void (*SetTextureFn)(HContext context, HTexture texture, const TextureParams& params);
     typedef void (*SetTextureAsyncFn)(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
-    typedef void (*SetTextureParamsFn)(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
+    typedef void (*SetTextureParamsFn)(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
     typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
     typedef uint32_t (*GetMaxTextureSizeFn)(HContext context);

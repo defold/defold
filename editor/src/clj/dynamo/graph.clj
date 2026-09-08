@@ -45,7 +45,7 @@
 
 (namespaces/import-vars [internal.graph explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
 
-(namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
+(namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters full-invalidation-since?])
 
 (let [graph-id ^AtomicInteger (AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
@@ -230,9 +230,15 @@
   ([snapshot-invalidate-counters system-invalidate-counters]
    {:pre [(or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))
           (map? system-invalidate-counters)]}
-   (if (or (nil? snapshot-invalidate-counters)
-           (identical? snapshot-invalidate-counters system-invalidate-counters))
+   (cond
+     (or (nil? snapshot-invalidate-counters)
+         (identical? snapshot-invalidate-counters system-invalidate-counters))
      fn/constantly-false
+
+     (full-invalidation-since? snapshot-invalidate-counters system-invalidate-counters)
+     fn/constantly-true
+
+     :else
      (fn endpoint-invalidated? [endpoint]
        (endpoint-invalidated-since? endpoint snapshot-invalidate-counters system-invalidate-counters)))))
 
@@ -319,10 +325,8 @@
           modified-post-tx-graphs (is/modified-graph-states pre-tx-graphs post-tx-graphs)
           undo-key (or (:undo-key transact-opts) :undo/global)
           {:keys [label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
-      (swap! *the-system* is/merge-graphs modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes))
-    (when (:full-invalidation transact-opts)
-      (clear-system-cache!))
-    nil))
+      (swap! *the-system* is/merge-graphs modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))))
+  nil)
 
 (defn transact
   "Runs a transaction against the graph system.

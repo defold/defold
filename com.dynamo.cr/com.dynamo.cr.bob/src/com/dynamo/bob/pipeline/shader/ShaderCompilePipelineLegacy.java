@@ -74,12 +74,12 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return null;
     }
 
-    private String compileSPIRVToWGSL(String resourcePath, byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+    private String compileSPIRVToWGSL(String resourcePath, ShaderDesc.ShaderType shaderType, byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
         File file_in_spv = createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
 
         File file_out_wgsl = createTempFile(FilenameUtils.getName(resourceOutput), ".wgsl");
-        generateWGSL(resourcePath, file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
+        generateWGSL(resourcePath, shaderType, file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
         return FileUtils.readFileToString(file_out_wgsl);
     }
 
@@ -239,7 +239,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             result.data = module.spirvResult.source;
             return result;
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
-            String compileResult = compileSPIRVToWGSL(module.desc.resourcePath, module.spirvResult.source, this.pipelineName);
+            String compileResult = compileSPIRVToWGSL(module.desc.resourcePath, shaderType, module.spirvResult.source, this.pipelineName);
 
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = compileResult.getBytes();

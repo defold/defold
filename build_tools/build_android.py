@@ -7,6 +7,14 @@ import sys
 
 ANDROID_TEST_DEVICE_ROOT = '/data/local/tmp/unittest'
 
+# The ABI each Defold Android platform produces, named as the device reports it
+# in ro.product.cpu.abilist.
+PLATFORM_TO_ABI = {
+    'armv7-android'  : 'armeabi-v7a',
+    'arm64-android'  : 'arm64-v8a',
+    'x86_64-android' : 'x86_64',
+}
+
 
 def _to_string_list(value):
     if value is None:
@@ -114,7 +122,63 @@ def get_reverse_port(cwd, configfile, log_fn = None):
     return port
 
 
-def can_run_tests_android(log_fn = None, env = None, device = None):
+def _getprop(adb, device, prop, log_fn = None):
+    cmd = [adb]
+    if device:
+        cmd.extend(['-s', device])
+    cmd.extend(['shell', 'getprop', prop])
+    try:
+        result = subprocess.run(cmd, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, text = True, check = False)
+    except OSError as e:
+        _log(log_fn, 'Failed to read %s from device (%s)' % (prop, e))
+        return None
+
+    if result.returncode != 0:
+        _log(log_fn, 'Failed to read %s from device' % prop)
+        if result.stdout:
+            _log(log_fn, result.stdout.strip())
+        return None
+
+    return (result.stdout or '').strip()
+
+
+def get_device_abis(adb, device, log_fn = None):
+    """Return the ABIs a device can execute, or None if it could not be queried."""
+    # abilist covers every ABI the device runs, including the ones it only runs
+    # through binary translation. Pre-Lollipop devices only have the singular abi.
+    for prop in ('ro.product.cpu.abilist', 'ro.product.cpu.abi'):
+        value = _getprop(adb, device, prop, log_fn = log_fn)
+        if value is None:
+            return None
+
+        abis = [abi.strip() for abi in value.split(',') if abi.strip()]
+        if abis:
+            return abis
+
+    return None
+
+
+def device_supports_platform(adb, device, target_platform, log_fn = None):
+    abi = PLATFORM_TO_ABI.get(target_platform, None)
+    if abi is None:
+        # Not a platform we know how to match against an ABI, leave it to the caller.
+        return True
+
+    abis = get_device_abis(adb, device, log_fn = log_fn)
+    if abis is None:
+        _log(log_fn, 'Could not determine the ABIs of Android device %s, skipping Android tests' % device)
+        return False
+
+    if abi not in abis:
+        _log(log_fn, "Android device %s cannot run %s: it needs ABI '%s', the device supports %s. Skipping Android tests" % (
+            device, target_platform, abi, ', '.join(abis)))
+        return False
+
+    _log(log_fn, "Android device %s supports ABI '%s' required by %s" % (device, abi, target_platform))
+    return True
+
+
+def can_run_tests_android(log_fn = None, env = None, device = None, target_platform = None):
     adb_candidates = _find_adb_candidates(env)
     device_name = get_device_name(env, device)
 
@@ -160,9 +224,20 @@ def can_run_tests_android(log_fn = None, env = None, device = None):
             return False
 
         _log(log_fn, 'Found requested Android device: %s' % device_name)
-        return True
+    else:
+        _log(log_fn, 'Found Android device(s): %s' % ', '.join(devices))
 
-    _log(log_fn, 'Found Android device(s): %s' % ', '.join(devices))
+    if target_platform:
+        # adb only picks a device implicitly when a single one is attached, so
+        # with several connected we cannot tell which would run the tests.
+        selected = device_name or (devices[0] if len(devices) == 1 else None)
+        if not selected:
+            _log(log_fn, 'Several Android devices connected and none selected, skipping Android tests. Set ANDROID_SERIAL or pass --test-device')
+            return False
+
+        if not device_supports_platform(adb, selected, target_platform, log_fn = log_fn):
+            return False
+
     return True
 
 
@@ -369,6 +444,8 @@ def _create_argument_parser():
     parser_can_run = subparsers.add_parser('can-run-tests', help = 'Check if Android tests can run')
     parser_can_run.add_argument('--adb', help = 'Path to adb executable')
     parser_can_run.add_argument('--device', help = 'Android device serial to require and target')
+    parser_can_run.add_argument('--platform', choices = sorted(PLATFORM_TO_ABI.keys()),
+        help = 'Also require the device to support this platform\'s ABI')
 
     parser_prepare = subparsers.add_parser('prepare', help = 'Prepare Android device test environment')
     parser_prepare.add_argument('--cwd', required = True, help = 'Library working directory')
@@ -406,7 +483,7 @@ def main(argv = None):
         if args.adb:
             env = dict(os.environ)
             env['ADB'] = args.adb
-        return 0 if can_run_tests_android(print, env = env, device = args.device) else 1
+        return 0 if can_run_tests_android(print, env = env, device = args.device, target_platform = args.platform) else 1
 
     env = dict(os.environ)
     if getattr(args, 'adb', None):

@@ -568,15 +568,16 @@ There are a few ways to install the DotNet sdk:
 
 These are needed in some special build scripts (e.g. when rebuilding external source libraries).
 
-* **curl** - Command line tool for downloading files
-* **wget** - Command line tool for downloading files
-* **cmake** for easier building of external projects
-* **patch** for easier patching on windows (when building external projects)
+* **curl** for downloading files
+* **wget** for downloading files
+* **cmake** for building of external projects
+* **ninja** for building of external projects
+* **patch** for patching when building external projects
 
 <details><summary>macOS...</summary><p>
 
   ```sh
-  brew install wget curl cmake patch
+  brew install wget curl cmake ninja patch
   ````
 
 </p></details>
@@ -584,7 +585,7 @@ These are needed in some special build scripts (e.g. when rebuilding external so
 <details><summary>Linux...</summary><p>
 
   ```sh
-  apt-get install wget curl cmake patch
+  apt-get install wget curl cmake ninja-build patch
   ````
 
 </p></details>

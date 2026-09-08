@@ -39,9 +39,6 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    struct FontRenderBackend;
-    typedef FontRenderBackend* HFontRenderBackend;
-
 #define DEBUG_3D_NAME "_debug3d"
 
     struct Sampler
@@ -52,6 +49,7 @@ namespace dmRender
         dmGraphics::TextureFilter    m_MagFilter;
         dmGraphics::TextureWrap      m_UWrap;
         dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureWrap      m_WWrap;
         dmGraphics::HUniformLocation m_Location;
         float                        m_MaxAnisotropy;
         uint8_t                      m_UnitValueCount;
@@ -63,6 +61,7 @@ namespace dmRender
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_WWrap(dmGraphics::TEXTURE_WRAP_REPEAT)
             , m_Location(dmGraphics::INVALID_UNIFORM_LOCATION)
             , m_MaxAnisotropy(1.0f)
             , m_UnitValueCount(0)
@@ -187,20 +186,19 @@ namespace dmRender
     {
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
-        dmGraphics::HVertexBuffer           m_VertexBuffer;
-        void*                               m_ClientBuffer;
-        dmGraphics::HVertexDeclaration      m_VertexDecl;
-        HFontRenderBackend                  m_FontRenderBackend;
-        uint32_t                            m_RenderObjectIndex;
-        uint32_t                            m_VertexIndex;
-        uint32_t                            m_MaxVertexCount;
-        uint32_t                            m_VerticesFlushed;
-        dmArray<char>                       m_TextBuffer;
+        dmArray<uint8_t>                        m_ClientBuffer;
+        dmArray<char>                           m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
-        dmArray<TextEntry>                  m_TextEntries;
-        uint32_t                            m_TextEntriesFlushed;
-        uint32_t                            m_Frame;
-        uint32_t                            m_PreviousFrame;
+        dmArray<TextEntry>                      m_TextEntries;
+        dmGraphics::HVertexBuffer               m_VertexBuffer;
+        dmGraphics::HVertexDeclaration          m_VertexDecl;
+        uint32_t                                m_RenderObjectIndex;
+        uint32_t                                m_VertexIndex;
+        uint32_t                                m_MaxVertexCount;
+        uint32_t                                m_VerticesFlushed;
+        uint32_t                                m_TextEntriesFlushed;
+        uint32_t                                m_Frame;
+        uint32_t                                m_PreviousFrame;
     };
 
     struct RenderScriptContext
@@ -323,7 +321,8 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        //dmhash_t                    m_FrustumHash;
+        dmArray<HNamedConstantBuffer> m_ConstantBufferClones;
+        uint32_t                      m_ConstantBufferCloneCursor;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
@@ -389,7 +388,7 @@ namespace dmRender
     void     SetProgramRenderConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, const dmVMath::Vector4* values, uint32_t count);
     void     SetProgramConstantType(const dmArray<RenderConstant>& constants, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool     GetProgramConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, HConstant& out_value);
-    bool     SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool     SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t GetProgramSamplerUnit(const dmArray<Sampler>& samplers, dmhash_t name_hash);
     int32_t  GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash);
     HSampler GetProgramSampler(const dmArray<Sampler>& samplers, uint32_t unit);
@@ -408,10 +407,13 @@ namespace dmRender
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
     bool    GetCanBindTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
-
     void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
     void    ApplyComputeProgramConstants(HRenderContext render_context, HComputeProgram compute_program);
     int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash);
+
+    // Render constants
+    void                 CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);
+    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer);
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);

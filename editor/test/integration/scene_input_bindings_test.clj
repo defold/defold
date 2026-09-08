@@ -28,7 +28,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [integration.test-util :as test-util])
-  (:import [javafx.scene Group]
+  (:import [javafx.scene Group Scene]
            [javafx.scene.control ContextMenu]
            [javax.vecmath Point3d]))
 
@@ -478,24 +478,35 @@
           :binding {:button :secondary :modifiers #{}}}])
       (let [[resource-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
             go-node (ffirst (g/sources-of resource-node :child-scenes))
-            ;; Showing the context menu on release is a JavaFX side effect that needs a
-            ;; live scene/window we don't have here. The object is selected just before
-            ;; the menu shows, so stub the menu with a no-op ContextMenu and assert the
-            ;; selection.
+            ;; Showing the context menu is a JavaFX side effect that needs a live
+            ;; scene/window we don't have here, so stub it with a ContextMenu that only
+            ;; records the show. Queueing and draining the menu both go through the main
+            ;; stage's scene, so we need a fake one of those too.
+            shown (atom nil)
             menu-stub (ui/run-now (proxy [ContextMenu] []
-                                    (show [_node _x _y] nil)))]
+                                    (show [node x y] (reset! shown [node x y]))))
+            anchor (Group.)
+            stage (ui/run-now (doto (ui/make-stage)
+                                (.setScene (Scene. anchor))))]
         ;; The root scene node is selected initially, not the game object.
         (is (test-util/selected? app-view resource-node))
-        (with-redefs [selection/init-scene-context-menu! (fn [_scene _node] menu-stub)]
+        (with-redefs [ui/*main-stage* (atom stage)
+                      selection/init-scene-context-menu! (fn [_scene _node] menu-stub)]
           (reduce
             (partial dispatch-action! view)
             (input/make-input-state)
             [(action :mouse-moved 64.0 64.0 :secondary [])
              (action :mouse-pressed 64.0 64.0 :secondary [])
              (assoc (action :mouse-released 64.0 64.0 :secondary [])
-               :target (Group.))]))
-        (is (test-util/selected? app-view go-node)
-            "Right-clicking the object should select it before showing the context menu.")))))
+               :target anchor)])
+          (is (test-util/selected? app-view go-node)
+              "Right-clicking the object should select it before showing the context menu.")
+          (is (nil? @shown)
+              "The menu must not show during the release, or it would be built against the stale outline selection.")
+          ;; What the refresh timer does on the next tick, after the outline has caught up.
+          (ui/show-requested-context-menu!)
+          (is (= [anchor 64.0 64.0] @shown)
+              "The queued menu should show at the click position on the next refresh."))))))
 
 (deftest empty-camera-binding-override-disables-default-pan
   (test-util/with-loaded-project

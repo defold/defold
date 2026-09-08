@@ -228,6 +228,7 @@ namespace dmRender
         dmGraphics::HUniformLocation m_Location;
         dmGraphics::TextureWrap      m_UWrap;
         dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureWrap      m_WWrap;
         dmGraphics::TextureFilter    m_MinFilter;
         dmGraphics::TextureFilter    m_MagFilter;
         float                        m_MaxAnisotropy;
@@ -394,6 +395,7 @@ namespace dmRender
     void                            SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t                        GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash);
     bool                            GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value);
 
@@ -415,6 +417,7 @@ namespace dmRender
     uint32_t                        GetMaterialConstantCount(HMaterial material);
     bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 

@@ -45,6 +45,9 @@ function init(self)
     -- script properties
     -- number
     assert(go.get("b#script", "number") == 1)
+    local ok = pcall(go.set, "b#script", "number", "oops")
+    assert(not ok)
+    assert(go.get("b#script", "number") == 1)
     go.set("b#script", "number", 2)
     -- hash
     assert(go.get("b#script", "hash") == hash("test"))
@@ -86,6 +89,13 @@ function init(self)
     -- bool
     assert(not go.get("b#script", "bool"))
     go.set("b#script", "bool", true)
+    -- text
+    assert(go.get("b#script", "text") == "default text")
+    go.set("b#script", "text", "")
+    assert(go.get("b#script", "text") == "")
+    local text = "Spelare åäö\nsecond line"
+    go.set("b#script", "text", text)
+    assert(go.get("b#script", "text") == text)
     -- material
     assert(self.material == go.get("b#script", "material"))
     go.set("b#script", "material", hash("material"))

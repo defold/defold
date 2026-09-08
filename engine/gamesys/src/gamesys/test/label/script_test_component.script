@@ -13,6 +13,8 @@
 -- specific language governing permissions and limitations under the License.
 
 function init(self)
+    local objects = label.get_layout_objects("#label")
+    assert(#objects == 0)
     test_callback(test_url)
 end
 

@@ -21,6 +21,8 @@
             [editor.util :as util]
             [reitit.core :as reitit]
             [service.log :as log]
+            [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.path :as path])
   (:import [com.sun.net.httpserver Headers HttpHandler HttpServer]
            [java.io Closeable File IOException]
@@ -93,13 +95,13 @@
 ;;   the file content would still be recognized by the server that responds with
 ;;   the cached response.
 ;; To achieve this, we use these protocols:
-(defprotocol ContentType (content-type [body] "static content-type string or nil if unknown; default nil"))
-(defprotocol ContentLength (content-length [body] "static content-length in bytes (long) or nil if unknown; default nil"))
-(defprotocol ->Data (->data [body] "convert body to reusable immutable data"))
-(defprotocol ->Connection (->connection [data] "open connection to HTTP response data before sending; the connection may know its content-type and content-length at send time, is written via connection-write!, and may be Closeable; default identity"))
-(defprotocol ConnectionContentType (connection-content-type [connection] "dynamic content-type string or nil if unknown; default nil"))
-(defprotocol ConnectionContentLength (connection-content-length [connection] "dynamic content-length in bytes (long) or nil if unknown; default nil"))
-(defprotocol ConnectionWrite (connection-write! [connection output-stream] "write HTTP response body directly to output-stream"))
+(defonce/protocol ContentType (content-type [body] "static content-type string or nil if unknown; default nil"))
+(defonce/protocol ContentLength (content-length [body] "static content-length in bytes (long) or nil if unknown; default nil"))
+(defonce/protocol ->Data (->data [body] "convert body to reusable immutable data"))
+(defonce/protocol ->Connection (->connection [data] "open connection to HTTP response data before sending; the connection may know its content-type and content-length at send time, is written via connection-write!, and may be Closeable; default identity"))
+(defonce/protocol ConnectionContentType (connection-content-type [connection] "dynamic content-type string or nil if unknown; default nil"))
+(defonce/protocol ConnectionContentLength (connection-content-length [connection] "dynamic content-length in bytes (long) or nil if unknown; default nil"))
+(defonce/protocol ConnectionWrite (connection-write! [connection output-stream] "write HTTP response body directly to output-stream"))
 ;; During response creation, if content-length and content-type weren't
 ;; explicitly provided, we try to infer them. We use `content-type` fn on a
 ;; provided body, and then try it on the data produced using `->data`. We
@@ -198,6 +200,7 @@
 (defn- make-status-response [status body]
   (response status (str status \space body \newline)))
 
+(def ok (make-status-response 200 "OK"))
 (def accepted (make-status-response 202 "Accepted"))
 (def forbidden (make-status-response 403 "Forbidden"))
 (def not-found (make-status-response 404 "Not Found"))
@@ -205,7 +208,7 @@
 (def internal-server-error (make-status-response 500 "Internal Server Error"))
 (defn redirect [location] (response 302 {"location" location} nil))
 
-(deftype ServerWithHandler [^HttpServer server handler]
+(defonce/type ServerWithHandler [^HttpServer server handler]
   Closeable
   (close [_] (.stop server 0)))
 
@@ -402,9 +405,9 @@
    server))
 
 (defn- allowed-methods [method->handler]
-  (let [method-set (-> method->handler keys set (conj "OPTIONS"))
+  (let [method-set (into #{"OPTIONS"} (coll/keys method->handler))
         method-set (cond-> method-set (contains? method-set "GET") (conj "HEAD"))]
-    (string/join ", " (sort method-set))))
+    (coll/join-to-string ", " (coll/sort method-set))))
 
 (defn- invoke-handler [handler request router match]
   (handler (assoc request :path-params (:path-params match) :router router)))

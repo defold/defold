@@ -9,11 +9,10 @@
 #include <script/script.h>
 #include <font/font.h>
 #include <font/fontcollection.h>
+#include <font/font_glyphbank.h>
 #include <platform/window.hpp>
 #include <render/render.h>
 #include <render/font/fontmap.h>
-#include <render/font/font_glyphbank.h>
-#include <render/font_ddf.h>
 
 #include "../profiler_render.h"
 
@@ -43,18 +42,34 @@ static dmGraphics::ShaderDesc MakeDummyShaderDesc(dmGraphics::ShaderDesc::Shader
     return shader_desc;
 }
 
-static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
+struct TestGlyphBank
 {
-    dmRenderDDF::GlyphBank* bank = new dmRenderDDF::GlyphBank;
+    FontGlyphBankProvider m_Provider;
+    FontGlyphBankGlyph*   m_Glyphs;
+};
+
+static uint32_t GetTestGlyphCodepoint(void* context, uint32_t glyph_index)
+{
+    return ((TestGlyphBank*)context)->m_Glyphs[glyph_index].m_Codepoint;
+}
+
+static bool GetTestGlyph(void* context, uint32_t glyph_index, FontGlyphBankGlyph* output)
+{
+    *output = ((TestGlyphBank*)context)->m_Glyphs[glyph_index];
+    return true;
+}
+
+static TestGlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
+{
+    TestGlyphBank* bank = new TestGlyphBank;
     memset(bank, 0, sizeof(*bank));
 
-    bank->m_Glyphs.m_Count = glyph_count;
-    bank->m_Glyphs.m_Data = new dmRenderDDF::GlyphBank::Glyph[glyph_count];
+    bank->m_Glyphs = new FontGlyphBankGlyph[glyph_count];
 
-    memset(bank->m_Glyphs.m_Data, 0, sizeof(dmRenderDDF::GlyphBank::Glyph) * glyph_count);
+    memset(bank->m_Glyphs, 0, sizeof(FontGlyphBankGlyph) * glyph_count);
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
-        bank->m_Glyphs[i].m_Character = i;
+        bank->m_Glyphs[i].m_Codepoint = i;
         bank->m_Glyphs[i].m_Width = 1;
         bank->m_Glyphs[i].m_LeftBearing = 1;
         bank->m_Glyphs[i].m_Advance = 2;
@@ -62,15 +77,19 @@ static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max
         bank->m_Glyphs[i].m_Descent = 1;
     }
 
-    bank->m_MaxAscent = max_ascent;
-    bank->m_MaxDescent = max_descent;
+    bank->m_Provider.m_Context = bank;
+    bank->m_Provider.m_GetCodepoint = GetTestGlyphCodepoint;
+    bank->m_Provider.m_GetGlyph = GetTestGlyph;
+    bank->m_Provider.m_GlyphCount = glyph_count;
+    bank->m_Provider.m_MaxAscent = max_ascent;
+    bank->m_Provider.m_MaxDescent = max_descent;
 
     return bank;
 }
 
-static void DestroyGlyphBank(dmRenderDDF::GlyphBank* bank)
+static void DestroyGlyphBank(TestGlyphBank* bank)
 {
-    delete[] bank->m_Glyphs.m_Data;
+    delete[] bank->m_Glyphs;
     delete bank;
 }
 
@@ -96,7 +115,7 @@ protected:
     dmGraphics::HProgram        m_FontProgram;
     dmRender::HMaterial         m_FontMaterial;
     HFont                       m_Font;
-    dmRenderDDF::GlyphBank*     m_GlyphBank;
+    TestGlyphBank*              m_GlyphBank;
     bool                        m_RenderContextDeleted;
 
     void SetUp() override
@@ -136,7 +155,7 @@ protected:
         dmRender::SetLightBufferCount(m_Context, 32);
 
         m_GlyphBank = CreateGlyphBank(2, 1, 128);
-        m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
+        m_Font = FontCreateGlyphBank("test.glyph_bankc", &m_GlyphBank->m_Provider);
 
         HFontCollection font_collection = FontCollectionCreate();
         FontCollectionAddFont(font_collection, m_Font);
@@ -169,8 +188,8 @@ protected:
             dmRender::DeleteRenderContext(m_Context, 0);
         }
 
-        DestroyGlyphBank(m_GlyphBank);
         FontDestroy(m_Font);
+        DestroyGlyphBank(m_GlyphBank);
 
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);

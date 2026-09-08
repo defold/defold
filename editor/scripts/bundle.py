@@ -64,6 +64,7 @@ java_version = sdk.VERSION_EDITOR_JDK
 REQUIRED_ANDROID_VKQUALITY_FILES = (
     "libexec/armv7-android/libvkquality.so",
     "libexec/arm64-android/libvkquality.so",
+    "libexec/x86_64-android/libvkquality.so",
 )
 
 platform_to_java = {'x86_64-linux': 'x64_linux',

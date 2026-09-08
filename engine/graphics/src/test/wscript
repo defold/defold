@@ -19,7 +19,7 @@ def build(bld):
                 use = 'TESTMAIN DDF DLIB SOCKET PROFILE_NULL PLATFORM_NULL graphics_null graphics_transcoder_basisu basis_transcoder',
                 target = 'test_transcoder')
 
-    if not bld.env.PLATFORM in ('x86_64-ios', 'x86_64-ps4', 'x86_64-ps5'):
+    if not bld.env.PLATFORM in ('arm64_sim-ios', 'x86_64-ps4', 'x86_64-ps5'):
 
         extra_libs = []
         extra_symbols = []
@@ -37,7 +37,7 @@ def build(bld):
         elif platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
             extra_symbols += ['GraphicsAdapterOpenGL']
 
-        if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+        if bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'x86_64-android'):
             extra_libs += ['OPENGL', 'graphics']
             extra_symbols += ['GraphicsAdapterOpenGL']
 

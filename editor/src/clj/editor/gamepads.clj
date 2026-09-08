@@ -39,7 +39,7 @@
    :icon-class :property
    :category (localization/message "resource.category.project_settings")
    :pb-class Input$GamepadMaps
-   :view-types [:cljfx-form-view :text]})
+   :view-types [:form :text]})
 
 (defonce/record GamepadDatabaseBuildResource [resource]
   resource/Resource
