@@ -218,6 +218,8 @@
                      (:meshes (gltf/metadata-descriptors multi-mesh-gltf-resource))))
               (is (= 1 (test-util/prop model-node-id :mesh-index)))
               (is (= selected-mesh-state (model-state model-node-id)))
+              (is (nil? (get-in (g/node-value model-node-id :_properties)
+                               [:properties :__material__0 :error])))
 
               (g/undo! :undo/global)
               (is (= -1 (test-util/prop model-node-id :mesh-index)))

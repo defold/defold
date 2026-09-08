@@ -556,8 +556,8 @@
     (set mesh-material-ids)
     (if-let [selected-mesh (resolve-selected-mesh collision-meshes mesh-index)]
       (into #{}
-            (keep #(get mesh-material-ids %))
-            (selected-mesh-material-indices selected-mesh))
+            (keep :material-name)
+            (:primitives selected-mesh))
       (set mesh-material-ids))))
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids collision-meshes mesh-name mesh-index]
