@@ -14,11 +14,18 @@
 
 (ns integration.gltf-asset-browser-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
+            [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gltf-ui :as gltf-ui]
+            [editor.handler :as handler]
             [editor.resource :as resource]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]])
@@ -205,3 +212,67 @@
               (asset-browser/delete [source-resource]))
             (is (nil? (workspace/find-resource workspace "/robot.glb/materials/0.material")))
             (is (g/error-value? (g/node-value model-node :scene)))))))))
+
+(deftest adding-gltf-offers-the-pbr-library
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! (io/file project-path "existing.glb") (glb-content "Paint"))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              accept (atom false)
+              prompts (atom [])
+              fetch-count (atom 0)
+              contexts [(handler/->context :global
+                                           {:project project
+                                            :workspace workspace
+                                            :app-view nil
+                                            :changes-view nil
+                                            :build-errors-view nil
+                                            :prefs nil
+                                            :localization test-util/localization
+                                            :web-server nil})]]
+          (with-redefs-fn
+            {#'app-view/fetch-libraries (fn [& _args] (swap! fetch-count inc))
+             #'dialogs/make-confirmation-dialog (fn [_ props] (swap! prompts conj props) @accept)
+             #'ui/main-scene (constantly nil)
+             #'ui/contexts (fn [& _args] contexts)
+             #'ui/execute-command (fn [contexts command user-data]
+                                    (test-util/handler-run command contexts user-data))}
+            (fn []
+              (test-util/with-ui-run-later-rebound
+                (gltf-ui/register-resource-listener! workspace project test-util/localization))
+              (is (zero? (count @prompts)))
+
+              (testing "declining leaves dependencies unchanged and sync does not ask again"
+                (let [original-dependencies (project/project-dependencies project)]
+                  (test-util/with-ui-run-later-rebound
+                    (fs/create-file! (io/file project-path "declined.gltf") (gltf-content "Paint"))
+                    (workspace/resource-sync! workspace))
+                  (is (= 1 (count @prompts)))
+                  (is (= original-dependencies (project/project-dependencies project)))
+                  (is (zero? @fetch-count))
+                  (test-util/with-ui-run-later-rebound
+                    (fs/create-file! (io/file project-path "note.txt") "Unrelated file")
+                    (workspace/resource-sync! workspace))
+                  (is (= 1 (count @prompts)))))
+
+              (testing "accepting a batch adds the exact dependency and fetches it once"
+                (reset! accept true)
+                (test-util/with-ui-run-later-rebound
+                  (fs/create-file! (io/file project-path "first.glb") (glb-content "Paint"))
+                  (fs/create-file! (io/file project-path "second.gltf") (gltf-content "Paint"))
+                  (workspace/resource-sync! workspace))
+                (is (= 2 (count @prompts)))
+                (is (= 1 @fetch-count))
+                (is (= 1 (count (filterv #(= gltf-ui/pbr-library-url (str %))
+                                       (project/project-dependencies project)))))
+                (is (string/includes? (test-util/localization (:content (peek @prompts)))
+                                      gltf-ui/pbr-library-url)))
+
+              (testing "an installed dependency suppresses further prompts"
+                (test-util/with-ui-run-later-rebound
+                  (fs/create-file! (io/file project-path "third.glb") (glb-content "Paint"))
+                  (workspace/resource-sync! workspace))
+                (is (= 2 (count @prompts)))
+                (is (= 1 @fetch-count))))))))))
