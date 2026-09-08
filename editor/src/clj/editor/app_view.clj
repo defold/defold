@@ -52,6 +52,7 @@
             [editor.geom :as geom]
             [editor.git :as git]
             [editor.github :as github]
+            [editor.gltf-ui :as gltf-ui]
             [editor.graph-util :as gu]
             [editor.grid :as grid]
             [editor.handler :as handler]
@@ -263,7 +264,7 @@
   ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
   ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
   ;; underscores with the a unicode character that looks somewhat similar.
-  (let [resource-name (or (some-> resource resource/resource-name) "")
+  (let [resource-name (or (some-> resource gltf-ui/resource-tab-title) "")
         escaped-resource-name (string/replace resource-name "_" "\u02CD")]
     (if dirty
       (str "*" escaped-resource-name)
