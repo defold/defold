@@ -733,7 +733,7 @@ var LibraryGLFW = {
   glfwInitJS: function() {
     GLFW.initTime = Date.now() / 1000;
 
-    GLFW.addEventListener("unload", GLFW.onWindowClose, true);
+    GLFW.addEventListener("pagehide", GLFW.onWindowClose, true);
     GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.addEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.addEventListener("keydown", GLFW.onKeydown, true);
