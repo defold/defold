@@ -1714,7 +1714,7 @@
                                                         :shadow-blur (when explicit-blur (.-shadowBlur style))
                                                         :default-shadow-blur (and shadow (not explicit-blur))
                                                         :outlined (and outline (or (not explicit-width) (pos? (.-outlineWidth style))))}]})))))
-  (output build-errors g/Any (g/fnk [_node-id style-error markup-error capability-error]
+  (output build-errors g/Any (g/fnk [_node-id ^:try style-error ^:try markup-error ^:try capability-error]
                               (g/package-errors _node-id style-error markup-error capability-error)))
   (output style-msg g/Any (g/fnk [id authored-markup]
                            (protobuf/make-map-without-defaults Font$StyleDesc :name id :markup authored-markup)))

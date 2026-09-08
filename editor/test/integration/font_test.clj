@@ -619,6 +619,27 @@
         (is (= ["default"] (mapv :name (:styles (font/sanitize-font saved)))))
         (is (= 1 (count (FontStyles/compileStyles (protobuf/map->pb Font$FontDesc saved)))))))))
 
+(deftest style-errors-preserve-font-outline
+  (test-util/with-loaded-project
+    (let [node (test-util/resource-node project "/editor1/test.font")
+          original-children (get-in (g/node-value node :node-outline) [:children 0 :children])
+          style-node (:node-id (second original-children))]
+      (doseq [[property value severity outline-errors] [[:markup "<outline size=2>" :warning [false false false false]]
+                                                        [:markup "<size=48>" :fatal [false true false false]]
+                                                        [:id "link:hover" :fatal [false true true false]]]]
+        (testing (str property " " value)
+          (test-util/with-prop [style-node property value]
+            (let [build-errors (g/node-value style-node :build-errors)
+                  font-outline (g/node-value node :node-outline)
+                  children (get-in font-outline [:children 0 :children])]
+              (is (= severity (:severity (test-util/prop-error style-node property))))
+              (is (g/error-package? build-errors))
+              (is (= node (:node-id font-outline)))
+              (is (= (mapv :node-id original-children) (mapv :node-id children)))
+              (is (= outline-errors (mapv :outline-error? children)))
+              (is (= (= :fatal severity) (g/error-fatal? (g/node-value node :build-targets))))))
+          (is (= original-children (get-in (g/node-value node :node-outline) [:children 0 :children]))))))))
+
 (deftest style-capability-warnings-allow-builds
   (test-util/with-loaded-project
     (let [node (test-util/resource-node project "/editor1/test.font")
