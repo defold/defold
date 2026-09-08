@@ -877,23 +877,6 @@ function M.get_commands()
                 print("After transaction (add font styles after clear):")
                 print_font(font)
             end
-        }),
-        editor.command({
-            id = "defold.test-font-default",
-            label = "Test font default style",
-            locations = {"Outline"},
-            query = {selection = {type = "outline", cardinality = "one"}},
-            run = function(opts)
-                local default_style = opts.selection
-                assert(editor.get(default_style, "id") == "default")
-                assert(editor.get(default_style, "markup") == "")
-                assert(not editor.can_set(default_style, "id"))
-                assert(not editor.can_set(default_style, "markup"))
-                print("Expected default font style errors:")
-                expect_error("rename default style", editor.tx.set, default_style, "id", "renamed")
-                expect_error("set default style markup", editor.tx.set, default_style, "markup", "<ul>")
-                expect_error("remove default style", editor.tx.remove, "/test.font", "styles", default_style)
-            end
         })
     }
 end

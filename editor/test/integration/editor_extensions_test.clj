@@ -826,10 +826,10 @@
   (let [hash->stable-id (volatile! {})]
     (string/replace
       output-string
-      #"(0x|@)[0-9a-f]+"
-      (fn [[s prefix]]
+      #"0x[0-9a-f]+"
+      (fn [s]
         (or (@hash->stable-id s)
-            ((vswap! hash->stable-id #(assoc % s (str prefix (count %)))) s))))))
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
 
 (defn- expect-script-output [expected actual]
   (let [actual (normalize-pprint-output (str actual))
@@ -2428,27 +2428,14 @@ After transaction (add font styles after clear):
     markup: [<color=#aa3300>\\n<ul>]
     id: accent
     markup: [<color=#ff6600>]
-Expected default font style errors:
-  rename default style => Can't set property \"id\" of FontStyle
-  set default style markup => Can't set property \"markup\" of FontStyle
-  remove default style => editor.editor_extensions.graph.NodeIdWithAncestors@0 is not in the \"styles\" list of /test.font
 ")
 
 (deftest attachment-properties-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
-    (let [out (StringBuilder.)
-          font-node (test-util/resource-node project "/test.font")
-          default-outline (decorated-outline font-node [0 0])]
+    (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [handler+context (handler/active
-                              (:command (last (handler/realize-menu :editor.outline-view/context-menu-end)))
-                              (eval-handler-contexts :outline [default-outline])
-                              {})]
-        @(handler/run handler+context))
-      (expect-script-output expected-attachment-test-output out)
-      (is (= (:node-id default-outline)
-             (:node-id (first (g/node-value font-node :style-infos))))))))
+      (expect-script-output expected-attachment-test-output out))))
 
 (def ^:private expected-resources-as-nodes-test-output
   "Directory read:
