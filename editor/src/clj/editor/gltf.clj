@@ -281,14 +281,18 @@
         (try
           (let [^bytes source-content (resource/resource->bytes source-resource)
                 ^GltfContainer$Extraction extraction
-                (GltfContainer/extract source-content (resource/path source-resource) data-resolver)]
+                (GltfContainer/extract source-content (resource/path source-resource) data-resolver)
+                ;; Keep unsupported KTX2 images quiet in the editor for now.
+                diagnostics (into []
+                                  (remove #(re-matches #"Image \d+: unsupported image MIME type 'image/ktx2'" %))
+                                  (.getDiagnostics extraction))]
             (run!
               (fn [diagnostic]
                 (log/warn :message (format "Failed to expose part of glTF resource '%s': %s"
                                            source-proj-path diagnostic)))
-              (.getDiagnostics extraction))
+              diagnostics)
             (assoc (make-gltf-children+status workspace source-resource extraction)
-              :diagnostics (vec (.getDiagnostics extraction))))
+              :diagnostics diagnostics))
           (catch Exception exception
             (log/warn :message (format "Failed to expose glTF resources from '%s'" source-proj-path)
                       :exception exception)
