@@ -300,3 +300,35 @@
               (is (:basisu (first textures)))
               (is (= "Material 0" (:name (first materials))))
               (is (= ["gltf_material_0"] (mapv :name (gltf/material-binding-descriptors source nil)))))))))))
+
+(deftest changing-an-image-uri-reconnects-content-dependencies
+  (with-gltf-project :file (gltf-content "Paint")
+    (fn [project-path workspace project]
+      (let [source-file (io/file project-path "models/robot.gltf")
+            old-image-file (io/file project-path "models/albedo.png")
+            new-image-file (io/file project-path "models/other.png")
+            image-path "/models/robot.gltf/images/0.png"]
+        (test-support/write-until-new-mtime old-image-file (png-bytes 0xff112233))
+        (test-support/write-until-new-mtime new-image-file (png-bytes 0xff445566))
+        (workspace/resource-sync! workspace)
+        (let [image-node (test-util/resource-node project image-path)]
+          (g/node-value image-node :content-generator)
+          (test-support/write-until-new-mtime source-file (string/replace (gltf-content "Paint") "albedo.png" "other.png"))
+          (workspace/resource-sync! workspace)
+          (is (= image-node (test-util/resource-node project image-path)))
+          (let [generator (g/node-value image-node :content-generator)
+                build-target (first (g/node-value image-node :build-targets))]
+            (is (not (g/error-value? generator)))
+            (test-support/write-until-new-mtime new-image-file (png-bytes 0xff778899))
+            (workspace/resource-sync! workspace)
+            (let [updated-generator (g/node-value image-node :content-generator)]
+              (is (not (g/error-value? updated-generator)))
+              (is (not= (:sha1 generator) (:sha1 updated-generator)))
+              (is (not= (:content-hash build-target)
+                        (:content-hash (first (g/node-value image-node :build-targets)))))
+              (when-not (g/error-value? updated-generator)
+                (is (= (unchecked-int 0xff778899)
+                       (.getRGB ^BufferedImage (texture-util/call-generator updated-generator) 0 0))))
+              (test-support/write-until-new-mtime old-image-file (png-bytes 0xffaabbcc))
+              (workspace/resource-sync! workspace)
+              (is (identical? updated-generator (g/node-value image-node :content-generator))))))))))

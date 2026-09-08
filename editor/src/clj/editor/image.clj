@@ -103,6 +103,17 @@
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
 
+  (property resource resource/Resource :unjammable
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; Initial connections are made by load-image, after all resource nodes exist.
+                   (when old-value
+                     (let [basis (:basis evaluation-context)]
+                       (into (g/disconnect-sources basis self :_content-sha256)
+                             (when-let [path (resource/content-source-path new-value)]
+                               (:tx-data (project/connect-resource-node evaluation-context (project/get-project basis self)
+                                                                        path self [[:sha256 :_content-sha256]])))))))))
+
   (input build-settings g/Any)
   (input texture-profiles g/Any)
   (input _content-sha256 g/Str)
