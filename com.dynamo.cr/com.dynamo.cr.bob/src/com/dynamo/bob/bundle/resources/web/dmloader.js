@@ -1229,7 +1229,6 @@ var Module = {
             var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
             Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
         });
-        Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
         Module.arguments = CUSTOM_PARAMETERS["engine_arguments"];
@@ -1245,6 +1244,9 @@ var Module = {
         // starting Wasm so WebGPUIsSupported() can use the cached result.
         Module.probeWebGPUSupport(function() {
             if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
+                // Do not let archive or persistent-storage callbacks start the
+                // engine until the asynchronous WebGPU probe has completed.
+                Module._isEngineLoaded = true;
                 Module.canvas.focus();
 
                 Module.canvas.addEventListener("webglcontextlost", function(event) {

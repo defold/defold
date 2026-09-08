@@ -1280,7 +1280,7 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)userdata;
-    if (device)
+    if (status == WGPURequestDeviceStatus_Success && device)
     {
         context->m_Device = device;
 #if !defined(DM_GRAPHICS_WEBGPU2)
@@ -1288,6 +1288,8 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 #endif
         wgpuDeviceGetLimits(context->m_Device, &context->m_DeviceLimits);
         context->m_Queue = wgpuDeviceGetQueue(context->m_Device);
+
+        bool surface_initialized = false;
         {
 #if defined(DM_GRAPHICS_WEBGPU2)
             WGPUSurfaceDescriptor surface_desc = WGPU_SURFACE_DESCRIPTOR_INIT;
@@ -1306,27 +1308,48 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 #endif
             context->m_Surface = wgpuInstanceCreateSurface(context->m_Instance, &surface_desc);
         }
+
+        if (!context->m_Surface)
+        {
+            dmLogError("WebGPU: Unable to create surface");
+        }
 #if defined(DM_GRAPHICS_WEBGPU2)
+        else
         {
             WGPUSurfaceCapabilities capabilities = WGPU_SURFACE_CAPABILITIES_INIT;
-            wgpuSurfaceGetCapabilities(context->m_Surface, context->m_Adapter, &capabilities);
-            assert(capabilities.formatCount > 0);
-            context->m_Format = capabilities.formats[0];
+            const WGPUStatus capabilities_status = wgpuSurfaceGetCapabilities(context->m_Surface, context->m_Adapter, &capabilities);
+            if (capabilities_status == WGPUStatus_Success && capabilities.formatCount > 0 && capabilities.formats)
+            {
+                context->m_Format = capabilities.formats[0];
+                surface_initialized = context->m_Format != WGPUTextureFormat_Undefined;
+            }
             wgpuSurfaceCapabilitiesFreeMembers(capabilities);
+            if (!surface_initialized)
+                dmLogError("WebGPU: Unable to query a supported surface format");
         }
 #else
-        context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
+        else
+        {
+            context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
+            surface_initialized = context->m_Format != WGPUTextureFormat_Undefined;
+            if (!surface_initialized)
+                dmLogError("WebGPU: Unable to query a supported surface format");
+        }
 #endif
-        WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
 
-        dmLogInfo("WebGPU: Created device");
+        if (surface_initialized)
+        {
+            WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
+            dmLogInfo("WebGPU: Created device");
+        }
     }
     else
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
-        dmLogError("WebGPU: Unable to create device %s", message.data ? message.data : "unknown");
+        dmLogError("WebGPU: Unable to create device (%d): %.*s", (int)status,
+                   message.data ? (int)message.length : 7, message.data ? message.data : "unknown");
 #else
-        dmLogError("WebGPU: Unable to create device %s", message);
+        dmLogError("WebGPU: Unable to create device (%d): %s", (int)status, message ? message : "unknown");
 #endif
     }
     context->m_InitComplete = true;
@@ -1340,7 +1363,7 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)userdata;
-    if (adapter)
+    if (status == WGPURequestAdapterStatus_Success && adapter)
     {
         context->m_Adapter = adapter;
         wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
@@ -1388,9 +1411,10 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
     else
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
-        dmLogError("WebGPU: Unable to create adapter %s", message.data);
+        dmLogError("WebGPU: Unable to create adapter (%d): %.*s", (int)status,
+                   message.data ? (int)message.length : 7, message.data ? message.data : "unknown");
 #else
-        dmLogError("WebGPU: Unable to create adapter %s", message);
+        dmLogError("WebGPU: Unable to create adapter (%d): %s", (int)status, message ? message : "unknown");
 #endif
         context->m_InitComplete = true;
     }
@@ -1455,10 +1479,11 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 #endif
 #endif
 
-    // requestAdapter() is allowed to return no adapter and requesting a device
-    // may also fail. Do not continue into limits or feature queries with a
-    // partially initialized context.
-    if (!context->m_Adapter || !context->m_Device)
+    // Every asynchronous initialization stage may fail independently. Do not
+    // initialize backend state unless the adapter, device, queue, and complete
+    // presentation path are all valid.
+    if (!context->m_Adapter || !context->m_Device || !context->m_Queue ||
+        !context->m_Surface || context->m_Format == WGPUTextureFormat_Undefined)
         return false;
 
     context->m_SamplerCache.SetCapacity(32, 64);
@@ -2250,11 +2275,17 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
         WGPUBufferDescriptor desc = {};
 #endif
         desc.usage                = buffer->m_Usage;
-        // queue.writeBuffer() requires four-byte writes. Keep the engine-facing
-        // size exact, but leave room for padding when the data ends mid-word.
+        // Keep the engine-facing size exact, but leave room for the aligned
+        // writes required by queue.writeBuffer(). The shadow copy lets partial
+        // writes preserve bytes surrounding an unaligned update.
         desc.size                 = DM_ALIGN(size, write_alignment);
         buffer->m_Buffer          = wgpuDeviceCreateBuffer(context->m_Device, &desc);
         buffer->m_Used = buffer->m_Base.m_Size = size;
+
+        if (buffer->m_ShadowData.Capacity() < desc.size)
+            buffer->m_ShadowData.SetCapacity(desc.size);
+        buffer->m_ShadowData.SetSize(desc.size);
+        memset(buffer->m_ShadowData.Begin(), 0, desc.size);
     }
     else if (buffer->m_LastRenderPass && buffer->m_LastRenderPass > context->m_LastSubmittedRenderPass) // flush pipeline
     {
@@ -2265,30 +2296,14 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
     if (!data)
         return;
 
-    if (offset % write_alignment)
-    {
-        dmLogError("WebGPU buffer write offset must be a multiple of four (offset: %zu).", offset);
-        return;
-    }
+    assert(offset + size <= buffer->m_ShadowData.Size());
+    memcpy(buffer->m_ShadowData.Begin() + offset, data, size);
 
-    const size_t aligned_size = size & ~(write_alignment - 1);
-    // Padding is only safe at the logical end of the buffer; an interior
-    // partial-word update would overwrite bytes outside the requested range.
-    if (aligned_size != size && offset + size != buffer->m_Used)
-    {
-        dmLogError("WebGPU buffer sub-data writes must end on a four-byte boundary.");
-        return;
-    }
-
-    if (aligned_size)
-        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, aligned_size);
-
-    if (aligned_size != size)
-    {
-        uint32_t tail = 0;
-        memcpy(&tail, (const uint8_t*)data + aligned_size, size - aligned_size);
-        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset + aligned_size, &tail, sizeof(tail));
-    }
+    const size_t aligned_offset = offset & ~(write_alignment - 1);
+    const size_t aligned_end    = DM_ALIGN(offset + size, write_alignment);
+    const size_t aligned_size   = aligned_end - aligned_offset;
+    wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, aligned_offset,
+                         buffer->m_ShadowData.Begin() + aligned_offset, aligned_size);
 }
 
 static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
