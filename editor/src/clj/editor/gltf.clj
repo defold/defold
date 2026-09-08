@@ -14,13 +14,15 @@
 
 (ns editor.gltf
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [editor.resource :as resource]
             [service.log :as log]
             [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
            [com.dynamo.bob.pipeline ModelImporterJni$DataResolver]
            [com.google.protobuf ByteString]
-           [java.util Map]))
+           [java.util Map]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -233,7 +235,7 @@
                 (fn [groups ^GltfContainer$Asset asset]
                   (let [path (.getPath asset)
                         group (subs path 0 (.indexOf ^String path "/"))
-                        info (gltf-asset-info asset)
+                        {:keys [index kind name] :as info} (gltf-asset-info asset)
                         ^GltfContainer$ImageLocation location (when (instance? GltfContainer$ImageAsset asset)
                                                                 (.getLocation ^GltfContainer$ImageAsset asset))
                         content (cond
@@ -242,16 +244,29 @@
                                    :offset (.offset location)
                                    :length (.length location)}
 
-                                  (= :mesh (:kind info))
+                                  (= :mesh kind)
                                   nil
 
                                   :else
                                   (ByteString/copyFrom (.getContent asset)))
+                        data (cond-> {::asset info}
+                               (#{:image :material} kind)
+                               (assoc ::resource/display-name (format "%s [%d].%s" name index (FilenameUtils/getExtension path)))
+
+                               (= :mesh kind)
+                               (assoc ::resource/tab-title (str (resource/resource-name source) " : " (FilenameUtils/getName path)))
+
+                               (= :material kind)
+                               (assoc ::resource/export-name (format "%s [%d].material"
+                                                                    (-> name
+                                                                        (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
+                                                                        string/trim)
+                                                                    index)))
                         child (resource/make-resource-entry source
                                                             {:path path
-                                                             :ext (when (= :mesh (:kind info)) "gltf-mesh")
+                                                             :ext (when (= :mesh kind) "gltf-mesh")
                                                              :content content
-                                                             :data {::asset info}})]
+                                                             :data data})]
                     (update groups group (fnil conj []) child)))
                 (sorted-map)
                 (.assets extraction))]

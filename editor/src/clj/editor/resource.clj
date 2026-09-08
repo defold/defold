@@ -89,6 +89,24 @@
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
+(defn display-name
+  "Returns the optional ::display-name from resource data, defaulting to the filename."
+  ^String [resource]
+  (or (get-in resource [:data ::display-name])
+      (resource-name resource)))
+
+(defn tab-title
+  "Returns the optional ::tab-title from resource data, defaulting to the display name."
+  ^String [resource]
+  (or (get-in resource [:data ::tab-title])
+      (display-name resource)))
+
+(defn export-name
+  "Returns the optional filesystem-safe ::export-name from resource data, defaulting to the filename."
+  ^String [resource]
+  (or (get-in resource [:data ::export-name])
+      (resource-name resource)))
+
 (definline project-directory
   "Returns a File representing the canonical path of the project directory."
   ^File [basis workspace]

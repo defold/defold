@@ -36,9 +36,17 @@
         (let [source (workspace/find-resource workspace source-path)]
           (doseq [[content expected] [[(ByteString/copyFromUtf8 "embedded") "embedded"]
                                      [{:path source-path :offset 0 :length 4} (subs (slurp source) 0 4)]]]
-            (let [entry (resource/make-resource-entry source {:path "entry.txt" :content content})
+            (let [entry (resource/make-resource-entry source {:path "entry.txt"
+                                                             :content content
+                                                             :data {::resource/display-name "Entry label"
+                                                                    ::resource/tab-title "Source : Entry"
+                                                                    ::resource/export-name "Entry.txt"}})
                   restored (g/read-graph (g/write-graph entry (core/write-handlers)) (core/read-handlers))]
               (is (= expected (slurp restored)))
+              (is (= "entry.txt" (resource/resource-name restored)))
+              (is (= "Entry label" (resource/display-name restored)))
+              (is (= "Source : Entry" (resource/tab-title restored)))
+              (is (= "Entry.txt" (resource/export-name restored)))
               (is (= (resource/openable? entry) (resource/openable? restored)))
               (is (= (path/as-path source) (path/as-path restored))))))))))
 

@@ -24,7 +24,6 @@
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
-            [editor.gltf :as gltf]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
@@ -151,14 +150,7 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [asset-info (gltf/asset-info resource)
-        name (if (= :material (:kind asset-info))
-               (str (-> (:name asset-info)
-                        (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
-                        string/trim)
-                    " [" (:index asset-info) "].material")
-               (resource/resource-name resource))
-        target (File. dir name)]
+  (let [target (File. dir (resource/export-name resource))]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
                   out (io/output-stream target)]
@@ -904,17 +896,6 @@
            (ui/succeeding-selection tree-view))))
   (alt-selection [_this _evaluation-context] []))
 
-(defn resource-tree-cell-text
-  "Returns an asset label, showing embedded glTF material and image names alongside their indices."
-  [resource]
-  (let [resource-name (resource/resource-name resource)]
-    (if-not (gltf/asset-info resource)
-      resource-name
-      (let [{:keys [index kind name]} (gltf/asset-info resource)]
-        (if (#{:image :material} kind)
-          (format "%s [%d].%s" name index (resource/ext resource))
-          resource-name)))))
-
 (defn- describe-tree-cell [localization-state on-drag-dropped item]
   (cond
     (nil? item)
@@ -925,7 +906,7 @@
      :graphic {:fx/type ui/image-icon :path "icons/32/Icons_03-Builtins.png" :size 16.0}}
 
     :else
-    {:text (resource-tree-cell-text item)
+    {:text (resource/display-name item)
      :style-class (into ["cell" "indexed-cell" "tree-cell"] (resource/style-classes item))
      :on-drag-over drag-over
      :on-drag-entered drag-entered

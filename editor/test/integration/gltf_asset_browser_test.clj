@@ -142,8 +142,10 @@
                     material-resource (workspace/find-resource workspace (str source-proj-path "/materials/0.material"))
                     meshes-resource (workspace/find-resource workspace (str source-proj-path "/meshes"))]
                 (is (some? source-resource))
-                (is (= "Albedo [0].png" (asset-browser/resource-tree-cell-text image-resource)))
-                (is (= material-label (asset-browser/resource-tree-cell-text material-resource)))
+                (is (= "Albedo [0].png" (resource/display-name image-resource)))
+                (is (= material-label (resource/display-name material-resource)))
+                (is (= "Albedo [0].png" (#'app-view/tab-title image-resource false)))
+                (is (= material-label (#'app-view/tab-title material-resource false)))
                 (is (some? meshes-resource))
                 (when (and source-resource meshes-resource)
                   (let [mesh-resources (resource/children meshes-resource)
@@ -163,7 +165,9 @@
                       (is (.isLeaf mesh-tree-item)))
                     (doseq [mesh-resource mesh-resources]
                       (is (= (resource/resource-name mesh-resource)
-                             (asset-browser/resource-tree-cell-text mesh-resource)))
+                             (resource/display-name mesh-resource)))
+                      (is (= (str (resource/resource-name source-resource) " : " (resource/resource-name mesh-resource))
+                             (#'app-view/tab-title mesh-resource false)))
                       (is (= :file (resource/source-type mesh-resource)))
                       (is (resource/read-only? mesh-resource))
                       (is (true? (resource/openable? mesh-resource)))

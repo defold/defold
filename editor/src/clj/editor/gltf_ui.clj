@@ -22,22 +22,7 @@
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.coll :as coll])
-  (:import [org.apache.commons.io FilenameUtils]))
-
-(defn resource-tab-title
-  "Uses descriptive names for glTF assets and qualifies mesh names with their source filename."
-  [resource]
-  (if-not (gltf/asset-info resource)
-    (resource/resource-name resource)
-    (let [{:keys [index kind name]} (gltf/asset-info resource)]
-      (case kind
-        (:image :material) (format "%s [%d].%s" name index (resource/ext resource))
-
-        :mesh (str (FilenameUtils/getName (-> resource resource/proj-path resource/parent-proj-path resource/parent-proj-path))
-                   " : " (resource/resource-name resource))
-
-        (resource/resource-name resource)))))
+            [util.coll :as coll]))
 
 (def pbr-library-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip")
 
