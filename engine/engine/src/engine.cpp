@@ -792,6 +792,12 @@ namespace dmEngine
         return loadind_key_result == dmSSLSocket::RESULT_OK;
     }
 
+    /**
+     * Applies the effective swap interval to the graphics context. Presentation
+     * pacing is disabled when an explicit update frequency uses engine-side
+     * frame pacing.
+     * @param engine [type:HEngine] engine instance
+     */
     static void ApplyEffectiveSwapInterval(HEngine engine)
     {
         // An explicit update frequency is timer-paced on platforms whose engine
@@ -805,9 +811,15 @@ namespace dmEngine
         }
     }
 
-    // Advances an absolute frame deadline by one period. Fractional
-    // microseconds are carried in remainder so repeated calls do not accumulate
-    // integer rounding drift. The caller must provide a nonzero frequency.
+    /**
+     * Calculates the next absolute frame deadline by adding the duration of one
+     * frame at the specified frequency. Fractional microseconds are carried in
+     * the remainder so repeated calls do not accumulate integer rounding drift.
+     * @param deadline [type:uint64_t] absolute frame deadline in microseconds
+     * @param frequency [type:uint32_t] nonzero frame frequency in hertz
+     * @param remainder [type:uint32_t&] fractional remainder to update and carry between calls
+     * @return deadline [type:uint64_t] next absolute frame deadline in microseconds
+     */
     uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder)
     {
         // A microsecond clock cannot represent periods shorter than one
@@ -826,6 +838,10 @@ namespace dmEngine
         return deadline;
     }
 
+    /**
+     * Resets the frame pacing deadline, frequency, and fractional remainder.
+     * @param engine [type:HEngine] engine instance
+     */
     static void ResetFramePacing(HEngine engine)
     {
         engine->m_NextFrameTime = 0;
