@@ -197,6 +197,7 @@
         (doto (.builder result)
           (.setTexture "unknown"))
         (assoc (TextureSetResult->result result)
+          :geometry-images geometry-images
           :geometry->layout-rect-index geometry->layout-rect-index)))))
 
 (defn- calc-tile-start [{:keys [spacing margin]} size tile-index]

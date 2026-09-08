@@ -176,17 +176,16 @@
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
-(g/defnk produce-atlas-scene-info [layout-size image-path->rect]
+(g/defnk produce-atlas-scene-info [layout-size image->rect]
   {:layout-size layout-size
-   :image-path->rect image-path->rect})
+   :image->rect image->rect})
 
 (g/defnk produce-animation-scene-info [atlas-scene-info updatable]
   (assoc atlas-scene-info :updatable updatable))
 
-(g/defnk produce-image-scene [_node-id image-resource order scene-info]
-  (let [{:keys [layout-size image-path->rect updatable]} scene-info
-        path (resource/proj-path image-resource)
-        rect (get image-path->rect path)
+(g/defnk produce-image-scene [_node-id atlas-image order scene-info]
+  (let [{:keys [layout-size image->rect updatable]} scene-info
+        rect (get image->rect atlas-image)
         editor-rect (atlas-rect->editor-rect rect)
         [layout-width layout-height] layout-size
         page-index (:page rect)
@@ -723,25 +722,21 @@
                         [y (- x)])))
         vertices))
 
-(g/defnk produce-image-path->rect
-  [layout-size layout-rects geometry->layout-rect-index texture-set]
-  (let [[w h] layout-size
+(g/defnk produce-image->rect
+  [layout-size layout-rects geometry-images geometry->layout-rect-index texture-set]
+  (let [[_ h] layout-size
         geometries (:geometries texture-set)
-
-        layout-rect-index->geometry (reduce-kv (fn [acc geometry-index rect-index]
-                                                 (if (contains? acc rect-index)
-                                                   acc
-                                                   (assoc acc rect-index (get geometries geometry-index))))
-                                               {}
-                                               geometry->layout-rect-index)]
-    (into {} (map (fn [{:keys [path x y width height index page]}]
-                    (let [geometry (layout-rect-index->geometry index)
-                          rotated-vertices (if (:rotated geometry)
-                                             (rotate-vertices-90-cw (:vertices geometry))
-                                             (:vertices geometry))]
-                      [path (->AtlasRect path x (- h height y) width height page
-                                         (assoc geometry :vertices rotated-vertices))])))
-          layout-rects)))
+        rect-index->rect (into {} (map (juxt :index identity)) layout-rects)]
+    (into {}
+          (map-indexed (fn [geometry-index image]
+                         (let [{:keys [path x y width height page]} (rect-index->rect (geometry->layout-rect-index geometry-index))
+                               geometry (get geometries geometry-index)
+                               rotated-vertices (if (:rotated geometry)
+                                                  (rotate-vertices-90-cw (:vertices geometry))
+                                                  (:vertices geometry))]
+                           [image (->AtlasRect path x (- h height y) width height page
+                                               (assoc geometry :vertices rotated-vertices))])))
+          geometry-images)))
 
 (defn- atlas-outline-sort-by-fn [basis v]
   ;; NOTE: unsafe basis from node output! Only use for node type access!
@@ -814,6 +809,7 @@
   (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
+  (output geometry-images  g/Any               (g/fnk [layout-data] (:geometry-images layout-data)))
   (output geometry->layout-rect-index g/Any    (g/fnk [layout-data] (:geometry->layout-rect-index layout-data)))
 
   (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100]
@@ -842,7 +838,7 @@
                   texture))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
-  (output image-path->rect g/Any               :cached produce-image-path->rect)
+  (output image->rect      g/Any               :cached produce-image->rect)
 
   (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filter some? animation-ids)))
   (output id-counts        NameCounts          :cached (g/fnk [anim-ids] (frequencies anim-ids)))
