@@ -647,12 +647,17 @@ ordinary paths."
                              (assoc status :expansion-dependencies dependencies)
                              status)
                     _ (vswap! status-map assoc proj-path status)
-                    source (if expansion (merge source expansion) source)
+                    source (if expansion (sort-resource-tree (merge source expansion)) source)
                     source (if-let [children (resource/children source)]
                              (assoc source :children
                                     (mapv (fn [child]
                                             (when (resource/entry-source child)
-                                              (vswap! status-map assoc (resource/proj-path child) status))
+                                              ;; Immutable entry values track metadata and stored bytes;
+                                              ;; deferred content is invalidated through graph connections.
+                                              (vswap! status-map assoc (resource/proj-path child)
+                                                      (-> status
+                                                          (assoc :version child)
+                                                          (dissoc :expansion-dependencies))))
                                             (expand child))
                                           children))
                              source)]

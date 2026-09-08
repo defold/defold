@@ -81,10 +81,10 @@
       false)
     false))
 
-(defn- replace-resources-plan [{:keys [resource->old-node old-node->old-disk-sha256]} resources force-replacement]
+(defn- replace-resources-plan [{:keys [resource->old-node resource-swapped? old-node->old-disk-sha256]} resources force-replacement]
   ;; Creates new resource nodes for all resources, transfers overrides and outgoing arcs
   ;; from old (if any) and deletes them. If force-replacement is false, we check whether
-  ;; the file has significant changes before replacing any nodes.
+  ;; the resource value or file contents have changed before replacing any nodes.
   (let [in-graph (into []
                        (keep (fn [resource]
                                (when-some [old-node (resource->old-node resource)]
@@ -93,7 +93,8 @@
         [kept replaced] (if force-replacement
                           [nil in-graph]
                           (coll/separate-by (fn [[resource old-node]]
-                                              (keep-existing-node? old-node resource old-node->old-disk-sha256))
+                                              (and (not (resource-swapped? resource))
+                                                   (keep-existing-node? old-node resource old-node->old-disk-sha256)))
                                             in-graph))
         transfer-overrides replaced
         transfer-outgoing-arcs (mapv (fn [[resource old-node]]

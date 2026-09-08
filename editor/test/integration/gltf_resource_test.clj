@@ -20,6 +20,7 @@
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.gltf :as gltf]
+            [editor.model-scene :as model-scene]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.texture-util :as texture-util]
@@ -332,3 +333,32 @@
               (test-support/write-until-new-mtime old-image-file (png-bytes 0xffaabbcc))
               (workspace/resource-sync! workspace)
               (is (identical? updated-generator (g/node-value image-node :content-generator))))))))))
+
+(defn- preview-texture-paths
+  "Returns the image paths connected to the source scene's preview bindings."
+  [source-node]
+  (into []
+        (comp (filter #(g/node-instance? model-scene/GltfPreviewMaterialBinding %))
+              (mapcat #(g/node-value % :nodes))
+              (map #(resource/proj-path (g/node-value % :texture))))
+        (g/node-value source-node :nodes)))
+
+(deftest extensionless-images-refresh-preview-bindings
+  (with-gltf-project :file (string/replace (gltf-content "Paint")
+                                           "\"uri\":\"albedo.png\",\"mimeType\":\"image/png\""
+                                           "\"uri\":\"albedo\"")
+    (fn [project-path workspace project]
+      (let [image-file (io/file project-path "models/albedo")
+            source-path "/models/robot.gltf"
+            image-path (str source-path "/images/0.png")]
+        (is (= [] (preview-texture-paths (test-util/resource-node project source-path))))
+        (doseq [available [true false true]]
+          (if available
+            (test-support/write-until-new-mtime image-file (png-bytes 0xff336699))
+            (fs/delete-file! image-file))
+          (log/without-logging (workspace/resource-sync! workspace))
+          (let [source-node (test-util/resource-node project source-path)]
+            (is (= (if available (vec (repeat 5 image-path)) [])
+                   (preview-texture-paths source-node)))
+            (is (= (workspace/find-resource workspace source-path)
+                   (g/node-value source-node :resource)))))))))
