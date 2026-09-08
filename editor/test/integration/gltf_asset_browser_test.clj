@@ -28,7 +28,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]])
+            [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll])
   (:import [java.io File]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
@@ -161,7 +162,6 @@
                     (doseq [^TreeItem mesh-tree-item (.getChildren meshes-tree-item)]
                       (is (.isLeaf mesh-tree-item)))
                     (doseq [mesh-resource mesh-resources]
-                      (is (resource/gltf-resource? mesh-resource))
                       (is (= (resource/resource-name mesh-resource)
                              (asset-browser/resource-tree-cell-text mesh-resource)))
                       (is (= :file (resource/source-type mesh-resource)))
@@ -170,48 +170,58 @@
                       (is (= "icons/32/Icons_27-AT-Mesh.png"
                              (workspace/resource-icon mesh-resource))))))))))))))
 
-(deftest gltf-assets-copy-preview-and-delete
+(defn- with-glb-project
+  "Loads a GLB and a model referencing its embedded material."
+  [f]
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         source-file (io/file project-path "robot.glb")]
-    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+    (with-open [_deleter (test-util/make-directory-deleter project-path)]
       (fs/create-file! source-file (glb-content "Paint/Chrome"))
       (fs/create-file! (io/file project-path "robot.model")
                        "mesh: \"/robot.glb\"\nmaterials { name: \"Paint/Chrome\" material: \"/robot.glb/materials/0.material\" }\n")
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
-              project (test-util/setup-project! workspace)
-              source-resource (workspace/find-resource workspace "/robot.glb")
-              material-resource (workspace/find-resource workspace "/robot.glb/materials/0.material")
-              meshes-resource (workspace/find-resource workspace "/robot.glb/meshes")
-              mesh-resource (workspace/find-resource workspace "/robot.glb/meshes/Mesh 1")
-              mesh-node (test-util/resource-node project (resource/proj-path mesh-resource))
-              model-node (test-util/resource-node project "/robot.model")]
-          (testing "copying preserves material names and content, including safe filenames"
-            (let [^File exported (first (#'asset-browser/fileify-resources! [material-resource]))]
-              (with-open [_export-deleter (test-util/make-directory-deleter (.getParentFile exported))]
-                (is (= "Paint_Chrome [0].material" (.getName exported)))
-                (is (= (slurp material-resource) (slurp exported))))))
+        (let [workspace (test-util/setup-workspace! world project-path)]
+          (f workspace (test-util/setup-project! workspace) source-file))))))
 
-          (testing "metadata meshes and their folders cannot be copied as empty files"
-            (is (asset-browser/copyable-resource? source-resource))
-            (is (asset-browser/copyable-resource? material-resource))
-            (is (not (asset-browser/copyable-resource? mesh-resource)))
-            (is (not (asset-browser/copyable-resource? meshes-resource))))
+(deftest copying-an-embedded-material-preserves-its-name-and-content
+  (with-glb-project
+    (fn [workspace _project _source-file]
+      (let [material (workspace/find-resource workspace "/robot.glb/materials/0.material")
+            ^File exported (first (#'asset-browser/fileify-resources! [material]))]
+        (with-open [_deleter (test-util/make-directory-deleter (.getParentFile exported))]
+          (is (= "Paint_Chrome [0].material" (.getName exported)))
+          (is (= (slurp material) (slurp exported))))))))
 
-          (testing "an unreferenced, unnamed mesh has its own read-only preview"
-            (is (resource/editor-openable-resource? mesh-resource))
-            (is (= [:scene] (mapv :id (workspace/resource-view-types mesh-resource))))
-            (let [scene (g/node-value mesh-node :scene)]
-              (is (not (g/error-value? scene)))
-              (is (= mesh-node (:node-id scene)))
-              (is (= [1] (into [] (keep :mesh-index) (:children scene))))))
+(deftest metadata-meshes-cannot-be-copied-as-empty-files
+  (with-glb-project
+    (fn [workspace _project _source-file]
+      (doseq [[path copyable] [["/robot.glb" true]
+                               ["/robot.glb/materials/0.material" true]
+                               ["/robot.glb/meshes" false]
+                               ["/robot.glb/meshes/Mesh 1" false]]]
+        (is (= copyable (asset-browser/copyable-resource? (workspace/find-resource workspace path))))))))
 
-          (testing "deleting the container removes children and reports missing references"
-            ;; Exercise the resource lifecycle without placing a test fixture in the OS trash.
-            (with-redefs [fs/move-to-trash! (fn [file _opts] (fs/delete-file! file))]
-              (asset-browser/delete [source-resource]))
-            (is (nil? (workspace/find-resource workspace "/robot.glb/materials/0.material")))
-            (is (g/error-value? (g/node-value model-node :scene)))))))))
+(deftest an-unreferenced-mesh-has-a-read-only-preview
+  (with-glb-project
+    (fn [workspace project _source-file]
+      (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Mesh 1")
+            node (test-util/resource-node project (resource/proj-path mesh))
+            scene (g/node-value node :scene)]
+        (is (resource/editor-openable-resource? mesh))
+        (is (resource/read-only? mesh))
+        (is (= [:scene] (mapv :id (workspace/resource-view-types mesh))))
+        (is (not (g/error-value? scene)))
+        (is (= node (:node-id scene)))
+        (is (= [1] (into [] (keep :mesh-index) (:children scene))))))))
+
+(deftest deleting-a-container-reports-missing-embedded-references
+  (with-glb-project
+    (fn [workspace project source-file]
+      (let [model (test-util/resource-node project "/robot.model")]
+        (fs/delete-file! source-file)
+        (workspace/resource-sync! workspace)
+        (is (nil? (workspace/find-resource workspace "/robot.glb/materials/0.material")))
+        (is (g/error-value? (g/node-value model :scene)))))))
 
 (deftest adding-gltf-offers-the-pbr-library
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]

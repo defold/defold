@@ -1238,7 +1238,7 @@
   (output scene g/Any :cached
           (g/fnk [_node-id resource source-scene]
             (augment-scene source-scene _node-id "" (constantly nil) false
-                           (:index (resource/gltf-resource-asset-info resource))))))
+                           (:index (gltf/asset-info resource))))))
 
 (defn- load-gltf-mesh-node
   "Connects a virtual mesh preview to its source scene so materials and reloads are shared."
@@ -1254,6 +1254,7 @@
       :label (localization/message "resource.type.model-scene")
       :node-type ModelSceneNode
       :load-fn load-model-scene-node
+      :expand-fn gltf/expand-resource
       :read-fn model-loader/read-external-buffer-uris
       :icon mesh-icon
       :icon-class :design

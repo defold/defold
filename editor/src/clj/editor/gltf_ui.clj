@@ -28,9 +28,9 @@
 (defn resource-tab-title
   "Uses descriptive names for glTF assets and qualifies mesh names with their source filename."
   [resource]
-  (if-not (resource/gltf-resource? resource)
+  (if-not (gltf/asset-info resource)
     (resource/resource-name resource)
-    (let [{:keys [index kind name]} (resource/gltf-resource-asset-info resource)]
+    (let [{:keys [index kind name]} (gltf/asset-info resource)]
       (case kind
         (:image :material) (format "%s [%d].%s" name index (resource/ext resource))
 
@@ -94,7 +94,7 @@
                           ;; Show dialogs after resource-sync completes, outside graph transactions.
                           (ui/run-later
                             (when (g/node-exists? workspace)
-                              (let [diagnostics (gltf/diagnostics (workspace/snapshot-cache workspace))]
+                              (let [diagnostics (gltf/diagnostics (g/node-value workspace :resource-list))]
                                 (update-diagnostics! workspace @previous-diagnostics diagnostics)
                                 (reset! previous-diagnostics diagnostics))
                               (offer-pbr-library! project localization-state (:added changes)))))]

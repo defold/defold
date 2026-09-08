@@ -156,12 +156,11 @@
     (let [workspace (test-util/setup-workspace! world project-path)
           project (test-util/setup-project! workspace)
           resource-nodes (g/node-value project :nodes-by-resource-path)]
-      ;; Virtual glTF mesh resources are asset-browser handles, not loadable resource types.
+      ;; Source dependency checks apply to resources with file content.
       (doseq [[resource-path node-id] resource-nodes
               :when (.startsWith resource-path "/test")
               :let [resource (g/node-value node-id :resource)]
-              :when (not (and (resource/gltf-resource? resource)
-                              (= :mesh (:kind (resource/gltf-resource-asset-info resource)))))]
+              :when (resource/has-content? resource)]
         (let [resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               source-value (g/node-value node-id :source-value)]

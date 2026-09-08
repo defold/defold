@@ -337,7 +337,7 @@
                   (let [material-node-id (:node-id material-outline)]
                     (assert-read-only-property material-node-id :index material-index)
                     (assert-read-only-property material-node-id :name "Shared")
-                    (is (resource/gltf-resource?
+                    (is (resource/read-only?
                           (get-in (g/node-value material-node-id :_properties)
                                   [:properties :material :value])))
                     (assert-selected-property app-view material-node-id :name "Shared")))

@@ -18,7 +18,7 @@
             [editor.code.data :as data]
             [editor.code.preprocessors :as preprocessors]
             [editor.code.resource :as r]
-            [editor.image :as image]
+            [editor.image-util :as image-util]
             [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
@@ -78,7 +78,7 @@
    "font"          (constantly "font")
    "material"      (constantly "material")
    "buffer"        (constantly "buffer")
-   "texture"       (constantly (conj image/exts "cubemap" "render_target"))
+   "texture"       (constantly (conj image-util/image-exts "cubemap" "render_target"))
    "tile_source"   (constantly "tilesource")
    "render_target" (constantly "render_target")})
 

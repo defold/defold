@@ -104,7 +104,7 @@
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
         options nil
-        ^ModelImporterJni$DataResolver data-resolver (gltf/make-data-resolver #(workspace/resolve-workspace-resource workspace %) nil)
+        ^ModelImporterJni$DataResolver data-resolver (gltf/make-data-resolver #(workspace/resolve-workspace-resource workspace %))
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)

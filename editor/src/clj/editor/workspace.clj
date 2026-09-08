@@ -23,7 +23,6 @@ ordinary paths."
             [editor.code.preprocessors :as code.preprocessors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
-            [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.library :as library]
             [editor.localization :as localization]
@@ -212,9 +211,12 @@ ordinary paths."
 (defn resource-view-types
   "Returns the effective registered view types advertised by the resource."
   [resource]
-  (cond->> (:view-types (resource/resource-type resource))
-    (text-util/binary? resource)
-    (filterv #(not= :code (:id %)))))
+  (let [view-types (:view-types (resource/resource-type resource))]
+    (cond->> view-types
+      (and (coll/any? #(= :code (:id %)) view-types)
+           (or (not (resource/has-content? resource))
+               (text-util/binary? resource)))
+      (filterv #(not= :code (:id %))))))
 
 (defn- editor-openable-view-type? [view-type]
   (case view-type
@@ -269,6 +271,9 @@ ordinary paths."
                         connection transaction steps, invoked when the resource
                         shell is added to the project and before any resource
                         load-fns run
+    :expand-fn          a function of source resource and resource resolver, returning
+                        :children and optional :data; resolved resources invalidate
+                        the expansion when they change
     :load-fn            a function from project, new node id and resource to
                         transaction step, invoked on loading the resource of
                         the type; default editor.placeholder-resource/load-node
@@ -338,7 +343,7 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn expand-fn load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [view-types (mapv canonical-view-type-id view-types)
         editable (if (nil? editable) true (boolean editable))
@@ -349,6 +354,7 @@ ordinary paths."
                        :editor-openable (some? (coll/some editor-openable-view-type? view-types))
                        :node-type node-type
                        :connect-fn connect-fn
+                       :expand-fn expand-fn
                        :load-fn load-fn
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
@@ -431,10 +437,6 @@ ordinary paths."
          (= (resource/path resource)
             (resource/resource-name resource)))
     "icons/32/Icons_03-Builtins.png"
-
-    (and (resource/gltf-resource? resource)
-         (= :mesh (:kind (resource/gltf-resource-asset-info resource))))
-    "icons/32/Icons_27-AT-Mesh.png"
 
     :else
     (case (resource/source-type resource)
@@ -609,8 +611,74 @@ ordinary paths."
    (g/node-value workspace :dependency-uris evaluation-context)))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
-  (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
-    (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
+  (let [{:keys [snapshot snapshot-cache]} (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)
+        old-expansions (::resource-expansions snapshot-cache)
+        source-resources (delay (resource-watch/make-resource-map snapshot))
+        expansions (volatile! {})
+        resource-map (volatile! {})
+        status-map (volatile! (:status-map snapshot))]
+    (letfn [(expand [source]
+              (let [proj-path (resource/proj-path source)
+                    status (get @status-map proj-path)
+                    expansion (when (and (= :file (resource/source-type source))
+                                         (resource/loaded? source)
+                                         (nil? (resource/entry-source source)))
+                                (when-let [expand-fn (:expand-fn (resource/resource-type source))]
+                                  (let [old-expansion (get old-expansions proj-path)
+                                        cache-key [status source]
+                                        cached (and (= cache-key (:key old-expansion))
+                                                    (coll/every? (fn [[path status]]
+                                                                   (= status (get (:status-map snapshot) path)))
+                                                                 (:dependencies old-expansion)))
+                                        dependencies (volatile! (if cached (:dependencies old-expansion) {}))
+                                        expansion (if cached
+                                                    (:value old-expansion)
+                                                    (expand-fn source
+                                                               (fn [path]
+                                                                 (vswap! dependencies assoc path (get (:status-map snapshot) path))
+                                                                 (get @source-resources path))))]
+                                    (vswap! expansions assoc proj-path {:key cache-key
+                                                                       :dependencies @dependencies
+                                                                       :value expansion})
+                                    expansion)))
+                    ;; Some formats need referenced headers to name their children.
+                    ;; Only those reads affect discovery; payload changes use graph arcs.
+                    status (if-let [dependencies (coll/not-empty (:dependencies (get @expansions proj-path)))]
+                             (assoc status :expansion-dependencies dependencies)
+                             status)
+                    _ (vswap! status-map assoc proj-path status)
+                    source (if expansion (merge source expansion) source)
+                    source (if-let [children (resource/children source)]
+                             (assoc source :children
+                                    (mapv (fn [child]
+                                            (when (resource/entry-source child)
+                                              (vswap! status-map assoc (resource/proj-path child) status))
+                                            (expand child))
+                                          children))
+                             source)]
+                (vswap! resource-map assoc proj-path source)
+                source))]
+      (let [resources (mapv expand (:resources snapshot))]
+        {:snapshot (assoc snapshot :resources resources :status-map @status-map)
+         :snapshot-cache (assoc snapshot-cache ::resource-expansions @expansions)
+         :map @resource-map}))))
+
+(defn- expand-resource-moves
+  "Includes embedded file entries when their containing resource moves."
+  [moved-proj-paths old-map new-map]
+  (into []
+        (mapcat (fn [[source-path target-path :as moved-paths]]
+                  (into [moved-paths]
+                        (comp resource/xform-recursive-resources
+                              (filter #(and (resource/entry-source %)
+                                            (= :file (resource/source-type %))))
+                              (keep (fn [child]
+                                      (let [child-path (resource/proj-path child)
+                                            target-child-path (str target-path (subs child-path (count source-path)))]
+                                        (when (resource/entry-source (get new-map target-child-path))
+                                          [child-path target-child-path])))))
+                        (some-> (get old-map source-path) resource/children))))
+        moved-proj-paths))
 
 (defn update-snapshot-cache! [workspace snapshot-cache]
   (g/transact
@@ -878,7 +946,7 @@ ordinary paths."
                moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
-         moved-proj-paths (gltf/expand-container-moves physical-moved-proj-paths old-map new-map)
+         moved-proj-paths (expand-resource-moves physical-moved-proj-paths old-map new-map)
          changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))

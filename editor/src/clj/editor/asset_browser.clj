@@ -24,6 +24,7 @@
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.gltf :as gltf]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
@@ -150,8 +151,7 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [asset-info (when (resource/gltf-resource? resource)
-                     (resource/gltf-resource-asset-info resource))
+  (let [asset-info (gltf/asset-info resource)
         name (if (= :material (:kind asset-info))
                (str (-> (:name asset-info)
                         (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
@@ -195,10 +195,7 @@
   "True for resources that can be exported to files, including every child of a folder."
   [value]
   (and (resource/resource? value)
-       (if (= :folder (resource/source-type value))
-         (coll/every? copyable-resource? (resource/children value))
-         (not (and (resource/gltf-resource? value)
-                   (= :mesh (:kind (resource/gltf-resource-asset-info value))))))))
+       (resource/has-content? value)))
 
 (handler/defhandler :edit.copy :asset-browser
   (enabled? [selection]
@@ -911,9 +908,9 @@
   "Returns an asset label, showing embedded glTF material and image names alongside their indices."
   [resource]
   (let [resource-name (resource/resource-name resource)]
-    (if-not (resource/gltf-resource? resource)
+    (if-not (gltf/asset-info resource)
       resource-name
-      (let [{:keys [index kind name]} (resource/gltf-resource-asset-info resource)]
+      (let [{:keys [index kind name]} (gltf/asset-info resource)]
         (if (#{:image :material} kind)
           (format "%s [%d].%s" name index (resource/ext resource))
           resource-name)))))

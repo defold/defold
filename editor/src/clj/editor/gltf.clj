@@ -13,23 +13,28 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gltf
-  (:require [editor.resource :as resource]
+  (:require [clojure.java.io :as io]
+            [editor.resource :as resource]
             [service.log :as log]
-            [util.coll :as coll :refer [pair]]
-            [util.digest :as digest])
-  (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
+            [util.coll :as coll :refer [pair]])
+  (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
            [com.dynamo.bob.pipeline ModelImporterJni$DataResolver]
+           [com.google.protobuf ByteString]
            [java.util Map]))
 
 (set! *warn-on-reflection* true)
+
+(defn asset-info
+  "Returns glTF metadata attached to an embedded resource, or nil."
+  [resource]
+  (get-in resource [:data ::asset]))
 
 (defn- asset-resources
   "Returns virtual assets beneath a glTF source, excluding grouping folders."
   [source-resource]
   (into []
         (comp resource/xform-recursive-resources
-              (filter resource/gltf-resource?)
-              (filter #(some? (resource/gltf-resource-asset-info %))))
+              (filter #(some? (asset-info %))))
         (resource/children source-resource)))
 
 (defn material-binding-descriptors
@@ -41,15 +46,15 @@
         resource-by-asset-path
         (into {}
               (map (fn [asset-resource]
-                     [(:path (resource/gltf-resource-asset-info asset-resource))
+                     [(:path (asset-info asset-resource))
                       asset-resource]))
               asset-resources)]
     (into []
           (comp
-            (filter #(= :material (:kind (resource/gltf-resource-asset-info %))))
+            (filter #(= :material (:kind (asset-info %))))
             (keep
               (fn [material-resource]
-                (let [{:keys [index material-name sampler-bindings]} (resource/gltf-resource-asset-info material-resource)]
+                (let [{:keys [index material-name sampler-bindings]} (asset-info material-resource)]
                   (when (or (nil? material-indices)
                             (contains? material-indices index))
                     {:name material-name
@@ -71,11 +76,11 @@
         texture-descriptors
         (into []
               (comp
-                (filter #(= :image (:kind (resource/gltf-resource-asset-info %))))
+                (filter #(= :image (:kind (asset-info %))))
                 (mapcat
                   (fn [image-resource]
                     (let [{:keys [mime-type name source-kind textures uri] :as image-info}
-                          (resource/gltf-resource-asset-info image-resource)
+                          (asset-info image-resource)
                           image-index (:index image-info)]
                       (eduction
                         (map (fn [{:keys [index] :as texture-info}]
@@ -96,11 +101,11 @@
         material-descriptors
         (into []
               (comp
-                (filter #(= :material (:kind (resource/gltf-resource-asset-info %))))
+                (filter #(= :material (:kind (asset-info %))))
                 (map
                   (fn [material-resource]
                     (let [{:keys [index name sampler-bindings] :as asset-info}
-                          (resource/gltf-resource-asset-info material-resource)
+                          (asset-info material-resource)
                           sampler-descriptions
                           (into []
                                 (map
@@ -118,7 +123,7 @@
         mesh-descriptors
         (into []
               (comp
-                (map resource/gltf-resource-asset-info)
+                (map asset-info)
                 (filter #(= :mesh (:kind %)))
                 (map (fn [{:keys [index name name-generated primitive-count vertex-count]}]
                        {:index index
@@ -140,41 +145,17 @@
       nil)))
 
 (defn make-data-resolver
-  "Creates a workspace resource resolver, optionally reporting attempted project paths."
-  ^ModelImporterJni$DataResolver [resource-by-proj-path resolved-proj-path!]
+  "Creates an importer resolver backed by workspace resources."
+  ^ModelImporterJni$DataResolver [resource-by-proj-path]
   (reify ModelImporterJni$DataResolver
     (getData [_this source-path uri]
       (try
         (when-let [proj-path (uri->proj-path source-path uri)]
-          (when resolved-proj-path!
-            (resolved-proj-path! proj-path))
           (when-let [external-resource (resource-by-proj-path proj-path)]
             (when (= :file (resource/source-type external-resource))
               (resource/resource->bytes external-resource))))
         (catch Exception _
           nil)))))
-
-(defn- gltf-source-resource?
-  "True for loaded glTF or GLB source files."
-  [resource]
-  (and (= :file (resource/source-type resource))
-       (#{"gltf" "glb"} (resource/type-ext resource))
-       (resource/loaded? resource)))
-
-(defn- resource-statuses
-  "Captures statuses for dependency paths, retaining nil entries for missing resources."
-  [status-map proj-paths]
-  (into {}
-        (map (fn [proj-path]
-               (pair proj-path (get status-map proj-path))))
-        proj-paths))
-
-(defn- gltf-cache-entry-valid?
-  "True when the cached source and external dependency statuses still match."
-  [cache-entry status-map]
-  (and cache-entry
-       (= (:dependency-statuses cache-entry)
-          (resource-statuses status-map (coll/keys (:dependency-statuses cache-entry))))))
 
 (defn- gltf-asset-info
   "Converts extracted asset metadata to the map stored on its virtual resource."
@@ -229,159 +210,67 @@
                :basisu (.basisu texture)})
             (.getTextures image-asset)))))))
 
-(defn- make-gltf-children+status
-  "Builds virtual asset folders and files together with their resource-watch statuses."
-  [workspace source-resource ^GltfContainer$Extraction extraction]
-  (let [source-proj-path (resource/proj-path source-resource)
-        editable (resource/editable? source-resource)
-        loaded (resource/loaded? source-resource)
-        {:keys [children-by-group status-map]}
-        (reduce
-          (fn [{:keys [children-by-group status-map]} ^GltfContainer$Asset asset]
-            (let [asset-path (.getPath asset)
-                  separator-index (.indexOf ^String asset-path "/")
-                  group-name (subs asset-path 0 separator-index)
-                  asset-proj-path (str source-proj-path "/" asset-path)
-                  content (.getContent asset)
-                  asset-info (gltf-asset-info asset)
-                  asset-resource (resource/make-gltf-resource
-                                   workspace asset-proj-path content nil editable loaded
-                                   asset-info)]
-              {:children-by-group (update children-by-group group-name (fnil conj []) asset-resource)
-               :status-map (assoc status-map asset-proj-path
-                                  {:version (if (= :mesh (:kind asset-info))
-                                              asset-info
-                                              (digest/sha1-hex content))
-                                   :source :gltf
-                                   :container source-proj-path})}))
-          {:children-by-group (sorted-map)
-           :status-map {}}
-          (.assets extraction))]
-    (reduce-kv
-      (fn [{:keys [children status-map]} group-name group-children]
-        (let [group-proj-path (str source-proj-path "/" group-name)
-              group-resource (resource/make-gltf-resource
-                               workspace group-proj-path nil group-children editable loaded nil)]
-          {:children (conj children group-resource)
-           :status-map (assoc status-map group-proj-path
-                              {:version :constant
-                               :source :gltf
-                               :container source-proj-path})}))
-      {:children []
-       :status-map status-map}
-      children-by-group)))
+(defn expand-resource
+  "Adapts shared asset metadata, resolving headers only when image format is unspecified."
+  [source resolve-resource]
+  (when (#{"gltf" "glb"} (resource/type-ext source))
+    (try
+      (with-open [stream (io/input-stream source)]
+        (let [^GltfContainer$Extraction extraction (GltfContainer/inspect
+                                                     stream (resource/path source)
+                                                     (reify ModelImporterJni$DataResolver
+                                                       (getData [_this source-path uri]
+                                                         (when-let [path (uri->proj-path source-path uri)]
+                                                           (when-let [resource (resolve-resource path)]
+                                                             (with-open [stream (io/input-stream resource)]
+                                                               (.readNBytes stream 8)))))))
+              diagnostics (into []
+                                ;; Keep unsupported KTX2 images quiet in the editor for now.
+                                (remove #(re-matches #"Image \d+: unsupported image MIME type 'image/ktx2'" %))
+                                (.diagnostics extraction))
+              children-by-group
+              (reduce
+                (fn [groups ^GltfContainer$Asset asset]
+                  (let [path (.getPath asset)
+                        group (subs path 0 (.indexOf ^String path "/"))
+                        info (gltf-asset-info asset)
+                        ^GltfContainer$ImageLocation location (when (instance? GltfContainer$ImageAsset asset)
+                                                                (.getLocation ^GltfContainer$ImageAsset asset))
+                        content (cond
+                                  location
+                                  {:path (str "/" (.path location))
+                                   :offset (.offset location)
+                                   :length (.length location)}
 
-(defn- extract-gltf-cache-entry
-  "Extracts virtual children and dependency statuses, returning no children on failure."
-  [workspace source-resource resources-by-proj-path status-map]
-  (let [source-proj-path (resource/proj-path source-resource)
-        dependency-proj-paths (atom #{source-proj-path})
-        data-resolver (make-data-resolver resources-by-proj-path #(swap! dependency-proj-paths conj %))
-        extraction-data
-        (try
-          (let [^bytes source-content (resource/resource->bytes source-resource)
-                ^GltfContainer$Extraction extraction
-                (GltfContainer/extract source-content (resource/path source-resource) data-resolver)
-                ;; Keep unsupported KTX2 images quiet in the editor for now.
-                diagnostics (into []
-                                  (remove #(re-matches #"Image \d+: unsupported image MIME type 'image/ktx2'" %))
-                                  (.diagnostics extraction))]
-            (run!
-              (fn [diagnostic]
-                (log/warn :message (format "Failed to expose part of glTF resource '%s': %s"
-                                           source-proj-path diagnostic)))
-              diagnostics)
-            (assoc (make-gltf-children+status workspace source-resource extraction)
-              :diagnostics diagnostics))
-          (catch Exception exception
-            (log/warn :message (format "Failed to expose glTF resources from '%s'" source-proj-path)
-                      :exception exception)
-            {:diagnostics [(ex-message exception)]
-             :children []
-             :status-map {}}))]
-    (assoc extraction-data
-      :dependency-statuses (resource-statuses status-map @dependency-proj-paths))))
+                                  (= :mesh (:kind info))
+                                  nil
+
+                                  :else
+                                  (ByteString/copyFrom (.getContent asset)))
+                        child (resource/make-resource-entry source
+                                                            {:path path
+                                                             :ext (when (= :mesh (:kind info)) "gltf-mesh")
+                                                             :content content
+                                                             :data {::asset info}})]
+                    (update groups group (fnil conj []) child)))
+                (sorted-map)
+                (.assets extraction))]
+          {:data {::diagnostics diagnostics}
+           :children (into []
+                           (map (fn [[group children]]
+                                  (resource/make-resource-entry source {:path group :children children})))
+                           children-by-group)}))
+      (catch Exception exception
+        (log/warn :message (format "Failed to expose glTF resources from '%s'" (resource/proj-path source))
+                  :exception exception)
+        {:data {::diagnostics [(ex-message exception)]}
+         :children []}))))
 
 (defn diagnostics
   "Returns extraction diagnostics by source path for display in the editor."
-  [snapshot-cache]
+  [resources]
   (into {}
-        (keep (fn [[source-proj-path cache-entry]]
-                (when-let [diagnostics (coll/not-empty (:diagnostics cache-entry))]
-                  (pair source-proj-path diagnostics))))
-        (::snapshot-cache snapshot-cache)))
-
-(defn- attach-gltf-children
-  "Attaches cached virtual children to glTF sources throughout a resource tree."
-  [resource cache-entries]
-  (if-let [cache-entry (cache-entries (resource/proj-path resource))]
-    (assoc resource :children (:children cache-entry))
-    (if-let [children (resource/children resource)]
-      (assoc resource :children (mapv #(attach-gltf-children % cache-entries) children))
-      resource)))
-
-(defn add-resources-to-snapshot
-  "Adds glTF child resources and their statuses to a resource snapshot. Reuses
-  cached extractions while their source and external dependency statuses match.
-  Returns the updated :snapshot and :snapshot-cache."
-  [workspace snapshot resources-by-proj-path snapshot-cache]
-  (let [status-map (:status-map snapshot)
-        gltf-source-resources
-        (into []
-              (comp resource/xform-recursive-resources
-                    (filter gltf-source-resource?))
-              (:resources snapshot))
-        old-cache (get snapshot-cache ::snapshot-cache {})
-        cache-entries
-        (reduce
-          (fn [cache source-resource]
-            (let [source-proj-path (resource/proj-path source-resource)
-                  old-cache-entry (old-cache source-proj-path)
-                  cache-entry (if (gltf-cache-entry-valid? old-cache-entry status-map)
-                                old-cache-entry
-                                (extract-gltf-cache-entry workspace source-resource resources-by-proj-path status-map))]
-              (assoc cache source-proj-path cache-entry)))
-          {}
-          gltf-source-resources)
-        new-status-map
-        (reduce-kv
-          (fn [status-map source-proj-path cache-entry]
-            (let [child-status-map (:status-map cache-entry)]
-              (-> status-map
-                  (into child-status-map)
-                  (update source-proj-path assoc
-                          :gltf-resource-paths (into #{} (coll/keys child-status-map))))))
-          status-map
-          cache-entries)
-        resources (mapv #(attach-gltf-children % cache-entries) (:resources snapshot))]
-    {:snapshot (assoc snapshot
-                 :resources resources
-                 :status-map new-status-map)
-     :snapshot-cache (assoc snapshot-cache ::snapshot-cache cache-entries)}))
-
-(defn expand-container-moves
-  "Includes virtual child file moves when their glTF source file is moved."
-  [moved-proj-paths old-map new-map]
-  (reduce
-    (fn [expanded-moved-proj-paths [source-proj-path target-proj-path :as moved-proj-path-pair]]
-      (let [source-resource (old-map source-proj-path)
-            expanded-moved-proj-paths (conj expanded-moved-proj-paths moved-proj-path-pair)]
-        (if (and source-resource
-                 (= :file (resource/source-type source-resource))
-                 (#{"gltf" "glb"} (resource/type-ext source-resource)))
-          (into expanded-moved-proj-paths
-                (comp resource/xform-recursive-resources
-                      (filter #(and (resource/gltf-resource? %)
-                                    (= :file (resource/source-type %))))
-                      (keep (fn [source-child]
-                              (let [source-child-proj-path (resource/proj-path source-child)
-                                    child-suffix (subs source-child-proj-path (count source-proj-path))
-                                    target-child-proj-path (str target-proj-path child-suffix)
-                                    target-child (new-map target-child-proj-path)]
-                                (when (and (resource/gltf-resource? target-child)
-                                           (= :file (resource/source-type target-child)))
-                                  (pair source-child-proj-path target-child-proj-path))))))
-                (resource/children source-resource))
-          expanded-moved-proj-paths)))
-    []
-    moved-proj-paths))
+        (keep (fn [source]
+                (when-let [diagnostics (coll/not-empty (get-in source [:data ::diagnostics]))]
+                  (pair (resource/proj-path source) diagnostics))))
+        resources))
