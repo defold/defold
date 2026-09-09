@@ -1,0 +1,1 @@
+05000000091200000100000000000000,Defold ASAN Gamepad,a:b0,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,dpup:h0.1,dpright:h0.2,dpdown:h0.4,dpleft:h0.8,platform:Android,

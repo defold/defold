@@ -157,7 +157,8 @@ input values, release, disconnection, and clean state after reconnection.
 
 Use a dedicated emulator: the runner reinstalls `com.defold.androidasan` and
 temporarily changes rotation and keyboard settings, restoring those settings
-afterward. It requires `uinput` and fails if the requested cases cannot run.
+afterward. It requires Android API 35 or newer with `uinput` and fails if the
+requested cases cannot run.
 It verifies that the ASAN runtime is loaded and requires explicit app events
 and completion, with timeouts. Logs, screenshots, results, the APK, and the
 matching unstripped engine are saved under `build/android-asan-app` by default;

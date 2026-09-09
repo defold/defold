@@ -25,21 +25,26 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # https://developer.android.com/ndk/guides/wrap-script
 # https://github.com/android/ndk/issues/1297#issuecomment-651070101 (android:extractNativeLibs="true")
 
-cmd=$1
+APP_PROCESS=$1
 shift
 
 os_version=$(getprop ro.build.version.sdk)
 
 if [ "$os_version" -eq "27" ]; then
-  cmd="$cmd -Xrunjdwp:transport=dt_android_adb,suspend=n,server=y -Xcompiler-option --debuggable $@"
+  set -- "$APP_PROCESS" -Xrunjdwp:transport=dt_android_adb,suspend=n,server=y -Xcompiler-option --debuggable "$@"
 elif [ "$os_version" -eq "28" ]; then
-  cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y -Xcompiler-option --debuggable $@"
+  set -- "$APP_PROCESS" -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y -Xcompiler-option --debuggable "$@"
 else
-  cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y $@"
+  set -- "$APP_PROCESS" -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y "$@"
 fi
 
 ASAN_LIB=$(ls "$HERE"/libclang_rt.asan-*-android.so)
 export LD_PRELOAD=${ASAN_LIB}
 export ASAN_OPTIONS=log_to_syslog=false:allow_user_segv_handler=1:fast_unwind_on_malloc=1
 
-exec $cmd
+# Report the real process status after ASAN has finished its shutdown checks.
+# Keeping the wrapper alive is also supported by Android's wrap.sh launcher.
+"$@"
+ASAN_EXIT_CODE=$?
+echo "DEFOLD_ASAN_EXIT ${ASAN_EXIT_CODE}"
+exit "${ASAN_EXIT_CODE}"

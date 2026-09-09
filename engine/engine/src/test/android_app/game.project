@@ -12,7 +12,8 @@ dynamic_orientation = 1
 
 [input]
 game_binding = /test.input_bindingc
-gamepads = /test.gamepadsc
+gamepads =
+gamepad_database = /gamecontrollerdb.txt
 
 [android]
 package = com.defold.androidasan

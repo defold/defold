@@ -101,6 +101,12 @@ def build_apk(args):
     # this invocation's Bob cache so bundling uses the matching SDK and Java.
     bob_lib = work / 'bob/lib'
     bob_lib.mkdir(parents=True)
+    if platform.system() == 'Linux':
+        # AndroidTools sets LD_LIBRARY_PATH to this directory. Full Bob
+        # extracts libc++ here, but bob-light leaves that resource out.
+        linux_lib = work / 'bob/x86_64-linux/lib'
+        linux_lib.mkdir(parents=True)
+        shutil.copy2(ROOT / 'com.dynamo.cr/com.dynamo.cr.bob/lib/x86_64-linux/libc++.so', linux_lib / 'libc++.so')
     shutil.copy2(android_jar, bob_lib / 'android.jar')
     shutil.copy2(dex / 'classes.dex', bob_lib / 'classes.dex')
     (bob_lib / 'vkquality').mkdir()
@@ -158,7 +164,10 @@ class Emulator:
         return self.adb('shell', shlex.join(str(arg) for arg in command), check=check).stdout.decode().strip()
 
     def key(self, key):
-        self.shell('input', 'keyevent', 'KEYCODE_' + key)
+        # Defold polls keys per frame. Hold test controls across a frame even
+        # when the emulator is slow or the app is restoring its surface.
+        options = ['--duration', '200'] if key in ('F1', 'F2', 'F3') else []
+        self.shell('input', 'keyevent', *options, 'KEYCODE_' + key)
 
     def launch(self):
         self.shell('am', 'start', '-W', '-n', ACTIVITY)
@@ -190,6 +199,7 @@ class AppLog:
     def __init__(self, emulator, run_id):
         self.events = []
         self.error = None
+        self.exit_code = None
         self.condition = threading.Condition()
         self.run_id = run_id
         self.process = subprocess.Popen([*emulator.command, 'logcat', '-v', 'threadtime', '-T', '1'],
@@ -206,6 +216,11 @@ class AppLog:
                 with self.condition:
                     if re.search(r'(ERROR|SUMMARY): AddressSanitizer|AddressSanitizer:DEADLYSIGNAL|AddressSanitizer CHECK failed|wrap.sh terminated by signal|ERROR:SCRIPT:', line):
                         self.error = line.strip()
+                    exit_status = re.search(r'\bDEFOLD_ASAN_EXIT (\d+)', line)
+                    if exit_status:
+                        self.exit_code = int(exit_status[1])
+                        if self.exit_code:
+                            self.error = 'The ASAN app exited with code %d' % self.exit_code
                     if MARKER in line:
                         try:
                             event = json.loads(line.split(MARKER, 1)[1])
@@ -245,6 +260,17 @@ class AppLog:
         self.process.terminate()
         self.process.wait(timeout=10)
         self.reader.join(timeout=10)
+
+    def wait_for_exit(self):
+        deadline = time.monotonic() + 20
+        with self.condition:
+            while self.exit_code is None:
+                self.check()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError('The ASAN wrapper did not report the app exit status')
+                self.condition.wait(min(remaining, 1))
+            self.check()
 
 
 class Gamepad:
@@ -299,8 +325,8 @@ def run_app(args, metadata):
     abi = PLATFORMS[metadata['platform']][0]
     if abi not in emulator.shell('getprop', 'ro.product.cpu.abilist').split(','):
         raise RuntimeError('The emulator does not support ' + abi)
-    if int(emulator.shell('getprop', 'ro.build.version.sdk')) < 30:
-        raise RuntimeError('The APK integration test requires Android API 30 or newer')
+    if int(emulator.shell('getprop', 'ro.build.version.sdk')) < 35:
+        raise RuntimeError('The APK integration test requires Android API 35 or newer')
     emulator.shell('command', '-v', 'uinput')
     emulator.adb('uninstall', PACKAGE, check=False)
     emulator.adb('install', metadata['apk'], timeout=120)
@@ -343,7 +369,7 @@ def run_app(args, metadata):
             if landscape is not None and (frame['width'] > frame['height']) != landscape:
                 raise RuntimeError('The app did not adopt the requested orientation')
             cursor = len(app.events)
-            emulator.shell('input', 'tap', str(width // 2), str(height // 2))
+            emulator.shell('input', 'swipe', width // 2, height // 2, width // 2, height // 2, 100)
             app.wait('touch', after=cursor)
             if emulator.shell('pidof', PACKAGE) != pid:
                 raise RuntimeError('The app process changed during a lifecycle transition')
@@ -361,14 +387,21 @@ def run_app(args, metadata):
             app.wait('button', after=cursor, predicate=lambda e: e.get('pressed') and e['value'] > 0.9)
             expected_axes = [1, -1, -1, 1, 1, 1, 1, -1]
             app.wait('gamepad', after=cursor, predicate=lambda e: e['button'] == 1 and
+                     e['hat'] == 3 and  # GLFW_HAT_UP | GLFW_HAT_RIGHT
                      all(abs(actual - target) < 0.05 for actual, target in zip(e['axes'], expected_axes)))
             cursor = len(app.events)
             gamepad.input(0, [0] * 8)
             app.wait('button', after=cursor, predicate=lambda e: e.get('released'))
-            app.wait('gamepad', after=cursor, predicate=lambda e: e['button'] == 0 and all(abs(v) < 0.05 for v in e['axes']))
+            app.wait('gamepad', after=cursor, predicate=lambda e: e['button'] == 0 and e['hat'] == 0 and
+                     all(abs(v) < 0.05 for v in e['axes']))
+
+            if cycle % 2 == 0:
+                cursor = len(app.events)
+                gamepad.input(1, [0] * 8)
+                app.wait('button', after=cursor, predicate=lambda e: e.get('pressed'))
 
             # Disconnect while backgrounded on alternating cycles. This also
-            # checks that the next connected controller starts with clean state.
+            # checks that a held button is cleared on the next connection.
             cursor = len(app.events)
             emulator.key('HOME')
             app.wait('focus_lost', after=cursor)
@@ -393,14 +426,30 @@ def run_app(args, metadata):
         cursor = len(app.events)
         emulator.key('F2')
         app.wait('keyboard', after=cursor)
-        deadline = time.monotonic() + 15
-        while not re.search(r'(mInputShown|isInputViewShown|mIsInputViewShown)=true', emulator.shell('dumpsys', 'input_method')):
-            app.check()
-            if time.monotonic() >= deadline:
-                raise RuntimeError('The Android soft keyboard did not become visible')
-            time.sleep(0.2)
+        def wait_keyboard(visible):
+            deadline = time.monotonic() + 15
+            while True:
+                app.check()
+                state = emulator.shell('dumpsys', 'input_method')
+                # InputMethodService can retain mIsInputViewShown after its
+                # window is hidden. Use InputMethodManager's active state.
+                shown = re.search(r'^\s*mInputShown=(true|false)\s*$', state, re.MULTILINE)
+                if not shown:
+                    raise RuntimeError('Android did not report the active IME visibility')
+                if (shown[1] == 'true') == visible:
+                    return
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('The Android soft keyboard did not become ' + ('visible' if visible else 'hidden'))
+                time.sleep(0.2)
+
+        wait_keyboard(True)
         emulator.shell('input', 'text', 'asan')
         app.wait('text', after=cursor, predicate=lambda e: e['text'] == 'asan')
+        cursor = len(app.events)
+        emulator.key('BACK')
+        # The IME consumes the first Back. Once it is hidden, exercise the
+        # activity's Back callback and the native input event separately.
+        wait_keyboard(False)
         cursor = len(app.events)
         emulator.key('BACK')
         app.wait('back', after=cursor)
@@ -408,6 +457,8 @@ def run_app(args, metadata):
         cursor = len(app.events)
         emulator.key('F3')
         app.wait('complete', after=cursor)
+        # This arrives after native engine teardown, including any ASAN report.
+        app.wait_for_exit()
         deadline = time.monotonic() + 20
         while emulator.shell('pidof', PACKAGE, check=False):
             app.check()
@@ -419,7 +470,7 @@ def run_app(args, metadata):
     finally:
         if gamepad:
             gamepad.close()
-        for service in ('input', 'window', 'activity'):
+        for service in ('input', 'input_method', 'window', 'activity'):
             try:
                 (args.output / ('dumpsys-%s.txt' % service)).write_text(emulator.shell('dumpsys', service, check=False))
             except (OSError, subprocess.SubprocessError):

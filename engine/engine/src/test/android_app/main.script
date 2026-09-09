@@ -80,18 +80,25 @@ function on_input(self, action_id, action)
         assert(action.gamepad_name == "Defold ASAN Gamepad", action.gamepad_name)
         self.connections = self.connections + 1
         self.last_gamepad = nil
+        self.last_button = nil
         report("connected", { count = self.connections, index = action.gamepad,
             name = action.gamepad_name, guid = action.gamepad_guid })
     elseif action_id == hash("disconnected") then
         self.disconnections = self.disconnections + 1
         report("disconnected", { count = self.disconnections, index = action.gamepad })
-    elseif action_id == hash("button") then
-        report("button", { value = action.value, pressed = action.pressed,
-            released = action.released, index = action.gamepad })
+    elseif action_id == hash("button") and (action.pressed or action.released) then
+        local packet = { value = action.value, pressed = action.pressed,
+            released = action.released, index = action.gamepad }
+        local encoded = json.encode(packet)
+        if encoded ~= self.last_button then
+            self.last_button = encoded
+            report("button", packet)
+        end
     elseif action_id == hash("gamepad") then
         local axes = {}
         for i = 1, 8 do axes[i] = action.gamepad_axis[i] end
-        local packet = { axes = axes, button = action.gamepad_buttons[1], index = action.gamepad }
+        local packet = { axes = axes, button = action.gamepad_buttons[1],
+            hat = action.gamepad_hats[1], index = action.gamepad }
         local encoded = json.encode(packet)
         if encoded ~= self.last_gamepad then
             self.last_gamepad = encoded
