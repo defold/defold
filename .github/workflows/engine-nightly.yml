@@ -15,6 +15,7 @@ on:
           - macos
           - linux-x64
           - linux-arm64
+          - android
           - web
           - windows
           - all
@@ -26,6 +27,7 @@ env:
   DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
   DM_RELEASE_REPOSITORY: ${{ secrets.DM_RELEASE_REPOSITORY }}
   DOTNET_CHANNEL: 9.0.1xx
+  ANDROID_API_LEVEL: "36"
 
 jobs:
   bld-eng-macos-64:
@@ -141,6 +143,75 @@ jobs:
          with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
                  payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
+
+  bld-eng-android-x64:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6.0.2
+      - name: 'Install Python'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: 'Install Java'
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+          cache-dependency-path: |-
+            com.dynamo.cr/com.dynamo.cr.bob/*.gradle
+            com.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties
+            com.dynamo.cr/com.dynamo.cr.bob.test/*.gradle
+            com.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties
+      - name: 'Install CMake'
+        uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.3.2
+      - name: 'Set up Android SDK'
+        uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7
+        with:
+          android-ndk: '25.2.9519653'
+          android-api-level: '${{ env.ANDROID_API_LEVEL }}'
+          android-build-tools: '36.1.0'
+      - name: 'Install dependencies'
+        run: 'ci/ci.sh install --platform=x86_64-android'
+      - name: 'Enable KVM'
+        run: |-
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: 'Cache Android AVD'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |-
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: '${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64'
+      - name: 'ASAN on Android emulator'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: '${{ env.ANDROID_API_LEVEL }}'
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: '-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none'
+          # Keep the emulator running for both the engine build and its tests.
+          script: |-
+            ANDROID_SERIAL=$(adb devices | awk '$2=="device"{print $1; exit}')
+            if [ -z "$ANDROID_SERIAL" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi
+            export ANDROID_SERIAL
+            python build_tools/build_android.py can-run-tests --platform x86_64-android --device "$ANDROID_SERIAL"
+            ci/ci.sh --platform=x86_64-android --with-asan --skip-builtins --skip-docs engine
+      - name: 'Notify if build status changed'
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v3.0.5
+        if: failure()
+        with:
+          webhook: '${{ secrets.SLACK_WEBHOOK }}'
+          webhook-type: incoming-webhook
+          errors: true
+          payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}'
 
   bld-eng-web:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'web' }}

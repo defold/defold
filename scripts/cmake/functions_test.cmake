@@ -390,7 +390,7 @@ function(_defold_register_android_batch_target out_var target_name run_dir_norm 
 
   if(NOT TARGET ${_prepare_target})
     add_custom_target(${_prepare_target}
-      COMMAND "${_python}" "${_runner}" prepare --cwd "${run_dir_norm}" ${_config_args} ${_stage_args}
+      COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" prepare --cwd "${run_dir_norm}" ${_config_args} ${_stage_args}
       USES_TERMINAL
       COMMAND_EXPAND_LISTS
       COMMENT "Preparing Android test library in ${run_dir_norm}")
@@ -402,7 +402,7 @@ function(_defold_register_android_batch_target out_var target_name run_dir_norm 
 
   if(NOT TARGET ${_batch_run_target})
     add_custom_target(${_batch_run_target}
-      COMMAND "${_python}" "${_runner}" run-test --cwd "${run_dir_norm}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
+      COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" run-test --cwd "${run_dir_norm}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
       DEPENDS ${target_name} ${_prepare_target}
       USES_TERMINAL
       COMMAND_EXPAND_LISTS
@@ -643,8 +643,8 @@ function(defold_register_test_target target_name)
         endif()
         _defold_build_stage_file_args(_stage_args ${DEFOLD_TEST_STAGE_FILES})
         add_custom_target(${_run_target}
-          COMMAND "${_python}" "${_runner}" prepare --cwd "${_RUN_DIR_NORM}" ${_config_args} ${_stage_args}
-          COMMAND "${_python}" "${_runner}" run-test --cwd "${_RUN_DIR_NORM}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
+          COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" prepare --cwd "${_RUN_DIR_NORM}" ${_config_args} ${_stage_args}
+          COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" run-test --cwd "${_RUN_DIR_NORM}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
           COMMAND "${_python}" "${_runner}" stop --cwd "${_RUN_DIR_NORM}" ${_config_args}
           DEPENDS ${target_name}
           USES_TERMINAL
