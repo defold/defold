@@ -73,14 +73,8 @@
 
 (g/deftype Breakpoints [TBreakpoint])
 
-(defn graph [project]
-  (g/node-id->graph-id project))
-
-(defn code-transpilers
-  ([project]
-   (code-transpilers (g/now) project))
-  ([basis project]
-   (g/graph-value basis (g/node-id->graph-id project) :code-transpilers)))
+(defn code-transpilers [basis]
+  (g/graph-value basis :code-transpilers))
 
 (defn- resource-type->node-type [resource-type]
   (or (:node-type resource-type)
@@ -288,10 +282,10 @@
           (keep node-load-infos-by-node-id)
           node-id-load-order)))
 
-(defn- get-transpiler-tx-data-fn! [project evaluation-context]
+(defn- get-transpiler-tx-data-fn! [evaluation-context]
   (g/tx-cached-value! evaluation-context [:transpiler-tx-data-fn]
     (let [basis (:basis evaluation-context)
-          code-transpilers (code-transpilers basis project)]
+          code-transpilers (code-transpilers basis)]
       (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
 
 (defn load-nodes-tx-data
@@ -318,7 +312,7 @@
 
         transpiler-tx-data-fn
         (g/with-auto-evaluation-context evaluation-context
-          (get-transpiler-tx-data-fn! project evaluation-context))
+          (get-transpiler-tx-data-fn! evaluation-context))
 
         node-load-info-tx-data-fn
         (if (identical? progress/null-render-progress! render-generate-tx-data-progress!)
@@ -902,14 +896,14 @@
 (defn editor-localization-bundle [project evaluation-context]
   (g/node-value project :editor-localization-bundle evaluation-context))
 
-(defn make-node-id+resource-pairs [^long graph-id resources]
+(defn make-node-id+resource-pairs [resources]
   ;; Note: We sort the resources by extension and proj-path to achieve a
   ;; deterministic order for the assigned node-ids.
   (let [resources (->> resources
                        (remove resource/folder?)
                        (sort-by (juxt resource/type-ext
                                       resource/proj-path)))
-        node-ids (g/take-node-ids graph-id (count resources))]
+        node-ids (g/take-node-ids (count resources))]
     (mapv pair
           node-ids
           resources)))
@@ -956,8 +950,7 @@
    (let [process-metrics (du/make-metrics-collector)
          resource-metrics (du/make-metrics-collector)
          transaction-metrics (du/make-metrics-collector)
-         project-graph (g/node-id->graph-id project)
-         node-id+resource-pairs (make-node-id+resource-pairs project-graph resources)
+         node-id+resource-pairs (make-node-id+resource-pairs resources)
          read-progress-span 1
          load-progress-span 3
          total-progress-span (+ read-progress-span load-progress-span)
@@ -1101,16 +1094,16 @@
           nil)))))
 
 (handler/defhandler :edit.undo :global
-  (enabled? [project-graph] (g/has-undo? :undo/global))
-  (run [project-graph]
+  (enabled? [] (g/has-undo? :undo/global))
+  (run []
     (g/undo! :undo/global)
-    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-lsp))))
 
 (handler/defhandler :edit.redo :global
-  (enabled? [project-graph] (g/has-redo? :undo/global))
-  (run [project-graph]
+  (enabled? [] (g/has-redo? :undo/global))
+  (run []
     (g/redo! :undo/global)
-    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-lsp))))
 
 (handler/register-menu! ::menubar :editor.app-view/view
   [{:label (localization/message "menu.project")
@@ -1216,8 +1209,7 @@
         old-evaluation-context (g/make-evaluation-context)
         old-basis (:basis old-evaluation-context)
         old-node-ids-by-proj-path (g/valid-node-value project :nodes-by-resource-path old-evaluation-context)
-        project-graph (g/node-id->graph-id project)
-        new-node-id+resource-pairs (make-node-id+resource-pairs project-graph (:new plan))
+        new-node-id+resource-pairs (make-node-id+resource-pairs (:new plan))
 
         new-node-ids-by-proj-path
         (into {}
@@ -1427,7 +1419,7 @@
              workspace (workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
-             code-transpilers (code-transpilers basis project)]
+             code-transpilers (code-transpilers basis)]
     (workspace/unpack-editor-plugins! basis workspace touched-resources)
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
@@ -1499,7 +1491,7 @@
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
-    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)
+    (lsp/apply-resource-changes! (lsp/get-lsp) changes)
     ;; Suggest fetching libraries if dependencies changed externally.
     (update-fetch-libraries-notification! project)))
 
@@ -1642,10 +1634,14 @@
              (coll/pair-map-by #(str (FilenameUtils/removeExtension (key %)) ".project") val proj-path+meta-info-pairs)})))
 
 (defn get-project
-  ([node]
-   (get-project (g/now) node))
-  ([basis node]
-   (g/graph-value basis (g/node-id->graph-id node) :project-id)))
+  ([]
+   (get-project (g/now)))
+  ([basis]
+   ;; Deprecated node-ID argument. Remove after 2027-09-08.
+   (g/graph-value (if (integer? basis) (g/now) basis) :project-id))
+  ;; Deprecated compatibility arity. Remove after 2027-09-08.
+  ([basis _node]
+   (get-project basis)))
 
 (defn find-resources [project query]
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)
@@ -1684,9 +1680,8 @@
         pending-resource-node-id (get created-resource-nodes resource ::not-found)]
     (if (not= ::not-found pending-resource-node-id)
       [tx-data-context-map pending-resource-node-id nil]
-      (let [graph-id (g/node-id->graph-id project)
-            node-type (resource-node-type resource)
-            created-resource-node-id (first (g/take-node-ids graph-id 1))
+      (let [node-type (resource-node-type resource)
+            created-resource-node-id (first (g/take-node-ids 1))
             creation-tx-data (make-resource-node-tx-data project node-type created-resource-node-id resource)
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
             tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
@@ -1745,7 +1740,7 @@
                  (not (resource/loaded? resource))
                  (not (:allow-unloaded-use resource-type))
                  (not (resource-node/loaded? basis existing-resource-node-id)))
-            (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! project evaluation-context)
+            (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
                   [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded project node-id resource transpiler-tx-data-fn)]
               (resource-node/merge-source-values! node-id+source-value-pairs)
               load-tx-data))]
@@ -1763,7 +1758,7 @@
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
 
-(defn make-project [graph workspace-id extensions]
+(defn make-project [workspace-id extensions]
   (let [code-preprocessors (workspace/code-preprocessors workspace-id)
 
         project-id
@@ -1771,12 +1766,11 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes graph
-                  [project [Project :workspace workspace-id]
-                   code-transpilers code.transpilers/CodeTranspilersNode
-                   script-intelligence si/ScriptIntelligenceNode
-                   script-annotations script-annotations/ScriptAnnotations
-                   editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
+              (g/make-nodes [project [Project :workspace workspace-id]
+                             code-transpilers code.transpilers/CodeTranspilersNode
+                             script-intelligence si/ScriptIntelligenceNode
+                             script-annotations script-annotations/ScriptAnnotations
+                             editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
                 (g/connect workspace-id :root script-annotations :root)
                 (g/connect script-annotations :_node-id project :script-annotations)
                 (g/connect editor-localization-bundle :_node-id project :editor-localization-bundle)
@@ -1787,9 +1781,9 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :dependencies project :dependencies)
                 (g/connect workspace-id :resource-list project :resources)
-                (g/set-graph-value graph :project-id project)
-                (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
-                (g/set-graph-value graph :code-transpilers code-transpilers)))))]
+                (g/set-graph-value :project-id project)
+                (g/set-graph-value :lsp (lsp/make project get-resource-node))
+                (g/set-graph-value :code-transpilers code-transpilers)))))]
 
     (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
@@ -1866,7 +1860,7 @@
 (defn update-system-cache-save-data! [evaluation-context]
   (update-system-cache-from-pruned-evaluation-context! cached-save-data-output? evaluation-context))
 
-(defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
+(defn open-project! [extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
         progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
@@ -1881,7 +1875,7 @@
     (du/log-time "Initial resource sync"
       (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress)))
     (render-progress! (swap! progress progress/advance 1 (localization/message "progress.loading-project")))
-    (let [project (make-project graph workspace-id extensions)
+    (let [project (make-project workspace-id extensions)
           populated-project (load-project! project (progress/nest-render-progress render-progress! @progress 8))]
       ;; Prime the script API completion cache
       (g/node-value (script-intelligence project) :lua-completions)
@@ -1889,7 +1883,7 @@
       populated-project)))
 
 (defn resource-setter [evaluation-context self old-value new-value & connections]
-  (let [project (get-project (:basis evaluation-context) self)]
+  (let [project (get-project (:basis evaluation-context))]
     (concat
       (when old-value (disconnect-resource-node evaluation-context project old-value self connections))
       (when new-value (:tx-data (connect-resource-node evaluation-context project new-value self connections))))))

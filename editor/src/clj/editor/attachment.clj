@@ -256,7 +256,7 @@
     (assert (list-definition-editable? list-definition parent-node-id evaluation-context))
     (let [tx-attach-fn (-> list-definition :add (clojure.core/get child-node-type))]
       (assert tx-attach-fn)
-      (let [child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
+      (let [child-node-id (first (g/take-node-ids 1))]
         (concat
           (g/add-node (g/construct child-node-type :_node-id child-node-id))
           (init-fn parent-node-id child-node-id)

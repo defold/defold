@@ -389,7 +389,7 @@
 
 (defn- attach-collision-group-node
   [self collision-group-node]
-  (let [project (project/get-project self)]
+  (let [project (project/get-project)]
     (concat
      (g/connect collision-group-node :_node-id self :nodes)
      (g/connect collision-group-node :node-outline self :child-outlines)
@@ -1006,7 +1006,7 @@
 
 (defn- make-animation-node [self _project select-fn animation]
   {:pre [(map? animation)]} ; Tile$Animation in map format.
-  (g/make-nodes (g/node-id->graph-id self) [animation-node TileAnimationNode]
+  (g/make-nodes [animation-node TileAnimationNode]
     (gu/set-properties-from-pb-map animation-node Tile$Animation animation
       id :id
       start-tile :start-tile
@@ -1020,13 +1020,11 @@
     (when select-fn
       (select-fn [animation-node]))))
 
-(defn- make-collision-group-node [self project select-fn collision-group]
-  (g/make-nodes
-   (g/node-id->graph-id self)
-   [collision-group-node [CollisionGroupNode :id collision-group]]
-   (attach-collision-group-node self collision-group-node)
-   (when select-fn
-     (select-fn [collision-group-node]))))
+(defn- make-collision-group-node [self select-fn collision-group]
+  (g/make-nodes [collision-group-node [CollisionGroupNode :id collision-group]]
+    (attach-collision-group-node self collision-group-node)
+    (when select-fn
+      (select-fn [collision-group-node]))))
 
 (defn- make-convex-hulls
   [{:keys [convex-hulls convex-hull-points] :as tile-set}]
@@ -1062,7 +1060,7 @@
 
         collision-group-nodes-tx-data
         (into []
-              (mapcat (partial make-collision-group-node self project nil))
+              (mapcat (partial make-collision-group-node self nil))
               (apply sorted-set (:collision-groups tile-set)))]
 
     (concat
@@ -1098,15 +1096,15 @@
     :flip-vertical 0))
 
 (defn add-animation-node! [self select-fn]
-  (g/transact (make-animation-node self (project/get-project self) select-fn new-animation-defaults)))
+  (g/transact (make-animation-node self (project/get-project) select-fn new-animation-defaults)))
 
 (defn add-collision-group-node!
   [self select-fn]
-  (let [project (project/get-project self)
+  (let [project (project/get-project)
         collision-groups-data (g/node-value project :collision-groups-data)
         id (id/gen "collision_group" (collision-groups/collision-groups collision-groups-data))]
     (g/transact
-      (make-collision-group-node self project select-fn id))))
+      (make-collision-group-node self select-fn id))))
 
 (defn- selection->tile-source [selection evaluation-context]
   (handler/adapt-single selection TileSourceNode evaluation-context))

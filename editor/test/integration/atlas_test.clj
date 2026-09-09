@@ -105,7 +105,7 @@
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
           project (test-util/setup-project! workspace)
           atlas (project/get-resource-node project "/main/main.atlas")
           atlas-image (:node-id (test-util/outline atlas [0]))

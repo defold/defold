@@ -14,7 +14,8 @@
 
 {:function-arguments-indentation :cursive
  :indent-line-comments? true
- :extra-indents {assoc [[:block 1]]
+ :extra-indents {are [[:inner 0]]
+                 assoc [[:block 1]]
                  assoc! [[:block 1]]
                  cljfx.composite/props [[:inner 0]]
                  clojure.core.cache/defcache [[:inner 0]]
@@ -29,6 +30,8 @@
                  dynamo.graph/construct [[:inner 0]]
                  dynamo.graph/deftype [[:block 1] [:inner 1 -1]]
                  dynamo.graph/let-ec [[:inner 0]]
+                 dynamo.graph/make-node [[:inner 0]]
+                 dynamo.graph/make-node! [[:inner 0]]
                  dynamo.graph/make-nodes [[:inner 0]]
                  dynamo.graph/fnk [[:block 1]]
                  dynamo.graph/override [[:inner 0]]

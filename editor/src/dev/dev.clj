@@ -50,6 +50,7 @@
             [editor.util :as eutil]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
@@ -313,19 +314,13 @@
   ([node-type]
    (nodes-of-type (g/now) node-type))
   ([basis node-type]
-   (sequence
-     (comp (map val)
-           (mapcat :nodes)
-           (map val)
-           (filter #(g/node-instance*? node-type %))
-           (map gt/node-id))
-     (:graphs basis))))
+   (into []
+         (comp (filter #(g/node-instance*? node-type %))
+               (map gt/node-id))
+         (coll/vals (gt/nodes basis)))))
 
 (defn views-of-type [node-type]
-  (keep (fn [node-id]
-          (when (g/node-instance? node-type node-id)
-            node-id))
-        (g/node-ids (g/graph (g/node-id->graph-id (app-view))))))
+  (filterv #(g/node-instance? node-type %) (g/node-ids (g/now))))
 
 (defn view-of-type [node-type]
   (first (views-of-type node-type)))
@@ -474,11 +469,9 @@
           output-label->output-desc)))
 
 (defn direct-override-successors [basis node-id label]
-  (let [graph-id (g/node-id->graph-id node-id)
-        graph (get-in basis [:graphs graph-id])]
-    (map (fn [override-node-id]
-           (pair override-node-id label))
-         (get-in graph [:node->overrides node-id]))))
+  (map (fn [override-node-id]
+         (pair override-node-id label))
+       (-> basis gt/node->overrides (get node-id))))
 
 (defn direct-successors* [direct-connected-successors-fn basis node-id-and-label-pairs]
   (into #{}
@@ -503,7 +496,7 @@
                    (fn value-fn [^Arc arc]
                      (pair (.target-id arc)
                            (.target-label arc)))
-                   (gt/arcs-by-source basis node-id)))
+                   (ig/arcs-by-source basis node-id)))
 
 (defn make-direct-connected-successors-fn [basis]
   (let [direct-connected-successors-by-label-fn (memoize (partial direct-connected-successors-by-label basis))]
@@ -633,18 +626,10 @@
            (is/system-cache @g/*the-system*))))
 
 (defn node-type-report
-  "Returns a sorted list of what node types are in the system graph in the
-  format [node-count node-type-kw]. The list is sorted by node count in
-  descending order."
+  "Returns node counts and types, sorted by descending count."
   []
-  (let [system @g/*the-system*
-        graphs (is/graphs system)]
-    (ordered-occurrences
-      (eduction
-        (mapcat (fn [[_graph-id graph]]
-                  (vals (:nodes graph))))
-        (map (comp :k g/node-type))
-        graphs))))
+  (ordered-occurrences
+    (eduction (map (comp :k g/node-type)) (coll/vals (gt/nodes (g/now))))))
 
 (defn println-err
   [& more]
@@ -654,7 +639,7 @@
 (defn- input-source-endpoints
   [basis node-id input-label]
   (e/map gt/source-endpoint
-         (gt/arcs-by-target basis node-id input-label)))
+         (ig/arcs-by-target basis node-id input-label)))
 
 (defn immediate-predecessor-endpoints
   [basis node-id label]
@@ -734,7 +719,7 @@
    (cond
      (and
        (= (gt/endpoint-node-id source-endpoint)
-          (gt/original-node basis (gt/endpoint-node-id target-endpoint)))
+          (ig/original-node basis (gt/endpoint-node-id target-endpoint)))
        (= (gt/endpoint-label source-endpoint)
           (gt/endpoint-label target-endpoint)))
      :override
@@ -852,11 +837,11 @@
   other nodes, e.g. on view open, so the output might contain false positives."
   []
   (let [basis (g/now)
-        node-type-freqs (->> (get-in basis [:graphs 0 :nodes])
-                             (keys)
-                             (map #(g/node-type* basis %))
+        node-type-freqs (->> (gt/nodes basis)
+                             coll/keys
+                             (e/map #(g/node-type* basis %))
                              frequencies)]
-    (->> (get-in basis [:graphs 0 :nodes])
+    (->> (gt/nodes basis)
          keys
          ;; for project node ids, collect external connections and union by node type
          (->Eduction

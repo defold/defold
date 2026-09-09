@@ -384,19 +384,19 @@
           texture-binding-name-index)))
 
 (defn- create-texture-binding-tx [material-binding sampler texture]
-  (g/make-nodes (g/node-id->graph-id material-binding) [texture-binding [TextureBinding
-                                                                         :sampler sampler
-                                                                         :texture texture]]
+  (g/make-nodes [texture-binding [TextureBinding
+                                  :sampler sampler
+                                  :texture texture]]
     (g/connect texture-binding :_node-id material-binding :copied-nodes)
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)
     (g/connect texture-binding :build-targets material-binding :dep-build-targets)))
 
 (defn- create-material-binding-tx [model-node-id name material material-index textures vertex-attribute-overrides]
-  (g/make-nodes (g/node-id->graph-id model-node-id) [material-binding [MaterialBinding
-                                                                       :name name
-                                                                       :material material
-                                                                       :material-index material-index
-                                                                       :vertex-attribute-overrides vertex-attribute-overrides]]
+  (g/make-nodes [material-binding [MaterialBinding
+                                   :name name
+                                   :material material
+                                   :material-index material-index
+                                   :vertex-attribute-overrides vertex-attribute-overrides]]
     (g/connect material-binding :_node-id model-node-id :copied-nodes)
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
     (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)

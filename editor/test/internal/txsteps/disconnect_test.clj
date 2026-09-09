@@ -16,6 +16,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [dynamo.graph :as g]
             [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
             [util.array :as array]
@@ -30,8 +31,8 @@
     (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                                   target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input))))
 
           ensure-before!
@@ -44,8 +45,8 @@
 
                 (testing "Internal arc tables."
                   (is (= [[source-node-id :property-output target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis world source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis world target-node-id :regular-input))))
+                         (helpers/source-arc-table-tuples basis source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :source-value (g/node-value target-node-id :regular-output evaluation-context)))))))
@@ -59,8 +60,8 @@
                   (is (= [] (g/sources basis target-node-id :regular-input))))
 
                 (testing "Internal arc tables."
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis world source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis world target-node-id :regular-input))))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= nil (g/node-value target-node-id :regular-output evaluation-context)))))))]
@@ -86,8 +87,8 @@
     (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                                   target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :array-input))))
 
           ensure-before!
@@ -100,8 +101,8 @@
 
                 (testing "Internal arc tables."
                   (is (= [[source-node-id :property-output target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
+                         (helpers/source-arc-table-tuples basis source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:source-value] (g/node-value target-node-id :array-output evaluation-context)))))))
@@ -115,8 +116,8 @@
                   (is (= [] (g/sources basis target-node-id :array-input))))
 
                 (testing "Internal arc tables."
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis world source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [] (g/node-value target-node-id :array-output evaluation-context)))))))]
@@ -142,9 +143,9 @@
     (let [[first-source-node-id second-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
-                                   second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
-                                   target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                             second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect first-source-node-id :property-output target-node-id :array-input)
                 (g/connect second-source-node-id :property-output target-node-id :array-input))))
 
@@ -158,12 +159,12 @@
               (is (= [[first-source-node-id :property-output] [second-source-node-id :property-output]] (g/sources basis target-node-id :array-input)))
               (testing "Internal arc tables."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis first-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis world second-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis second-source-node-id :property-output)))
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]
                         [second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
+                       (helpers/target-arc-table-tuples basis target-node-id :array-input))))
               (is (= [:first-value :second-value] (g/node-value target-node-id :array-output)))))
 
           ensure-after!
@@ -175,10 +176,10 @@
               (is (= [[target-node-id :array-input]] (g/targets basis second-source-node-id :property-output)))
               (is (= [[second-source-node-id :property-output]] (g/sources basis target-node-id :array-input)))
               (testing "Internal arc tables."
-                (is (coll/empty? (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)))
+                (is (coll/empty? (helpers/source-arc-table-tuples basis first-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/source-arc-table-tuples basis world second-source-node-id :property-output)
-                       (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
+                       (helpers/source-arc-table-tuples basis second-source-node-id :property-output)
+                       (helpers/target-arc-table-tuples basis target-node-id :array-input))))
               (is (= [:second-value] (g/node-value target-node-id :array-output)))))]
 
       (testing "Before transact."
@@ -205,10 +206,10 @@
            target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
-                                   duplicated-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
-                                   second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
-                                   target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                             duplicated-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
+                             second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect first-source-node-id :property-output target-node-id :array-input)
                 (g/connect duplicated-source-node-id :property-output target-node-id :array-input)
                 (g/connect second-source-node-id :property-output target-node-id :array-input)
@@ -232,17 +233,17 @@
 
                 (testing "Internal arc tables."
                   (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis first-source-node-id :property-output)))
                   (is (= [[duplicated-source-node-id :property-output target-node-id :array-input]
                           [duplicated-source-node-id :property-output target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world duplicated-source-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis duplicated-source-node-id :property-output)))
                   (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world second-source-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis second-source-node-id :property-output)))
                   (is (= [[first-source-node-id :property-output target-node-id :array-input]
                           [duplicated-source-node-id :property-output target-node-id :array-input]
                           [second-source-node-id :property-output target-node-id :array-input]
                           [duplicated-source-node-id :property-output target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
+                         (helpers/target-arc-table-tuples basis target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:first-value :duplicated-value :second-value :duplicated-value]
@@ -262,13 +263,13 @@
 
                 (testing "Internal arc tables."
                   (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world first-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis world duplicated-source-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis first-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis duplicated-source-node-id :property-output)))
                   (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world second-source-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis second-source-node-id :property-output)))
                   (is (= [[first-source-node-id :property-output target-node-id :array-input]
                           [second-source-node-id :property-output target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
+                         (helpers/target-arc-table-tuples basis target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:first-value :second-value] (g/node-value target-node-id :array-output evaluation-context)))))))]
@@ -294,9 +295,9 @@
     (let [[initial-source-node-id shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
-                                   _shadowing-source-node-id [helpers/ConnectionSourceNode :property :shadowing-source-value]
-                                   original-target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
+                             _shadowing-source-node-id [helpers/ConnectionSourceNode :property :shadowing-source-value]
+                             original-target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-node-id :property-output original-target-node-id :regular-input))))
 
           [first-order-override-target-node-id]
@@ -332,11 +333,11 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis world original-target-node-id :regular-input)))
+                         (helpers/source-arc-table-tuples basis initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis original-target-node-id :regular-input)))
                   (is (= [[shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :regular-input))))
+                         (helpers/source-arc-table-tuples basis shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -363,10 +364,10 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis world original-target-node-id :regular-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :regular-input))))
+                         (helpers/source-arc-table-tuples basis initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis original-target-node-id :regular-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -394,10 +395,10 @@
     (let [[initial-source-one-node-id initial-source-two-node-id shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
-                                   initial-source-two-node-id [helpers/ConnectionSourceNode :property :initial-source-two-value]
-                                   _shadowing-source-node-id [helpers/ConnectionSourceNode :property :shadowing-source-value]
-                                   original-target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
+                             initial-source-two-node-id [helpers/ConnectionSourceNode :property :initial-source-two-value]
+                             _shadowing-source-node-id [helpers/ConnectionSourceNode :property :shadowing-source-value]
+                             original-target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-one-node-id :property-output original-target-node-id :array-input)
                 (g/connect initial-source-two-node-id :property-output original-target-node-id :array-input))))
 
@@ -436,15 +437,15 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis original-target-node-id :array-input)))
                   (is (= [[shadowing-source-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input))))
+                         (helpers/source-arc-table-tuples basis shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -473,14 +474,14 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis world shadowing-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input))))
+                         (helpers/target-arc-table-tuples basis original-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -508,11 +509,11 @@
     (let [[initial-source-one-node-id initial-source-two-node-id shadowing-source-one-node-id shadowing-source-two-node-id original-target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
-                                   initial-source-two-node-id [helpers/ConnectionSourceNode :property :initial-source-two-value]
-                                   _shadowing-source-one-node-id [helpers/ConnectionSourceNode :property :shadowing-source-one-value]
-                                   _shadowing-source-two-node-id [helpers/ConnectionSourceNode :property :shadowing-source-two-value]
-                                   original-target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [initial-source-one-node-id [helpers/ConnectionSourceNode :property :initial-source-one-value]
+                             initial-source-two-node-id [helpers/ConnectionSourceNode :property :initial-source-two-value]
+                             _shadowing-source-one-node-id [helpers/ConnectionSourceNode :property :shadowing-source-one-value]
+                             _shadowing-source-two-node-id [helpers/ConnectionSourceNode :property :shadowing-source-two-value]
+                             original-target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-one-node-id :property-output original-target-node-id :array-input)
                 (g/connect initial-source-two-node-id :property-output original-target-node-id :array-input))))
 
@@ -551,19 +552,19 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis original-target-node-id :array-input)))
                   (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world shadowing-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis shadowing-source-one-node-id :property-output)))
                   (is (= [[shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world shadowing-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis shadowing-source-two-node-id :property-output)))
                   (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]
                           [shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input))))
+                         (helpers/target-arc-table-tuples basis first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -594,16 +595,16 @@
 
                 (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/target-arc-table-tuples basis world original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis original-target-node-id :array-input)))
                   (is (= [[shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/source-arc-table-tuples basis world shadowing-source-two-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis world first-order-override-target-node-id :array-input)))
-                  (is (coll/empty? (helpers/source-arc-table-tuples basis world shadowing-source-one-node-id :property-output))))
+                         (helpers/source-arc-table-tuples basis shadowing-source-two-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis first-order-override-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis shadowing-source-one-node-id :property-output))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -639,10 +640,9 @@
            second-order-override-indirectly-owned-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [indirectly-owned-node-id helpers/ConnectionSourceNode
-                 directly-owned-node-id helpers/ConnectionTargetNode
-                 owner-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [indirectly-owned-node-id helpers/ConnectionSourceNode
+                             directly-owned-node-id helpers/ConnectionTargetNode
+                             owner-node-id helpers/ConnectionTargetNode]
                 (g/connect indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)
                 (g/override owner-node-id nil
                   (fn [_evaluation-context id-lookup]
@@ -654,7 +654,7 @@
           ensure-before!
           (fn ensure-before! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs world])]
+                  graph basis]
               (is (= [first-order-override-directly-owned-node-id] (g/overrides basis directly-owned-node-id)))
               (is (= [first-order-override-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)))
               (is (= [second-order-override-directly-owned-node-id] (g/overrides basis first-order-override-directly-owned-node-id)))
@@ -674,23 +674,23 @@
                        second-order-override-indirectly-owned-node-id}
                      (set (g/node-ids graph))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
               (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-output)
-                     (helpers/target-arc-table-tuples basis world owner-node-id :regular-cascade-delete-input)))))
+                     (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)
+                     (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))))
 
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs world])]
+                  graph basis]
               (is (coll/empty? (g/overrides basis directly-owned-node-id)))
               (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-input)))
-              (is (coll/empty? (helpers/source-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-output)))
-              (is (coll/empty? (helpers/target-arc-table-tuples basis world owner-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
+              (is (coll/empty? (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)))
+              (is (coll/empty? (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
               (is (= #{indirectly-owned-node-id
                        directly-owned-node-id
                        owner-node-id
@@ -731,10 +731,9 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [_indirectly-owned-node-id helpers/ConnectionSourceNode
-                 _directly-owned-node-id helpers/ConnectionTargetNode
-                 _owner-node-id helpers/ConnectionTargetNode])))
+              (g/make-nodes [_indirectly-owned-node-id helpers/ConnectionSourceNode
+                             _directly-owned-node-id helpers/ConnectionTargetNode
+                             _owner-node-id helpers/ConnectionTargetNode])))
 
           connected-states (atom [])
           traverse-fn (g/make-override-traverse-fn
@@ -769,9 +768,8 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [target-node-id helpers/ConnectionTargetNode
-                 source-node-id [helpers/ConnectionSourceNode :property :before]]
+              (g/make-nodes [target-node-id helpers/ConnectionTargetNode
+                             source-node-id [helpers/ConnectionSourceNode :property :before]]
                 (g/connect source-node-id :property-output target-node-id :regular-cascade-delete-input)
                 (g/override target-node-id))))
 
@@ -825,11 +823,10 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                 first-target-node-id helpers/ConnectionTargetNode
-                 second-target-node-id helpers/ConnectionTargetNode
-                 _third-target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                             first-target-node-id helpers/ConnectionTargetNode
+                             second-target-node-id helpers/ConnectionTargetNode
+                             _third-target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output first-target-node-id :regular-input)
                 (g/connect source-node-id :property-output second-target-node-id :regular-input))))
 
@@ -881,20 +878,19 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
-                 second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                             second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect first-source-node-id :property-output target-node-id :array-input)
                 (g/connect second-source-node-id :property-output target-node-id :array-input))))
 
           source-arc-table
           (fn source-arc-table [basis source-node-id]
-            (get-in basis [:graphs world :sarcs source-node-id :property-output]))
+            (-> basis gt/sarcs (get source-node-id) :property-output))
 
           target-arc-table
           (fn target-arc-table [basis]
-            (get-in basis [:graphs world :tarcs target-node-id :array-input]))
+            (-> basis gt/tarcs (get target-node-id) :array-input))
 
           ensure-before!
           (fn ensure-before! []

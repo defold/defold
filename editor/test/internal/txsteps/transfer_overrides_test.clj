@@ -31,10 +31,9 @@
            second-order-override-owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [indirectly-owned-node-id helpers/OverrideTestNode
-                 directly-owned-node-id helpers/OverrideTestNode
-                 owner-node-id helpers/OverrideTestNode]
+              (g/make-nodes [indirectly-owned-node-id helpers/OverrideTestNode
+                             directly-owned-node-id helpers/OverrideTestNode
+                             owner-node-id helpers/OverrideTestNode]
                 (g/connect indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)
                 (g/override owner-node-id nil
                   (fn [_evaluation-context id-lookup]
@@ -54,17 +53,16 @@
            replacement-owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [replacement-indirectly-owned-node-id helpers/OverrideTestNode
-                 replacement-directly-owned-node-id helpers/OverrideTestNode
-                 replacement-owner-node-id helpers/OverrideTestNode]
+              (g/make-nodes [replacement-indirectly-owned-node-id helpers/OverrideTestNode
+                             replacement-directly-owned-node-id helpers/OverrideTestNode
+                             replacement-owner-node-id helpers/OverrideTestNode]
                 (g/connect replacement-indirectly-owned-node-id :property-output replacement-directly-owned-node-id :regular-cascade-delete-input)
                 (g/connect replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input))))
 
           ensure-before!
           (fn ensure-before! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs world])]
+                  graph basis]
               (is (= [first-order-override-owner-node-id] (g/overrides basis owner-node-id)))
               (is (coll/empty? (g/overrides basis replacement-owner-node-id)))
               (is (= [first-order-override-directly-owned-node-id] (g/overrides basis directly-owned-node-id)))
@@ -95,24 +93,24 @@
                        second-order-override-indirectly-owned-node-id}
                      (into #{} (g/node-ids graph))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
               (is (= [[replacement-indirectly-owned-node-id :property-output replacement-directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world replacement-indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis world replacement-directly-owned-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis replacement-indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-input)))
               (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-output)))
+                     (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)))
               (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world replacement-directly-owned-node-id :regular-cascade-delete-output)))
+                     (helpers/source-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-output)))
               (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis world owner-node-id :regular-cascade-delete-input)))
+                     (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
               (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis world replacement-owner-node-id :regular-cascade-delete-input)))))
+                     (helpers/target-arc-table-tuples basis replacement-owner-node-id :regular-cascade-delete-input)))))
 
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph (get-in basis [:graphs world])
+                  graph basis
                   [first-order-override-replacement-directly-owned-node-id :as overrides-of-replacement-directly-owned-node-id] (g/overrides basis replacement-directly-owned-node-id)
                   [first-order-override-replacement-indirectly-owned-node-id :as overrides-of-replacement-indirectly-owned-node-id] (g/overrides basis replacement-indirectly-owned-node-id)
                   [second-order-override-replacement-directly-owned-node-id :as overrides-of-first-order-override-replacement-directly-owned-node-id] (g/overrides basis first-order-override-replacement-directly-owned-node-id)
@@ -151,19 +149,19 @@
                        second-order-override-replacement-indirectly-owned-node-id}
                      (into #{} (g/node-ids graph))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
               (is (= [[replacement-indirectly-owned-node-id :property-output replacement-directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world replacement-indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis world replacement-directly-owned-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis replacement-indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-input)))
               (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world directly-owned-node-id :regular-cascade-delete-output)))
+                     (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)))
               (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis world replacement-directly-owned-node-id :regular-cascade-delete-output)))
+                     (helpers/source-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-output)))
               (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis world owner-node-id :regular-cascade-delete-input)))
+                     (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
               (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis world replacement-owner-node-id :regular-cascade-delete-input)))))]
+                     (helpers/target-arc-table-tuples basis replacement-owner-node-id :regular-cascade-delete-input)))))]
 
       (testing "Before transact."
         (ensure-before!))
@@ -213,8 +211,8 @@
            replacement-owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              [(g/make-node world helpers/OverrideTestNode)
-               (g/make-node world helpers/OverrideTestNode)]))
+              [(g/make-node helpers/OverrideTestNode)
+               (g/make-node helpers/OverrideTestNode)]))
 
           [transferred-override-node-id]
           (g/tx-nodes-added
@@ -261,9 +259,8 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [owner-node-id helpers/OverrideTestNode
-                 _replacement-owner-node-id helpers/OverrideTestNode]
+              (g/make-nodes [owner-node-id helpers/OverrideTestNode
+                             _replacement-owner-node-id helpers/OverrideTestNode]
                 (g/override owner-node-id))))
 
           override-id (g/override-id transferred-override-node-id)

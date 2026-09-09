@@ -195,8 +195,8 @@
                 original-property-values)
 
           form-view-parent (AnchorPane.)
-          resource-node (apply g/make-node! world NumericPropertiesNode (mapcat identity property-values))
-          view-node (cljfx-form-view/make-form-view-node! world form-view-parent resource-node nil nil nil test-util/localization)
+          resource-node (apply g/make-node! NumericPropertiesNode (mapcat identity property-values))
+          view-node (cljfx-form-view/make-form-view-node! form-view-parent resource-node nil nil nil test-util/localization)
           form-data (g/node-value view-node :form-data)
           fields (->> form-data
                       (:sections)

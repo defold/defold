@@ -871,17 +871,15 @@
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
-  (let [graph-id (g/node-id->graph-id parent)]
-    (for [image-msg image-msgs]
-      (g/make-nodes
-        graph-id
-        [atlas-image AtlasImage]
-        (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
-          image :image
-          sprite-trim-mode :sprite-trim-mode
-          pivot-x :pivot-x
-          pivot-y :pivot-y)
-        (attach-fn parent atlas-image)))))
+  (for [image-msg image-msgs]
+    (g/make-nodes
+      [atlas-image AtlasImage]
+      (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
+                                     image :image
+                                     sprite-trim-mode :sprite-trim-mode
+                                     pivot-x :pivot-x
+                                     pivot-y :pivot-y)
+      (attach-fn parent atlas-image))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
 (def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
@@ -905,13 +903,10 @@
 
 (defn- make-atlas-animation [atlas-node atlas-animation]
   {:pre [(map? atlas-animation)]} ; AtlasProto$AtlasAnimation in map format.
-  (let [graph-id (g/node-id->graph-id atlas-node)
-        project (project/get-project atlas-node)
+  (let [project (project/get-project)
         workspace (project/workspace project)
         image-msgs (resolve-image-msgs workspace (:images atlas-animation) false)]
-    (g/make-nodes
-      graph-id
-      [animation-node AtlasAnimation]
+    (g/make-nodes [animation-node AtlasAnimation]
       (gu/set-properties-from-pb-map animation-node AtlasProto$AtlasAnimation atlas-animation
         id :id
         flip-horizontal (protobuf/int->boolean :flip-horizontal)

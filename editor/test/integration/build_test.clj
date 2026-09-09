@@ -861,7 +861,7 @@
                  "[input]\n"
                  "game_binding = game.input_bindingc\n"))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               game-project (test-util/resource-node project "/game.project")]
           (is (nil? (game-project/get-setting game-project ["bootstrap" "render"])))
@@ -944,7 +944,7 @@
 
 (deftest build-with-custom-resources-from-ext-properties-default
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
           ext-dir (io/file (abs-project-path workspace "ext"))
           ext-properties-file (io/file ext-dir "ext.properties")]
       (.mkdirs ext-dir)
@@ -962,7 +962,7 @@
 
 (deftest build-with-custom-resources-from-unsaved-ext-properties-default
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
           ext-dir (io/file (abs-project-path workspace "ext"))
           ext-properties-file (io/file ext-dir "ext.properties")]
       (.mkdirs ext-dir)
@@ -1053,7 +1053,7 @@
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
     (with-clean-system
-      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
         (with-setting ["project" "custom_resources"] "assets"
@@ -1070,7 +1070,7 @@
 (deftest ssl-certificates-cached
   (testing "Check SSL certificates are only rebuilt when source has changed"
     (with-clean-system
-      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
         (with-setting ["network" "ssl_certificates"] (workspace/find-resource workspace "/example_cert.pem")
@@ -1103,7 +1103,7 @@
 
 (deftest collision-groups-data-doesnt-break-build
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/collision_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/collision_project")
           project (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")]
       (let [br (project-build! project game-project)]

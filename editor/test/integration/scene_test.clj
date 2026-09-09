@@ -200,30 +200,29 @@
 
 (deftest delete-undo-delete-selection
   (testing "Scene generation"
-           (test-util/with-loaded-project
-             (let [project-graph (g/node-id->graph-id project)
-                   path          "/logic/atlas_sprite.collection"
-                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
-               (is (test-util/selected? app-view resource-node))
-               ;; Click
-               (test-util/mouse-click! view 32 32)
-               (is (test-util/selected? app-view go-node))
-               ;; Delete
-               (g/transact (g/delete-node go-node))
-               (is (test-util/empty-selection? app-view))
-               ;; Undo
-               (g/undo! :undo/global)
-               (is (test-util/selected? app-view go-node))
-               ;; Select again
-               (test-util/mouse-click! view 32 32)
-               (is (test-util/selected? app-view go-node))
-               ;; Delete again
-               (g/transact (g/delete-node go-node))
-               (is (test-util/empty-selection? app-view))
-               ;; Select again
-               (test-util/mouse-click! view 32 32)
-               (is (test-util/selected? app-view resource-node))))))
+    (test-util/with-loaded-project
+      (let [path          "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+        (is (test-util/selected? app-view resource-node))
+        ;; Click
+        (test-util/mouse-click! view 32 32)
+        (is (test-util/selected? app-view go-node))
+        ;; Delete
+        (g/transact (g/delete-node go-node))
+        (is (test-util/empty-selection? app-view))
+        ;; Undo
+        (g/undo! :undo/global)
+        (is (test-util/selected? app-view go-node))
+        ;; Select again
+        (test-util/mouse-click! view 32 32)
+        (is (test-util/selected? app-view go-node))
+        ;; Delete again
+        (g/transact (g/delete-node go-node))
+        (is (test-util/empty-selection? app-view))
+        ;; Select again
+        (test-util/mouse-click! view 32 32)
+        (is (test-util/selected? app-view resource-node))))))
 
 (deftest transform-tools-empty-go
   (testing "Transform tools and manipulator interactions"

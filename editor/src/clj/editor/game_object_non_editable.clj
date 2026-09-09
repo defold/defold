@@ -49,9 +49,8 @@
   (let [embedded-resource-ext (:type embedded-component-resource-data)
         embedded-resource-pb-map (:data embedded-component-resource-data)
         embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
-        embedded-resource-node-type (project/resource-node-type embedded-resource)
-        graph (g/node-id->graph-id host-node-id)]
-    (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
+        embedded-resource-node-type (project/resource-node-type embedded-resource)]
+    (g/make-nodes [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
       (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
       (gu/connect-existing-outputs embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
@@ -102,7 +101,7 @@
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)]
+        project (project/get-project basis)]
     (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
           (mapcat (fn [[data]]
                     (add-resource-node-fn self data project)))
@@ -110,7 +109,7 @@
 
 (defn connect-referenced-resources-tx-data [evaluation-context self new-value old-sources-input-label resource-connections]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)]
+        project (project/get-project basis)]
     (into (disconnect-connected-nodes-tx-data basis self old-sources-input-label resource-connections)
           (mapcat (fn [resource]
                     (:tx-data (project/connect-resource-node evaluation-context project resource self resource-connections))))
@@ -330,7 +329,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)
+                         project (project/get-project basis)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]
                      (letfn [(connect-resource [proj-path-or-resource connections]

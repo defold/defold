@@ -345,7 +345,7 @@
                     game-object-build-output-bytes (fs/read-bytes game-object-build-output-file)]
                 (protobuf/bytes->pb GameObject$PrototypeDesc game-object-build-output-bytes))))]
     (with-clean-system
-      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/small_project")
             atlas-resource (workspace/find-resource workspace "/main/logo.atlas")
             atlas-proj-path (resource/proj-path atlas-resource)
             game-object-resource (test-util/make-resource! workspace "/test.go" {})

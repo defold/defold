@@ -1847,21 +1847,21 @@
                                        :project project
                                        :resource-string-converter resource-string-converter}}}))))))
 
-(defn- make-form-view-node [graph parent resource-node workspace project prefs localization]
-  (g/make-nodes graph [view CljfxFormView]
+(defn- make-form-view-node [parent resource-node workspace project prefs localization]
+  (g/make-nodes [view CljfxFormView]
     (g/set-property view :renderer (create-renderer view parent workspace project prefs localization))
     (g/connect resource-node :form-data view :form-data)))
 
-(defn make-form-view-node! [graph parent resource-node workspace project prefs localization]
+(defn make-form-view-node! [parent resource-node workspace project prefs localization]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (make-form-view-node graph parent resource-node workspace project prefs localization)))))
+        (make-form-view-node parent resource-node workspace project prefs localization)))))
 
-(defn- make-form-view [graph parent resource-node opts]
+(defn- make-form-view [parent resource-node opts]
   (let [{:keys [workspace project prefs tab localization]} opts
-        view-id (make-form-view-node! graph parent resource-node workspace project prefs localization)
+        view-id (make-form-view-node! parent resource-node workspace project prefs localization)
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]

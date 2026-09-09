@@ -115,7 +115,10 @@
       body)))
 
 (defn make-nodes [{:keys [node]}]
-  (let [[_ graph-id-node binding-node & body] (:children node)
+  (let [[_ first-node & remaining-nodes] (:children node)
+        [graph-id-node binding-node body] (if (api/vector-node? first-node)
+                                            [(api/token-node nil) first-node remaining-nodes]
+                                            [first-node (first remaining-nodes) (next remaining-nodes)])
         graph-id-sym (gensym "graph-id__")]
     {:node
      (api/list-node

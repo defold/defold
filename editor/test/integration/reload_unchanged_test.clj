@@ -239,8 +239,7 @@
 
 (deftest keep-existing-nodes-undo-after-save-test
   (test-util/with-scratch-project project-path
-    (let [project-graph (g/node-id->graph-id project)
-          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+    (let [resource-change-plans-atom (make-resource-change-plans-atom! project)]
 
       ;; Perform edits on all editable files in the project.
       (perform-edits-to-all-editable-files! project)

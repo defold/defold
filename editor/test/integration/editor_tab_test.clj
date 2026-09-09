@@ -31,12 +31,12 @@
   (inherits view/NonResourceWorkbenchView)
   (property parent g/Any))
 
-(defn- make-test-view [view-graph parent _opts]
+(defn- make-test-view [parent _opts]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node view-graph TestNonResourceWorkbenchView :parent parent)))))
+        (g/make-node TestNonResourceWorkbenchView :parent parent)))))
 
 (defn- make-test-tab-spec [_opts]
   {:instance-key ::test-tab
@@ -115,13 +115,12 @@
   (test-util/with-loaded-project
     (setup-editor-tabs-split! app-view)
     (let [^Tab tab (open-test-tab! app-view)
-          view-id (editor-tab/view-node-id tab)
-          project-graph-id (g/node-id->graph-id app-view)]
+          view-id (editor-tab/view-node-id tab)]
       (test-util/with-ui-run-later-rebound
         (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
       (testing "closing it disposes its view node without deleting the project graph"
-        (is (g/graph project-graph-id))
+        (is (g/now))
         (is (nil? (g/node-by-id view-id))))
 
       (testing "closing it detaches the view from the tab"
@@ -138,7 +137,7 @@
                               (g/tx-nodes-added
                                 (g/transact
                                   {:undoable false}
-                                  (g/make-node world view/WorkbenchView))))
+                                  (g/make-node view/WorkbenchView))))
           tab (doto (Tab. "Gone")
                 (editor-tab/set-view-node-id! resourceless-view))]
       (g/transact

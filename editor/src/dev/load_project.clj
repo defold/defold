@@ -200,11 +200,10 @@
 (defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
 (defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
-(defonce project-graph-id (g/last-graph-added))
 
-(defn- setup-workspace! [project-graph-id project-path]
+(defn- setup-workspace! [project-path]
   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
-        workspace (workspace/make-workspace project-graph-id project-path {} workspace-config localization)]
+        workspace (workspace/make-workspace project-path {} workspace-config localization)]
     (g/transact
       {:undoable false}
       (scene/register-view-types workspace))
@@ -212,7 +211,7 @@
     workspace))
 
 (defonce workspace
-  (setup-workspace! project-graph-id project-path))
+  (setup-workspace! project-path))
 
 (defonce up-to-date-lib-results
   (let [project-directory (workspace/project-directory workspace)
@@ -240,7 +239,6 @@
   (run-and-measure-task!
     :list-resources
     (project/make-node-id+resource-pairs
-      project-graph-id
       (g/node-value workspace :resource-list))))
 
 (defonce game-project-node-id
@@ -252,8 +250,8 @@
 (defonce project
   (run-and-measure-task!
     :make-project
-    (let [extensions (extensions/make project-graph-id)]
-      (project/make-project project-graph-id workspace extensions))))
+    (let [extensions (extensions/make)]
+      (project/make-project workspace extensions))))
 
 (defonce node-load-infos
   (run-and-measure-task!
@@ -277,31 +275,31 @@
               coll/flatten-xf)))
 
         transaction-context (g/make-transaction-context transact-opts)
-        pre-tx-graphs (it/ctx-graphs transaction-context)
+        pre-tx-basis (:basis transaction-context)
 
         tx-result
         (as-> transaction-context transaction-context
 
-              (run-and-measure-task!
-                :apply-load-tx-data
-                (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
-                  transaction-context))
+          (run-and-measure-task!
+            :apply-load-tx-data
+            (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
+              transaction-context))
 
-              (run-and-measure-task!
-                :update-overrides
-                (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
-                  transaction-context))
+          (run-and-measure-task!
+            :update-overrides
+            (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
+              transaction-context))
 
-              (run-and-measure-task!
-                :update-successors
-                (it/update-successors transaction-context))
+          (run-and-measure-task!
+            :update-successors
+            (it/update-successors transaction-context))
 
-              (when transaction-context
-                (it/trace-dependencies transaction-context)
-                (it/finalize-update transaction-context)))
+          (when transaction-context
+            (it/trace-dependencies transaction-context)
+            (it/finalize-update transaction-context)))
 
         _ (when tx-result
-            (g/commit-tx-result! tx-result transact-opts pre-tx-graphs))
+            (g/commit-tx-result! tx-result transact-opts pre-tx-basis))
 
         migrated-resource-node-ids
         (let [basis (:basis tx-result)]

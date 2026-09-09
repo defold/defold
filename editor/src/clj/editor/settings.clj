@@ -75,7 +75,7 @@
   (settings-core/set-setting settings path (settings-core/render-raw-setting-value meta-setting value)))
 
 (defn- make-resource-setting-node [self resource path resource-setting-connections]
-  (g/make-nodes (g/node-id->graph-id self) [resource-setting-node [ResourceSettingNode :path path :resource-connections (resource-setting-connections path)]]
+  (g/make-nodes [resource-setting-node [ResourceSettingNode :path path :resource-connections (resource-setting-connections path)]]
     (g/connect resource-setting-node :_node-id self :nodes)
     (when resource
       (g/set-property resource-setting-node :value resource))
@@ -329,14 +329,13 @@
   (output settings-map g/Any (gu/passthrough settings-map)))
 
 (defn- load-simple-settings-resource-node [meta-info project self resource source-value]
-  (let [graph-id (g/node-id->graph-id self)]
-    (concat
-      (g/make-nodes graph-id [settings-node SettingsNode]
-        (g/connect settings-node :_node-id self :nodes)
-        (g/connect settings-node :save-value self :save-value)
-        (g/connect settings-node :form-data self :form-data)
-        (g/connect settings-node :settings-map self :settings-map)
-        (load-settings-node project self settings-node resource source-value meta-info nil)))))
+  (concat
+    (g/make-nodes [settings-node SettingsNode]
+      (g/connect settings-node :_node-id self :nodes)
+      (g/connect settings-node :save-value self :save-value)
+      (g/connect settings-node :form-data self :form-data)
+      (g/connect settings-node :settings-map self :settings-map)
+      (load-settings-node project self settings-node resource source-value meta-info nil))))
 
 (defn register-simple-settings-resource-type [workspace & {:keys [ext label icon meta-info]}]
   (resource-node/register-settings-resource-type workspace

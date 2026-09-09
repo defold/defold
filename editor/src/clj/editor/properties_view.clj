@@ -824,12 +824,12 @@
 
   (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view graph prefs]
+(defn make-properties-view [workspace project app-view search-results-view prefs]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-nodes graph [view [PropertiesView :prefs prefs]]
+        (g/make-nodes [view [PropertiesView :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)

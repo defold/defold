@@ -462,7 +462,7 @@
   debug-view)
 
 (defn make-view!
-  [app-view graph project ^Parent root open-resource-fn state-changed-fn localization]
+  [app-view project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         call-stack-view (doto (ListView.)
                           (.setId "debugger-call-stack"))
@@ -474,7 +474,7 @@
                   (g/tx-nodes-added
                     (g/transact
                       {:undoable false}
-                      (g/make-node graph DebugView
+                      (g/make-node DebugView
                                    :localization localization
                                    :open-resource-fn (make-open-resource-fn project open-resource-fn)
                                    :state-changed-fn state-changed-fn))))
@@ -952,17 +952,16 @@
                {:label :separator
                 :id ::debug-end}]}])
 
-
 (comment
   (defn get-all-script-nodes [project]
-    (keep (fn [node-id]
-            (when (g/node-instance? editor.code.script/ScriptNode node-id)
-              (g/node-by-id node-id)))
-          (g/node-ids (g/graph (g/node-id->graph-id project)))))
+    (into []
+          (keep (fn [node-id]
+                  (when (g/node-instance? editor.code.script/ScriptNode node-id)
+                    (g/node-by-id node-id))))
+          (g/node-ids (g/now))))
 
   (->> (g/node-value (dev/project) :breakpoints)
        (group-by #(get-in % [:resource :project-path])))
 
   (g/targets-of (dev/project) :breakpoints)
-  (g/sources-of (dev/project) :breakpoints)
-  ,)
+  (g/sources-of (dev/project) :breakpoints))

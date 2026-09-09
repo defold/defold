@@ -247,53 +247,53 @@
 
                 {'inputs
                  (as-> empty-navigable-node-label-map target-label->source-key->source-node-id
-                       (reduce
-                         (fn [target-label->source-key->source-node-id arc]
-                           (let [target-label (gt/target-label arc)
-                                 source-node-id (gt/source-id arc)
-                                 source-key (arc-source-key basis arc)]
-                             (update-in
-                               target-label->source-key->source-node-id
-                               [target-label source-key]
-                               (fn [source-node-ids]
-                                 (conj (or source-node-ids empty-navigable-node-id-vector)
-                                       source-node-id)))))
-                         target-label->source-key->source-node-id
-                         (sort-by gt/source-id
-                                  (gt/arcs-by-target basis node-id)))
-                       (reduce
-                         (fn [target-label->source-key->source-node-id [input-label]]
-                           (update
-                             target-label->source-key->source-node-id input-label
-                             fn/or
-                             no-viewer))
-                         target-label->source-key->source-node-id
-                         (g/declared-inputs node-type)))
+                   (reduce
+                     (fn [target-label->source-key->source-node-id arc]
+                       (let [target-label (gt/target-label arc)
+                             source-node-id (gt/source-id arc)
+                             source-key (arc-source-key basis arc)]
+                         (update-in
+                           target-label->source-key->source-node-id
+                           [target-label source-key]
+                           (fn [source-node-ids]
+                             (conj (or source-node-ids empty-navigable-node-id-vector)
+                                   source-node-id)))))
+                     target-label->source-key->source-node-id
+                     (sort-by gt/source-id
+                              (ig/arcs-by-target basis node-id)))
+                   (reduce
+                     (fn [target-label->source-key->source-node-id [input-label]]
+                       (update
+                         target-label->source-key->source-node-id input-label
+                         fn/or
+                         no-viewer))
+                     target-label->source-key->source-node-id
+                     (g/declared-inputs node-type)))
 
                  'outputs
                  (as-> empty-navigable-node-label-map source-label->target-key->target-node-id
-                       (reduce
-                         (fn [source-label->target-key->target-node-id arc]
-                           (let [source-label (gt/source-label arc)
-                                 target-node-id (gt/target-id arc)
-                                 target-key (arc-target-key basis arc)]
-                             (update-in
-                               source-label->target-key->target-node-id
-                               [source-label target-key]
-                               (fn [target-node-ids]
-                                 (conj (or target-node-ids empty-navigable-node-id-vector)
-                                       target-node-id)))))
-                         source-label->target-key->target-node-id
-                         (sort-by gt/target-id
-                                  (gt/arcs-by-source basis node-id)))
-                       (reduce
-                         (fn [source-label->target-key->target-node-id [output-label]]
-                           (update
-                             source-label->target-key->target-node-id output-label
-                             fn/or
-                             no-viewer))
-                         source-label->target-key->target-node-id
-                         (g/declared-outputs node-type)))})]
+                   (reduce
+                     (fn [source-label->target-key->target-node-id arc]
+                       (let [source-label (gt/source-label arc)
+                             target-node-id (gt/target-id arc)
+                             target-key (arc-target-key basis arc)]
+                         (update-in
+                           source-label->target-key->target-node-id
+                           [source-label target-key]
+                           (fn [target-node-ids]
+                             (conj (or target-node-ids empty-navigable-node-id-vector)
+                                   target-node-id)))))
+                     source-label->target-key->target-node-id
+                     (sort-by gt/target-id
+                              (ig/arcs-by-source basis node-id)))
+                   (reduce
+                     (fn [source-label->target-key->target-node-id [output-label]]
+                       (update
+                         source-label->target-key->target-node-id output-label
+                         fn/or
+                         no-viewer))
+                     source-label->target-key->target-node-id
+                     (g/declared-outputs node-type)))})]
           (portal.viewer/hiccup
             [:<>
              [::portal.viewer/inspector node-view]

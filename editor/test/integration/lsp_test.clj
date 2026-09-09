@@ -71,7 +71,7 @@
      (try
        ~@forms
        (finally
-         (let [lsp# (lsp/get-node-lsp ~'project)]
+         (let [lsp# (lsp/get-lsp)]
            (await-lsp lsp#
              (lsp/set-servers! lsp# #{})))))))
 
@@ -103,9 +103,9 @@
   (await-lsp lsp
     (workspace/resource-sync! workspace)))
 
-(defn- handler-run! [command lsp project]
+(defn- handler-run! [command lsp]
   (await-lsp lsp
-    (test-util/handler-run command [{:name :global :env {:project-graph (project/graph project)}}] {})))
+    (test-util/handler-run command [{:name :global :env {}}] {})))
 
 (def ^:private undo! (partial handler-run! :edit.undo))
 
@@ -267,7 +267,7 @@
 
 (deftest project-completions-test
   (with-scratch-project "test/resources/project_lsp_completion_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           completion-result!
           (fn [proj-path line-prefix]
             (let [resource (test-util/resource workspace proj-path)
@@ -460,11 +460,11 @@
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node (g/node-id->graph-id app-view) LSPViewNode)))))
+        (g/make-node LSPViewNode)))))
 
 (deftest project-completion-trigger-characters-test
   (with-scratch-project "test/resources/project_lsp_completion_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           view-node (make-lsp-view-node! app-view)
           resource (test-util/resource workspace "/scripts/player.script")]
       (set-servers! lsp #{(lsp.project/language-server project)})
@@ -474,7 +474,7 @@
 
 (deftest start-open-order-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)]
+    (let [lsp (lsp/get-lsp)]
       (testing "Start server + open resource -> should receive diagnostics"
         (let [;; set servers
               _ (set-servers! lsp #{{:languages #{"json"}
@@ -510,7 +510,7 @@
                            "shutdown" (constantly nil)
                            "exit" (constantly nil)})]
       (with-scratch-project "test/resources/lsp_project"
-        (let [lsp (lsp/get-node-lsp project)
+        (let [lsp (lsp/get-lsp)
               _ (set-servers!
                   lsp
                   #{{:languages #{"json"}
@@ -548,11 +548,11 @@
   (testing "Modifying resources without any views should make the language servers open the document anyway"
     (with-scratch-project "test/resources/lsp_project"
       (let [server-opened-docs (atom #{})
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             foo-resource (test-util/resource workspace "/foo.json")
             initial-source (slurp foo-resource)
             foo-node (test-util/resource-node project "/foo.json")
-            _ (g/set-graph-value! (project/graph project) ::the-graph ::test)
+            _ (g/set-graph-value! ::the-graph ::test)
             _ (set-servers!
                 lsp
                 #{{:languages #{"json"}
@@ -576,17 +576,17 @@
             _ (is (await= #{} @server-opened-docs))
 
             ;; undo => dirty again
-            _ (undo! lsp project)
+            _ (undo! lsp)
             _ (is (await= #{(lsp.server/resource-uri foo-resource)}
                           @server-opened-docs))
 
             ;; redo => clean again
-            _ (redo! lsp project)
+            _ (redo! lsp)
             _ (is (await= #{} @server-opened-docs))]))))
 
 (deftest open-close-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           server-opened-docs (atom #{})
           handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                     "initialized" (constantly nil)
@@ -629,7 +629,7 @@
 (deftest resource-changes-test
   (testing "Modify lines -> notify open, rename file -> close + open modified"
     (with-scratch-project "test/resources/lsp_project"
-      (let [lsp (lsp/get-node-lsp project)
+      (let [lsp (lsp/get-lsp)
             server-opened-docs (atom {})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                       "initialized" (constantly nil)
@@ -662,7 +662,7 @@
         (rename-file! lsp [bar-resource] "foo"))))
   (testing "Open view -> notify open, change on disk + resource sync -> notify changed"
     (with-scratch-project "test/resources/lsp_project"
-      (let [lsp (lsp/get-node-lsp project)
+      (let [lsp (lsp/get-lsp)
             change-notifications (atom [])
             server-opened-docs (atom #{})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
@@ -699,7 +699,7 @@
         (close-view! lsp view-node))))
   (testing "Modify lines -> notify open; delete file + sync -> notify closed"
     (with-scratch-project "test/resources/lsp_project"
-      (let [lsp (lsp/get-node-lsp project)
+      (let [lsp (lsp/get-lsp)
             server-opened-docs (atom #{})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                       "initialized" (constantly nil)
@@ -732,7 +732,7 @@
       (let [workspace-lint-exit-promise (promise)
             document-lint-exit-promise (promise)
             no-lint-exit-promise (promise)
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             _ (set-servers!
                 lsp
                 #{;; full workspace lint
@@ -796,7 +796,7 @@
     (with-scratch-project "test/resources/lsp_project"
       (let [working-exit-promise (promise)
             broken-exit-promise (promise)
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             _ (set-servers!
                 lsp
                 #{;; working lint
@@ -838,7 +838,7 @@
   (testing "the LSP client only waits up to a timeout"
     (with-scratch-project "test/resources/lsp_project"
       (let [exit-promise (promise)
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             _ (set-servers!
                 lsp
                 #{{:languages #{"json"}
@@ -864,7 +864,7 @@
   (with-scratch-project "test/resources/lsp_project"
     (let [unmatched-promise (promise)
           matched-promise (promise)
-          lsp (lsp/get-node-lsp project)
+          lsp (lsp/get-lsp)
           _ (set-servers! lsp #{;; this server should NOT be asked for hovers
                                 {:languages #{"json"}
                                  :launcher (make-test-server-launcher
@@ -897,7 +897,7 @@
 (deftest content-modified-errors-are-retried-test
   (with-scratch-project "test/resources/lsp_project"
     (let [hover-requests (atom 0)
-          lsp (lsp/get-node-lsp project)
+          lsp (lsp/get-lsp)
           _ (set-servers! lsp #{{:languages #{"json"}
                                  :launcher (make-test-server-launcher
                                              {"initialize" (constantly {:capabilities {:hoverProvider true}})
@@ -919,7 +919,7 @@
 
 (deftest rename-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           _ (set-servers! lsp #{{:languages #{"json"}
                                  :launcher (make-test-server-launcher
                                              {"initialize" (constantly {:capabilities {:renameProvider {:prepareProvider true}}})
@@ -944,7 +944,7 @@
 
 (deftest format-document-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           resource (test-util/resource workspace "/foo.json")
           requested-options (atom nil)
           make-formatting-server (fn [formatting-handler]
@@ -988,7 +988,7 @@
 
 (deftest format-ranges-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           resource (test-util/resource workspace "/foo.json")
           cursor-ranges [#code/range [[0 0] [0 10]]]
           make-formatting-server (fn [range-formatting-handler]

@@ -60,7 +60,7 @@
       (test-util/write-defunload-patterns! project-path defunload-patterns)
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           ;; Add dependencies to all sanctioned extensions to game.project.
           (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
@@ -113,7 +113,7 @@
                           (is (not (g/error? (g/node-value resource-node :build-targets evaluation-context))))
                           (when (resource-type-has-view-type? resource-type :scene)
                             (is (not (g/error? (g/node-value resource-node :scene evaluation-context)))))))))))
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))
 
 (defn- loaded-proj-path? [project proj-path]
   (let [resource-node-id (project/get-resource-node project proj-path)]
@@ -126,7 +126,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -345,7 +345,7 @@
                   (is (= ["/loaded_referencing_unloaded_go.collection"]
                          (mapv (comp resource/proj-path :resource first)
                                node-load-info-tx-data-calls))))))
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest defunload-scene-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -353,7 +353,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -471,7 +471,7 @@
                   (is (= []
                          (mapv (comp resource/proj-path :resource first)
                                node-load-info-tx-data-calls))))))
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest defunload-script-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -479,7 +479,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -622,4 +622,4 @@
                          (mapv (comp resource/proj-path :resource first)
                                node-load-info-tx-data-calls))))))
 
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))

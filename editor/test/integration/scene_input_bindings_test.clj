@@ -66,7 +66,7 @@
                                 :tool-controller tile-map/TileMapController}))
 
 (defn- make-curve-view! [app-view]
-  (let [view (curve-view/make-view! app-view (g/node-id->graph-id app-view) nil nil test-util/localization {} false)]
+  (let [view (curve-view/make-view! app-view nil nil nil test-util/localization {} false)]
     (g/transact
       {:undoable false}
       (g/set-property view :viewport (types/->Region 0 128 0 128)))
@@ -97,7 +97,6 @@
 
 (defn- cell-at [layer-node [x y]]
   (tile-map-common/cell-at (g/node-value layer-node :cell-map) [x y]))
-
 
 (defn- screen-pos->tile-cell
   [view resource-node screen-x screen-y]

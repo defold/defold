@@ -29,6 +29,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
@@ -197,7 +198,7 @@
                 (g/has-input? label))
     (mapv #(g/endpoint (gt/source-id %)
                        (gt/source-label %))
-          (gt/arcs-by-target basis node-id label))))
+          (ig/arcs-by-target basis node-id label))))
 
 (defn- endpoint-predecessors [basis endpoint]
   (let [node-id (g/endpoint-node-id endpoint)

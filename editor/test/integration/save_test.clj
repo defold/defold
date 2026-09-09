@@ -44,21 +44,21 @@
 (set! *warn-on-reflection* true)
 
 (defn- setup-scratch
-  [ws-graph]
-  (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
+  []
+  (let [workspace (test-util/setup-scratch-workspace! test-util/project-path)
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
 (deftest save-after-delete
   (with-clean-system
-    (let [[_workspace project] (setup-scratch world)
+    (let [[_workspace project] (setup-scratch)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
       (asset-browser/delete [(g/node-value atlas-id :resource)])
       (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest save-after-external-delete
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")
           path (resource/abs-path (g/node-value atlas-id :resource))]
       (fs/delete-file! (File. path))
@@ -67,7 +67,7 @@
 
 (deftest save-after-rename
   (with-clean-system
-    (let [[_workspace project] (setup-scratch world)
+    (let [[_workspace project] (setup-scratch)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
       (asset-browser/rename [(g/node-value atlas-id :resource)] "switcher2" test-util/localization)
       (is (not (g/error? (project/all-save-data project)))))))
@@ -108,7 +108,7 @@
       (set-autocrlf! git false)
       (clean-checkout! git)
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               line-endings-before (line-endings-by-resource project)
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
@@ -121,7 +121,7 @@
       (set-autocrlf! git true)
       (clean-checkout! git)
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               line-endings-before (line-endings-by-resource project)
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
@@ -208,7 +208,7 @@
 
 (deftest async-reload-test
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
           external-json-text "{\"item\" : \"Added externally\"}"
           external-lua-text "-- Edited externally"
@@ -312,7 +312,7 @@
 
 (deftest async-save-test
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
           internal-edit-text "-- Edited by us"
           external-json-text "{\"item\" : \"Added externally\"}"
@@ -378,7 +378,7 @@
         retained-labels #{:save-data :save-value}]
     (with-clean-system {:cache-size cache-size
                         :cache-retain? project/cache-retain?}
-      (let [workspace (test-util/setup-workspace! world)
+      (let [workspace (test-util/setup-workspace!)
             project (test-util/setup-project! workspace)
             invalidated-save-data-endpoints-atom (atom #{})
             cacheable-save-data-endpoints (into (sorted-set)
@@ -431,7 +431,7 @@
 (deftest edit-during-save-test
   (with-clean-system {:cache-size 50
                       :cache-retain? project/cache-retain?}
-    (let [workspace (test-util/setup-workspace! world)
+    (let [workspace (test-util/setup-workspace!)
           project (test-util/setup-project! workspace)
           edited-before-save (test-util/resource-node project "/script/props.script")
           edited-during-save (test-util/resource-node project "/script/test_module.lua")

@@ -67,7 +67,7 @@
 
 (deftest code-resources-dirty-test
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/reload_unchanged_project")
           project (test-util/setup-project! workspace)
 
           editable-code-resource-node-ids

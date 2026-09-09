@@ -136,7 +136,7 @@
 
   (output unselected-outline-name-paths OutlineNamePaths :cached (g/fnk [selected-outline-name-paths outline-name-paths]
                                                                    (set/difference outline-name-paths selected-outline-name-paths)))
-  
+
   (output unselected-hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths unselected-outline-name-paths]
                                                                             (not-empty (set/difference unselected-outline-name-paths hidden-outline-name-paths))))
 
@@ -152,12 +152,12 @@
                                                                                     hide-history))
                                                                                 scene-hide-history-datas)))))
 
-(defn make-scene-visibility-node! [graph prefs app-view]
+(defn make-scene-visibility-node! [prefs app-view]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node graph SceneVisibilityNode :prefs prefs :app-view app-view)))))
+        (g/make-node SceneVisibilityNode :prefs prefs :app-view app-view)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Per-Object Visibility
@@ -210,10 +210,9 @@
         (g/update-property scene-hide-history-node :hide-history conj outline-name-paths))
       (g/transact
         {:undoable false}
-        (g/make-nodes (g/node-id->graph-id scene-visibility)
-                      [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
-                      (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
-                      (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
+        (g/make-nodes [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
+          (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
+          (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
 
 (handler/defhandler :scene.visibility.hide-unselected :workbench
   (active? [scene-visibility evaluation-context]

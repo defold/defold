@@ -15,21 +15,21 @@
 (ns internal.txsteps.helpers
   (:require [dynamo.graph :as g]
             [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 
-(defn- arc-table-tuples [basis graph-id arc-registry-key source-or-target-id label]
-  {:pre [(#{:sarcs :tarcs} arc-registry-key)]}
+(defn- arc-table-tuples [arc-registry source-or-target-id label]
   (ig/arcs->tuples
     (ig/arc-table-arcs
-      (get-in basis [:graphs graph-id arc-registry-key source-or-target-id label]))))
+      (-> arc-registry (get source-or-target-id) (get label)))))
 
-(defn source-arc-table-tuples [basis graph-id source-id source-label]
-  (arc-table-tuples basis graph-id :sarcs source-id source-label))
+(defn source-arc-table-tuples [basis source-id source-label]
+  (arc-table-tuples (gt/sarcs basis) source-id source-label))
 
-(defn target-arc-table-tuples [basis graph-id target-id target-label]
-  (arc-table-tuples basis graph-id :tarcs target-id target-label))
+(defn target-arc-table-tuples [basis target-id target-label]
+  (arc-table-tuples (gt/tarcs basis) target-id target-label))
 
 (defn encache-endpoints! [endpoints]
   (run! #(g/node-value (g/endpoint-node-id %) (g/endpoint-label %))

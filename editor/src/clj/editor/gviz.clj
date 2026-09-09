@@ -19,6 +19,7 @@
             [editor.fs :as fs]
             [editor.ui :as ui]
             [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [util.fn :as fn])
   (:import [java.io BufferedWriter File IOException StringWriter]
            [javafx.scene.paint Color]))
@@ -63,12 +64,15 @@
 
 (defn- nodes->arcs [basis nodes]
   (let [nodes (set nodes)]
-    (seq (into #{} (mapcat (fn [[_ graph]]
-                             (->>
-                               (concat (filter (fn [a] (or (nodes (:source-id a)) (nodes (:target-id a)))) (flatten-arcs (:sarcs graph)))
-                                       (filter #(or (nodes (:source-id %)) (nodes (:target-id %))) (flatten-arcs (:tarcs graph))))
-                               (map (fn [a] [(:source-id a) (:source-label a) (:target-id a) (:target-label a)]))))
-                           (:graphs basis))))))
+    (into #{}
+          (comp
+            (filter (fn [arc]
+                      (or (contains? nodes (:source-id arc))
+                          (contains? nodes (:target-id arc)))))
+            (map (fn [arc]
+                   [(:source-id arc) (:source-label arc) (:target-id arc) (:target-label arc)])))
+          (concat (flatten-arcs (gt/sarcs basis))
+                  (flatten-arcs (gt/tarcs basis))))))
 
 (defn escape-field-label [label]
   (-> label
@@ -110,8 +114,8 @@
                                                  (map key (filter f (arcs-fn basis node-id))))))
              [[input-fn g/inputs first]
               [output-fn g/outputs (comp last butlast)]]))
-         (mapcat (comp keys :nodes second) (:graphs basis)))
-    (include-overrides basis)))
+         (keys (gt/nodes basis)))
+       (include-overrides basis)))
 
 (defn subgraph->dot ^String [basis & {:keys [root-id input-fn output-fn] :or {root-id nil} :as opts}]
   (let [nodes (extract-nodes basis opts)
@@ -119,19 +123,16 @@
         outputs (reduce (fn [outputs [s sl t tl]] (update outputs s conj sl)) {} arcs)
         sw (StringWriter.)
         node-set (set nodes)
-        all-nodes (set (mapcat (comp keys :nodes second) (:graphs basis)))
+        all-nodes (set (keys (gt/nodes basis)))
         referred-nodes (mapcat (fn [[s _ t _]] [s t]) arcs)
         excluded-nodes (set (filter (complement node-set) referred-nodes))]
     (with-open [w (BufferedWriter. sw)]
       (write w "digraph G {")
       (write w "rankdir=LR")
 
-      (doseq [[gid node-ids] (group-by g/node-id->graph-id (concat nodes excluded-nodes))]
-        (write w (format "subgraph %d {" gid))
-        (doseq [node-id node-ids
-                :let [color (if (excluded-nodes node-id) "grey" "black")]]
-          (write-node w basis node-id color inputs outputs))
-        (write w "}"))
+      (doseq [node-id (concat nodes excluded-nodes)
+              :let [color (if (excluded-nodes node-id) "grey" "black")]]
+        (write-node w basis node-id color inputs outputs))
 
       (doseq [[source source-label target target-label] arcs]
         (let [color (if (or (not (all-nodes source)) (not (all-nodes target)))
@@ -318,14 +319,14 @@
 
 (defn show-external-node-type-connections-for-all-scoped-nodes-of-type [node-type]
   (show-external-node-type-connections-between-nodes
-    (->> (get-in (g/now) [:graphs 0 :nodes])
+    (->> (gt/nodes (g/now))
          (filter (comp #{node-type} :node-type val))
          (map key)
          (mapcat #(conj (g/node-value % :nodes) %)))))
 
 (defn show-external-node-type-connections-for-all-nodes-of-ns-type [node-type-ns]
   (show-external-node-type-connections-between-nodes
-    (->> (get-in (g/now) [:graphs 0 :nodes])
+    (->> (gt/nodes (g/now))
          (filter (comp #{node-type-ns} namespace :k :node-type val))
          (map key))))
 
@@ -334,8 +335,7 @@
   ;; selected scoped node
   (show-external-node-type-connections-for-scoped-node (first (dev/selection)))
   ;; all project nodes
-  (show-external-node-type-connections-between-nodes (keys (get-in (g/now) [:graphs 0 :nodes])))
+  (show-external-node-type-connections-between-nodes (keys (gt/nodes (g/now))))
   ;; particular type of scope
   (show-external-node-type-connections-for-all-scoped-nodes-of-type editor.gui/GuiSceneNode)
-  (show-external-node-type-connections-for-all-nodes-of-ns-type "editor.gui")
-  ,)
+  (show-external-node-type-connections-for-all-nodes-of-ns-type "editor.gui"))

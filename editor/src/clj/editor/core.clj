@@ -16,6 +16,7 @@
   "Essential node types"
   (:require [cognitect.transit :as transit]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.util :as util]))
 
@@ -107,7 +108,7 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
    (some (fn [outgoing-arc]
            (when (= :nodes (gt/target-label outgoing-arc))
              (gt/target-id outgoing-arc)))
-         (gt/arcs-by-source basis node-id :_node-id))))
+         (ig/arcs-by-source basis node-id :_node-id))))
 
 (defn scope-of-type
   ([node-id node-type]

@@ -68,7 +68,7 @@
 (defn- make-curve-view! [app-view width height]
   (let [curve-view (curve-view/make-view!
                      app-view
-                     (g/node-id->graph-id app-view)
+                     nil
                      nil
                      nil
                      test-util/localization
@@ -86,7 +86,6 @@
         (reduced node-id)))
     nil
     (g/sources-of view :input-handlers)))
-
 
 (deftest selection
   (test-util/with-loaded-project

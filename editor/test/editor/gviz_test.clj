@@ -31,24 +31,24 @@
 (deftest simple []
   (with-clean-system
     (g/transact
-      (g/make-nodes world [n0 [SimpleNode :prop "test"]
-                           n1 [SimpleNode :prop "test2"]]
+      (g/make-nodes [n0 [SimpleNode :prop "test"]
+                     n1 [SimpleNode :prop "test2"]]
         (g/connect n0 :out n1 :in)))
     (let [dot (gviz/subgraph->dot (g/now))]
       (is (re-find #"SimpleNode" dot)))))
 
 (deftest broken-graph []
   (with-clean-system
-    (let [nodes (tx-nodes (g/make-nodes world [n0 [SimpleNode :prop "test"]
-                                               n1 [SimpleNode :prop "test2"]]
+    (let [nodes (tx-nodes (g/make-nodes [n0 [SimpleNode :prop "test"]
+                                         n1 [SimpleNode :prop "test2"]]
                             (g/connect n0 :out n1 :in)))
-          basis (update-in (g/now) [:graphs world :nodes] dissoc (first nodes))
+          basis (update (g/now) :nodes dissoc (first nodes))
           dot (gviz/subgraph->dot basis)]
       (is (re-find #"red" dot)))))
 
 (deftest gui []
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
+    (let [workspace (test-util/setup-workspace!)
           project (test-util/setup-project! workspace)
           node-id (test-util/resource-node project "/logic/main.gui")
           basis (g/now)

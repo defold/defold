@@ -151,7 +151,7 @@
   (property animations resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :animation-resources]
                                       [:animation-set :animation-sets]
                                       [:animation-info :animation-infos]]]

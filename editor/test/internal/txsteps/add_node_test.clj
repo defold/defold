@@ -31,7 +31,7 @@
 
 (deftest adds-nodes-to-graph-test
   (test-support/with-clean-system
-    (let [added-node-ids (vec (g/take-node-ids world 20))]
+    (let [added-node-ids (vec (g/take-node-ids 20))]
 
       (testing "Before transact."
         (doseq [node-id added-node-ids]
@@ -48,7 +48,7 @@
 
 (deftest returns-tx-result-with-nodes-added-test
   (test-support/with-clean-system
-    (let [added-node-ids (vec (g/take-node-ids world 20))]
+    (let [added-node-ids (vec (g/take-node-ids 20))]
       (testing "Returns tx-result with added node-ids in construction order."
         (is (= added-node-ids
                (g/tx-nodes-added
@@ -58,9 +58,9 @@
 
 (deftest adds-multiple-nodes-with-single-change-test
   (test-support/with-clean-system
-    (let [added-node-ids (vec (g/take-node-ids world 20))
+    (let [added-node-ids (vec (g/take-node-ids 20))
           added-nodes (mapv #(g/construct ReturnsTxResultWithNodesAddedTestNode :_node-id %)
-                             added-node-ids)
+                            added-node-ids)
           tx-result (g/transact (g/add-nodes added-nodes))]
       (is (= added-node-ids (g/tx-nodes-added tx-result)))
       (is (= 1 (count (:undoable-changes tx-result))))
@@ -75,8 +75,8 @@
 
 (deftest registers-override-node-relationships-test
   (test-support/with-clean-system
-    (let [override-id (gt/make-override-id world 1000)
-          [original-node-id override-node-id] (vec (g/take-node-ids world 2))
+    (let [override-id 1000
+          [original-node-id override-node-id] (vec (g/take-node-ids 2))
           original-node (g/construct helpers/OverrideTestNode :_node-id original-node-id)
           override-node (in/make-override-node override-id override-node-id helpers/OverrideTestNode original-node-id {})]
       (g/transact
@@ -95,7 +95,7 @@
 
 (deftest property-has-default-value-test
   (test-support/with-clean-system
-    (let [node-id (first (g/take-node-ids world 1))]
+    (let [node-id (first (g/take-node-ids 1))]
       (g/transact
         (g/add-node (g/construct PropertyHasDefaultValueTestNode :_node-id node-id)))
       (is (= :default-property-value (g/node-value node-id :property-with-default))))))
@@ -142,7 +142,7 @@
 
 (deftest invokes-property-setters-with-default-values-test
   (test-support/with-clean-system
-    (let [node-id (first (g/take-node-ids world 1))]
+    (let [node-id (first (g/take-node-ids 1))]
       (g/transact
         (g/add-node (g/construct InvokesPropertySettersTestNode
                       :_node-id node-id)))
@@ -181,7 +181,7 @@
 
 (deftest invokes-property-setters-with-specified-values-test
   (test-support/with-clean-system
-    (let [node-id (first (g/take-node-ids world 1))]
+    (let [node-id (first (g/take-node-ids 1))]
       (g/transact
         (g/add-node (g/construct InvokesPropertySettersTestNode
                       :_node-id node-id
@@ -230,7 +230,7 @@
 
 (deftest does-not-invoke-property-setters-with-nil-default-values-test
   (test-support/with-clean-system
-    (let [node-id (first (g/take-node-ids world 1))]
+    (let [node-id (first (g/take-node-ids 1))]
       (g/transact
         (g/add-node (g/construct helpers/PropertyTestNode
                       :_node-id node-id)))
@@ -317,7 +317,7 @@
 
 (deftest generates-single-undo-step-test
   (test-support/with-clean-system
-    (let [node-id (first (g/take-node-ids world 1))]
+    (let [node-id (first (g/take-node-ids 1))]
 
       (testing "Before transact."
         (is (= 0 (g/undo-stack-count :undo/global))))
@@ -332,7 +332,7 @@
 
 (deftest undo-redo-test
   (test-support/with-clean-system
-    (let [node-id (first (g/take-node-ids world 1))
+    (let [node-id (first (g/take-node-ids 1))
 
           ensure-node-absent-from-graph!
           (fn ensure-node-absent-from-graph! []
@@ -387,15 +387,13 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-source}
-              (g/make-nodes world
-                [_source-node-id [helpers/ConnectionSourceNode :property :source-value]])))
+              (g/make-nodes [_source-node-id [helpers/ConnectionSourceNode :property :source-value]])))
 
           [target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input))))
 
           ensure-source-exists!
@@ -429,16 +427,14 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-source}
-              (g/make-nodes world
-                [_source-node-id [helpers/ConnectionSourceNode :property :source-value]])))
+              (g/make-nodes [_source-node-id [helpers/ConnectionSourceNode :property :source-value]])))
 
           [_persistent-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [persistent-source-node-id [helpers/ConnectionSourceNode :property :persistent-source-value]
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [persistent-source-node-id [helpers/ConnectionSourceNode :property :persistent-source-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :array-input)
                 (g/connect persistent-source-node-id :property-output target-node-id :array-input))))]
 
@@ -462,15 +458,14 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-source}
-              (g/make-node world helpers/ConnectionSourceNode)))
+              (g/make-node helpers/ConnectionSourceNode)))
 
           [persistent-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [persistent-source-node-id helpers/ConnectionSourceNode
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [persistent-source-node-id helpers/ConnectionSourceNode
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input)
                 (g/connect source-node-id :property-output target-node-id :array-input)
                 (g/connect persistent-source-node-id :property-output target-node-id :array-input))))]
@@ -481,12 +476,12 @@
         (testing "Entries remain in arc-tables."
           (is (= [[source-node-id :property-output target-node-id :regular-input]
                   [source-node-id :property-output target-node-id :array-input]]
-                 (helpers/source-arc-table-tuples basis world source-node-id :property-output)))
+                 (helpers/source-arc-table-tuples basis source-node-id :property-output)))
           (is (= [[source-node-id :property-output target-node-id :regular-input]]
-                 (helpers/target-arc-table-tuples basis world target-node-id :regular-input)))
+                 (helpers/target-arc-table-tuples basis target-node-id :regular-input)))
           (is (= [[source-node-id :property-output target-node-id :array-input]
                   [persistent-source-node-id :property-output target-node-id :array-input]]
-                 (helpers/target-arc-table-tuples basis world target-node-id :array-input))))
+                 (helpers/target-arc-table-tuples basis target-node-id :array-input))))
 
         (testing "Dangling connections are excluded from query results."
           (is (= []
@@ -516,15 +511,14 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-source}
-              (g/make-node world helpers/ConnectionSourceNode)))
+              (g/make-node helpers/ConnectionSourceNode)))
 
           [persistent-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [persistent-source-node-id helpers/ConnectionSourceNode
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [persistent-source-node-id helpers/ConnectionSourceNode
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :array-input)
                 (g/connect persistent-source-node-id :property-output target-node-id :array-input))))
 
@@ -582,15 +576,14 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-source}
-              (g/make-node world helpers/ConnectionSourceNode)))
+              (g/make-node helpers/ConnectionSourceNode)))
 
           [persistent-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [persistent-source-node-id helpers/ConnectionSourceNode
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [persistent-source-node-id helpers/ConnectionSourceNode
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :array-cascade-delete-input)
                 (g/connect persistent-source-node-id :property-output target-node-id :array-cascade-delete-input))))
 
@@ -619,15 +612,14 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-source}
-              (g/make-node world helpers/ConnectionSourceNode)))
+              (g/make-node helpers/ConnectionSourceNode)))
 
           [persistent-source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [persistent-source-node-id helpers/ConnectionSourceNode
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [persistent-source-node-id helpers/ConnectionSourceNode
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :array-input)
                 (g/connect persistent-source-node-id :property-output target-node-id :array-input))))
 
@@ -674,9 +666,8 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [initial-source-node-id [helpers/ConnectionSourceNode :property :initial-source-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect initial-source-node-id :property-output target-node-id :regular-input))))
 
           [override-target-node-id]
@@ -689,7 +680,7 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-shadowing-source}
-              (g/make-node world helpers/ConnectionSourceNode :property :shadowing-source-value)))
+              (g/make-node helpers/ConnectionSourceNode :property :shadowing-source-value)))
 
           _
           (g/transact
@@ -739,7 +730,7 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-node world helpers/ConnectionTargetNode)))
+              (g/make-node helpers/ConnectionTargetNode)))
 
           [override-target-node-id]
           (g/tx-nodes-added
@@ -751,7 +742,7 @@
           (g/tx-nodes-added
             (g/transact
               {:undo-key ::add-original-source}
-              (g/make-node world helpers/ConnectionSourceNode :property :source-value)))
+              (g/make-node helpers/ConnectionSourceNode :property :source-value)))
 
           _
           (g/transact
@@ -807,8 +798,8 @@
               (is (= #{}
                      (set (g/successors basis override-source-node-id :property-output))))
               (is (= [source-arc-tuple]
-                     (helpers/source-arc-table-tuples basis world source-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis world target-node-id :regular-cascade-delete-input)))))]
+                     (helpers/source-arc-table-tuples basis source-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis target-node-id :regular-cascade-delete-input)))))]
 
       (testing "Before undo."
         (ensure-effective!))

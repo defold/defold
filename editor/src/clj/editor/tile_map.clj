@@ -79,13 +79,11 @@
   [a b]
   (fn [v] (if (= v a) b a)))
 
-
 (def tile-map-icon "icons/32/Icons_48-Tilemap.png")
 (def tile-map-layer-icon "icons/32/Icons_42-Layers.png")
 (def ^:private material-message (properties/label-message :material))
 (def ^:private tile-source-message (properties/label-message :tile-map :tile-source))
 (def ^:private z-message (properties/label-message :tile-map.layer :z))
-
 
 ;; manipulating cells
 
@@ -558,16 +556,13 @@
 (defn make-layer-node
   [parent tile-layer]
   {:pre [(map? tile-layer)]} ; Tile$TileLayer in map format.
-  (let [graph-id (g/node-id->graph-id parent)]
-    (g/make-nodes
-      graph-id
-      [layer-node LayerNode]
-      (gu/set-properties-from-pb-map layer-node Tile$TileLayer tile-layer
-        id :id
-        z :z
-        visible (protobuf/int->boolean :is-visible)
-        cell-map (make-cell-map :cell))
-      (attach-layer-node parent layer-node))))
+  (g/make-nodes [layer-node LayerNode]
+    (gu/set-properties-from-pb-map layer-node Tile$TileLayer tile-layer
+      id :id
+      z :z
+      visible (protobuf/int->boolean :is-visible)
+      cell-map (make-cell-map :cell))
+    (attach-layer-node parent layer-node)))
 
 (defn world-pos->tile
   [^Point3d pos ^double tile-width ^double tile-height]
@@ -875,7 +870,6 @@
         (shader/set-uniform tex-shader gl "texture_sampler" 0)
         (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
-
 ;; palette
 
 (def ^:private tile-border-size 1)
@@ -1003,7 +997,6 @@
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
-
 
 (defn gen-palette-grid-vbuf
   [tile-source-attributes]
@@ -1212,7 +1205,6 @@
   (case mode
     :editor editor-renderables
     :palette palette-renderables))
-
 
 ;;--------------------------------------------------------------------
 ;; input handling
@@ -1483,7 +1475,6 @@
    (g/connect resource-id :material-shader tool-id :material-shader)
    (g/connect resource-id :gpu-texture tool-id :gpu-texture)
    (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)))
-
 
 ;; handlers/menu
 

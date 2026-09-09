@@ -43,10 +43,9 @@
 (deftest fronting-a-connection-via-a-property
   (ts/with-clean-system
     (let [[provider user] (g/tx-nodes-added
-                           (g/transact
-                            (g/make-nodes world
-                                          [provider [ResourceNode :path "/images/something.png"]
-                                           user     ResourceUser])))]
+                            (g/transact
+                              (g/make-nodes [provider [ResourceNode :path "/images/something.png"]
+                                             user     ResourceUser])))]
       (is (= [] (g/sources (g/now) user :source)))
       (is (instance? Long provider))
 
@@ -65,10 +64,9 @@
   (testing "an output uses a property with a getter, changing the upstream node affects the output"
     (ts/with-clean-system
       (let [[provider user] (g/tx-nodes-added
-                             (g/transact
-                              (g/make-nodes world
-                                            [provider [ResourceNode :path "/images/something.png"]
-                                             user     ResourceUser])))]
+                              (g/transact
+                                (g/make-nodes [provider [ResourceNode :path "/images/something.png"]
+                                               user     ResourceUser])))]
         (is (= [] (g/sources (g/now) user :source)))
         (is (instance? Long provider))
 
@@ -98,7 +96,7 @@
     (ts/with-clean-system
       (let [[chain] (g/tx-nodes-added
                       (g/transact
-                        (g/make-nodes world [chain [ChainedProps :chain-two "test-val"]])))]
+                        (g/make-nodes [chain [ChainedProps :chain-two "test-val"]])))]
         (is (= "test-val" (g/node-value chain :final)))))))
 
 (g/defnode DefaultSetter
@@ -112,5 +110,5 @@
     (ts/with-clean-system
       (let [[node] (g/tx-nodes-added
                      (g/transact
-                       (g/make-nodes world [node DefaultSetter])))]
+                       (g/make-nodes [node DefaultSetter])))]
         (is (= "test-val" (g/node-value node :final)))))))

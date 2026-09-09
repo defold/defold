@@ -204,7 +204,7 @@
   (g/read-graph text (core/read-handlers)))
 
 (defn- paste [project fragment]
-  (g/paste (g/node-id->graph-id project) fragment {:external-refs {:project project}}))
+  (g/paste fragment {:external-refs {:project project}}))
 
 (defn- nodes-by-id
   [paste-data]
