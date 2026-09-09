@@ -2448,6 +2448,8 @@ bail:
      * positive lag is less than one fixed step after any larger,
      * max_time_step-limited hitch debt has been repaid. Negative balance records
      * simulation time already advanced.
+     * Elapsed time is hitch-clamped to at least the intentional fixed interval,
+     * since fixed steps longer than max_time_step must not create false credit.
      * @param frame_dt [type:float] elapsed time for the current frame in seconds
      * @param fixed_dt [type:float] requested fixed simulation step in seconds
      * @param max_time_step [type:float] maximum simulation step in seconds
@@ -2457,6 +2459,8 @@ bail:
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance)
     {
         float step_dt = fixed_dt;
+
+        frame_dt = dmMath::Min(frame_dt, dmMath::Max(max_time_step, fixed_dt));
 
         // Keep a signed balance so a short frame can offset a previous catch-up
         // correction instead of allowing that elapsed time to be counted twice.
@@ -2480,14 +2484,12 @@ bail:
 
         float frame_dt = (float)(frame_time / 1000000.0);
 
-        // Never allow for large hitches
-        if (frame_dt > engine->m_MaxTimeStep) {
-            frame_dt = engine->m_MaxTimeStep;
-        }
-
         // Variable frame rate
         if (engine->m_UpdateFrequency == 0)
         {
+            // Never allow for large hitches.
+            frame_dt = dmMath::Min(frame_dt, engine->m_MaxTimeStep);
+
             // A frequency change may leave time that was not simulated by the
             // previous pacing mode. Apply as much as the maximum time step
             // permits and retain the rest for later frames.
@@ -2521,6 +2523,10 @@ bail:
         }
         else
         {
+            // Never allow for large hitches. Timer-paced frames perform this
+            // clamp relative to their intentional interval above.
+            frame_dt = dmMath::Min(frame_dt, engine->m_MaxTimeStep);
+
             // We don't allow having a higher framerate than the platform callback
             // rate since update and render are currently coupled together and
             // Flip() would otherwise be called more than once per callback.

@@ -501,6 +501,91 @@ TEST_F(EngineTest, FramePacingPreservesSignedTimeBalance)
     ASSERT_LE(frame_time_balance, fixed_dt + 0.0001f);
 }
 
+TEST_F(EngineTest, LowFrameCapDoesNotAccumulateFalseTimeCredit)
+{
+    // A requested interval longer than max_time_step is intentional, not a
+    // hitch. It must remain in the elapsed-time accounting so switching back to
+    // variable updates can resume immediately.
+    const float fixed_dt = 1.0f / 10.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frame_count = 50;
+
+    float simulation_time = 0.0f;
+    float frame_time_balance = 0.0f;
+    for (uint32_t i = 0; i < frame_count; ++i)
+    {
+        simulation_time += dmEngine::CalcPacedTimeStep(fixed_dt, fixed_dt, max_time_step, frame_time_balance);
+    }
+
+    ASSERT_NEAR(5.0f, simulation_time, 0.00001f);
+    ASSERT_NEAR(0.0f, frame_time_balance, 0.000001f);
+}
+
+TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
+{
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=10",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool disable_posted = false;
+    float balance_before_variable_frame = 0.0f;
+    float variable_step = 0.0f;
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        // Run several low-frequency frames, then disable pacing during the last
+        // paced frame just as sys.set_update_frequency(0) does.
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+
+        dmSystemDDF::SetUpdateFrequency disable_message;
+        disable_message.m_Frequency = 0;
+        disable_posted = dmMessage::PostDDF(&disable_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_before_variable_frame = engine->m_PacedFrameTimeDebt;
+
+        dmTime::Sleep(25000);
+        dmEngine::Stats stats_before;
+        dmEngine::GetStats(engine, stats_before);
+        dmEngine::Step(engine);
+        dmEngine::Stats stats_after;
+        dmEngine::GetStats(engine, stats_after);
+        variable_step = stats_after.m_TotalTime - stats_before.m_TotalTime;
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(disable_posted);
+    // Timer jitter may leave a small signed balance, but it must not grow by
+    // fixed_dt - max_time_step on every low-frequency frame.
+    ASSERT_GT(balance_before_variable_frame, -1.0f / 30.0f);
+    ASSERT_GT(variable_step, 0.0f);
+}
+
 TEST_F(EngineTest, UpdateFrequencyChangePreservesTimeBalance)
 {
     // Verify that changing and then disabling a fixed update frequency neither
