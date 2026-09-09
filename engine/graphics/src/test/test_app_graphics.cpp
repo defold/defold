@@ -239,6 +239,59 @@ struct ClearBackbufferTest : ITest
     }
 };
 
+// Run with "opengles depth-texture" to exercise a real depth attachment, not
+// the null adapter used by test_graphics. Graphics-call verification is enabled.
+struct DepthTextureTest : ClearBackbufferTest
+{
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t color = 0; color < 2; ++color)
+        {
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_DepthTexture                         = 1;
+            params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width            = 64;
+            params.m_DepthBufferParams.m_Height           = 64;
+            params.m_DepthBufferCreationParams.m_Width    = 64;
+            params.m_DepthBufferCreationParams.m_Height   = 64;
+            params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width         = 64;
+            params.m_ColorBufferParams[0].m_Height        = 64;
+            params.m_ColorBufferCreationParams[0].m_Width  = 64;
+            params.m_ColorBufferCreationParams[0].m_Height = 64;
+
+            uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+            if (color)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            }
+
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, flags, params);
+            for (uint32_t size = 64; size <= 128; size *= 2)
+            {
+                if (size != 64)
+                {
+                    dmGraphics::SetRenderTargetSize(context, target, size, size);
+                }
+
+                dmGraphics::SetRenderTarget(context, target, 0);
+                dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
+                dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+                if (!dmGraphics::IsAssetHandleValid(context, depth) ||
+                    dmGraphics::GetTextureWidth(context, depth) != size ||
+                    dmGraphics::GetTextureHeight(context, depth) != size)
+                {
+                    dmLogError("Depth texture allocation/resize failed (color=%u, size=%u)", color, size);
+                    engine->m_Failed = true;
+                }
+                dmGraphics::SetRenderTarget(context, 0, 0);
+            }
+            dmGraphics::DeleteRenderTarget(context, target);
+        }
+    }
+};
+
 struct MslArgumentBuffersTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -1333,7 +1386,12 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
-    if (HasArgument("issue-12878"))
+    if (HasArgument("depth-texture"))
+    {
+        dmLogInfo("test_app_graphics: running DepthTextureTest");
+        engine->m_Test = new DepthTextureTest();
+    }
+    else if (HasArgument("issue-12878"))
     {
         dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
         if (family != dmGraphics::ADAPTER_FAMILY_VULKAN && family != dmGraphics::ADAPTER_FAMILY_METAL)
