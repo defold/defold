@@ -177,7 +177,10 @@ jobs:
           android-api-level: '${{ env.ANDROID_API_LEVEL }}'
           android-build-tools: '36.1.0'
       - name: 'Install dependencies'
-        run: 'ci/ci.sh install --platform=x86_64-android'
+        run: |-
+          # Chrome is unused here; exclude its repository from dependency updates.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
+          ci/ci.sh install --platform=x86_64-android
       - name: 'Enable KVM'
         run: |-
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
