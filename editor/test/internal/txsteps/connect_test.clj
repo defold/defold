@@ -135,7 +135,7 @@
 
           target-arc-table
           (fn target-arc-table []
-            (-> (g/now) :tarcs (get target-node-id) :regular-input))]
+            (-> (g/now) gt/tarcs (get target-node-id) :regular-input))]
 
       (g/transact
         {:undoable false}
@@ -1085,8 +1085,7 @@
 
           ensure-before!
           (fn ensure-before! []
-            (let [basis (g/now)
-                  graph basis]
+            (let [basis (g/now)]
               (is (coll/empty? (g/overrides basis directly-owned-node-id)))
               (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
@@ -1099,12 +1098,11 @@
                        owner-node-id
                        first-order-override-owner-node-id
                        second-order-override-owner-node-id}
-                     (set (g/node-ids graph))))))
+                     (set (g/node-ids basis))))))
 
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph basis
                   [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                   [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)
                   [second-order-override-directly-owned-node-id :as overrides-of-first-order-override-directly-owned-node-id] (g/overrides basis first-order-override-directly-owned-node-id)
@@ -1126,7 +1124,7 @@
                        second-order-override-directly-owned-node-id
                        first-order-override-indirectly-owned-node-id
                        second-order-override-indirectly-owned-node-id}
-                     (set (g/node-ids graph))))
+                     (set (g/node-ids basis))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
                      (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
                      (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
@@ -1191,8 +1189,7 @@
 
           ensure-before!
           (fn ensure-before! []
-            (let [basis (g/now)
-                  graph basis]
+            (let [basis (g/now)]
               (is (coll/empty? (g/overrides basis directly-owned-node-id)))
               (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= #{indirectly-owned-node-id
@@ -1200,12 +1197,11 @@
                        owner-node-id
                        first-order-override-owner-node-id
                        second-order-override-owner-node-id}
-                     (set (g/node-ids graph))))))
+                     (set (g/node-ids basis))))))
 
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph basis
                   [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                   [second-order-override-directly-owned-node-id :as overrides-of-first-order-override-directly-owned-node-id] (g/overrides basis first-order-override-directly-owned-node-id)]
               (is (= 1 (count overrides-of-directly-owned-node-id)))
@@ -1220,7 +1216,7 @@
                        second-order-override-owner-node-id
                        first-order-override-directly-owned-node-id
                        second-order-override-directly-owned-node-id}
-                     (set (g/node-ids graph))))))]
+                     (set (g/node-ids basis))))))]
 
       (testing "Before transact."
         (ensure-before!))

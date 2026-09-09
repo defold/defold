@@ -1045,7 +1045,7 @@
     (realize-add-nodes ctx undoable-changes added-nodes)))
 
 (defn add-nodes
-  "*transaction step* - Add nodes to their corresponding graphs."
+  "*transaction step* - Add nodes to the graph."
   [nodes]
   {:pre [(coll/eager-seqable? nodes)]}
   (if (coll/empty? nodes)
@@ -1109,12 +1109,12 @@
     (realize-delete-nodes ctx undoable-changes node-ids)))
 
 (defn delete-node
-  "*transaction step* - Delete a node from its graph."
+  "*transaction step* - Delete a node from the graph."
   [node-id]
   [(->DeleteNodesTXS [node-id])])
 
 (defn delete-nodes
-  "*transaction step* - Delete nodes from their graphs."
+  "*transaction step* - Delete nodes from the graph."
   [node-ids]
   {:pre [(coll/eager-seqable? node-ids)]}
   (if (coll/empty? node-ids)

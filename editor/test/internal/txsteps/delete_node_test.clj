@@ -369,7 +369,7 @@
 (deftest undo-redo-node-user-data-deletion-test
   ;; TODO(decouple-undo-from-graph-cleanup): Revise user-data semantics?
   ;;   In accordance with the previous rules, the user-data associated with a
-  ;;   node is removed from the system when the node is deleted from its graph.
+  ;;   node is removed from the system when the node is deleted from the graph.
   ;;   However, the deletion may be undoable. But since user-data is outside of
   ;;   the undo system according to the previous rules, undoing the deletion
   ;;   will not restore the user-data associated with the deleted node.

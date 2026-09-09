@@ -13,12 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gviz-test
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.gviz :as gviz]
             [integration.test-util :as test-util]
-            [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [tx-nodes with-clean-system]]))
 
 (deftest installed []
   (gviz/installed?))

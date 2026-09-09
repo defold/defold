@@ -1125,13 +1125,13 @@
     (with-clean-system
       ;; sanity check
       (let [node-id (first (tx-nodes (g/make-node WithoutTryModifierOnPropertyValue
-                                                  :x 1
-                                                  :y (g/map->error {:severity :fatal}))))]
+                                       :x 1
+                                       :y (g/map->error {:severity :fatal}))))]
         (is (g/error? (g/node-value node-id :properties))))
       ;; expected behavior
       (let [node-id (first (tx-nodes (g/make-node TryModifierOnPropertyValue
-                                                  :x 1
-                                                  :y (g/map->error {:severity :fatal}))))]
+                                       :x 1
+                                       :y (g/map->error {:severity :fatal}))))]
         (is (not (g/error? (g/node-value node-id :properties))))
         (is (not (g/error? (:x (g/node-value node-id :properties)))))
         (is (g/error? (:y (g/node-value node-id :properties)))))))

@@ -24,8 +24,8 @@
 (deftest evicts-cache-entry-associated-with-invalidated-output-test
   (test-support/with-clean-system
     (let [node-id (g/make-node! helpers/PropertyTestNode
-                                :basic-property :basic-property-value
-                                :effecting-property :effecting-property-value)
+                    :basic-property :basic-property-value
+                    :effecting-property :effecting-property-value)
           invalidated-output-endpoint (g/endpoint node-id :basic-output)
           unaffected-output-endpoint (g/endpoint node-id :effecting-output)
           output-endpoints #{invalidated-output-endpoint
@@ -127,8 +127,8 @@
 (deftest invalidates-output-on-undo-and-redo-test
   (test-support/with-clean-system
     (let [node-id (g/make-node! helpers/PropertyTestNode
-                                :basic-property :basic-property-value
-                                :effecting-property :effecting-property-value)
+                    :basic-property :basic-property-value
+                    :effecting-property :effecting-property-value)
           invalidated-output-endpoint (g/endpoint node-id :basic-output)
           unaffected-output-endpoint (g/endpoint node-id :effecting-output)
           output-endpoints #{invalidated-output-endpoint

@@ -61,8 +61,7 @@
 
           ensure-before!
           (fn ensure-before! []
-            (let [basis (g/now)
-                  graph basis]
+            (let [basis (g/now)]
               (is (= [first-order-override-owner-node-id] (g/overrides basis owner-node-id)))
               (is (coll/empty? (g/overrides basis replacement-owner-node-id)))
               (is (= [first-order-override-directly-owned-node-id] (g/overrides basis directly-owned-node-id)))
@@ -91,7 +90,7 @@
                        second-order-override-directly-owned-node-id
                        first-order-override-indirectly-owned-node-id
                        second-order-override-indirectly-owned-node-id}
-                     (into #{} (g/node-ids graph))))
+                     (into #{} (g/node-ids basis))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
                      (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
                      (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
@@ -110,7 +109,6 @@
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph basis
                   [first-order-override-replacement-directly-owned-node-id :as overrides-of-replacement-directly-owned-node-id] (g/overrides basis replacement-directly-owned-node-id)
                   [first-order-override-replacement-indirectly-owned-node-id :as overrides-of-replacement-indirectly-owned-node-id] (g/overrides basis replacement-indirectly-owned-node-id)
                   [second-order-override-replacement-directly-owned-node-id :as overrides-of-first-order-override-replacement-directly-owned-node-id] (g/overrides basis first-order-override-replacement-directly-owned-node-id)
@@ -147,7 +145,7 @@
                        second-order-override-replacement-directly-owned-node-id
                        first-order-override-replacement-indirectly-owned-node-id
                        second-order-override-replacement-indirectly-owned-node-id}
-                     (into #{} (g/node-ids graph))))
+                     (into #{} (g/node-ids basis))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
                      (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
                      (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))

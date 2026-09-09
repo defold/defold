@@ -110,13 +110,13 @@
                                                             new2-sub SubNode
                                                             new2-sub-sub SubNode]
                                                (g/connect new2-sub-sub :_node-id new2-sub :sub-nodes)))
-            node-count-before-connection (-> (g/now) :nodes count)]
+            node-count-before-connection (-> (g/now) gt/nodes count)]
         (g/connect! new1-sub :_node-id main :sub-nodes)
         (is (= (+ node-count-before-connection 2) ; Single node cloned to two override layers.
-               (-> (g/now) :nodes count)))
+               (-> (g/now) gt/nodes count)))
         (g/connect! new2-sub :_node-id main :sub-nodes)
         (is (= (+ node-count-before-connection 2 4) ; Two-node chain cloned to two override layers.
-               (-> (g/now) :nodes count))))))
+               (-> (g/now) gt/nodes count))))))
   (testing "Connecting to original spawns override nodes in recursive override layers"
     (ts/with-clean-system
       ;; Test with one direct override of main, and one override of that override.
@@ -127,13 +127,13 @@
                                                             new2-sub SubNode
                                                             new2-sub-sub SubNode]
                                                (g/connect new2-sub-sub :_node-id new2-sub :sub-nodes)))
-            node-count-before-connection (-> (g/now) :nodes count)]
+            node-count-before-connection (-> (g/now) gt/nodes count)]
         (g/connect! new1-sub :_node-id main :sub-nodes)
         (is (= (+ node-count-before-connection 2) ; Single node cloned to two override layers.
-               (-> (g/now) :nodes count)))
+               (-> (g/now) gt/nodes count)))
         (g/connect! new2-sub :_node-id main :sub-nodes)
         (is (= (+ node-count-before-connection 2 4) ; Two-node chain cloned to two override layers.
-               (-> (g/now) :nodes count))))))
+               (-> (g/now) gt/nodes count))))))
   (testing "Connecting to override only spawns override nodes in subsequent override layers"
     (ts/with-clean-system
       ;; Test with one direct override of main, and one override of that override.
@@ -145,16 +145,16 @@
                                                                      new3-sub SubNode
                                                                      new3-sub-sub SubNode]
                                                         (g/connect new3-sub-sub :_node-id new3-sub :sub-nodes)))
-            node-count-before-connection (-> (g/now) :nodes count)]
+            node-count-before-connection (-> (g/now) gt/nodes count)]
         (g/connect! new1-sub :_node-id or2-main :sub-nodes)
         (is (= node-count-before-connection)
-            (-> (g/now) :nodes count)) ; Connecting to override with no subsequent overrides spawns no nodes.
+            (-> (g/now) gt/nodes count)) ; Connecting to override with no subsequent overrides spawns no nodes.
         (g/connect! new2-sub :_node-id or-main :sub-nodes)
         (is (= (+ node-count-before-connection 1) ; Single node cloned to one override layer.
-               (-> (g/now) :nodes count)))
+               (-> (g/now) gt/nodes count)))
         (g/connect! new3-sub :_node-id or-main :sub-nodes)
         (is (= (+ node-count-before-connection 1 2) ; Two-node chain cloned to one override layer.
-               (-> (g/now) :nodes count)))))))
+               (-> (g/now) gt/nodes count)))))))
 
 (deftest delete
   (ts/with-clean-system
@@ -1007,7 +1007,7 @@
   (into (subvec v 0 ix) (subvec v (inc ix))))
 
 (defn- all-system-nodes []
-  (into [] (keys (:nodes (g/now)))))
+  (vec (ig/node-ids (g/now))))
 
 (deftest symmetric-input-output-arcs
   (test-util/with-loaded-project "test/resources/override_project"

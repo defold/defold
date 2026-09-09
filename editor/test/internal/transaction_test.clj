@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
+            [internal.system :as is]
             [internal.transaction :as it]
             [support.test-support :as ts]))
 
@@ -235,7 +236,7 @@
 
 (defn- graph-successors-cache
   []
-  (-> @g/*the-system* :graph :successors))
+  (-> @g/*the-system* is/basis gt/successors))
 
 (deftest transact-with-full-invalidation-test
   (testing "Invalidates the successor cache after a property update."

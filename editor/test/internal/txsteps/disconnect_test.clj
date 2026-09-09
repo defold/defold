@@ -653,8 +653,7 @@
 
           ensure-before!
           (fn ensure-before! []
-            (let [basis (g/now)
-                  graph basis]
+            (let [basis (g/now)]
               (is (= [first-order-override-directly-owned-node-id] (g/overrides basis directly-owned-node-id)))
               (is (= [first-order-override-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)))
               (is (= [second-order-override-directly-owned-node-id] (g/overrides basis first-order-override-directly-owned-node-id)))
@@ -672,7 +671,7 @@
                        second-order-override-directly-owned-node-id
                        first-order-override-indirectly-owned-node-id
                        second-order-override-indirectly-owned-node-id}
-                     (set (g/node-ids graph))))
+                     (set (g/node-ids basis))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
                      (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
                      (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
@@ -682,8 +681,7 @@
 
           ensure-after!
           (fn ensure-after! []
-            (let [basis (g/now)
-                  graph basis]
+            (let [basis (g/now)]
               (is (coll/empty? (g/overrides basis directly-owned-node-id)))
               (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
@@ -696,7 +694,7 @@
                        owner-node-id
                        first-order-override-owner-node-id
                        second-order-override-owner-node-id}
-                     (set (g/node-ids graph))))))]
+                     (set (g/node-ids basis))))))]
 
       (testing "Before transact."
         (ensure-before!))

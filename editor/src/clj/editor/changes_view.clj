@@ -174,10 +174,10 @@
                     (g/transact
                       {:undoable false}
                       (g/make-node ChangesView
-                                   :list-view list-view
-                                   :progress-overlay progress-overlay
-                                   :git git
-                                   :prefs prefs))))
+                        :list-view list-view
+                        :progress-overlay progress-overlay
+                        :git git
+                        :prefs prefs))))
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (g/let-ec [can-revert (ui/bound-action-enabled? revert-button evaluation-context)]

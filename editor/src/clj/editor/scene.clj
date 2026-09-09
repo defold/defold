@@ -2161,10 +2161,10 @@
       (g/transact
         {:undoable false}
         (g/make-node PreviewView
-                     :width width
-                     :height height
-                     :drawable (gl/offscreen-drawable width height)
-                     :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size))))))
+          :width width
+          :height height
+          :drawable (gl/offscreen-drawable width height)
+          :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size))))))
 
 (defmulti attach-grid
   (fn [grid-node-type grid-node-id view-id resource-node camera]
@@ -2194,7 +2194,7 @@
                                :else grid/Grid)
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (g/make-nodes [background      background/Background
-                   selection       [selection/SelectionController 
+                   selection       [selection/SelectionController
                                     :drop-fn (:drop-fn opts)
                                     :select-fn (fn [selection op-seq]
                                                  (g/transact

@@ -475,9 +475,9 @@
                     (g/transact
                       {:undoable false}
                       (g/make-node DebugView
-                                   :localization localization
-                                   :open-resource-fn (make-open-resource-fn project open-resource-fn)
-                                   :state-changed-fn state-changed-fn))))
+                        :localization localization
+                        :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                        :state-changed-fn state-changed-fn))))
         view-id (setup-view! view-id app-view)
         timer (make-update-timer project view-id)]
     (setup-controls! view-id console-grid-pane call-stack-view variables-view localization)

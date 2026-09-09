@@ -764,15 +764,15 @@
             {:undoable false}
             [(g/make-node ConsoleNode)
              (g/make-node ConsoleView
-                          :canvas canvas
-                          :canvas-width (.getWidth canvas)
-                          :canvas-height (.getHeight canvas)
-                          :color-scheme console-color-scheme
-                          :grammar console-grammar
-                          :gutter-view (ConsoleGutterView.)
-                          :highlighted-find-term (.getValue find-term-property)
-                          :line-height-factor 1.2
-                          :resize-reference :bottom)]))
+               :canvas canvas
+               :canvas-width (.getWidth canvas)
+               :canvas-height (.getHeight canvas)
+               :color-scheme console-color-scheme
+               :grammar console-grammar
+               :gutter-view (ConsoleGutterView.)
+               :highlighted-find-term (.getValue find-term-property)
+               :line-height-factor 1.2
+               :resize-reference :bottom)]))
 
         view-node (setup-view! console-node view-node)
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs localization)

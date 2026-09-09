@@ -388,8 +388,8 @@
       (g/transact
         {:undoable false}
         (g/make-node SearchResultsView
-                     :open-resource-fn open-resource-fn
-                     :search-results-container search-results-container)))))
+          :open-resource-fn open-resource-fn
+          :search-results-container search-results-container)))))
 
 (defn show-search-in-files-dialog! [search-results-view project prefs localization show-search-results-tab-fn]
   (let [results-tab-tree-view (make-search-in-files-tree-view)

@@ -41,15 +41,15 @@
 
 (deftest removing-node
   (let [g (random-graph)
-        id (inc (count (:nodes g)))
+        id (inc (count (gt/nodes g)))
         v (in/->NodeImpl id nil)
         g (ig/add-node g id v)
         g (test-support/graph-remove-node g id)]
     (is (nil? (ig/node-id->node g id)))
     (is (coll/not-any? #(identical? v %) (ig/node-values g)))))
 
-(defn targets [g n l] (map gt/target (ig/arc-table-arcs (get-in g [:sarcs n l]))))
-(defn sources [g n l] (map gt/source (ig/arc-table-arcs (get-in g [:tarcs n l]))))
+(defn targets [g n l] (map gt/target (ig/arc-table-arcs (-> g gt/sarcs (get n) (get l)))))
+(defn sources [g n l] (map gt/source (ig/arc-table-arcs (-> g gt/tarcs (get n) (get l)))))
 
 (defn- source-arcs-without-targets
   [g]
@@ -78,7 +78,7 @@
 
 (deftest transformable
   (let [g      (random-graph)
-        id     (inc (count (:nodes g)))
+        id     (inc (count (gt/nodes g)))
         g      (ig/add-node g id {:number 0})
         g'     (ig/transform-node g id update-in [:number] inc)]
     (is (not= g g'))
@@ -140,7 +140,7 @@
       (g/transact (g/delete-node original))
       (let [basis (g/now)]
         (is (coll/empty? (ig/get-overrides basis original)))
-        (is (coll/empty? (-> basis :overrides)))))))
+        (is (coll/empty? (gt/overrides basis)))))))
 
 (deftest graph-values
   (with-clean-system
@@ -150,7 +150,7 @@
     (is (= {:a 1} (g/graph-value :things)))))
 
 (deftest evaluation-context
-  (testing "node-value sees state of graphs as given in evaluation-context"
+  (testing "node-value sees the graph state from the evaluation-context"
     (with-clean-system
       (let [[n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
                                             n2 PassthroughNode]

@@ -119,7 +119,7 @@
       (test-util/with-ui-run-later-rebound
         (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
-      (testing "closing it disposes its view node without deleting the project graph"
+      (testing "closing it disposes its view node without deleting the project nodes"
         (is (g/now))
         (is (nil? (g/node-by-id view-id))))
 

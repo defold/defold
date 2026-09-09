@@ -40,8 +40,7 @@
 
           ensure-before!
           (fn ensure-before! []
-            (let [basis (g/now)
-                  graph basis]
+            (let [basis (g/now)]
               (testing "Nodes."
                 (is (coll/empty? (g/overrides basis owner-node-id)))
                 (is (coll/empty? (g/overrides basis directly-owned-node-id)))
@@ -49,7 +48,7 @@
                 (is (= #{owner-node-id
                          directly-owned-node-id
                          indirectly-owned-node-id}
-                       (set (g/node-ids graph)))))
+                       (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
                 (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))
@@ -74,7 +73,6 @@
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph basis
                   [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
                   [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                   [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)]
@@ -95,7 +93,7 @@
                          first-order-override-owner-node-id
                          first-order-override-directly-owned-node-id
                          first-order-override-indirectly-owned-node-id}
-                       (set (g/node-ids graph)))))
+                       (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
                 (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))
@@ -166,8 +164,7 @@
 
           ensure-before!
           (fn ensure-before! []
-            (let [basis (g/now)
-                  graph basis]
+            (let [basis (g/now)]
               (testing "Nodes."
                 (is (nil? (g/overrides basis owner-node-id)))
                 (is (nil? (g/overrides basis directly-owned-node-id)))
@@ -175,7 +172,7 @@
                 (is (= #{owner-node-id
                          directly-owned-node-id
                          indirectly-owned-node-id}
-                       (set (g/node-ids graph)))))
+                       (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
                 (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))
@@ -200,7 +197,6 @@
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)
-                  graph basis
                   [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
                   [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                   overrides-of-indirectly-owned-node-id (g/overrides basis indirectly-owned-node-id)]
@@ -218,7 +214,7 @@
                          indirectly-owned-node-id
                          first-order-override-owner-node-id
                          first-order-override-directly-owned-node-id}
-                       (set (g/node-ids graph)))))
+                       (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
                 (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))

@@ -16,12 +16,14 @@
 "Garbage disposal of nodes on the dynamo graph level"
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [internal.graph.types :as gt]
+            [support.test-support :refer [with-clean-system tx-nodes]]
+            [util.coll :as coll]))
 
 (g/defnode EmptyNode)
 
 (defn gnodes []
-  (-> (g/now) :nodes vals))
+  (vec (coll/vals (gt/nodes (g/now)))))
 
 (deftest test-deleting-nodes
   (testing "adding one node and deleting it"
@@ -33,18 +35,16 @@
 
   (testing "adding twos node and deleting one"
     (with-clean-system
-      (let [[node1 node2] (tx-nodes (g/make-node EmptyNode)
-                                    (g/make-node EmptyNode))
-            graph-nodes (-> (g/now) :nodes vals)]
+      (let [[node1 _node2] (tx-nodes (g/make-node EmptyNode)
+                                     (g/make-node EmptyNode))]
         (is (= 2 (count (gnodes))))
         (g/transact (g/delete-node node1))
         (is (= 1 (count (gnodes)))))))
 
   (testing "adding twos node and deleting one, then adding it back"
     (with-clean-system
-      (let [[node1 node2] (tx-nodes (g/make-node EmptyNode)
-                                    (g/make-node EmptyNode))
-            graph-nodes (-> (g/now) :nodes vals)]
+      (let [[node1 _node2] (tx-nodes (g/make-node EmptyNode)
+                                     (g/make-node EmptyNode))]
         (is (= 2 (count (gnodes))))
         (g/transact (g/delete-node node1))
         (is (= 1 (count (gnodes))))
@@ -53,9 +53,8 @@
 
   (testing "adding twos node and deleting one, then adding it back and deleting it"
     (with-clean-system
-      (let [[node1 node2] (tx-nodes (g/make-node EmptyNode)
-                                    (g/make-node EmptyNode))
-            graph-nodes (-> (g/now) :nodes vals)]
+      (let [[node1 _node2] (tx-nodes (g/make-node EmptyNode)
+                                     (g/make-node EmptyNode))]
         (is (= 2 (count (gnodes))))
         (g/transact (g/delete-node node1))
         (is (= 1 (count (gnodes))))

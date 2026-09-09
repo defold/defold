@@ -55,9 +55,9 @@
 (deftest tx-id
   (testing "graph time advances with transactions"
     (ts/with-clean-system
-      (let [before (:tx-id (is/basis @g/*the-system*))
+      (let [before (gt/tx-id (is/basis @g/*the-system*))
             tx-report (g/transact (g/make-node Root))
-            after (:tx-id (is/basis @g/*the-system*))]
+            after (gt/tx-id (is/basis @g/*the-system*))]
         (is (= :ok (:status tx-report)))
         (is (< before after))))))
 
@@ -75,10 +75,10 @@
 (deftest undo-capture
   (testing "undoable actions are stored"
     (ts/with-clean-system
-      (let [before (:tx-id (is/basis @g/*the-system*))
+      (let [before (gt/tx-id (is/basis @g/*the-system*))
             undo-before (undo-states)
             tx-report (g/transact (g/make-node Root))
-            after (:tx-id (is/basis @g/*the-system*))
+            after (gt/tx-id (is/basis @g/*the-system*))
             undo-after (undo-states)]
         (is (= :ok (:status tx-report)))
         (is (< before after))
@@ -530,8 +530,8 @@
 
 (defn- show-sarcs-tarcs [msg]
   (println msg
-           "\n\t:sarcs " (-> (g/now) :sarcs)
-           "\n\t:tarcs"  (-> (g/now) :tarcs)))
+           "\n\t:sarcs " (gt/sarcs (g/now))
+           "\n\t:tarcs"  (gt/tarcs (g/now))))
 
 (deftest undo-restores-all-source-arcs
   (testing "Delete with connections, undo, re-delete"
@@ -562,11 +562,11 @@
 
 (defn- sarcs [node-id label]
   (ig/arc-table-arcs
-    (-> @g/*the-system* :graph :sarcs (get node-id) (get label))))
+    (-> @g/*the-system* is/basis gt/sarcs (get node-id) (get label))))
 
 (defn- tarcs [node-id label]
   (ig/arc-table-arcs
-    (-> @g/*the-system* :graph :tarcs (get node-id) (get label))))
+    (-> @g/*the-system* is/basis gt/tarcs (get node-id) (get label))))
 
 (defn- cached?
   [endpoint]
@@ -727,7 +727,7 @@
         (is (= nil (g/node-value v-sink :loud)))))))
 
 (deftest graph-values
-  (testing "Values can be attached to graphs"
+  (testing "Values can be attached to the graph"
     (ts/with-clean-system
       (let [node-id 1]
         (g/transact [(g/set-graph-value :string-value "A String")

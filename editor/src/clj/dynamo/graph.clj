@@ -1601,24 +1601,23 @@
   function will only traverse :cascade-delete inputs."
   [pred basis ^long target-id]
   (when-some [target-node (ig/node-by-id-at basis target-id)]
-    (let [graph basis
-          graph-nodes (gt/nodes graph)
-          graph-tarcs (gt/tarcs graph)]
+    (let [nodes (gt/nodes basis)
+          tarcs (gt/tarcs basis)]
       (loop [result []
              node-id target-id
              override-chain '()
              followed-inputs (in/cascade-deletes (gt/node-type target-node))]
-        (let [node (get graph-nodes node-id)]
+        (let [node (get nodes node-id)]
           (if-not node
             result
-            (let [arc-tables-by-input-label (graph-tarcs node-id)
+            (let [arc-tables-by-input-label (tarcs node-id)
                   explicit-arcs (when arc-tables-by-input-label
                                   (into []
                                         (comp
                                           (mapcat (comp ig/arc-table-arcs arc-tables-by-input-label))
                                           (filter (fn [arc]
                                                     (let [source-id (gt/source-id arc)]
-                                                      (and (contains? graph-nodes source-id)
+                                                      (and (contains? nodes source-id)
                                                            (pred basis arc))))))
                                         followed-inputs))
                   source-node-ids (into []
@@ -1631,7 +1630,7 @@
                             (into result
                                   (reduce (fn [source-node-ids override-id]
                                             (mapv (fn [source-node-id]
-                                                    (or (ig/override-of graph source-node-id override-id)
+                                                    (or (ig/override-of basis source-node-id override-id)
                                                         source-node-id))
                                                   source-node-ids))
                                           source-node-ids
@@ -1788,7 +1787,7 @@
   :serializer function returned.
 
   `dynamo.graph/default-node-deserializer` creates new nodes (copies)
-  from the fragment. Yours may look up nodes in the world, create new
+  from the fragment. Yours may look up nodes in the graph, create new
   instances, or anything else. The deserializer _must_ return valid
   transaction data, even if that data is just an empty vector.
 
