@@ -171,7 +171,9 @@ jobs:
       - name: 'Set up Android SDK'
         uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7
         with:
-          android-ndk: '25.2.9519653'
+          # NDK 27 fixes ASAN allocator collisions with x86_64 ASLR.
+          # https://reviews.llvm.org/D148280
+          android-ndk: '27.0.12077973'
           android-api-level: '${{ env.ANDROID_API_LEVEL }}'
           android-build-tools: '36.1.0'
       - name: 'Install dependencies'
