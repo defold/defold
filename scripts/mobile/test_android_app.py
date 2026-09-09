@@ -179,6 +179,27 @@ class Emulator:
     def launch(self):
         self.shell('am', 'start', '-W', '-n', ACTIVITY)
 
+    def wait_for_focus(self, app):
+        # Android can briefly hand focus to SystemUI after reporting a resize.
+        # Wait for stable focus before sending the frame-probe control key.
+        deadline = time.monotonic() + 20
+        focused_since = None
+        while True:
+            app.check()
+            windows = self.shell('dumpsys', 'window')
+            focus = re.search(r'mCurrentFocus=([^\n]+)', windows)
+            now = time.monotonic()
+            if focus and ACTIVITY in focus[1]:
+                if focused_since is None:
+                    focused_since = now
+                if now - focused_since >= 0.5:
+                    return
+            else:
+                focused_since = None
+            if now >= deadline:
+                raise RuntimeError('The test app did not regain stable input focus: %s' % (focus[1] if focus else 'unknown'))
+            time.sleep(0.1)
+
     def screenshot(self, name):
         # Raw screencap avoids a Pillow dependency. The header is 12 or 16
         # bytes depending on Android's color-space metadata; pixels are RGBA.
@@ -366,6 +387,7 @@ def run_app(args, metadata):
             raise RuntimeError('The app did not load the ASAN runtime')
 
         def probe(name, landscape=None):
+            emulator.wait_for_focus(app)
             cursor = len(app.events)
             emulator.key('F1')
             frame = app.wait('frame', after=cursor)
