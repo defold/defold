@@ -57,6 +57,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
+    '--with-hwasan': 'WITH_HWASAN',
     '--with-ubsan': 'WITH_UBSAN',
     '--with-tsan': 'WITH_TSAN',
     '--with-valgrind': 'WITH_VALGRIND',
