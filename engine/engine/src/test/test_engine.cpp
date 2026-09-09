@@ -397,6 +397,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
     uint64_t elapsed = 0;
     uint64_t previous_frame_time = 0;
     uint64_t first_frame_deadline = 0;
+    float accounted_time = 0.0f;
     dmEngine::Stats stats;
     memset(&stats, 0, sizeof(stats));
 
@@ -409,7 +410,10 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
         uint64_t start = dmTime::GetMonotonicTime();
         for (uint32_t i = 0; i < 4; ++i)
         {
+            uint64_t previous_time = engine->m_PreviousFrameTime;
             dmEngine::Step(engine);
+            float elapsed_dt = (float)((engine->m_PreviousFrameTime - previous_time) / 1000000.0);
+            accounted_time += dmMath::Min(elapsed_dt, 0.01f);
         }
         elapsed = dmTime::GetMonotonicTime() - start;
         dmEngine::GetStats(engine, stats);
@@ -423,7 +427,9 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
     ASSERT_TRUE(initialized);
     ASSERT_GE(first_frame_deadline, previous_frame_time + 10000);
     ASSERT_EQ(4u, stats.m_FrameCount);
-    ASSERT_NEAR(4.0f / 100.0f, stats.m_TotalTime, 0.000001f);
+    // Oversleep is hitch-clamped in this test. A subsequent shorter interval
+    // must not advance more simulation time than the clamped elapsed total.
+    ASSERT_NEAR(accounted_time, stats.m_TotalTime, 0.000001f);
     ASSERT_GE(elapsed, 20000u);
 }
 
@@ -521,6 +527,49 @@ TEST_F(EngineTest, LowFrameCapDoesNotAccumulateFalseTimeCredit)
     ASSERT_NEAR(0.0f, frame_time_balance, 0.000001f);
 }
 
+TEST_F(EngineTest, ClampedPacedFramesDoNotAccumulateTimeCredit)
+{
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frequencies[] = { 10, 30 };
+    for (uint32_t frequency_index = 0; frequency_index < DM_ARRAY_SIZE(frequencies); ++frequency_index)
+    {
+        const float fixed_dt = 1.0f / frequencies[frequency_index];
+        // These intervals arise when a late frame is followed by a fast frame
+        // that reaches the next absolute deadline: 150/50 ms or 34/32.667 ms.
+        const float late_dt = frequencies[frequency_index] == 10 ? 0.150f : 0.034f;
+        const float frame_times[] = { late_dt, 2.0f * fixed_dt - late_dt };
+        float balance = 0.0f;
+        double simulation_time = 0.0;
+        double accounted_time = 0.0;
+        for (uint32_t i = 0; i < 300; ++i)
+        {
+            float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+            float step_dt = dmEngine::CalcPacedTimeStep(frame_dt, fixed_dt, max_time_step, balance);
+            simulation_time += step_dt;
+            accounted_time += dmMath::Min(frame_dt, dmMath::Max(max_time_step, fixed_dt));
+            ASSERT_GE(step_dt, 0.0f);
+            ASSERT_LE(step_dt, dmMath::Max(max_time_step, fixed_dt));
+            ASSERT_NEAR(accounted_time, simulation_time + balance, 0.00001);
+            ASSERT_GE(balance, -0.000001f);
+        }
+        ASSERT_NEAR(0.0f, balance, 0.000001f);
+    }
+}
+
+TEST_F(EngineTest, PacedTimeCreditLargerThanStepIsRepaidGradually)
+{
+    // Credit carried across a frequency increase may exceed the new interval.
+    // Preserve the balance while repaying it without producing negative dt.
+    float balance = -0.05f;
+    for (uint32_t i = 0; i < 5; ++i)
+    {
+        float step_dt = dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance);
+        ASSERT_NEAR(0.0f, step_dt, 0.000001f);
+    }
+    ASSERT_NEAR(0.0f, balance, 0.000001f);
+    ASSERT_NEAR(0.01f, dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance), 0.000001f);
+}
+
 TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
 {
     if (!dmEngine::UseEngineFramePacing())
@@ -553,6 +602,16 @@ TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
         for (uint32_t i = 0; i < 3; ++i)
         {
             dmEngine::Step(engine);
+        }
+
+        // Exercise repeated clamped/short intervals deterministically, without
+        // depending on OS sleep jitter or spending 30 seconds in the test.
+        // The old accounting leaves roughly -7.5 seconds of credit here.
+        const float frame_times[] = { 0.150f, 0.050f };
+        for (uint32_t i = 0; i < 300; ++i)
+        {
+            dmEngine::CalcPacedTimeStep(frame_times[i % DM_ARRAY_SIZE(frame_times)],
+                0.1f, engine->m_MaxTimeStep, engine->m_PacedFrameTimeDebt);
         }
 
         dmMessage::URL receiver = {};

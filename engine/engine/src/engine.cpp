@@ -2473,6 +2473,17 @@ bail:
             step_dt += correction;
             frame_time_balance -= correction;
         }
+        else if (frame_time_balance < 0.0f)
+        {
+            // A clamped slow frame can be followed by a short interval while the
+            // pacer returns to its deadline. Do not advance a full fixed step
+            // when that would simulate more time than we have accounted for.
+            // Repay credit here; retaining it indefinitely would freeze variable
+            // updates when the application later disables the frame cap.
+            float correction = dmMath::Min(-frame_time_balance, step_dt);
+            step_dt -= correction;
+            frame_time_balance += correction;
+        }
 
         return step_dt;
     }
