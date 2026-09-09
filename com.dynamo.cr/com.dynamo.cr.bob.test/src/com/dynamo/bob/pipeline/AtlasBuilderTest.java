@@ -34,6 +34,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
+import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 import com.google.protobuf.Message;
 
 import com.dynamo.bob.util.MurmurHash;
@@ -309,6 +310,78 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         imageNameHashes.add(MurmurHash.hash64("b/2"));
 
         assertEquals(imageNameHashes, textureSet.getImageNameHashesList());
+    }
+
+    // https://github.com/defold/defold/issues/13019
+    @Test
+    public void testAtlasImagePivotVariants() throws Exception {
+        addImage("/test_image.png", 16, 16);
+
+        StringBuilder src = new StringBuilder();
+        src.append("margin: 0\n");
+        src.append("extrude_borders: 0\n");
+        src.append("images: {");
+        src.append("  image: \"/test_image.png\"");
+        src.append("}");
+        src.append("animations: {");
+        src.append("  id: \"anim\"");
+        src.append("  images: {");
+        src.append("    image: \"/test_image.png\"");
+        src.append("    pivot_x: 0.0");
+        src.append("  }");
+        src.append("}");
+
+        List<Message> outputs = build("/test.atlas", src.toString());
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+        assertNotNull(textureSet);
+
+        // One packed rect, so the atlas is the size of a single image.
+        assertThat(textureSet.getWidth(), is(16));
+        assertThat(textureSet.getHeight(), is(16));
+
+        // But a geometry each. SpriteGeometry stores the pivot relative to the image center with
+        // +Y up, so an authored 0.5 becomes 0.0 and an authored 0.0 becomes -0.5.
+        assertThat(textureSet.getGeometriesCount(), is(2));
+        assertEquals(-0.5f, textureSet.getGeometries(0).getPivotX(), 0.0001f);
+        assertEquals(0.0f, textureSet.getGeometries(1).getPivotX(), 0.0001f);
+
+        // Tile quads first, then "anim" and the standalone image, pointing at a geometry each.
+        assertEquals(Arrays.asList(0, 1, 0, 1), textureSet.getFrameIndicesList());
+    }
+
+    // https://github.com/defold/defold/issues/7403
+    @Test
+    public void testAtlasImageTrimModeVariants() throws Exception {
+        addImage("/test_image.png", 16, 16);
+
+        StringBuilder src = new StringBuilder();
+        src.append("margin: 0\n");
+        src.append("extrude_borders: 0\n");
+        src.append("images: {");
+        src.append("  image: \"/test_image.png\"");
+        src.append("}");
+        src.append("animations: {");
+        src.append("  id: \"anim\"");
+        src.append("  images: {");
+        src.append("    image: \"/test_image.png\"");
+        src.append("    sprite_trim_mode: SPRITE_TRIM_MODE_4");
+        src.append("  }");
+        src.append("}");
+
+        List<Message> outputs = build("/test.atlas", src.toString());
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+        assertNotNull(textureSet);
+
+        // One packed rect, but a geometry each.
+        assertThat(textureSet.getWidth(), is(16));
+        assertThat(textureSet.getHeight(), is(16));
+        assertThat(textureSet.getGeometriesCount(), is(2));
+        assertThat(textureSet.getGeometries(0).getTrimMode(), is(SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF));
+        assertThat(textureSet.getGeometries(1).getTrimMode(), is(SpriteTrimmingMode.SPRITE_TRIM_MODE_4));
+        assertThat(textureSet.getUseGeometries(), is(1));
+
+        // Images sort by path, then pivot, then trim mode number, so the untrimmed entry is first.
+        assertEquals(Arrays.asList(0, 1, 1, 0), textureSet.getFrameIndicesList());
     }
 
     @Test
