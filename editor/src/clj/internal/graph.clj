@@ -497,7 +497,7 @@
 
 (defn empty-graph
   []
-  (gt/->Graph (int-map/int-map) {} (make-successors) {} 0 nil nil nil))
+  (gt/->Graph (int-map/int-map) {} (make-successors) {} 0 nil {} {}))
 
 (defn node-ids [graph] (coll/keys (gt/nodes graph)))
 (defn node-values [graph] (coll/vals (gt/nodes graph)))
@@ -1069,7 +1069,7 @@
       (.maximumSize 32)
       (.build)))
 
-(defn- basis-dependencies [basis endpoints]
+(defn dependencies [basis endpoints]
   (assert (coll/every? gt/endpoint? endpoints))
   (if (coll/empty? endpoints)
     #{}
@@ -1118,14 +1118,6 @@
   (let [targets (targets basis source-id source-label)]
     (coll/any? #{[target-id target-label]} targets)))
 
-(defn dependencies
-  [basis endpoints]
-  (basis-dependencies basis endpoints))
-
-(defn original-node
-  [basis node-id]
-  (when-let [node (node-by-id-at basis node-id)]
-    (gt/original node)))
 
 (defn make-override [root-id traverse-fn init-props-fn]
   {:root-id root-id
@@ -1218,28 +1210,32 @@
 (defn basis-perform-add-nodes
   [basis added-nodes introduced-node-id->pkid->override-node-id]
   (-> basis
-      (coll/reduce=> added-nodes
-        (fn [basis node]
-          (let [node-id (gt/node-id node)]
-            (assoc-in basis [:nodes node-id] node))))
-      (coll/reduce-kv=> introduced-node-id->pkid->override-node-id
-        (fn [basis node-id pkid->override-node-id]
-          (update-in
-            basis [:node->overrides node-id]
-            override-node-id-table-include pkid->override-node-id)))))
+      (assoc :nodes
+        (persistent!
+          (coll/reduce-> added-nodes (transient (gt/nodes basis))
+            (fn [nodes node]
+              (assoc! nodes (gt/node-id node) node)))))
+      (cond->
+        (coll/not-empty introduced-node-id->pkid->override-node-id)
+        (assoc :node->overrides
+          (persistent!
+            (coll/reduce-kv-> introduced-node-id->pkid->override-node-id (transient (gt/node->overrides basis))
+              (fn [node->overrides node-id pkid->override-node-id]
+                (assoc! node->overrides node-id
+                        (override-node-id-table-include (get node->overrides node-id) pkid->override-node-id)))))))))
 
 (defn basis-revert-add-nodes
   [basis added-nodes introduced-node-id->pkid->override-node-id]
   (-> basis
-      (coll/reduce=> added-nodes
-        (map gt/node-id)
-        (fn [basis node-id]
-          (update basis :nodes dissoc node-id)))
-      (coll/reduce-kv=> introduced-node-id->pkid->override-node-id
-        (fn [basis node-id pkid->override-node-id]
-          (update-in
-            basis [:node->overrides node-id]
-            override-node-id-table-exclude pkid->override-node-id)))))
+      (assoc :nodes (coll/reduce-> added-nodes (gt/nodes basis) (map gt/node-id) dissoc))
+      (cond->
+        (coll/not-empty introduced-node-id->pkid->override-node-id)
+        (assoc :node->overrides
+          (persistent!
+            (coll/reduce-kv-> introduced-node-id->pkid->override-node-id (transient (gt/node->overrides basis))
+              (fn [node->overrides node-id pkid->override-node-id]
+                (assoc! node->overrides node-id
+                        (override-node-id-table-exclude (get node->overrides node-id) pkid->override-node-id)))))))))
 
 (defn basis-plan-clear-override-nodes
   [basis original-node-id cleared-override-node-ids]
@@ -1464,15 +1460,67 @@
 
 (defn basis-perform-connect-arcs
   [basis arc->source+target-pkids]
-  (coll/reduce-kv-> arc->source+target-pkids basis
-    (fn [basis arc source+target-pkids]
-      (basis-perform-connect-arc-pkids basis arc source+target-pkids))))
+  (if (coll/empty? arc->source+target-pkids)
+    basis
+    (assoc basis
+      :sarcs
+      (persistent!
+        (coll/reduce-kv-> arc->source+target-pkids (transient (gt/sarcs basis))
+          (fn [sarcs arc [source-pkids _target-pkids]]
+            (if (coll/empty? source-pkids)
+              sarcs
+              (let [source-id (gt/source-id arc)
+                    source-label (gt/source-label arc)
+                    label->arc-table (get sarcs source-id)]
+                (assoc! sarcs source-id
+                        (assoc label->arc-table source-label
+                               (arc-table-assoc-pkids (get label->arc-table source-label) source-pkids arc))))))))
+      :tarcs
+      (persistent!
+        (coll/reduce-kv-> arc->source+target-pkids (transient (gt/tarcs basis))
+          (fn [tarcs arc [_source-pkids target-pkids]]
+            (if (coll/empty? target-pkids)
+              tarcs
+              (let [target-id (gt/target-id arc)
+                    target-label (gt/target-label arc)
+                    label->arc-table (get tarcs target-id)]
+                (assoc! tarcs target-id
+                        (assoc label->arc-table target-label
+                               (arc-table-assoc-pkids (get label->arc-table target-label) target-pkids arc)))))))))))
 
 (defn basis-revert-connect-arcs
   [basis arc->source+target-pkids]
-  (coll/reduce-kv-> arc->source+target-pkids basis
-    (fn [basis arc source+target-pkids]
-      (basis-perform-disconnect-arc-pkids basis arc source+target-pkids))))
+  (if (coll/empty? arc->source+target-pkids)
+    basis
+    (assoc basis
+      :sarcs
+      (persistent!
+        (coll/reduce-kv-> arc->source+target-pkids (transient (gt/sarcs basis))
+          (fn [sarcs arc [source-pkids _target-pkids]]
+            (if (coll/empty? source-pkids)
+              sarcs
+              (let [source-id (gt/source-id arc)
+                    source-label (gt/source-label arc)
+                    label->arc-table (get sarcs source-id)]
+                (if-let [arc-table (get label->arc-table source-label)]
+                  (assoc! sarcs source-id
+                          (assoc label->arc-table source-label
+                                 (arc-table-dissoc-pkids arc-table source-pkids)))
+                  sarcs))))))
+      :tarcs
+      (persistent!
+        (coll/reduce-kv-> arc->source+target-pkids (transient (gt/tarcs basis))
+          (fn [tarcs arc [_source-pkids target-pkids]]
+            (if (coll/empty? target-pkids)
+              tarcs
+              (let [target-id (gt/target-id arc)
+                    target-label (gt/target-label arc)
+                    label->arc-table (get tarcs target-id)]
+                (if-let [arc-table (get label->arc-table target-label)]
+                  (assoc! tarcs target-id
+                          (assoc label->arc-table target-label
+                                 (arc-table-dissoc-pkids arc-table target-pkids)))
+                  tarcs)))))))))
 
 (defn basis-plan-disconnect-arc
   [basis arc]
@@ -1553,32 +1601,38 @@
   [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id]
   (-> basis
       (basis-perform-disconnect-arcs removed-arc->source+target-pkids)
-      (coll/reduce=> deleted-nodes
-        (map gt/node-id)
-        (fn [basis node-id]
-          (update basis :nodes dissoc node-id)))
-      (coll/reduce-kv=> removed-overrides-by-id
-        (fn [basis override-id _override]
-          (update basis :overrides dissoc override-id)))
-      (coll/reduce-kv=> removed-node-id->pkid->override-node-id
-        (fn [basis node-id pkid->override-node-id]
-          (update-in
-            basis [:node->overrides node-id]
-            override-node-id-table-exclude pkid->override-node-id)))))
+      (assoc :nodes (coll/reduce-> deleted-nodes (gt/nodes basis) (map gt/node-id) dissoc))
+      (cond->
+        (coll/not-empty removed-overrides-by-id)
+        (assoc :overrides
+          (persistent! (reduce dissoc! (transient (gt/overrides basis)) (coll/keys removed-overrides-by-id))))
+
+        (coll/not-empty removed-node-id->pkid->override-node-id)
+        (assoc :node->overrides
+          (persistent!
+            (coll/reduce-kv-> removed-node-id->pkid->override-node-id (transient (gt/node->overrides basis))
+              (fn [node->overrides node-id pkid->override-node-id]
+                (assoc! node->overrides node-id
+                        (override-node-id-table-exclude (get node->overrides node-id) pkid->override-node-id)))))))))
 
 (defn basis-revert-delete-nodes
   [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id]
   (-> basis
-      (coll/reduce=> deleted-nodes
-        (fn [basis node]
-          (let [node-id (gt/node-id node)]
-            (assoc-in basis [:nodes node-id] node))))
-      (coll/reduce-kv=> removed-overrides-by-id
-        (fn [basis override-id override]
-          (update basis :overrides assoc override-id override)))
-      (coll/reduce-kv=> removed-node-id->pkid->override-node-id
-        (fn [basis node-id pkid->override-node-id]
-          (update-in
-            basis [:node->overrides node-id]
-            override-node-id-table-include pkid->override-node-id)))
+      (assoc :nodes
+        (persistent!
+          (coll/reduce-> deleted-nodes (transient (gt/nodes basis))
+            (fn [nodes node]
+              (assoc! nodes (gt/node-id node) node)))))
+      (cond->
+        (coll/not-empty removed-overrides-by-id)
+        (assoc :overrides
+          (persistent! (reduce-kv assoc! (transient (gt/overrides basis)) removed-overrides-by-id)))
+
+        (coll/not-empty removed-node-id->pkid->override-node-id)
+        (assoc :node->overrides
+          (persistent!
+            (coll/reduce-kv-> removed-node-id->pkid->override-node-id (transient (gt/node->overrides basis))
+              (fn [node->overrides node-id pkid->override-node-id]
+                (assoc! node->overrides node-id
+                        (override-node-id-table-include (get node->overrides node-id) pkid->override-node-id)))))))
       (basis-revert-disconnect-arcs removed-arc->source+target-pkids)))

@@ -719,7 +719,7 @@
    (cond
      (and
        (= (gt/endpoint-node-id source-endpoint)
-          (ig/original-node basis (gt/endpoint-node-id target-endpoint)))
+          (ig/override-original basis (gt/endpoint-node-id target-endpoint)))
        (= (gt/endpoint-label source-endpoint)
           (gt/endpoint-label target-endpoint)))
      :override

@@ -76,6 +76,32 @@
   (let [g (random-graph)]
     (is (arcs-are-reflexive? g))))
 
+(deftest batch-arc-updates-test
+  (let [first-arc (gt/->Arc 1 :out 10 :in)
+        second-arc (gt/->Arc 2 :out 10 :in)
+        third-arc (gt/->Arc 1 :out 11 :in)
+        changes (array-map first-arc [[0 3] [1 4]]
+                           second-arc [[0] [0]]
+                           third-arc [[1] [0]]
+                           (gt/->Arc 3 :out 12 :in) [[0] []]
+                           (gt/->Arc 4 :out 13 :in) [[] [0]]
+                           (gt/->Arc 5 :out 14 :in) [[] []])
+        empty-basis (ig/empty-graph)
+        connected-basis (reduce-kv ig/basis-perform-connect-arc-pkids empty-basis changes)]
+    (doseq [basis [empty-basis
+                   connected-basis
+                   (update connected-basis :sarcs dissoc 1)
+                   (update-in connected-basis [:tarcs 10] dissoc :in)]
+            changes [changes {}]
+            [batch-fn single-fn] [[ig/basis-perform-connect-arcs ig/basis-perform-connect-arc-pkids]
+                                  [ig/basis-revert-connect-arcs ig/basis-perform-disconnect-arc-pkids]]]
+      (let [expected (reduce-kv single-fn basis changes)
+            actual (batch-fn basis changes)]
+        (is (= expected actual))
+        (doseq [arc-tables-fn [gt/sarcs gt/tarcs]]
+          (is (= (coll/map-vals #(coll/map-vals ig/arc-table-next-pkid %) (arc-tables-fn expected))
+                 (coll/map-vals #(coll/map-vals ig/arc-table-next-pkid %) (arc-tables-fn actual)))))))))
+
 (deftest transformable
   (let [g      (random-graph)
         id     (inc (count (gt/nodes g)))
