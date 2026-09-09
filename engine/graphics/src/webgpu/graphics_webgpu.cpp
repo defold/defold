@@ -1945,6 +1945,9 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
         }
 
         const bool explicit_clear = clear_flags != 0;
+        const bool initialize_opaque_surface = i == 0 &&
+            context->m_InitializeOpaqueSurface &&
+            context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget;
         if (explicit_clear && (clear_flags & color_buffer_type))
         {
             colorAttachments[i].loadOp       = WGPULoadOp_Clear;
@@ -1952,6 +1955,19 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
             colorAttachments[i].clearValue.g = clear_color[1];
             colorAttachments[i].clearValue.b = clear_color[2];
             colorAttachments[i].clearValue.a = clear_color[3];
+        }
+        else if (initialize_opaque_surface)
+        {
+            // WebGL alpha:false exposes an RGB default framebuffer, so its
+            // destination alpha behaves as one. Initialize the newly acquired
+            // WebGPU surface accordingly before render pipelines mask alpha
+            // writes. This also covers scripts that omit a color clear or only
+            // clear depth/stencil at the start of the frame.
+            colorAttachments[i].loadOp       = WGPULoadOp_Clear;
+            colorAttachments[i].clearValue.r = 0.0;
+            colorAttachments[i].clearValue.g = 0.0;
+            colorAttachments[i].clearValue.b = 0.0;
+            colorAttachments[i].clearValue.a = 1.0;
         }
         else if (explicit_clear)
         {
@@ -2057,6 +2073,8 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
         context->m_CurrentRenderPass.m_Target = context->m_CurrentRenderTarget;
         context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, clear_flags, clear_color, clear_depth, clear_stencil);
+        if (context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
+            context->m_InitializeOpaqueSurface = 0;
         context->m_ApplyRenderTargetLoadOps = 0;
 
         context->m_CurrentRenderPass.m_Target->m_Scissor[0] = 0;
@@ -2115,6 +2133,11 @@ static void WebGPUBeginFrame(HContext _context)
         WGPUSurfaceTexture surfaceColorTexture = {};
 #endif
         wgpuSurfaceGetCurrentTexture(context->m_Surface, &surfaceColorTexture);
+        // Each acquired canvas texture begins a new presentation frame. Opaque
+        // HTML5 surfaces need alpha initialized before the first main-target
+        // pass; alphaMode:opaque only affects presentation, not destination-
+        // alpha operations performed while rendering.
+        context->m_InitializeOpaqueSurface = context->m_OpaqueSurface;
 
         WGPUTexture     currentColorTexture = surfaceColorTexture.texture;
         const uint32_t  currentWidth = wgpuTextureGetWidth(currentColorTexture),
