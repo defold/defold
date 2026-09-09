@@ -319,6 +319,7 @@
         result (TextureSetGenerator/calculateTextureSetResult
                  layout-result
                  sprite-geometries
+                 nil
                  use-geometries
                  anim-iterator)]
     (doto (.builder result)

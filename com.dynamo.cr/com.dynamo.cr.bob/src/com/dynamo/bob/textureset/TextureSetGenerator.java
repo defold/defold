@@ -441,13 +441,7 @@ public class TextureSetGenerator {
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
      * Create vertex data for each frame (image) in each animation
-     */
-    public static TextureSetResult calculateTextureSetResult(LayoutResult layout, List<SpriteGeometry> imageHulls, int useGeometries,
-                                                             AnimIterator iterator) {
-        return calculateTextureSetResult(layout, imageHulls, null, useGeometries, iterator);
-    }
-
-    /**
+     *
      * A geometry can have a different pivot or trim mode without needing another atlas slot.
      * geometryToRectIndex maps each geometry to its shared packed rectangle. A null mapping keeps
      * the original one-geometry-per-rectangle behaviour.
@@ -508,14 +502,6 @@ public class TextureSetGenerator {
     }
 
     // Deprecated
-    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int useGeometries,
-                                                    AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
-                                                    boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
-
-        return calculateLayout(images, imageHulls, null, useGeometries, iterator, margin, innerPadding, extrudeBorders,
-                               rotate, useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
-    }
-
     public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, List<Integer> geometryToRectIndex,
                                                     int useGeometries, AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
                                                     boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
@@ -596,20 +582,11 @@ public class TextureSetGenerator {
      * @param images list of images
      * @param imagePaths corresponding image-id to previous list
      * @param animations list of animations
+     * @param geometryToRectIndex maps each geometry to its packed rectangle, letting pivot and trim
+     *                            variants share one atlas slot. A null mapping keeps the original
+     *                            one-geometry-per-rectangle behaviour.
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
-     */
-    public static TextureSetResult generate(List<BufferedImage> images, List<AtlasImage> atlasImages, List<String> paths, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize,
-            float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
-
-        return generate(images, atlasImages, paths, null, iterator, margin, innerPadding, extrudeBorders,
-                        rotate, useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
-    }
-
-    /**
-     * Maps each geometry to its packed rectangle. This lets pivot and trim variants share one atlas
-     * slot. A null mapping keeps the original one-geometry-per-rectangle behaviour.
      */
     public static TextureSetResult generate(List<BufferedImage> images, List<AtlasImage> atlasImages, List<String> paths,
             List<Integer> geometryToRectIndex, AnimIterator iterator,
