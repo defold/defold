@@ -27,7 +27,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
@@ -114,18 +114,26 @@
 (defn make-collection-dependencies-fn [game-object-resource-type-fn]
   {:pre [(ifn? game-object-resource-type-fn)]}
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
-    (fn [source-value]
+    (fn collection-dependencies-fn [collection-desc include-editor-dependencies]
+      {:pre [(map? collection-desc)]} ; GameObject$CollectionDesc in map format.
       (let [go-resource-type (game-object-resource-type-fn)
             go-dependencies-fn (:dependencies-fn go-resource-type)]
-        (into (default-dependencies-fn source-value)
-              (mapcat (fn [embedded-instance-desc]
-                        (try
-                          (go-dependencies-fn (:data embedded-instance-desc))
-                          (catch Exception error
-                            (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
-                                      :exception error)
-                            nil))))
-              (:embedded-instances source-value))))))
+        (coll/into->
+          (:embedded-instances collection-desc)
+          (default-dependencies-fn collection-desc include-editor-dependencies)
+          (mapcat
+            (fn [{:keys [data] :as embedded-instance-desc}]
+              ;; If sanitation failed (due to a corrupt file), the embedded data
+              ;; might still be a string. In that case we report no
+              ;; dependencies. The load-fn will eventually mark our resource
+              ;; node as defective, so it doesn't matter.
+              (when (map? data)
+                (try
+                  (go-dependencies-fn data include-editor-dependencies)
+                  (catch Exception error
+                    (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
+                              :exception error)
+                    nil))))))))))
 
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)

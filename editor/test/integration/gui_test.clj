@@ -46,7 +46,16 @@
   (vec
     (sort
       (gui/gui-scene-dependencies
-        scene-desc))))
+        scene-desc
+        false))))
+
+(deftest gui-scene-editor-dependencies-test
+  (testing "Empty scene depends on default resources needed by the editor."
+    (is (= ["/builtins/fonts/default.font"
+            "/builtins/materials/gui.material"]
+           (vec
+             (sort
+               (gui/gui-scene-dependencies {} true)))))))
 
 (deftest gui-scene-dependencies-test
   (testing "Empty scene."
