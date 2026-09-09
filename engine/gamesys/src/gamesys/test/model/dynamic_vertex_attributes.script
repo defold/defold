@@ -18,10 +18,25 @@ local function assert_custom_color(v)
     assert_vec4(v, go.get("#model", "custom_color"))
 end
 
+local function matrix4(...)
+    local values = {...}
+    local matrix = vmath.matrix4()
+    matrix.c0 = vmath.vector4(unpack(values, 1, 4))
+    matrix.c1 = vmath.vector4(unpack(values, 5, 8))
+    matrix.c2 = vmath.vector4(unpack(values, 9, 12))
+    matrix.c3 = vmath.vector4(unpack(values, 13, 16))
+    return matrix
+end
+
 local function test_go_get()
     assert_custom_color(vmath.vector4(1,0,0,1))
     go.set("#model", "custom_color", vmath.vector4(0,1,0,1))
     assert_custom_color(vmath.vector4(0,1,0,1))
+
+    assert_mat4(vmath.matrix4(), go.get("#model", "custom_transform"))
+    local custom_transform = matrix4(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+    go.set("#model", "custom_transform", custom_transform)
+    assert_mat4(custom_transform, go.get("#model", "custom_transform"))
 end
 
 function init(self)

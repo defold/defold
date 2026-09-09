@@ -11355,13 +11355,15 @@ TEST_F(ModelTest, DynamicVertexAttributes)
     dmGraphics::HVertexDeclaration inst_decl;
     dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &vx_buffer, &vx_decl, &inst_decl);
 
-    ASSERT_EQ(1, vx_decl->m_StreamCount);
+    ASSERT_EQ(2, vx_decl->m_StreamCount);
     ASSERT_EQ(dmHashString64("custom_color"), vx_decl->m_Streams[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("custom_transform"), vx_decl->m_Streams[1].m_NameHash);
 
     // Note: The vertex buffer contains only the custom data, not the position stream!
     struct vx_format
     {
         dmVMath::Vector4 custom_color;
+        dmVMath::Matrix4 custom_transform;
     };
 
     // Should be a cube with 24 vertices
@@ -11373,10 +11375,19 @@ TEST_F(ModelTest, DynamicVertexAttributes)
 
     // This should be the last value that the script "dynamic_vertex_attributes.script" sets
     dmVMath::Vector4 exp = dmVMath::Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+    dmVMath::Matrix4 exp_transform(
+        dmVMath::Vector4(1.0f, 2.0f, 3.0f, 4.0f),
+        dmVMath::Vector4(5.0f, 6.0f, 7.0f, 8.0f),
+        dmVMath::Vector4(9.0f, 10.0f, 11.0f, 12.0f),
+        dmVMath::Vector4(13.0f, 14.0f, 15.0f, 16.0f));
 
     for (int i = 0; i < exp_num_vertices; ++i)
     {
         ASSERT_VEC4(exp, vx_data[i].custom_color);
+        ASSERT_VEC4(exp_transform[0], vx_data[i].custom_transform[0]);
+        ASSERT_VEC4(exp_transform[1], vx_data[i].custom_transform[1]);
+        ASSERT_VEC4(exp_transform[2], vx_data[i].custom_transform[2]);
+        ASSERT_VEC4(exp_transform[3], vx_data[i].custom_transform[3]);
     }
 
     dmGraphics::UnmapVertexBuffer(m_GraphicsContext, vx_buffer);
