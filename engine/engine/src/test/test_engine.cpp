@@ -18,9 +18,11 @@
 #include <dlib/array.h>
 #include <dlib/http/http_client.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
+#include <script/sys_ddf.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -367,6 +369,640 @@ TEST_F(EngineTest, SetEngineThrottle)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+TEST_F(EngineTest, FramePacingWithoutRendering)
+{
+    // Verify that disabling rendering does not disable timer pacing for a fixed
+    // update frequency.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    // Keep slow runners from exercising missed-deadline catch-up in this test.
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=engine.max_time_step=0.01",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    uint64_t elapsed = 0;
+    uint64_t previous_frame_time = 0;
+    uint64_t first_frame_deadline = 0;
+    float accounted_time = 0.0f;
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        previous_frame_time = engine->m_PreviousFrameTime;
+        first_frame_deadline = engine->m_NextFrameTime;
+        dmEngine::SetRenderEnabled(false);
+
+        uint64_t start = dmTime::GetMonotonicTime();
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            uint64_t previous_time = engine->m_PreviousFrameTime;
+            dmEngine::Step(engine);
+            float elapsed_dt = (float)((engine->m_PreviousFrameTime - previous_time) / 1000000.0);
+            accounted_time += dmMath::Min(elapsed_dt, 0.01f);
+        }
+        elapsed = dmTime::GetMonotonicTime() - start;
+        dmEngine::GetStats(engine, stats);
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_GE(first_frame_deadline, previous_frame_time + 10000);
+    ASSERT_EQ(4u, stats.m_FrameCount);
+    // Oversleep is hitch-clamped in this test. A subsequent shorter interval
+    // must not advance more simulation time than the clamped elapsed total.
+    ASSERT_NEAR(accounted_time, stats.m_TotalTime, 0.000001f);
+    ASSERT_GE(elapsed, 20000u);
+}
+
+TEST_F(EngineTest, FramePacingPreservesMissedDeadlineTime)
+{
+    // Verify that timer-paced frames retain simulation time when work takes
+    // longer than the requested frame period.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        dmEngine::Step(engine);
+        dmTime::Sleep(25000);
+        dmEngine::Step(engine);
+        dmTime::Sleep(25000);
+        dmEngine::Step(engine);
+        dmEngine::GetStats(engine, stats);
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(3u, stats.m_FrameCount);
+    ASSERT_GT(stats.m_TotalTime, 0.040f);
+}
+
+TEST_F(EngineTest, FramePacingPreservesSignedTimeBalance)
+{
+    // Alternating slow and fast frames must not discard time already advanced
+    // by a previous catch-up correction.
+    const float fixed_dt = 1.0f / 60.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const float frame_times[] = { 0.032f, 0.006f, 0.032f };
+    const uint32_t frame_count = 300;
+
+    float elapsed_time = 0.0f;
+    float simulation_time = 0.0f;
+    float frame_time_balance = 0.0f;
+
+    for (uint32_t i = 0; i < frame_count; ++i)
+    {
+        float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+        elapsed_time += frame_dt;
+        simulation_time += dmEngine::CalcPacedTimeStep(frame_dt, fixed_dt, max_time_step, frame_time_balance);
+    }
+
+    ASSERT_NEAR(7.0f, elapsed_time, 0.0001f);
+    ASSERT_NEAR(elapsed_time, simulation_time + frame_time_balance, 0.0001f);
+    // The threshold may retain up to one fixed step of positive lag, but this
+    // sequence must not leave the simulation ahead of elapsed wall-clock time.
+    ASSERT_GE(frame_time_balance, -0.0001f);
+    ASSERT_LE(frame_time_balance, fixed_dt + 0.0001f);
+}
+
+TEST_F(EngineTest, LowFrameCapDoesNotAccumulateFalseTimeCredit)
+{
+    // A requested interval longer than max_time_step is intentional, not a
+    // hitch. It must remain in the elapsed-time accounting so switching back to
+    // variable updates can resume immediately.
+    const float fixed_dt = 1.0f / 10.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frame_count = 50;
+
+    float simulation_time = 0.0f;
+    float frame_time_balance = 0.0f;
+    for (uint32_t i = 0; i < frame_count; ++i)
+    {
+        simulation_time += dmEngine::CalcPacedTimeStep(fixed_dt, fixed_dt, max_time_step, frame_time_balance);
+    }
+
+    ASSERT_NEAR(5.0f, simulation_time, 0.00001f);
+    ASSERT_NEAR(0.0f, frame_time_balance, 0.000001f);
+}
+
+TEST_F(EngineTest, ClampedPacedFramesDoNotAccumulateTimeCredit)
+{
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frequencies[] = { 10, 30 };
+    for (uint32_t frequency_index = 0; frequency_index < DM_ARRAY_SIZE(frequencies); ++frequency_index)
+    {
+        const float fixed_dt = 1.0f / frequencies[frequency_index];
+        // These intervals arise when a late frame is followed by a fast frame
+        // that reaches the next absolute deadline: 150/50 ms or 34/32.667 ms.
+        const float late_dt = frequencies[frequency_index] == 10 ? 0.150f : 0.034f;
+        const float frame_times[] = { late_dt, 2.0f * fixed_dt - late_dt };
+        float balance = 0.0f;
+        double simulation_time = 0.0;
+        double accounted_time = 0.0;
+        for (uint32_t i = 0; i < 300; ++i)
+        {
+            float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+            float step_dt = dmEngine::CalcPacedTimeStep(frame_dt, fixed_dt, max_time_step, balance);
+            simulation_time += step_dt;
+            accounted_time += dmMath::Min(frame_dt, dmMath::Max(max_time_step, fixed_dt));
+            ASSERT_GE(step_dt, 0.0f);
+            ASSERT_LE(step_dt, dmMath::Max(max_time_step, fixed_dt));
+            ASSERT_NEAR(accounted_time, simulation_time + balance, 0.00001);
+            ASSERT_GE(balance, -0.000001f);
+        }
+        ASSERT_NEAR(0.0f, balance, 0.000001f);
+    }
+}
+
+TEST_F(EngineTest, PacedTimeCreditLargerThanStepIsRepaidGradually)
+{
+    // Credit carried across a frequency increase may exceed the new interval.
+    // Preserve the balance while repaying it without producing negative dt.
+    float balance = -0.05f;
+    for (uint32_t i = 0; i < 5; ++i)
+    {
+        float step_dt = dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance);
+        ASSERT_NEAR(0.0f, step_dt, 0.000001f);
+    }
+    ASSERT_NEAR(0.0f, balance, 0.000001f);
+    ASSERT_NEAR(0.01f, dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance), 0.000001f);
+}
+
+TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
+{
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=10",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool disable_posted = false;
+    float balance_before_variable_frame = 0.0f;
+    float variable_step = 0.0f;
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        // Run several low-frequency frames, then disable pacing during the last
+        // paced frame just as sys.set_update_frequency(0) does.
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+
+        // Exercise repeated clamped/short intervals deterministically, without
+        // depending on OS sleep jitter or spending 30 seconds in the test.
+        // The old accounting leaves roughly -7.5 seconds of credit here.
+        const float frame_times[] = { 0.150f, 0.050f };
+        for (uint32_t i = 0; i < 300; ++i)
+        {
+            dmEngine::CalcPacedTimeStep(frame_times[i % DM_ARRAY_SIZE(frame_times)],
+                0.1f, engine->m_MaxTimeStep, engine->m_PacedFrameTimeDebt);
+        }
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+
+        dmSystemDDF::SetUpdateFrequency disable_message;
+        disable_message.m_Frequency = 0;
+        disable_posted = dmMessage::PostDDF(&disable_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_before_variable_frame = engine->m_PacedFrameTimeDebt;
+
+        dmTime::Sleep(25000);
+        dmEngine::Stats stats_before;
+        dmEngine::GetStats(engine, stats_before);
+        dmEngine::Step(engine);
+        dmEngine::Stats stats_after;
+        dmEngine::GetStats(engine, stats_after);
+        variable_step = stats_after.m_TotalTime - stats_before.m_TotalTime;
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(disable_posted);
+    // Timer jitter may leave a small signed balance, but it must not grow by
+    // fixed_dt - max_time_step on every low-frequency frame.
+    ASSERT_GT(balance_before_variable_frame, -1.0f / 30.0f);
+    ASSERT_GT(variable_step, 0.0f);
+}
+
+TEST_F(EngineTest, UpdateFrequencyChangePreservesTimeBalance)
+{
+    // Verify that changing and then disabling a fixed update frequency neither
+    // clears pending simulation time nor strands it in the fixed-rate pacer.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool change_posted = false;
+    bool disable_posted = false;
+    float balance_after_change = 0.0f;
+    float balance_before_variable_frame = 0.0f;
+    float balance_after_variable_frame = 0.0f;
+    float variable_step = 0.0f;
+    uint32_t final_update_frequency = ~0U;
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        // The correction applied before message dispatch is bounded by
+        // max_time_step, leaving enough balance to test the setter itself.
+        engine->m_PacedFrameTimeDebt = 1.0f;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+
+        dmSystemDDF::SetUpdateFrequency change_message;
+        change_message.m_Frequency = 50;
+        change_posted = dmMessage::PostDDF(&change_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_after_change = engine->m_PacedFrameTimeDebt;
+
+        dmSystemDDF::SetUpdateFrequency disable_message;
+        disable_message.m_Frequency = 0;
+        disable_posted = dmMessage::PostDDF(&disable_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_before_variable_frame = engine->m_PacedFrameTimeDebt;
+
+        dmEngine::Stats stats_before;
+        dmEngine::GetStats(engine, stats_before);
+        dmEngine::Step(engine);
+        dmEngine::Stats stats_after;
+        dmEngine::GetStats(engine, stats_after);
+
+        variable_step = stats_after.m_TotalTime - stats_before.m_TotalTime;
+        balance_after_variable_frame = engine->m_PacedFrameTimeDebt;
+        final_update_frequency = engine->m_UpdateFrequency;
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(change_posted);
+    ASSERT_TRUE(disable_posted);
+    ASSERT_EQ(0u, final_update_frequency);
+    ASSERT_GT(balance_after_change, 0.9f);
+    ASSERT_GT(balance_before_variable_frame, 0.9f);
+    ASSERT_NEAR(1.0f / 30.0f, variable_step, 0.000001f);
+    ASSERT_LT(balance_after_variable_frame, balance_before_variable_frame);
+}
+
+TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
+{
+    // Verify that a headless variable-rate engine does not enable timer pacing,
+    // even when a presentation swap interval is requested.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=0",
+        "--config=display.swap_interval=1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    uint32_t pacing_frequency = 0;
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+        dmEngine::GetStats(engine, stats);
+        pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(4u, stats.m_FrameCount);
+    ASSERT_EQ(0u, pacing_frequency);
+}
+
+TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
+{
+    // Verify that negative configuration and runtime frequencies select variable
+    // rate pacing instead of wrapping to a large unsigned frequency.
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=-1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool posted = false;
+    uint32_t configured_update_frequency = ~0U;
+    uint32_t configured_pacing_frequency = ~0U;
+    uint32_t runtime_update_frequency = ~0U;
+    uint32_t runtime_pacing_frequency = ~0U;
+    if (initialized)
+    {
+        configured_update_frequency = engine->m_UpdateFrequency;
+        configured_pacing_frequency = engine->m_FramePacingFrequency;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetUpdateFrequency message;
+        message.m_Frequency = -1;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        dmEngine::Step(engine);
+        runtime_update_frequency = engine->m_UpdateFrequency;
+        runtime_pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_EQ(0u, configured_update_frequency);
+    ASSERT_EQ(0u, configured_pacing_frequency);
+    ASSERT_EQ(0u, runtime_update_frequency);
+    ASSERT_EQ(0u, runtime_pacing_frequency);
+}
+
+TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
+{
+    // With no presenter, verify that a fixed update frequency uses timer pacing,
+    // applies a swap interval of 0, and retains the requested interval.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=display.swap_interval=1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    uint64_t elapsed = 0;
+    uint32_t requested_swap_interval = 0;
+    uint32_t effective_swap_interval = ~0U;
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        uint64_t start = dmTime::GetMonotonicTime();
+        for (uint32_t i = 0; i < 20; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+        elapsed = dmTime::GetMonotonicTime() - start;
+        dmEngine::GetStats(engine, stats);
+        requested_swap_interval = engine->m_SwapInterval;
+        effective_swap_interval = engine->m_EffectiveSwapInterval;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(20u, stats.m_FrameCount);
+    ASSERT_EQ(1u, requested_swap_interval);
+    ASSERT_EQ(0u, effective_swap_interval);
+    ASSERT_GE(elapsed, 150000u);
+}
+
+TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
+{
+    // Verify that a runtime swap-interval change leaves the active fixed-frequency
+    // pacer running with an advancing deadline.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool posted = false;
+    uint64_t deadline_before = 0;
+    uint64_t deadline_after = 0;
+    uint32_t pacing_frequency = 0;
+
+    if (initialized)
+    {
+        dmEngine::Step(engine);
+        deadline_before = engine->m_NextFrameTime;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetVsync message;
+        message.m_SwapInterval = 0;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        // The message is handled during StepFrame, after this frame's deadline advances.
+        dmEngine::Step(engine);
+        deadline_after = engine->m_NextFrameTime;
+        pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_NE(0u, deadline_before);
+    ASSERT_GT(deadline_after, deadline_before);
+    ASSERT_EQ(100u, pacing_frequency);
+}
+
+TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
+{
+    // Verify that setting the active frequency again preserves the exact next
+    // deadline and fractional-period remainder.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=7",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool posted = false;
+    uint64_t expected_deadline = 0;
+    uint64_t deadline_after = 0;
+    uint32_t expected_remainder = 0;
+    uint32_t remainder_after = 0;
+
+    if (initialized)
+    {
+        expected_deadline = engine->m_NextFrameTime;
+        expected_remainder = engine->m_FrameTimeRemainder;
+        expected_deadline = dmEngine::AdvanceFrameDeadline(expected_deadline, 7, expected_remainder);
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetUpdateFrequency message;
+        message.m_Frequency = 7;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        dmEngine::Step(engine);
+        deadline_after = engine->m_NextFrameTime;
+        remainder_after = engine->m_FrameTimeRemainder;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_EQ(expected_deadline, deadline_after);
+    ASSERT_EQ(expected_remainder, remainder_after);
+}
+
+TEST_F(EngineTest, FramePacingDeadlineDoesNotAccumulateRoundingError)
+{
+    // Verify that fractional frame periods total exactly one second after 60
+    // periods at 60 Hz and 144 periods at 144 Hz.
+    const uint64_t start = 1234567;
+
+    // Advance one second at 60 Hz, whose period is not a whole number of
+    // microseconds.
+    uint64_t deadline_60hz = start;
+    uint32_t remainder_60hz = 0;
+    for (uint32_t i = 0; i < 60; ++i)
+    {
+        deadline_60hz = dmEngine::AdvanceFrameDeadline(deadline_60hz, 60, remainder_60hz);
+    }
+
+    // Repeat at a higher non-integral frequency to exercise a different
+    // fractional remainder pattern.
+    uint64_t deadline_144hz = start;
+    uint32_t remainder_144hz = 0;
+    for (uint32_t i = 0; i < 144; ++i)
+    {
+        deadline_144hz = dmEngine::AdvanceFrameDeadline(deadline_144hz, 144, remainder_144hz);
+    }
+
+    // The carried remainders must add up to exactly one second without drift.
+    ASSERT_EQ(start + 1000000, deadline_60hz);
+    ASSERT_EQ(0u, remainder_60hz);
+    ASSERT_EQ(start + 1000000, deadline_144hz);
+    ASSERT_EQ(0u, remainder_144hz);
 }
 
 TEST_F(EngineTest, CameraAqcuireFocus)
