@@ -101,11 +101,18 @@ def build_apk(args):
     # this invocation's Bob cache so bundling uses the matching SDK and Java.
     bob_lib = work / 'bob/lib'
     bob_lib.mkdir(parents=True)
+    bob_platform = 'x86_64-linux' if platform.system() == 'Linux' else (
+        'arm64-macos' if platform.machine() == 'arm64' else 'x86_64-macos')
+    bob_host = work / 'bob' / bob_platform
+    bob_host.mkdir(parents=True)
+    # The aapt2 bundled in bundletool can be too old for the selected API.
+    # Prepopulate Bob's host tool path with the matching SDK build tool.
+    shutil.copy2(args.build_tools / 'aapt2', bob_host / 'aapt2')
     if platform.system() == 'Linux':
         # AndroidTools sets LD_LIBRARY_PATH to this directory. Full Bob
         # extracts libc++ here, but bob-light leaves that resource out.
-        linux_lib = work / 'bob/x86_64-linux/lib'
-        linux_lib.mkdir(parents=True)
+        linux_lib = bob_host / 'lib'
+        linux_lib.mkdir()
         shutil.copy2(ROOT / 'com.dynamo.cr/com.dynamo.cr.bob/lib/x86_64-linux/libc++.so', linux_lib / 'libc++.so')
     shutil.copy2(android_jar, bob_lib / 'android.jar')
     shutil.copy2(dex / 'classes.dex', bob_lib / 'classes.dex')
