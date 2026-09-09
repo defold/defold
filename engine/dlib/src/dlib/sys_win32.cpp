@@ -56,6 +56,11 @@
 
 namespace dmSys
 {
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return _fseeki64(file, (int64_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return getenv(name);

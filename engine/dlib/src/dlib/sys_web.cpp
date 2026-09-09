@@ -13,8 +13,10 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "sys.h"
 #include "sys_posix.h"
@@ -32,6 +34,11 @@ extern "C" const char* dmSysGetApplicationPath();
 
 namespace dmSys
 {
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko(file, (off_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
