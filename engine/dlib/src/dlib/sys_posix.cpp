@@ -299,3 +299,15 @@ namespace dmSysPosix
     }
 
 } // namespace dmSysPosix
+
+// Some targets use sys_posix.cpp as their platform sys implementation. More
+// specific backends provide their own large-file wrappers.
+#if !defined(__ANDROID__) && !defined(__linux__) && !defined(__APPLE__) && !defined(__EMSCRIPTEN__)
+namespace dmSys
+{
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko(file, (off_t)offset, SEEK_SET);
+    }
+}
+#endif

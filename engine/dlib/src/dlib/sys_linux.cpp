@@ -12,6 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if !defined(_LARGEFILE64_SOURCE)
+#define _LARGEFILE64_SOURCE 1
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +35,11 @@
 
 namespace dmSys
 {
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko64(file, (off64_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);

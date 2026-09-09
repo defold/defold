@@ -26,9 +26,15 @@
 
 #include <android/asset_manager.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 namespace dmSys
 {
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
