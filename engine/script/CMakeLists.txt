@@ -109,6 +109,11 @@ target_include_directories(script PUBLIC
 target_compile_definitions(script PRIVATE
   "DLIB_LOG_DOMAIN=\"SCRIPT\""
   "LUASOCKET_API=")
+if(WITH_ASAN AND TARGET_PLATFORM_OS STREQUAL "android")
+  # The NDK's static unwinder bypasses ASAN's runtime interceptor.
+  target_compile_definitions(script PRIVATE DM_ASAN_WRAP_UNWIND)
+  target_link_options(script INTERFACE "LINKER:--wrap=_Unwind_RaiseException")
+endif()
 if(TARGET graphics_proto)
   add_dependencies(script graphics_proto_header)
 endif()

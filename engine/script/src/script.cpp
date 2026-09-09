@@ -44,6 +44,20 @@ extern "C"
 #undef luaL_error
 extern "C" void __asan_handle_no_return();
 
+#if defined(DM_ASAN_WRAP_UNWIND)
+#include <unwind.h>
+
+extern "C" _Unwind_Reason_Code __real__Unwind_RaiseException(_Unwind_Exception* exception_object);
+
+extern "C" _Unwind_Reason_Code __wrap__Unwind_RaiseException(_Unwind_Exception* exception_object)
+{
+    // LuaJIT's internal errors bypass the lua_error/luaL_error wrappers below.
+    // Clear ASAN stack metadata before the unwinder discards those C/C++ frames.
+    __asan_handle_no_return();
+    return __real__Unwind_RaiseException(exception_object);
+}
+#endif
+
 extern "C" int dm_lua_error_asan(lua_State* L)
 {
     __asan_handle_no_return();
