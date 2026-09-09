@@ -339,7 +339,12 @@ def run_app(args, metadata):
     emulator.adb('install', metadata['apk'], timeout=120)
     old_rotation = emulator.shell('wm', 'user-rotation').split()
     old_fixed = emulator.shell('wm', 'fixed-to-user-rotation')
-    old_ime = emulator.shell('settings', 'get', 'secure', 'show_ime_with_hard_keyboard')
+    secure_settings = {
+        'show_ime_with_hard_keyboard': '1',
+        # The first-use immersive prompt takes focus and consumes gamepad input.
+        'immersive_mode_confirmations': 'confirmed',
+    }
+    old_secure_settings = {key: emulator.shell('settings', 'get', 'secure', key) for key in secure_settings}
     app = AppLog(emulator, metadata['run_id'])
     gamepad = None
     passed = False
@@ -348,7 +353,8 @@ def run_app(args, metadata):
         emulator.shell('wm', 'dismiss-keyguard')
         emulator.shell('wm', 'fixed-to-user-rotation', 'enabled')
         emulator.shell('wm', 'user-rotation', 'lock', '0')
-        emulator.shell('settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '1')
+        for key, value in secure_settings.items():
+            emulator.shell('settings', 'put', 'secure', key, value)
         emulator.launch()
         app.wait('ready', timeout=120)
         pid = emulator.shell('pidof', PACKAGE)
@@ -486,10 +492,11 @@ def run_app(args, metadata):
         emulator.shell('wm', 'fixed-to-user-rotation', old_fixed, check=False)
         if old_rotation:
             emulator.shell('wm', 'user-rotation', *old_rotation, check=False)
-        if old_ime == 'null':
-            emulator.shell('settings', 'delete', 'secure', 'show_ime_with_hard_keyboard', check=False)
-        else:
-            emulator.shell('settings', 'put', 'secure', 'show_ime_with_hard_keyboard', old_ime, check=False)
+        for key, value in old_secure_settings.items():
+            if value == 'null':
+                emulator.shell('settings', 'delete', 'secure', key, check=False)
+            else:
+                emulator.shell('settings', 'put', 'secure', key, value, check=False)
         app.close()
         (args.output / 'result.json').write_text(json.dumps({'passed': passed, 'events': app.events}, indent=2) + '\n')
     print('Android ASAN APK integration test passed.', flush=True)
