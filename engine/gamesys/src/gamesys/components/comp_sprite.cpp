@@ -712,7 +712,10 @@ namespace dmGameSystem
             uint8_t generation = GetTextureResourceGeneration(component, idx);
             dmHashUpdateBuffer32(&state, &generation, sizeof(generation));
         }
-        dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
+        if (resource->m_NumTextures > 0)
+        {
+            dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
+        }
         dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
 
         HashResourceOverrides(&state, component->m_Overrides);

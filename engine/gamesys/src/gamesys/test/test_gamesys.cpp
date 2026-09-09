@@ -2522,6 +2522,17 @@ TEST_F(ResourceComponentTest, ModelTexturePropertyAllTextureSlots)
     dmResource::Release(m_Factory, tex_res);
 }
 
+// A sprite with a sampler-free material should update and render without a texture set.
+TEST_F(SpriteTest, TexturelessMaterial)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+}
+
 // Test that go.delete() does not influence other sprite animations in progress
 TEST_F(SpriteTest, GoDeletion)
 {
