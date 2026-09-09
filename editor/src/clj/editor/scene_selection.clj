@@ -21,6 +21,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
+            [editor.render-util :as render-util]
             [editor.scene-picking :as scene-picking]
             [editor.system :as system]
             [editor.types :as types]
@@ -57,36 +58,27 @@
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
 
-(defn render-selection-box [^GL2 gl _render-args renderables _count]
+(defn render-selection-box [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         start (:start user-data)
         current (:current user-data)]
     (when (and start current)
-     (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
-           max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
-           min-p (reduce min-fn [start current])
-           min-x (nth min-p 0)
-           min-y (nth min-p 1)
-           max-p (reduce max-fn [start current])
-           max-x (nth max-p 0)
-           max-y (nth max-p 1)
-           z 0.0
-           c (double-array (map #(/ % 255.0) [131 188 212]))]
-       (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-       (.glBegin gl GL2/GL_LINE_LOOP)
-       (.glVertex3d gl min-x min-y z)
-       (.glVertex3d gl min-x max-y z)
-       (.glVertex3d gl max-x max-y z)
-       (.glVertex3d gl max-x min-y z)
-       (.glEnd gl)
-
-       (.glBegin gl GL2/GL_QUADS)
-       (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
-       (.glVertex3d gl min-x, min-y, z);
-       (.glVertex3d gl min-x, max-y, z);
-       (.glVertex3d gl max-x, max-y, z);
-       (.glVertex3d gl max-x, min-y, z);
-       (.glEnd gl)))))
+      (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
+            max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
+            min-p (reduce min-fn [start current])
+            min-x (nth min-p 0)
+            min-y (nth min-p 1)
+            max-p (reduce max-fn [start current])
+            max-x (nth max-p 0)
+            max-y (nth max-p 1)
+            z 0.0
+            color (mapv #(/ % 255.0) [131 188 212])
+            positions [[min-x min-y z]
+                       [min-x max-y z]
+                       [max-x max-y z]
+                       [max-x min-y z]]]
+        (render-util/render-color-line-loop! gl render-args ::selection-box-outline positions color)
+        (render-util/render-color-quad! gl render-args ::selection-box-fill positions (conj color 0.2))))))
 
 (defn- select [controller op-seq mode toggle?]
   (let [select-fn (g/node-value controller :select-fn)

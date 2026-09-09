@@ -39,6 +39,13 @@
     "shaders/basic-color.vp"
     "shaders/basic-color.fp"))
 
+(def basic-color-straight-alpha-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/basic-color-straight-alpha.vp"
+    "shaders/basic-color.fp"))
+
 (def basic-color-world-space
   (editor-shader
     {:coordinate-space :coordinate-space-world

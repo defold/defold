@@ -19,6 +19,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
+            [editor.render-util :as render-util]
             [editor.shaders :as shaders]
             [editor.slice9 :as slice9]
             [util.coll :refer [pair]])
@@ -442,22 +443,12 @@
                     y0 (.y world-pos)
                     x1 (+ x0 scaled-width)
                     y1 (- y0 scaled-height)
-                    [cr cg cb ca] colors/outline-color
-                    [xr xg xb xa] colors/scene-background]
-                (.glColor4d gl xr xg xb xa)
-                (.glBegin gl GL2/GL_QUADS)
-                (.glVertex3d gl x0 y0 0)
-                (.glVertex3d gl x0 y1 0)
-                (.glVertex3d gl x1 y1 0)
-                (.glVertex3d gl x1 y0 0)
-                (.glEnd gl)
-                (.glColor4d gl cr cg cb ca)
-                (.glBegin gl GL2/GL_LINE_LOOP)
-                (.glVertex3d gl x0 y0 0)
-                (.glVertex3d gl x0 y1 0)
-                (.glVertex3d gl x1 y1 0)
-                (.glVertex3d gl x1 y0 0)
-                (.glEnd gl)
+                    positions [[x0 y0 0.0]
+                               [x0 y1 0.0]
+                               [x1 y1 0.0]
+                               [x1 y0 0.0]]]
+                (render-util/render-color-quad! gl render-args ::animation-background positions colors/scene-background)
+                (render-util/render-color-line-loop! gl render-args ::animation-outline positions colors/outline-color)
                 (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
                   (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

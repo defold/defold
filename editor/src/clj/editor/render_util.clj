@@ -34,6 +34,62 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 ;; -----------------------------------------------------------------------------
+;; streamed-color-geometry
+;; -----------------------------------------------------------------------------
+
+(def ^:private streamed-color-geometry-shader shaders/basic-color-straight-alpha-local-space)
+
+(defn quad->triangles
+  "Expands four ordered quad vertices into two triangles while preserving the
+  quad's winding."
+  [[p0 p1 p2 p3 :as positions]]
+  {:pre [(= 4 (count positions))]}
+  [p0 p1 p2
+   p2 p3 p0])
+
+(defn- make-color-geometry-vertex-buffer
+  [positions color]
+  (let [vertex-description (shaders/vertex-description streamed-color-geometry-shader)
+        vertex-buffer (vtx/make-vertex-buffer vertex-description :stream (count positions))
+        byte-buffer (vtx/buf vertex-buffer)
+        float-buffer (.asFloatBuffer byte-buffer)
+        [cr cg cb ca] (if (= 3 (count color))
+                        (conj (vec color) 1.0)
+                        color)
+        color-floats (float-array [cr cg cb ca])]
+    (doseq [position positions]
+      (let [[x y z] (if (= 2 (count position))
+                      (conj (vec position) 0.0)
+                      position)]
+        (.put float-buffer (float-array [x y z]))
+        (.put float-buffer color-floats)))
+    (.position byte-buffer (* (.position float-buffer) Float/BYTES))
+    (vtx/flip! vertex-buffer)))
+
+(defn render-color-geometry!
+  "Streams local-space positions with a uniform per-vertex color and draws them
+  using the shared straight-alpha color shader. Positions may contain two or
+  three components, and colors may contain three or four components."
+  [^GL2 gl render-args request-id primitive-type positions color]
+  {:pre [(every? #(<= 2 (count %) 3) positions)
+         (<= 3 (count color) 4)]}
+  (when (seq positions)
+    (let [vertex-buffer (make-color-geometry-vertex-buffer positions color)
+          vertex-binding (vtx/use-with request-id vertex-buffer streamed-color-geometry-shader)]
+      (gl/with-gl-bindings gl render-args [streamed-color-geometry-shader vertex-binding]
+        (gl/gl-draw-arrays gl primitive-type 0 (count vertex-buffer))))))
+
+(defn render-color-quad!
+  "Streams and draws four ordered local-space corners as two triangles."
+  [^GL2 gl render-args request-id positions color]
+  (render-color-geometry! gl render-args request-id GL2/GL_TRIANGLES (quad->triangles positions) color))
+
+(defn render-color-line-loop!
+  "Streams and draws local-space positions as a closed line loop."
+  [^GL2 gl render-args request-id positions color]
+  (render-color-geometry! gl render-args request-id GL2/GL_LINE_LOOP positions color))
+
+;; -----------------------------------------------------------------------------
 ;; aabb-outline
 ;; -----------------------------------------------------------------------------
 
