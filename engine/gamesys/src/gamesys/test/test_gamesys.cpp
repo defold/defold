@@ -446,6 +446,23 @@ class LightResourceTest : public ResourceTest { public: LightResourceTest() { Se
 class ResourceFolderTest : public ResourceTest { public: ResourceFolderTest() { SetContentFolder("resource"); } };
 class GuiResourceTest : public ResourceTest { public: GuiResourceTest() { SetContentFolder("gui"); } };
 class MaterialResourceTest : public ResourceTest { public: MaterialResourceTest() { SetContentFolder("material"); } };
+class TileGrid3DResourceTest : public ResourceTest
+{
+public:
+    TileGrid3DResourceTest()
+    {
+        SetContentFolder("tile");
+        m_projectOptions.m_3D = true;
+    }
+};
+
+TEST_F(TileGrid3DResourceTest, LoadTileGrid)
+{
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.tilemapc", &resource));
+    ASSERT_NE((void*) 0, resource);
+    dmResource::Release(m_Factory, resource);
+}
 
 TEST_F(TextureSetResourceTest, TestReloadTextureSet)
 {
