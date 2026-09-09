@@ -2525,11 +2525,24 @@ TEST_F(ResourceComponentTest, ModelTexturePropertyAllTextureSlots)
 // A sprite with a sampler-free material should update and render without a texture set.
 TEST_F(SpriteTest, TexturelessMaterial)
 {
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", dmHashString64("/go"));
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t sprite_id = dmHashString64("sprite");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", go_id);
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    PostSpritePlayAnimation(m_Collection, go_id, sprite_id, dmHashString64("anim"), 0.0f, 1.0f);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyVar cursor(0.5);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("cursor"), options, cursor));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
     RenderCollection(m_RenderContext, m_Collection);
 }
 
