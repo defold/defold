@@ -214,7 +214,7 @@
    (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
 (defn- make-ddf-dependencies-fn-raw [^Class pb-class]
-  (fn ddf-dependencies-fn [source-value]
+  (fn ddf-dependencies-fn [source-value _include-editor-dependencies]
     (coll/into->
       (protobuf/resource-field-value-paths pb-class source-value) []
       (map second) ; => proj-paths

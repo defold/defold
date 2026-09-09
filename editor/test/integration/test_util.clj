@@ -1531,7 +1531,7 @@
             pb (protobuf/bytes->pb pb-class built-bytes)
             pb-map (protobuf/pb->map-without-defaults pb)
             dep-build-resource-paths (into (sorted-set)
-                                           (dependencies-fn pb-map))]
+                                           (dependencies-fn pb-map false))]
         (into (sorted-map
                 build-output-path
                 (assoc build-output-info

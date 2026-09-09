@@ -181,7 +181,7 @@
           (when-let [dependencies-fn (:dependencies-fn resource-type)]
             (try
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
-                (not-empty (vec (dependencies-fn source-value))))
+                (not-empty (vec (dependencies-fn source-value true))))
               (catch Exception exception
                 (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
                                        (resource/proj-path resource))
@@ -1300,7 +1300,7 @@
                     (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
                       (let [save-value (g/node-value old-node-id :save-value old-evaluation-context)]
                         (when-not (g/error? save-value)
-                          (dependencies-fn save-value)))))))))
+                          (dependencies-fn save-value true)))))))))
 
           node-load-infos
           (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]

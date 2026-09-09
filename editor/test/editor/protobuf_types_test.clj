@@ -20,7 +20,8 @@
             [editor.resource :as resource]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]))
 
 (def ^:private project-path "test/resources/all_types_project")
 
@@ -30,7 +31,7 @@
               project (test-util/setup-project! workspace)]
           true))))
 
-(def expected-dependencies
+(def ^:private expected-dependencies
   {"/test.animationset" ["/test2.animationset"]
    "/test.atlas" ["/builtins/graphics/particle_blob.png"]
    "/test.camera" []
@@ -134,6 +135,50 @@
    "/test2.animationset" []
    "/test2.gui" ["/test.material"]})
 
+(def ^:private expected-editor-dependencies
+  {"/test.animationset" []
+   "/test.atlas" []
+   "/test.camera" []
+   "/test.collection" []
+   "/test.collectionfactory" []
+   "/test.collectionproxy" []
+   "/test.collisionobject" []
+   "/test.compute" []
+   "/test.cp" []
+   "/test.cubemap" []
+   "/test.display_profiles" []
+   "/test.factory" []
+   "/test.font" []
+   "/test.fp" []
+   "/test.gamepads" []
+   "/test.gltf" []
+   "/test.go" []
+   "/test.gui" ["/builtins/fonts/default.font"]
+   "/test.gui_script" []
+   "/test.input_binding" []
+   "/test.json" []
+   "/test.label" []
+   "/test.lua" []
+   "/test.material" []
+   "/test.model" []
+   "/test.particlefx" []
+   "/test.render" []
+   "/test.render_script" []
+   "/test.script" []
+   "/test.sound" []
+   "/test.sprite" []
+   "/test.texture_profiles" []
+   "/test.tilemap" []
+   "/test.tilesource" []
+   "/test.vp" []
+   "/test.wav" []
+   "/test2.animationset" []
+   "/test2.go" []
+   "/test2.gui" ["/builtins/fonts/default.font"]
+   "/test_embedded_components.go" []
+   "/test_embedded_gos.collection" []
+   "/test_embedded_gos_referenced_components.collection" []})
+
 (defn fallback-dependencies-fn [resource-type]
   (when (#{"cp"
            "fp"
@@ -161,15 +206,21 @@
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               source-value (g/node-value node-id :source-value)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
-          (is (some? (expected-dependencies resource-path)) resource-path)
-          (is (= (sort (expected-dependencies resource-path))
-                 (sort (dependencies-fn source-value))) resource-path))))))
+          (let [expected-dependencies (expected-dependencies resource-path)
+                expected-editor-dependencies (expected-editor-dependencies resource-path)]
+            (is (some? expected-dependencies) resource-path)
+            (is (some? expected-editor-dependencies) resource-path)
+            (is (= (sort expected-dependencies)
+                   (sort (dependencies-fn source-value false))) resource-path)
+            (is (= (sort (set (concat expected-dependencies expected-editor-dependencies)))
+                   (sort (dependencies-fn source-value true))) resource-path)))))))
 
 (deftest load-order-sanity
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world project-path)
           extensions (extensions/make world)
           project (project/make-project world workspace extensions)
+
           node-id+resource-pairs
           (project/make-node-id+resource-pairs world (g/node-value project :resources))
 
@@ -181,8 +232,9 @@
                 (map-indexed (fn [node-index {:keys [resource]}]
                                [(resource/proj-path resource) node-index]))
                 node-load-infos)]
-      (doseq [[resource-path dependencies] expected-dependencies
-              dependency dependencies]
+
+      (doseq [[resource-path dependencies] (coll/merge-with into expected-dependencies expected-editor-dependencies)
+              dependency (distinct dependencies)]
         (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path))))))
 
 (def non-broken-dependencies
@@ -215,5 +267,5 @@
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
               (is (= (sort (non-broken-dependencies resource-path))
-                     (sort (dependencies-fn source-value)))
+                     (sort (dependencies-fn source-value true)))
                   resource-path))))))))
