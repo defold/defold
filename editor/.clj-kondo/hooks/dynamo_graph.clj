@@ -118,7 +118,12 @@
   (let [[_ first-node & remaining-nodes] (:children node)
         [graph-id-node binding-node body] (if (api/vector-node? first-node)
                                             [(api/token-node nil) first-node remaining-nodes]
-                                            [first-node (first remaining-nodes) (next remaining-nodes)])
+                                            (do
+                                              (api/reg-finding!
+                                                (assoc (meta first-node)
+                                                  :message "The graph-ID argument to make-nodes is deprecated."
+                                                  :type :defold/deprecated-make-nodes-graph-id))
+                                              [first-node (first remaining-nodes) (next remaining-nodes)]))
         graph-id-sym (gensym "graph-id__")]
     {:node
      (api/list-node

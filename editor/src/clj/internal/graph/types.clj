@@ -175,7 +175,7 @@
   (.getAndIncrement node-id-generator))
 
 ;; Deprecated compatibility function. Remove after 2027-09-08.
-(defn node-id->graph-id
+(defn ^:deprecated node-id->graph-id
   ^long [^long _node-id]
   0)
 

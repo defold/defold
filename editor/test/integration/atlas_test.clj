@@ -63,7 +63,7 @@
 
 (deftest image-variants-share-a-rect-but-keep-their-own-geometry
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
           project (test-util/setup-project! workspace)
           resource (test-util/make-resource!
                      workspace "/main/variants.atlas"
