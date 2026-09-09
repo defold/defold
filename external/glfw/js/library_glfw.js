@@ -206,12 +206,8 @@ var LibraryGLFW = {
       return res;
     },
 
-    onPageHide: function(event) {
+    onWindowClose: function(event) {
         GLFW.params[0x00020001] = false; // GLFW_OPENED
-    },
-
-    onPageShow: function(event) {
-        GLFW.params[0x00020001] = true; // GLFW_OPENED
     },
 
     onKeyPress: function(event) {
@@ -737,8 +733,7 @@ var LibraryGLFW = {
   glfwInitJS: function() {
     GLFW.initTime = Date.now() / 1000;
 
-    GLFW.addEventListener("pagehide", GLFW.onPageHide, true);
-    GLFW.addEventListener("pageshow", GLFW.onPageShow, true);
+    GLFW.addEventListener("pagehide", GLFW.onWindowClose, true);
     GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.addEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.addEventListener("keydown", GLFW.onKeydown, true);
@@ -823,8 +818,7 @@ var LibraryGLFW = {
   },
 
   glfwTerminate: () => {
-    GLFW.removeEventListener("pagehide", GLFW.onPageHide, true);
-    GLFW.removeEventListener("pageshow", GLFW.onPageShow, true);
+    GLFW.removeEventListener("pagehide", GLFW.onWindowClose, true);
     GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
