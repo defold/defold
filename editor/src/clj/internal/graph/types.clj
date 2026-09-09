@@ -130,6 +130,31 @@
 
 (defonce/record Graph [nodes sarcs successors tarcs tx-id graph-values overrides node->overrides])
 
+(defn graph-arc-count [^Graph graph]
+  (reduce-kv
+    (fn [arc-count _source-id label->arc-table]
+      (reduce-kv
+        (fn [arc-count _source-label arc-table]
+          (unchecked-add
+            (long arc-count)
+            (long
+              (if (instance? Arc arc-table)
+                1
+                (count arc-table)))))
+        arc-count
+        label->arc-table))
+    0
+    (.-sarcs graph)))
+
+(defmethod print-method Graph [^Graph graph ^Writer writer]
+  (.write writer "#g/graph {:tx-id ")
+  (print-method (.-tx-id graph) writer)
+  (.write writer " :nodes ")
+  (print-method (count (.-nodes graph)) writer)
+  (.write writer " :arcs ")
+  (print-method (graph-arc-count graph) writer)
+  (.write writer "}"))
+
 (defn graph? [value]
   (instance? Graph value))
 

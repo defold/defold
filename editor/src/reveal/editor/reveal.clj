@@ -43,7 +43,7 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
-           [internal.graph.types Arc Endpoint]
+           [internal.graph.types Arc Endpoint Graph]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.scene Parent]
            [javax.vecmath Color3f Color4f Matrix3d Matrix3f Matrix4d Matrix4f Point2d Point2f Point3d Point3f Point4d Point4f Quat4d Quat4f Tuple2d Tuple2f Tuple3d Tuple3f Tuple4d Tuple4f Vector2d Vector2f Vector3d Vector3f Vector4d Vector4f]))
@@ -303,6 +303,22 @@
     r/separator
     (r/stream (g/endpoint-label endpoint))
     (r/raw-string "]" {:fill :object})))
+
+(r/defstream Graph [graph]
+  (r/horizontal
+    (r/raw-string "#g/graph {" {:fill :object})
+    (r/stream :tx-id)
+    r/separator
+    (r/stream (gt/tx-id graph))
+    r/separator
+    (r/stream :nodes)
+    r/separator
+    (r/stream (count (gt/nodes graph)))
+    r/separator
+    (r/stream :arcs)
+    r/separator
+    (r/stream (gt/graph-arc-count graph))
+    (r/raw-string "}" {:fill :object})))
 
 (defn- read-file-resource [str-expr]
   `(workspace/resolve-workspace-resource (workspace) ~str-expr))
