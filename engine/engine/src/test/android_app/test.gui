@@ -1,0 +1,2 @@
+script: "/test.gui_script"
+material: "/builtins/materials/gui.material"

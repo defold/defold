@@ -50,13 +50,20 @@ function terminate_trap() {
 # Script environment
 # ----------------------------------------------------------------------------
 [ ! -z "${DYNAMO_HOME:-}" ] || terminate "DYNAMO_HOME is not set"
-DEFOLD_HOME="$(cd "${DYNAMO_HOME}/../.."; pwd)"
+DEFOLD_HOME="$(cd "${SCRIPT_PATH}/../.."; pwd)"
 
-eval $(python $DEFOLD_HOME/build_tools/set_sdk_vars.py ANDROID_NDK_VERSION ANDROID_BUILD_TOOLS_VERSION)
+eval "$(python3 "${DEFOLD_HOME}/build_tools/set_sdk_vars.py" ANDROID_NDK_VERSION)"
+if [ -z "${ANDROID_BUILD_TOOLS_VERSION:-}" ]; then
+    eval "$(python3 "${DEFOLD_HOME}/build_tools/set_sdk_vars.py" ANDROID_BUILD_TOOLS_VERSION)"
+fi
 
-PLATFORM="darwin-x86_64"
-ANDROID_NDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}"
-ANDROID_SDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-sdk"
+case "$(uname -s)" in
+    Darwin) PLATFORM="darwin-x86_64" ;;
+    Linux) PLATFORM="linux-x86_64" ;;
+    *) terminate "ASAN repacking requires a macOS or Linux host" ;;
+esac
+ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-${ANDROID_NDK_HOME:-${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}}}"
+ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${DYNAMO_HOME}/ext/SDKs/android-sdk}}"
 
 [ -d "${ANDROID_NDK_ROOT}" ] || terminate "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT} does not exist"
 [ -d "${ANDROID_SDK_ROOT}" ] || terminate "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT} does not exist"
@@ -96,7 +103,7 @@ fi
 
 ZIP="zip"
 UNZIP="unzip"
-ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-macos/zipalign"
+ZIPALIGN="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/zipalign"
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 AAPT2="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/aapt2"
 KEYTOOL="keytool"
@@ -187,35 +194,26 @@ else
     KEYSTORE_PASS="$(cd "$(dirname "${KEYSTORE_PASS}")"; pwd)/$(basename "${KEYSTORE_PASS}")"
 fi
 
-ASAN_PATH_32=$(find ${ANDROID_NDK_ROOT} -iname "libclang_rt.asan-arm-android.so")
-ASAN_PATH_64=$(find ${ANDROID_NDK_ROOT} -iname "libclang_rt.asan-aarch64-android.so")
-
 WRAP_ASAN=${SCRIPT_PATH}/android-wrap-asan.sh
 
 "${UNZIP}" -q "${SOURCE}" -d "${BUILD}"
 (
     cd "${BUILD}"
 
-    for file in `ls ./lib/armeabi-v7a/*.so`; do
-        ASAN_DEPENDENCY=$(${OBJDUMP} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
-        if [ "$ASAN_DEPENDENCY" != "" ]; then
-            echo "Found ASAN dependency in $file"
-            cp -v ${ASAN_PATH_32} "lib/armeabi-v7a/"
-            echo "Copying wrapper script"
-            cp -v ${WRAP_ASAN} "lib/armeabi-v7a/wrap.sh"
-            break
-        fi
-    done
-
-    for file in `ls ./lib/arm64-v8a/*.so`; do
-        ASAN_DEPENDENCY=$(${OBJDUMP} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
-        if [ "$ASAN_DEPENDENCY" != "" ]; then
-            echo "Found ASAN dependency in $file"
-            cp -v ${ASAN_PATH_64} "lib/arm64-v8a/"
-            echo "Copying wrapper script"
-            cp -v ${WRAP_ASAN} "lib/arm64-v8a/wrap.sh"
-            break
-        fi
+    for abi in armeabi-v7a arm64-v8a x86_64; do
+        [ -d "lib/${abi}" ] || continue
+        for file in "lib/${abi}/"*.so; do
+            [ -f "${file}" ] || continue
+            ASAN_DEPENDENCY=$("${OBJDUMP}" -p "${file}" | awk '/NEEDED.*libclang_rt.asan/ {print $2}')
+            if [ -n "${ASAN_DEPENDENCY}" ]; then
+                ASAN_PATH=$(find "${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/lib" -name "${ASAN_DEPENDENCY}")
+                [ -f "${ASAN_PATH}" ] || terminate "Matching ASAN runtime not found: ${ASAN_DEPENDENCY}"
+                echo "Found ASAN dependency in ${file}"
+                cp -v "${ASAN_PATH}" "lib/${abi}/"
+                cp -v "${WRAP_ASAN}" "lib/${abi}/wrap.sh"
+                break
+            fi
+        done
     done
 
     rm -rf "META-INF"

@@ -1,0 +1,109 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Licensed under the Defold License version 1.0
+
+local run_id = sys.get_config_string("android_test.run_id")
+
+local function report(event, data)
+    data = data or {}
+    data.event = event
+    data.run_id = run_id
+    print("ANDROID_APP_TEST " .. json.encode(data))
+end
+
+local function on_window(self, event, data)
+    if event == window.WINDOW_EVENT_FOCUS_LOST then
+        report("focus_lost")
+    elseif event == window.WINDOW_EVENT_FOCUS_GAINED then
+        report("focus_gained")
+    elseif event == window.WINDOW_EVENT_RESIZED then
+        report("resize", { width = data.width, height = data.height })
+    end
+end
+
+function init(self)
+    sys.set_error_handler(function(source, message, traceback)
+        report("failure", { message = message, traceback = traceback })
+        msg.post("@system:", "exit", { code = 1 })
+    end)
+    assert(sys.load_resource("/fixture.txt") == "Android APK asset test\n")
+    local path = sys.get_save_file("android_asan", "roundtrip")
+    assert(sys.save(path, { value = 42 }))
+    assert(sys.load(path).value == 42)
+    assert(sys.get_sys_info().system_name == "Android")
+    window.set_dim_mode(window.DIMMING_OFF)
+    window.set_listener(on_window)
+    msg.post(".", "acquire_input_focus")
+    sound.play("#sound")
+    self.frames = 0
+    self.probes = 0
+    self.touches = 0
+    self.connections = 0
+    self.disconnections = 0
+    self.text = ""
+end
+
+function update(self, dt)
+    self.frames = self.frames + 1
+    if self.frames >= 10 and not self.ready and window.get_dim_mode() == window.DIMMING_OFF then
+        self.ready = true
+        report("ready")
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("painted") then
+        message.width, message.height = window.get_size()
+        report("frame", message)
+    end
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("probe") and action.pressed then
+        self.probes = self.probes + 1
+        local blue = self.probes % 2 == 1
+        msg.post("#gui", "paint", { sequence = self.probes,
+            r = 0.125, g = blue and 0.25 or 0.75, b = blue and 0.75 or 0.25 })
+    elseif action_id == hash("touch") and action.pressed then
+        self.touches = self.touches + 1
+        report("touch", { count = self.touches, x = action.x, y = action.y })
+    elseif action_id == hash("keyboard") and action.pressed then
+        self.text = ""
+        msg.post("#gui", "keyboard")
+        report("keyboard")
+    elseif action_id == hash("text") and action.text then
+        self.text = self.text .. action.text
+        report("text", { text = self.text })
+    elseif action_id == hash("back") and action.pressed then
+        msg.post("#gui", "hide_keyboard")
+        report("back")
+    elseif action_id == hash("connected") then
+        assert(action.gamepad_name == "Defold ASAN Gamepad", action.gamepad_name)
+        self.connections = self.connections + 1
+        self.last_gamepad = nil
+        report("connected", { count = self.connections, index = action.gamepad,
+            name = action.gamepad_name, guid = action.gamepad_guid })
+    elseif action_id == hash("disconnected") then
+        self.disconnections = self.disconnections + 1
+        report("disconnected", { count = self.disconnections, index = action.gamepad })
+    elseif action_id == hash("button") then
+        report("button", { value = action.value, pressed = action.pressed,
+            released = action.released, index = action.gamepad })
+    elseif action_id == hash("gamepad") then
+        local axes = {}
+        for i = 1, 8 do axes[i] = action.gamepad_axis[i] end
+        local packet = { axes = axes, button = action.gamepad_buttons[1], index = action.gamepad }
+        local encoded = json.encode(packet)
+        if encoded ~= self.last_gamepad then
+            self.last_gamepad = encoded
+            report("gamepad", packet)
+        end
+    elseif action_id == hash("finish") and action.pressed then
+        assert(self.connections >= 3 and self.connections == self.disconnections)
+        assert(self.touches >= 3 and self.probes >= 4)
+        assert(self.text == "asan")
+        sound.stop("#sound")
+        report("complete")
+        msg.post("@system:", "exit", { code = 0 })
+    end
+    return true
+end

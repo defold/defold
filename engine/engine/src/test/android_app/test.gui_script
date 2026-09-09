@@ -1,0 +1,31 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Licensed under the Defold License version 1.0
+
+function init(self)
+    self.box = gui.new_box_node(vmath.vector3(320, 240, 0), vmath.vector3(640, 480, 0))
+    gui.set_adjust_mode(self.box, gui.ADJUST_STRETCH)
+    gui.set_color(self.box, vmath.vector4(0.125, 0.75, 0.25, 1))
+end
+
+function update(self, dt)
+    if self.paint then
+        self.frames = self.frames - 1
+        if self.frames == 0 then
+            msg.post("main:/main#script", "painted", self.paint)
+            self.paint = nil
+        end
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("paint") then
+        gui.set_color(self.box, vmath.vector4(message.r, message.g, message.b, 1))
+        self.paint = message
+        self.frames = 3
+    elseif message_id == hash("keyboard") then
+        gui.reset_keyboard()
+        gui.show_keyboard(gui.KEYBOARD_TYPE_DEFAULT, false)
+    elseif message_id == hash("hide_keyboard") then
+        gui.hide_keyboard()
+    end
+end

@@ -13,6 +13,12 @@ project(${DEFOLD_SOLUTION_NAME} LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 # Load full Defold CMake (platform flags, interface target, etc.)
 include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
 
+# Instrument the Android app layer as well as the engine. Linking the packaged
+# GLFW archives would leave their input and lifecycle code without ASAN checks.
+if(WITH_ASAN AND TARGET_PLATFORM_OS STREQUAL "android")
+  add_subdirectory(external/glfw)
+endif()
+
 set(DEFOLD_BOB_DIR "${CMAKE_CURRENT_LIST_DIR}/com.dynamo.cr/com.dynamo.cr.bob")
 set(DEFOLD_BOB_LIGHT_JAR "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar" CACHE FILEPATH "Path to generated bob-light.jar" FORCE)
 if(CMAKE_HOST_WIN32)

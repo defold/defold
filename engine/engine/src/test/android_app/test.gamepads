@@ -1,0 +1,6 @@
+driver {
+  device: "Defold ASAN Gamepad"
+  platform: "android"
+  dead_zone: 0.0
+  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }
+}

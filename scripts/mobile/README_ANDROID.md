@@ -124,6 +124,45 @@ Note: The wrap.sh support was added in Android O (API 27).
 [Documentation - wrap.sh](https://developer.android.com/ndk/guides/wrap-script#creating_the_wrap_shell_script)
 [Documentation - Asan](https://developer.android.com/ndk/guides/asan)
 
+### ASAN APK integration test
+
+The Android nightly runs `scripts/mobile/test_android_app.py` after the native
+unit tests, on the same x86_64 emulator. This bundles the small project in
+`engine/engine/src/test/android_app` with the locally built ASAN engine and the
+Java activity from the checkout. Android ASAN builds through the root CMake
+project also compile GLFW from source with ASAN, including its lifecycle and
+gamepad code.
+
+With an ASAN engine installed in `DYNAMO_HOME`, run from the repository root:
+
+```sh
+python3 scripts/mobile/test_android_app.py --device emulator-5554 \
+    --ndk "$ANDROID_NDK_HOME"
+```
+
+Pass `--engine /absolute/path/to/libdmengine.so` for a CMake build that has not
+been installed, and `--sdk /path/to/android-sdk` if needed. The NDK must match
+the one used to compile the engine. `--build-only` prepares the APK without a
+device; `--skip-build` reruns the APK in the output directory. The ASAN test
+requires an x86_64 emulator, normally on a Linux host with KVM. ARM64/HWASAN
+coverage is separate future work.
+
+The test checks packaged asset loading, save-file round trips, screen dimming,
+audio startup, touch, keyboard input, Back, focus events, repeated
+background/resume transitions, and rotation. A GUI color change and screenshot
+check verify that OpenGL ES rendering continues after each transition. Android's
+`uinput` tool registers a virtual gamepad, sends buttons, stick/trigger/D-pad
+axes, and removes the device on EOF. The app must report controller discovery,
+input values, release, disconnection, and clean state after reconnection.
+
+Use a dedicated emulator: the runner reinstalls `com.defold.androidasan` and
+temporarily changes rotation and keyboard settings, restoring those settings
+afterward. It requires `uinput` and fails if the requested cases cannot run.
+It verifies that the ASAN runtime is loaded and requires explicit app events
+and completion, with timeouts. Logs, screenshots, results, the APK, and the
+matching unstripped engine are saved under `build/android-asan-app` by default;
+the nightly uploads these as the `android-asan-app` artifact.
+
 ### C++ and ASAN
 
 You need to set some compiler+linker flags. We suggest you add a `game.appmanifest` file, and set that in the `game.project` setting `native_extension.app_manifest`:

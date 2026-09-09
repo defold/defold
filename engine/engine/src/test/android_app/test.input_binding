@@ -1,0 +1,10 @@
+mouse_trigger { input: MOUSE_BUTTON_1 action: "touch" }
+key_trigger { input: KEY_F1 action: "probe" }
+key_trigger { input: KEY_F2 action: "keyboard" }
+key_trigger { input: KEY_F3 action: "finish" }
+key_trigger { input: KEY_BACK action: "back" }
+text_trigger { input: TEXT action: "text" }
+gamepad_trigger { input: GAMEPAD_CONNECTED action: "connected" }
+gamepad_trigger { input: GAMEPAD_DISCONNECTED action: "disconnected" }
+gamepad_trigger { input: GAMEPAD_RAW action: "gamepad" }
+gamepad_trigger { input: GAMEPAD_RPAD_DOWN action: "button" }

@@ -1,0 +1,3 @@
+sound: "/test.wav"
+looping: 1
+gain: 0.05

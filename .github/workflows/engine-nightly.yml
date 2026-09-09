@@ -148,6 +148,8 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android' }}
     runs-on: ubuntu-22.04
     timeout-minutes: 90
+    env:
+      ANDROID_NDK_VERSION: '27.0.12077973'
     steps:
       - name: 'Checkout'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6.0.2
@@ -173,7 +175,7 @@ jobs:
         with:
           # NDK 27 fixes ASAN allocator collisions with x86_64 ASLR.
           # https://reviews.llvm.org/D148280
-          android-ndk: '27.0.12077973'
+          android-ndk: '${{ env.ANDROID_NDK_VERSION }}'
           android-api-level: '${{ env.ANDROID_API_LEVEL }}'
           android-build-tools: '36.1.0'
       - name: 'Install dependencies'
@@ -202,13 +204,28 @@ jobs:
           force-avd-creation: false
           disable-animations: true
           emulator-options: '-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none'
-          # Keep the emulator running for both the engine build and its tests.
+          # Keep the emulator running for the native suite and APK integration test.
           script: |-
             ANDROID_SERIAL=$(adb devices | awk '$2=="device"{print $1; exit}')
             if [ -z "$ANDROID_SERIAL" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi
             export ANDROID_SERIAL
             python build_tools/build_android.py can-run-tests --platform x86_64-android --device "$ANDROID_SERIAL"
             ci/ci.sh --platform=x86_64-android --with-asan --skip-builtins --skip-docs engine
+            python scripts/mobile/test_android_app.py --device "$ANDROID_SERIAL" --ndk "$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+      - name: 'Upload Android APK test results'
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-asan-app
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |-
+            build/android-asan-app/*.log
+            build/android-asan-app/*.txt
+            build/android-asan-app/*.json
+            build/android-asan-app/*.png
+            build/android-asan-app/*.apk
+            build/android-asan-app/*.so
       - name: 'Notify if build status changed'
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v3.0.5
         if: failure()

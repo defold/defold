@@ -1,0 +1,25 @@
+[project]
+title = Android ASAN Test
+custom_resources = /fixture.txt
+
+[bootstrap]
+main_collection = /main.collectionc
+
+[display]
+width = 640
+height = 480
+dynamic_orientation = 1
+
+[input]
+game_binding = /test.input_bindingc
+gamepads = /test.gamepadsc
+
+[android]
+package = com.defold.androidasan
+debuggable = 1
+extract_native_libs = 1
+minimum_sdk_version = 27
+target_sdk_version = 36
+immersive_mode = 1
+display_cutout = 1
+input_method = HiddenInputField

@@ -40,7 +40,6 @@ fi
 
 ASAN_LIB=$(ls "$HERE"/libclang_rt.asan-*-android.so)
 export LD_PRELOAD=${ASAN_LIB}
-export ASAN_OPTIONS=log_to_syslog=false,allow_user_segv_handler=1,fast_unwind_on_malloc=1
+export ASAN_OPTIONS=log_to_syslog=false:allow_user_segv_handler=1:fast_unwind_on_malloc=1
 
 exec $cmd
-
