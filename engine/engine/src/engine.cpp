@@ -793,16 +793,16 @@ namespace dmEngine
     }
 
     /**
-     * Applies the effective swap interval to the graphics context. Presentation
-     * pacing is disabled when an explicit update frequency uses engine-side
-     * frame pacing.
+     * Applies the effective swap interval to the graphics context. Engine-side
+     * pacing requests interval 0 to disable presentation vsync where supported.
      * @param engine [type:HEngine] engine instance
      */
     static void ApplyEffectiveSwapInterval(HEngine engine)
     {
         // An explicit update frequency is timer-paced on platforms whose engine
-        // owns the application loop. Disable presentation pacing in that mode so
-        // Flip() cannot add a presentation wait to the engine timer's pacing.
+        // owns the application loop. Request interval 0 to avoid an additional
+        // vsync wait. The backend or driver may still impose presentation waits,
+        // and waiting for available GPU resources can also block the frame.
         uint32_t effective_swap_interval = UseEngineFramePacing() && engine->m_UpdateFrequency != 0 ? 0 : engine->m_SwapInterval;
         if (effective_swap_interval != engine->m_EffectiveSwapInterval)
         {
@@ -2441,19 +2441,20 @@ bail:
     }
 
     /**
-     * Calculates the simulation step for a timer-paced frame while carrying a
-     * signed elapsed-minus-simulated time balance. Positive balance smaller than
-     * one fixed step is retained. Once it reaches one fixed step, catch-up is
-     * applied up to the additional time allowed by max_time_step. Consequently,
-     * positive lag is less than one fixed step after any larger,
-     * max_time_step-limited hitch debt has been repaid. Negative balance records
-     * simulation time already advanced.
-     * Elapsed time is hitch-clamped to at least the intentional fixed interval,
-     * since fixed steps longer than max_time_step must not create false credit.
+     * Calculates the simulation step for a timer-paced frame. The signed balance
+     * tracks accounted elapsed time minus simulated time, not raw wall time.
+     * Elapsed time is capped at max(max_time_step, fixed_dt); any excess is
+     * discarded permanently. The fixed interval is allowed to exceed
+     * max_time_step when the application intentionally requests a low frame cap.
+     * Positive balance below one fixed step is retained. At or above that
+     * threshold, catch-up adds at most max(0, max_time_step - fixed_dt).
+     * Negative balance shortens the step, down to zero, and any remaining credit
+     * is retained for subsequent frames. Neither correction changes the pacer's
+     * deadlines or adds extra update/render passes.
      * @param frame_dt [type:float] elapsed time for the current frame in seconds
      * @param fixed_dt [type:float] requested fixed simulation step in seconds
-     * @param max_time_step [type:float] maximum simulation step in seconds
-     * @param frame_time_balance [type:float&] elapsed-minus-simulated time balance to update
+     * @param max_time_step [type:float] hitch limit in seconds; an intentional longer fixed interval takes precedence
+     * @param frame_time_balance [type:float&] accounted-elapsed-minus-simulated time balance to update
      * @return step_dt [type:float] simulation step for the current frame
      */
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance)
@@ -2509,13 +2510,11 @@ bail:
 
         if (frame_was_paced)
         {
-            // The engine timer owns this frame's cadence. Keep the simulation
-            // step fixed through ordinary timer jitter. If frames consistently
-            // miss their deadlines, retain the elapsed-time debt and periodically
-            // apply it through one larger step, capped by max_time_step. Once any
-            // capped hitch debt is repaid, simulation time trails elapsed time by
-            // less than one fixed step. Update and render remain coupled and run
-            // only once per engine frame.
+            // The timer controls cadence independently of the simulation step.
+            // Prefer a fixed step, shortening it to repay credit or enlarging it
+            // to catch up with accounted elapsed time. Hitch-clamped time is
+            // discarded, so accumulated dt need not match raw wall-clock time.
+            // Update and render remain coupled and run once per engine frame.
             step_dt = CalcPacedTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, engine->m_PacedFrameTimeDebt);
             num_steps = 1;
 
@@ -2565,7 +2564,9 @@ bail:
         // Choose at the frame boundary whether PaceFrame's timer or Flip's
         // presentation vsync will wait for the next frame. Runtime setting changes
         // made during StepFrame only update the requested state, so the current
-        // frame keeps the mechanism selected at its start and cannot wait in both.
+        // frame keeps the pacing request selected at its start. This avoids
+        // enabling presentation vsync halfway through a timer-paced frame;
+        // actual presentation waits still depend on the backend and driver.
         // Platform-owned loops still apply their requested swap interval here even
         // though they do not use the engine-side timer.
         ApplyEffectiveSwapInterval(engine);

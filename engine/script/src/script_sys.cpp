@@ -1303,15 +1303,16 @@ union SaveLoadBuffer
     }
 
     /*# set vsync swap interval
-    * Set the vsync swap interval. The interval with which to swap the front and back buffers
-    * in sync with vertical blanks (v-blank), the hardware event where the screen image is updated
-    * with data from the front buffer. A value of 1 swaps the buffers at every v-blank, a value of
-    * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank
-    * before swapping the buffers. Default value is 1.
+    * Request a presentation interval relative to vertical blanks (v-blank).
+    * 0 requests disabling vsync and 1 requests presenting every refresh (the default).
+    * OpenGL may support larger intervals, such as 2 for every other refresh.
+    * Vulkan and Metal treat any nonzero interval as enabling vsync; DX12 clamps
+    * intervals to the supported range 0 through 4. Actual behavior depends on
+    * the backend, platform, and driver.
     *
     * On platforms where Defold owns the application loop, a positive
     * `display.update_frequency` or a positive value set by `sys.set_update_frequency()`
-    * uses timer pacing and temporarily disables presentation vsync. The requested
+    * uses timer pacing and requests a swap interval of 0. The requested
     * swap interval is retained and applied again when the update frequency is set to 0.
     *
     * This setting may be overridden by driver settings.
@@ -1320,7 +1321,7 @@ union SaveLoadBuffer
     * @param swap_interval [type:number] target swap interval.
     * @examples
     *
-    * Setting the swap intervall to swap every v-blank
+    * Setting the swap interval to swap every v-blank
     *
     * ```lua
     * sys.set_vsync_swap_interval(1)
@@ -1346,12 +1347,19 @@ union SaveLoadBuffer
     * Set game update-frequency (frame cap). This option is equivalent to
     * `display.update_frequency` in the "game.project" settings but set at run-time.
     * On platforms where Defold owns the application loop, a positive value uses
-    * timer pacing and temporarily disables presentation vsync to avoid waiting for
-    * the same frame twice. Setting the frequency to 0 restores the requested swap
+    * timer pacing and requests a swap interval of 0 to avoid an additional vsync
+    * wait where supported. Setting the frequency to 0 restores the requested swap
     * interval and uses variable-rate updates. Platform-owned loops, such as HTML5
     * and iOS, retain their platform scheduling and presentation behavior. There is
     * no guarantee that the frame cap will be achieved depending on platform and
     * hardware constraints.
+    *
+    * With engine-side timer pacing, the update dt can be shortened or enlarged to
+    * account for elapsed time; the frame cap does not guarantee a constant dt.
+    * Elapsed time beyond max(engine.max_time_step, 1 / frequency) is discarded,
+    * so accumulated dt can trail wall-clock time after hitches. An intentional
+    * fixed interval longer than engine.max_time_step is allowed. This setting
+    * is separate from the fixed_update() timestep.
     *
     * @name sys.set_update_frequency
     * @param frequency [type:number] target frequency in hertz. 0 selects a variable

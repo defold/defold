@@ -169,7 +169,7 @@ namespace dmEngine
         uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
         uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
         uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
-        float                                       m_PacedFrameTimeDebt;       // Signed elapsed-versus-simulated time balance, preserved across pacing modes
+        float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
         float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_FixedUpdateFrequency;
@@ -257,11 +257,11 @@ namespace dmEngine
     // integer microsecond rounding error. Exposed here for unit testing.
     uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder);
 
-    // Calculates a timer-paced simulation step while preserving the signed
-    // elapsed-minus-simulated time balance. Elapsed time is hitch-clamped to at
-    // least the intentional fixed interval. Positive balance below one fixed
-    // step is retained; larger corrections are capped by max_time_step. Exposed
-    // here for deterministic unit testing.
+    // Calculates a timer-paced simulation step. The balance tracks elapsed time
+    // capped at max(max_time_step, fixed_dt), minus simulated time; excess hitch
+    // time is discarded. Positive balance below fixed_dt is retained. Catch-up
+    // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
+    // step without allowing negative dt. Exposed for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
 
     /**
