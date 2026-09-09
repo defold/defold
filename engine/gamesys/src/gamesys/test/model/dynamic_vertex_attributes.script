@@ -28,6 +28,21 @@ local function matrix4(...)
     return matrix
 end
 
+local function matrix3_as_matrix4(matrix)
+    local result = vmath.matrix4()
+    result.c0 = vmath.vector4(matrix.c0.x, matrix.c0.y, matrix.c0.z, 0)
+    result.c1 = vmath.vector4(matrix.c1.x, matrix.c1.y, matrix.c1.z, 0)
+    result.c2 = vmath.vector4(matrix.c2.x, matrix.c2.y, matrix.c2.z, 0)
+    return result
+end
+
+local function matrix2_as_matrix4(matrix)
+    local result = vmath.matrix4()
+    result.c0 = vmath.vector4(matrix.c0.x, matrix.c0.y, 0, 0)
+    result.c1 = vmath.vector4(matrix.c1.x, matrix.c1.y, 0, 0)
+    return result
+end
+
 local function test_go_get()
     assert_custom_color(vmath.vector4(1,0,0,1))
     go.set("#model", "custom_color", vmath.vector4(0,1,0,1))
@@ -37,6 +52,15 @@ local function test_go_get()
     local custom_transform = matrix4(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
     go.set("#model", "custom_transform", custom_transform)
     assert_mat4(custom_transform, go.get("#model", "custom_transform"))
+
+    assert_mat4(vmath.matrix4(), go.get("#model", "custom_mat3"))
+    go.set("#model", "custom_mat3", custom_transform)
+    assert_mat4(matrix3_as_matrix4(custom_transform), go.get("#model", "custom_mat3"))
+
+    assert_mat4(vmath.matrix4(), go.get("#model", "custom_mat2"))
+    assert_error(function() go.set("#model", "custom_mat2", vmath.vector4(1, 2, 3, 4)) end)
+    go.set("#model", "custom_mat2", custom_transform)
+    assert_mat4(matrix2_as_matrix4(custom_transform), go.get("#model", "custom_mat2"))
 end
 
 function init(self)

@@ -10124,6 +10124,89 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     dmResource::Release(m_Factory, material_res);
 }
 
+TEST_F(MaterialTest, DynamicMatrixVertexAttributes)
+{
+    dmGameSystem::MaterialResource* material_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/matrix_attributes.materialc", (void**)&material_res));
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    DynamicVertexAttributesContext ctx;
+    ctx.m_Attributes.SetCapacity(1);
+
+    dmGameSystem::DynamicAttributePool dynamic_attribute_pool;
+    InitializeMaterialAttributeInfos(dynamic_attribute_pool, 1);
+    uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+    dmGameObject::PropertyDesc desc = {};
+
+    const float expected_default_mat3[16] = {
+        1.0f, 2.0f, 3.0f, 0.0f,
+        4.0f, 5.0f, 6.0f, 0.0f,
+        7.0f, 8.0f, 9.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("custom_mat3"), desc, Test_GetMaterialAttributeCallback, &ctx));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_MATRIX4, desc.m_Variant.m_Type);
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_NEAR(expected_default_mat3[i], desc.m_Variant.m_M4[i], EPSILON);
+    }
+
+    const float expected_default_mat2[16] = {
+        10.0f, 11.0f, 0.0f, 0.0f,
+        12.0f, 13.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("custom_mat2"), desc, Test_GetMaterialAttributeCallback, &ctx));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_MATRIX4, desc.m_Variant.m_Type);
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_NEAR(expected_default_mat2[i], desc.m_Variant.m_M4[i], EPSILON);
+    }
+
+    dmGameObject::PropertyVar vector_value(dmVMath::Vector4(1.0f, 2.0f, 3.0f, 4.0f));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_TYPE, SetMaterialAttribute(dynamic_attribute_pool, &index, material, dmHashString64("custom_mat2"), vector_value, Test_GetMaterialAttributeCallback, &ctx, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_TYPE, SetMaterialAttribute(dynamic_attribute_pool, &index, material, dmHashString64("custom_mat3"), vector_value, Test_GetMaterialAttributeCallback, &ctx, 0));
+    ASSERT_EQ(dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX, index);
+
+    dmVMath::Matrix4 matrix_value(
+        dmVMath::Vector4(1.0f, 2.0f, 3.0f, 4.0f),
+        dmVMath::Vector4(5.0f, 6.0f, 7.0f, 8.0f),
+        dmVMath::Vector4(9.0f, 10.0f, 11.0f, 12.0f),
+        dmVMath::Vector4(13.0f, 14.0f, 15.0f, 16.0f));
+    dmGameObject::PropertyVar matrix_property(matrix_value);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, dmHashString64("custom_mat3"), matrix_property, Test_GetMaterialAttributeCallback, &ctx, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("custom_mat3"), desc, Test_GetMaterialAttributeCallback, &ctx));
+    const float expected_mat3[16] = {
+        1.0f, 2.0f, 3.0f, 0.0f,
+        5.0f, 6.0f, 7.0f, 0.0f,
+        9.0f, 10.0f, 11.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_NEAR(expected_mat3[i], desc.m_Variant.m_M4[i], EPSILON);
+    }
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, dmHashString64("custom_mat2"), matrix_property, Test_GetMaterialAttributeCallback, &ctx, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("custom_mat2"), desc, Test_GetMaterialAttributeCallback, &ctx));
+    const float expected_mat2[16] = {
+        1.0f, 2.0f, 0.0f, 0.0f,
+        5.0f, 6.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_NEAR(expected_mat2[i], desc.m_Variant.m_M4[i], EPSILON);
+    }
+
+    DestroyMaterialAttributeInfos(dynamic_attribute_pool);
+    dmResource::Release(m_Factory, material_res);
+}
+
 TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -11355,15 +11438,19 @@ TEST_F(ModelTest, DynamicVertexAttributes)
     dmGraphics::HVertexDeclaration inst_decl;
     dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &vx_buffer, &vx_decl, &inst_decl);
 
-    ASSERT_EQ(2, vx_decl->m_StreamCount);
+    ASSERT_EQ(4, vx_decl->m_StreamCount);
     ASSERT_EQ(dmHashString64("custom_color"), vx_decl->m_Streams[0].m_NameHash);
     ASSERT_EQ(dmHashString64("custom_transform"), vx_decl->m_Streams[1].m_NameHash);
+    ASSERT_EQ(dmHashString64("custom_mat3"), vx_decl->m_Streams[2].m_NameHash);
+    ASSERT_EQ(dmHashString64("custom_mat2"), vx_decl->m_Streams[3].m_NameHash);
 
     // Note: The vertex buffer contains only the custom data, not the position stream!
     struct vx_format
     {
         dmVMath::Vector4 custom_color;
         dmVMath::Matrix4 custom_transform;
+        float custom_mat3[9];
+        float custom_mat2[4];
     };
 
     // Should be a cube with 24 vertices
@@ -11380,6 +11467,8 @@ TEST_F(ModelTest, DynamicVertexAttributes)
         dmVMath::Vector4(5.0f, 6.0f, 7.0f, 8.0f),
         dmVMath::Vector4(9.0f, 10.0f, 11.0f, 12.0f),
         dmVMath::Vector4(13.0f, 14.0f, 15.0f, 16.0f));
+    const float exp_mat3[9] = { 1.0f, 2.0f, 3.0f, 5.0f, 6.0f, 7.0f, 9.0f, 10.0f, 11.0f };
+    const float exp_mat2[4] = { 1.0f, 2.0f, 5.0f, 6.0f };
 
     for (int i = 0; i < exp_num_vertices; ++i)
     {
@@ -11388,6 +11477,14 @@ TEST_F(ModelTest, DynamicVertexAttributes)
         ASSERT_VEC4(exp_transform[1], vx_data[i].custom_transform[1]);
         ASSERT_VEC4(exp_transform[2], vx_data[i].custom_transform[2]);
         ASSERT_VEC4(exp_transform[3], vx_data[i].custom_transform[3]);
+        for (uint32_t element = 0; element < 9; ++element)
+        {
+            ASSERT_NEAR(exp_mat3[element], vx_data[i].custom_mat3[element], EPSILON);
+        }
+        for (uint32_t element = 0; element < 4; ++element)
+        {
+            ASSERT_NEAR(exp_mat2[element], vx_data[i].custom_mat2[element], EPSILON);
+        }
     }
 
     dmGraphics::UnmapVertexBuffer(m_GraphicsContext, vx_buffer);

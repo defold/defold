@@ -3,12 +3,16 @@
 in highp vec4 position;
 in highp vec4 custom_color;
 in highp mat4 custom_transform;
+in highp mat3 custom_mat3;
+in highp mat2 custom_mat2;
 
 out mediump vec4 var_color;
 
 void main()
 {
-    gl_Position = custom_transform * vec4(position.xyz, 1.0);
+    vec2 position2 = custom_mat2 * position.xy;
+    vec3 position3 = custom_mat3 * vec3(position2, position.z);
+    gl_Position = custom_transform * vec4(position3, 1.0);
     var_color = custom_color;
 }
 
