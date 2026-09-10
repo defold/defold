@@ -400,6 +400,128 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
+    public void testLegacyRemapsWhiteOverlayShaderStageLocations() throws Exception {
+        // Regression for github.com/defold/defold/issues/13164. The unused first
+        // fragment varying is optimized away after glslang assigns locations,
+        // leaving the two live fragment inputs at locations 1 and 2 while the
+        // corresponding vertex outputs occupy locations 0 and 1.
+        String vsShader =
+                """
+                precision mediump float;
+                precision highp int;
+                uniform mediump mat4 view_proj;
+                attribute mediump vec4 position;
+                attribute mediump vec2 texcoord0;
+                attribute lowp vec4 color;
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                void main()
+                {
+                    var_texcoord0 = texcoord0;
+                    var_color = color;
+                    gl_Position = view_proj * vec4(position.xyz, 1.0);
+                }
+                """;
+
+        String fsShader =
+                """
+                precision mediump float;
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                    precision highp int;
+                #else
+                    precision mediump int;
+                #endif
+                varying mediump vec4 position;
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                uniform lowp sampler2D texture_sampler;
+                void main()
+                {
+                    const lowp vec3 tint_color = vec3(1, 1, 1);
+                    const lowp vec4 grayscale_color = vec4(1, 1, 1, 1);
+                    const lowp float brightness = 2.0;
+                    const lowp float contrast = 1.0;
+                    lowp vec4 texture_color = texture2D(texture_sampler, var_texcoord0.xy) * var_color;
+                    lowp vec3 grayscaled_texture = vec3(dot(texture_color, grayscale_color));
+                    lowp vec3 contrasted_texture = (grayscaled_texture.rgb - 1.0) * contrast + texture_color.a * 1.0;
+                    lowp vec3 brightened_texture = contrasted_texture * brightness;
+                    gl_FragColor = vec4(brightened_texture * tint_color, texture_color.a);
+                }
+                """;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
+        shaderModuleDescs.get(0).resourcePath = "/main/materials/white_overlay/white_overlay.vp";
+        shaderModuleDescs.get(1).resourcePath = "/main/materials/white_overlay/white_overlay.fp";
+
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(
+                "/main/materials/white_overlay/white_overlay",
+                shaderModuleDescs,
+                new ShaderCompilePipeline.Options());
+        try {
+            assertTrue(pipeline instanceof ShaderCompilePipelineLegacy);
+
+            SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+            SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+            assertEquals(0, Byte.toUnsignedInt(getShaderResource(reflectorVs, "var_texcoord0").location));
+            assertEquals(0, Byte.toUnsignedInt(getShaderResource(reflectorFs, "var_texcoord0").location));
+            assertEquals(1, Byte.toUnsignedInt(getShaderResource(reflectorVs, "var_color").location));
+            assertEquals(1, Byte.toUnsignedInt(getShaderResource(reflectorFs, "var_color").location));
+
+            // Verify that crossCompile returns the remapped module, not the original
+            // per-stage bytes emitted by glslang.
+            Shaderc.ShaderCompileResult fragmentSpirv = pipeline.crossCompile(
+                    ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                    ShaderDesc.Language.LANGUAGE_SPIRV);
+            long fragmentContext = ShadercJni.NewShaderContext(
+                    Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(),
+                    fragmentSpirv.data);
+            try {
+                SPIRVReflector serializedReflector = new SPIRVReflector(fragmentContext, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+                assertEquals(0, Byte.toUnsignedInt(getShaderResource(serializedReflector, "var_texcoord0").location));
+                assertEquals(1, Byte.toUnsignedInt(getShaderResource(serializedReflector, "var_color").location));
+            } finally {
+                ShadercJni.DeleteShaderContext(fragmentContext);
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
+    public void testLegacyRejectsCrossStageVaryingTypeMismatch() throws Exception {
+        String vsShader =
+                """
+                attribute vec4 position;
+                varying vec2 var_texcoord0;
+                void main()
+                {
+                    var_texcoord0 = position.xy;
+                    gl_Position = position;
+                }
+                """;
+        String fsShader =
+                """
+                varying vec3 var_texcoord0;
+                void main()
+                {
+                    gl_FragColor = vec4(var_texcoord0, 1.0);
+                }
+                """;
+
+        ShaderCompilePipelineLegacy pipeline = new ShaderCompilePipelineLegacy("testLegacyStageValidation");
+        try {
+            try {
+                ShaderCompilePipeline.createShaderPipeline(pipeline, toShaderDescs(vsShader, fsShader), new ShaderCompilePipeline.Options());
+                fail("Expected cross-stage varying validation to fail");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage().contains("Shader stage type mismatch for 'var_texcoord0'"));
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
     public void testFailingCrossCompilation() throws IOException, CompileExceptionError {
         String fsShader =
                 """
