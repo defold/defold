@@ -1781,11 +1781,6 @@ bail:
         return a_is_text - b_is_text;
     }
 
-    static uint32_t GetLuaMemCount(HEngine engine)
-    {
-        return dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_ScriptContext));
-    }
-
     static void Exit(HEngine engine, int32_t code)
     {
         engine->m_Alive = false;
@@ -2023,7 +2018,7 @@ bail:
             } // Sim
 
             DM_PROPERTY_SET_U32(rmtp_LuaRefs, dmScript::GetLuaRefCount());
-            DM_PROPERTY_SET_U32(rmtp_LuaMem, GetLuaMemCount(engine));
+            DM_PROPERTY_SET_U32(rmtp_LuaMem, dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_ScriptContext)));
 
             if (dLib::IsDebugMode())
             {
