@@ -818,7 +818,7 @@ namespace dmEngine
         }
     }
 
-    static void SetUpdateFrequency(HEngine engine, int32_t frequency)
+    void SetUpdateFrequency(HEngine engine, int32_t frequency)
     {
         if (frequency < 0)
         {
