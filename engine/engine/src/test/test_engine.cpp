@@ -924,9 +924,8 @@ TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
 TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
 {
     // Verify that setting the active frequency again preserves the exact next
-    // deadline and fractional-period remainder.
-    if (!dmEngine::UseEngineFramePacing())
-        SKIP();
+    // deadline and fractional-period remainder. Call the setter directly: Step()
+    // may legitimately reset both if a slow runner misses the next deadline.
 
     dmEngineInitialize();
 
@@ -942,7 +941,6 @@ TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
     };
 
     bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
-    bool posted = false;
     uint64_t expected_deadline = 0;
     uint64_t deadline_after = 0;
     uint32_t expected_remainder = 0;
@@ -950,17 +948,14 @@ TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
 
     if (initialized)
     {
+        // Use an expired deadline and a carried remainder different from the
+        // first period's remainder, so either kind of reset is observable.
+        engine->m_NextFrameTime = 1;
+        engine->m_FrameTimeRemainder = 6;
         expected_deadline = engine->m_NextFrameTime;
         expected_remainder = engine->m_FrameTimeRemainder;
-        expected_deadline = dmEngine::AdvanceFrameDeadline(expected_deadline, 7, expected_remainder);
 
-        dmMessage::URL receiver = {};
-        receiver.m_Socket = engine->m_SystemSocket;
-        dmSystemDDF::SetUpdateFrequency message;
-        message.m_Frequency = 7;
-        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
-
-        dmEngine::Step(engine);
+        dmEngine::SetUpdateFrequency(engine, 7);
         deadline_after = engine->m_NextFrameTime;
         remainder_after = engine->m_FrameTimeRemainder;
     }
@@ -969,7 +964,8 @@ TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
     dmEngineFinalize();
 
     ASSERT_TRUE(initialized);
-    ASSERT_TRUE(posted);
+    ASSERT_NE(0u, expected_deadline);
+    ASSERT_NE(0u, expected_remainder);
     ASSERT_EQ(expected_deadline, deadline_after);
     ASSERT_EQ(expected_remainder, remainder_after);
 }

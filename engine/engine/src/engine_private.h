@@ -253,6 +253,10 @@ namespace dmEngine
      */
     bool UseEngineFramePacing();
 
+    // Applies a requested update frequency. Exposed for deterministic unit testing
+    // without advancing the frame pacer or depending on wall-clock deadlines.
+    void SetUpdateFrequency(HEngine engine, int32_t frequency);
+
     // Advances a deadline by one rational frame period without accumulating
     // integer microsecond rounding error. Exposed here for unit testing.
     uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder);
