@@ -1,0 +1,19 @@
+#version 140
+
+in highp vec3 position;
+in lowp vec4 color;
+
+uniform vertex_uniforms {
+    highp mat4 mtx_world_view_proj;
+    highp mat4 mtx_world_view;
+};
+
+out lowp vec4 var_color;
+out highp float var_fog_distance;
+
+void main() {
+    vec4 local_position = vec4(position, 1.0);
+    var_color = color;
+    var_fog_distance = abs((mtx_world_view * local_position).z);
+    gl_Position = mtx_world_view_proj * local_position;
+}

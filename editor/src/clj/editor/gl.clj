@@ -217,22 +217,6 @@
   (.glDisable gl GL/GL_STENCIL_TEST)
   (.glStencilMask gl 0x0))
 
-(defmacro gl-begin [gl type & body]
-  `(do
-     (.glBegin ~gl ~type)
-     (doto ~gl
-       ~@body)
-     (.glEnd ~gl)))
-
-(defmacro gl-quads [gl & body]
-  `(gl-begin ~gl GL2/GL_QUADS ~@body))
-
-(defmacro gl-lines [gl & body]
-  `(gl-begin ~gl GL/GL_LINES ~@body))
-
-(defmacro gl-triangles [gl & body]
-  `(gl-begin ~gl GL2/GL_TRIANGLES ~@body))
-
 (defmacro on-canvas [canvas & body]
   `(do
      (.setCurrent ~canvas)
@@ -545,21 +529,6 @@
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
   ([r g b a]      `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0) a])))
 
-(defmacro gl-color       [gl c]     `(.glColor4d ~gl (nth ~c 0) (nth ~c 1) (nth ~c 2) (nth ~c 3)))
-(defmacro gl-color-3f    [gl r g b]     `(.glColor3f ~gl ~r ~g ~b))
-(defmacro gl-color-4d    [gl r g b a]   `(.glColor4d ~gl ~r ~g ~b ~a))
-(defmacro gl-color-3dv+a [gl dv alpha]  `(gl-color-4d ~gl (first ~dv) (second ~dv) (nth ~dv 2) ~alpha))
-(defmacro gl-color-3dv   [gl cv off]    `(.glColor3dv ~gl ~cv ~off))
-(defmacro gl-color-3fv   [gl cv off]    `(.glColor3fv ~gl ~cv ~off))
-
-(defmacro gl-vertex-2f   [gl x y]       `(.glVertex2f ~gl ~x ~y))
-(defmacro gl-vertex-3d   [gl x y z]     `(.glVertex3d ~gl ~x ~y ~z))
-(defmacro gl-vertex-3dv
-  ([gl vtx]
-   `(.glVertex3dv ~gl ~vtx))
-  ([gl vtx off]
-   `(.glVertex3dv ~gl ~vtx ~off)))
-
 (defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 
 (defmacro gl-draw-arrays [gl prim-type start count]
@@ -610,12 +579,12 @@
 (defmacro glu-pick-matrix [glu pick-rect viewport]
   `(let [pick-rect# ~pick-rect]
      (.gluPickMatrix ~glu
-       (double (:x pick-rect#))
-       (double (- (:bottom ~viewport) (:y pick-rect#)))
-       (double (:width pick-rect#))
-       (double (:height pick-rect#))
-       (viewport-array ~viewport)
-       (int 0))))
+                     (double (:x pick-rect#))
+                     (double (- (:bottom ~viewport) (:y pick-rect#)))
+                     (double (:width pick-rect#))
+                     (double (:height pick-rect#))
+                     (viewport-array ~viewport)
+                     (int 0))))
 
 (defn overlay
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc]
@@ -624,13 +593,13 @@
    (overlay gl text-renderer chars xloc yloc r g b a 0.0))
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a ^Float rot-z]
    (gl-push-matrix gl
-                   (.glScaled gl 1 -1 1)
-                   (.glTranslated gl xloc yloc 0)
-                   (.glRotated gl rot-z 0 0 1)
-                   (.setColor text-renderer r g b a)
-                   (.begin3DRendering text-renderer)
-                   (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
-                   (.end3DRendering text-renderer))))
+     (.glScaled gl 1 -1 1)
+     (.glTranslated gl xloc yloc 0)
+     (.glRotated gl rot-z 0 0 1)
+     (.setColor text-renderer r g b a)
+     (.begin3DRendering text-renderer)
+     (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
+     (.end3DRendering text-renderer))))
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination

@@ -53,6 +53,16 @@
     "shaders/basic-color.vp"
     "shaders/basic-color.fp"))
 
+(def infinity-grid-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj
+                "mtx_world_view" :world-view
+                "fog_color" :fog-color
+                "fog_parameters" :fog-parameters}}
+    "shaders/infinity-grid.vp"
+    "shaders/infinity-grid.fp"))
+
 (def basic-texture-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
