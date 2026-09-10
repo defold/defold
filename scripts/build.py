@@ -3909,10 +3909,9 @@ class Configuration(object):
 
         if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
-            # create redirect so that the old s3 paths still work
-            # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
+            # Keep legacy archive paths working without redirecting HTTPS downloads to HTTP.
             redirect_key = self.get_archive_redirect_key(url)
-            redirect_url = url.replace("s3://", "http://")
+            redirect_url = url.replace("s3://", "https://")
 
             if not self.thread_pool:
                 self.thread_pool = ThreadPool(8)
