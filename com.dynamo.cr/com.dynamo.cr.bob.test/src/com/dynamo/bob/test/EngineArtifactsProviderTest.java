@@ -116,7 +116,7 @@ public class EngineArtifactsProviderTest {
 
     @Test
     public void testWebAndWindowsEnginesUseOriginalArtifactsAndReuseCache() throws Exception {
-        Platform[] platforms = {Platform.WasmWeb, Platform.WasmPthreadWeb, Platform.X86Win32, Platform.X86_64Win32};
+        Platform[] platforms = {Platform.WasmWeb, Platform.WasmPthreadWeb, Platform.X86_64Win32};
         for (Platform platform : platforms) {
             checkEngineDownloads(platform, "");
         }

@@ -80,13 +80,6 @@ platforms:
       symbols: []
       libs: [physics_2d, box2d, script_box2d, physics_3d]
       linkFlags: []
-  x86-win32:
-    context:
-      excludeLibs: [physics, libbox2d_defold, script_box2d_defold]
-      excludeSymbols: []
-      symbols: []
-      libs: [physics_2d.lib, libbox2d.lib, script_box2d.lib, physics_3d.lib]
-      linkFlags: []
   x86_64-win32:
     context:
       excludeLibs: [physics, libbox2d_defold, script_box2d_defold]

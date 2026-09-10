@@ -65,7 +65,7 @@ def build(bld):
     harfbuzz.env.append_unique('CXXFLAGS', OPT)
     harfbuzz.install_path = None
 
-    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+    if bld.env.PLATFORM == 'x86_64-win32':
         bld.env.STLIB_ST         = 'lib%s.lib'
         bld.env.cstlib_PATTERN   = 'lib%s.lib'
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
