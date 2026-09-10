@@ -40,8 +40,7 @@
 (def ^:private streamed-color-geometry-shader shaders/basic-color-straight-alpha-local-space)
 
 (defn quad->triangles
-  "Expands four ordered quad vertices into two triangles while preserving the
-  quad's winding."
+  "Expands four ordered quad vertices into two triangles while preserving the quad's winding."
   [[p0 p1 p2 p3 :as positions]]
   {:pre [(= 4 (count positions))]}
   [p0 p1 p2

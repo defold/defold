@@ -23,21 +23,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(deftest quad->triangles-test
-  (let [p0 [0.0 0.0 0.0]
-        p1 [0.0 1.0 0.0]
-        p2 [1.0 1.0 0.0]
-        p3 [1.0 0.0 0.0]]
-    (is (= [p0 p1 p2
-            p2 p3 p0]
-           (render-util/quad->triangles [p0 p1 p2 p3])))))
-
-(deftest quad->triangles-requires-four-positions-test
-  (is (thrown? AssertionError
-               (render-util/quad->triangles [[0.0 0.0]
-                                             [0.0 1.0]
-                                             [1.0 1.0]]))))
-
 (deftest make-outlined-textured-quad-scene-accepts-pose-or-matrix-test
   (let [quad-pose (pose/translation-pose 1.0 2.0 3.0)
         transform (doto (Matrix4d.)

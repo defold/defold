@@ -579,12 +579,12 @@
 (defmacro glu-pick-matrix [glu pick-rect viewport]
   `(let [pick-rect# ~pick-rect]
      (.gluPickMatrix ~glu
-                     (double (:x pick-rect#))
-                     (double (- (:bottom ~viewport) (:y pick-rect#)))
-                     (double (:width pick-rect#))
-                     (double (:height pick-rect#))
-                     (viewport-array ~viewport)
-                     (int 0))))
+       (double (:x pick-rect#))
+       (double (- (:bottom ~viewport) (:y pick-rect#)))
+       (double (:width pick-rect#))
+       (double (:height pick-rect#))
+       (viewport-array ~viewport)
+       (int 0))))
 
 (defn overlay
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc]
@@ -593,13 +593,13 @@
    (overlay gl text-renderer chars xloc yloc r g b a 0.0))
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a ^Float rot-z]
    (gl-push-matrix gl
-     (.glScaled gl 1 -1 1)
-     (.glTranslated gl xloc yloc 0)
-     (.glRotated gl rot-z 0 0 1)
-     (.setColor text-renderer r g b a)
-     (.begin3DRendering text-renderer)
-     (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
-     (.end3DRendering text-renderer))))
+                   (.glScaled gl 1 -1 1)
+                   (.glTranslated gl xloc yloc 0)
+                   (.glRotated gl rot-z 0 0 1)
+                   (.setColor text-renderer r g b a)
+                   (.begin3DRendering text-renderer)
+                   (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
+                   (.end3DRendering text-renderer))))
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination
