@@ -1652,9 +1652,6 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn shared-script-state? [project]
-  (some-> (settings project) (get ["script" "shared_state"])))
-
 (defn project-title [project]
   (some-> project
     (settings)
