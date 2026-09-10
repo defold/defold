@@ -38,6 +38,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <new>
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -81,6 +82,7 @@
 #include <sound/sound.h>
 
 #if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#include <sanitizer/asan_interface.h>
 #include <sanitizer/allocator_interface.h>
 #endif
 
@@ -168,7 +170,68 @@ namespace dmGameObject
 namespace dmGameSystem
 {
     dmGameObject::Result CompCollectionProxyUnloadAsync(HCollectionProxyWorld world, HCollectionProxyComponent proxy, ProxyLoadCallback cbk, void* cbk_ctx);
+
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+    // The callbacks below duplicate the normal texture set resource lifetime,
+    // so they call the same helpers as ResTextureSetCreate/Destroy.
+    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TextureSet* texture_set_ddf, TextureSetResource* tile_set, const char* filename, bool reload);
+    void               ReleaseResources(dmResource::HFactory factory, TextureSetResource* tile_set);
+#endif
+} // namespace dmGameSystem
+
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+// The resource factory normally allocates TextureSetResource with new. These
+// test callbacks instead construct it in one fixed block, guaranteeing that two
+// consecutively created atlases have the same outer resource address.
+//
+// Only that outer address is controlled. AcquireResources and ReleaseResources
+// still allocate and free the atlas DDF, textures, and animation tables through
+// the production resource code, which lets ASan observe the real dangling read.
+static void*              g_ReusedTextureSetStorage = 0;
+static bool               g_ReusedTextureSetStorageInUse = false;
+
+static dmResource::Result CreateTextureSetInReusedStorage(const dmResource::ResourceCreateParams* params)
+{
+    assert(g_ReusedTextureSetStorage != 0);
+    assert(!g_ReusedTextureSetStorageInUse);
+
+    // Reconstruct the lightweight resource wrapper at the same address. Its
+    // constructor also resets m_TexturesGeneration to zero, as in production.
+    dmGameSystem::TextureSetResource* texture_set = new (g_ReusedTextureSetStorage) dmGameSystem::TextureSetResource();
+    g_ReusedTextureSetStorageInUse = true;
+
+    // Keep parsing, dependency acquisition, and DDF allocation identical to the
+    // real texturesetc create callback.
+    dmGameSystem::PhysicsContextBox2D* physics_context = (dmGameSystem::PhysicsContextBox2D*)params->m_Context;
+    dmResource::Result                 result = dmGameSystem::AcquireResources(physics_context->m_Context, params->m_Factory, (dmGameSystemDDF::TextureSet*)params->m_PreloadData, texture_set, params->m_Filename, false);
+    if (result == dmResource::RESULT_OK)
+    {
+        dmResource::SetResource(params->m_Resource, texture_set);
+        dmResource::SetResourceSize(params->m_Resource, sizeof(*texture_set) + params->m_BufferSize);
+    }
+    else
+    {
+        dmGameSystem::ReleaseResources(params->m_Factory, texture_set);
+        texture_set->~TextureSetResource();
+        g_ReusedTextureSetStorageInUse = false;
+    }
+    return result;
 }
+
+static dmResource::Result DestroyTextureSetInReusedStorage(const dmResource::ResourceDestroyParams* params)
+{
+    dmGameSystem::TextureSetResource* texture_set = (dmGameSystem::TextureSetResource*)dmResource::GetResource(params->m_Resource);
+    assert(texture_set == g_ReusedTextureSetStorage);
+    assert(g_ReusedTextureSetStorageInUse);
+
+    // This frees the DDF allocation containing TextureSetAnimation. The fixed
+    // wrapper block itself remains available for the next placement-new.
+    dmGameSystem::ReleaseResources(params->m_Factory, texture_set);
+    texture_set->~TextureSetResource();
+    g_ReusedTextureSetStorageInUse = false;
+    return dmResource::RESULT_OK;
+}
+#endif
 
 #if !defined(DM_TEST_EXTERN_INIT_FUNCTIONS)
     bool GameSystemTest_PlatformInit()
@@ -2793,6 +2856,118 @@ TEST_F(SpriteTest, GetSetImagesByHash)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+// Reproduces #13167 using the same resource lifetime as resource.create_atlas().
+//
+//     first atlas:  wrapper @ S -> animation DDF @ A; render caches pointer A
+//     destroy:      wrapper @ S is reusable; ASan poisons allocation A
+//     second atlas: wrapper @ S -> animation DDF @ B; generation is zero again
+//
+// Before the fix, both atlases produced the same cache key (address S plus the
+// reset generation), so the second render read the poisoned pointer A. The fixed
+// wrapper storage makes this otherwise allocator-dependent sequence deterministic.
+TEST_F(SpriteTest, RuntimeAtlasAddressReuseDoesNotUseFreedAnimationData)
+{
+    const char*    source_atlas_path = "/sprite/tile_valid.t.texturesetc";
+    const char*    old_atlas_path = "/sprite/runtime_atlas_old.texturesetc";
+    const char*    new_atlas_path = "/sprite/runtime_atlas_new.texturesetc";
+    const dmhash_t sprite_id = dmHashString64("sprite");
+    const dmhash_t image_id = dmHashString64("image");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Serialize an existing compiled atlas to obtain a valid payload for both
+    // runtime resources. Their content is deliberately identical; their lifetime
+    // is the only distinction relevant to this regression.
+    dmGameSystem::TextureSetResource* source_atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, source_atlas_path, (void**)&source_atlas));
+
+    dmArray<uint8_t> atlas_buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(source_atlas->m_TextureSet, dmGameSystemDDF::TextureSet::m_DDFDescriptor, atlas_buffer));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Temporarily replace only the texturesetc allocation callbacks. Save them
+    // so the fixture and subsequent tests continue using the normal resource type.
+    ResourceType* texture_set_type = dmResource::FindResourceType(m_Factory, "texturesetc");
+    ASSERT_NE((ResourceType*)0, texture_set_type);
+    FResourceCreate  original_create = texture_set_type->m_CreateFunction;
+    FResourceDestroy original_destroy = texture_set_type->m_DestroyFunction;
+
+    g_ReusedTextureSetStorage = malloc(sizeof(dmGameSystem::TextureSetResource));
+    ASSERT_NE((void*)0, g_ReusedTextureSetStorage);
+    texture_set_type->m_CreateFunction = (::FResourceCreate)CreateTextureSetInReusedStorage;
+    texture_set_type->m_DestroyFunction = (::FResourceDestroy)DestroyTextureSetInReusedStorage;
+
+    // Phase 1: create the first runtime atlas in the fixed wrapper block.
+    dmGameSystem::TextureSetResource* old_atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, old_atlas_path, atlas_buffer.Begin(), atlas_buffer.Size(), (void**)&old_atlas));
+    ASSERT_EQ(g_ReusedTextureSetStorage, old_atlas);
+    ASSERT_TRUE(g_ReusedTextureSetStorageInUse);
+
+    uint32_t* old_animation_index = old_atlas->m_AnimationIds.Get(dmHashString64("anim"));
+    ASSERT_NE((uint32_t*)0, old_animation_index);
+    const dmGameSystemDDF::TextureSetAnimation* old_animation = &old_atlas->m_TextureSet->m_Animations[*old_animation_index];
+
+    // Assigning and rendering the atlas populates AnimationDataCache with raw
+    // pointers to old_animation and its geometry.
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              SetHashProperty(go, sprite_id, image_id, dmHashString64(old_atlas_path)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+
+    // Phase 2: detach and release the first atlas. The final release invokes the
+    // production cleanup above, freeing the DDF while the fixed wrapper survives.
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              SetHashProperty(go, sprite_id, image_id, dmHashString64(source_atlas_path)));
+    dmResource::Release(m_Factory, old_atlas);
+    ASSERT_FALSE(g_ReusedTextureSetStorageInUse);
+
+    // Prove that old_animation really points into freed, ASan-poisoned memory.
+    // This assertion prevents the test from passing because an allocation was
+    // accidentally retained instead of exercising the intended lifetime.
+    ASSERT_TRUE(__asan_address_is_poisoned(old_animation));
+
+    // Phase 3: create another atlas. Placement-new guarantees the same wrapper
+    // address and resets its generation, recreating the colliding cache identity.
+    dmGameSystem::TextureSetResource* new_atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, new_atlas_path, atlas_buffer.Begin(), atlas_buffer.Size(), (void**)&new_atlas));
+    ASSERT_EQ(g_ReusedTextureSetStorage, new_atlas);
+
+    uint32_t* new_animation_index = new_atlas->m_AnimationIds.Get(dmHashString64("anim"));
+    ASSERT_NE((uint32_t*)0, new_animation_index);
+    const dmGameSystemDDF::TextureSetAnimation* new_animation = &new_atlas->m_TextureSet->m_Animations[*new_animation_index];
+
+    // The new DDF must be a different live allocation; otherwise reading the old
+    // address would not be a detectable use-after-free.
+    ASSERT_NE(old_animation, new_animation);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              SetHashProperty(go, sprite_id, image_id, dmHashString64(new_atlas_path)));
+
+    // Phase 4: render with the colliding identity. Cache invalidation must make
+    // this resolve new_animation instead of reading poisoned old_animation.
+    RenderCollection(m_RenderContext, m_Collection);
+
+    // Restore the sprite first so releasing new_atlas actually destroys it, then
+    // restore the global resource callbacks before the fixture is finalized.
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              SetHashProperty(go, sprite_id, image_id, dmHashString64(source_atlas_path)));
+    dmResource::Release(m_Factory, new_atlas);
+    ASSERT_FALSE(g_ReusedTextureSetStorageInUse);
+
+    texture_set_type->m_CreateFunction = original_create;
+    texture_set_type->m_DestroyFunction = original_destroy;
+    free(g_ReusedTextureSetStorage);
+    g_ReusedTextureSetStorage = 0;
+
+    dmResource::Release(m_Factory, source_atlas);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+#endif
 
 TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
 {

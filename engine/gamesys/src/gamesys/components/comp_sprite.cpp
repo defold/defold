@@ -231,6 +231,20 @@ namespace dmGameSystem
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
 
+    static void ClearAnimationDataCache(SpriteWorld* sprite_world)
+    {
+        AnimationDataCache* cache = &sprite_world->m_AnimationDataCache;
+        dmDoubleLinkedList::ListNode* node = dmDoubleLinkedList::ListGetLast(&cache->m_LRU);
+        while (node != 0x0)
+        {
+            AnimationData* data = (AnimationData*)node;
+            cache->m_Cache.Erase(data->m_CacheKey);
+            dmDoubleLinkedList::ListRemove(&cache->m_LRU, node);
+            free(data);
+            node = dmDoubleLinkedList::ListGetLast(&cache->m_LRU);
+        }
+    }
+
     static void ReAllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context)
     {
         if (sprite_world->m_VertexBuffer)
@@ -309,12 +323,7 @@ namespace dmGameSystem
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_IndexBuffer);
         free(sprite_world->m_IndexBufferData);
 
-        dmHashTable32<AnimationData*>::Iterator iter = sprite_world->m_AnimationDataCache.m_Cache.GetIterator();
-        while(iter.Next())
-        {
-            AnimationData* data = iter.GetValue();
-            free(data);
-        }
+        ClearAnimationDataCache(sprite_world);
 
         dmResource::UnregisterResourceReloadedCallback(sprite_context->m_Factory, ResourceReloadedCallback, sprite_world);
         delete sprite_world;
@@ -827,6 +836,9 @@ namespace dmGameSystem
             dmGameSystem::DestroyRenderConstants(constants);
         }
 
+        // Cached animation data contains pointers into texture set resources that
+        // may be released when the component and its overrides are destroyed.
+        ClearAnimationDataCache(sprite_world);
         DeleteOverrides(factory, component);
 
         FreeMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, component->m_DynamicVertexAttributeIndex);
@@ -2449,6 +2461,8 @@ namespace dmGameSystem
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
+        ClearAnimationDataCache(sprite_world);
+        component->m_ReHash = 1;
         if (component->m_IsPlaying)
         {
             PlayAnimation(component, component->m_CurrentAnimation, component->m_AnimTimer, component->m_PlaybackRate);
@@ -2586,6 +2600,9 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIAL)
         {
+            // Updating the material may release texture set overrides. Invalidate
+            // their cached DDF pointers before SetResourceProperty drops a reference.
+            ClearAnimationDataCache(sprite_world);
             dmGameObject::PropertyResult res = AddOverrideMaterial(dmGameObject::GetFactory(params.m_Instance), component, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
@@ -2595,6 +2612,8 @@ namespace dmGameSystem
             dmhash_t sampler_name_hash = 0;
             GetPropertyOptionsKey(params.m_Options, 0, &sampler_name_hash);
 
+            // SetResourceProperty may destroy the old texture set before it returns.
+            ClearAnimationDataCache(sprite_world);
             dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
@@ -2754,6 +2773,11 @@ namespace dmGameSystem
             return;
         }
         SpriteWorld* sprite_world = (SpriteWorld*) params->m_UserData;
+
+        // Texture set recreation frees the DDF data referenced by cache entries.
+        // The reload callback runs before the next component update/render.
+        ClearAnimationDataCache(sprite_world);
+
         dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t component_count = components.Size();
 
